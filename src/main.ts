@@ -484,6 +484,18 @@ export default class AITaggerPlugin extends Plugin {
                             Math.max(this.settings.tagRangeGenerateMax, this.settings.tagRangePredefinedMax),
                             this.settings.language
                         );
+                        
+                        if (analysis?.suggestedTags) {
+                            const enforced = this.enforceCustomTaxonomy(
+                                content,
+                                customPredefinedTags,
+                                analysis.suggestedTags
+                            );
+                            analysis = {
+                                matchedExistingTags: [],
+                                suggestedTags: enforced
+                            };
+                        }
                         break;
                     
                     default:
@@ -553,5 +565,159 @@ export default class AITaggerPlugin extends Plugin {
                 message: error instanceof Error ? error.message : 'Unknown error occurred'
             };
         }
+    }
+
+    private enforceCustomTaxonomy(content: string, candidateThemes: string[], tags: string[]): string[] {
+        const themes = (candidateThemes || [])
+            .map(theme => theme.trim())
+            .filter(Boolean);
+
+        const themeMap = new Map(themes.map(theme => [theme.toLowerCase(), theme]));
+        const normalizedTags = (tags || []).map(tag => tag.trim()).filter(Boolean);
+        const haystack = `${content} ${normalizedTags.join(' ')}`.toLowerCase();
+
+        let theme = '';
+
+        if (normalizedTags.length > 0) {
+            const firstLower = normalizedTags[0].toLowerCase();
+            if (themeMap.has(firstLower)) {
+                theme = themeMap.get(firstLower) as string;
+                normalizedTags.shift();
+            }
+        }
+
+        if (!theme) {
+            const themeIndex = normalizedTags.findIndex(tag => themeMap.has(tag.toLowerCase()));
+            if (themeIndex >= 0) {
+                theme = themeMap.get(normalizedTags[themeIndex].toLowerCase()) as string;
+                normalizedTags.splice(themeIndex, 1);
+            }
+        }
+
+        if (!theme) {
+            theme = this.pickThemeFromKeywords(haystack, themes)
+                || themeMap.get('technology')
+                || themes[0]
+                || 'Technology';
+        }
+
+        const themeLower = theme.toLowerCase();
+        let discipline = '';
+
+        const disciplineWhitelist = new Set([
+            'marketing',
+            'product-management',
+            'pricing',
+            'operations',
+            'sales',
+            'computer-science',
+            'mathematics',
+            'leadership',
+            'communication',
+            'ai',
+            'strategy',
+            'finance',
+            'law',
+            'hr'
+        ]);
+
+        const disciplineIndex = normalizedTags.findIndex(tag => disciplineWhitelist.has(tag.toLowerCase()));
+        if (disciplineIndex >= 0) {
+            discipline = normalizedTags[disciplineIndex];
+            normalizedTags.splice(disciplineIndex, 1);
+        }
+
+        if (!discipline || themeMap.has(discipline.toLowerCase())) {
+            discipline = this.pickDisciplineFromKeywords(haystack) || 'business';
+        }
+
+        if (discipline.toLowerCase() === themeLower) {
+            const fallback = haystack.includes('market') || haystack.includes('pricing') || haystack.includes('channel')
+                ? 'marketing'
+                : 'business';
+            discipline = fallback;
+        }
+
+        const ordered = [theme, discipline, ...normalizedTags];
+        const seen = new Set<string>();
+        const result: string[] = [];
+        for (const tag of ordered) {
+            const key = tag.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(tag);
+            }
+        }
+        return result;
+    }
+
+    private pickThemeFromKeywords(haystack: string, themes: string[]): string {
+        const themeLookup = new Map(themes.map(theme => [theme.toLowerCase(), theme]));
+        const abstractMathKeywords = [
+            'boolean',
+            'algebra',
+            'logic',
+            'mathematics',
+            'math',
+            'set theory'
+        ];
+        if (abstractMathKeywords.some(keyword => haystack.includes(keyword))) {
+            const mapped = themeLookup.get('technology');
+            if (mapped) {
+                return mapped;
+            }
+        }
+        const themeKeywords: Array<{ theme: string; keywords: string[] }> = [
+            { theme: 'Wartsila', keywords: ['wartsila'] },
+            { theme: 'Thrive', keywords: ['thrive'] },
+            { theme: 'Strategy', keywords: ['strategy', 'go-to-market', 'gtm', 'pricing', 'positioning', 'market', 'channel', 'competitive', 'industry'] },
+            { theme: 'Technology', keywords: ['technology', 'tech', 'digital', 'data', 'system'] },
+            { theme: 'Innovation', keywords: ['innovation', 'innovate', 'r&d', 'research', 'development'] },
+            { theme: 'AI', keywords: ['ai', 'artificial intelligence', 'machine learning', 'ml', 'llm'] },
+            { theme: 'Programming', keywords: ['programming', 'software', 'code', 'developer', 'engineering'] },
+            { theme: 'DevOps', keywords: ['devops', 'ci/cd', 'pipeline', 'infrastructure', 'deployment'] },
+            { theme: 'AISystems', keywords: ['ai systems', 'ai-systems', 'mlops', 'model ops'] },
+            { theme: 'Operations', keywords: ['process', 'supply', 'logistics', 'workflow', 'execution'] },
+            { theme: 'Creativity', keywords: ['creativity', 'creative', 'design', 'ideation'] },
+            { theme: 'Coaching', keywords: ['coaching', 'mentor', 'mentoring'] },
+            { theme: 'Leadership', keywords: ['leadership', 'leader', 'management', 'executive'] },
+            { theme: 'Communication', keywords: ['communication', 'messaging', 'storytelling', 'presentation'] },
+            { theme: 'Influence', keywords: ['influence', 'persuasion', 'negotiation'] }
+        ];
+
+        for (const entry of themeKeywords) {
+            if (!themeLookup.has(entry.theme.toLowerCase())) {
+                continue;
+            }
+            if (entry.keywords.some(keyword => haystack.includes(keyword))) {
+                return themeLookup.get(entry.theme.toLowerCase()) as string;
+            }
+        }
+
+        return '';
+    }
+
+    private pickDisciplineFromKeywords(haystack: string): string {
+        const disciplineKeywords: Array<{ discipline: string; keywords: string[] }> = [
+            { discipline: 'mathematics', keywords: ['mathematics', 'math', 'algebra', 'calculus', 'set theory', 'boolean'] },
+            { discipline: 'strategy', keywords: ['strategy', 'competitive', 'industry', 'five forces'] },
+            { discipline: 'marketing', keywords: ['marketing', 'go-to-market', 'gtm', 'channel', 'brand', 'positioning', 'market'] },
+            { discipline: 'product-management', keywords: ['roadmap', 'product-management', 'backlog', 'product strategy'] },
+            { discipline: 'pricing', keywords: ['pricing', 'willingness-to-pay'] },
+            { discipline: 'operations', keywords: ['supply', 'logistics', 'process', 'workflow'] },
+            { discipline: 'sales', keywords: ['sales', 'pipeline', 'account', 'revenue'] },
+            { discipline: 'computer-science', keywords: ['computer science', 'software', 'programming', 'algorithm', 'data structure'] },
+            { discipline: 'leadership', keywords: ['leadership', 'management'] },
+            { discipline: 'communication', keywords: ['communication', 'presentation', 'writing'] },
+            { discipline: 'ai', keywords: ['ai', 'machine learning', 'ml', 'llm'] }
+        ];
+
+        for (const entry of disciplineKeywords) {
+            if (entry.keywords.some(keyword => haystack.includes(keyword))) {
+                return entry.discipline;
+            }
+        }
+
+        return '';
     }
 }

@@ -60,8 +60,8 @@ First understand the content, then if needed translate concepts to ${languageNam
         }
     }
 
-    // Add nested tags instructions if enabled
-    if (pluginSettings?.enableNestedTags) {
+    // Add nested tags instructions if enabled (skip in Custom mode)
+    if (pluginSettings?.enableNestedTags && mode !== TaggingMode.Custom) {
         const nestedInstructions = `
 <nested_tags_requirements>
 Generate tags in hierarchical/nested format using forward slashes (/) when appropriate.
@@ -199,40 +199,51 @@ Do NOT include explanations or additional text, just the comma-separated tag lis
             break;
 
         case TaggingMode.Custom:
-            if (!pluginSettings?.customPrompt) {
-                throw new Error('Custom tagging mode requires a custom prompt to be configured in settings.');
-            }
+            // NUCLEAR MODIFICATION: Force 3-Tier Corporate Taxonomy
+            // This replaces the standard Custom logic to remove "conciseness" constraints.
 
-            prompt += `${langInstructions}<task>
-Analyze the document content and generate up to ${maxTags} relevant tags based on the custom instructions provided below.
+            // 1. Define the mandatory theme list (Fallback to hardcoded if file is empty)
+            const themeList = candidateTags && candidateTags.length > 0
+                ? candidateTags.join(', ')
+                : 'Technology, Strategy, Operations, Leadership, Wartsila, Thrive, AI, Innovation, Creativity, Communication, Influence, Coaching, Programming, DevOps, AISystems';
+
+            prompt += `${langInstructions}
+<task>
+You are a specialized Corporate Taxonomist.
+Your ONLY goal is to classify this content into a strict 3-Level Hierarchy.
 </task>
 
-<existing_tags_reference>
-${candidateTags && candidateTags.length > 0 ? candidateTags.join(', ') : 'No existing tags available'}
-</existing_tags_reference>
+<rules>
+*** LEVEL 1: THEME (Mandatory) ***
+- You MUST begin with exactly ONE tag from the 'Available Themes' list below.
+- RULE: If the note is abstract (e.g., math, logic), you MUST map it to the industry it serves (e.g., Set Theory -> 'Technology').
+
+*** LEVEL 2: DISCIPLINE (General Subject) ***
+- You MUST generate exactly ONE tag for the broader academic or professional field.
+- Examples: 'mathematics', 'computer-science', 'project-management', 'contract-law'.
+- This tag must be distinct from the Theme.
+
+*** LEVEL 3: SPECIFIC TOPICS ***
+- Generate 2-4 specific tags for the actual content.
+- Use kebab-case (e.g., 'set-theory', 'logic-gates').
+</rules>
+
+<available_themes>
+${themeList}
+</available_themes>
 
 <document_content>
 ${content}
 </document_content>
 
-<custom_instructions>
-${pluginSettings.customPrompt}
-</custom_instructions>
-
-<tag_requirements>
-- Use kebab-case formatting (lowercase with hyphens)
-- Keep tags concise (1-3 words maximum)
-- Follow the custom instructions above
-- Do NOT include the # symbol
-- Do NOT prefix tags with "tag:" or any other prefix
-</tag_requirements>
-
 <output_format>
-Return the tags as a comma-separated list.
+Return ONLY a single comma-separated list.
+DO NOT use labels like "Theme:". Just the values.
 
-Example: custom-tag-1, custom-tag-2, specific-concept
+Target Structure: [Theme], [Discipline], [Topic1], [Topic2], [Topic3]
 
-Do NOT include explanations or additional text, just the comma-separated tag list.
+Example Output:
+Technology, mathematics, set-theory, boolean-logic
 </output_format>`;
 
             break;

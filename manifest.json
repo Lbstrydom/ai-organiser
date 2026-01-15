@@ -1,6 +1,6 @@
 {
-  "id": "ai-tagger-universe",
-  "name": "AI Tagger Universe",
+  "id": "ai-tagger-custom",
+  "name": "AI Tagger (Custom Build)",
   "version": "1.0.15",
   "minAppVersion": "1.4.0",
   "description": "Automatically analyze note content and add relevant tags using AI (with Chinese interface support)",
