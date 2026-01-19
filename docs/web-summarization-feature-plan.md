@@ -585,6 +585,235 @@ export class WebContentService {
 
 ---
 
+## Preserving Hyperlinks
+
+### Problem
+Readability's `textContent` property returns plain text, stripping all hyperlinks. We need to preserve links for reference.
+
+### Solution
+Use Readability's `content` property (HTML) and convert to Markdown, preserving links.
+
+**Key insight from [Mozilla Readability docs](https://github.com/mozilla/readability):**
+- `article.textContent` = plain text (loses links)
+- `article.content` = HTML with links preserved
+
+### HTML to Markdown Conversion
+
+```typescript
+// src/utils/htmlToMarkdown.ts
+
+/**
+ * Convert HTML to Markdown, preserving hyperlinks
+ * Uses a lightweight approach without external dependencies
+ */
+export function htmlToMarkdown(html: string): string {
+  // Create a temporary DOM element
+  const template = document.createElement('template');
+  template.innerHTML = html.trim();
+  const doc = template.content;
+
+  // Process the DOM tree
+  return processNode(doc).trim();
+}
+
+function processNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || '';
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return '';
+  }
+
+  const element = node as Element;
+  const tagName = element.tagName.toLowerCase();
+  const children = Array.from(element.childNodes)
+    .map(child => processNode(child))
+    .join('');
+
+  switch (tagName) {
+    // Links - preserve href
+    case 'a':
+      const href = element.getAttribute('href');
+      if (href && children.trim()) {
+        return `[${children.trim()}](${href})`;
+      }
+      return children;
+
+    // Headers
+    case 'h1': return `\n# ${children}\n`;
+    case 'h2': return `\n## ${children}\n`;
+    case 'h3': return `\n### ${children}\n`;
+    case 'h4': return `\n#### ${children}\n`;
+    case 'h5': return `\n##### ${children}\n`;
+    case 'h6': return `\n###### ${children}\n`;
+
+    // Paragraphs and line breaks
+    case 'p': return `\n${children}\n`;
+    case 'br': return '\n';
+
+    // Lists
+    case 'ul':
+    case 'ol':
+      return `\n${children}\n`;
+    case 'li':
+      const parent = element.parentElement;
+      const isOrdered = parent?.tagName.toLowerCase() === 'ol';
+      const prefix = isOrdered ? '1. ' : '- ';
+      return `${prefix}${children.trim()}\n`;
+
+    // Formatting
+    case 'strong':
+    case 'b':
+      return `**${children}**`;
+    case 'em':
+    case 'i':
+      return `*${children}*`;
+    case 'code':
+      return `\`${children}\``;
+    case 'pre':
+      return `\n\`\`\`\n${children}\n\`\`\`\n`;
+
+    // Block quotes
+    case 'blockquote':
+      return `\n> ${children.replace(/\n/g, '\n> ')}\n`;
+
+    // Images - preserve as markdown
+    case 'img':
+      const src = element.getAttribute('src');
+      const alt = element.getAttribute('alt') || '';
+      return src ? `![${alt}](${src})` : '';
+
+    // Divs, spans, etc. - just return children
+    default:
+      return children;
+  }
+}
+
+/**
+ * Clean up markdown output
+ */
+export function cleanMarkdown(md: string): string {
+  return md
+    // Remove excessive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    // Trim whitespace from lines
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    .trim();
+}
+```
+
+### Updated WebContent Interface
+
+```typescript
+export interface WebContent {
+  title: string;
+  content: string;       // Markdown with links preserved
+  textContent: string;   // Plain text fallback
+  excerpt: string;
+  byline: string | null;
+  siteName: string | null;
+  url: string;
+  links: ExtractedLink[];  // All links found in article
+  fetchedAt: Date;
+}
+
+export interface ExtractedLink {
+  text: string;
+  href: string;
+}
+```
+
+### Updated fetchArticle Method
+
+```typescript
+// In webContentService.ts
+
+import { htmlToMarkdown, cleanMarkdown } from '../utils/htmlToMarkdown';
+
+// In fetchArticle() after Readability parsing:
+if (!article || !article.content) {
+  return { success: false, error: 'Could not extract article content', requiresPdfFallback: true };
+}
+
+// Convert HTML content to Markdown (preserves links)
+const markdownContent = cleanMarkdown(htmlToMarkdown(article.content));
+
+// Extract all links for reference
+const links = extractLinks(article.content);
+
+return {
+  success: true,
+  content: {
+    title: article.title || 'Untitled',
+    content: markdownContent,           // Markdown with links
+    textContent: article.textContent,   // Plain text fallback
+    excerpt: article.excerpt || '',
+    byline: article.byline,
+    siteName: article.siteName,
+    url: validUrl,
+    links: links,
+    fetchedAt: new Date()
+  }
+};
+
+function extractLinks(html: string): ExtractedLink[] {
+  const links: ExtractedLink[] = [];
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  template.content.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    const text = a.textContent?.trim();
+    if (href && text) {
+      links.push({ text, href });
+    }
+  });
+
+  return links;
+}
+```
+
+### Summary Output with Links Section
+
+When inserting the summary, optionally append a "References" section:
+
+```typescript
+function insertSummary(editor: Editor, summary: string, webContent: WebContent, plugin: AITaggerPlugin): void {
+  let output = '';
+
+  if (plugin.settings.includeSummaryMetadata) {
+    output += `## ${webContent.title}\n\n`;
+    output += `> Source: ${webContent.url}\n`;
+    if (webContent.byline) output += `> Author: ${webContent.byline}\n`;
+    output += `> Fetched: ${webContent.fetchedAt.toISOString().split('T')[0]}\n\n`;
+  }
+
+  output += summary;
+
+  // Optionally include extracted links as references
+  if (plugin.settings.includeExtractedLinks && webContent.links.length > 0) {
+    output += '\n\n### References\n\n';
+    webContent.links.slice(0, 20).forEach(link => {  // Limit to 20 links
+      output += `- [${link.text}](${link.href})\n`;
+    });
+  }
+
+  editor.replaceRange(output, editor.getCursor());
+}
+```
+
+### Settings Addition
+
+Add to settings:
+```typescript
+includeExtractedLinks: boolean;  // Include extracted links in summary output
+```
+
+---
+
 ## Dependencies to Add
 
 ### NPM Packages
@@ -618,6 +847,7 @@ export class WebContentService {
 | `src/i18n/en.ts` | Modify | Add English translations |
 | `src/i18n/zh-cn.ts` | Modify | Add Chinese translations |
 | `src/utils/urlValidator.ts` | Create | URL validation with SSRF protection |
+| `src/utils/htmlToMarkdown.ts` | Create | HTML to Markdown converter preserving links |
 | `src/services/tokenLimits.ts` | Create | Provider token limit definitions |
 | `src/services/chunkSummarizer.ts` | Create | Map-reduce chunked summarization |
 | `src/services/privacyNotice.ts` | Create | Session-based privacy warning state |
@@ -651,6 +881,7 @@ enableWebSummarization: boolean;
 summaryLength: 'brief' | 'detailed' | 'comprehensive';
 summaryLanguage: string;
 includeSummaryMetadata: boolean;
+includeExtractedLinks: boolean;  // Include extracted hyperlinks as References section
 ```
 
 Default values:
@@ -660,6 +891,7 @@ enableWebSummarization: true,
 summaryLength: 'detailed',
 summaryLanguage: '',
 includeSummaryMetadata: true,
+includeExtractedLinks: true,
 ```
 
 ---
