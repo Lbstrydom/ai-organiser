@@ -43,7 +43,7 @@ export function registerGenerateCommands(plugin: AITaggerPlugin) {
                     plugin.settings.language
                 );
 
-                const suggestedTags = analysis.suggestedTags;
+                const suggestedTags = analysis.suggestedTags || [];
                 const matchedTags = analysis.matchedExistingTags || [];
 
                 const result = await TagUtils.updateNoteTags(plugin.app, view.file, suggestedTags, matchedTags, true, true);

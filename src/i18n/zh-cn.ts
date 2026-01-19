@@ -78,8 +78,18 @@ export const zhCN: Translations = {
         interface: {
             title: "界面",
             language: "语言",
-            languageDesc: "选择您的首选界面语言"
-        }
+            languageDesc: "选择您的首选界面语言"        },
+        summarization: {
+            title: "网页总结",
+            length: "总结长度",
+            lengthDesc: "总结的默认长度",
+            brief: "简短",
+            detailed: "详细",
+            comprehensive: "综合",
+            includeMetadata: "包含元数据",
+            includeMetadataDesc: "将源 URL、标题和日期添加到总结中",
+            language: "总结语言",
+            languageDesc: "总结的语言（留空以自动检测）"        }
     },
 
     // 命令
@@ -96,7 +106,9 @@ export const zhCN: Translations = {
         collectAllTags: "收集所有标签",
         showTagNetwork: "显示标签网络",
         aiTagSelectedNotes: "AI 标记选中的笔记",
-        aiTagThisNote: "AI 标记这篇笔记"
+        aiTagThisNote: "AI 标记这篇笔记",
+        summarizeFromUrl: "从 URL 总结",
+        summarizeFromPdf: "从 PDF 总结"
     },
 
     // 消息和通知
@@ -158,7 +170,20 @@ export const zhCN: Translations = {
         noMatchingFiles: "没有匹配的文件",
         errorLoadingFiles: "加载文件时出错",
         noActiveFile: "没有活动文件",
-        noPredefinedTagsFound: "没有找到预定义标签"
+        noPredefinedTagsFound: "未找到预定义标签",
+        fetchingUrl: "正在获取 URL 内容...",
+        fetchFailed: "获取 URL 内容失败",
+        openingBrowser: "在浏览器中打开 URL...",
+        pdfInstructions: "请将 PDF 保存到附件文件夹并使用「从 PDF 总结」命令",
+        pdfNotSupported: "您的 LLM 提供商不支持 PDF 总结",
+        noPdfsFound: "附件文件夹中未找到 PDF",
+        readingPdf: "正在读取 PDF 内容...",
+        summaryInserted: "总结已插入笔记",
+        summarizingChunk: "正在总结第 {current}/{total} 部分...",
+        combiningChunks: "正在合并总结...",
+        urlValidationError: "无效的 URL 格式",
+        contentTruncated: "内容已截断以适应令牌限制",
+        savingPdfFromUrl: "正在从 URL 保存 PDF 到附件..."
     },
 
     // 模态对话框
@@ -184,7 +209,40 @@ export const zhCN: Translations = {
         errorLoadingPaths: "加载路径时出错",
         noExclusionsDefined: "尚未定义排除规则",
         filterLabel: "筛选",
-        pathPlaceholder: "输入路径或 \"/regex/\""
+        pathPlaceholder: "输入路径或 \"/regex/\"",
+        urlInput: {
+            title: "从 URL 总结",
+            urlLabel: "URL",
+            urlDesc: "输入要总结的文章的 URL",
+            urlPlaceholder: "https://example.com/article",
+            submitButton: "总结"
+        },
+        pdfSelect: {
+            title: "选择 PDF",
+            description: "从附件文件夹中选择一个 PDF 以进行总结",
+            selectButton: "选择",
+            modifiedLabel: "修改时间"
+        },
+        contentSize: {
+            title: "内容大小",
+            description: "内容是 {length} 个字符（占限制 {max} 的 {percentage}%）。选择处理方式：",
+            truncateOption: "截断内容",
+            truncateDesc: "仅使用内容的第一部分（可能会丢失重要上下文）",
+            truncateButton: "截断",
+            chunkOption: "分块处理",
+            chunkDesc: "分成几个部分并分别总结每一部分，然后合并（较慢但完整）",
+            chunkButton: "分块",
+            cancelButton: "取消"
+        },
+        privacy: {
+            title: "隐私通知",
+            description: "您即将向 {provider} 发送内容进行总结。",
+            bullet1: "您的内容将被发送到 {provider} 的服务器",
+            bullet2: "在继续之前，请查看 {provider} 的隐私政策",
+            bullet3: "此通知在每个会话中仅出现一次",
+            proceedButton: "继续",
+            cancelButton: "取消"
+        }
     },
 
     // 文件菜单项
