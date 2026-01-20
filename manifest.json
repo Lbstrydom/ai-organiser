@@ -1,12 +1,11 @@
 {
-  "id": "ai-tagger-custom",
-  "name": "AI Tagger (Custom Build)",
-  "version": "1.0.15",
+  "id": "ai-organiser",
+  "name": "AI Organiser",
+  "version": "1.0.0",
   "minAppVersion": "1.4.0",
-  "description": "Automatically analyze note content and add relevant tags using AI (with Chinese interface support)",
-  "author": "Nie Hu",
-  "authorUrl": "https://github.com/niehu2018",
+  "description": "Automatically analyze note content, add relevant tags, and summarize web articles using AI",
+  "author": "L Strydom",
+  "authorUrl": "https://github.com/Lbstrydom",
   "isDesktopOnly": false,
-  "fundingUrl": "https://buymeacoffee.com/niehu2015o",
-  "repo": "niehu2018/obsidian-ai-tagger-universe"
+  "repo": "Lbstrydom/second-brain-organiser"
 }

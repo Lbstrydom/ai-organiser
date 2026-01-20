@@ -1,5 +1,5 @@
 import { Setting, ButtonComponent, Notice } from 'obsidian';
-import type AITaggerPlugin from '../../main';
+import type AIOrganiserPlugin from '../../main';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 
@@ -79,69 +79,109 @@ export class LLMSettingsSection extends BaseSettingSection {
                         })
                         .setValue(this.plugin.settings.cloudServiceType)
                         .onChange(async (value) => {
-                            const type = value as 'openai' | 'gemini' | 'deepseek' | 'aliyun' | 'claude' | 'groq' | 'vertex' | 'openrouter' | 'bedrock' | 'requesty' | 'cohere' | 'grok' | 'mistral' | 'openai-compatible';
-                            this.plugin.settings.cloudServiceType = type;
+                            const oldType = this.plugin.settings.cloudServiceType;
+                            const newType = value as 'openai' | 'gemini' | 'deepseek' | 'aliyun' | 'claude' | 'groq' | 'vertex' | 'openrouter' | 'bedrock' | 'requesty' | 'cohere' | 'grok' | 'mistral' | 'openai-compatible';
+
+                            // Initialize providerSettings if needed
+                            if (!this.plugin.settings.providerSettings) {
+                                this.plugin.settings.providerSettings = {};
+                            }
+
+                            // Save current API key and model to provider-specific storage before switching
+                            if (!this.plugin.settings.providerSettings[oldType]) {
+                                this.plugin.settings.providerSettings[oldType] = {};
+                            }
+                            if (this.plugin.settings.cloudApiKey) {
+                                this.plugin.settings.providerSettings[oldType]!.apiKey = this.plugin.settings.cloudApiKey;
+                            }
+                            if (this.plugin.settings.cloudModel) {
+                                this.plugin.settings.providerSettings[oldType]!.model = this.plugin.settings.cloudModel;
+                            }
+
+                            this.plugin.settings.cloudServiceType = newType;
+
+                            // Restore API key and model for the new provider (if previously saved)
+                            const savedSettings = this.plugin.settings.providerSettings[newType];
+                            if (savedSettings?.apiKey) {
+                                this.plugin.settings.cloudApiKey = savedSettings.apiKey;
+                            } else {
+                                this.plugin.settings.cloudApiKey = '';
+                            }
 
                             try {
                                 const endpoints = await import('../../services/adapters/cloudEndpoints.json');
-                                switch (type) {
+
+                                // Default models for each provider (used only if no saved model)
+                                const defaultModels: Record<string, string> = {
+                                    'openai': 'gpt-5.2',
+                                    'gemini': 'gemini-3-flash',
+                                    'deepseek': 'deepseek-chat',
+                                    'aliyun': 'qwen-max',
+                                    'claude': 'claude-sonnet-4-5-20250929',
+                                    'groq': 'llama-3.3-70b-versatile',
+                                    'vertex': 'gemini-3-flash',
+                                    'openrouter': 'openai/gpt-5.2',
+                                    'bedrock': 'us.anthropic.claude-sonnet-4-5-v1:0',
+                                    'requesty': 'gpt-5.2',
+                                    'cohere': 'command-r-plus',
+                                    'grok': 'grok-3',
+                                    'mistral': 'mistral-large-latest',
+                                    'openai-compatible': 'your-model'
+                                };
+
+                                // Set endpoint based on provider
+                                switch (newType) {
                                     case 'openai':
                                         this.plugin.settings.cloudEndpoint = endpoints.openai;
-                                        this.plugin.settings.cloudModel = 'gpt-4o';
                                         break;
                                     case 'gemini':
                                         this.plugin.settings.cloudEndpoint = endpoints.gemini;
-                                        this.plugin.settings.cloudModel = 'gemini-2.0-flash';
                                         break;
                                     case 'deepseek':
                                         this.plugin.settings.cloudEndpoint = endpoints.deepseek;
-                                        this.plugin.settings.cloudModel = 'deepseek-chat';
                                         break;
                                     case 'aliyun':
                                         this.plugin.settings.cloudEndpoint = endpoints.aliyun;
-                                        this.plugin.settings.cloudModel = 'qwen-max';
                                         break;
                                     case 'claude':
                                         this.plugin.settings.cloudEndpoint = endpoints.claude;
-                                        this.plugin.settings.cloudModel = 'claude-sonnet-4-5-20250929';
                                         break;
                                     case 'groq':
                                         this.plugin.settings.cloudEndpoint = endpoints.groq;
-                                        this.plugin.settings.cloudModel = 'llama-3.3-70b-versatile';
                                         break;
                                     case 'vertex':
                                         this.plugin.settings.cloudEndpoint = endpoints.vertex;
-                                        this.plugin.settings.cloudModel = 'gemini-2.0-flash';
                                         break;
                                     case 'openrouter':
                                         this.plugin.settings.cloudEndpoint = endpoints.openrouter;
-                                        this.plugin.settings.cloudModel = 'openai/gpt-4o';
                                         break;
                                     case 'bedrock':
                                         this.plugin.settings.cloudEndpoint = endpoints.bedrock;
-                                        this.plugin.settings.cloudModel = 'us.anthropic.claude-sonnet-4-0-v2:0';
                                         break;
                                     case 'requesty':
                                         this.plugin.settings.cloudEndpoint = endpoints.requesty;
-                                        this.plugin.settings.cloudModel = 'gpt-4o';
                                         break;
                                     case 'cohere':
                                         this.plugin.settings.cloudEndpoint = endpoints.cohere;
-                                        this.plugin.settings.cloudModel = 'command-r-plus';
                                         break;
                                     case 'grok':
                                         this.plugin.settings.cloudEndpoint = endpoints.grok;
-                                        this.plugin.settings.cloudModel = 'grok-2-vision-1212';
                                         break;
                                     case 'mistral':
                                         this.plugin.settings.cloudEndpoint = endpoints.mistral;
-                                        this.plugin.settings.cloudModel = 'mistral-large-latest';
                                         break;
                                     case 'openai-compatible':
                                         this.plugin.settings.cloudEndpoint = 'http://your-api-endpoint/v1/chat/completions';
-                                        this.plugin.settings.cloudModel = 'your-model';
                                         break;
                                 }
+
+                                // Restore saved model or use default
+                                if (savedSettings?.model) {
+                                    this.plugin.settings.cloudModel = savedSettings.model;
+                                } else {
+                                    this.plugin.settings.cloudModel = defaultModels[newType] || 'gpt-4.1';
+                                }
+
                                 await this.plugin.saveSettings();
                                 this.settingTab.display();
                             } catch (error) {
@@ -180,7 +220,7 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         // Add a tips section about common local LLM tools
         const tipsEl = this.containerEl.createEl('div', {
-            cls: 'ai-tagger-tips-block'
+            cls: 'ai-organiser-tips-block'
         });
 
         tipsEl.createEl('h3', { text: this.plugin.t.settings.llm.tipsPopularTools });
@@ -250,6 +290,72 @@ export class LLMSettingsSection extends BaseSettingSection {
         }
     }
 
+    // Predefined model lists for providers with known models
+    // Use actual API model IDs - these must match what the provider accepts
+    private readonly CLAUDE_MODELS: Record<string, string> = {
+        // Claude 4.5 (Latest)
+        'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (Recommended)',
+        'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (Fastest)',
+        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Most Capable)',
+        // Claude 4 (Legacy)
+        'claude-opus-4-1-20250805': 'Claude Opus 4.1',
+        'claude-sonnet-4-20250514': 'Claude Sonnet 4',
+        'claude-opus-4-20250514': 'Claude Opus 4',
+        // Claude 3.7
+        'claude-3-7-sonnet-20250219': 'Claude 3.7 Sonnet',
+        // Claude 3 (Legacy)
+        'claude-3-haiku-20240307': 'Claude 3 Haiku (Cheapest)'
+    };
+
+    private readonly OPENAI_MODELS: Record<string, string> = {
+        // GPT-5.2 (Latest)
+        'gpt-5.2': 'GPT-5.2 (Best Reasoning)',
+        'gpt-5.2-pro': 'GPT-5.2 Pro (Hardest Problems)',
+        'gpt-5.2-codex': 'GPT-5.2 Codex (Coding)',
+        'gpt-5-mini': 'GPT-5 Mini (Balanced)',
+        'gpt-5-nano': 'GPT-5 Nano (Cheapest)',
+        // GPT-4.1 (Previous)
+        'gpt-4.1': 'GPT-4.1',
+        'gpt-4.1-mini': 'GPT-4.1 Mini',
+        'gpt-4.1-nano': 'GPT-4.1 Nano',
+        // Legacy
+        'gpt-4o': 'GPT-4o (Legacy)',
+        'gpt-4o-mini': 'GPT-4o Mini (Legacy)'
+    };
+
+    private readonly GEMINI_MODELS: Record<string, string> = {
+        // Gemini 3 (Latest)
+        'gemini-3-pro-preview': 'Gemini 3 Pro (Most Capable)',
+        'gemini-3-flash-preview': 'Gemini 3 Flash (Fast)',
+        // Gemini 2.5
+        'gemini-2.5-pro': 'Gemini 2.5 Pro',
+        'gemini-2.5-flash': 'Gemini 2.5 Flash (Recommended)',
+        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (Cheapest)',
+        // Gemini 2.0
+        'gemini-2.0-flash': 'Gemini 2.0 Flash',
+        'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite'
+    };
+
+    private readonly OPENROUTER_MODELS: Record<string, string> = {
+        // Claude (Anthropic)
+        'anthropic/claude-sonnet-4.5': 'Claude Sonnet 4.5 (Anthropic)',
+        'anthropic/claude-haiku-4.5': 'Claude Haiku 4.5 (Fast)',
+        'anthropic/claude-opus-4.5': 'Claude Opus 4.5 (Best)',
+        // OpenAI
+        'openai/gpt-5.2': 'GPT-5.2 (OpenAI)',
+        'openai/gpt-5-mini': 'GPT-5 Mini (OpenAI)',
+        'openai/gpt-5-nano': 'GPT-5 Nano (Cheapest)',
+        // Google
+        'google/gemini-3-pro': 'Gemini 3 Pro (Google)',
+        'google/gemini-3-flash': 'Gemini 3 Flash (Google)',
+        'google/gemini-2.5-flash': 'Gemini 2.5 Flash (Google)',
+        // Others
+        'deepseek/deepseek-chat': 'DeepSeek Chat (Best Value)',
+        'deepseek/deepseek-r1': 'DeepSeek R1 (Reasoning)',
+        'meta-llama/llama-3.3-70b-instruct': 'Llama 3.3 70B (Meta)',
+        'qwen/qwen-2.5-72b-instruct': 'Qwen 2.5 72B (Alibaba)'
+    };
+
     private displayCloudSettings(): void {
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.apiEndpoint)
@@ -295,31 +401,64 @@ export class LLMSettingsSection extends BaseSettingSection {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.llm.modelName)
-            .setDesc(this.plugin.t.settings.llm.modelNameDesc)
-            .addText(text => text
-                .setPlaceholder(
-                    this.plugin.settings.cloudServiceType === 'openai' ? 'gpt-4o' :
-                    this.plugin.settings.cloudServiceType === 'gemini' ? 'gemini-2.0-flash' :
-                    this.plugin.settings.cloudServiceType === 'deepseek' ? 'deepseek-chat' :
-                    this.plugin.settings.cloudServiceType === 'aliyun' ? 'qwen-max' :
-                    this.plugin.settings.cloudServiceType === 'claude' ? 'claude-sonnet-4-5-20250929' :
-                    this.plugin.settings.cloudServiceType === 'groq' ? 'llama-3.3-70b-versatile' :
-                    this.plugin.settings.cloudServiceType === 'openrouter' ? 'openai/gpt-4o' :
-                    this.plugin.settings.cloudServiceType === 'bedrock' ? 'us.anthropic.claude-sonnet-4-0-v2:0' :
-                    this.plugin.settings.cloudServiceType === 'requesty' ? 'gpt-4o' :
-                    this.plugin.settings.cloudServiceType === 'cohere' ? 'command-r-plus' :
-                    this.plugin.settings.cloudServiceType === 'grok' ? 'grok-2-vision-1212' :
-                    this.plugin.settings.cloudServiceType === 'mistral' ? 'mistral-large-latest' :
-                    this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'your-model' :
-                    'gemini-pro'
-                )
-                .setValue(this.plugin.settings.cloudModel)
-                .onChange(async (value) => {
-                    this.plugin.settings.cloudModel = value;
-                    await this.plugin.saveSettings();
-                }));
+        // For providers with known models, show a dropdown
+        const serviceType = this.plugin.settings.cloudServiceType;
+        const modelLists: Record<string, { models: Record<string, string>; defaultModel: string }> = {
+            'claude': { models: this.CLAUDE_MODELS, defaultModel: 'claude-sonnet-4-5-20250929' },
+            'openai': { models: this.OPENAI_MODELS, defaultModel: 'gpt-5.2' },
+            'gemini': { models: this.GEMINI_MODELS, defaultModel: 'gemini-2.5-flash' },
+            'openrouter': { models: this.OPENROUTER_MODELS, defaultModel: 'anthropic/claude-sonnet-4.5' }
+        };
+
+        if (modelLists[serviceType]) {
+            const { models, defaultModel } = modelLists[serviceType];
+            new Setting(this.containerEl)
+                .setName(this.plugin.t.settings.llm.modelName)
+                .setDesc(this.plugin.t.settings.llm.modelNameDesc)
+                .addDropdown(dropdown => {
+                    // Add all models to dropdown
+                    for (const [modelId, displayName] of Object.entries(models)) {
+                        dropdown.addOption(modelId, displayName);
+                    }
+
+                    // Set current value (default if not in list)
+                    const currentModel = this.plugin.settings.cloudModel;
+                    if (models[currentModel]) {
+                        dropdown.setValue(currentModel);
+                    } else {
+                        dropdown.setValue(defaultModel);
+                    }
+
+                    dropdown.onChange(async (value) => {
+                        this.plugin.settings.cloudModel = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+        } else {
+            // For other providers, use text input with placeholder hints
+            const placeholders: Record<string, string> = {
+                'deepseek': 'deepseek-chat',
+                'aliyun': 'qwen-max',
+                'groq': 'llama-3.3-70b-versatile',
+                'bedrock': 'us.anthropic.claude-sonnet-4-5-v1:0',
+                'requesty': 'gpt-4.1',
+                'cohere': 'command-r-plus',
+                'grok': 'grok-3',
+                'mistral': 'mistral-large-latest',
+                'openai-compatible': 'your-model'
+            };
+
+            new Setting(this.containerEl)
+                .setName(this.plugin.t.settings.llm.modelName)
+                .setDesc(this.plugin.t.settings.llm.modelNameDesc)
+                .addText(text => text
+                    .setPlaceholder(placeholders[serviceType] || 'model-name')
+                    .setValue(this.plugin.settings.cloudModel)
+                    .onChange(async (value) => {
+                        this.plugin.settings.cloudModel = value;
+                        await this.plugin.saveSettings();
+                    }));
+        }
 
         this.createTestButton();
     }

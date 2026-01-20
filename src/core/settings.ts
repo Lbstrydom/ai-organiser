@@ -1,9 +1,49 @@
-import { TaggingMode } from '../services/prompts/types';
 import { LanguageCode } from '../services/types';
 import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
 
-export interface AITaggerSettings {
+// Per-provider settings storage - API keys and models persist when switching providers
+export interface ProviderSettings {
+    apiKey?: string;
+    model?: string;
+}
+
+export interface ProviderSettingsMap {
+    openai?: ProviderSettings;
+    gemini?: ProviderSettings;
+    deepseek?: ProviderSettings;
+    aliyun?: ProviderSettings;
+    claude?: ProviderSettings;
+    groq?: ProviderSettings;
+    vertex?: ProviderSettings;
+    openrouter?: ProviderSettings;
+    bedrock?: ProviderSettings;
+    requesty?: ProviderSettings;
+    cohere?: ProviderSettings;
+    grok?: ProviderSettings;
+    mistral?: ProviderSettings;
+    'openai-compatible'?: ProviderSettings;
+}
+
+// Legacy interface kept for backward compatibility during migration
+export interface ProviderApiKeys {
+    openai?: string;
+    gemini?: string;
+    deepseek?: string;
+    aliyun?: string;
+    claude?: string;
+    groq?: string;
+    vertex?: string;
+    openrouter?: string;
+    bedrock?: string;
+    requesty?: string;
+    cohere?: string;
+    grok?: string;
+    mistral?: string;
+    'openai-compatible'?: string;
+}
+
+export interface AIOrganiserSettings {
     serviceType: 'local' | 'cloud';
     localEndpoint: string;
     localModel: string;
@@ -12,53 +52,45 @@ export interface AITaggerSettings {
     cloudApiKey: string;
     cloudModel: string;
     cloudServiceType: AdapterType;
-    taggingMode: TaggingMode;
-    customPrompt: string;
+    // Per-provider settings storage - keys and models persist when switching providers
+    providerSettings: ProviderSettingsMap;
+    // Legacy field - kept for backward compatibility during migration
+    providerApiKeys?: ProviderApiKeys;
     excludedFolders: string[];
     language: LanguageCode;
     interfaceLanguage: SupportedLanguage;
-    predefinedTagsPath: string;
-    tagSourceType: 'file' | 'vault';
     replaceTags: boolean;
-    tagDir: string;
-    /** @deprecated Kept for backward compatibility only */
-    tagRangeMatchMax: number;
-    tagRangeGenerateMax: number;
-    tagRangePredefinedMax: number;
+    maxTags: number;                     // Maximum number of tags to generate
     debugMode: boolean;
-    // Nested Tags Settings
-    enableNestedTags: boolean;           // Enable nested tag generation
-    nestedTagsMaxDepth: number;          // Max hierarchy depth (1-3)
+    // Web Summarization Settings
+    enableWebSummarization: boolean;
+    summaryLength: 'brief' | 'detailed' | 'comprehensive';
+    summaryLanguage: string;
+    includeSummaryMetadata: boolean;
+    defaultSummaryPersona: string;       // Default persona ID for summarization
+    // Configuration Folder Settings
+    configFolderPath: string;  // Folder containing taxonomy, prompts, etc.
 }
 
-export const DEFAULT_SETTINGS: AITaggerSettings = {
+export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     serviceType: 'cloud',
     localEndpoint: 'http://localhost:11434/v1/chat/completions',
     localModel: 'mistral',
     cloudEndpoint: 'https://api.openai.com/v1/chat/completions',
     cloudApiKey: '',
-    cloudModel: 'gpt-4',
+    cloudModel: 'gpt-5.2',
     cloudServiceType: 'openai',
-    taggingMode: TaggingMode.GenerateNew,
-    customPrompt: `Focus on main topics and key concepts from the content.
-
-Generate tags that are:
-- Specific enough to be useful for searching
-- General enough to connect related notes
-- Based on actual content, not assumptions
-
-Prefer technical terms and domain-specific vocabulary when appropriate.`,
+    providerSettings: {},
     excludedFolders: [],
     language: 'default',
     interfaceLanguage: DEFAULT_LANGUAGE,
-    predefinedTagsPath: '',
-    tagSourceType: 'vault',
-    tagDir: '',
-    tagRangeMatchMax: 5,
-    tagRangeGenerateMax: 5,
-    tagRangePredefinedMax: 5,
     replaceTags: true,
+    maxTags: 5,
     debugMode: false,
-    enableNestedTags: false,
-    nestedTagsMaxDepth: 2,
+    enableWebSummarization: true,
+    summaryLength: 'detailed',
+    summaryLanguage: '',
+    includeSummaryMetadata: true,
+    defaultSummaryPersona: 'student',
+    configFolderPath: 'AI-Organiser-Config',
 };

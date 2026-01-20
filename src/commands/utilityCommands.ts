@@ -1,14 +1,15 @@
-import AITaggerPlugin from '../main';
+import AIOrganiserPlugin from '../main';
 import { TagUtils } from '../utils/tagUtils';
 
-export function registerUtilityCommands(plugin: AITaggerPlugin) {
+export function registerUtilityCommands(plugin: AIOrganiserPlugin) {
     // Command to collect all tags from vault
     plugin.addCommand({
         id: 'collect-all-tags',
         name: plugin.t.commands.collectAllTags,
         icon: 'tags',
         callback: async () => {
-            await TagUtils.saveAllTags(plugin.app, plugin.settings.tagDir);
+            // Save all tags to the config folder
+            await TagUtils.saveAllTags(plugin.app, plugin.settings.configFolderPath);
         }
     });
 

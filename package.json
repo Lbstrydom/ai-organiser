@@ -1,5 +1,5 @@
 {
-  "name": "ai-tagger-universe",
+  "name": "ai-organiser",
   "version": "1.0.15",
   "description": "Automatically analyze note content and add relevant tags using AI (with Chinese interface support)",
   "main": "main.js",
@@ -28,6 +28,7 @@
     "typescript": "^4.7.4"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.5.0",
     "js-yaml": "^4.1.0"
   }
 }

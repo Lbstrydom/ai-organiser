@@ -1,0 +1,305 @@
+/**
+ * Audio Transcription Service
+ * Handles transcription of audio files using Whisper API (OpenAI or Groq)
+ */
+
+import { App, TFile, requestUrl } from 'obsidian';
+
+export type TranscriptionProvider = 'openai' | 'groq';
+
+export interface TranscriptionResult {
+    success: boolean;
+    transcript?: string;
+    error?: string;
+    duration?: number;
+}
+
+export interface TranscriptionOptions {
+    provider: TranscriptionProvider;
+    apiKey: string;
+    language?: string;
+    prompt?: string;
+}
+
+// Supported audio formats for Whisper API
+export const SUPPORTED_AUDIO_FORMATS = [
+    'mp3', 'mp4', 'm4a', 'wav', 'webm', 'mpeg', 'mpga', 'oga', 'ogg'
+];
+
+// Maximum file size (25MB for both OpenAI and Groq)
+export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+export const MAX_FILE_SIZE_MB = 25;
+
+/**
+ * Check if a file is a supported audio format
+ */
+export function isAudioFile(file: TFile): boolean {
+    const ext = file.extension.toLowerCase();
+    return SUPPORTED_AUDIO_FORMATS.includes(ext);
+}
+
+/**
+ * Get audio files from a folder
+ */
+export function getAudioFilesFromFolder(app: App, folderPath: string): TFile[] {
+    const files = app.vault.getFiles();
+    return files.filter(file =>
+        file.path.startsWith(folderPath) && isAudioFile(file)
+    );
+}
+
+/**
+ * Get all audio files from vault
+ */
+export function getAllAudioFiles(app: App): TFile[] {
+    const files = app.vault.getFiles();
+    return files.filter(file => isAudioFile(file));
+}
+
+/**
+ * Check if file size is within limits
+ */
+export function isFileSizeValid(sizeBytes: number): boolean {
+    return sizeBytes <= MAX_FILE_SIZE_BYTES;
+}
+
+/**
+ * Format file size for display
+ */
+export function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Get MIME type for audio file
+ */
+function getAudioMimeType(extension: string): string {
+    const mimeTypes: Record<string, string> = {
+        'mp3': 'audio/mpeg',
+        'mp4': 'audio/mp4',
+        'm4a': 'audio/mp4',
+        'wav': 'audio/wav',
+        'webm': 'audio/webm',
+        'mpeg': 'audio/mpeg',
+        'mpga': 'audio/mpeg',
+        'oga': 'audio/ogg',
+        'ogg': 'audio/ogg'
+    };
+    return mimeTypes[extension.toLowerCase()] || 'audio/mpeg';
+}
+
+/**
+ * Transcribe audio file using Whisper API
+ */
+export async function transcribeAudio(
+    app: App,
+    file: TFile,
+    options: TranscriptionOptions
+): Promise<TranscriptionResult> {
+    try {
+        // Read the file as binary
+        const arrayBuffer = await app.vault.readBinary(file);
+        const fileSize = arrayBuffer.byteLength;
+
+        // Check file size
+        if (!isFileSizeValid(fileSize)) {
+            return {
+                success: false,
+                error: `File size (${formatFileSize(fileSize)}) exceeds ${MAX_FILE_SIZE_MB}MB limit. Please compress the audio file first.`
+            };
+        }
+
+        // Get the appropriate endpoint and prepare the request
+        const endpoint = getWhisperEndpoint(options.provider);
+
+        // Create form data manually for Obsidian's requestUrl
+        const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+        const formData = buildMultipartFormData(
+            arrayBuffer,
+            file.name,
+            file.extension,
+            options,
+            boundary
+        );
+
+        // Make the API request
+        const response = await requestUrl({
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${options.apiKey}`,
+                'Content-Type': `multipart/form-data; boundary=${boundary}`
+            },
+            body: formData
+        });
+
+        if (response.status !== 200) {
+            const errorText = typeof response.json === 'object'
+                ? JSON.stringify(response.json)
+                : response.text;
+            return {
+                success: false,
+                error: `API error (${response.status}): ${errorText}`
+            };
+        }
+
+        const result = response.json;
+
+        return {
+            success: true,
+            transcript: result.text,
+            duration: result.duration
+        };
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return {
+            success: false,
+            error: `Transcription failed: ${errorMessage}`
+        };
+    }
+}
+
+/**
+ * Get the Whisper API endpoint for the provider
+ */
+function getWhisperEndpoint(provider: TranscriptionProvider): string {
+    switch (provider) {
+        case 'groq':
+            return 'https://api.groq.com/openai/v1/audio/transcriptions';
+        case 'openai':
+        default:
+            return 'https://api.openai.com/v1/audio/transcriptions';
+    }
+}
+
+/**
+ * Get the model name for the provider
+ */
+function getWhisperModel(provider: TranscriptionProvider): string {
+    switch (provider) {
+        case 'groq':
+            return 'whisper-large-v3';
+        case 'openai':
+        default:
+            return 'whisper-1';
+    }
+}
+
+/**
+ * Build multipart form data for the API request
+ */
+function buildMultipartFormData(
+    fileData: ArrayBuffer,
+    fileName: string,
+    extension: string,
+    options: TranscriptionOptions,
+    boundary: string
+): ArrayBuffer {
+    const mimeType = getAudioMimeType(extension);
+    const model = getWhisperModel(options.provider);
+
+    // Build the form data parts
+    const parts: (string | ArrayBuffer)[] = [];
+
+    // File part
+    parts.push(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Type: ${mimeType}\r\n\r\n`
+    );
+    parts.push(fileData);
+    parts.push('\r\n');
+
+    // Model part
+    parts.push(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="model"\r\n\r\n` +
+        `${model}\r\n`
+    );
+
+    // Response format
+    parts.push(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="response_format"\r\n\r\n` +
+        `json\r\n`
+    );
+
+    // Language (optional)
+    if (options.language) {
+        parts.push(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="language"\r\n\r\n` +
+            `${options.language}\r\n`
+        );
+    }
+
+    // Prompt (optional) - helps with accuracy
+    if (options.prompt) {
+        parts.push(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="prompt"\r\n\r\n` +
+            `${options.prompt}\r\n`
+        );
+    }
+
+    // End boundary
+    parts.push(`--${boundary}--\r\n`);
+
+    // Combine all parts into a single ArrayBuffer
+    return combineArrayBuffers(parts);
+}
+
+/**
+ * Combine strings and ArrayBuffers into a single ArrayBuffer
+ */
+function combineArrayBuffers(parts: (string | ArrayBuffer)[]): ArrayBuffer {
+    const encoder = new TextEncoder();
+
+    // Calculate total size
+    let totalSize = 0;
+    const encodedParts: ArrayBuffer[] = [];
+
+    for (const part of parts) {
+        if (typeof part === 'string') {
+            const encoded = encoder.encode(part);
+            encodedParts.push(encoded.buffer);
+            totalSize += encoded.byteLength;
+        } else {
+            encodedParts.push(part);
+            totalSize += part.byteLength;
+        }
+    }
+
+    // Combine into single buffer
+    const result = new Uint8Array(totalSize);
+    let offset = 0;
+
+    for (const buffer of encodedParts) {
+        result.set(new Uint8Array(buffer), offset);
+        offset += buffer.byteLength;
+    }
+
+    return result.buffer;
+}
+
+/**
+ * Check if a provider is available based on settings
+ */
+export function getAvailableTranscriptionProvider(
+    cloudServiceType: string,
+    apiKey: string
+): TranscriptionProvider | null {
+    // Check if current cloud provider supports Whisper
+    if (cloudServiceType === 'openai' && apiKey) {
+        return 'openai';
+    }
+    if (cloudServiceType === 'groq' && apiKey) {
+        return 'groq';
+    }
+
+    // No compatible provider available
+    return null;
+}

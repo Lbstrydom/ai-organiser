@@ -253,4 +253,47 @@ export class LocalLLMService extends BaseLLMService {
     protected getMaxContentLength(): number {
         return this.MAX_CONTENT_LENGTH;
     }
+
+    /**
+     * Summarize text content
+     * @param prompt - The prompt containing the content and instructions
+     * @returns Promise resolving to summarization result
+     */
+    async summarizeText(prompt: string): Promise<{ success: boolean; content?: string; error?: string }> {
+        try {
+            const response = await this.makeRequestWithRetry({
+                method: 'POST',
+                body: JSON.stringify({
+                    model: this.modelName,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a helpful assistant that summarizes content accurately and concisely.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    temperature: 0.3
+                })
+            }, this.TIMEOUT);
+
+            if (response.status < 200 || response.status >= 300) {
+                const errorText = response.text;
+                throw new Error(`HTTP error ${response.status}: ${errorText || ''}`);
+            }
+
+            const data = JSON.parse(response.text);
+            if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+                throw new Error('Invalid response format from service');
+            }
+
+            const content = data.choices[0]?.message?.content || '';
+            return { success: true, content };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return { success: false, error: errorMessage };
+        }
+    }
 }

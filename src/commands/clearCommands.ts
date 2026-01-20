@@ -1,7 +1,7 @@
 import { Editor, MarkdownFileInfo, MarkdownView, Notice, TFile } from 'obsidian';
-import AITaggerPlugin from '../main';
+import AIOrganiserPlugin from '../main';
 
-export function registerClearCommands(plugin: AITaggerPlugin) {
+export function registerClearCommands(plugin: AIOrganiserPlugin) {
     // Command to clear tags in current note
     plugin.addCommand({
         id: 'clear-tags-for-current-note',

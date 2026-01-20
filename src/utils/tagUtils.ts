@@ -44,6 +44,10 @@ export interface TagOperationResult {
     message: string;
     /** Array of affected tags */
     tags?: string[];
+    /** Suggested title from AI */
+    suggestedTitle?: string;
+    /** Suggested folder from AI */
+    suggestedFolder?: string;
 }
 
 export class TagUtils {

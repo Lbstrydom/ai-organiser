@@ -1,5 +1,5 @@
 import { App, Modal, ButtonComponent, Setting } from 'obsidian';
-import AITaggerPlugin from '../../main';
+import AIOrganiserPlugin from '../../main';
 import { getVaultItems, VaultItem, getPathStrings } from '../../utils/vaultPathFetcher';
 
 export class ExcludedFilesModal extends Modal {
@@ -20,7 +20,7 @@ export class ExcludedFilesModal extends Modal {
 
     constructor(
         app: App, 
-        private plugin: AITaggerPlugin, 
+        private plugin: AIOrganiserPlugin, 
         private onSave: (excludedFolders: string[]) => void
     ) {
         super(app);

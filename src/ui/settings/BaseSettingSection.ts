@@ -1,13 +1,13 @@
 import type { Plugin } from 'obsidian';
-import type AITaggerPlugin from '../../main';
-import type { AITaggerSettingTab } from './AITaggerSettingTab';
+import type AIOrganiserPlugin from '../../main';
+import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 
 export abstract class BaseSettingSection {
-    protected plugin: AITaggerPlugin;
+    protected plugin: AIOrganiserPlugin;
     protected containerEl: HTMLElement;
-    protected settingTab: AITaggerSettingTab;
+    protected settingTab: AIOrganiserSettingTab;
 
-    constructor(plugin: AITaggerPlugin, containerEl: HTMLElement, settingTab: AITaggerSettingTab) {
+    constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
         this.plugin = plugin;
         this.containerEl = containerEl;
         this.settingTab = settingTab;

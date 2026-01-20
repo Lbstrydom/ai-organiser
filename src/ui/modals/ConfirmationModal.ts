@@ -1,11 +1,11 @@
 import { App, Modal, ButtonComponent } from 'obsidian';
-import type AITaggerPlugin from '../../main';
+import type AIOrganiserPlugin from '../../main';
 
 export class ConfirmationModal extends Modal {
-    constructor(app: App, title: string, message: string, onConfirm: () => void, plugin?: AITaggerPlugin) {
+    constructor(app: App, title: string, message: string, onConfirm: () => void, plugin?: AIOrganiserPlugin) {
         super(app);
-        this.containerEl.addClass('ai-tagger-modal-container');
-        this.contentEl.addClass('ai-tagger-modal-content');
+        this.containerEl.addClass('ai-organiser-modal-container');
+        this.contentEl.addClass('ai-organiser-modal-content');
 
         // Get translation text or fallback to English
         const cancelText = plugin?.t?.modals?.cancel || 'Cancel';
@@ -13,18 +13,18 @@ export class ConfirmationModal extends Modal {
 
         // Create title with warning icon
         const titleEl = this.contentEl.createEl('h3', {
-            cls: 'ai-tagger-modal-title',
+            cls: 'ai-organiser-modal-title',
             text: `${title}`
         });
 
         // Create message
         const messageEl = this.contentEl.createEl('p', {
-            cls: 'ai-tagger-modal-message',
+            cls: 'ai-organiser-modal-message',
             text: message
         });
 
         // Create buttons container
-        const buttonContainer = this.contentEl.createDiv('ai-tagger-modal-buttons');
+        const buttonContainer = this.contentEl.createDiv('ai-organiser-modal-buttons');
 
         // Add cancel button
         new ButtonComponent(buttonContainer)

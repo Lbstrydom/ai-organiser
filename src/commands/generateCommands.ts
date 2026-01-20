@@ -1,9 +1,7 @@
 import { Editor, MarkdownFileInfo, MarkdownView, Menu, Notice, TFile } from 'obsidian';
-import type AITaggerPlugin from '../main';
-import { TagUtils } from '../utils/tagUtils';
-import { TaggingMode } from '../services/prompts/types';
+import type AIOrganiserPlugin from '../main';
 
-export function registerGenerateCommands(plugin: AITaggerPlugin) {
+export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command to generate tags for current note (with selection support)
     plugin.addCommand({
         id: 'generate-tags-for-current-note',
@@ -24,36 +22,21 @@ export function registerGenerateCommands(plugin: AITaggerPlugin) {
                 return;
             }
 
-            const existingTags = TagUtils.getAllTags(plugin.app);
             new Notice(plugin.t.messages.analyzing);
 
             try {
-                let maxTags = plugin.settings.tagRangeGenerateMax;
-                if (plugin.settings.taggingMode === TaggingMode.PredefinedTags) {
-                    maxTags = plugin.settings.tagRangePredefinedMax;
-                } else if (plugin.settings.taggingMode === TaggingMode.Hybrid) {
-                    maxTags = plugin.settings.tagRangePredefinedMax + plugin.settings.tagRangeGenerateMax;
-                }
-
-                const analysis = await plugin.llmService.analyzeTags(
-                    content,
-                    existingTags,
-                    plugin.settings.taggingMode,
-                    maxTags,
-                    plugin.settings.language
-                );
-
-                const suggestedTags = analysis.suggestedTags || [];
-                const matchedTags = analysis.matchedExistingTags || [];
-
-                const result = await TagUtils.updateNoteTags(plugin.app, view.file, suggestedTags, matchedTags, true, true);
+                const result = await plugin.analyzeAndTagNote(view.file, content);
 
                 if (selectedText && result.success) {
                     editor.replaceSelection(selectedText);
                 }
                 plugin.handleTagUpdateResult(result);
+
+                // Show suggestion modal if there are title or folder suggestions
+                if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+                    await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
+                }
             } catch (error) {
-                // console.error('Error generating tags:', error);
                 new Notice(plugin.t.messages.failedToGenerateTags);
             }
         }

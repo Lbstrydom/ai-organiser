@@ -29,8 +29,10 @@ export type LanguageCode =
     | "zh-TW";
 
 export interface LLMResponse {
-    suggestedTags: string[];
+    suggestedTags?: string[];
     matchedExistingTags?: string[];
+    success?: boolean;
+    content?: string; // For summarization
 }
 
 export interface LLMServiceConfig {
@@ -41,7 +43,19 @@ export interface LLMServiceConfig {
     language?: LanguageCode;
 }
 
+export interface GenerateTagsResponse {
+    success: boolean;
+    tags?: string[];
+    suggestedTitle?: string;
+    suggestedFolder?: string;
+    error?: string;
+    rawResponse?: string; // Raw AI response for custom parsing
+}
+
 export interface LLMService {
+    /**
+     * @deprecated Use generateTags() instead for taxonomy-based tagging
+     */
     analyzeTags(
         content: string,
         candidateTags: string[],
@@ -49,6 +63,13 @@ export interface LLMService {
         maxTags: number,
         language?: LanguageCode
     ): Promise<LLMResponse>;
+
+    /**
+     * Generate tags from a pre-built prompt (taxonomy-based approach)
+     * @param prompt - The complete prompt including content and taxonomy
+     * @returns Promise resolving to tags generation result
+     */
+    generateTags(prompt: string): Promise<GenerateTagsResponse>;
 
     testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }>;
 

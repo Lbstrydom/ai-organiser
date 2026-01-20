@@ -1,28 +1,27 @@
 /**
- * Defines the available modes for AI tag generation.
+ * Prompt-related type definitions
  */
+
+// TaggingMode is deprecated - the plugin now uses a unified taxonomy-based approach
+// Keeping for backward compatibility with any existing code that references it
 export enum TaggingMode {
     /**
-     * Use only predefined tags from the user's input.
-     * The AI will select the most relevant tags from the provided list.
+     * @deprecated Use taxonomy-based tagging instead
      */
     PredefinedTags = 'predefined',
-    
+
     /**
-     * Generate completely new tags based on the content.
-     * The AI will create tags without considering any predefined options.
+     * @deprecated Use taxonomy-based tagging instead
      */
     GenerateNew = 'generate',
-    
+
     /**
-     * Combine predefined tags with newly generated ones.
-     * The AI will both select from provided tags and suggest new ones.
+     * @deprecated Use taxonomy-based tagging instead
      */
     Hybrid = 'hybrid',
 
     /**
-     * Use a custom prompt defined by the user.
-     * The AI will generate tags based on the custom prompt and note content.
+     * @deprecated Use taxonomy-based tagging instead
      */
     Custom = 'custom'
-} 
+}

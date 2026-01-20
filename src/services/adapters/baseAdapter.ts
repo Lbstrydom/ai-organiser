@@ -172,6 +172,14 @@ export abstract class BaseAdapter extends BaseLLMService {
     }
 
     /**
+     * Formats a request for summarization (without tagging system prompt)
+     * Optional - if not provided, CloudLLMService will use a default implementation
+     * @param prompt - The prompt containing summarization instructions and content
+     * @returns Formatted request body
+     */
+    public formatSummarizeRequest?(prompt: string): any;
+
+    /**
      * Extracts the main content from a cloud provider response
      * @param response The response object from the cloud provider
      * @returns The extracted content as a string

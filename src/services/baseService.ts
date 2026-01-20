@@ -1,9 +1,8 @@
-import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError } from './types';
+import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError, GenerateTagsResponse, LanguageCode } from './types';
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';
 import { SYSTEM_PROMPT } from '../utils/constants';
-import { LanguageCode } from './types';
-import { App, Notice } from 'obsidian';
+import { App } from 'obsidian';
 
 /**
  * Base class for LLM service implementations
@@ -740,7 +739,172 @@ export abstract class BaseLLMService {
     protected getMaxContentLength(): number {
         return 4000; // Default maximum content length
     }
-    
+
+    /**
+     * Generate tags from a pre-built prompt (taxonomy-based approach)
+     * This is the new simplified method that takes a complete prompt
+     * @param prompt - The complete prompt including content and taxonomy
+     * @returns Promise resolving to tags generation result with optional title and folder
+     */
+    async generateTags(prompt: string): Promise<GenerateTagsResponse> {
+        try {
+            this.debugLog('Generating tags with taxonomy-based prompt');
+
+            // Send the prompt to the LLM
+            const response = await this.sendRequest(prompt);
+            this.debugLog('Raw LLM response:', response.substring(0, 500));
+
+            // Parse the full response including tags, title, and folder
+            const parsed = this.parseTagsResponse(response);
+
+            this.debugLog('Extracted tags:', parsed.tags);
+            this.debugLog('Suggested title:', parsed.suggestedTitle);
+            this.debugLog('Suggested folder:', parsed.suggestedFolder);
+
+            return {
+                success: true,
+                tags: parsed.tags,
+                suggestedTitle: parsed.suggestedTitle,
+                suggestedFolder: parsed.suggestedFolder,
+                rawResponse: response
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this.debugLog('Error generating tags:', errorMessage);
+            return { success: false, error: errorMessage };
+        }
+    }
+
+    /**
+     * Parse the full LLM response to extract tags, title, and folder
+     * @param response - Raw response from LLM
+     * @returns Parsed result with tags, suggestedTitle, and suggestedFolder
+     */
+    protected parseTagsResponse(response: string): { tags: string[]; suggestedTitle?: string; suggestedFolder?: string } {
+        const result: { tags: string[]; suggestedTitle?: string; suggestedFolder?: string } = { tags: [] };
+
+        try {
+            // Try to parse as JSON first
+            const codeBlockMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+            const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : response.trim();
+
+            if (jsonStr.startsWith('{')) {
+                const parsed = JSON.parse(jsonStr);
+
+                // Extract tags
+                if (Array.isArray(parsed.tags)) {
+                    result.tags = parsed.tags.map((t: any) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
+                }
+
+                // Extract title
+                if (typeof parsed.title === 'string' && parsed.title.trim()) {
+                    result.suggestedTitle = parsed.title.trim();
+                }
+
+                // Extract folder
+                if (typeof parsed.folder === 'string' && parsed.folder.trim()) {
+                    result.suggestedFolder = parsed.folder.trim();
+                }
+
+                return result;
+            }
+        } catch {
+            // Not valid JSON, fall back to text parsing
+        }
+
+        // Fall back to extracting tags from text response
+        result.tags = this.extractTagsFromResponse(response);
+        return result;
+    }
+
+    /**
+     * Extract tags from LLM response
+     * Handles various response formats (JSON, markdown, plain text)
+     * @param response - Raw response from LLM
+     * @returns Array of extracted tags
+     */
+    protected extractTagsFromResponse(response: string): string[] {
+        const tags: string[] = [];
+
+        // Try to parse as JSON first
+        try {
+            // Check for JSON in markdown code blocks
+            const codeBlockMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+            const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : response.trim();
+
+            if (jsonStr.startsWith('{') || jsonStr.startsWith('[')) {
+                const parsed = JSON.parse(jsonStr);
+
+                // Handle array format: ["tag1", "tag2"]
+                if (Array.isArray(parsed)) {
+                    return parsed.map(t => this.sanitizeTag(String(t))).filter(t => t.length > 0);
+                }
+
+                // Handle object format: { tags: [...] } or { theme: "...", discipline: "...", topics: [...] }
+                if (typeof parsed === 'object' && parsed !== null) {
+                    // Check for 3-tier taxonomy format
+                    if (parsed.theme || parsed.discipline || parsed.topics) {
+                        if (parsed.theme) tags.push(this.sanitizeTag(String(parsed.theme)));
+                        if (parsed.discipline) tags.push(this.sanitizeTag(String(parsed.discipline)));
+                        if (Array.isArray(parsed.topics)) {
+                            tags.push(...parsed.topics.map((t: any) => this.sanitizeTag(String(t))));
+                        }
+                        return tags.filter(t => t.length > 0);
+                    }
+
+                    // Check for generic tags field
+                    const tagFields = ['tags', 'suggestedTags', 'newTags', 'matchedTags'];
+                    for (const field of tagFields) {
+                        if (Array.isArray(parsed[field])) {
+                            return parsed[field].map((t: any) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Not valid JSON, continue with text parsing
+        }
+
+        // Fall back to text parsing - look for tags in various formats
+        const lines = response.split('\n');
+        for (const line of lines) {
+            const trimmed = line.trim();
+
+            // Skip empty lines and headers
+            if (!trimmed || trimmed.startsWith('#')) continue;
+
+            // Check for bullet points or numbered lists
+            const listMatch = trimmed.match(/^(?:[-*]|\d+\.)\s*(.+)/);
+            if (listMatch) {
+                const tag = this.sanitizeTag(listMatch[1]);
+                if (tag) tags.push(tag);
+                continue;
+            }
+
+            // Check for hashtags
+            const hashtagMatch = trimmed.match(/#([\w-]+)/g);
+            if (hashtagMatch) {
+                for (const hashtag of hashtagMatch) {
+                    const tag = this.sanitizeTag(hashtag.substring(1));
+                    if (tag) tags.push(tag);
+                }
+                continue;
+            }
+
+            // Check for comma-separated values
+            if (trimmed.includes(',')) {
+                const parts = trimmed.split(',');
+                for (const part of parts) {
+                    const tag = this.sanitizeTag(part);
+                    if (tag && tag.length < 50) tags.push(tag);
+                }
+            }
+        }
+
+        // Remove duplicates
+        return [...new Set(tags)];
+    }
+
     /**
      * Sends a request to the LLM service
      * Must be implemented by derived classes

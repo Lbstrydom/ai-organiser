@@ -73,8 +73,8 @@ export class OpenRouterAdapter extends BaseAdapter {
         return {
             ...super.getHeaders(),
             'Authorization': `Bearer ${this.config.apiKey}`,
-            'HTTP-Referer': 'https://github.com/obsidian-ai-tagger',
-            'X-Title': 'Obsidian AI Tagger'
+            'HTTP-Referer': 'https://github.com/obsidian-ai-organiser',
+            'X-Title': 'Obsidian AI Organiser'
         };
     }
 }

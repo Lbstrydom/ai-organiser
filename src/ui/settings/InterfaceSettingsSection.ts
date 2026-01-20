@@ -1,5 +1,5 @@
 import { Setting } from 'obsidian';
-import type AITaggerPlugin from '../../main';
+import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { getLanguageOptions, SupportedLanguage } from '../../i18n';
 

@@ -1,10 +1,16 @@
 import { registerGenerateCommands } from './generateCommands';
 import { registerClearCommands } from './clearCommands';
 import { registerUtilityCommands } from './utilityCommands';
-import AITaggerPlugin from '../main';
+import { registerSummarizeCommands } from './summarizeCommands';
+import { registerTranslateCommands } from './translateCommands';
+import { registerSmartNoteCommands } from './smartNoteCommands';
+import AIOrganiserPlugin from '../main';
 
-export function registerCommands(plugin: AITaggerPlugin) {
+export function registerCommands(plugin: AIOrganiserPlugin) {
     registerGenerateCommands(plugin);
     registerClearCommands(plugin);
     registerUtilityCommands(plugin);
+    registerSummarizeCommands(plugin);
+    registerTranslateCommands(plugin);
+    registerSmartNoteCommands(plugin);
 }

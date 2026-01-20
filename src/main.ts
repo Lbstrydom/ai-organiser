@@ -1,4 +1,4 @@
-import { App, MarkdownView, Modal, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
+import { App, MarkdownView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
 import {
     ConnectionTestError,
     ConnectionTestResult,
@@ -7,23 +7,25 @@ import {
     CloudLLMService,
     LLMResponse
 } from './services';
-import { setSettings } from './services/prompts/tagPrompts';
+import { setSettings, buildTaxonomyTagPrompt } from './services/prompts/tagPrompts';
 import { ConfirmationModal } from './ui/modals/ConfirmationModal';
+import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
-import { TaggingMode } from './services/prompts/types';
 import { registerCommands } from './commands/index';
-import { AITaggerSettings, DEFAULT_SETTINGS } from './core/settings';
-import { AITaggerSettingTab } from './ui/settings/AITaggerSettingTab';
+import { AIOrganiserSettings, DEFAULT_SETTINGS } from './core/settings';
+import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
 import { TagNetworkView, TAG_NETWORK_VIEW_TYPE } from './ui/views/TagNetworkView';
 import { TagOperations } from './utils/tagOperations';
 import { BatchProcessResult } from './utils/batchProcessor';
-import { getTranslations, SupportedLanguage } from './i18n';
+import { getTranslations } from './i18n';
+import { ConfigurationService } from './services/configurationService';
 
-export default class AITaggerPlugin extends Plugin {
+export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
     public llmService: LLMService;
+    public configService: ConfigurationService;
     private eventHandlers: EventHandlers;
     private tagNetworkManager: TagNetworkManager;
     private tagOperations: TagOperations;
@@ -36,6 +38,7 @@ export default class AITaggerPlugin extends Plugin {
             modelName: DEFAULT_SETTINGS.localModel,
             language: DEFAULT_SETTINGS.language
         }, app);
+        this.configService = new ConfigurationService(app, DEFAULT_SETTINGS.configFolderPath);
         this.eventHandlers = new EventHandlers(app);
         this.tagNetworkManager = new TagNetworkManager(app);
         this.tagOperations = new TagOperations(app);
@@ -44,6 +47,7 @@ export default class AITaggerPlugin extends Plugin {
     public async loadSettings(): Promise<void> {
         const oldSettings = await this.loadData();
 
+        // Migrate old settings
         if (oldSettings?.serviceType === 'ollama') {
             oldSettings.serviceType = 'local';
             oldSettings.localEndpoint = oldSettings.ollamaEndpoint;
@@ -52,22 +56,20 @@ export default class AITaggerPlugin extends Plugin {
             delete oldSettings.ollamaModel;
         }
 
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, oldSettings);
-
-        // Migrate empty customPrompt to default template
-        if (!this.settings.customPrompt || this.settings.customPrompt.trim() === '') {
-            this.settings.customPrompt = DEFAULT_SETTINGS.customPrompt;
+        // Migrate old tag range settings to maxTags
+        if (oldSettings && !oldSettings.maxTags) {
+            oldSettings.maxTags = oldSettings.tagRangeGenerateMax ||
+                                  oldSettings.tagRangePredefinedMax ||
+                                  DEFAULT_SETTINGS.maxTags;
         }
 
-        // 初始化翻译
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, oldSettings);
         this.t = getTranslations(this.settings.interfaceLanguage);
     }
 
     public async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
         await this.initializeLLMService();
-
-        // 更新翻译
         this.t = getTranslations(this.settings.interfaceLanguage);
     }
 
@@ -88,7 +90,6 @@ export default class AITaggerPlugin extends Plugin {
                 language: this.settings.language
             }, this.app);
 
-        // Set debug mode on the LLM service and globally
         this.llmService.setDebugMode(this.settings.debugMode);
         setGlobalDebugMode(this.settings.debugMode);
     }
@@ -96,55 +97,49 @@ export default class AITaggerPlugin extends Plugin {
     public async onload(): Promise<void> {
         await this.loadSettings();
         await this.initializeLLMService();
-        
-        // Set settings for prompt generation
+
+        // Initialize configuration service
+        this.configService.setConfigFolder(this.settings.configFolderPath);
+
+        // Create default config files if they don't exist
+        const configExists = await this.configService.configFilesExist();
+        if (!configExists) {
+            await this.configService.createDefaultConfigFiles();
+        }
+
         setSettings(this.settings);
 
-        // Register event handlers
         this.eventHandlers.registerEventHandlers();
-        
-        // Add settings tab
-        this.addSettingTab(new AITaggerSettingTab(this.app, this));
-        
-        // Register commands
+        this.addSettingTab(new AIOrganiserSettingTab(this.app, this));
         registerCommands(this);
 
-        // Register view type for tag network
+        // Register tag network view
         this.registerView(
             TAG_NETWORK_VIEW_TYPE,
             (leaf) => new TagNetworkView(leaf, this.tagNetworkManager.getNetworkData())
         );
 
-        // Add ribbon icons with descriptive tooltips
+        // Add ribbon icons
         this.addRibbonIcon(
             'tags',
             this.t.messages.analyzeTagCurrentNote,
-            (evt: MouseEvent) => {
-                this.analyzeAndTagCurrentNote();
-            }
+            () => this.analyzeAndTagCurrentNote()
         );
 
         this.addRibbonIcon(
             'git-graph',
             this.t.messages.viewTagNetwork,
-            (evt: MouseEvent) => {
-                this.showTagNetwork();
-            }
+            () => this.showTagNetwork()
         );
     }
 
     public async onunload(): Promise<void> {
-        // Clean up resources
         await this.llmService?.dispose();
         this.eventHandlers.cleanup();
-        
-        // Unregister views
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
-        
-        // Trigger layout refresh
         this.app.workspace.trigger('layout-change');
     }
-    
+
     public async showTagNetwork(): Promise<void> {
         try {
             const statusNotice = new Notice(this.t.messages.buildingTagNetwork, 0);
@@ -164,37 +159,31 @@ export default class AITaggerPlugin extends Plugin {
                 new Notice(this.t.messages.noTagConnections, 4000);
             }
 
-            // Try to find existing network view
             let leaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
-            
+
             if (!leaf) {
-                // Create new view in right sidebar
                 const newLeaf = await this.app.workspace.getRightLeaf(false);
                 if (!newLeaf) {
                     throw new Error('Failed to create new workspace leaf');
                 }
-                
+
                 await newLeaf.setViewState({
                     type: TAG_NETWORK_VIEW_TYPE,
                     active: true
                 });
-                
+
                 leaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
                 if (!leaf) {
                     throw new Error('Failed to initialize tag network view');
                 }
             }
-            
+
             this.app.workspace.revealLeaf(leaf);
         } catch (error) {
-            //console.error('Failed to show tag network:', error);
             new Notice(this.t.messages.failedToBuildNetwork, 4000);
         }
     }
 
-    /**
-     * Test connection to the configured LLM service
-     */
     public async testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }> {
         return await this.llmService.testConnection();
     }
@@ -213,18 +202,10 @@ export default class AITaggerPlugin extends Plugin {
         });
     }
 
-    /**
-     * Get all markdown files in the vault, excluding those that match exclusion patterns
-     */
     public getNonExcludedMarkdownFiles(): TFile[] {
         return TagUtils.getNonExcludedMarkdownFiles(this.app, this.settings.excludedFolders);
     }
 
-    /**
-     * Get non-excluded markdown files from a specific folder (includes nested files)
-     * @param folder - The folder to search in
-     * @returns Array of TFile objects that are markdown files and not excluded
-     */
     public getNonExcludedMarkdownFilesFromFolder(folder: TFolder): TFile[] {
         return TagUtils.getNonExcludedMarkdownFiles(this.app, this.settings.excludedFolders, folder);
     }
@@ -238,7 +219,6 @@ export default class AITaggerPlugin extends Plugin {
                 await this.tagOperations.clearDirectoryTags(files);
                 new Notice(this.t.messages.successfullyClearedAllVault, 3000);
             } catch (error) {
-                //console.error('Failed to clear vault tags:', error);
                 new Notice(this.t.messages.failedToClearVaultTags, 4000);
             }
         }
@@ -266,20 +246,15 @@ export default class AITaggerPlugin extends Plugin {
         }
 
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        
+
         if (result.success) {
-            // Refresh editor view only if in source mode
             if (view?.getMode() === 'source') {
                 view.editor.refresh();
             }
-            
-            // Trigger layout update for reading view
             this.app.workspace.trigger('layout-change');
-            
             !silent && new Notice(result.message, 3000);
         } else {
             !silent && new Notice(`Failed to update tags: ${result.message || 'Unknown error'}`, 4000);
-            //console.error('Tag update failed:', result.message);
         }
     }
 
@@ -287,7 +262,7 @@ export default class AITaggerPlugin extends Plugin {
         if (!files?.length) return;
 
         const statusNotice = new Notice(`Analyzing ${files.length} files...`, 0);
-        
+
         try {
             let processed = 0, successful = 0;
             let lastNotice = Date.now();
@@ -296,50 +271,30 @@ export default class AITaggerPlugin extends Plugin {
                 try {
                     const content = await this.app.vault.read(file);
                     if (!content.trim()) continue;
-                    
-                    // Use the unified method to analyze and tag
+
                     const result = await this.analyzeAndTagNote(file, content);
-                    
+
                     result.success && successful++;
-                    this.handleTagUpdateResult(result, true); // Silent mode
+                    this.handleTagUpdateResult(result, true);
                     processed++;
 
-                    // Update progress every 15 seconds
                     if (Date.now() - lastNotice >= 15000) {
                         new Notice(`Progress: ${processed}/${files.length} files processed`, 3000);
                         lastNotice = Date.now();
                     }
                 } catch (error) {
-                    //console.error(`Error processing ${file.path}:`, error);
                     new Notice(`Error processing ${file.path}`, 4000);
                 }
             }
 
             new Notice(`Successfully tagged ${successful} out of ${files.length} files`, 4000);
         } catch (error) {
-            // console.error('Batch processing failed:', error);
             new Notice('Failed to complete batch processing', 4000);
         } finally {
             statusNotice.hide();
         }
     }
 
-    private calculateMaxTags(): number {
-        switch (this.settings.taggingMode) {
-            case TaggingMode.PredefinedTags:
-                return this.settings.tagRangePredefinedMax;
-            case TaggingMode.Hybrid:
-                return this.settings.tagRangePredefinedMax + this.settings.tagRangeGenerateMax;
-            case TaggingMode.GenerateNew:
-            default:
-                return this.settings.tagRangeGenerateMax;
-        }
-    }
-
-    /**
-     * Analyzes and tags the currently open note
-     * @returns Promise that resolves when the operation completes
-     */
     public async analyzeAndTagCurrentNote(): Promise<void> {
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) {
@@ -354,212 +309,96 @@ export default class AITaggerPlugin extends Plugin {
         }
 
         try {
-            // Use the unified method to analyze and tag
             const result = await this.analyzeAndTagNote(activeFile, content);
-            
-            // Process the result
             this.handleTagUpdateResult(result);
+
+            // Show suggestion modal if there are title or folder suggestions
+            if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+                await this.showSuggestionModal(activeFile, result.suggestedTitle, result.suggestedFolder);
+            }
         } catch (error) {
-            // console.error('Failed to analyze note:', error);
             new Notice('Failed to analyze note. Please check console for details.', 4000);
         }
     }
 
     /**
-     * Analyzes content using hybrid mode and generates tags
-     * @param content Content to analyze
-     * @returns Array of tags
-     */
-    public async analyzeWithHybridMode(content: string): Promise<{ tags: string[] }> {
-        // Get predefined tags list
-        let predefinedTags: string[] = [];
-        if (this.settings.tagSourceType === 'file') {
-            const fileTags = await TagUtils.getTagsFromFile(this.app, this.settings.predefinedTagsPath);
-            if (fileTags) {
-                predefinedTags = fileTags;
-            }
-        } else {
-            predefinedTags = TagUtils.getAllTags(this.app);
-        }
-        
-        // Use the hybrid mode in LLM service directly
-        const hybridResult = await this.llmService.analyzeTags(
-            content,
-            predefinedTags,
-            TaggingMode.Hybrid,
-            Math.max(this.settings.tagRangeGenerateMax, this.settings.tagRangePredefinedMax), // Use the larger max tag setting
-            this.settings.language
-        );
-        
-        // Merge results and ensure no duplicates
-        // Use TagUtils.formatTags to normalize tag format
-        const normalizedGeneratedTags = TagUtils.formatTags(hybridResult.suggestedTags || []);
-        const normalizedMatchedTags = TagUtils.formatTags(hybridResult.matchedExistingTags || []);
-        
-        // Use TagUtils.mergeTags to combine and deduplicate
-        const allTags = TagUtils.mergeTags(normalizedGeneratedTags, normalizedMatchedTags);
-        
-        return { tags: allTags };
-    }
-
-    /**
-     * Analyzes note content and applies tags
-     * Supports receiving direct analysis results or analyzing based on content
-     * @param file Target file
-     * @param contentOrAnalysis File content or existing analysis result
-     * @returns Tag operation result
+     * Analyzes note content and applies tags using taxonomy-based approach
      */
     public async analyzeAndTagNote(file: TFile, contentOrAnalysis: string | LLMResponse): Promise<TagOperationResult> {
         try {
-            let analysis: LLMResponse;
-            
-            // Determine parameter type
+            let tags: string[];
+            let suggestedTitle: string | undefined;
+            let suggestedFolder: string | undefined;
+
             if (typeof contentOrAnalysis === 'string') {
                 const content = contentOrAnalysis.trim();
                 if (!content) {
-                    return {
-                        success: false,
-                        message: 'Cannot analyze empty note'
-                    };
+                    return { success: false, message: 'Cannot analyze empty note' };
                 }
-                
-                // Analyze based on the configured tagging mode
-                switch (this.settings.taggingMode) {
-                    case TaggingMode.GenerateNew:
-                        analysis = await this.llmService.analyzeTags(
-                            content,
-                            [], // Empty array, generate tags purely based on content
-                            TaggingMode.GenerateNew,
-                            this.settings.tagRangeGenerateMax,
-                            this.settings.language
-                        );
-                        break;
-                    
-                    case TaggingMode.PredefinedTags:
-                        // Get candidate tags (from file or vault)
-                        const predefinedTags = this.settings.tagSourceType === 'file'
-                            ? await TagUtils.getTagsFromFile(this.app, this.settings.predefinedTagsPath) || []
-                            : TagUtils.getAllTags(this.app);
-                        
-                        if (!predefinedTags.length) {
-                            return {
-                                success: false,
-                                message: 'No predefined tags available'
-                            };
-                        }
-                        
-                        analysis = await this.llmService.analyzeTags(
-                            content,
-                            predefinedTags,
-                            TaggingMode.PredefinedTags,
-                            this.settings.tagRangePredefinedMax
-                        );
-                        break;
 
-                    case TaggingMode.Hybrid:
-                        // Get candidate tags (from file or vault)
-                        const hybridPredefinedTags = this.settings.tagSourceType === 'file'
-                            ? await TagUtils.getTagsFromFile(this.app, this.settings.predefinedTagsPath) || []
-                            : TagUtils.getAllTags(this.app);
-                        
-                        analysis = await this.llmService.analyzeTags(
-                            content,
-                            hybridPredefinedTags,
-                            TaggingMode.Hybrid, 
-                            Math.max(this.settings.tagRangeGenerateMax, this.settings.tagRangePredefinedMax),
-                            this.settings.language
-                        );
-                        break;
-                    
-                    case TaggingMode.Custom:
-                        // Get candidate tags (from file or vault)
-                        const customPredefinedTags = this.settings.tagSourceType === 'file'
-                            ? await TagUtils.getTagsFromFile(this.app, this.settings.predefinedTagsPath) || []
-                            : TagUtils.getAllTags(this.app);
-                        
-                        analysis = await this.llmService.analyzeTags(
-                            content,
-                            customPredefinedTags,
-                            TaggingMode.Custom, 
-                            Math.max(this.settings.tagRangeGenerateMax, this.settings.tagRangePredefinedMax),
-                            this.settings.language
-                        );
-                        
-                        if (analysis?.suggestedTags) {
-                            const enforced = this.enforceCustomTaxonomy(
-                                content,
-                                customPredefinedTags,
-                                analysis.suggestedTags
-                            );
-                            analysis = {
-                                matchedExistingTags: [],
-                                suggestedTags: enforced
-                            };
-                        }
-                        break;
-                    
-                    default:
-                        return {
-                            success: false,
-                            message: `Unsupported tagging mode: ${this.settings.taggingMode}`
-                        };
-                }
-            } else {
-                // Use the provided analysis result directly
-                analysis = contentOrAnalysis;
-            }
-            
-            // If no analysis results, return failure
-            if (!analysis) {
-                return {
-                    success: false,
-                    message: 'No analysis results available'
-                };
-            }
-            
-            // Process and combine tags based on tagging mode
-            let allTags: string[] = [];
+                // Get taxonomy from config service
+                const taxonomyPrompt = await this.configService.getTaxonomyForPrompt();
+                const excludedTags = await this.configService.getExcludedTags();
 
-            if (this.settings.taggingMode === TaggingMode.PredefinedTags) {
-                allTags = analysis.matchedExistingTags || [];
-            } else if (this.settings.taggingMode === TaggingMode.GenerateNew) {
-                allTags = analysis.suggestedTags || [];
-            } else {
-                // Hybrid mode, combine both types of tags
-                const suggestedTags = analysis.suggestedTags || [];
-                const matchedTags = analysis.matchedExistingTags || [];
-                allTags = [...suggestedTags, ...matchedTags];
-            }
-
-            if (this.settings.debugMode) {
-                console.log(`[AI Tagger Debug] Tags before updateNoteTags:`, allTags);
-            }
-
-            // If there are tags to add, update the note
-            if (allTags.length > 0) {
-                const result = await TagUtils.updateNoteTags(
-                    this.app,
-                    file,
-                    allTags,
-                    [], // No matched tags since we've already combined them
-                    false, // Show notifications
-                    this.settings.replaceTags // Always use the setting value
+                // Build the prompt
+                const prompt = buildTaxonomyTagPrompt(
+                    content,
+                    taxonomyPrompt,
+                    this.settings.maxTags,
+                    this.settings.language
                 );
 
-                if (this.settings.debugMode) {
-                    console.log(`[AI Tagger Debug] Result from updateNoteTags:`, result);
+                // Get tags from LLM
+                const response = await this.llmService.generateTags(prompt);
+
+                if (!response.success || !response.tags) {
+                    return { success: false, message: response.error || 'Failed to generate tags' };
                 }
 
-                return result;
+                // Filter out excluded tags and format
+                tags = TagUtils.formatTags(response.tags)
+                    .filter(tag => !excludedTags.includes(tag.toLowerCase()));
+
+                // Capture title and folder suggestions
+                suggestedTitle = response.suggestedTitle;
+                suggestedFolder = response.suggestedFolder;
+
+                if (this.settings.debugMode) {
+                    console.log('[AI Organiser Debug] Generated tags:', tags);
+                    console.log('[AI Organiser Debug] Suggested title:', suggestedTitle);
+                    console.log('[AI Organiser Debug] Suggested folder:', suggestedFolder);
+                }
+            } else {
+                // Use provided analysis (backward compatibility)
+                const analysis = contentOrAnalysis;
+                tags = [...(analysis.suggestedTags || []), ...(analysis.matchedExistingTags || [])];
+                tags = TagUtils.formatTags(tags);
             }
-            
-            // No tags found
-            return {
-                success: false,
-                message: 'No valid tags were found or generated'
-            };
+
+            if (tags.length === 0) {
+                return { success: false, message: 'No valid tags were generated' };
+            }
+
+            // Update the note with tags
+            const result = await TagUtils.updateNoteTags(
+                this.app,
+                file,
+                tags,
+                [],
+                false,
+                this.settings.replaceTags
+            );
+
+            // Add suggestions to result
+            result.suggestedTitle = suggestedTitle;
+            result.suggestedFolder = suggestedFolder;
+
+            if (this.settings.debugMode) {
+                console.log('[AI Organiser Debug] Update result:', result);
+            }
+
+            return result;
         } catch (error) {
-            // console.error('Error tagging note:', error);
             return {
                 success: false,
                 message: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -567,157 +406,89 @@ export default class AITaggerPlugin extends Plugin {
         }
     }
 
-    private enforceCustomTaxonomy(content: string, candidateThemes: string[], tags: string[]): string[] {
-        const themes = (candidateThemes || [])
-            .map(theme => theme.trim())
-            .filter(Boolean);
-
-        const themeMap = new Map(themes.map(theme => [theme.toLowerCase(), theme]));
-        const normalizedTags = (tags || []).map(tag => tag.trim()).filter(Boolean);
-        const haystack = `${content} ${normalizedTags.join(' ')}`.toLowerCase();
-
-        let theme = '';
-
-        if (normalizedTags.length > 0) {
-            const firstLower = normalizedTags[0].toLowerCase();
-            if (themeMap.has(firstLower)) {
-                theme = themeMap.get(firstLower) as string;
-                normalizedTags.shift();
-            }
+    /**
+     * Shows the suggestion modal and applies user-selected changes
+     */
+    public async showSuggestionModal(file: TFile, suggestedTitle?: string, suggestedFolder?: string): Promise<void> {
+        if (!suggestedTitle && !suggestedFolder) {
+            return;
         }
 
-        if (!theme) {
-            const themeIndex = normalizedTags.findIndex(tag => themeMap.has(tag.toLowerCase()));
-            if (themeIndex >= 0) {
-                theme = themeMap.get(normalizedTags[themeIndex].toLowerCase()) as string;
-                normalizedTags.splice(themeIndex, 1);
-            }
-        }
-
-        if (!theme) {
-            theme = this.pickThemeFromKeywords(haystack, themes)
-                || themeMap.get('technology')
-                || themes[0]
-                || 'Technology';
-        }
-
-        const themeLower = theme.toLowerCase();
-        let discipline = '';
-
-        const disciplineWhitelist = new Set([
-            'marketing',
-            'product-management',
-            'pricing',
-            'operations',
-            'sales',
-            'computer-science',
-            'mathematics',
-            'leadership',
-            'communication',
-            'ai',
-            'strategy',
-            'finance',
-            'law',
-            'hr'
-        ]);
-
-        const disciplineIndex = normalizedTags.findIndex(tag => disciplineWhitelist.has(tag.toLowerCase()));
-        if (disciplineIndex >= 0) {
-            discipline = normalizedTags[disciplineIndex];
-            normalizedTags.splice(disciplineIndex, 1);
-        }
-
-        if (!discipline || themeMap.has(discipline.toLowerCase())) {
-            discipline = this.pickDisciplineFromKeywords(haystack) || 'business';
-        }
-
-        if (discipline.toLowerCase() === themeLower) {
-            const fallback = haystack.includes('market') || haystack.includes('pricing') || haystack.includes('channel')
-                ? 'marketing'
-                : 'business';
-            discipline = fallback;
-        }
-
-        const ordered = [theme, discipline, ...normalizedTags];
-        const seen = new Set<string>();
-        const result: string[] = [];
-        for (const tag of ordered) {
-            const key = tag.toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                result.push(tag);
-            }
-        }
-        return result;
+        return new Promise((resolve) => {
+            const modal = new SuggestionModal(
+                this.app,
+                this.t,
+                file,
+                suggestedTitle || '',
+                suggestedFolder || '',
+                async (result: SuggestionResult | null) => {
+                    if (result) {
+                        await this.applySuggestions(file, result);
+                    }
+                    resolve();
+                }
+            );
+            modal.open();
+        });
     }
 
-    private pickThemeFromKeywords(haystack: string, themes: string[]): string {
-        const themeLookup = new Map(themes.map(theme => [theme.toLowerCase(), theme]));
-        const abstractMathKeywords = [
-            'boolean',
-            'algebra',
-            'logic',
-            'mathematics',
-            'math',
-            'set theory'
-        ];
-        if (abstractMathKeywords.some(keyword => haystack.includes(keyword))) {
-            const mapped = themeLookup.get('technology');
-            if (mapped) {
-                return mapped;
+    /**
+     * Applies the user-selected title and folder suggestions
+     */
+    private async applySuggestions(file: TFile, suggestions: SuggestionResult): Promise<void> {
+        try {
+            let currentFile = file;
+
+            // Apply folder change first (if selected)
+            if (suggestions.applyFolder && suggestions.folder) {
+                const newFolder = suggestions.folder;
+
+                // Create folder if it doesn't exist
+                const folderExists = this.app.vault.getAbstractFileByPath(newFolder);
+                if (!folderExists) {
+                    await this.app.vault.createFolder(newFolder);
+                }
+
+                // Move file to new folder
+                const newPath = `${newFolder}/${file.name}`;
+                await this.app.fileManager.renameFile(file, newPath);
+
+                // Update reference to the moved file
+                const movedFile = this.app.vault.getAbstractFileByPath(newPath);
+                if (movedFile instanceof TFile) {
+                    currentFile = movedFile;
+                }
+
+                if (this.settings.debugMode) {
+                    console.log(`[AI Organiser Debug] Moved file to: ${newPath}`);
+                }
             }
+
+            // Apply title change (if selected)
+            if (suggestions.applyTitle && suggestions.title) {
+                const newTitle = suggestions.title;
+                const sanitizedTitle = newTitle.replace(/[\\/:*?"<>|]/g, '-');
+                const folder = currentFile.parent?.path || '';
+                const newPath = folder ? `${folder}/${sanitizedTitle}.md` : `${sanitizedTitle}.md`;
+
+                // Check if a file with this name already exists
+                const existingFile = this.app.vault.getAbstractFileByPath(newPath);
+                if (existingFile && existingFile !== currentFile) {
+                    new Notice(this.t.messages.fileAlreadyExists || `A file named "${sanitizedTitle}.md" already exists`, 4000);
+                    return;
+                }
+
+                await this.app.fileManager.renameFile(currentFile, newPath);
+
+                if (this.settings.debugMode) {
+                    console.log(`[AI Organiser Debug] Renamed file to: ${newPath}`);
+                }
+            }
+
+            new Notice(this.t.messages.suggestionsApplied || 'Suggestions applied successfully', 3000);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`${this.t.messages.failedToApplySuggestions || 'Failed to apply suggestions'}: ${errorMessage}`, 4000);
         }
-        const themeKeywords: Array<{ theme: string; keywords: string[] }> = [
-            { theme: 'Wartsila', keywords: ['wartsila'] },
-            { theme: 'Thrive', keywords: ['thrive'] },
-            { theme: 'Strategy', keywords: ['strategy', 'go-to-market', 'gtm', 'pricing', 'positioning', 'market', 'channel', 'competitive', 'industry'] },
-            { theme: 'Technology', keywords: ['technology', 'tech', 'digital', 'data', 'system'] },
-            { theme: 'Innovation', keywords: ['innovation', 'innovate', 'r&d', 'research', 'development'] },
-            { theme: 'AI', keywords: ['ai', 'artificial intelligence', 'machine learning', 'ml', 'llm'] },
-            { theme: 'Programming', keywords: ['programming', 'software', 'code', 'developer', 'engineering'] },
-            { theme: 'DevOps', keywords: ['devops', 'ci/cd', 'pipeline', 'infrastructure', 'deployment'] },
-            { theme: 'AISystems', keywords: ['ai systems', 'ai-systems', 'mlops', 'model ops'] },
-            { theme: 'Operations', keywords: ['process', 'supply', 'logistics', 'workflow', 'execution'] },
-            { theme: 'Creativity', keywords: ['creativity', 'creative', 'design', 'ideation'] },
-            { theme: 'Coaching', keywords: ['coaching', 'mentor', 'mentoring'] },
-            { theme: 'Leadership', keywords: ['leadership', 'leader', 'management', 'executive'] },
-            { theme: 'Communication', keywords: ['communication', 'messaging', 'storytelling', 'presentation'] },
-            { theme: 'Influence', keywords: ['influence', 'persuasion', 'negotiation'] }
-        ];
-
-        for (const entry of themeKeywords) {
-            if (!themeLookup.has(entry.theme.toLowerCase())) {
-                continue;
-            }
-            if (entry.keywords.some(keyword => haystack.includes(keyword))) {
-                return themeLookup.get(entry.theme.toLowerCase()) as string;
-            }
-        }
-
-        return '';
-    }
-
-    private pickDisciplineFromKeywords(haystack: string): string {
-        const disciplineKeywords: Array<{ discipline: string; keywords: string[] }> = [
-            { discipline: 'mathematics', keywords: ['mathematics', 'math', 'algebra', 'calculus', 'set theory', 'boolean'] },
-            { discipline: 'strategy', keywords: ['strategy', 'competitive', 'industry', 'five forces'] },
-            { discipline: 'marketing', keywords: ['marketing', 'go-to-market', 'gtm', 'channel', 'brand', 'positioning', 'market'] },
-            { discipline: 'product-management', keywords: ['roadmap', 'product-management', 'backlog', 'product strategy'] },
-            { discipline: 'pricing', keywords: ['pricing', 'willingness-to-pay'] },
-            { discipline: 'operations', keywords: ['supply', 'logistics', 'process', 'workflow'] },
-            { discipline: 'sales', keywords: ['sales', 'pipeline', 'account', 'revenue'] },
-            { discipline: 'computer-science', keywords: ['computer science', 'software', 'programming', 'algorithm', 'data structure'] },
-            { discipline: 'leadership', keywords: ['leadership', 'management'] },
-            { discipline: 'communication', keywords: ['communication', 'presentation', 'writing'] },
-            { discipline: 'ai', keywords: ['ai', 'machine learning', 'ml', 'llm'] }
-        ];
-
-        for (const entry of disciplineKeywords) {
-            if (entry.keywords.some(keyword => haystack.includes(keyword))) {
-                return entry.discipline;
-            }
-        }
-
-        return '';
     }
 }
