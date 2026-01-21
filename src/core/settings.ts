@@ -76,6 +76,27 @@ export interface AIOrganiserSettings {
     // Plugin Folder Settings (unified structure)
     pluginFolder: string;                // Main plugin folder (contains Config, Transcripts, Flashcards)
     configFolderPath: string;            // Subfolder for config files (under pluginFolder)
+    
+    // === SEMANTIC SEARCH SETTINGS ===
+    enableSemanticSearch: boolean;       // Master toggle for semantic search features
+    
+    // Embedding Provider Configuration
+    embeddingProvider: 'openai' | 'claude' | 'gemini' | 'ollama' | 'openrouter' | 'cohere' | 'voyage';
+    embeddingModel: string;              // e.g., 'text-embedding-3-small', 'nomic-embed-text'
+    embeddingApiKey: string;             // May differ from chat API key
+    embeddingEndpoint: string;           // For local providers (Ollama URL)
+    
+    // Indexing Options
+    autoIndexNewNotes: boolean;          // Auto-index notes on create/modify
+    indexExcludedFolders: string[];      // Folders to skip during indexing
+    maxChunksPerNote: number;            // Limit chunks per note (default: 10)
+    chunkSize: number;                   // Characters per chunk (default: 2000)
+    chunkOverlap: number;                // Overlap characters (default: 200)
+    
+    // Search & RAG Settings
+    enableVaultChat: boolean;            // Enable Chat with Vault (RAG) - Phase 2
+    ragContextChunks: number;            // How many chunks to include in context (default: 5)
+    ragIncludeMetadata: boolean;         // Include file path, headings in context
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -106,6 +127,21 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     flashcardFolder: 'Flashcards',
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',
+    
+    // Semantic Search Defaults
+    enableSemanticSearch: false,                        // User must opt-in
+    embeddingProvider: 'openai',                        // Cloud-first default
+    embeddingModel: 'text-embedding-3-small',           // OpenAI default model
+    embeddingApiKey: '',                                // Will use cloudApiKey if empty and provider matches
+    embeddingEndpoint: 'http://localhost:11434',       // For Ollama
+    autoIndexNewNotes: true,                            // Auto-index when enabled
+    indexExcludedFolders: [],                           // No exclusions by default
+    maxChunksPerNote: 10,                               // Reasonable limit
+    chunkSize: 2000,                                    // ~500 tokens (char/4 approximation)
+    chunkOverlap: 200,                                  // ~50 tokens overlap
+    enableVaultChat: false,                             // Phase 2 feature
+    ragContextChunks: 5,                                // Standard context window
+    ragIncludeMetadata: true,                           // Include paths/headings
 };
 
 /**

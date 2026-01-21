@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.5.0",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "voy-search": "^0.6.0"
   }
 }

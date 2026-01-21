@@ -22,11 +22,14 @@ import { TagOperations } from './utils/tagOperations';
 import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
 import { ConfigurationService } from './services/configurationService';
+import { VectorStoreService, IVectorStore } from './services/vector';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
     public llmService: LLMService;
     public configService: ConfigurationService;
+    public vectorStore: IVectorStore | null = null;
+    public vectorStoreService: VectorStoreService | null = null;
     private eventHandlers: EventHandlers;
     private tagNetworkManager: TagNetworkManager;
     private tagOperations: TagOperations;
@@ -111,6 +114,31 @@ export default class AIOrganiserPlugin extends Plugin {
 
         setSettings(this.settings);
 
+        // Initialize vector store for semantic search
+        if (this.settings.enableSemanticSearch && this.llmService) {
+            try {
+                const embeddingService = await (this.llmService as any).getEmbeddingService?.();
+                if (embeddingService) {
+                    this.vectorStoreService = new VectorStoreService(
+                        this.app,
+                        this.settings,
+                        embeddingService
+                    );
+                    this.vectorStore = await this.vectorStoreService.createVectorStore();
+                    
+                    // Register file event handlers for auto-indexing
+                    if (this.settings.autoIndexNewNotes) {
+                        this.vectorStoreService.registerFileEventHandlers();
+                    }
+                    
+                    new Notice('Vector store initialized for semantic search');
+                }
+            } catch (error) {
+                console.error('Failed to initialize vector store:', error);
+                new Notice('Failed to initialize semantic search: ' + (error as any).message, 5000);
+            }
+        }
+
         this.eventHandlers.registerEventHandlers();
         this.addSettingTab(new AIOrganiserSettingTab(this.app, this));
         registerCommands(this);
@@ -151,6 +179,11 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public async onunload(): Promise<void> {
         await this.llmService?.dispose();
+        if (this.vectorStoreService) {
+            await this.vectorStoreService.dispose();
+            this.vectorStore = null;
+            this.vectorStoreService = null;
+        }
         this.eventHandlers.cleanup();
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
         this.app.workspace.trigger('layout-change');

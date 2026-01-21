@@ -38,7 +38,10 @@ esbuild.build({
   logLevel: "info",
   sourcemap: prod ? false : "inline",
   treeShaking: true,
-  outfile: "main.js"
+  outfile: "main.js",
+  loader: {
+    ".wasm": "binary"
+  }
 }).catch(() => process.exit(1));
 if (!prod) {
   console.log("Watching for changes...");
