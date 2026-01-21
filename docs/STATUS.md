@@ -536,5 +536,5 @@ See [usertest.md](usertest.md) for comprehensive manual testing checklist (254 t
 
 ## Repository
 
-- **GitHub:** [Lbstrydom/second-brain-organiser](https://github.com/Lbstrydom/second-brain-organiser)
+- **GitHub:** [Lbstrydom/ai-organiser](https://github.com/Lbstrydom/ai-organiser)
 - **Author:** L Strydom
