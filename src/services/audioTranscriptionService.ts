@@ -163,6 +163,74 @@ export async function transcribeAudio(
 }
 
 /**
+ * Transcribe audio from raw data (used for compressed audio)
+ */
+export async function transcribeAudioFromData(
+    audioData: Uint8Array,
+    fileName: string,
+    options: TranscriptionOptions
+): Promise<TranscriptionResult> {
+    try {
+        // Check file size
+        if (!isFileSizeValid(audioData.byteLength)) {
+            return {
+                success: false,
+                error: `File size (${formatFileSize(audioData.byteLength)}) exceeds ${MAX_FILE_SIZE_MB}MB limit.`
+            };
+        }
+
+        // Get the appropriate endpoint and prepare the request
+        const endpoint = getWhisperEndpoint(options.provider);
+
+        // Create form data manually for Obsidian's requestUrl
+        const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+        const formData = buildMultipartFormData(
+            audioData.buffer,
+            fileName,
+            'mp3', // Compressed files are always MP3
+            options,
+            boundary
+        );
+
+        // Make the API request
+        const response = await requestUrl({
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${options.apiKey}`,
+                'Content-Type': `multipart/form-data; boundary=${boundary}`
+            },
+            body: formData
+        });
+
+        if (response.status !== 200) {
+            const errorText = typeof response.json === 'object'
+                ? JSON.stringify(response.json)
+                : response.text;
+            return {
+                success: false,
+                error: `API error (${response.status}): ${errorText}`
+            };
+        }
+
+        const result = response.json;
+
+        return {
+            success: true,
+            transcript: result.text,
+            duration: result.duration
+        };
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return {
+            success: false,
+            error: `Transcription failed: ${errorMessage}`
+        };
+    }
+}
+
+/**
  * Get the Whisper API endpoint for the provider
  */
 function getWhisperEndpoint(provider: TranscriptionProvider): string {
@@ -252,6 +320,7 @@ function buildMultipartFormData(
     return combineArrayBuffers(parts);
 }
 
+
 /**
  * Combine strings and ArrayBuffers into a single ArrayBuffer
  */
@@ -302,4 +371,150 @@ export function getAvailableTranscriptionProvider(
 
     // No compatible provider available
     return null;
+}
+
+// ============================================================================
+// CHUNKED TRANSCRIPTION FOR VERY LONG FILES
+// ============================================================================
+
+import * as fs from 'fs';
+import {
+    ChunkInfo,
+    getChunkPromptContext,
+    cleanupChunks
+} from './audioCompressionService';
+
+export interface ChunkedTranscriptionProgress {
+    currentChunk: number;
+    totalChunks: number;
+    globalPercent: number;  // Overall progress across all chunks (0-100)
+    message: string;
+}
+
+export type ChunkedTranscriptionCallback = (progress: ChunkedTranscriptionProgress) => void;
+
+/**
+ * Transcribe multiple audio chunks sequentially with context chaining
+ * Uses the "prompt" parameter to maintain context across chunk boundaries
+ *
+ * Progress formula: globalPercent = ((currentChunkIndex + chunkProgress) / totalChunks) * 100
+ * Where chunkProgress is 0 at start of chunk, 0.5 while uploading, 1 when complete
+ */
+export async function transcribeChunkedAudio(
+    chunks: ChunkInfo[],
+    options: TranscriptionOptions,
+    onProgress?: ChunkedTranscriptionCallback
+): Promise<TranscriptionResult> {
+    if (chunks.length === 0) {
+        return { success: false, error: 'No audio chunks provided' };
+    }
+
+    const transcripts: string[] = [];
+    let previousContext = '';
+    let totalDuration = 0;
+    const totalChunks = chunks.length;
+
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+
+        // Report starting this chunk (chunkProgress = 0)
+        const startPercent = (i / totalChunks) * 100;
+        onProgress?.({
+            currentChunk: i + 1,
+            totalChunks,
+            globalPercent: Math.round(startPercent),
+            message: `Transcribing chunk ${i + 1}/${totalChunks}...`
+        });
+
+        try {
+            // Read chunk file
+            const audioBuffer = fs.readFileSync(chunk.path);
+            const audioData = new Uint8Array(audioBuffer);
+
+            // Report uploading (chunkProgress = 0.5)
+            const uploadPercent = ((i + 0.5) / totalChunks) * 100;
+            onProgress?.({
+                currentChunk: i + 1,
+                totalChunks,
+                globalPercent: Math.round(uploadPercent),
+                message: `Uploading chunk ${i + 1}/${totalChunks}...`
+            });
+
+            // Create options with context from previous chunk
+            const chunkOptions: TranscriptionOptions = {
+                ...options,
+                // Use previous transcript context as prompt for continuity
+                prompt: previousContext || options.prompt
+            };
+
+            // Transcribe this chunk
+            const result = await transcribeAudioFromData(
+                audioData,
+                `chunk_${String(i).padStart(3, '0')}.mp3`,
+                chunkOptions
+            );
+
+            if (!result.success || !result.transcript) {
+                return {
+                    success: false,
+                    error: `Failed to transcribe chunk ${i + 1}: ${result.error || 'Unknown error'}`
+                };
+            }
+
+            // Add to transcripts
+            transcripts.push(result.transcript.trim());
+
+            // Update context for next chunk (last ~250 chars)
+            previousContext = getChunkPromptContext(result.transcript);
+
+            // Track duration
+            if (result.duration) {
+                totalDuration += result.duration;
+            }
+
+            // Report chunk complete (chunkProgress = 1)
+            const completePercent = ((i + 1) / totalChunks) * 100;
+            onProgress?.({
+                currentChunk: i + 1,
+                totalChunks,
+                globalPercent: Math.round(completePercent),
+                message: `Completed chunk ${i + 1}/${totalChunks}`
+            });
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                success: false,
+                error: `Error reading chunk ${i + 1}: ${errorMessage}`
+            };
+        }
+    }
+
+    // Combine all transcripts with proper spacing
+    const fullTranscript = transcripts.join(' ');
+
+    return {
+        success: true,
+        transcript: fullTranscript,
+        duration: totalDuration > 0 ? totalDuration : undefined
+    };
+}
+
+/**
+ * Higher-level function to handle the complete chunked transcription workflow
+ * Includes cleanup of temporary files
+ */
+export async function transcribeChunkedAudioWithCleanup(
+    chunks: ChunkInfo[],
+    outputDir: string,
+    options: TranscriptionOptions,
+    onProgress?: ChunkedTranscriptionCallback
+): Promise<TranscriptionResult> {
+    try {
+        const result = await transcribeChunkedAudio(chunks, options, onProgress);
+        return result;
+    } finally {
+        // Always clean up temp files
+        cleanupChunks(outputDir);
+    }
 }

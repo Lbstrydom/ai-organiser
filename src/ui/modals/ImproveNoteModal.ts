@@ -5,20 +5,34 @@
 
 import { App, Modal, Setting, TextAreaComponent } from 'obsidian';
 import { Translations } from '../../i18n/types';
+import { Persona } from '../../services/configurationService';
+import { PersonaSelectModal, createPersonaButton } from './PersonaSelectModal';
+
+export interface ImproveNoteResult {
+    query: string;
+    personaId?: string;
+}
 
 export class ImproveNoteModal extends Modal {
     private t: Translations;
-    private onSubmit: (query: string) => void;
+    private onSubmit: (result: ImproveNoteResult) => void;
     private query: string = '';
     private textAreaComponent: TextAreaComponent | null = null;
+    private personas: Persona[];
+    private selectedPersona: Persona;
+    private personaButtonEl: HTMLElement | null = null;
 
     constructor(
         app: App,
         t: Translations,
-        onSubmit: (query: string) => void
+        personas: Persona[],
+        defaultPersona: Persona,
+        onSubmit: (result: ImproveNoteResult) => void
     ) {
         super(app);
         this.t = t;
+        this.personas = personas;
+        this.selectedPersona = defaultPersona;
         this.onSubmit = onSubmit;
     }
 
@@ -37,6 +51,21 @@ export class ImproveNoteModal extends Modal {
             text: this.t.modals.improveNote?.description || 'Ask a question or request an improvement to your note.',
             cls: 'improve-note-description'
         });
+
+        // Persona selector row
+        if (this.personas.length > 1) {
+            const personaRow = contentEl.createEl('div', { cls: 'persona-selector-row' });
+            personaRow.createEl('span', {
+                text: 'Writing style:',
+                cls: 'persona-selector-label'
+            });
+
+            this.personaButtonEl = createPersonaButton(
+                personaRow,
+                this.selectedPersona,
+                () => this.openPersonaSelector()
+            );
+        }
 
         // Examples
         const examplesEl = contentEl.createEl('div', { cls: 'improve-note-examples' });
@@ -108,7 +137,33 @@ export class ImproveNoteModal extends Modal {
     private submit() {
         if (this.query.trim()) {
             this.close();
-            this.onSubmit(this.query.trim());
+            this.onSubmit({
+                query: this.query.trim(),
+                personaId: this.selectedPersona.id
+            });
+        }
+    }
+
+    private openPersonaSelector() {
+        const modal = new PersonaSelectModal(
+            this.app,
+            this.personas,
+            this.selectedPersona.id,
+            (persona) => {
+                this.selectedPersona = persona;
+                this.updatePersonaButton();
+            }
+        );
+        modal.open();
+    }
+
+    private updatePersonaButton() {
+        if (this.personaButtonEl) {
+            const label = this.personaButtonEl.querySelector('.persona-button-label');
+            if (label) {
+                label.textContent = this.selectedPersona.name;
+            }
+            this.personaButtonEl.setAttribute('aria-label', `Persona: ${this.selectedPersona.name}`);
         }
     }
 

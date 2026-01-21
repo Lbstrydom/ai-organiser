@@ -10,12 +10,21 @@ export interface ConfigPaths {
     taxonomyFile: string;      // Main taxonomy with themes and disciplines
     summaryPrompt: string;     // Summary prompt template
     excludedTags: string;      // Tags to never suggest
+    personas: string;          // AI personas for different note-taking styles
 }
 
 export interface TaxonomyEntry {
     name: string;
     description: string;
     useWhen: string;
+}
+
+export interface Persona {
+    id: string;           // Unique identifier (kebab-case)
+    name: string;         // Display name
+    description: string;  // Short description for selection UI
+    prompt: string;       // The actual prompt/instructions for the AI
+    isDefault?: boolean;  // Mark one as default
 }
 
 export interface Taxonomy {
@@ -27,6 +36,7 @@ export interface ConfigContent {
     taxonomy: Taxonomy;
     summaryPromptTemplate: string | null;
     excludedTags: string[];
+    personas: Persona[];
 }
 
 // Default taxonomy with descriptions for AI context
@@ -56,6 +66,93 @@ export const DEFAULT_TAXONOMY: Taxonomy = {
         { name: 'design', description: 'Visual and UX design principles', useWhen: 'UI/UX, graphic design, design systems' },
     ]
 };
+
+// Default personas for different note-taking styles
+export const DEFAULT_PERSONAS: Persona[] = [
+    {
+        id: 'balanced',
+        name: 'Balanced',
+        description: 'Clear, informative notes that balance detail with readability',
+        prompt: `You are a skilled note-taker creating clear, well-organized notes.
+
+Style guidelines:
+- Use clear, straightforward language
+- Balance detail with readability
+- Include relevant examples where helpful
+- Organize with appropriate headings
+- Highlight key points and takeaways`,
+        isDefault: true
+    },
+    {
+        id: 'academic',
+        name: 'Academic',
+        description: 'Formal, rigorous notes with citations and structured arguments',
+        prompt: `You are an academic researcher creating scholarly notes.
+
+Style guidelines:
+- Use formal, precise academic language
+- Present arguments with clear logical structure
+- Note methodologies and limitations
+- Include relevant citations and references
+- Distinguish between facts, interpretations, and hypotheses
+- Use discipline-appropriate terminology`
+    },
+    {
+        id: 'practical',
+        name: 'Practical',
+        description: 'Action-oriented notes focused on "how-to" and applications',
+        prompt: `You are a practical knowledge worker creating actionable notes.
+
+Style guidelines:
+- Focus on "how-to" and practical applications
+- Use bullet points and numbered steps
+- Include concrete examples and use cases
+- Highlight tools, techniques, and best practices
+- Keep theory minimal - emphasize what's actionable
+- Note any prerequisites or warnings`
+    },
+    {
+        id: 'concise',
+        name: 'Concise',
+        description: 'Brief, dense notes that capture essence without elaboration',
+        prompt: `You are creating highly condensed notes that maximize information density.
+
+Style guidelines:
+- Be extremely brief - every word must earn its place
+- Use abbreviations and shorthand where clear
+- Bullet points over prose
+- Only essential information - no elaboration
+- Perfect for quick reference and review`
+    },
+    {
+        id: 'creative',
+        name: 'Creative',
+        description: 'Exploratory notes with analogies, connections, and questions',
+        prompt: `You are a creative thinker capturing ideas and connections.
+
+Style guidelines:
+- Draw analogies and unexpected connections
+- Pose questions and explore possibilities
+- Use metaphors to explain complex concepts
+- Note inspirations and creative tangents
+- Keep an exploratory, curious tone
+- Connect to other fields and ideas`
+    },
+    {
+        id: 'socratic',
+        name: 'Socratic',
+        description: 'Question-driven notes that encourage deeper thinking',
+        prompt: `You are a Socratic learner creating notes that promote deeper understanding.
+
+Style guidelines:
+- Frame content through questions
+- Challenge assumptions and explore "why"
+- Note contradictions and tensions
+- Identify what's uncertain or debatable
+- Include questions for further exploration
+- Encourage critical thinking`
+    }
+];
 
 // Default folder for configuration files
 export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser-Config';
@@ -95,6 +192,7 @@ export class ConfigurationService {
             taxonomyFile: normalizePath(`${this.configFolder}/taxonomy.md`),
             summaryPrompt: normalizePath(`${this.configFolder}/summary-prompt.md`),
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
+            personas: normalizePath(`${this.configFolder}/personas.md`),
         };
     }
 
@@ -111,16 +209,18 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, summaryPrompt, excludedTags] = await Promise.all([
+        const [taxonomy, summaryPrompt, excludedTags, personas] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
             this.loadTextFromFile(paths.summaryPrompt),
             this.loadListFromFile(paths.excludedTags, []),
+            this.loadPersonasFromFile(paths.personas),
         ]);
 
         this.cachedConfig = {
             taxonomy,
             summaryPromptTemplate: summaryPrompt,
             excludedTags,
+            personas,
         };
         this.lastLoadTime = now;
 
@@ -220,6 +320,94 @@ export class ConfigurationService {
             themes: themes.length > 0 ? themes : DEFAULT_TAXONOMY.themes,
             disciplines: disciplines.length > 0 ? disciplines : DEFAULT_TAXONOMY.disciplines
         };
+    }
+
+    /**
+     * Load personas from markdown file
+     */
+    private async loadPersonasFromFile(path: string): Promise<Persona[]> {
+        const file = this.app.vault.getAbstractFileByPath(path);
+
+        if (!file || !(file instanceof TFile)) {
+            return DEFAULT_PERSONAS;
+        }
+
+        try {
+            const content = await this.app.vault.read(file);
+            return this.parsePersonasContent(content);
+        } catch {
+            return DEFAULT_PERSONAS;
+        }
+    }
+
+    /**
+     * Parse personas from markdown content
+     * Format: Each persona is a ### section with metadata and prompt in code block
+     */
+    private parsePersonasContent(content: string): Persona[] {
+        const personas: Persona[] = [];
+
+        // Split by ### headers (persona sections)
+        const sections = content.split(/^###\s+/m);
+
+        for (const section of sections) {
+            if (!section.trim()) continue;
+
+            const lines = section.split('\n');
+            const firstLine = lines[0]?.trim() || '';
+
+            // Skip if it's a higher-level header or empty
+            if (!firstLine || firstLine.startsWith('#')) continue;
+
+            // Extract persona name and check for (default) marker
+            const isDefault = firstLine.toLowerCase().includes('(default)');
+            const name = firstLine.replace(/\s*\(default\)\s*/i, '').trim();
+            const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+            if (!id) continue;
+
+            // Find description (first paragraph after name)
+            let description = '';
+            let prompt = '';
+
+            // Look for description (text before code block)
+            let inCodeBlock = false;
+            let codeBlockLines: string[] = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (line.trim().startsWith('```')) {
+                    if (inCodeBlock) {
+                        // End of code block
+                        prompt = codeBlockLines.join('\n').trim();
+                        break;
+                    } else {
+                        // Start of code block
+                        inCodeBlock = true;
+                        codeBlockLines = [];
+                    }
+                } else if (inCodeBlock) {
+                    codeBlockLines.push(line);
+                } else if (line.trim() && !description) {
+                    // First non-empty line is description
+                    description = line.trim().replace(/^>\s*/, ''); // Remove blockquote marker if present
+                }
+            }
+
+            if (name && prompt) {
+                personas.push({
+                    id,
+                    name,
+                    description: description || `${name} persona`,
+                    prompt,
+                    isDefault
+                });
+            }
+        }
+
+        // Fall back to defaults if nothing parsed
+        return personas.length > 0 ? personas : DEFAULT_PERSONAS;
     }
 
     /**
@@ -374,10 +562,14 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
 *Add tags you want to exclude, one per line or comma-separated.*
 `;
 
+        // Create personas file
+        const personasContent = this.generatePersonasFileContent();
+
         // Create files if they don't exist
         await this.createFileIfNotExists(paths.taxonomyFile, taxonomyContent);
         await this.createFileIfNotExists(paths.summaryPrompt, summaryPromptContent);
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
+        await this.createFileIfNotExists(paths.personas, personasContent);
 
         // Invalidate cache after creating files
         this.cachedConfig = null;
@@ -432,6 +624,52 @@ ${disciplinesTable}
 4. **Use kebab-case for disciplines**: e.g., \`data-science\` not \`Data Science\`
 
 The AI reads the "Description" and "Use When" columns to understand how to apply each tag.
+`;
+    }
+
+    /**
+     * Generate the personas.md file content
+     */
+    private generatePersonasFileContent(): string {
+        const personaSections = DEFAULT_PERSONAS.map(p => {
+            const defaultMarker = p.isDefault ? ' (default)' : '';
+            return `### ${p.name}${defaultMarker}
+
+> ${p.description}
+
+\`\`\`
+${p.prompt}
+\`\`\``;
+        }).join('\n\n');
+
+        return `# AI Personas
+
+Personas control the **writing style and tone** the AI uses when creating or editing your notes. Select a persona when using AI commands to match your preferred note-taking style.
+
+## How to Use
+
+1. **In AI commands**: Click the persona button to change from the default
+2. **Edit existing personas**: Modify the prompt in the code block below
+3. **Add new personas**: Create a new \`### Section\` with a description and code block
+4. **Set default**: Add \`(default)\` after the persona name
+
+## Format
+
+Each persona needs:
+- A \`### Name\` header (add \`(default)\` to mark as default)
+- A description line (shown in the selection menu)
+- A code block with the prompt/instructions for the AI
+
+---
+
+${personaSections}
+
+---
+
+## Creating Custom Personas
+
+To add your own persona, create a new section following the format above.
+The AI will follow your custom instructions when processing content.
 `;
     }
 
@@ -512,6 +750,50 @@ The AI reads the "Description" and "Use When" columns to understand how to apply
     async getSummaryPromptTemplate(): Promise<string | null> {
         const config = await this.loadConfig();
         return config.summaryPromptTemplate;
+    }
+
+    /**
+     * Get all personas
+     */
+    async getPersonas(): Promise<Persona[]> {
+        const config = await this.loadConfig();
+        return config.personas;
+    }
+
+    /**
+     * Get the default persona
+     */
+    async getDefaultPersona(): Promise<Persona> {
+        const config = await this.loadConfig();
+        const defaultPersona = config.personas.find(p => p.isDefault);
+        return defaultPersona || config.personas[0] || DEFAULT_PERSONAS[0];
+    }
+
+    /**
+     * Get a persona by ID
+     */
+    async getPersonaById(id: string): Promise<Persona | null> {
+        const config = await this.loadConfig();
+        return config.personas.find(p => p.id === id) || null;
+    }
+
+    /**
+     * Get persona prompt formatted for injection into AI prompts
+     */
+    async getPersonaPrompt(personaId?: string): Promise<string> {
+        let persona: Persona | null = null;
+
+        if (personaId) {
+            persona = await this.getPersonaById(personaId);
+        }
+
+        if (!persona) {
+            persona = await this.getDefaultPersona();
+        }
+
+        return `<persona>
+${persona.prompt}
+</persona>`;
     }
 
     /**

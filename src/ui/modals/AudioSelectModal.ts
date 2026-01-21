@@ -1,6 +1,7 @@
 /**
  * Audio Select Modal
  * Modal for selecting an audio file from the vault to transcribe
+ * Supports files over 25MB with compression indicator
  */
 
 import { App, Modal, TFile, setIcon, Setting } from 'obsidian';
@@ -8,15 +9,16 @@ import { Translations } from '../../i18n/types';
 import {
     getAllAudioFiles,
     formatFileSize,
-    isFileSizeValid,
     MAX_FILE_SIZE_MB
 } from '../../services/audioTranscriptionService';
+import { needsCompression, getCompressionEstimate } from '../../services/audioCompressionService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 
 export interface AudioSelectResult {
     file: TFile;
     language: string;
     context: string;
+    needsCompression: boolean;
 }
 
 export class AudioSelectModal extends Modal {
@@ -27,6 +29,7 @@ export class AudioSelectModal extends Modal {
     private selectedFile: TFile | null = null;
     private selectedLanguage: string = 'auto';
     private contextPrompt: string = '';
+    private compressionNotice: HTMLElement | null = null;
 
     constructor(
         app: App,
@@ -49,10 +52,10 @@ export class AudioSelectModal extends Modal {
             text: this.t.modals.audioSelect?.title || 'Select Audio File'
         });
 
-        // Description
+        // Description - updated to mention compression
         contentEl.createEl('p', {
             text: this.t.modals.audioSelect?.description ||
-                `Select an audio file to transcribe. Maximum file size: ${MAX_FILE_SIZE_MB}MB.`,
+                `Select an audio file to transcribe. Files over ${MAX_FILE_SIZE_MB}MB will be compressed automatically.`,
             cls: 'audio-select-description'
         });
 
@@ -87,6 +90,16 @@ export class AudioSelectModal extends Modal {
 
         // Render file list
         this.renderFileList(fileListContainer);
+
+        // Compression notice (hidden by default)
+        this.compressionNotice = contentEl.createEl('div', {
+            cls: 'audio-compression-notice hidden'
+        });
+        const noticeIcon = this.compressionNotice.createEl('span', { cls: 'compression-notice-icon' });
+        setIcon(noticeIcon, 'file-down');
+        this.compressionNotice.createEl('span', {
+            cls: 'compression-notice-text'
+        });
 
         // Transcription options section
         const optionsSection = contentEl.createEl('div', { cls: 'audio-select-options' });
@@ -154,11 +167,11 @@ export class AudioSelectModal extends Modal {
 
         for (const file of filteredFiles) {
             const fileSize = file.stat.size;
-            const isValid = isFileSizeValid(fileSize);
+            const requiresCompression = needsCompression(fileSize);
             const isSelected = this.selectedFile?.path === file.path;
 
             const item = container.createEl('div', {
-                cls: `audio-list-item ${!isValid ? 'invalid' : ''} ${isSelected ? 'selected' : ''}`
+                cls: `audio-list-item ${requiresCompression ? 'needs-compression' : ''} ${isSelected ? 'selected' : ''}`
             });
 
             // Icon
@@ -178,16 +191,29 @@ export class AudioSelectModal extends Modal {
                 cls: 'audio-format'
             });
 
+            // Compression badge for large files
+            if (requiresCompression) {
+                const badge = nameRow.createEl('span', {
+                    text: this.t.modals.audioSelect?.compressionBadge || 'Will compress',
+                    cls: 'audio-compression-badge'
+                });
+                badge.setAttribute('title',
+                    (this.t.modals.audioSelect?.compressionTooltip ||
+                        'This file will be compressed before transcription')
+                );
+            }
+
             // Meta info
             const meta = info.createEl('div', { cls: 'audio-meta' });
             const sizeEl = meta.createEl('span', {
                 text: formatFileSize(fileSize),
-                cls: `audio-size ${!isValid ? 'too-large' : ''}`
+                cls: `audio-size ${requiresCompression ? 'large-file' : ''}`
             });
 
-            if (!isValid) {
+            if (requiresCompression) {
                 sizeEl.setAttribute('title',
-                    (this.t.modals.audioSelect?.fileTooLarge || 'File exceeds {maxSize}MB limit')
+                    (this.t.modals.audioSelect?.largeFileTooltip ||
+                        'File exceeds {maxSize}MB - will be compressed automatically')
                         .replace('{maxSize}', String(MAX_FILE_SIZE_MB))
                 );
             }
@@ -198,29 +224,25 @@ export class AudioSelectModal extends Modal {
                 cls: 'audio-modified'
             });
 
-            // Click handler
-            if (isValid) {
-                item.addEventListener('click', () => {
-                    // Deselect previous
-                    container.querySelectorAll('.audio-list-item.selected').forEach(el => {
-                        el.removeClass('selected');
-                    });
-                    // Select this one
-                    item.addClass('selected');
-                    this.selectedFile = file;
-
-                    // Update submit button
-                    const submitBtn = this.contentEl.querySelector('.mod-cta') as HTMLButtonElement;
-                    if (submitBtn) {
-                        this.updateSubmitButton(submitBtn);
-                    }
+            // Click handler - all files are now selectable
+            item.addEventListener('click', () => {
+                // Deselect previous
+                container.querySelectorAll('.audio-list-item.selected').forEach(el => {
+                    el.removeClass('selected');
                 });
-            } else {
-                item.setAttribute('title',
-                    (this.t.modals.audioSelect?.fileTooLarge || 'File exceeds {maxSize}MB limit')
-                        .replace('{maxSize}', String(MAX_FILE_SIZE_MB))
-                );
-            }
+                // Select this one
+                item.addClass('selected');
+                this.selectedFile = file;
+
+                // Update compression notice
+                this.updateCompressionNotice(file);
+
+                // Update submit button
+                const submitBtn = this.contentEl.querySelector('.mod-cta') as HTMLButtonElement;
+                if (submitBtn) {
+                    this.updateSubmitButton(submitBtn);
+                }
+            });
         }
 
         if (filteredFiles.length === 0) {
@@ -231,22 +253,49 @@ export class AudioSelectModal extends Modal {
         }
     }
 
+    private updateCompressionNotice(file: TFile) {
+        if (!this.compressionNotice) return;
+
+        const fileSize = file.stat.size;
+        const requiresCompression = needsCompression(fileSize);
+
+        if (requiresCompression) {
+            this.compressionNotice.removeClass('hidden');
+            const textEl = this.compressionNotice.querySelector('.compression-notice-text');
+            if (textEl) {
+                textEl.textContent = getCompressionEstimate(fileSize);
+            }
+        } else {
+            this.compressionNotice.addClass('hidden');
+        }
+    }
+
     private updateSubmitButton(button: HTMLButtonElement) {
         button.disabled = !this.selectedFile;
         if (!this.selectedFile) {
             button.addClass('disabled');
+            button.textContent = this.t.modals.audioSelect?.selectButton || 'Transcribe';
         } else {
             button.removeClass('disabled');
+            // Update button text based on whether compression is needed
+            const requiresCompression = needsCompression(this.selectedFile.stat.size);
+            if (requiresCompression) {
+                button.textContent = this.t.modals.audioSelect?.compressAndTranscribe || 'Compress & Transcribe';
+            } else {
+                button.textContent = this.t.modals.audioSelect?.selectButton || 'Transcribe';
+            }
         }
     }
 
     private submit() {
         if (this.selectedFile) {
+            const requiresCompression = needsCompression(this.selectedFile.stat.size);
             this.close();
             this.onSelect({
                 file: this.selectedFile,
                 language: this.selectedLanguage === 'auto' ? '' : this.selectedLanguage,
-                context: this.contextPrompt.trim()
+                context: this.contextPrompt.trim(),
+                needsCompression: requiresCompression
             });
         }
     }

@@ -7,6 +7,7 @@ import { Editor, MarkdownView, MarkdownFileInfo, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { TranslateModal } from '../ui/modals/TranslateModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
+import { replaceMainContent, ensureStandardStructure } from '../utils/noteStructure';
 
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Command: Translate current note
@@ -78,8 +79,12 @@ async function translateNote(
         const response = await translateWithLLM(plugin, prompt);
 
         if (response.success && response.content) {
-            // Replace entire editor content
-            editor.setValue(response.content);
+            // Replace main content while preserving References and Pending Integration sections
+            replaceMainContent(editor, response.content);
+
+            // Ensure standard structure exists after translation
+            ensureStandardStructure(editor);
+
             new Notice(plugin.t.messages.translationComplete || 'Translation complete');
         } else {
             new Notice(`Translation failed: ${response.error || 'Unknown error'}`);

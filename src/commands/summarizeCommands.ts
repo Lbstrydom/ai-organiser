@@ -21,10 +21,19 @@ import { getLanguageNameForPrompt } from '../services/languages';
 import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo } from '../services/youtubeService';
 import {
     transcribeAudio,
-    getAvailableTranscriptionProvider,
-    formatFileSize,
-    MAX_FILE_SIZE_MB
+    transcribeAudioFromData,
+    getAvailableTranscriptionProvider
 } from '../services/audioTranscriptionService';
+import {
+    compressAudio,
+    CompressionProgress
+} from '../services/audioCompressionService';
+import {
+    addToReferencesSection,
+    SourceReference,
+    getTodayDate,
+    formatDuration
+} from '../utils/noteStructure';
 
 export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     const pdfService = new PdfService(plugin.app);
@@ -312,7 +321,7 @@ async function handleAudioSummarization(
     result: AudioSelectResult,
     provider: 'openai' | 'groq'
 ): Promise<void> {
-    const { file, language, context } = result;
+    const { file, language, context, needsCompression } = result;
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
@@ -326,26 +335,58 @@ async function handleAudioSummarization(
         markPrivacyNoticeShown();
     }
 
-    // Check file size
-    const fileSize = file.stat.size;
-    if (fileSize > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        new Notice(
-            (plugin.t.messages.audioFileTooLarge || 'Audio file too large') +
-            ` (${formatFileSize(fileSize)}). ` +
-            (plugin.t.messages.audioMaxSize || `Maximum size: ${MAX_FILE_SIZE_MB}MB`)
+    let transcriptionResult;
+
+    if (needsCompression) {
+        // Compress the audio first
+        new Notice(plugin.t.messages.compressingAudio || 'Compressing audio file...');
+
+        const compressionResult = await compressAudio(
+            plugin.app,
+            file,
+            (progress: CompressionProgress) => {
+                if (plugin.settings.debugMode) {
+                    console.log('[AI Organiser] Compression progress:', progress);
+                }
+                // Show progress notices for key stages
+                if (progress.stage === 'loading' || progress.stage === 'done' || progress.stage === 'error') {
+                    new Notice(progress.message);
+                }
+            }
         );
-        return;
+
+        if (!compressionResult.success || !compressionResult.data) {
+            new Notice(
+                (plugin.t.messages.compressionFailed || 'Compression failed') +
+                `: ${compressionResult.error || 'Unknown error'}`
+            );
+            return;
+        }
+
+        new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
+
+        // Transcribe the compressed audio
+        transcriptionResult = await transcribeAudioFromData(
+            compressionResult.data,
+            file.basename + '_compressed.mp3',
+            {
+                provider,
+                apiKey: plugin.settings.cloudApiKey,
+                language: language || plugin.settings.summaryLanguage || undefined,
+                prompt: context || undefined
+            }
+        );
+    } else {
+        new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
+
+        // Transcribe the audio directly
+        transcriptionResult = await transcribeAudio(plugin.app, file, {
+            provider,
+            apiKey: plugin.settings.cloudApiKey,
+            language: language || plugin.settings.summaryLanguage || undefined,
+            prompt: context || undefined
+        });
     }
-
-    new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
-
-    // Transcribe the audio with user-specified language and context
-    const transcriptionResult = await transcribeAudio(plugin.app, file, {
-        provider,
-        apiKey: plugin.settings.cloudApiKey,
-        language: language || plugin.settings.summaryLanguage || undefined,
-        prompt: context || undefined
-    });
 
     if (plugin.settings.debugMode) {
         console.log('[AI Organiser] Transcription result:', transcriptionResult);
@@ -517,6 +558,7 @@ async function summarizeAudioInChunks(
 
 /**
  * Insert audio summary into editor with metadata
+ * Adds source to References section
  */
 function insertAudioSummary(
     editor: Editor,
@@ -530,18 +572,23 @@ function insertAudioSummary(
 
     if (plugin.settings.includeSummaryMetadata) {
         output += `## Summary: ${file.basename}\n\n`;
-        output += `> Source: [[${file.path}]]\n`;
-        if (duration) {
-            const minutes = Math.floor(duration / 60);
-            const seconds = Math.round(duration % 60);
-            output += `> Duration: ${minutes}:${seconds.toString().padStart(2, '0')}\n`;
-        }
-        output += '\n';
     }
 
     output += summary;
 
+    // Insert summary at cursor
     editor.replaceRange(output, cursor);
+
+    // Add source to References section
+    const sourceRef: SourceReference = {
+        type: 'audio',
+        title: file.basename,
+        link: file.path,
+        date: getTodayDate(),
+        duration: duration ? formatDuration(duration) : undefined,
+        isInternal: true
+    };
+    addToReferencesSection(editor, sourceRef);
 }
 
 /**
@@ -717,6 +764,7 @@ async function summarizeYouTubeInChunks(
 
 /**
  * Insert YouTube summary into editor with metadata
+ * Adds source to References section
  */
 function insertYouTubeSummary(
     editor: Editor,
@@ -729,13 +777,25 @@ function insertYouTubeSummary(
 
     if (plugin.settings.includeSummaryMetadata && videoInfo) {
         output += `## Summary: ${videoInfo.title}\n\n`;
-        output += `> Source: [${videoInfo.title}](${getYouTubeUrl(videoInfo.videoId)})\n`;
-        output += `> Channel: ${videoInfo.channelName}\n\n`;
     }
 
     output += summary;
 
+    // Insert summary at cursor
     editor.replaceRange(output, cursor);
+
+    // Add source to References section
+    if (videoInfo) {
+        const sourceRef: SourceReference = {
+            type: 'youtube',
+            title: videoInfo.title,
+            link: getYouTubeUrl(videoInfo.videoId),
+            author: videoInfo.channelName,
+            date: getTodayDate(),
+            isInternal: false
+        };
+        addToReferencesSection(editor, sourceRef);
+    }
 }
 
 /**
@@ -939,6 +999,7 @@ async function summarizePdfWithLLM(
 
 /**
  * Insert web summary into editor
+ * Adds source to References section
  */
 function insertWebSummary(
     editor: Editor,
@@ -952,36 +1013,15 @@ function insertWebSummary(
 
     if (plugin.settings.includeSummaryMetadata) {
         output += `## ${webContent.title}\n\n`;
-
-        // Primary source URL as clickable link
-        let sourceName = webContent.siteName || 'Source';
-        try {
-            sourceName = webContent.siteName || new URL(webContent.url).hostname;
-        } catch {
-            // Keep default
-        }
-        output += `> **Source:** [${sourceName}](${webContent.url})\n`;
-        if (webContent.byline) output += `> **Author:** ${webContent.byline}\n`;
-        output += `> **Fetched:** ${webContent.fetchedAt.toISOString().split('T')[0]}\n`;
-
-        // Count unique external references in content
-        const externalLinks = getExternalLinks(webContent.links || [], webContent.url);
-        if (externalLinks.length > 0) {
-            output += `> **References:** ${externalLinks.length} external link${externalLinks.length > 1 ? 's' : ''}\n`;
-        }
-        output += '\n';
     }
 
     output += summary;
 
-    // Add references section for external links (different domain from source)
+    // Add inline references for external links (kept in summary for context)
     const externalLinks = getExternalLinks(webContent.links || [], webContent.url);
-
-    // Only show references section if there are external links that might add value
     if (externalLinks.length > 0 && externalLinks.length <= 20) {
-        output += '\n\n---\n\n### References\n\n';
+        output += '\n\n### Related Links\n\n';
         for (const link of externalLinks.slice(0, 15)) {
-            // Clean up link text (truncate if too long)
             const displayText = link.text.length > 60
                 ? link.text.substring(0, 57) + '...'
                 : link.text;
@@ -989,7 +1029,26 @@ function insertWebSummary(
         }
     }
 
+    // Insert summary at cursor
     editor.replaceRange(output, cursor);
+
+    // Add primary source to References section
+    let sourceName = webContent.siteName || 'Source';
+    try {
+        sourceName = webContent.siteName || new URL(webContent.url).hostname;
+    } catch {
+        // Keep default
+    }
+
+    const sourceRef: SourceReference = {
+        type: 'web',
+        title: webContent.title || sourceName,
+        link: webContent.url,
+        author: webContent.byline || undefined,
+        date: webContent.fetchedAt.toISOString().split('T')[0],
+        isInternal: false
+    };
+    addToReferencesSection(editor, sourceRef);
 }
 
 /**
@@ -1015,6 +1074,7 @@ function getExternalLinks(links: { text: string; href: string }[], sourceUrl: st
 
 /**
  * Insert PDF summary into editor
+ * Adds source to References section
  */
 function insertPdfSummary(
     editor: Editor,
@@ -1028,10 +1088,20 @@ function insertPdfSummary(
 
     if (plugin.settings.includeSummaryMetadata) {
         output += `## Summary: ${pdfContent.fileName}\n\n`;
-        output += `> Source: [[${pdfContent.filePath}]]\n\n`;
     }
 
     output += summary;
 
+    // Insert summary at cursor
     editor.replaceRange(output, cursor);
+
+    // Add source to References section
+    const sourceRef: SourceReference = {
+        type: 'pdf',
+        title: pdfContent.fileName,
+        link: pdfContent.filePath,
+        date: getTodayDate(),
+        isInternal: true
+    };
+    addToReferencesSection(editor, sourceRef);
 }

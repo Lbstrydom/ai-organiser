@@ -110,6 +110,7 @@ export interface Translations {
         generateFromEmbedded: string;
         improveNote: string;
         findResources: string;
+        openCommandPicker: string;
     };
 
     // Messages and notifications
@@ -219,6 +220,8 @@ export interface Translations {
         transcriptionFailed: string;
         summarizingTranscript: string;
         noAudioFiles: string;
+        compressingAudio: string;
+        compressionFailed: string;
     };
 
     // Modal dialogs
@@ -371,6 +374,10 @@ export interface Translations {
             contextDesc: string;
             contextPlaceholder: string;
             personaDesc: string;
+            compressionBadge: string;
+            compressionTooltip: string;
+            largeFileTooltip: string;
+            compressAndTranscribe: string;
         };
     };
 

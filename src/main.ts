@@ -10,6 +10,7 @@ import {
 import { setSettings, buildTaxonomyTagPrompt } from './services/prompts/tagPrompts';
 import { ConfirmationModal } from './ui/modals/ConfirmationModal';
 import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
+import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandPickerModal';
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { registerCommands } from './commands/index';
 import { AIOrganiserSettings, DEFAULT_SETTINGS } from './core/settings';
@@ -119,7 +120,21 @@ export default class AIOrganiserPlugin extends Plugin {
             (leaf) => new TagNetworkView(leaf, this.tagNetworkManager.getNetworkData())
         );
 
+        // Register command picker command
+        this.addCommand({
+            id: 'open-command-picker',
+            name: this.t.commands.openCommandPicker || 'Open command picker',
+            icon: 'sparkles',
+            callback: () => this.openCommandPicker()
+        });
+
         // Add ribbon icons
+        this.addRibbonIcon(
+            'sparkles',
+            this.t.commands.openCommandPicker || 'AI Organiser: Open command picker',
+            () => this.openCommandPicker()
+        );
+
         this.addRibbonIcon(
             'tags',
             this.t.messages.analyzeTagCurrentNote,
@@ -138,6 +153,20 @@ export default class AIOrganiserPlugin extends Plugin {
         this.eventHandlers.cleanup();
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
         this.app.workspace.trigger('layout-change');
+    }
+
+    /**
+     * Opens the command picker modal with all AI Organiser commands
+     */
+    public openCommandPicker(): void {
+        const categories = buildCommandCategories(this.t, (commandId: string) => {
+            // Execute the command via Obsidian's command system
+            // @ts-ignore - commands API is internal but stable
+            (this.app as any).commands.executeCommandById(commandId);
+        });
+
+        const modal = new CommandPickerModal(this.app, this.t, categories);
+        modal.open();
     }
 
     public async showTagNetwork(): Promise<void> {

@@ -111,7 +111,8 @@ export const en: Translations = {
         translateSelection: "Translate selection",
         generateFromEmbedded: "Generate note from embedded content",
         improveNote: "Improve note with AI",
-        findResources: "Find related resources"
+        findResources: "Find related resources",
+        openCommandPicker: "Open command picker"
     },
 
     // Messages and notifications
@@ -220,7 +221,9 @@ export const en: Translations = {
         transcribingAudio: "Transcribing audio...",
         transcriptionFailed: "Transcription failed",
         summarizingTranscript: "Summarizing transcript...",
-        noAudioFiles: "No audio files found in vault"
+        noAudioFiles: "No audio files found in vault",
+        compressingAudio: "Compressing audio file...",
+        compressionFailed: "Audio compression failed"
     },
 
     // Modal dialogs
@@ -359,7 +362,7 @@ export const en: Translations = {
         },
         audioSelect: {
             title: "Select Audio File",
-            description: "Choose an audio file from your vault to transcribe and summarize",
+            description: "Choose an audio file to transcribe. Files over 25MB will be compressed automatically.",
             searchPlaceholder: "Search audio files...",
             filesFound: "{count} audio files found",
             noFiles: "No audio files found in vault",
@@ -372,7 +375,11 @@ export const en: Translations = {
             contextLabel: "Context (Optional)",
             contextDesc: "Describe the audio content to help with technical terms and proper nouns",
             contextPlaceholder: "e.g., A lecture about quantum physics discussing entanglement and superposition",
-            personaDesc: "Choose how to format the summary"
+            personaDesc: "Choose how to format the summary",
+            compressionBadge: "Will compress",
+            compressionTooltip: "This file will be compressed before transcription",
+            largeFileTooltip: "File exceeds {maxSize}MB - will be compressed automatically",
+            compressAndTranscribe: "Compress & Transcribe"
         }
     },
 

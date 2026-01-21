@@ -1165,3 +1165,261 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* Compression badge and notice styles */
+.audio-compression-badge {
+    font-size: var(--font-smallest);
+    padding: 1px 6px;
+    background-color: var(--color-orange);
+    color: var(--text-on-accent);
+    border-radius: var(--radius-s);
+    margin-left: var(--size-4-2);
+}
+
+.audio-list-item.needs-compression .audio-size {
+    color: var(--color-orange);
+}
+
+.audio-compression-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    padding: var(--size-4-3);
+    margin-bottom: var(--size-4-3);
+    background-color: var(--background-modifier-message);
+    border-radius: var(--radius-s);
+    border-left: 3px solid var(--color-orange);
+}
+
+.audio-compression-notice.hidden {
+    display: none;
+}
+
+.compression-notice-icon {
+    color: var(--color-orange);
+    flex-shrink: 0;
+}
+
+.compression-notice-text {
+    font-size: var(--font-small);
+    color: var(--text-muted);
+}
+
+/* Persona Selection Modal Styles */
+.persona-select-modal {
+    max-width: 500px;
+}
+
+.persona-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-2);
+    margin-bottom: var(--size-4-4);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.persona-item {
+    padding: var(--size-4-3);
+    background-color: var(--background-secondary);
+    border-radius: var(--radius-m);
+    cursor: pointer;
+    transition: background-color 0.1s ease, border-color 0.1s ease;
+    border: 2px solid transparent;
+}
+
+.persona-item:hover {
+    background-color: var(--background-secondary-alt);
+}
+
+.persona-item.is-selected {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-secondary-alt);
+}
+
+.persona-header {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    margin-bottom: var(--size-4-1);
+}
+
+.persona-name {
+    font-weight: var(--font-semibold);
+    font-size: var(--font-ui-medium);
+}
+
+.persona-badge {
+    font-size: var(--font-smallest);
+    padding: 2px 6px;
+    border-radius: var(--radius-s);
+    background-color: var(--background-modifier-border);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.persona-badge-current {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.persona-description {
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Persona Button (inline in modals) */
+.persona-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--size-4-1);
+    padding: var(--size-2-2) var(--size-4-2);
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.persona-button:hover {
+    background-color: var(--background-secondary-alt);
+    border-color: var(--background-modifier-border-hover);
+    color: var(--text-normal);
+}
+
+.persona-button svg {
+    flex-shrink: 0;
+}
+
+.persona-button-label {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Persona selector row in modals */
+.persona-selector-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    margin-bottom: var(--size-4-3);
+    padding: var(--size-4-2);
+    background-color: var(--background-secondary);
+    border-radius: var(--radius-s);
+}
+
+.persona-selector-label {
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+}
+
+.persona-selector-row .persona-button {
+    margin-left: auto;
+}
+
+/* Command Picker Modal Styles */
+.command-picker-modal {
+    width: 550px;
+    max-width: 90vw;
+}
+
+.command-picker-modal .prompt-input-container {
+    margin-bottom: var(--size-4-2);
+}
+
+.command-picker-modal .prompt {
+    border-radius: var(--radius-m);
+}
+
+.command-picker-item {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-3);
+    padding: var(--size-4-2) var(--size-4-3);
+}
+
+.command-picker-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.command-picker-icon-svg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.command-picker-icon-svg svg {
+    width: 16px;
+    height: 16px;
+}
+
+.command-picker-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-3);
+}
+
+.command-picker-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.command-picker-category {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    font-size: var(--font-smallest);
+    background-color: var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    color: var(--text-muted);
+}
+
+/* Category-specific colors */
+.command-picker-item[data-category="tagging"] .command-picker-category {
+    background-color: rgba(var(--color-blue-rgb), 0.15);
+    color: var(--color-blue);
+}
+
+.command-picker-item[data-category="summarize"] .command-picker-category {
+    background-color: rgba(var(--color-green-rgb), 0.15);
+    color: var(--color-green);
+}
+
+.command-picker-item[data-category="smart-notes"] .command-picker-category {
+    background-color: rgba(var(--color-purple-rgb), 0.15);
+    color: var(--color-purple);
+}
+
+.command-picker-item[data-category="translate"] .command-picker-category {
+    background-color: rgba(var(--color-orange-rgb), 0.15);
+    color: var(--color-orange);
+}
+
+.command-picker-item[data-category="utilities"] .command-picker-category {
+    background-color: rgba(var(--color-cyan-rgb), 0.15);
+    color: var(--color-cyan);
+}
+
+/* Hover and selected states */
+.suggestion-item.is-selected .command-picker-icon {
+    color: var(--text-on-accent);
+}
+
+.suggestion-item.is-selected .command-picker-category {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-on-accent);
+}

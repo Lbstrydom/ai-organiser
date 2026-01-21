@@ -110,7 +110,8 @@ export const zhCN: Translations = {
         translateSelection: "翻译选中内容",
         generateFromEmbedded: "从嵌入内容生成笔记",
         improveNote: "AI 改进笔记",
-        findResources: "查找相关资源"
+        findResources: "查找相关资源",
+        openCommandPicker: "打开命令选择器"
     },
 
     // 消息和通知
@@ -219,7 +220,9 @@ export const zhCN: Translations = {
         transcribingAudio: "正在转录音频...",
         transcriptionFailed: "转录失败",
         summarizingTranscript: "正在总结转录内容...",
-        noAudioFiles: "库中未找到音频文件"
+        noAudioFiles: "库中未找到音频文件",
+        compressingAudio: "正在压缩音频文件...",
+        compressionFailed: "音频压缩失败"
     },
 
     // 模态对话框
@@ -358,7 +361,7 @@ export const zhCN: Translations = {
         },
         audioSelect: {
             title: "选择音频文件",
-            description: "从库中选择一个音频文件进行转录和总结",
+            description: "选择要转录的音频文件。超过 25MB 的文件将自动压缩。",
             searchPlaceholder: "搜索音频文件...",
             filesFound: "找到 {count} 个音频文件",
             noFiles: "库中未找到音频文件",
@@ -371,7 +374,11 @@ export const zhCN: Translations = {
             contextLabel: "上下文（可选）",
             contextDesc: "描述音频内容以帮助识别技术术语和专有名词",
             contextPlaceholder: "例如：一堂关于量子物理的讲座，讨论量子纠缠和叠加态",
-            personaDesc: "选择总结的格式"
+            personaDesc: "选择总结的格式",
+            compressionBadge: "需压缩",
+            compressionTooltip: "此文件将在转录前进行压缩",
+            largeFileTooltip: "文件超过 {maxSize}MB - 将自动压缩",
+            compressAndTranscribe: "压缩并转录"
         }
     },
 

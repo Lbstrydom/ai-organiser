@@ -13,9 +13,11 @@ import { getLanguageNameForPrompt } from '../services/languages';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider } from '../services/privacyNotice';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 import { BUILTIN_PERSONAS } from '../services/prompts/summaryPersonas';
-import { ImproveNoteModal } from '../ui/modals/ImproveNoteModal';
+import { ImproveNoteModal, ImproveNoteResult } from '../ui/modals/ImproveNoteModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
+import { replaceMainContent, ensureStandardStructure } from '../utils/noteStructure';
+import { ConfigurationService, Persona } from '../services/configurationService';
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     const extractionService = new ContentExtractionService(plugin.app);
@@ -93,16 +95,28 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
-            // Show improve note modal
+            // Load personas from configuration
+            const configService = new ConfigurationService(plugin.app);
+            const personas = await configService.getPersonas();
+            const defaultPersona = await configService.getDefaultPersona();
+
+            // Show improve note modal with persona selection
             const modal = new ImproveNoteModal(
                 plugin.app,
                 plugin.t,
-                async (query: string) => {
-                    if (!query.trim()) {
+                personas,
+                defaultPersona,
+                async (result) => {
+                    if (!result.query.trim()) {
                         return;
                     }
 
-                    await improveNoteWithQuery(plugin, editor, content, query);
+                    // Get selected persona prompt
+                    const personaPrompt = result.personaId
+                        ? await configService.getPersonaPrompt(result.personaId)
+                        : await configService.getPersonaPrompt();
+
+                    await improveNoteWithQuery(plugin, editor, content, result.query, personaPrompt);
                 }
             );
             modal.open();
@@ -293,7 +307,8 @@ async function improveNoteWithQuery(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     noteContent: string,
-    query: string
+    query: string,
+    personaPrompt?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -315,7 +330,7 @@ async function improveNoteWithQuery(
     const frontmatter = frontmatterMatch ? frontmatterMatch[1] : '';
     const bodyContent = frontmatter ? noteContent.slice(frontmatter.length) : noteContent;
 
-    const prompt = buildImprovePrompt(bodyContent, query, plugin.settings.summaryLanguage);
+    const prompt = buildImprovePrompt(bodyContent, query, plugin.settings.summaryLanguage, personaPrompt);
 
     try {
         let response: { success: boolean; content?: string; error?: string };
@@ -331,9 +346,13 @@ async function improveNoteWithQuery(
         }
 
         if (response.success && response.content) {
-            // Replace entire note content (preserving frontmatter)
+            // Replace main content while preserving References and Pending Integration sections
             const improvedContent = frontmatter + response.content;
-            editor.setValue(improvedContent);
+            replaceMainContent(editor, improvedContent);
+
+            // Ensure standard structure exists after improvement
+            ensureStandardStructure(editor);
+
             new Notice(plugin.t.messages.noteImproved || 'Note improved successfully');
         } else {
             new Notice(`${plugin.t.messages.improvementFailed || 'Improvement failed'}: ${response.error || 'Unknown error'}`);
@@ -347,15 +366,18 @@ async function improveNoteWithQuery(
 /**
  * Build prompt for note improvement
  */
-function buildImprovePrompt(noteContent: string, query: string, language?: string): string {
+function buildImprovePrompt(noteContent: string, query: string, language?: string, personaPrompt?: string): string {
     const languageInstruction = language
         ? `Write your response in ${getLanguageNameForPrompt(language)}.`
         : 'Write your response in the same language as the note.';
 
+    // Include persona if provided
+    const personaSection = personaPrompt ? `\n${personaPrompt}\n` : '';
+
     return `<task>
 You are helping to improve and enhance a study note based on the user's request. You must return the COMPLETE improved note with your changes integrated into the relevant sections.
 </task>
-
+${personaSection}
 <current_note>
 ${noteContent}
 </current_note>
