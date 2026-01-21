@@ -559,9 +559,18 @@ export class ConfigurationService {
             // Skip if it's a higher-level header or empty
             if (!firstLine || firstLine.startsWith('#')) continue;
 
-            // Extract persona name and check for (default) marker
+            // Extract persona name, check for (default) marker, and extract icon
             const isDefault = firstLine.toLowerCase().includes('(default)');
-            const name = firstLine.replace(/\s*\(default\)\s*/i, '').trim();
+
+            // Extract icon if present: [icon: icon-name]
+            const iconMatch = firstLine.match(/\[icon:\s*([^\]]+)\]/i);
+            const icon = iconMatch ? iconMatch[1].trim() : undefined;
+
+            // Remove (default) marker and [icon: ...] from name
+            const name = firstLine
+                .replace(/\s*\(default\)\s*/i, '')
+                .replace(/\s*\[icon:\s*[^\]]+\]\s*/i, '')
+                .trim();
             const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
             if (!id) continue;
@@ -596,13 +605,17 @@ export class ConfigurationService {
             }
 
             if (name && prompt) {
-                personas.push({
+                const persona: Persona = {
                     id,
                     name,
                     description: description || `${name} persona`,
                     prompt,
                     isDefault
-                });
+                };
+                if (icon) {
+                    persona.icon = icon;
+                }
+                personas.push(persona);
             }
         }
 
