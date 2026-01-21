@@ -94,6 +94,44 @@ export const zhCN: Translations = {
             suggestThemes: "建议主题",
             suggestDisciplines: "建议学科",
             analyzing: "正在分析库..."
+        },
+        semanticSearch: {
+            title: "语义搜索和 RAG",
+            enableFeature: "启用语义搜索",
+            enableFeatureDesc: "使用向量嵌入根据含义（而非仅关键词）查找相关笔记",
+            embeddingProvider: "嵌入服务提供商",
+            embeddingProviderDesc: "用于生成文本嵌入的服务（推荐 OpenAI 以获得最佳质量）",
+            embeddingModel: "嵌入模型",
+            embeddingModelDesc: "用于生成嵌入的模型",
+            apiKey: "嵌入 API 密钥",
+            apiKeyDesc: "嵌入服务的 API 密钥（如需要）",
+            endpoint: "自定义端点",
+            endpointDesc: "自定义端点 URL（可选，用于 Ollama 或自托管服务）",
+            testConnection: "测试连接",
+            testing: "正在测试...",
+            connectionSuccessful: "连接成功！可以开始构建索引。",
+            connectionFailed: "连接失败。请检查您的设置。",
+            indexingOptions: "索引选项",
+            autoIndexNewNotes: "自动索引新笔记",
+            autoIndexNewNotesDesc: "创建或修改笔记时自动索引",
+            excludedFolders: "排除的文件夹",
+            excludedFoldersDesc: "索引时要跳过的文件夹（例如，附件、模板）",
+            chunkSize: "分块大小（字符）",
+            chunkSizeDesc: "用于嵌入的文本块大小（更大 = 更多上下文，但精确度较低）",
+            chunkOverlap: "分块重叠（字符）",
+            chunkOverlapDesc: "块之间的重叠以保持跨边界的上下文",
+            maxChunksPerNote: "每个笔记的最大块数",
+            maxChunksPerNoteDesc: "每个笔记创建的最大块数（防止内存问题）",
+            vaultChatOptions: "库聊天（RAG）选项",
+            enableVaultChat: "启用与库聊天",
+            enableVaultChatDesc: "使用检索增强生成与您的库内容聊天",
+            ragContextChunks: "上下文块数",
+            ragContextChunksDesc: "在聊天上下文中包含的相关块数",
+            ragIncludeMetadata: "包含元数据",
+            ragIncludeMetadataDesc: "在聊天上下文中包含笔记标题和标题",
+            localSetup: "本地/离线设置",
+            localSetupDesc: "设置 Ollama 以完全本地生成嵌入（无需 API）",
+            openLocalSetup: "打开本地设置向导"
         }
     },
 
@@ -126,7 +164,13 @@ export const zhCN: Translations = {
         highlightSelection: "高亮选中文本",
         highlightWith: "使用颜色高亮",
         removeHighlight: "移除高亮",
-        exportFlashcards: "从当前笔记导出闪卡"
+        exportFlashcards: "从当前笔记导出闪卡",
+        buildSemanticIndex: "构建语义搜索索引",
+        updateSemanticIndex: "更新语义搜索索引",
+        clearSemanticIndex: "清除语义搜索索引",
+        showRelatedNotes: "显示相关笔记",
+        searchSemanticVault: "语义搜索库",
+        chatWithVault: "与库聊天（RAG）"
     },
 
     // 消息和通知
@@ -244,7 +288,28 @@ export const zhCN: Translations = {
         generatingFlashcards: "正在生成闪卡...",
         flashcardGenerationFailed: "闪卡生成失败",
         flashcardsExported: "已导出",
-        flashcardsTo: "张闪卡到"
+        flashcardsTo: "张闪卡到",
+        buildingIndex: "正在构建语义索引...",
+        indexBuildComplete: "索引构建成功",
+        indexBuildFailed: "索引构建失败",
+        updatingIndex: "正在更新语义索引...",
+        indexUpdateComplete: "索引更新成功",
+        indexUpdateFailed: "索引更新失败",
+        clearingIndex: "正在清除语义索引...",
+        indexCleared: "索引清除成功",
+        indexClearFailed: "索引清除失败",
+        noIndexFound: "未找到语义索引。请先构建一个。",
+        indexingFile: "正在索引",
+        findingRelatedNotes: "正在查找相关笔记...",
+        noRelatedNotes: "未找到相关笔记",
+        relatedNotesFailed: "查找相关笔记失败",
+        searchingVault: "正在搜索库...",
+        noSearchResults: "未找到结果",
+        chatInitializing: "正在初始化聊天...",
+        chatReady: "聊天已就绪",
+        chatFailed: "聊天初始化失败",
+        embeddingGenerationFailed: "生成嵌入失败",
+        vectorStoreFailed: "向量存储操作失败"
     },
 
     // 模态对话框
@@ -278,7 +343,10 @@ export const zhCN: Translations = {
             urlPlaceholder: "https://example.com/article",
             submitButton: "总结",
             personaLabel: "总结风格",
-            personaDesc: "选择总结的格式"
+            personaDesc: "选择总结的格式",
+            contextLabel: "附加上下文",
+            contextDesc: "可选：指导总结焦点（例如，'关注技术细节'或'我对商业意义感兴趣'）",
+            contextPlaceholder: "例如，关注财务影响..."
         },
         pdfSelect: {
             title: "选择 PDF",
@@ -286,7 +354,10 @@ export const zhCN: Translations = {
             selectButton: "选择",
             modifiedLabel: "修改时间",
             personaLabel: "总结风格",
-            personaDesc: "选择总结的格式"
+            personaDesc: "选择总结的格式",
+            contextLabel: "附加上下文",
+            contextDesc: "可选：指导总结焦点（例如，'关注第3章'或'提取关键发现'）",
+            contextPlaceholder: "例如，关注方法学部分..."
         },
         contentSize: {
             title: "内容大小",
@@ -323,7 +394,10 @@ export const zhCN: Translations = {
             urlPlaceholder: "https://www.youtube.com/watch?v=...",
             submitButton: "总结",
             personaLabel: "总结风格",
-            personaDesc: "选择总结的格式"
+            personaDesc: "选择总结的格式",
+            contextLabel: "附加上下文",
+            contextDesc: "可选：指导总结焦点（例如，'关注主要论点'或'提取可操作的建议'）",
+            contextPlaceholder: "例如，我对编码示例感兴趣..."
         },
         suggestion: {
             title: "AI 建议",
@@ -443,6 +517,39 @@ export const zhCN: Translations = {
             exportButton: "生成闪卡",
             mathNoticeAnki: "数学公式将使用 MathJax 表示法（\\(...\\) 用于行内，\\[...\\] 用于块级）。请确保 Anki 已启用 MathJax 支持。",
             mathNoticeBrainscape: "数学公式将转换为纯文本（Brainscape 不支持 LaTeX 渲染）。"
+        },
+        relatedNotes: {
+            title: "相关笔记",
+            description: "基于含义和内容与当前笔记语义相似的笔记。",
+            searchPlaceholder: "筛选结果...",
+            noResults: "未找到相关笔记",
+            clickToOpen: "点击打开"
+        },
+        semanticSearch: {
+            title: "语义库搜索",
+            description: "根据含义而非仅关键词搜索您的库。查找概念相关的内容。",
+            searchPlaceholder: "您在寻找什么？",
+            searchButton: "搜索",
+            noResults: "未找到结果",
+            clickToOpen: "点击打开"
+        },
+        localSetupWizard: {
+            title: "本地嵌入设置",
+            step1Title: "步骤 1：安装 Ollama",
+            step1Description: "Ollama 是一个本地 LLM 运行时，可以完全离线生成嵌入。从 ollama.ai 下载并安装",
+            step2Title: "步骤 2：下载嵌入模型",
+            step2Description: "下载 nomic-embed-text 模型（768 维，约 274MB）。可在 8GB+ RAM 的大多数系统上运行。",
+            step3Title: "步骤 3：验证设置",
+            step3Description: "测试连接以确保一切正常工作。",
+            installOllama: "下载 Ollama",
+            downloadModel: "复制命令",
+            verifySetup: "测试连接",
+            verifying: "正在测试...",
+            setupComplete: "设置完成！Ollama 已准备就绪。",
+            setupFailed: "连接失败。请确保 Ollama 正在运行。",
+            closeButton: "关闭",
+            ramWarning: "⚠️ 您的系统内存少于 8GB。性能可能受限。",
+            ramRecommendation: "💡 建议：8GB+ RAM 以实现流畅的嵌入生成。"
         }
     },
 

@@ -1,6 +1,6 @@
 /**
  * PDF Select Modal
- * Modal for selecting a PDF file to summarize with persona selection
+ * Modal for selecting a PDF file to summarize with persona selection and optional context
  */
 
 import { App, Modal, Setting, TFile } from 'obsidian';
@@ -10,6 +10,7 @@ import type { Persona } from '../../services/configurationService';
 export interface PdfSelectResult {
     file: TFile;
     personaId: string;
+    context?: string;  // Optional user context to guide summarization
 }
 
 export class PdfSelectModal extends Modal {
@@ -17,6 +18,7 @@ export class PdfSelectModal extends Modal {
     private onSelect: (result: PdfSelectResult) => void;
     private t: Translations;
     private personaId: string;
+    private context: string = '';
     private readonly personas: Persona[];
 
     constructor(
@@ -58,6 +60,17 @@ export class PdfSelectModal extends Modal {
                 dropdown.onChange(value => this.personaId = value);
             });
 
+        // Optional context field
+        new Setting(contentEl)
+            .setName(this.t.modals.pdfSelect.contextLabel || 'Additional Context')
+            .setDesc(this.t.modals.pdfSelect.contextDesc || 'Optional: Guide the summary focus (e.g., "focus on chapter 3" or "extract the key findings")')
+            .addTextArea(text => {
+                text.setPlaceholder(this.t.modals.pdfSelect.contextPlaceholder || 'e.g., Focus on the methodology section...')
+                    .onChange(value => this.context = value);
+                text.inputEl.rows = 2;
+                text.inputEl.addClass('summary-context-textarea');
+            });
+
         const listEl = contentEl.createEl('div', { cls: 'pdf-list' });
 
         // Show max 15 recent PDFs
@@ -79,7 +92,11 @@ export class PdfSelectModal extends Modal {
             });
             selectBtn.onclick = () => {
                 this.close();
-                this.onSelect({ file, personaId: this.personaId });
+                this.onSelect({
+                    file,
+                    personaId: this.personaId,
+                    context: this.context.trim() || undefined
+                });
             };
         });
 

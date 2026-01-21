@@ -95,6 +95,44 @@ export const en: Translations = {
             suggestThemes: "Suggest Themes",
             suggestDisciplines: "Suggest Disciplines",
             analyzing: "Analyzing vault..."
+        },
+        semanticSearch: {
+            title: "Semantic Search & RAG",
+            enableFeature: "Enable Semantic Search",
+            enableFeatureDesc: "Use vector embeddings to find related notes based on meaning, not just keywords",
+            embeddingProvider: "Embedding Provider",
+            embeddingProviderDesc: "Service to generate text embeddings (OpenAI recommended for best quality)",
+            embeddingModel: "Embedding Model",
+            embeddingModelDesc: "Model used for generating embeddings",
+            apiKey: "Embedding API Key",
+            apiKeyDesc: "API key for the embedding service (if required)",
+            endpoint: "Custom Endpoint",
+            endpointDesc: "Custom endpoint URL (optional, for Ollama or self-hosted services)",
+            testConnection: "Test Connection",
+            testing: "Testing...",
+            connectionSuccessful: "Connection successful! Ready to build index.",
+            connectionFailed: "Connection failed. Check your settings.",
+            indexingOptions: "Indexing Options",
+            autoIndexNewNotes: "Auto-index New Notes",
+            autoIndexNewNotesDesc: "Automatically index notes when created or modified",
+            excludedFolders: "Excluded Folders",
+            excludedFoldersDesc: "Folders to skip during indexing (e.g., attachments, templates)",
+            chunkSize: "Chunk Size (characters)",
+            chunkSizeDesc: "Size of text chunks for embedding (larger = more context, but less precise)",
+            chunkOverlap: "Chunk Overlap (characters)",
+            chunkOverlapDesc: "Overlap between chunks to preserve context across boundaries",
+            maxChunksPerNote: "Max Chunks Per Note",
+            maxChunksPerNoteDesc: "Maximum number of chunks to create per note (prevents memory issues)",
+            vaultChatOptions: "Vault Chat (RAG) Options",
+            enableVaultChat: "Enable Chat with Vault",
+            enableVaultChatDesc: "Use Retrieval Augmented Generation to chat with your vault content",
+            ragContextChunks: "Context Chunks",
+            ragContextChunksDesc: "Number of relevant chunks to include in chat context",
+            ragIncludeMetadata: "Include Metadata",
+            ragIncludeMetadataDesc: "Include note titles and headings in chat context",
+            localSetup: "Local/Offline Setup",
+            localSetupDesc: "Set up Ollama for completely local embedding generation (no API required)",
+            openLocalSetup: "Open Local Setup Wizard"
         }
     },
 
@@ -127,7 +165,13 @@ export const en: Translations = {
         highlightSelection: "Highlight selection",
         highlightWith: "Highlight with",
         removeHighlight: "Remove highlight",
-        exportFlashcards: "Export flashcards from current note"
+        exportFlashcards: "Export flashcards from current note",
+        buildSemanticIndex: "Build semantic search index",
+        updateSemanticIndex: "Update semantic search index",
+        clearSemanticIndex: "Clear semantic search index",
+        showRelatedNotes: "Show related notes",
+        searchSemanticVault: "Search vault (semantic)",
+        chatWithVault: "Chat with vault (RAG)"
     },
 
     // Messages and notifications
@@ -245,7 +289,28 @@ export const en: Translations = {
         generatingFlashcards: "Generating flashcards...",
         flashcardGenerationFailed: "Failed to generate flashcards",
         flashcardsExported: "Exported",
-        flashcardsTo: "flashcards to"
+        flashcardsTo: "flashcards to",
+        buildingIndex: "Building semantic index...",
+        indexBuildComplete: "Index built successfully",
+        indexBuildFailed: "Failed to build index",
+        updatingIndex: "Updating semantic index...",
+        indexUpdateComplete: "Index updated successfully",
+        indexUpdateFailed: "Failed to update index",
+        clearingIndex: "Clearing semantic index...",
+        indexCleared: "Index cleared successfully",
+        indexClearFailed: "Failed to clear index",
+        noIndexFound: "No semantic index found. Build one first.",
+        indexingFile: "Indexing",
+        findingRelatedNotes: "Finding related notes...",
+        noRelatedNotes: "No related notes found",
+        relatedNotesFailed: "Failed to find related notes",
+        searchingVault: "Searching vault...",
+        noSearchResults: "No results found",
+        chatInitializing: "Initializing chat...",
+        chatReady: "Chat ready",
+        chatFailed: "Chat initialization failed",
+        embeddingGenerationFailed: "Failed to generate embeddings",
+        vectorStoreFailed: "Vector store operation failed"
     },
 
     // Modal dialogs
@@ -279,7 +344,10 @@ export const en: Translations = {
             urlPlaceholder: "https://example.com/article",
             submitButton: "Summarize",
             personaLabel: "Summary Style",
-            personaDesc: "Choose how to format the summary"
+            personaDesc: "Choose how to format the summary",
+            contextLabel: "Additional Context",
+            contextDesc: "Optional: Guide the summary focus (e.g., 'focus on the technical details' or 'I'm interested in the business implications')",
+            contextPlaceholder: "e.g., Focus on the financial implications..."
         },
         pdfSelect: {
             title: "Select PDF",
@@ -287,7 +355,10 @@ export const en: Translations = {
             selectButton: "Select",
             modifiedLabel: "Modified",
             personaLabel: "Summary Style",
-            personaDesc: "Choose how to format the summary"
+            personaDesc: "Choose how to format the summary",
+            contextLabel: "Additional Context",
+            contextDesc: "Optional: Guide the summary focus (e.g., 'focus on chapter 3' or 'extract the key findings')",
+            contextPlaceholder: "e.g., Focus on the methodology section..."
         },
         contentSize: {
             title: "Content Size",
@@ -324,7 +395,10 @@ export const en: Translations = {
             urlPlaceholder: "https://www.youtube.com/watch?v=...",
             submitButton: "Summarize",
             personaLabel: "Summary Style",
-            personaDesc: "Choose how to format the summary"
+            personaDesc: "Choose how to format the summary",
+            contextLabel: "Additional Context",
+            contextDesc: "Optional: Guide the summary focus (e.g., 'focus on the main argument' or 'extract actionable tips')",
+            contextPlaceholder: "e.g., I'm interested in the coding examples..."
         },
         suggestion: {
             title: "AI Suggestions",
@@ -444,6 +518,39 @@ export const en: Translations = {
             exportButton: "Generate Flashcards",
             mathNoticeAnki: "Math will use MathJax notation (\\(...\\) for inline, \\[...\\] for display). Ensure Anki has MathJax support enabled.",
             mathNoticeBrainscape: "Math will be converted to plain text (Brainscape does not support LaTeX rendering)."
+        },
+        relatedNotes: {
+            title: "Related Notes",
+            description: "Notes semantically similar to the current note based on meaning and content.",
+            searchPlaceholder: "Filter results...",
+            noResults: "No related notes found",
+            clickToOpen: "Click to open"
+        },
+        semanticSearch: {
+            title: "Semantic Vault Search",
+            description: "Search your vault by meaning, not just keywords. Finds conceptually related content.",
+            searchPlaceholder: "What are you looking for?",
+            searchButton: "Search",
+            noResults: "No results found",
+            clickToOpen: "Click to open"
+        },
+        localSetupWizard: {
+            title: "Local Embedding Setup",
+            step1Title: "Step 1: Install Ollama",
+            step1Description: "Ollama is a local LLM runtime that can generate embeddings completely offline. Download and install from ollama.ai",
+            step2Title: "Step 2: Download Embedding Model",
+            step2Description: "Download the nomic-embed-text model (768 dimensions, ~274MB). This runs on most systems with 8GB+ RAM.",
+            step3Title: "Step 3: Verify Setup",
+            step3Description: "Test the connection to ensure everything is working correctly.",
+            installOllama: "Download Ollama",
+            downloadModel: "Copy Command",
+            verifySetup: "Test Connection",
+            verifying: "Testing...",
+            setupComplete: "Setup complete! Ollama is ready to use.",
+            setupFailed: "Connection failed. Make sure Ollama is running.",
+            closeButton: "Close",
+            ramWarning: "⚠️ Your system has less than 8GB RAM. Performance may be limited.",
+            ramRecommendation: "💡 Recommended: 8GB+ RAM for smooth embedding generation."
         }
     },
 

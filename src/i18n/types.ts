@@ -94,6 +94,44 @@ export interface Translations {
             suggestDisciplines: string;
             analyzing: string;
         };
+        semanticSearch: {
+            title: string;
+            enableFeature: string;
+            enableFeatureDesc: string;
+            embeddingProvider: string;
+            embeddingProviderDesc: string;
+            embeddingModel: string;
+            embeddingModelDesc: string;
+            apiKey: string;
+            apiKeyDesc: string;
+            endpoint: string;
+            endpointDesc: string;
+            testConnection: string;
+            testing: string;
+            connectionSuccessful: string;
+            connectionFailed: string;
+            indexingOptions: string;
+            autoIndexNewNotes: string;
+            autoIndexNewNotesDesc: string;
+            excludedFolders: string;
+            excludedFoldersDesc: string;
+            chunkSize: string;
+            chunkSizeDesc: string;
+            chunkOverlap: string;
+            chunkOverlapDesc: string;
+            maxChunksPerNote: string;
+            maxChunksPerNoteDesc: string;
+            vaultChatOptions: string;
+            enableVaultChat: string;
+            enableVaultChatDesc: string;
+            ragContextChunks: string;
+            ragContextChunksDesc: string;
+            ragIncludeMetadata: string;
+            ragIncludeMetadataDesc: string;
+            localSetup: string;
+            localSetupDesc: string;
+            openLocalSetup: string;
+        };
     };
 
     // Commands
@@ -126,6 +164,12 @@ export interface Translations {
         highlightWith: string;
         removeHighlight: string;
         exportFlashcards: string;
+        buildSemanticIndex: string;
+        updateSemanticIndex: string;
+        clearSemanticIndex: string;
+        showRelatedNotes: string;
+        searchSemanticVault: string;
+        chatWithVault: string;
     };
 
     // Messages and notifications
@@ -244,6 +288,27 @@ export interface Translations {
         flashcardGenerationFailed: string;
         flashcardsExported: string;
         flashcardsTo: string;
+        buildingIndex: string;
+        indexBuildComplete: string;
+        indexBuildFailed: string;
+        updatingIndex: string;
+        indexUpdateComplete: string;
+        indexUpdateFailed: string;
+        clearingIndex: string;
+        indexCleared: string;
+        indexClearFailed: string;
+        noIndexFound: string;
+        indexingFile: string;
+        findingRelatedNotes: string;
+        noRelatedNotes: string;
+        relatedNotesFailed: string;
+        searchingVault: string;
+        noSearchResults: string;
+        chatInitializing: string;
+        chatReady: string;
+        chatFailed: string;
+        embeddingGenerationFailed: string;
+        vectorStoreFailed: string;
     };
 
     // Modal dialogs
@@ -278,6 +343,9 @@ export interface Translations {
             submitButton: string;
             personaLabel: string;
             personaDesc: string;
+            contextLabel: string;
+            contextDesc: string;
+            contextPlaceholder: string;
         };
         pdfSelect: {
             title: string;
@@ -286,6 +354,9 @@ export interface Translations {
             modifiedLabel: string;
             personaLabel: string;
             personaDesc: string;
+            contextLabel: string;
+            contextDesc: string;
+            contextPlaceholder: string;
         };
         contentSize: {
             title: string;
@@ -323,6 +394,9 @@ export interface Translations {
             submitButton: string;
             personaLabel: string;
             personaDesc: string;
+            contextLabel: string;
+            contextDesc: string;
+            contextPlaceholder: string;
         };
         suggestion: {
             title: string;
@@ -442,6 +516,39 @@ export interface Translations {
             exportButton: string;
             mathNoticeAnki: string;
             mathNoticeBrainscape: string;
+        };
+        relatedNotes: {
+            title: string;
+            description: string;
+            searchPlaceholder: string;
+            noResults: string;
+            clickToOpen: string;
+        };
+        semanticSearch: {
+            title: string;
+            description: string;
+            searchPlaceholder: string;
+            searchButton: string;
+            noResults: string;
+            clickToOpen: string;
+        };
+        localSetupWizard: {
+            title: string;
+            step1Title: string;
+            step1Description: string;
+            step2Title: string;
+            step2Description: string;
+            step3Title: string;
+            step3Description: string;
+            installOllama: string;
+            downloadModel: string;
+            verifySetup: string;
+            verifying: string;
+            setupComplete: string;
+            setupFailed: string;
+            closeButton: string;
+            ramWarning: string;
+            ramRecommendation: string;
         };
     };
 

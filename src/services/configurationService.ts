@@ -8,7 +8,6 @@ import { App, TFile, normalizePath } from 'obsidian';
 
 export interface ConfigPaths {
     taxonomyFile: string;      // Main taxonomy with themes and disciplines
-    summaryPrompt: string;     // Summary prompt template
     excludedTags: string;      // Tags to never suggest
     writingPersonas: string;   // AI personas for note improvement/editing
     summaryPersonas: string;   // AI personas for summarization (URL, PDF, YouTube, Audio)
@@ -36,7 +35,6 @@ export interface Taxonomy {
 
 export interface ConfigContent {
     taxonomy: Taxonomy;
-    summaryPromptTemplate: string | null;
     excludedTags: string[];
     personas: Persona[];           // For note improvement/editing
     summaryPersonas: Persona[];    // For summarization (URL, PDF, YouTube, Audio)
@@ -392,7 +390,6 @@ export class ConfigurationService {
     getConfigPaths(): ConfigPaths {
         return {
             taxonomyFile: normalizePath(`${this.configFolder}/taxonomy.md`),
-            summaryPrompt: normalizePath(`${this.configFolder}/summary-prompt.md`),
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
             writingPersonas: normalizePath(`${this.configFolder}/writing-personas.md`),
             summaryPersonas: normalizePath(`${this.configFolder}/summary-personas.md`),
@@ -412,9 +409,8 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, summaryPrompt, excludedTags, writingPersonas, summaryPersonas] = await Promise.all([
+        const [taxonomy, excludedTags, writingPersonas, summaryPersonas] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
-            this.loadTextFromFile(paths.summaryPrompt),
             this.loadListFromFile(paths.excludedTags, []),
             this.loadPersonasFromFile(paths.writingPersonas, DEFAULT_PERSONAS),
             this.loadPersonasFromFile(paths.summaryPersonas, DEFAULT_SUMMARY_PERSONAS),
@@ -422,7 +418,6 @@ export class ConfigurationService {
 
         this.cachedConfig = {
             taxonomy,
-            summaryPromptTemplate: summaryPrompt,
             excludedTags,
             personas: writingPersonas,
             summaryPersonas,
@@ -668,26 +663,6 @@ export class ConfigurationService {
     }
 
     /**
-     * Load text content from a markdown file
-     */
-    private async loadTextFromFile(path: string): Promise<string | null> {
-        const file = this.app.vault.getAbstractFileByPath(path);
-
-        if (!file || !(file instanceof TFile)) {
-            return null;
-        }
-
-        try {
-            const content = await this.app.vault.read(file);
-            // Remove YAML frontmatter if present
-            const cleanedContent = content.replace(/^---[\s\S]*?---\n?/, '').trim();
-            return cleanedContent || null;
-        } catch {
-            return null;
-        }
-    }
-
-    /**
      * Ensure the config folder exists
      */
     async ensureConfigFolder(): Promise<void> {
@@ -722,32 +697,6 @@ export class ConfigurationService {
         // Create taxonomy file with table format
         const taxonomyContent = this.generateTaxonomyFileContent();
 
-        // Create summary prompt file
-        const summaryPromptContent = `# Summary Prompt
-
-Customize how the AI summarizes web articles and PDFs.
-
----
-
-## Instructions
-
-Summarize the document content provided.
-
-### Requirements
-- Focus on the main thesis, key arguments, and conclusions
-- Preserve important facts, statistics, and quotes
-- Maintain objectivity - do not add opinions or interpretations
-- Keep the summary clear and well-structured
-
-### Style Guidelines
-- Use clear, concise language
-- Highlight key takeaways
-- Preserve the original meaning and intent
-
----
-*Note: Summary length (brief/detailed/comprehensive) is controlled in plugin settings.*
-`;
-
         // Create excluded tags file
         const excludedTagsContent = `# Excluded Tags
 
@@ -775,7 +724,6 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
 
         // Create files if they don't exist
         await this.createFileIfNotExists(paths.taxonomyFile, taxonomyContent);
-        await this.createFileIfNotExists(paths.summaryPrompt, summaryPromptContent);
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
         await this.createFileIfNotExists(paths.writingPersonas, personasContent);
         await this.createFileIfNotExists(paths.summaryPersonas, summaryPersonasContent);
@@ -1002,14 +950,6 @@ The AI will follow your template exactly, so be specific about what sections and
     async getExcludedTags(): Promise<string[]> {
         const config = await this.loadConfig();
         return config.excludedTags;
-    }
-
-    /**
-     * Get custom summary prompt template (if any)
-     */
-    async getSummaryPromptTemplate(): Promise<string | null> {
-        const config = await this.loadConfig();
-        return config.summaryPromptTemplate;
     }
 
     /**

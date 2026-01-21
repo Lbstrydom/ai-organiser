@@ -154,7 +154,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
                 async (result) => {
                     // Get persona prompt from config service
                     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt);
+                    await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context);
                 }
             );
             modal.open();
@@ -196,7 +196,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
                 }
                 const modal = new PdfSelectModal(plugin.app, plugin.t, allPdfs, defaultPersona, personas, async (result) => {
                     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt);
+                    await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
                 });
                 modal.open();
                 return;
@@ -204,7 +204,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
 
             const modal = new PdfSelectModal(plugin.app, plugin.t, pdfs, defaultPersona, personas, async (result) => {
                 const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt);
+                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
             });
             modal.open();
         }
@@ -230,7 +230,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
                 personas,
                 async (result) => {
                     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt);
+                    await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context);
                 }
             );
             modal.open();
@@ -282,7 +282,8 @@ async function handleUrlSummarization(
     pdfService: PdfService,
     editor: Editor,
     url: string,
-    personaPrompt: string
+    personaPrompt: string,
+    userContext?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -335,13 +336,13 @@ async function handleUrlSummarization(
                 return;
             } else if (choice === 'truncate') {
                 const truncatedContent = truncateContent(content, serviceType);
-                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt);
+                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext);
                 new Notice(plugin.t.messages.contentTruncated);
             } else if (choice === 'chunk') {
-                await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt);
+                await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext);
             }
         } else {
-            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt);
+            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext);
         }
 
     } else if (result.requiresPdfFallback) {
@@ -365,7 +366,8 @@ async function handlePdfSummarization(
     pdfService: PdfService,
     editor: Editor,
     file: TFile,
-    personaPrompt: string
+    personaPrompt: string,
+    userContext?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -393,6 +395,7 @@ async function handlePdfSummarization(
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     const prompt = buildSummaryPrompt(promptOptions);
@@ -731,7 +734,8 @@ async function handleYouTubeSummarization(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     url: string,
-    personaPrompt: string
+    personaPrompt: string,
+    userContext?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -792,13 +796,13 @@ async function handleYouTubeSummarization(
             return;
         } else if (choice === 'truncate') {
             const truncatedContent = truncateContent(transcript, serviceType);
-            await summarizeYouTubeAndInsert(plugin, editor, truncatedContent, videoInfo, personaPrompt, transcriptPath);
+            await summarizeYouTubeAndInsert(plugin, editor, truncatedContent, videoInfo, personaPrompt, transcriptPath, userContext);
             new Notice(plugin.t.messages.contentTruncated);
         } else if (choice === 'chunk') {
-            await summarizeYouTubeInChunks(plugin, editor, transcript, videoInfo, serviceType, personaPrompt, transcriptPath);
+            await summarizeYouTubeInChunks(plugin, editor, transcript, videoInfo, serviceType, personaPrompt, transcriptPath, userContext);
         }
     } else {
-        await summarizeYouTubeAndInsert(plugin, editor, transcript, videoInfo, personaPrompt, transcriptPath);
+        await summarizeYouTubeAndInsert(plugin, editor, transcript, videoInfo, personaPrompt, transcriptPath, userContext);
     }
 }
 
@@ -811,12 +815,14 @@ async function summarizeYouTubeAndInsert(
     transcript: string,
     videoInfo: YouTubeVideoInfo | undefined,
     personaPrompt: string,
-    transcriptPath?: string | null
+    transcriptPath?: string | null,
+    userContext?: string
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -847,7 +853,8 @@ async function summarizeYouTubeInChunks(
     videoInfo: YouTubeVideoInfo | undefined,
     provider: string,
     personaPrompt: string,
-    transcriptPath?: string | null
+    transcriptPath?: string | null,
+    userContext?: string
 ): Promise<void> {
     const limits = getProviderLimits(provider);
     const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
@@ -859,6 +866,7 @@ async function summarizeYouTubeInChunks(
         length: 'detailed',
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     // Map phase: summarize each chunk
@@ -892,6 +900,7 @@ async function summarizeYouTubeInChunks(
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
@@ -991,12 +1000,14 @@ async function summarizeAndInsert(
     editor: Editor,
     content: string,
     webContent: WebContent,
-    personaPrompt: string
+    personaPrompt: string,
+    userContext?: string
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -1026,7 +1037,8 @@ async function summarizeInChunks(
     content: string,
     webContent: WebContent,
     provider: string,
-    personaPrompt: string
+    personaPrompt: string,
+    userContext?: string
 ): Promise<void> {
     // Calculate chunk size (use 70% of max to leave room for prompt)
     const limits = getProviderLimits(provider);
@@ -1039,6 +1051,7 @@ async function summarizeInChunks(
         length: 'detailed', // Use detailed for chunk summaries
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     // Map phase: summarize each chunk
@@ -1072,6 +1085,7 @@ async function summarizeInChunks(
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
+        userContext: userContext,
     };
 
     const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);

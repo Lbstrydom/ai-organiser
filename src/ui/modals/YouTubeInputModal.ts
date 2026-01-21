@@ -1,6 +1,6 @@
 /**
  * YouTube Input Modal
- * Modal for entering a YouTube URL to summarize with persona selection
+ * Modal for entering a YouTube URL to summarize with persona selection and optional context
  */
 
 import { App, Modal, Setting } from 'obsidian';
@@ -10,11 +10,13 @@ import type { Persona } from '../../services/configurationService';
 export interface YouTubeInputResult {
     url: string;
     personaId: string;
+    context?: string;  // Optional user context to guide summarization
 }
 
 export class YouTubeInputModal extends Modal {
     private url: string = '';
     private personaId: string;
+    private context: string = '';
     private readonly onSubmit: (result: YouTubeInputResult) => void;
     private readonly t: Translations;
     private readonly personas: Persona[];
@@ -56,7 +58,7 @@ export class YouTubeInputModal extends Modal {
 
                 // Handle Enter key
                 text.inputEl.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.submit();
                     }
@@ -78,6 +80,17 @@ export class YouTubeInputModal extends Modal {
                 dropdown.onChange(value => this.personaId = value);
             });
 
+        // Optional context field
+        new Setting(contentEl)
+            .setName(this.t.modals.youtubeInput?.contextLabel || 'Additional Context')
+            .setDesc(this.t.modals.youtubeInput?.contextDesc || 'Optional: Guide the summary focus (e.g., "focus on the main argument" or "extract actionable tips")')
+            .addTextArea(text => {
+                text.setPlaceholder(this.t.modals.youtubeInput?.contextPlaceholder || 'e.g., I\'m interested in the coding examples...')
+                    .onChange(value => this.context = value);
+                text.inputEl.rows = 2;
+                text.inputEl.addClass('summary-context-textarea');
+            });
+
         new Setting(contentEl)
             .addButton(btn => btn
                 .setButtonText(this.t.modals.youtubeInput?.submitButton || 'Summarize')
@@ -94,7 +107,11 @@ export class YouTubeInputModal extends Modal {
         const trimmedUrl = this.url.trim();
         if (trimmedUrl) {
             this.close();
-            this.onSubmit({ url: trimmedUrl, personaId: this.personaId });
+            this.onSubmit({
+                url: trimmedUrl,
+                personaId: this.personaId,
+                context: this.context.trim() || undefined
+            });
         }
     }
 

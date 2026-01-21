@@ -9,6 +9,7 @@ export interface SummaryPromptOptions {
   length: 'brief' | 'detailed' | 'comprehensive';
   language?: string;
   personaPrompt?: string;   // The actual persona prompt content (from configurationService)
+  userContext?: string;     // Optional user-provided context to guide the summary focus
 }
 
 interface CombinePromptOptions extends SummaryPromptOptions {
@@ -44,6 +45,7 @@ ${personaPrompt}
 <additional_requirements>
 - ${LENGTH_INSTRUCTIONS[options.length]}
 ${options.language ? `- Write the summary in ${options.language}.` : '- Write the summary in the same language as the source content.'}
+${options.userContext ? `- User focus: ${options.userContext}` : ''}
 </additional_requirements>
 
 <link_handling>
@@ -77,6 +79,7 @@ Summarize the document content provided below.
 - Preserve important facts, statistics, and quotes
 - Maintain objectivity - do not add opinions or interpretations
 ${options.language ? `- Write the summary in ${options.language}.` : '- Write the summary in the same language as the source content.'}
+${options.userContext ? `- User focus: ${options.userContext}` : ''}
 </requirements>
 
 <link_handling>
