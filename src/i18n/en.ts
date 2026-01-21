@@ -169,7 +169,7 @@ export const en: Translations = {
         buildSemanticIndex: "Build semantic search index",
         updateSemanticIndex: "Update semantic search index",
         clearSemanticIndex: "Clear semantic search index",
-        showRelatedNotes: "Show related notes",
+        showRelatedNotes: "Show related notes panel",
         searchSemanticVault: "Search vault (semantic)",
         chatWithVault: "Chat with vault (RAG)"
     },

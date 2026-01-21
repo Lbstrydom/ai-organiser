@@ -18,6 +18,7 @@ import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
 import { TagNetworkView, TAG_NETWORK_VIEW_TYPE } from './ui/views/TagNetworkView';
+import { RelatedNotesView, RELATED_NOTES_VIEW_TYPE } from './ui/views/RelatedNotesView';
 import { TagOperations } from './utils/tagOperations';
 import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
@@ -147,6 +148,12 @@ export default class AIOrganiserPlugin extends Plugin {
         this.registerView(
             TAG_NETWORK_VIEW_TYPE,
             (leaf) => new TagNetworkView(leaf, this.tagNetworkManager.getNetworkData())
+        );
+
+        // Register related notes view
+        this.registerView(
+            RELATED_NOTES_VIEW_TYPE,
+            (leaf) => new RelatedNotesView(leaf, this)
         );
 
         // Register command picker command

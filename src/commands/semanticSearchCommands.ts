@@ -225,4 +225,33 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
             }
         }
     });
+
+    // Show related notes view command
+    plugin.addCommand({
+        id: 'related-notes-show',
+        name: 'Show Related Notes Panel',
+        callback: async () => {
+            if (!plugin.settings.enableSemanticSearch) {
+                new Notice('Semantic search is not enabled. Enable it in settings.');
+                return;
+            }
+
+            if (!plugin.vectorStore) {
+                new Notice('Vector store not initialized. Please try again in a moment.');
+                return;
+            }
+
+            // Import here to avoid circular dependency
+            const { RELATED_NOTES_VIEW_TYPE } = await import('../ui/views/RelatedNotesView');
+            
+            const leaf = plugin.app.workspace.getRightLeaf(false);
+            if (leaf) {
+                await leaf.setViewState({
+                    type: RELATED_NOTES_VIEW_TYPE,
+                    active: true
+                });
+                plugin.app.workspace.revealLeaf(leaf);
+            }
+        }
+    });
 }
