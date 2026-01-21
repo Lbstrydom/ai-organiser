@@ -5,6 +5,7 @@
 
 import { TFile } from 'obsidian';
 import { IVectorStore, SearchResult } from './vector/types';
+import { IEmbeddingService } from './embeddings/types';
 import { AIOrganiserSettings } from '../core/settings';
 
 export interface RAGContext {
@@ -27,10 +28,16 @@ export interface RAGOptions {
 export class RAGService {
     private vectorStore: IVectorStore;
     private settings: AIOrganiserSettings;
+    private embeddingService: IEmbeddingService | null;
 
-    constructor(vectorStore: IVectorStore, settings: AIOrganiserSettings) {
+    constructor(
+        vectorStore: IVectorStore,
+        settings: AIOrganiserSettings,
+        embeddingService?: IEmbeddingService | null
+    ) {
         this.vectorStore = vectorStore;
         this.settings = settings;
+        this.embeddingService = embeddingService || null;
     }
 
     /**
@@ -52,7 +59,7 @@ export class RAGService {
             // Get embedding service from vector store and search
             const results = await this.vectorStore.searchByContent(
                 query,
-                null, // Vector store handles embedding internally
+                this.embeddingService,
                 maxChunks * 2 // Get more results for filtering
             );
 
@@ -189,7 +196,7 @@ export class RAGService {
             // Use the file content as the query
             const results = await this.vectorStore.searchByContent(
                 content,
-                null,
+                this.embeddingService,
                 maxResults + 1 // Get one extra to exclude self
             );
 

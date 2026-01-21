@@ -24,16 +24,16 @@
   "license": "MIT",
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^20.0.0",
-    "builtin-modules": "3.3.0",
-    "esbuild": "0.17.3",
+    "@types/node": "^25.0.0",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.27.0",
     "obsidian": "latest",
-    "tslib": "2.4.0",
+    "tslib": "^2.8.0",
     "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
+    "vitest": "^4.0.0"
   },
   "dependencies": {
-    "@mozilla/readability": "^0.5.0",
+    "@mozilla/readability": "^0.6.0",
     "js-yaml": "^4.1.0",
     "voy-search": "^0.6.0"
   }

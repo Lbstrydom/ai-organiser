@@ -9,19 +9,6 @@ import { App } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker } from './types';
 
 /**
- * Simple string hashing for change detection
- */
-function hashString(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(16);
-}
-
-/**
  * Simple FileChangeTracker implementation
  */
 class SimpleFileChangeTracker implements FileChangeTracker {
@@ -34,6 +21,10 @@ class SimpleFileChangeTracker implements FileChangeTracker {
 
     updateHash(filePath: string, contentHash: string): void {
         this.hashes.set(filePath, contentHash);
+    }
+
+    removeHash(filePath: string): void {
+        this.hashes.delete(filePath);
     }
 
     getTrackedFiles(): Map<string, string> {
@@ -213,6 +204,7 @@ export class VoyVectorStore implements IVectorStore {
             .filter(([, doc]) => doc.filePath === filePath)
             .map(([id]) => id);
         await this.remove(ids);
+        this.fileChangeTracker.removeHash(filePath);
     }
 
     async renameFile(oldPath: string, newPath: string): Promise<void> {
@@ -235,7 +227,11 @@ export class VoyVectorStore implements IVectorStore {
             await this.upsert(documents);
         }
 
-        this.fileChangeTracker.updateHash(newPath, hashString(''));
+        const existingHash = this.fileChangeTracker.getTrackedFiles().get(oldPath);
+        if (existingHash) {
+            this.fileChangeTracker.updateHash(newPath, existingHash);
+        }
+        this.fileChangeTracker.removeHash(oldPath);
     }
 
     async getMetadata(): Promise<IndexMetadata> {
@@ -268,7 +264,7 @@ export class VoyVectorStore implements IVectorStore {
             
             // Save to vault storage
             const indexPath = `${this.storagePath}/index.voy`;
-            const metadataPath = `${this.storagePath}/metadata.json`;
+            const metadataPath = `${this.storagePath}/meta.json`;
             
             // Ensure directory exists
             const adapter = this.app.vault.adapter;
@@ -285,7 +281,7 @@ export class VoyVectorStore implements IVectorStore {
             const metadataJson = JSON.stringify({
                 metadata: this.metadata,
                 documents: Array.from(this.documents.entries()),
-                changeTracker: Array.from(this.fileChangeTracker.getTrackedFiles().entries())
+                fileHashes: Array.from(this.fileChangeTracker.getTrackedFiles().entries())
             });
             await adapter.write(metadataPath, metadataJson);
 
@@ -300,10 +296,13 @@ export class VoyVectorStore implements IVectorStore {
         try {
             const adapter = this.app.vault.adapter;
             const indexPath = `${this.storagePath}/index.voy`;
-            const metadataPath = `${this.storagePath}/metadata.json`;
+            const metadataPath = `${this.storagePath}/meta.json`;
+            const legacyMetadataPath = `${this.storagePath}/metadata.json`;
 
             // Check if index exists
-            if (!(await adapter.exists(indexPath)) || !(await adapter.exists(metadataPath))) {
+            const hasMeta = await adapter.exists(metadataPath);
+            const hasLegacyMeta = await adapter.exists(legacyMetadataPath);
+            if (!(await adapter.exists(indexPath)) || (!hasMeta && !hasLegacyMeta)) {
                 console.log('No existing Voy index found');
                 await this.initializeVoy();
                 return;
@@ -313,7 +312,7 @@ export class VoyVectorStore implements IVectorStore {
             const serialized = await adapter.read(indexPath);
             
             // Load metadata
-            const metadataJson = await adapter.read(metadataPath);
+            const metadataJson = await adapter.read(hasMeta ? metadataPath : legacyMetadataPath);
             const data = JSON.parse(metadataJson);
 
             // Restore documents
@@ -323,7 +322,7 @@ export class VoyVectorStore implements IVectorStore {
             this.metadata = data.metadata;
             
             // Restore change tracker
-            const trackerData = new Map<string, string>(data.changeTracker);
+            const trackerData = new Map<string, string>(data.fileHashes || data.changeTracker || []);
             for (const [path, hash] of trackerData) {
                 this.fileChangeTracker.updateHash(path, hash as string);
             }

@@ -4,6 +4,8 @@
  */
 
 import { App, TFile } from 'obsidian';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 export interface PdfContent {
     fileName: string;
@@ -57,6 +59,47 @@ export class PdfService {
                 success: false,
                 error: `Failed to read PDF: ${errorMessage}`,
             };
+        }
+    }
+
+    /**
+     * Read external PDF file (outside vault) and convert to base64
+     */
+    async readExternalPdfAsBase64(filePath: string): Promise<PdfServiceResult> {
+        try {
+            const normalizedPath = this.normalizeExternalPath(filePath);
+            const stats = await fs.stat(normalizedPath);
+
+            if (!stats.isFile()) {
+                return { success: false, error: 'File not found locally. Please ensure it is synced to your device.' };
+            }
+
+            if (stats.size > MAX_PDF_SIZE_BYTES) {
+                return {
+                    success: false,
+                    error: `PDF file is too large (${Math.round(stats.size / 1024 / 1024)}MB). Maximum size is 20MB.`,
+                };
+            }
+
+            const data = await fs.readFile(normalizedPath);
+            const base64 = Buffer.from(data).toString('base64');
+
+            return {
+                success: true,
+                content: {
+                    fileName: path.basename(normalizedPath),
+                    filePath: normalizedPath,
+                    base64Data: base64,
+                    mimeType: 'application/pdf',
+                    sizeBytes: stats.size,
+                },
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            if (message.includes('ENOENT')) {
+                return { success: false, error: 'File not found locally. Please ensure it is synced to your device.' };
+            }
+            return { success: false, error: `Failed to read PDF: ${message}` };
         }
     }
 
@@ -118,6 +161,22 @@ export class PdfService {
             binary += String.fromCharCode(bytes[i]);
         }
         return btoa(binary);
+    }
+
+    private normalizeExternalPath(filePath: string): string {
+        if (filePath.startsWith('file://')) {
+            try {
+                const url = new URL(filePath);
+                let pathname = decodeURIComponent(url.pathname);
+                if (process.platform === 'win32' && pathname.startsWith('/')) {
+                    pathname = pathname.slice(1);
+                }
+                return path.normalize(pathname);
+            } catch {
+                return filePath;
+            }
+        }
+        return path.normalize(filePath);
     }
 
     /**

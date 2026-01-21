@@ -7,3 +7,4 @@ export { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTr
 export { SimpleVectorStore } from './simpleVectorStore';
 export { VoyVectorStore } from './voyVectorStore';
 export { VectorStoreService } from './vectorStoreService';
+export { createContentHash } from './hashUtils';

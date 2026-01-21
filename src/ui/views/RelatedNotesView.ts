@@ -41,7 +41,11 @@ export class RelatedNotesView extends ItemView {
 
     private initializeRAGService(): void {
         if (this.plugin.vectorStore && this.plugin.settings.enableSemanticSearch) {
-            this.ragService = new RAGService(this.plugin.vectorStore, this.plugin.settings);
+            this.ragService = new RAGService(
+                this.plugin.vectorStore,
+                this.plugin.settings,
+                this.plugin.embeddingService
+            );
         }
     }
 
@@ -97,7 +101,7 @@ export class RelatedNotesView extends ItemView {
         refreshBtn.innerHTML = '⟳';
         refreshBtn.addEventListener('click', async () => {
             refreshBtn.classList.add('loading');
-            await this.updateRelatedNotes();
+            await this.updateRelatedNotes(true); // Force refresh
             refreshBtn.classList.remove('loading');
         });
 
@@ -144,7 +148,12 @@ export class RelatedNotesView extends ItemView {
         );
     }
 
-    private async updateRelatedNotes(): Promise<void> {
+    private async updateRelatedNotes(forceRefresh: boolean = false): Promise<void> {
+        // Try to re-initialize RAG service if not available
+        if (!this.ragService) {
+            this.initializeRAGService();
+        }
+
         // Check prerequisites
         if (!this.ragService) {
             this.renderDisabledState('Semantic search not enabled');
@@ -163,8 +172,8 @@ export class RelatedNotesView extends ItemView {
             return;
         }
 
-        // Check if already processing same file
-        if (this.state.currentFilePath === currentFile.path && !this.state.isLoading) {
+        // Check if already processing same file (skip unless forced)
+        if (!forceRefresh && this.state.currentFilePath === currentFile.path && !this.state.isLoading) {
             // File unchanged, skip unnecessary search
             return;
         }
@@ -252,7 +261,7 @@ export class RelatedNotesView extends ItemView {
             cls: 'mod-cta'
         });
         retryBtn.addEventListener('click', () => {
-            this.updateRelatedNotes();
+            this.updateRelatedNotes(true); // Force refresh on retry
         });
     }
 

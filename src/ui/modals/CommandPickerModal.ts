@@ -177,6 +177,12 @@ export function buildCommandCategories(
             icon: 'file-text',
             commands: [
                 {
+                    id: 'summarize-smart',
+                    name: t.commands.summarizeSmart || 'Smart Summarize',
+                    icon: 'sparkles',
+                    callback: () => executeCommand('ai-organiser:summarize-smart')
+                },
+                {
                     id: 'summarize-from-url',
                     name: t.commands.summarizeFromUrl,
                     icon: 'link',

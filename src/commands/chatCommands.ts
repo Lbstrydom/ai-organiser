@@ -38,7 +38,11 @@ class ChatWithVaultModal extends Modal {
             throw new Error('Vector store not initialized');
         }
         
-        this.ragService = new RAGService(plugin.vectorStore, plugin.settings);
+        this.ragService = new RAGService(
+            plugin.vectorStore,
+            plugin.settings,
+            plugin.embeddingService
+        );
         this.titleEl.setText('Chat with Vault');
     }
 
@@ -296,7 +300,11 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             if (!question) return;
 
             try {
-                const ragService = new RAGService(plugin.vectorStore, plugin.settings);
+                const ragService = new RAGService(
+                    plugin.vectorStore,
+                    plugin.settings,
+                    plugin.embeddingService
+                );
                 
                 // Build query from content and question
                 const query = `Context: ${content.substring(0, 500)}\n\nQuestion: ${question}`;
@@ -354,7 +362,11 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
 
             try {
                 const content = editor.getValue();
-                const ragService = new RAGService(plugin.vectorStore, plugin.settings);
+                const ragService = new RAGService(
+                    plugin.vectorStore,
+                    plugin.settings,
+                    plugin.embeddingService
+                );
                 
                 const statusNotice = new Notice('Finding related notes...', 0);
                 const related = await ragService.getRelatedNotes(file, content, 5);

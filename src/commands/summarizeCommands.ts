@@ -3,7 +3,7 @@
  * Commands for URL and PDF summarization
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Notice, TFile, normalizePath } from 'obsidian';
+import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
 import { PdfService, serviceCanSummarizePdf, PdfContent } from '../services/pdfService';
@@ -127,11 +127,83 @@ async function saveTranscriptToFile(
     }
 }
 
+type SmartSummarizeTarget =
+    | { type: 'url'; url: string }
+    | { type: 'internal-pdf'; file: TFile }
+    | { type: 'external-pdf'; path: string }
+    | { type: 'selection-text'; text: string }
+    | { type: 'none' };
+
 export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     const pdfService = new PdfService(plugin.app);
 
     // Reset privacy notice on plugin load
     resetPrivacyNotice();
+
+    // Command: Smart Summarize (auto-detect selection/link/frontmatter)
+    plugin.addCommand({
+        id: 'summarize-smart',
+        name: plugin.t.commands.summarizeSmart || 'Smart Summarize',
+        icon: 'sparkles',
+        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+            if (!plugin.settings.enableWebSummarization) {
+                new Notice('Web summarization is disabled in settings');
+                return;
+            }
+
+            const view = ctx instanceof MarkdownView ? ctx : null;
+            if (!view?.file) {
+                new Notice(plugin.t.messages.openNote);
+                return;
+            }
+
+            const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(
+                plugin.settings.defaultSummaryPersona
+            );
+
+            const target = detectSmartSummarizeTarget(plugin, editor, view);
+            if (target.type === 'none') {
+                new Notice(plugin.t.messages.smartSummarizeNoContent || 'No content detected to summarize');
+                return;
+            }
+
+            const serviceType = plugin.settings.serviceType === 'cloud'
+                ? plugin.settings.cloudServiceType
+                : 'local';
+
+            if (target.type === 'selection-text') {
+                await handleTextSummarization(plugin, editor, target.text, personaPrompt);
+                return;
+            }
+
+            if (target.type === 'url') {
+                await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt);
+                return;
+            }
+
+            if (target.type === 'internal-pdf') {
+                if (!serviceCanSummarizePdf(serviceType)) {
+                    new Notice(plugin.t.messages.pdfNotSupported);
+                    return;
+                }
+                await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt);
+                return;
+            }
+
+            if (target.type === 'external-pdf') {
+                if (Platform.isMobile) {
+                    new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
+                    return;
+                }
+                if (!serviceCanSummarizePdf(serviceType)) {
+                    new Notice(plugin.t.messages.pdfNotSupported);
+                    return;
+                }
+                await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt);
+                return;
+            }
+        }
+    });
 
     // Command: Summarize from URL
     plugin.addCommand({
@@ -274,6 +346,174 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     });
 }
 
+function detectSmartSummarizeTarget(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    view: MarkdownView
+): SmartSummarizeTarget {
+    // If no file is open, return none
+    if (!view.file) {
+        return { type: 'none' };
+    }
+
+    const selection = editor.getSelection().trim();
+    if (selection) {
+        return detectTargetFromText(plugin, selection, view.file, true);
+    }
+
+    const line = editor.getLine(editor.getCursor().line);
+    const lineTarget = detectTargetFromText(plugin, line, view.file, false);
+    if (lineTarget.type !== 'none') {
+        return lineTarget;
+    }
+
+    const frontmatterTarget = detectTargetFromFrontmatter(plugin, view.file);
+    if (frontmatterTarget.type !== 'none') {
+        return frontmatterTarget;
+    }
+
+    return { type: 'none' };
+}
+
+function detectTargetFromFrontmatter(
+    plugin: AIOrganiserPlugin,
+    file: TFile
+): SmartSummarizeTarget {
+    const cache = plugin.app.metadataCache.getFileCache(file);
+    const frontmatter = cache?.frontmatter || {};
+
+    const pdfValue = normalizeFrontmatterValue(frontmatter.pdf);
+    if (pdfValue) {
+        const target = detectTargetFromText(plugin, pdfValue, file, false);
+        if (target.type !== 'none') {
+            return target;
+        }
+    }
+
+    const urlValue = normalizeFrontmatterValue(frontmatter.url);
+    if (urlValue) {
+        return { type: 'url', url: urlValue };
+    }
+
+    return { type: 'none' };
+}
+
+function normalizeFrontmatterValue(value: unknown): string | null {
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+    if (Array.isArray(value)) {
+        const first = value.find(item => typeof item === 'string');
+        return typeof first === 'string' ? first.trim() : null;
+    }
+    return null;
+}
+
+function detectTargetFromText(
+    plugin: AIOrganiserPlugin,
+    text: string,
+    currentFile: TFile,
+    allowText: boolean
+): SmartSummarizeTarget {
+    const trimmed = text.trim();
+    if (!trimmed) {
+        return { type: 'none' };
+    }
+
+    const externalPdfPath = extractExternalPdfPath(trimmed);
+    if (externalPdfPath) {
+        return { type: 'external-pdf', path: externalPdfPath };
+    }
+
+    const internalPdf = extractInternalPdfFile(plugin, trimmed, currentFile);
+    if (internalPdf) {
+        return { type: 'internal-pdf', file: internalPdf };
+    }
+
+    const url = extractUrl(trimmed);
+    if (url) {
+        return { type: 'url', url };
+    }
+
+    if (allowText) {
+        return { type: 'selection-text', text: trimmed };
+    }
+
+    return { type: 'none' };
+}
+
+function extractInternalPdfFile(
+    plugin: AIOrganiserPlugin,
+    text: string,
+    currentFile: TFile
+): TFile | null {
+    const wikiLinkRegex = /!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]|\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+    const matches = [...text.matchAll(wikiLinkRegex)];
+
+    for (const match of matches) {
+        const rawPath = match[1] || match[2];
+        if (!rawPath) continue;
+        const trimmedPath = rawPath.trim();
+        if (!trimmedPath.toLowerCase().endsWith('.pdf')) {
+            continue;
+        }
+        const resolved = plugin.app.metadataCache.getFirstLinkpathDest(trimmedPath, currentFile.path);
+        if (resolved instanceof TFile && resolved.extension === 'pdf') {
+            return resolved;
+        }
+    }
+
+    if (text.toLowerCase().endsWith('.pdf')) {
+        const resolved = plugin.app.metadataCache.getFirstLinkpathDest(text, currentFile.path);
+        if (resolved instanceof TFile && resolved.extension === 'pdf') {
+            return resolved;
+        }
+    }
+
+    return null;
+}
+
+function extractExternalPdfPath(text: string): string | null {
+    const fileUrlMatch = text.match(/file:\/\/\/[^\s)\]]+/i);
+    if (fileUrlMatch && fileUrlMatch[0].toLowerCase().includes('.pdf')) {
+        return trimTrailingPunctuation(fileUrlMatch[0]);
+    }
+
+    const windowsPathMatch = text.match(/[a-zA-Z]:[\\/][^\s)\]]+\.pdf/i);
+    if (windowsPathMatch) {
+        return trimTrailingPunctuation(windowsPathMatch[0]);
+    }
+
+    const unixPathRegex = /\/[^\s)\]]+\.pdf/gi;
+    for (const match of text.matchAll(unixPathRegex)) {
+        const prefix = text.slice(0, match.index);
+        if (prefix.endsWith('http:') || prefix.endsWith('https:')) {
+            continue;
+        }
+        return trimTrailingPunctuation(match[0]);
+    }
+
+    return null;
+}
+
+function extractUrl(text: string): string | null {
+    const markdownLinkMatch = text.match(/\[[^\]]+\]\((https?:\/\/[^)]+)\)/i);
+    if (markdownLinkMatch) {
+        return trimTrailingPunctuation(markdownLinkMatch[1]);
+    }
+
+    const urlMatch = text.match(/https?:\/\/[^\s)\]]+/i);
+    if (urlMatch) {
+        return trimTrailingPunctuation(urlMatch[0]);
+    }
+
+    return null;
+}
+
+function trimTrailingPunctuation(value: string): string {
+    return value.replace(/[.,;:!?]+$/, '');
+}
+
 /**
  * Handle URL summarization with privacy notice, content size handling, and chunking
  */
@@ -359,6 +599,47 @@ async function handleUrlSummarization(
 }
 
 /**
+ * Handle plain text summarization (selection)
+ */
+async function handleTextSummarization(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    text: string,
+    personaPrompt: string,
+    userContext?: string
+): Promise<void> {
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
+        const proceed = await showPrivacyNotice(plugin, serviceType);
+        if (!proceed) {
+            return;
+        }
+        markPrivacyNoticeShown();
+    }
+
+    const maxChars = getMaxContentChars(serviceType);
+
+    if (isContentTooLarge(text, serviceType)) {
+        const choice = await showContentSizeModal(plugin, text.length, maxChars);
+
+        if (choice === 'cancel') {
+            return;
+        } else if (choice === 'truncate') {
+            const truncatedContent = truncateContent(text, serviceType);
+            await summarizePlainTextAndInsert(plugin, editor, truncatedContent, personaPrompt, userContext);
+            new Notice(plugin.t.messages.contentTruncated);
+        } else if (choice === 'chunk') {
+            await summarizePlainTextInChunks(plugin, editor, text, serviceType, personaPrompt, userContext);
+        }
+    } else {
+        await summarizePlainTextAndInsert(plugin, editor, text, personaPrompt, userContext);
+    }
+}
+
+/**
  * Handle PDF summarization
  */
 async function handlePdfSummarization(
@@ -391,30 +672,41 @@ async function handlePdfSummarization(
         return;
     }
 
-    const promptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
+    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, true);
+}
 
-    const prompt = buildSummaryPrompt(promptOptions);
+/**
+ * Handle external PDF summarization (outside vault)
+ */
+async function handleExternalPdfSummarization(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    filePath: string,
+    personaPrompt: string,
+    userContext?: string
+): Promise<void> {
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
 
-    try {
-        // Send PDF to LLM for summarization
-        // This will be handled by the adapter's summarizePdf method
-        const response = await summarizePdfWithLLM(plugin, pdfResult.content, prompt);
-
-        if (response.success && response.content) {
-            insertPdfSummary(editor, response.content, pdfResult.content, plugin);
-            new Notice(plugin.t.messages.summaryInserted);
-        } else {
-            new Notice(`PDF summarization failed: ${response.error || 'Unknown error'}`);
+    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
+        const proceed = await showPrivacyNotice(plugin, serviceType);
+        if (!proceed) {
+            return;
         }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error summarizing PDF: ${errorMessage}`);
+        markPrivacyNoticeShown();
     }
+
+    new Notice(plugin.t.messages.readingPdf);
+
+    const pdfResult = await pdfService.readExternalPdfAsBase64(filePath);
+    if (!pdfResult.success || !pdfResult.content) {
+        new Notice(pdfResult.error || 'Failed to read PDF');
+        return;
+    }
+
+    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, false);
 }
 
 /**
@@ -1110,6 +1402,116 @@ async function summarizeInChunks(
 }
 
 /**
+ * Summarize plain text and insert into editor
+ */
+async function summarizePlainTextAndInsert(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    content: string,
+    personaPrompt: string,
+    userContext?: string
+): Promise<void> {
+    const promptOptions: SummaryPromptOptions = {
+        length: plugin.settings.summaryLength,
+        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+        personaPrompt: personaPrompt,
+        userContext: userContext,
+    };
+
+    const promptTemplate = buildSummaryPrompt(promptOptions);
+    const prompt = insertContentIntoPrompt(promptTemplate, content);
+
+    try {
+        const response = await summarizeTextWithLLM(plugin, prompt);
+
+        if (response.success && response.content) {
+            insertTextSummary(editor, response.content, plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            new Notice(plugin.t.messages.summaryInserted);
+        } else {
+            new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        new Notice(`Error summarizing content: ${errorMessage}`);
+    }
+}
+
+/**
+ * Summarize plain text in chunks using map-reduce approach
+ */
+async function summarizePlainTextInChunks(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    content: string,
+    provider: string,
+    personaPrompt: string,
+    userContext?: string
+): Promise<void> {
+    const limits = getProviderLimits(provider);
+    const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
+
+    const chunks = chunkContent(content, maxChunkChars);
+    const chunkSummaries: string[] = [];
+
+    const promptOptions: SummaryPromptOptions = {
+        length: 'detailed',
+        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+        personaPrompt: personaPrompt,
+        userContext: userContext,
+    };
+
+    for (let i = 0; i < chunks.length; i++) {
+        new Notice(
+            plugin.t.messages.summarizingChunk
+                .replace('{current}', String(i + 1))
+                .replace('{total}', String(chunks.length))
+        );
+
+        const promptTemplate = buildSummaryPrompt(promptOptions);
+        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+
+        try {
+            const response = await summarizeTextWithLLM(plugin, prompt);
+
+            if (response.success && response.content) {
+                chunkSummaries.push(response.content);
+            } else {
+                chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+            }
+        } catch (error) {
+            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+        }
+    }
+
+    new Notice(plugin.t.messages.combiningChunks);
+
+    const combinePromptOptions: SummaryPromptOptions = {
+        length: plugin.settings.summaryLength,
+        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+        personaPrompt: personaPrompt,
+        userContext: userContext,
+    };
+
+    const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
+    const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
+
+    try {
+        const response = await summarizeTextWithLLM(plugin, combinePrompt);
+
+        if (response.success && response.content) {
+            insertTextSummary(editor, response.content, plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            new Notice(plugin.t.messages.summaryInserted);
+        } else {
+            insertTextSummary(editor, chunkSummaries.join('\n\n'), plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+        }
+    } catch (error) {
+        insertTextSummary(editor, chunkSummaries.join('\n\n'), plugin, plugin.t.commands.summarizeSmart || 'Summary');
+        new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+    }
+}
+
+/**
  * Call LLM service to summarize text with optional RAG context
  */
 async function summarizeTextWithLLM(
@@ -1126,7 +1528,11 @@ async function summarizeTextWithLLM(
             try {
                 // Import RAGService
                 const { RAGService } = await import('../services/ragService');
-                const ragService = new RAGService(plugin.vectorStore, plugin.settings);
+                const ragService = new RAGService(
+                    plugin.vectorStore,
+                    plugin.settings,
+                    plugin.embeddingService
+                );
 
                 // Extract main query from prompt (first sentence)
                 const queryMatch = prompt.match(/^([^.!?]+[.!?])/);
@@ -1178,7 +1584,11 @@ async function summarizeTextWithLLM(
         // Append sources if RAG was used
         if (useRAG && ragSources.length > 0 && response.success && response.content) {
             const { RAGService } = await import('../services/ragService');
-            const ragService = new RAGService(plugin.vectorStore!, plugin.settings);
+            const ragService = new RAGService(
+                plugin.vectorStore!,
+                plugin.settings,
+                plugin.embeddingService
+            );
             const sourcesSection = ragService.formatSources(ragSources);
             response.content = response.content + '\n' + sourcesSection;
         }
@@ -1211,6 +1621,41 @@ async function summarizePdfWithLLM(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
+    }
+}
+
+/**
+ * Summarize PDF content and insert into editor
+ */
+async function summarizePdfContent(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    pdfContent: PdfContent,
+    personaPrompt: string,
+    userContext: string | undefined,
+    isInternal: boolean
+): Promise<void> {
+    const promptOptions: SummaryPromptOptions = {
+        length: plugin.settings.summaryLength,
+        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+        personaPrompt: personaPrompt,
+        userContext: userContext,
+    };
+
+    const prompt = buildSummaryPrompt(promptOptions);
+
+    try {
+        const response = await summarizePdfWithLLM(plugin, pdfContent, prompt);
+
+        if (response.success && response.content) {
+            insertPdfSummary(editor, response.content, pdfContent, plugin, isInternal);
+            new Notice(plugin.t.messages.summaryInserted);
+        } else {
+            new Notice(`PDF summarization failed: ${response.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        new Notice(`Error summarizing PDF: ${errorMessage}`);
     }
 }
 
@@ -1269,6 +1714,26 @@ function insertWebSummary(
 }
 
 /**
+ * Insert plain text summary into editor
+ */
+function insertTextSummary(
+    editor: Editor,
+    summary: string,
+    plugin: AIOrganiserPlugin,
+    title: string
+): void {
+    const cursor = editor.getCursor();
+    let output = '';
+
+    if (plugin.settings.includeSummaryMetadata) {
+        output += `## ${title}\n\n`;
+    }
+
+    output += summary;
+    editor.replaceRange(output, cursor);
+}
+
+/**
  * Filter links to only external (different domain) links
  */
 function getExternalLinks(links: { text: string; href: string }[], sourceUrl: string): { text: string; href: string }[] {
@@ -1297,7 +1762,8 @@ function insertPdfSummary(
     editor: Editor,
     summary: string,
     pdfContent: PdfContent,
-    plugin: AIOrganiserPlugin
+    plugin: AIOrganiserPlugin,
+    isInternal: boolean
 ): void {
     const cursor = editor.getCursor();
 
@@ -1318,7 +1784,7 @@ function insertPdfSummary(
         title: pdfContent.fileName,
         link: pdfContent.filePath,
         date: getTodayDate(),
-        isInternal: true
+        isInternal: isInternal
     };
     addToReferencesSection(editor, sourceRef);
 }

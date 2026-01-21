@@ -99,6 +99,11 @@ export interface IVectorStore {
     clear(): Promise<void>;
 
     /**
+     * Get file change tracker for incremental indexing
+     */
+    getFileChangeTracker(): FileChangeTracker;
+
+    /**
      * Rebuild index from vault
      */
     rebuild(documents: VectorDocument[]): Promise<void>;
@@ -132,6 +137,11 @@ export interface FileChangeTracker {
      * Update tracked hash for a file
      */
     updateHash(filePath: string, contentHash: string): void;
+
+    /**
+     * Remove tracked hash for a file
+     */
+    removeHash(filePath: string): void;
 
     /**
      * Get all tracked files

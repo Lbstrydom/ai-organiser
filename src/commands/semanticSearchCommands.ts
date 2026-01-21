@@ -69,9 +69,12 @@ class SemanticSearchResultsModal extends Modal {
             }
 
             new Notice('Searching...', 2000);
+            const embeddingService =
+                this.plugin.embeddingService ||
+                (this.plugin.llmService as any).getEmbeddingService?.();
             this.results = await this.plugin.vectorStore.searchByContent(
                 this.query,
-                (this.plugin.llmService as any).getEmbeddingService?.(),
+                embeddingService,
                 5
             );
 

@@ -192,6 +192,7 @@ export interface Translations {
         summarizeFromPdf: string;
         summarizeFromYouTube: string;
         summarizeFromAudio: string;
+        summarizeSmart: string;
         translateNote: string;
         translateSelection: string;
         generateFromEmbedded: string;
@@ -284,6 +285,8 @@ export interface Translations {
         urlValidationError: string;
         contentTruncated: string;
         savingPdfFromUrl: string;
+        smartSummarizeNoContent: string;
+        externalFilesDesktopOnly: string;
         noSelection: string;
         translating: string;
         translationComplete: string;

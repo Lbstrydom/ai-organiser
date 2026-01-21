@@ -30,19 +30,6 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
 }
 
 /**
- * Simple string hashing for change detection
- */
-function hashString(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(16);
-}
-
-/**
  * Simple FileChangeTracker implementation
  */
 class SimpleFileChangeTracker implements FileChangeTracker {
@@ -55,6 +42,10 @@ class SimpleFileChangeTracker implements FileChangeTracker {
 
     updateHash(filePath: string, contentHash: string): void {
         this.hashes.set(filePath, contentHash);
+    }
+
+    removeHash(filePath: string): void {
+        this.hashes.delete(filePath);
     }
 
     getTrackedFiles(): Map<string, string> {
@@ -153,6 +144,7 @@ export class SimpleVectorStore implements IVectorStore {
             .filter(([, doc]) => doc.filePath === filePath)
             .map(([id]) => id);
         await this.remove(ids);
+        this.fileChangeTracker.removeHash(filePath);
     }
 
     async renameFile(oldPath: string, newPath: string): Promise<void> {
@@ -162,7 +154,11 @@ export class SimpleVectorStore implements IVectorStore {
             doc.id = `${newPath}-${doc.chunkIndex}`;
         }
         await this.upsert(documents);
-        this.fileChangeTracker.updateHash(newPath, hashString(''));
+        const existingHash = this.fileChangeTracker.getTrackedFiles().get(oldPath);
+        if (existingHash) {
+            this.fileChangeTracker.updateHash(newPath, existingHash);
+        }
+        this.fileChangeTracker.removeHash(oldPath);
     }
 
     async getMetadata(): Promise<IndexMetadata> {

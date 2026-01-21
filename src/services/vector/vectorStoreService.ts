@@ -4,10 +4,11 @@
  */
 
 import { App, TFile } from 'obsidian';
-import { IVectorStore, VectorDocument, SearchResult } from './types';
+import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings } from '../../core/settings';
+import { createContentHash } from './hashUtils';
 
 /**
  * Search cache entry
@@ -134,9 +135,10 @@ export class VectorStoreService {
             // Get embedding dimensions
             const embeddingInfo = await this.embeddingService?.getModelInfo?.();
             const dims = embeddingInfo?.dimensions || 1536;
+            const storagePath = this.settings.pluginFolder || 'AI-Organiser';
 
             // Create Voy WASM vector store (production)
-            this.vectorStore = new VoyVectorStore(this.app, dims);
+            this.vectorStore = new VoyVectorStore(this.app, dims, storagePath);
 
             // Set embedding metadata
             (this.vectorStore as any).setEmbeddingMetadata?.(
@@ -196,24 +198,42 @@ export class VectorStoreService {
                 return false;
             }
 
+            if (!this.embeddingService) {
+                console.warn('Embedding service not available for indexing');
+                return false;
+            }
+
             // Read file content
             const content = await this.app.vault.read(file);
+            const contentHash = createContentHash(content);
+            const changeTracker = this.getChangeTracker();
+            const hasChanged = changeTracker ? changeTracker.hasChanged(file.path, contentHash) : true;
+
+            // Skip if unchanged
+            if (!hasChanged) {
+                return true;
+            }
+
             if (!content.trim()) {
-                return true; // Empty file is not an error
+                const oldDocs = await this.vectorStore.getDocumentsByFile(file.path);
+                if (oldDocs.length > 0) {
+                    await this.vectorStore.remove(oldDocs.map(d => d.id));
+                }
+                changeTracker?.updateHash(file.path, contentHash);
+                return true;
             }
 
-            // Simple chunk splitting (max 2000 characters)
+            // Chunk splitting with optional overlap
             const chunkSize = this.settings.chunkSize || 2000;
-            const chunks: string[] = [];
-            for (let i = 0; i < content.length; i += chunkSize) {
-                chunks.push(content.substring(i, i + chunkSize));
-            }
+            const overlap = Math.max(0, Math.min(this.settings.chunkOverlap || 0, chunkSize - 1));
+            const chunks = this.splitIntoChunks(content, chunkSize, overlap)
+                .slice(0, this.settings.maxChunksPerNote);
 
-            // Create documents (without embeddings for now)
+            // Create documents and embeddings
             const documents: VectorDocument[] = [];
-            for (let i = 0; i < Math.min(chunks.length, this.settings.maxChunksPerNote); i++) {
+            for (let i = 0; i < chunks.length; i++) {
                 const chunk = chunks[i];
-                const chunkHash = this.hashString(chunk);
+                const chunkHash = createContentHash(chunk);
 
                 documents.push({
                     id: `${file.path}-${i}`,
@@ -231,6 +251,23 @@ export class VectorStoreService {
                 });
             }
 
+            const embeddingResult = await this.embeddingService.batchGenerateEmbeddings(
+                documents.map(doc => doc.content)
+            );
+
+            if (!embeddingResult.success || !embeddingResult.embeddings) {
+                console.warn('Failed to generate embeddings for note', file.path, embeddingResult.error);
+                return false;
+            }
+
+            if (embeddingResult.embeddings.length !== documents.length) {
+                console.warn('Embedding count mismatch for note', file.path);
+            }
+
+            for (let i = 0; i < documents.length; i++) {
+                documents[i].embedding = embeddingResult.embeddings[i] || [];
+            }
+
             // Remove old documents and upsert new ones
             const oldDocs = await this.vectorStore.getDocumentsByFile(file.path);
             if (oldDocs.length > 0) {
@@ -239,6 +276,7 @@ export class VectorStoreService {
 
             if (documents.length > 0) {
                 await this.vectorStore.upsert(documents);
+                changeTracker?.updateHash(file.path, contentHash);
                 // Invalidate search cache when content changes
                 this.searchCache.invalidateForFile(file.path);
                 return true;
@@ -420,16 +458,29 @@ export class VectorStoreService {
         return this.settings.indexExcludedFolders || [];
     }
 
-    /**
-     * Simple string hashing for change detection
-     */
-    private hashString(str: string): string {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
+    private getChangeTracker(): FileChangeTracker | null {
+        return this.vectorStore?.getFileChangeTracker?.() || null;
+    }
+
+    private splitIntoChunks(content: string, chunkSize: number, overlap: number): string[] {
+        if (chunkSize <= 0) {
+            return [];
         }
-        return Math.abs(hash).toString(16);
+
+        const chunks: string[] = [];
+        let start = 0;
+
+        while (start < content.length) {
+            const end = Math.min(start + chunkSize, content.length);
+            chunks.push(content.substring(start, end));
+
+            if (end >= content.length) {
+                break;
+            }
+
+            start = Math.max(0, end - overlap);
+        }
+
+        return chunks;
     }
 }
