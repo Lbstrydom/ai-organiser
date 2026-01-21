@@ -356,8 +356,8 @@ export const DEFAULT_SUMMARY_PERSONAS: Persona[] = [
     }
 ];
 
-// Default folder for configuration files
-export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser-Config';
+// Default folder for configuration files (within the main plugin folder)
+export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser/Config';
 
 export class ConfigurationService {
     private app: App;

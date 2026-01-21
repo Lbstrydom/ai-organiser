@@ -13,7 +13,7 @@ import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
 import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandPickerModal';
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { registerCommands } from './commands/index';
-import { AIOrganiserSettings, DEFAULT_SETTINGS } from './core/settings';
+import { AIOrganiserSettings, DEFAULT_SETTINGS, getPluginSubfolderPath } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
@@ -39,7 +39,7 @@ export default class AIOrganiserPlugin extends Plugin {
             modelName: DEFAULT_SETTINGS.localModel,
             language: DEFAULT_SETTINGS.language
         }, app);
-        this.configService = new ConfigurationService(app, DEFAULT_SETTINGS.configFolderPath);
+        this.configService = new ConfigurationService(app, `${DEFAULT_SETTINGS.pluginFolder}/${DEFAULT_SETTINGS.configFolderPath}`);
         this.eventHandlers = new EventHandlers(app);
         this.tagNetworkManager = new TagNetworkManager(app);
         this.tagOperations = new TagOperations(app);
@@ -99,8 +99,9 @@ export default class AIOrganiserPlugin extends Plugin {
         await this.loadSettings();
         await this.initializeLLMService();
 
-        // Initialize configuration service
-        this.configService.setConfigFolder(this.settings.configFolderPath);
+        // Initialize configuration service with full path (pluginFolder/configFolderPath)
+        const configFullPath = getPluginSubfolderPath(this.settings, this.settings.configFolderPath);
+        this.configService.setConfigFolder(configFullPath);
 
         // Create default config files if they don't exist
         const configExists = await this.configService.configFilesExist();
@@ -231,12 +232,25 @@ export default class AIOrganiserPlugin extends Plugin {
         });
     }
 
+    /**
+     * Get all exclusion patterns including plugin-managed folders
+     */
+    public getEffectiveExcludedFolders(): string[] {
+        const userExclusions = this.settings.excludedFolders || [];
+        // Always exclude the plugin folder to prevent tagging config/transcript/flashcard files
+        const pluginFolder = this.settings.pluginFolder;
+        if (pluginFolder && !userExclusions.includes(pluginFolder)) {
+            return [...userExclusions, pluginFolder];
+        }
+        return userExclusions;
+    }
+
     public getNonExcludedMarkdownFiles(): TFile[] {
-        return TagUtils.getNonExcludedMarkdownFiles(this.app, this.settings.excludedFolders);
+        return TagUtils.getNonExcludedMarkdownFiles(this.app, this.getEffectiveExcludedFolders());
     }
 
     public getNonExcludedMarkdownFilesFromFolder(folder: TFolder): TFile[] {
-        return TagUtils.getNonExcludedMarkdownFiles(this.app, this.settings.excludedFolders, folder);
+        return TagUtils.getNonExcludedMarkdownFiles(this.app, this.getEffectiveExcludedFolders(), folder);
     }
 
     public async clearAllNotesTags(): Promise<void> {

@@ -56,9 +56,18 @@ async function saveTranscriptToFile(
         return null;
     }
 
-    const folder = plugin.settings.transcriptFolder || 'Transcripts';
+    // Build full path: pluginFolder/transcriptFolder
+    const pluginFolder = plugin.settings.pluginFolder || 'AI-Organiser';
+    const transcriptSubfolder = plugin.settings.transcriptFolder || 'Transcripts';
+    const folder = `${pluginFolder}/${transcriptSubfolder}`;
 
-    // Ensure folder exists
+    // Ensure plugin folder exists first, then transcript subfolder
+    const pluginFolderPath = normalizePath(pluginFolder);
+    if (!plugin.app.vault.getAbstractFileByPath(pluginFolderPath)) {
+        await plugin.app.vault.createFolder(pluginFolderPath);
+    }
+
+    // Ensure transcript folder exists
     const folderPath = normalizePath(folder);
     const folderExists = plugin.app.vault.getAbstractFileByPath(folderPath);
     if (!folderExists) {

@@ -121,7 +121,12 @@ export const zhCN: Translations = {
         generateFromEmbedded: "从嵌入内容生成笔记",
         improveNote: "AI 改进笔记",
         findResources: "查找相关资源",
-        openCommandPicker: "打开命令选择器"
+        openCommandPicker: "打开命令选择器",
+        generateMermaidDiagram: "生成 Mermaid 图表",
+        highlightSelection: "高亮选中文本",
+        highlightWith: "使用颜色高亮",
+        removeHighlight: "移除高亮",
+        exportFlashcards: "从当前笔记导出闪卡"
     },
 
     // 消息和通知
@@ -232,7 +237,14 @@ export const zhCN: Translations = {
         summarizingTranscript: "正在总结转录内容...",
         noAudioFiles: "库中未找到音频文件",
         compressingAudio: "正在压缩音频文件...",
-        compressionFailed: "音频压缩失败"
+        compressionFailed: "音频压缩失败",
+        generatingDiagram: "正在生成图表...",
+        diagramGenerated: "图表生成成功",
+        diagramGenerationFailed: "图表生成失败",
+        generatingFlashcards: "正在生成闪卡...",
+        flashcardGenerationFailed: "闪卡生成失败",
+        flashcardsExported: "已导出",
+        flashcardsTo: "张闪卡到"
     },
 
     // 模态对话框
@@ -389,6 +401,48 @@ export const zhCN: Translations = {
             compressionTooltip: "此文件将在转录前进行压缩",
             largeFileTooltip: "文件超过 {maxSize}MB - 将自动压缩",
             compressAndTranscribe: "压缩并转录"
+        },
+        mermaidDiagram: {
+            title: "生成 Mermaid 图表",
+            description: "从笔记内容创建可视化图表。Obsidian 会自动渲染 Mermaid 图表。",
+            typeLabel: "图表类型",
+            typeDesc: "选择要生成的图表类型",
+            instructionLabel: "要绘制什么",
+            instructionDesc: "描述您想要可视化的内容。例如：「整个笔记」、「第二部分的流程」、「概念之间的关系」",
+            instructionPlaceholder: "例如：「绘制此笔记中描述的工作流程」或「创建关键概念的思维导图」",
+            examplesTitle: "示例说明：",
+            example1: "以思维导图形式绘制整个笔记",
+            example2: "创建所述流程的流程图",
+            example3: "显示提到的事件时间线",
+            example4: "可视化概念之间的关系",
+            generateButton: "生成图表"
+        },
+        highlight: {
+            title: "高亮文本",
+            description: "选择高亮颜色：",
+            clearHighlight: "移除高亮",
+            colors: {
+                yellow: "黄色",
+                green: "绿色",
+                blue: "蓝色",
+                pink: "粉色",
+                orange: "橙色",
+                purple: "紫色"
+            }
+        },
+        flashcardExport: {
+            title: "导出闪卡",
+            description: "从当前笔记生成闪卡并导出到您选择的格式。",
+            styleLabel: "卡片样式",
+            styleDesc: "选择标准问答或选择题格式",
+            formatLabel: "导出格式",
+            formatDesc: "选择闪卡应用格式",
+            contextLabel: "附加说明（可选）",
+            contextDesc: "提供重点领域或生成卡片的具体说明",
+            contextPlaceholder: "例如：「重点关注关键定义和公式」或「为考试准备创建卡片」",
+            exportButton: "生成闪卡",
+            mathNoticeAnki: "数学公式将使用 MathJax 表示法（\\(...\\) 用于行内，\\[...\\] 用于块级）。请确保 Anki 已启用 MathJax 支持。",
+            mathNoticeBrainscape: "数学公式将转换为纯文本（Brainscape 不支持 LaTeX 渲染）。"
         }
     },
 

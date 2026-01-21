@@ -1,6 +1,6 @@
 # AI Organiser - Development Status
 
-**Version:** 1.0.15
+**Version:** 1.0.16
 **Last Updated:** January 2026
 **Status:** Feature Complete, Ready for Review
 
@@ -27,8 +27,10 @@ src/
 │   ├── clearCommands.ts       # Tag clearing commands
 │   ├── summarizeCommands.ts   # URL/PDF/YouTube/Audio summarization
 │   ├── translateCommands.ts   # Translation commands
-│   ├── smartNoteCommands.ts   # Improve note, find resources
+│   ├── smartNoteCommands.ts   # Improve note, find resources, mermaid diagrams
 │   ├── integrationCommands.ts # Pending Integration workflow
+│   ├── flashcardCommands.ts   # Flashcard export (Anki/Brainscape)
+│   ├── highlightCommands.ts   # Text highlighting commands
 │   └── utilityCommands.ts     # Collect tags, tag network
 ├── services/                  # Business logic layer
 │   ├── cloudService.ts        # Cloud LLM integration
@@ -45,7 +47,9 @@ src/
 │   │   ├── tagPrompts.ts      # Tagging prompts
 │   │   ├── summaryPrompts.ts  # Summarization prompts
 │   │   ├── summaryPersonas.ts # Summary style personas
-│   │   └── translatePrompts.ts
+│   │   ├── translatePrompts.ts
+│   │   ├── flashcardPrompts.ts # Flashcard generation (Anki/Brainscape)
+│   │   └── diagramPrompts.ts   # Mermaid diagram generation
 │   └── ... (specialized services)
 ├── ui/
 │   ├── modals/                # User interaction modals
@@ -55,7 +59,9 @@ src/
 │   │   ├── UrlInputModal.ts         # URL summarization input
 │   │   ├── PdfSelectModal.ts        # PDF file picker
 │   │   ├── AudioSelectModal.ts      # Audio file picker
-│   │   └── ... (12 total modals)
+│   │   ├── FlashcardExportModal.ts  # Flashcard format/style selection
+│   │   ├── MermaidDiagramModal.ts   # Diagram type selection
+│   │   └── ... (14 total modals)
 │   ├── settings/              # Settings UI sections
 │   │   ├── AIOrganiserSettingTab.ts # Main settings tab
 │   │   ├── LLMSettingsSection.ts    # LLM provider config
@@ -162,7 +168,56 @@ src/
 - Language dropdown with common languages
 - Preserves markdown formatting
 
-### 5. Utilities
+### 5. Flashcard Export
+
+**Commands:**
+- Export flashcards from current note
+
+**Features:**
+- Two card styles:
+  - **Standard Q&A** - Traditional question and answer format
+  - **Multiple Choice** - Exam-style with A, B, C, D options and explanations
+- Two export formats:
+  - **Anki** - CSV with MathJax notation support
+  - **Brainscape** - CSV with plain text math conversion
+- Optional context for card generation focus
+- Validates CSV output before saving
+- Saved to `AI-Organiser/Flashcards/` folder
+
+**Implementation:**
+- [flashcardCommands.ts](../src/commands/flashcardCommands.ts)
+- [flashcardPrompts.ts](../src/services/prompts/flashcardPrompts.ts)
+- [FlashcardExportModal.ts](../src/ui/modals/FlashcardExportModal.ts)
+
+### 6. Mermaid Diagram Generation
+
+**Commands:**
+- Generate diagram from note content
+
+**Features:**
+- Multiple diagram types: flowchart, sequence, class, mindmap, timeline, ER, state
+- AI-generated diagrams based on note content
+- Persona selection for diagram style
+- Diagrams inserted as Mermaid code blocks
+
+**Implementation:**
+- [smartNoteCommands.ts](../src/commands/smartNoteCommands.ts)
+- [diagramPrompts.ts](../src/services/prompts/diagramPrompts.ts)
+- [MermaidDiagramModal.ts](../src/ui/modals/MermaidDiagramModal.ts)
+
+### 7. Text Highlighting
+
+**Commands:**
+- Highlight selection (multiple types)
+
+**Features:**
+- Multiple highlight types via HTML mark tags
+- Quick highlighting of selected text
+
+**Implementation:**
+- [highlightCommands.ts](../src/commands/highlightCommands.ts)
+
+### 8. Utilities
 
 **Commands:**
 - Collect all tags to file
@@ -195,7 +250,7 @@ A unified modal for accessing all plugin commands, solving the UX challenge of 2
 
 ### Persona System
 
-User-editable AI personas stored in `AI-Organiser-Config/personas.md`.
+User-editable AI personas stored in `AI-Organiser/Config/personas.md`.
 
 **Built-in Personas:**
 1. **Balanced** - Clear, well-organized notes (default)
@@ -258,9 +313,26 @@ Settings divided into logical sections:
 
 ## Configuration System
 
-### User-Editable Files
+### Unified Folder Structure
 
-Located in `AI-Organiser-Config/` (configurable):
+All plugin files are consolidated under a single configurable folder (default: `AI-Organiser/`):
+
+```
+AI-Organiser/
+├── Config/                    # User-editable configuration files
+│   ├── taxonomy.md            # Themes and disciplines for tagging
+│   ├── excluded-tags.md       # Tags to never suggest
+│   ├── personas.md            # AI writing personas
+│   └── summary-personas.md    # Summary style personas
+├── Transcripts/               # Audio/YouTube transcripts
+│   └── [note-name] - transcript.md
+└── Flashcards/                # Exported flashcard files
+    └── [note-name] - [format] - [date].csv
+```
+
+### User-Editable Config Files
+
+Located in `AI-Organiser/Config/`:
 
 1. **taxonomy.md** - Themes and disciplines for tagging
 2. **excluded-tags.md** - Tags to never suggest
@@ -387,37 +459,65 @@ See [usertest.md](usertest.md) for comprehensive manual testing checklist (254 t
 
 | Category | Count | Key Files |
 |----------|-------|-----------|
-| Commands | 7 | generateCommands, summarizeCommands, smartNoteCommands |
+| Commands | 9 | generateCommands, summarizeCommands, flashcardCommands, highlightCommands |
 | Services | 15 | cloudService, localService, configurationService |
 | Adapters | 13 | claude, openai, gemini, groq, etc. |
-| Modals | 12 | CommandPickerModal, PersonaSelectModal, ImproveNoteModal |
-| Settings | 6 | LLMSettingsSection, TaggingSettingsSection |
+| Modals | 14 | CommandPickerModal, FlashcardExportModal, MermaidDiagramModal |
+| Settings | 7 | LLMSettingsSection, TaggingSettingsSection, SummarizationSettingsSection |
+| Prompts | 5 | tagPrompts, summaryPrompts, flashcardPrompts, diagramPrompts |
 | i18n | 3 | types, en, zh-cn |
 | Utils | 8 | tagUtils, noteStructure, urlValidator |
 | Tests | 3 | urlValidator.test, tagUtils.test, summaryPrompts.test |
 
-**Total TypeScript Files:** 80+
-**Lines of Code:** ~12,000+
+**Total TypeScript Files:** 85+
+**Lines of Code:** ~13,000+
 **Unit Tests:** 95
 
 ---
 
-## Recent Development (This Session)
+## Recent Development
 
-### 1. Transcript Saving Feature
+### 1. Flashcard Export Feature
+- Generate flashcards from note content using AI
+- Two card styles:
+  - **Standard Q&A** - Traditional question and answer cards
+  - **Multiple Choice** - Exam-prep cards with A/B/C/D options and explanations for each choice
+- Two export formats:
+  - **Anki** - CSV with MathJax math notation (`\(...\)` and `\[...\]`)
+  - **Brainscape** - CSV with plain text math conversion
+- Optional context input for focusing card generation
+- CSV validation and proper escaping
+- Files saved to `AI-Organiser/Flashcards/` subfolder
+
+### 2. Mermaid Diagram Generation
+- Generate visual diagrams from note content
+- Supports multiple diagram types: flowchart, sequence, class, mindmap, timeline, ER, state
+- Persona selection for diagram complexity/style
+- Inserts Mermaid code blocks directly into notes
+
+### 3. Text Highlighting
+- Quick highlight selected text with HTML mark tags
+- Multiple highlight color types
+
+### 4. Unified Folder Structure
+- All plugin-generated files consolidated under `AI-Organiser/`
+- Subfolders: `Config/`, `Transcripts/`, `Flashcards/`
+- Single configurable base folder in settings
+- Auto-exclusion of plugin folder from tagging operations
+
+### 5. Transcript Saving Feature
 - Save full transcripts from audio/YouTube to separate files
-- Configurable transcript folder (default: `Transcripts/`)
+- Configurable transcript folder (default: `AI-Organiser/Transcripts/`)
 - Transcript files include metadata (source, date, duration, type)
 - Summary notes link to transcript files via callout
-- Settings: "Save Transcripts" dropdown and "Transcript Folder" input
 
-### 2. Test Infrastructure
+### 6. Test Infrastructure
 - Added Vitest for unit testing
 - 95 tests for pure utility functions
 - GitHub Actions CI for automated testing
 - Tests for tagUtils, urlValidator, and summaryPrompts
 
-### 3. User Testing Guide
+### 7. User Testing Guide
 - Created comprehensive `usertest.md` with 254 test cases
 - Covers all features, settings, and edge cases
 - Organized into 15 categories

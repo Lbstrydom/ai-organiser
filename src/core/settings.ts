@@ -70,10 +70,16 @@ export interface AIOrganiserSettings {
     defaultSummaryPersona: string;       // Default persona ID for summarization
     // Transcript Settings
     saveTranscripts: 'none' | 'file';    // Whether to save full transcripts
-    transcriptFolder: string;            // Folder for transcript files
-    // Configuration Folder Settings
-    configFolderPath: string;  // Folder containing taxonomy, prompts, etc.
+    transcriptFolder: string;            // Subfolder for transcript files (under pluginFolder)
+    // Flashcard Settings
+    flashcardFolder: string;             // Subfolder for flashcard exports (under pluginFolder)
+    // Plugin Folder Settings (unified structure)
+    pluginFolder: string;                // Main plugin folder (contains Config, Transcripts, Flashcards)
+    configFolderPath: string;            // Subfolder for config files (under pluginFolder)
 }
+
+// Main plugin folder - all subfolders are relative to this
+export const DEFAULT_PLUGIN_FOLDER = 'AI-Organiser';
 
 export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     serviceType: 'cloud',
@@ -97,5 +103,23 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     defaultSummaryPersona: 'student',
     saveTranscripts: 'file',
     transcriptFolder: 'Transcripts',
-    configFolderPath: 'AI-Organiser-Config',
+    flashcardFolder: 'Flashcards',
+    pluginFolder: DEFAULT_PLUGIN_FOLDER,
+    configFolderPath: 'Config',
 };
+
+/**
+ * Get the full path for a subfolder within the plugin folder
+ */
+export function getPluginSubfolderPath(settings: AIOrganiserSettings, subfolder: string): string {
+    return `${settings.pluginFolder}/${subfolder}`;
+}
+
+/**
+ * Get all plugin-managed folders that should be auto-excluded from tagging
+ */
+export function getPluginManagedFolders(settings: AIOrganiserSettings): string[] {
+    return [
+        settings.pluginFolder, // Exclude the entire plugin folder
+    ];
+}

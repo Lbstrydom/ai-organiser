@@ -5,6 +5,8 @@ import { registerSummarizeCommands } from './summarizeCommands';
 import { registerTranslateCommands } from './translateCommands';
 import { registerSmartNoteCommands } from './smartNoteCommands';
 import { registerIntegrationCommands } from './integrationCommands';
+import { registerHighlightCommands } from './highlightCommands';
+import { registerFlashcardCommands } from './flashcardCommands';
 import AIOrganiserPlugin from '../main';
 
 export function registerCommands(plugin: AIOrganiserPlugin) {
@@ -15,4 +17,6 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerTranslateCommands(plugin);
     registerSmartNoteCommands(plugin);
     registerIntegrationCommands(plugin);
+    registerHighlightCommands(plugin);
+    registerFlashcardCommands(plugin);
 }

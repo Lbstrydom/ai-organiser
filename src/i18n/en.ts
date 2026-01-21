@@ -122,7 +122,12 @@ export const en: Translations = {
         generateFromEmbedded: "Generate note from embedded content",
         improveNote: "Improve note with AI",
         findResources: "Find related resources",
-        openCommandPicker: "Open command picker"
+        openCommandPicker: "Open command picker",
+        generateMermaidDiagram: "Generate Mermaid diagram",
+        highlightSelection: "Highlight selection",
+        highlightWith: "Highlight with",
+        removeHighlight: "Remove highlight",
+        exportFlashcards: "Export flashcards from current note"
     },
 
     // Messages and notifications
@@ -233,7 +238,14 @@ export const en: Translations = {
         summarizingTranscript: "Summarizing transcript...",
         noAudioFiles: "No audio files found in vault",
         compressingAudio: "Compressing audio file...",
-        compressionFailed: "Audio compression failed"
+        compressionFailed: "Audio compression failed",
+        generatingDiagram: "Generating diagram...",
+        diagramGenerated: "Diagram generated successfully",
+        diagramGenerationFailed: "Diagram generation failed",
+        generatingFlashcards: "Generating flashcards...",
+        flashcardGenerationFailed: "Failed to generate flashcards",
+        flashcardsExported: "Exported",
+        flashcardsTo: "flashcards to"
     },
 
     // Modal dialogs
@@ -390,6 +402,48 @@ export const en: Translations = {
             compressionTooltip: "This file will be compressed before transcription",
             largeFileTooltip: "File exceeds {maxSize}MB - will be compressed automatically",
             compressAndTranscribe: "Compress & Transcribe"
+        },
+        mermaidDiagram: {
+            title: "Generate Mermaid Diagram",
+            description: "Create a visual diagram from your note content. Obsidian will automatically render Mermaid diagrams.",
+            typeLabel: "Diagram Type",
+            typeDesc: "Select the type of diagram to generate",
+            instructionLabel: "What to diagram",
+            instructionDesc: "Describe what you want to visualize. Examples: \"the entire note\", \"the process in section 2\", \"the relationship between concepts\"",
+            instructionPlaceholder: "e.g., \"Diagram the workflow described in this note\" or \"Create a mind map of the key concepts\"",
+            examplesTitle: "Example instructions:",
+            example1: "Diagram the entire note as a mind map",
+            example2: "Create a flowchart of the process described",
+            example3: "Show the timeline of events mentioned",
+            example4: "Visualize the relationships between the concepts",
+            generateButton: "Generate Diagram"
+        },
+        highlight: {
+            title: "Highlight Text",
+            description: "Select a highlight color:",
+            clearHighlight: "Remove Highlight",
+            colors: {
+                yellow: "Yellow",
+                green: "Green",
+                blue: "Blue",
+                pink: "Pink",
+                orange: "Orange",
+                purple: "Purple"
+            }
+        },
+        flashcardExport: {
+            title: "Export Flashcards",
+            description: "Generate flashcards from the current note and export to your preferred format.",
+            styleLabel: "Card Style",
+            styleDesc: "Choose between standard Q&A or multiple choice format",
+            formatLabel: "Export Format",
+            formatDesc: "Choose the flashcard application format",
+            contextLabel: "Additional Context (Optional)",
+            contextDesc: "Provide focus areas or specific instructions for card generation",
+            contextPlaceholder: "e.g., \"Focus on key definitions and formulas\" or \"Create cards for exam preparation\"",
+            exportButton: "Generate Flashcards",
+            mathNoticeAnki: "Math will use MathJax notation (\\(...\\) for inline, \\[...\\] for display). Ensure Anki has MathJax support enabled.",
+            mathNoticeBrainscape: "Math will be converted to plain text (Brainscape does not support LaTeX rendering)."
         }
     },
 

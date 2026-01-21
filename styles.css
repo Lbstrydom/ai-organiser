@@ -1423,3 +1423,93 @@
     background-color: rgba(255, 255, 255, 0.2);
     color: var(--text-on-accent);
 }
+
+/* Highlight Color Modal Styles */
+.highlight-color-modal {
+    max-width: 350px;
+}
+
+.highlight-color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--size-4-2);
+    margin: var(--size-4-4) 0;
+}
+
+.highlight-color-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--size-4-3);
+    border-radius: var(--radius-m);
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    border: 2px solid transparent;
+    min-height: 60px;
+}
+
+.highlight-color-btn:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-s);
+}
+
+.highlight-color-btn:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.highlight-color-label {
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-medium);
+    color: rgba(0, 0, 0, 0.7);
+    margin-top: var(--size-2-1);
+}
+
+.highlight-clear-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--size-4-2);
+    margin-top: var(--size-4-2);
+    background-color: var(--background-secondary);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background-color 0.1s ease;
+}
+
+.highlight-clear-btn:hover {
+    background-color: var(--background-secondary-alt);
+    color: var(--text-normal);
+}
+
+/* Highlight color styles for rendered content */
+.ao-highlight {
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.ao-highlight-yellow {
+    background-color: #fff3a3;
+}
+
+.ao-highlight-green {
+    background-color: #a8e6cf;
+}
+
+.ao-highlight-blue {
+    background-color: #a8d8ea;
+}
+
+.ao-highlight-pink {
+    background-color: #ffb7b2;
+}
+
+.ao-highlight-orange {
+    background-color: #ffd3a5;
+}
+
+.ao-highlight-purple {
+    background-color: #d4a5ff;
+}

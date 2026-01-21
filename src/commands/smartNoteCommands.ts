@@ -18,6 +18,8 @@ import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
 import { replaceMainContent, ensureStandardStructure } from '../utils/noteStructure';
 import { ConfigurationService, Persona } from '../services/configurationService';
+import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidDiagramModal';
+import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     const extractionService = new ContentExtractionService(plugin.app);
@@ -157,6 +159,100 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
             modal.open();
         }
     });
+
+    // Command: Generate Mermaid diagram from note
+    plugin.addCommand({
+        id: 'generate-mermaid-diagram',
+        name: plugin.t.commands.generateMermaidDiagram || 'Generate Mermaid diagram',
+        icon: 'git-branch',
+        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+            const view = ctx instanceof MarkdownView ? ctx : null;
+            if (!view?.file) {
+                new Notice(plugin.t.messages.openNote);
+                return;
+            }
+
+            const content = await plugin.app.vault.read(view.file);
+
+            if (!content.trim()) {
+                new Notice(plugin.t.messages.noContent);
+                return;
+            }
+
+            // Show diagram options modal
+            const modal = new MermaidDiagramModal(
+                plugin.app,
+                plugin.t,
+                async (result: MermaidDiagramResult) => {
+                    await generateMermaidDiagram(plugin, editor, content, result);
+                }
+            );
+            modal.open();
+        }
+    });
+}
+
+/**
+ * Generate Mermaid diagram from note content
+ */
+async function generateMermaidDiagram(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    noteContent: string,
+    options: MermaidDiagramResult
+): Promise<void> {
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    // Show privacy notice for cloud providers
+    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
+        const proceed = await showPrivacyNotice(plugin, serviceType);
+        if (!proceed) {
+            return;
+        }
+        markPrivacyNoticeShown();
+    }
+
+    new Notice(plugin.t.messages.generatingDiagram || 'Generating diagram...');
+
+    // Build the prompt
+    const prompt = buildDiagramPrompt({
+        diagramType: options.diagramType,
+        instruction: options.instruction,
+        noteContent: noteContent
+    });
+
+    try {
+        let response: { success: boolean; content?: string; error?: string };
+
+        if (plugin.settings.serviceType === 'cloud') {
+            const { CloudLLMService } = await import('../services/cloudService');
+            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
+            response = await cloudService.summarizeText(prompt);
+        } else {
+            const { LocalLLMService } = await import('../services/localService');
+            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
+            response = await localService.summarizeText(prompt);
+        }
+
+        if (response.success && response.content) {
+            // Clean and wrap the output
+            const cleanedDiagram = cleanMermaidOutput(response.content);
+            const wrappedDiagram = wrapInCodeFence(cleanedDiagram);
+
+            // Insert at cursor position
+            const cursor = editor.getCursor();
+            editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
+
+            new Notice(plugin.t.messages.diagramGenerated || 'Diagram generated successfully');
+        } else {
+            new Notice(`${plugin.t.messages.diagramGenerationFailed || 'Diagram generation failed'}: ${response.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        new Notice(`${plugin.t.messages.diagramGenerationFailed || 'Error'}: ${errorMessage}`);
+    }
 }
 
 /**

@@ -121,6 +121,11 @@ export interface Translations {
         improveNote: string;
         findResources: string;
         openCommandPicker: string;
+        generateMermaidDiagram: string;
+        highlightSelection: string;
+        highlightWith: string;
+        removeHighlight: string;
+        exportFlashcards: string;
     };
 
     // Messages and notifications
@@ -232,6 +237,13 @@ export interface Translations {
         noAudioFiles: string;
         compressingAudio: string;
         compressionFailed: string;
+        generatingDiagram: string;
+        diagramGenerated: string;
+        diagramGenerationFailed: string;
+        generatingFlashcards: string;
+        flashcardGenerationFailed: string;
+        flashcardsExported: string;
+        flashcardsTo: string;
     };
 
     // Modal dialogs
@@ -388,6 +400,48 @@ export interface Translations {
             compressionTooltip: string;
             largeFileTooltip: string;
             compressAndTranscribe: string;
+        };
+        mermaidDiagram: {
+            title: string;
+            description: string;
+            typeLabel: string;
+            typeDesc: string;
+            instructionLabel: string;
+            instructionDesc: string;
+            instructionPlaceholder: string;
+            examplesTitle: string;
+            example1: string;
+            example2: string;
+            example3: string;
+            example4: string;
+            generateButton: string;
+        };
+        highlight: {
+            title: string;
+            description: string;
+            clearHighlight: string;
+            colors: {
+                yellow: string;
+                green: string;
+                blue: string;
+                pink: string;
+                orange: string;
+                purple: string;
+            };
+        };
+        flashcardExport: {
+            title: string;
+            description: string;
+            styleLabel: string;
+            styleDesc: string;
+            formatLabel: string;
+            formatDesc: string;
+            contextLabel: string;
+            contextDesc: string;
+            contextPlaceholder: string;
+            exportButton: string;
+            mathNoticeAnki: string;
+            mathNoticeBrainscape: string;
         };
     };
 
