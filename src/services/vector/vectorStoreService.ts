@@ -4,10 +4,102 @@
  */
 
 import { App, TFile } from 'obsidian';
-import { IVectorStore, VectorDocument, VectorStoreConfig } from './types';
+import { IVectorStore, VectorDocument, SearchResult } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings } from '../../core/settings';
+
+/**
+ * Search cache entry
+ */
+interface CacheEntry {
+    results: SearchResult[];
+    timestamp: number;
+}
+
+/**
+ * Simple search cache with TTL
+ */
+class SearchCache {
+    private cache = new Map<string, CacheEntry>();
+    private ttl: number; // milliseconds
+    private maxSize: number;
+
+    constructor(ttlMs: number = 5 * 60 * 1000, maxSize: number = 100) {
+        this.ttl = ttlMs;
+        this.maxSize = maxSize;
+    }
+
+    /**
+     * Get cached results for a query
+     */
+    get(query: string, topK: number): SearchResult[] | null {
+        const key = this.makeKey(query, topK);
+        const entry = this.cache.get(key);
+
+        if (!entry) return null;
+
+        // Check if expired
+        if (Date.now() - entry.timestamp > this.ttl) {
+            this.cache.delete(key);
+            return null;
+        }
+
+        return entry.results;
+    }
+
+    /**
+     * Store results in cache
+     */
+    set(query: string, topK: number, results: SearchResult[]): void {
+        const key = this.makeKey(query, topK);
+
+        // Evict oldest entries if at capacity
+        if (this.cache.size >= this.maxSize) {
+            const oldestKey = this.findOldestKey();
+            if (oldestKey) this.cache.delete(oldestKey);
+        }
+
+        this.cache.set(key, {
+            results,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Clear the cache
+     */
+    clear(): void {
+        this.cache.clear();
+    }
+
+    /**
+     * Invalidate cache entries related to a file
+     */
+    invalidateForFile(filePath: string): void {
+        // Clear entire cache when a file changes
+        // A more sophisticated approach would track which queries include which files
+        this.clear();
+    }
+
+    private makeKey(query: string, topK: number): string {
+        return `${query}::${topK}`;
+    }
+
+    private findOldestKey(): string | null {
+        let oldestKey: string | null = null;
+        let oldestTime = Infinity;
+
+        for (const [key, entry] of this.cache.entries()) {
+            if (entry.timestamp < oldestTime) {
+                oldestTime = entry.timestamp;
+                oldestKey = key;
+            }
+        }
+
+        return oldestKey;
+    }
+}
 
 /**
  * Service for managing vector store operations
@@ -18,6 +110,7 @@ export class VectorStoreService {
     private app: App;
     private settings: AIOrganiserSettings;
     private isIndexing = false;
+    private searchCache = new SearchCache();
 
     constructor(
         app: App,
@@ -146,6 +239,8 @@ export class VectorStoreService {
 
             if (documents.length > 0) {
                 await this.vectorStore.upsert(documents);
+                // Invalidate search cache when content changes
+                this.searchCache.invalidateForFile(file.path);
                 return true;
             }
 
@@ -170,14 +265,14 @@ export class VectorStoreService {
         let failed = 0;
 
         try {
-            // Get excluded folders
-            const excludedFolders = this.settings.indexExcludedFolders || [];
+            // Get excluded folders (shared with tagging or custom)
+            const excludedFolders = this.getEffectiveExcludedFolders();
 
             // Get all markdown files
             const files = this.app.vault.getMarkdownFiles();
             for (const file of files) {
                 // Skip excluded folders
-                if (excludedFolders.some(folder => file.path.startsWith(folder))) {
+                if (excludedFolders.some((folder: string) => file.path.startsWith(folder))) {
                     continue;
                 }
 
@@ -201,6 +296,8 @@ export class VectorStoreService {
     public async removeNote(file: TFile): Promise<void> {
         if (this.vectorStore) {
             await this.vectorStore.removeFile(file.path);
+            // Invalidate cache when content removed
+            this.searchCache.invalidateForFile(file.path);
         }
     }
 
@@ -210,6 +307,8 @@ export class VectorStoreService {
     public async renameNote(oldPath: string, newPath: string): Promise<void> {
         if (this.vectorStore) {
             await this.vectorStore.renameFile(oldPath, newPath);
+            // Invalidate cache when file renamed
+            this.searchCache.clear();
         }
     }
 
@@ -247,13 +346,33 @@ export class VectorStoreService {
     }
 
     /**
-     * Search by query string
+     * Search by query string (with caching)
      */
-    public async search(query: string, topK: number = 5): Promise<any[]> {
+    public async search(query: string, topK: number = 5): Promise<SearchResult[]> {
         if (!this.vectorStore) {
             return [];
         }
-        return this.vectorStore.searchByContent(query, this.embeddingService, topK);
+
+        // Check cache first
+        const cached = this.searchCache.get(query, topK);
+        if (cached) {
+            return cached;
+        }
+
+        // Perform search
+        const results = await this.vectorStore.searchByContent(query, this.embeddingService, topK);
+
+        // Cache results
+        this.searchCache.set(query, topK, results);
+
+        return results;
+    }
+
+    /**
+     * Clear the search cache
+     */
+    public clearSearchCache(): void {
+        this.searchCache.clear();
     }
 
     /**
@@ -288,6 +407,17 @@ export class VectorStoreService {
             await this.vectorStore.dispose();
             this.vectorStore = null;
         }
+    }
+
+    /**
+     * Get effective excluded folders based on settings
+     * Returns shared tagging exclusions or custom indexing exclusions
+     */
+    private getEffectiveExcludedFolders(): string[] {
+        if (this.settings.useSharedExcludedFolders) {
+            return this.settings.excludedFolders || [];
+        }
+        return this.settings.indexExcludedFolders || [];
     }
 
     /**

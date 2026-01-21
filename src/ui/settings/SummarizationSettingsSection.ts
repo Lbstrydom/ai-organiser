@@ -6,7 +6,6 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
-import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import type { Persona } from '../../services/configurationService';
 
 export class SummarizationSettingsSection extends BaseSettingSection {
@@ -88,21 +87,6 @@ export class SummarizationSettingsSection extends BaseSettingSection {
             await plugin.saveSettings();
           })
       );
-
-    // Summary language
-    new Setting(containerEl)
-      .setName(t.language)
-      .setDesc(t.languageDesc)
-      .addDropdown(dropdown => {
-        for (const lang of COMMON_LANGUAGES) {
-          dropdown.addOption(lang.code, getLanguageDisplayName(lang));
-        }
-        dropdown.setValue(plugin.settings.summaryLanguage || 'auto');
-        dropdown.onChange(async value => {
-          plugin.settings.summaryLanguage = value === 'auto' ? '' : value;
-          await plugin.saveSettings();
-        });
-      });
 
     // Include metadata
     new Setting(containerEl)

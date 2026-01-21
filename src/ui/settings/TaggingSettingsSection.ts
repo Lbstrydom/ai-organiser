@@ -1,7 +1,6 @@
 import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
-import { LanguageUtils } from '../../utils/languageUtils';
 import { ExcludedFilesModal } from '../modals/ExcludedFilesModal';
 
 export class TaggingSettingsSection extends BaseSettingSection {
@@ -30,22 +29,6 @@ export class TaggingSettingsSection extends BaseSettingSection {
                         });
                 }
                 return slider;
-            });
-
-        // Output Language Setting
-        new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.tagging.outputLanguage)
-            .setDesc(this.plugin.t.settings.tagging.outputLanguageDesc)
-            .addDropdown(dropdown => {
-                const options: Record<string, string> = LanguageUtils.getLanguageOptions();
-
-                return dropdown
-                    .addOptions(options)
-                    .setValue(this.plugin.settings.language)
-                    .onChange(async (value) => {
-                        this.plugin.settings.language = value as any;
-                        await this.plugin.saveSettings();
-                    });
             });
 
         // File exclusion Setting

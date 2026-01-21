@@ -2,6 +2,8 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { getLanguageOptions, SupportedLanguage } from '../../i18n';
+import { LanguageUtils } from '../../utils/languageUtils';
+import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 
 export class InterfaceSettingsSection extends BaseSettingSection {
     private initialLanguage!: SupportedLanguage;
@@ -10,6 +12,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
         // Store initial language to detect actual changes
         this.initialLanguage = this.plugin.settings.interfaceLanguage;
 
+        // === Interface Language ===
         this.containerEl.createEl('h1', { text: this.plugin.t.settings.interface.title });
 
         new Setting(this.containerEl)
@@ -37,6 +40,45 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                         }
                     });
             });
+
+        // === Output Language Settings ===
+        this.containerEl.createEl('h2', { text: this.plugin.t.settings.interface.outputLanguage || 'Output Language' });
+
+        const outputDesc = this.containerEl.createEl('p', {
+            cls: 'setting-item-description',
+            text: this.plugin.t.settings.interface.outputLanguageDesc || 'Language for AI-generated content. Each feature can use this or have its own override.'
+        });
+
+        // Tag output language
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.settings.tagging.outputLanguage || 'Tag Generation Language')
+            .setDesc(this.plugin.t.settings.tagging.outputLanguageDesc || 'Language for generated tags')
+            .addDropdown(dropdown => {
+                const options: Record<string, string> = LanguageUtils.getLanguageOptions();
+
+                return dropdown
+                    .addOptions(options)
+                    .setValue(this.plugin.settings.language)
+                    .onChange(async (value) => {
+                        this.plugin.settings.language = value as any;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        // Summary output language
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.settings.summarization?.language || 'Summary Language')
+            .setDesc(this.plugin.t.settings.summarization?.languageDesc || 'Language for generated summaries')
+            .addDropdown(dropdown => {
+                for (const lang of COMMON_LANGUAGES) {
+                    dropdown.addOption(lang.code, getLanguageDisplayName(lang));
+                }
+                dropdown.setValue(this.plugin.settings.summaryLanguage || 'auto');
+                dropdown.onChange(async value => {
+                    this.plugin.settings.summaryLanguage = value === 'auto' ? '' : value;
+                    await this.plugin.saveSettings();
+                });
+            });
     }
 
     private showRestartNotice(): void {
@@ -60,6 +102,13 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                 <span>${this.plugin.t.messages.languageChangeNotice}</span>
             </div>
         `;
-        this.containerEl.appendChild(notice);
+
+        // Insert after the interface language setting, not at the end
+        const firstSetting = this.containerEl.querySelector('.setting-item');
+        if (firstSetting && firstSetting.nextSibling) {
+            firstSetting.parentNode?.insertBefore(notice, firstSetting.nextSibling);
+        } else {
+            this.containerEl.appendChild(notice);
+        }
     }
 }

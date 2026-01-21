@@ -52,7 +52,10 @@ export const zhCN: Translations = {
         interface: {
             title: "界面",
             language: "语言",
-            languageDesc: "选择您的首选界面语言"        },
+            languageDesc: "选择您的首选界面语言",
+            outputLanguage: "输出语言",
+            outputLanguageDesc: "AI 生成内容的语言。每个功能可以使用此设置或单独覆盖。"
+        },
         summarization: {
             title: "总结",
             enableFeature: "启用总结功能",
@@ -126,10 +129,15 @@ export const zhCN: Translations = {
                 name: "自动索引新笔记",
                 description: "创建或修改笔记时自动索引。"
             },
+            useSharedExcludedFolders: {
+                name: "使用标记排除项",
+                description: "使用与标记相同的排除文件夹。禁用以设置索引的自定义排除项。"
+            },
             indexExcludedFolders: {
-                name: "排除的文件夹",
+                name: "自定义排除文件夹",
                 description: "索引时要跳过的文件夹（每行一个，例如 'templates'、'archive'）。"
             },
+            usingTaggingExclusions: "使用标记排除的文件夹：",
             chunkSize: {
                 name: "分块大小（字符）",
                 description: "用于嵌入的文本块大小。更大 = 更多上下文，但精确度较低。（默认：2000）"

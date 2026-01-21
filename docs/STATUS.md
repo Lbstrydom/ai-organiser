@@ -1,8 +1,8 @@
 # AI Organiser - Development Status
 
-**Version:** 1.0.16
-**Last Updated:** January 2026
-**Status:** Feature Complete, Ready for Review
+**Version:** 1.0.15
+**Last Updated:** January 21, 2026
+**Status:** Feature Complete + Phase 4.4 RAG Enhancements
 
 ---
 
@@ -43,6 +43,19 @@ src/
 │   │   ├── geminiAdapter.ts
 │   │   ├── groqAdapter.ts
 │   │   └── ... (13 total adapters)
+│   ├── embeddings/            # Embedding service layer (NEW)
+│   │   ├── types.ts           # IEmbeddingService interface
+│   │   ├── embeddingServiceFactory.ts # Factory with API key inheritance
+│   │   ├── openaiEmbeddingService.ts
+│   │   ├── ollamaEmbeddingService.ts
+│   │   ├── geminiEmbeddingService.ts
+│   │   ├── cohereEmbeddingService.ts
+│   │   └── voyageEmbeddingService.ts
+│   ├── vector/                # Vector store (Voy WASM)
+│   │   ├── types.ts           # IVectorStore, VectorDocument
+│   │   ├── vectorStoreService.ts # Service with search caching
+│   │   ├── voyVectorStore.ts  # Voy WASM implementation
+│   │   └── simpleVectorStore.ts # Fallback implementation
 │   ├── prompts/               # Prompt engineering
 │   │   ├── tagPrompts.ts      # Tagging prompts
 │   │   ├── summaryPrompts.ts  # Summarization prompts
@@ -61,14 +74,18 @@ src/
 │   │   ├── AudioSelectModal.ts      # Audio file picker
 │   │   ├── FlashcardExportModal.ts  # Flashcard format/style selection
 │   │   ├── MermaidDiagramModal.ts   # Diagram type selection
-│   │   └── ... (14 total modals)
+│   │   ├── LocalSetupWizardModal.ts # Local AI setup wizard (NEW)
+│   │   └── ... (15 total modals)
 │   ├── settings/              # Settings UI sections
-│   │   ├── AIOrganiserSettingTab.ts # Main settings tab
-│   │   ├── LLMSettingsSection.ts    # LLM provider config
-│   │   ├── TaggingSettingsSection.ts
-│   │   ├── SummarizationSettingsSection.ts
-│   │   ├── ConfigurationSettingsSection.ts
-│   │   └── ...
+│   │   ├── AIOrganiserSettingTab.ts # Main settings tab orchestrator
+│   │   ├── BaseSettingSection.ts    # Base class for sections
+│   │   ├── LLMSettingsSection.ts    # LLM provider, API keys
+│   │   ├── InterfaceSettingsSection.ts # Languages (interface + output)
+│   │   ├── TaggingSettingsSection.ts   # Max tags, exclusions
+│   │   ├── SummarizationSettingsSection.ts # Summary options
+│   │   ├── SemanticSearchSettingsSection.ts # Embeddings, RAG
+│   │   ├── ConfigurationSettingsSection.ts  # Config files
+│   │   └── SupportSection.ts        # Buy me a coffee
 │   └── views/
 │       └── TagNetworkView.ts  # D3.js tag visualization
 ├── utils/                     # Utility functions
@@ -280,13 +297,20 @@ Used for URL/PDF/YouTube/Audio summarization. Controls summary format and struct
 
 ### Settings Organization
 
-Settings divided into logical sections:
+Settings divided into logical sections (in display order):
 1. **LLM Settings** - Provider, API keys, models
-2. **Tagging Settings** - Max tags, language, exclusions
-3. **Summarization Settings** - Length, language, default persona, transcript saving
-4. **Configuration** - Config folder, taxonomy management
-5. **Interface** - Language selection (EN/ZH)
-6. **Support** - Buy Me a Coffee link
+2. **Interface** - Interface language, output languages (tag/summary) - consolidated
+3. **Tagging Settings** - Max tags, folder exclusions
+4. **Summarization Settings** - Length, default persona, transcript saving
+5. **Semantic Search** - Embeddings, indexing, RAG settings
+6. **Configuration** - Config folder, taxonomy management
+7. **Support** - Buy Me a Coffee link
+
+**UX Improvements (January 2026):**
+- Language settings consolidated into Interface section
+- Embedding models now use provider-specific dropdowns
+- Embedding API key shows inheritance from main LLM key
+- Excluded folders toggle for shared vs custom indexing exclusions
 
 ---
 
@@ -531,15 +555,111 @@ See [usertest.md](usertest.md) for comprehensive manual testing checklist (254 t
 - Covers all features, settings, and edge cases
 - Organized into 15 categories
 
+### 8. Settings UX Improvements (January 2026)
+- **Language consolidation**: All language settings (interface, tag output, summary) now in one Interface section
+- **Restart notice fix**: Interface language change notice only shows when language actually changes
+- **Embedding model dropdowns**: Provider-specific model lists with recommended defaults (not free text)
+- **API key inheritance**: "Use main API key" button when embedding provider matches LLM provider
+- **Excluded folders toggle**: Clear toggle for shared vs custom indexing exclusions
+- **Settings reordering**: Logical flow from core setup → language → features → advanced
+
+### 9. Phase 4.4: RAG Enhancements (January 21, 2026)
+
+#### Related Notes Sidebar View (4.4.1)
+- **Persistent sidebar panel** showing semantically similar notes
+- Auto-updates when switching notes (500ms debounce)
+- Interactive features:
+  - Click to open note
+  - Hover for preview tooltip
+  - Copy markdown link button
+  - Manual refresh and cache clearing
+- Color-coded similarity scores (Excellent/Good/Fair)
+- Graceful error handling (disabled, loading, empty, error states)
+- **Implementation**: `src/ui/views/RelatedNotesView.ts` (458 lines)
+- **Styling**: `styles.css` (~100 lines of related-notes-* classes)
+- **Command**: "Show Related Notes" in right sidebar
+
+#### RAG-Enhanced Summarization (4.4.2)
+- Enhanced `summarizeTextWithLLM()` with optional RAG context injection
+- **useRAG parameter**: Enables context retrieval from vault
+- **Context retrieval**: Gets 3 most relevant chunks (similarity ≥ 0.7)
+- **Enhanced prompts**: Builds RAG-aware prompts with background knowledge
+- **Source citations**: Automatically appends source notes to summary
+- Graceful fallback if RAG fails
+- Backward compatible (useRAG defaults to false)
+- **Implementation**: `src/commands/summarizeCommands.ts` (+53 lines)
+
+#### Semantic Search Settings UI
+- **Complete settings section** for semantic search and RAG
+- Master toggle: "Enable Semantic Search"
+- **Embedding provider configuration**:
+  - Supports: OpenAI, Claude (Voyage), Gemini, Ollama, OpenRouter, Cohere, Voyage AI
+  - Auto-updates model on provider change
+  - Auto-fills API key from main LLM key if blank
+  - API key masking: Shows only first 6 characters (e.g., `sk-abc•••••••`)
+- **Indexing settings**:
+  - Auto-index new notes toggle
+  - Excluded folders (inherits from main exclusions if empty)
+  - Chunk size (default: 2000 chars)
+  - Chunk overlap (default: 200 chars)
+  - Max chunks per note (default: 10)
+- **RAG settings**:
+  - Enable vault chat toggle
+  - Context chunks count (default: 5)
+  - Include metadata toggle
+- Full i18n support (English & Chinese)
+
+#### UX Polish
+- Support section moved to end with smaller heading
+- Added `fundingUrl` to manifest.json for ❤️ heart icon in community plugins
+- Settings order: LLM → Tagging → Config → Interface → Semantic Search → Summarization → Support
+- Embedding model updates automatically when provider changes
+- API keys properly masked for security
+
+### 10. Embedding Service Infrastructure (January 21, 2026)
+
+Complete embedding service layer for semantic search vector generation:
+
+#### Embedding Services (`src/services/embeddings/`)
+- **IEmbeddingService interface** with `generateEmbedding()`, `batchGenerateEmbeddings()`
+- **5 Embedding Providers**:
+  - **OpenAI** - text-embedding-3-small/large (1536/3072 dims)
+  - **Ollama** - nomic-embed-text, mxbai-embed-large (local)
+  - **Gemini** - text-embedding-004 (768 dims)
+  - **Cohere** - embed-english-v3.0 (1024 dims)
+  - **Voyage AI** - voyage-3/voyage-3-lite (high quality)
+- **Factory pattern**: `createEmbeddingServiceFromSettings()` handles API key inheritance
+- **API key chain**: embeddingApiKey → providerSettings → cloudApiKey
+
+#### Performance Optimizations (Phase 4.4.3)
+- **Search caching**: 5-minute TTL cache for search results
+- **Cache invalidation**: Automatic on file modify/delete/rename
+- **Batch processing**: Process embedding requests efficiently
+
+#### Local Setup Wizard (`LocalSetupWizardModal.ts`)
+- **3-step wizard** for setting up local AI (Ollama)
+- **Step 1**: Install Ollama with platform-specific instructions
+- **Step 2**: Download models with hardware-aware recommendations
+- **Step 3**: Test connection and apply settings
+- **Model recommendations** for 2026:
+  - **Chat**: Llama 3.3, Qwen 2.5, DeepSeek R1, Mistral, Phi-4, Gemma 2
+  - **Embeddings**: nomic-embed-text, mxbai-embed-large, bge-m3
+  - **Multimodal**: Llava 1.6 for image/PDF analysis
+- **RAM detection**: Recommends models based on available memory
+- **Copy-to-clipboard**: Install commands ready to paste in terminal
+
+**Note**: Claude/Anthropic does NOT have an embeddings API - use Voyage AI instead.
+
 ---
 
 ## Known Limitations
 
-1. **Language Change** - Requires Obsidian restart
+1. **Interface Language Change** - Requires Obsidian restart (output languages do not)
 2. **PDF Support** - Only Claude and Gemini support native PDF
 3. **Audio Transcription** - Requires OpenAI or Groq API key
 4. **D3.js** - Loaded from CDN, not bundled
 5. **Large Vaults** - Batch operations may take time
+6. **Embedding API** - Some providers (Claude) don't have native embeddings, use Voyage AI instead
 
 ---
 

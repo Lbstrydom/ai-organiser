@@ -24,11 +24,13 @@ import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
 import { ConfigurationService } from './services/configurationService';
 import { VectorStoreService, IVectorStore } from './services/vector';
+import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
     public llmService: LLMService;
     public configService: ConfigurationService;
+    public embeddingService: IEmbeddingService | null = null;
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
     private eventHandlers: EventHandlers;
@@ -75,7 +77,27 @@ export default class AIOrganiserPlugin extends Plugin {
     public async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
         await this.initializeLLMService();
+        await this.initializeEmbeddingService();
         this.t = getTranslations(this.settings.interfaceLanguage);
+    }
+
+    /**
+     * Initialize or reinitialize the embedding service based on current settings
+     */
+    private async initializeEmbeddingService(): Promise<void> {
+        // Dispose existing embedding service
+        await this.embeddingService?.dispose();
+        this.embeddingService = null;
+
+        // Only create if semantic search is enabled
+        if (this.settings.enableSemanticSearch) {
+            this.embeddingService = createEmbeddingServiceFromSettings(this.settings);
+
+            // Update vector store service with new embedding service
+            if (this.vectorStoreService) {
+                await this.vectorStoreService.updateEmbeddingService(this.embeddingService);
+            }
+        }
     }
 
     private async initializeLLMService(): Promise<void> {
@@ -116,23 +138,28 @@ export default class AIOrganiserPlugin extends Plugin {
         setSettings(this.settings);
 
         // Initialize vector store for semantic search
-        if (this.settings.enableSemanticSearch && this.llmService) {
+        if (this.settings.enableSemanticSearch) {
             try {
-                const embeddingService = await (this.llmService as any).getEmbeddingService?.();
-                if (embeddingService) {
-                    this.vectorStoreService = new VectorStoreService(
-                        this.app,
-                        this.settings,
-                        embeddingService
-                    );
-                    this.vectorStore = await this.vectorStoreService.createVectorStore();
-                    
-                    // Register file event handlers for auto-indexing
-                    if (this.settings.autoIndexNewNotes) {
-                        this.vectorStoreService.registerFileEventHandlers();
-                    }
-                    
-                    new Notice('Vector store initialized for semantic search');
+                // Create embedding service from settings
+                this.embeddingService = createEmbeddingServiceFromSettings(this.settings);
+
+                // Create vector store service
+                this.vectorStoreService = new VectorStoreService(
+                    this.app,
+                    this.settings,
+                    this.embeddingService
+                );
+                this.vectorStore = await this.vectorStoreService.createVectorStore();
+
+                // Register file event handlers for auto-indexing
+                if (this.settings.autoIndexNewNotes) {
+                    this.vectorStoreService.registerFileEventHandlers();
+                }
+
+                if (this.embeddingService) {
+                    console.log(`Semantic search initialized with ${this.settings.embeddingProvider}/${this.settings.embeddingModel}`);
+                } else {
+                    console.log('Vector store initialized without embedding service - configure API key in settings');
                 }
             } catch (error) {
                 console.error('Failed to initialize vector store:', error);
@@ -186,11 +213,13 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public async onunload(): Promise<void> {
         await this.llmService?.dispose();
+        await this.embeddingService?.dispose();
         if (this.vectorStoreService) {
             await this.vectorStoreService.dispose();
             this.vectorStore = null;
             this.vectorStoreService = null;
         }
+        this.embeddingService = null;
         this.eventHandlers.cleanup();
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
         this.app.workspace.trigger('layout-change');

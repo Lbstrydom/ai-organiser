@@ -52,7 +52,9 @@ export const en: Translations = {
         interface: {
             title: "Interface",
             language: "Language",
-            languageDesc: "Choose your preferred interface language"
+            languageDesc: "Choose your preferred interface language",
+            outputLanguage: "Output Language",
+            outputLanguageDesc: "Language for AI-generated content. Each feature can use this or have its own override."
         },
         summarization: {
             title: "Summarization",
@@ -127,10 +129,15 @@ export const en: Translations = {
                 name: "Auto-index New Notes",
                 description: "Automatically index notes when created or modified."
             },
+            useSharedExcludedFolders: {
+                name: "Use Tagging Exclusions",
+                description: "Use the same excluded folders as tagging. Disable to set custom exclusions for indexing."
+            },
             indexExcludedFolders: {
-                name: "Excluded Folders",
+                name: "Custom Excluded Folders",
                 description: "Folders to skip during indexing (one per line, e.g., 'templates', 'archive')."
             },
+            usingTaggingExclusions: "Using folders excluded from tagging:",
             chunkSize: {
                 name: "Chunk Size (characters)",
                 description: "Size of text chunks for embedding. Larger = more context, but less precise. (Default: 2000)"

@@ -88,7 +88,8 @@ export interface AIOrganiserSettings {
     
     // Indexing Options
     autoIndexNewNotes: boolean;          // Auto-index notes on create/modify
-    indexExcludedFolders: string[];      // Folders to skip during indexing
+    useSharedExcludedFolders: boolean;   // Use same excluded folders as tagging
+    indexExcludedFolders: string[];      // Folders to skip during indexing (when not using shared)
     maxChunksPerNote: number;            // Limit chunks per note (default: 10)
     chunkSize: number;                   // Characters per chunk (default: 2000)
     chunkOverlap: number;                // Overlap characters (default: 200)
@@ -135,7 +136,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     embeddingApiKey: '',                                // Will use cloudApiKey if empty and provider matches
     embeddingEndpoint: 'http://localhost:11434',       // For Ollama
     autoIndexNewNotes: true,                            // Auto-index when enabled
-    indexExcludedFolders: [],                           // No exclusions by default
+    useSharedExcludedFolders: true,                     // Share with tagging by default
+    indexExcludedFolders: [],                           // Custom exclusions (when not shared)
     maxChunksPerNote: 10,                               // Reasonable limit
     chunkSize: 2000,                                    // ~500 tokens (char/4 approximation)
     chunkOverlap: 200,                                  // ~50 tokens overlap

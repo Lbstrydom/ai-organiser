@@ -237,8 +237,18 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
             }
 
             if (!plugin.vectorStore) {
-                new Notice('Vector store not initialized. Please try again in a moment.');
+                new Notice('Vector store not initialized. Try reloading Obsidian or check settings.');
                 return;
+            }
+
+            // Check if index has any documents and notify if empty
+            try {
+                const metadata = await plugin.vectorStore.getMetadata();
+                if (metadata.totalDocuments === 0) {
+                    new Notice('Index is empty. Run "Build semantic search index" first.');
+                }
+            } catch {
+                // Ignore errors checking metadata
             }
 
             // Import here to avoid circular dependency

@@ -51,6 +51,8 @@ export interface Translations {
             title: string;
             language: string;
             languageDesc: string;
+            outputLanguage: string;
+            outputLanguageDesc: string;
         };
         summarization: {
             title: string;
@@ -125,10 +127,15 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            useSharedExcludedFolders: {
+                name: string;
+                description: string;
+            };
             indexExcludedFolders: {
                 name: string;
                 description: string;
             };
+            usingTaggingExclusions: string;
             chunkSize: {
                 name: string;
                 description: string;

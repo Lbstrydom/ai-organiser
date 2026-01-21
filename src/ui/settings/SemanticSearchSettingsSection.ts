@@ -161,6 +161,18 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                         plugin.settings.embeddingEndpoint = value;
                         await plugin.saveSettings();
                     }));
+
+            // Local Setup Wizard button
+            new Setting(containerEl)
+                .setName(t.settings.semanticSearch.localSetup)
+                .setDesc(t.settings.semanticSearch.localSetupDesc)
+                .addButton(button => button
+                    .setButtonText(t.settings.semanticSearch.openLocalSetup)
+                    .setCta()
+                    .onClick(async () => {
+                        const { LocalSetupWizardModal } = await import('../modals/LocalSetupWizardModal');
+                        new LocalSetupWizardModal(plugin.app, plugin).open();
+                    }));
         }
 
         // === Indexing Settings ===
@@ -177,24 +189,57 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     await plugin.saveSettings();
                 }));
 
-        // Excluded folders for indexing
-        const excludedFoldersDefault = plugin.settings.indexExcludedFolders.length
-            ? plugin.settings.indexExcludedFolders
-            : plugin.settings.excludedFolders;
-
+        // Use shared excluded folders toggle
         new Setting(containerEl)
-            .setName(t.settings.semanticSearch.indexExcludedFolders.name)
-            .setDesc(t.settings.semanticSearch.indexExcludedFolders.description)
-            .addTextArea(text => text
-                .setPlaceholder('folder1\nfolder2\nfolder3')
-                .setValue(excludedFoldersDefault.join('\n'))
+            .setName(t.settings.semanticSearch.useSharedExcludedFolders.name)
+            .setDesc(t.settings.semanticSearch.useSharedExcludedFolders.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.useSharedExcludedFolders)
                 .onChange(async (value) => {
-                    plugin.settings.indexExcludedFolders = value
-                        .split('\n')
-                        .map(f => f.trim())
-                        .filter(f => f.length > 0);
+                    plugin.settings.useSharedExcludedFolders = value;
                     await plugin.saveSettings();
+                    this.display(); // Refresh to show/hide custom folders
                 }));
+
+        // Show either shared folders info or custom folders textarea
+        if (plugin.settings.useSharedExcludedFolders) {
+            // Show read-only info about which folders are being used from tagging
+            const sharedFolders = plugin.settings.excludedFolders;
+            const infoEl = containerEl.createDiv({ cls: 'setting-item' });
+            const infoContent = infoEl.createDiv({ cls: 'setting-item-info' });
+            infoContent.createDiv({
+                cls: 'setting-item-name',
+                text: t.settings.semanticSearch.usingTaggingExclusions
+            });
+
+            if (sharedFolders.length > 0) {
+                const folderList = infoContent.createDiv({ cls: 'setting-item-description' });
+                folderList.style.fontFamily = 'monospace';
+                folderList.style.fontSize = '0.85em';
+                folderList.style.opacity = '0.8';
+                folderList.setText(sharedFolders.join(', ') || 'None');
+            } else {
+                infoContent.createDiv({
+                    cls: 'setting-item-description',
+                    text: 'No folders excluded'
+                });
+            }
+        } else {
+            // Show custom excluded folders textarea
+            new Setting(containerEl)
+                .setName(t.settings.semanticSearch.indexExcludedFolders.name)
+                .setDesc(t.settings.semanticSearch.indexExcludedFolders.description)
+                .addTextArea(text => text
+                    .setPlaceholder('folder1\nfolder2\nfolder3')
+                    .setValue(plugin.settings.indexExcludedFolders.join('\n'))
+                    .onChange(async (value) => {
+                        plugin.settings.indexExcludedFolders = value
+                            .split('\n')
+                            .map(f => f.trim())
+                            .filter(f => f.length > 0);
+                        await plugin.saveSettings();
+                    }));
+        }
 
         // Chunk size
         new Setting(containerEl)

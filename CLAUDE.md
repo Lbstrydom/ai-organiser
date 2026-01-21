@@ -56,12 +56,16 @@ Mode selection affects prompt structure and tag merging logic in `analyzeAndTagN
 ### Settings & Configuration
 
 **Settings schema** (`src/core/settings.ts`):
-- `AITaggerSettings` interface with 20+ configuration options
-- Key settings: `serviceType`, `taggingMode`, `cloudServiceType`, `interfaceLanguage`
+- `AIOrganiserSettings` interface with 35+ configuration options
+- Key settings: `serviceType`, `cloudServiceType`, `interfaceLanguage`, `enableSemanticSearch`, `embeddingProvider`
 - Settings UI split into modular sections (`src/ui/settings/`):
-  - `LLMSettingsSection`: Service provider configuration
-  - `TaggingSettingsSection`: Mode selection, tag limits, exclusions
-  - `InterfaceSettingsSection`: Language selection (zh-cn/en)
+  - `LLMSettingsSection`: Service provider configuration, API keys
+  - `TaggingSettingsSection`: Max tags, folder exclusions
+  - `ConfigurationSettingsSection`: Config files management
+  - `InterfaceSettingsSection`: Interface language, tag output language, summary language (consolidated)
+  - `SemanticSearchSettingsSection`: Embeddings, indexing, RAG settings (Phase 4.4)
+  - `SummarizationSettingsSection`: Summary style, personas, transcript options
+  - `SupportSection`: Buy me a coffee (always last)
 
 **Settings persistence**: Loaded in `loadSettings()`, saved via `saveSettings()`, triggers service reinitialization.
 
@@ -94,6 +98,44 @@ Mode selection affects prompt structure and tag merging logic in `analyzeAndTagN
 **Tag operations** (`src/utils/tagOperations.ts`):
 - Batch processing with progress notifications
 - Handles file reading, content analysis, frontmatter updates
+
+### RAG & Semantic Search (Phase 4.4)
+
+**Vector Store** (`src/services/vector/`):
+- `VoyVectorStore`: Production vector storage using Voy WASM
+- `IVectorStore` interface for vector operations
+- Chunk-based indexing with configurable size and overlap
+
+**RAG Service** (`src/services/ragService.ts`):
+- `RAGService.getRelatedNotes()`: Semantic note discovery
+- `RAGService.retrieveContext()`: Context retrieval for RAG
+- `RAGService.buildRAGPrompt()`: Enhanced prompt building with vault context
+- `RAGService.formatSources()`: Source citation formatting
+
+**Related Notes View** (`src/ui/views/RelatedNotesView.ts`):
+- Persistent sidebar ItemView showing semantically similar notes
+- Auto-updates with 500ms debounce on note switch
+- State management: `RelatedNotesState` interface
+- Interactive features: click navigation, hover preview, copy markdown link
+- Color-coded similarity badges (excellent ≥0.8, good ≥0.6, fair <0.6)
+- Error states: disabled, loading, empty, error, results
+
+**RAG-Enhanced Summarization**:
+- `summarizeTextWithLLM(useRAG: boolean)` in `src/commands/summarizeCommands.ts`
+- Extracts query from prompt (first sentence)
+- Retrieves 3 relevant chunks (similarity ≥ 0.7)
+- Builds enhanced prompt with vault context
+- Appends source citations to summary output
+- Graceful fallback on RAG errors
+
+**Semantic Search Settings** (`src/ui/settings/SemanticSearchSettingsSection.ts`):
+- Master toggle for semantic search features
+- Embedding provider selection (OpenAI, Claude/Voyage, Gemini, Ollama, etc.)
+- Auto-updates embedding model on provider change
+- Auto-fills API key from main LLM key
+- API key masking (shows first 6 chars: `sk-abc•••••••`)
+- Indexing options: auto-index, excluded folders, chunk size/overlap
+- RAG options: vault chat, context chunks, metadata inclusion
 
 ### Tag Network Visualization
 
@@ -153,6 +195,44 @@ Use Obsidian's `metadataCache` for reading, `vault.modify()` for writing:
 - Debug mode (`settings.debugMode`) enables console logging
 - Graceful degradation: failed operations return `{success: false, message: ...}`
 
+### RAG Integration Patterns (Phase 4.4)
+
+**Semantic Search Enablement**:
+- Always check `plugin.settings.enableSemanticSearch` before RAG operations
+- Verify `plugin.vectorStore` exists before calling RAG methods
+- Provide graceful fallback if RAG unavailable
+
+**Related Notes Discovery**:
+```typescript
+if (plugin.vectorStore && plugin.settings.enableSemanticSearch) {
+    const results = await plugin.ragService.getRelatedNotes(currentFilePath, { maxResults: 5, minSimilarity: 0.6 });
+    // Display results in sidebar
+}
+```
+
+**RAG-Enhanced Prompts**:
+```typescript
+if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
+    const query = extractQueryFromPrompt(prompt);
+    const context = await plugin.ragService.retrieveContext(query, undefined, { maxChunks: 3, minSimilarity: 0.7 });
+    const enhancedPrompt = plugin.ragService.buildRAGPrompt(prompt, context, systemPrompt);
+    // Use enhanced prompt for LLM call
+    const sources = plugin.ragService.formatSources(context.sources);
+    // Append sources to response
+}
+```
+
+**API Key Inheritance Chain**:
+1. `plugin.settings.embeddingApiKey` (explicit embedding key)
+2. `plugin.settings.providerSettings[provider]?.apiKey` (provider-specific key)
+3. `plugin.settings.cloudApiKey` (main LLM API key)
+
+**Embedding Model Auto-Update**:
+- When provider changes, update model to provider default if:
+  - Current model is empty, OR
+  - Current model equals previous provider's default
+- Use `getDefaultEmbeddingModel(provider)` helper
+
 ## Testing Approach
 
 No formal test suite exists. Testing process:
@@ -191,10 +271,12 @@ plugin.addCommand({
 ## Critical Files for Modifications
 
 - **Adding features**: Start with `src/main.ts` to understand plugin flow
-- **Prompt changes**: Edit `src/services/prompts/tagPrompts.ts`
+- **Prompt changes**: Edit `src/services/prompts/` (tagPrompts, summaryPrompts, etc.)
 - **UI modifications**: `src/ui/settings/AITaggerSettingTab.ts` and section files
 - **New LLM providers**: `src/services/adapters/` and update `cloudService.ts`
 - **Tag processing logic**: `src/utils/tagUtils.ts`
+- **RAG features**: `src/services/ragService.ts`, `src/services/vector/vectorStoreService.ts`
+- **Semantic views**: `src/ui/views/RelatedNotesView.ts`
 - **Translations**: `src/i18n/en.ts` and `src/i18n/zh-cn.ts`
 
 ## Version Management
@@ -211,10 +293,67 @@ Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 - Obsidian API externals must match platform version (defined in `esbuild.config.mjs`)
 - TypeScript compilation is strict mode with ES2020 target
 - D3.js loaded dynamically from CDN (no bundling) for network visualization
-- Settings changes (especially service type/language) may require Obsidian restart
+- Interface language change requires Obsidian restart (output languages do not)
 - Tag formatting preserves `/` for nested tags but converts other special chars to hyphens
+
+## Settings UX Patterns
+
+### Language Settings Consolidation
+All language settings are consolidated in `InterfaceSettingsSection`:
+- **Interface Language**: UI language (requires restart)
+- **Tag Output Language**: Language for generated tags
+- **Summary Language**: Language for summaries
+
+### API Key Inheritance
+Embedding API key follows a fallback chain:
+1. `embeddingApiKey` (explicit embedding key)
+2. `providerSettings[provider].apiKey` (provider-specific key)
+3. `cloudApiKey` (main LLM API key)
+
+The UI shows "Use main API key" button when same provider is selected.
+
+### Excluded Folders Toggle
+Semantic search indexing can share tagging exclusions or use custom list:
+- `useSharedExcludedFolders: true` → uses `excludedFolders` from tagging
+- `useSharedExcludedFolders: false` → uses `indexExcludedFolders` custom list
+
+### Embedding Model Dropdowns
+Embedding models are provider-specific dropdowns (not free text):
+- Each provider has curated model options with recommended defaults
+- Custom models can still be used (shown as "custom" if not in list)
+
+## Semantic Search & RAG Implementation Status ✅ COMPLETE
+
+### Embedding Service Infrastructure
+**Location:** `src/services/embeddings/`
+
+- **IEmbeddingService interface** with `generateEmbedding()`, `batchGenerateEmbeddings()`
+- **5 Embedding Providers**:
+  - **OpenAI** - text-embedding-3-small/large (1536/3072 dims)
+  - **Ollama** - nomic-embed-text, mxbai-embed-large (local)
+  - **Gemini** - text-embedding-004 (768 dims)
+  - **Cohere** - embed-english-v3.0 (1024 dims)
+  - **Voyage AI** - voyage-3/voyage-3-lite (high quality)
+- **Factory pattern**: `createEmbeddingServiceFromSettings()` handles API key inheritance
+- **Note**: Claude/Anthropic does NOT have an embeddings API - use Voyage AI instead
+
+### Phase 4.4 RAG Enhancements (All Complete)
+- ✅ **Phase 4.4.1**: Related Notes Sidebar View (458 lines)
+- ✅ **Phase 4.4.2**: RAG-Enhanced Summarization
+- ✅ **Phase 4.4.3**: Search Result Caching (5-min TTL, LRU eviction)
+
+### Local Setup Wizard
+**Location:** `src/ui/modals/LocalSetupWizardModal.ts`
+
+3-step wizard for local AI setup:
+1. Install Ollama with platform-specific instructions
+2. Download models with RAM-based recommendations
+3. Test connection and apply settings
+
+2026 model recommendations included: Llama 3.3, Qwen 2.5, DeepSeek R1, Mistral 7B, Phi-4.
 
 ## Planned Features
 
 See `docs/` folder for implementation plans:
 - `web-summarization-feature-plan.md`: URL/PDF summarization with multimodal LLM support
+- `semantic-search-rag-implementation-plan.md`: Phase 4 RAG implementation roadmap
