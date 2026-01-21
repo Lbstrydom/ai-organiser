@@ -1,210 +1,181 @@
-# AI Tagger Universe: Easy Tag Generation & Management for Obsidian
+# AI Organiser: Intelligent Note Organization for Obsidian
 
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_CN.md)
 
-![AI Tagger Universe](https://img.shields.io/badge/Obsidian-AI%20Tagger%20Universe-blue)
-![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22ai-tagger-universe%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)
+![AI Organiser](https://img.shields.io/badge/Obsidian-AI%20Organiser-purple)
 ![Obsidian Compatibility](https://img.shields.io/badge/Obsidian-v1.4.0+-blue)
 
-> Automatically generate intelligent tags for your Obsidian notes using AI. This plugin analyzes your content and adds relevant tags to your note's frontmatter, helping you organize and discover connections in your knowledge base.
+> A comprehensive AI-powered plugin for Obsidian that helps you organize, tag, summarize, and enhance your notes. Supports 13+ cloud providers and 5+ local LLM options.
 
-## 🔌 Installation
+## Features
 
-This plugin can be installed directly from the Obsidian Community Plugins browser:
+### Intelligent Tagging
+- **Taxonomy-based tagging** with customizable themes and disciplines
+- **3-tier hierarchical tags** (e.g., `science/biology/genetics`)
+- **Multiple tagging modes**: Generate new, match existing, hybrid, or custom
+- **Batch operations** for folders or entire vault
+- **Tag network visualization** with D3.js interactive graph
 
+### Content Summarization
+- **Summarize from URLs** - Web articles with link preservation
+- **Summarize from PDFs** - Native multimodal support (Claude/Gemini)
+- **Summarize from YouTube** - Via captions extraction
+- **Summarize from Audio** - Transcription + summarization (MP3, WAV, M4A, OGG)
+- **5 built-in personas** - Student, Executive, Casual, Researcher, Technical
+- **Transcript saving** - Full transcripts saved with metadata
+
+### Flashcard Export
+- **Two card styles**:
+  - Standard Q&A - Traditional question and answer format
+  - Multiple Choice - Exam-style with A/B/C/D options and explanations
+- **Two export formats**:
+  - Anki - CSV with MathJax notation
+  - Brainscape - CSV with plain text math
+- **Optional context** for focused card generation
+
+### Smart Note Features
+- **Improve note with AI** - Context-aware enhancement with persona selection
+- **Find related resources** - YouTube and web search integration
+- **Generate Mermaid diagrams** - Flowchart, sequence, class, mindmap, timeline, ER, state
+- **Text highlighting** - Multiple color options
+
+### Translation
+- Translate entire notes or selections
+- Preserves markdown formatting
+- Supports all major languages
+
+### Utilities
+- **Command Picker** - Unified modal for all 27+ commands
+- **Tag Network** - Interactive visualization of tag relationships
+- **Collect Tags** - Export all vault tags to a file
+
+## Installation
+
+### From Obsidian Community Plugins (Recommended)
 1. Open Obsidian Settings
 2. Navigate to Community Plugins
-3. Disable Safe Mode (if enabled)
-4. Search for "AI Tagger Universe"
-5. Click Install, then Enable
+3. Search for "AI Organiser"
+4. Click Install, then Enable
 
-Alternatively, you can manually install the plugin:
+### Manual Installation
+1. Download the latest release from [GitHub](https://github.com/Lbstrydom/ai-organiser)
+2. Extract to `.obsidian/plugins/ai-organiser/`
+3. Reload Obsidian and enable the plugin
 
-1. Download the latest release from this repository
-2. Extract the files to your Obsidian vault's `.obsidian/plugins/ai-tagger-universe` folder
-3. Reload Obsidian and enable the plugin in the Community Plugins settings
+## Quick Start
 
-## ✨ Key Features
+1. **Configure your AI provider**:
+   - Settings → AI Organiser → LLM Settings
+   - Choose Local (Ollama, LM Studio) or Cloud (OpenAI, Claude, Gemini, etc.)
+   - Enter endpoint URL and API key
 
-### 🤖 Flexible AI Integration
+2. **Access commands**:
+   - Click the sparkles icon in the ribbon
+   - Or use Command Palette (Ctrl/Cmd+P)
 
-- **Use your preferred AI service**:
-  - **Local LLMs**: Ollama, LM Studio, LocalAI, or any OpenAI-compatible endpoint
-  - **Cloud Services**: OpenAI, Claude, Gemini, Groq, Grok, Mistral, DeepSeek, Cohere, SiliconFlow, Aliyun, Bedrock, Vertex AI, OpenRouter, and more
+3. **Start organizing**:
+   - Generate tags for notes
+   - Summarize web content
+   - Create flashcards
+   - Improve notes with AI
 
-### 🏷️ Smart Tagging System
+## Supported LLM Providers
 
-- **Multiple tagging modes**:
-  - Generate completely new tags based on content
-  - Match against your existing vault tags
-  - Use predefined tags from a custom list
-  - Hybrid modes combining generation with existing/predefined tags
-- **Nested/Hierarchical tags** (NEW!):
-  - Generate hierarchical tags like `science/biology/genetics`
-  - User-configurable max depth (1-3 levels)
-  - Smart prompting for category-based organization
-  - Backward compatible (disabled by default)
-- **Batch operations** for tagging multiple notes at once
-- **Multilingual support** for generating tags in your preferred language
+### Cloud Services (13 adapters)
+| Provider | Tagging | Summarization | PDF | Audio |
+|----------|---------|---------------|-----|-------|
+| Claude | Yes | Yes | Yes (native) | via OpenAI |
+| OpenAI | Yes | Yes | No | Yes (Whisper) |
+| Gemini | Yes | Yes | Yes (native) | via OpenAI |
+| Groq | Yes | Yes | No | Yes (Whisper) |
+| DeepSeek | Yes | Yes | No | - |
+| OpenRouter | Yes | Yes | varies | - |
+| AWS Bedrock | Yes | Yes | varies | - |
+| Vertex AI | Yes | Yes | Yes | - |
+| Mistral | Yes | Yes | No | - |
+| Cohere | Yes | Yes | No | - |
+| Grok | Yes | Yes | No | - |
+| Aliyun | Yes | Yes | No | - |
+| OpenAI Compatible | Yes | Yes | No | - |
 
-### 📊 Tag Network Visualization
+### Local Providers
+- Ollama
+- LM Studio
+- LocalAI
+- Jan
+- KoboldCpp
 
-- Interactive graph showing relationships between tags
-- Discover connections and patterns in your knowledge base
-- Search functionality to find specific tags
-- Node size indicates tag frequency
+## Configuration
 
-### 🛠️ Advanced Management
+All plugin files are stored in a configurable folder (default: `AI-Organiser/`):
 
-- Generate tags from selected text portions
-- Batch tag entire folders or your whole vault
-- Clear tags while preserving other frontmatter
-- Collect and export all tags from your vault
-- **Debug Mode**: Enhanced logging for troubleshooting tag generation (NEW!)
-- **Popular Tools Tips**: Built-in guidance for common LLM setup configurations (NEW!)
+```
+AI-Organiser/
+├── Config/                    # User-editable configuration
+│   ├── taxonomy.md            # Themes and disciplines for tagging
+│   ├── excluded-tags.md       # Tags to never suggest
+│   ├── personas.md            # AI writing personas
+│   └── summary-personas.md    # Summary style personas
+├── Transcripts/               # Audio/YouTube transcripts
+└── Flashcards/                # Exported flashcard files
+```
 
-## 🆕 What's New in Version 1.0.15
+### Key Settings
 
-### Major Features
-- **🌳 Nested Tags Support**: Generate hierarchical tags with parent/child relationships
-  - Create tags like `technology/artificial-intelligence/machine-learning`
-  - Configurable max nesting depth (1-3 levels)
-  - Smart LLM prompting for hierarchical structure
-  - Fully integrated with bilingual interface
+- **LLM Settings** - Provider, API keys, models
+- **Tagging Settings** - Max tags, language, taxonomy
+- **Summarization** - Length, language, transcript saving
+- **Interface** - Language (English/Chinese)
 
-### Improvements
-- Added automated testing suite with 32 validation tests
-- Enhanced tag formatting to preserve forward slashes
-- Improved settings organization with nested tags section
-- Better documentation with CLAUDE.md for future development
+## Language Support
 
-### Bug Fixes
-- Fixed icon display issue in ribbon and toolbar (replaced invalid 'network' icon with 'git-graph')
+### Interface
+- English
+- Simplified Chinese (中文)
 
-## 📝 Previous Updates
+### Content Generation
+Tags and summaries can be generated in any language supported by your LLM.
 
-### Version 1.0.14
-- **🎉 Full Chinese Interface Support**: Complete localization for Chinese-speaking users
-- **🌍 Bilingual Interface**: Easy language switching between English and Chinese
-- **🔧 Enhanced Debug Mode**: Better logging and troubleshooting capabilities
-- **📋 Improved User Guidance**: Tips for popular AI tools and services
+## Commands
 
-## 🚀 Quick Start
+| Category | Commands |
+|----------|----------|
+| Tagging | Generate tags (note/folder/vault), Clear tags, Assign predefined tags |
+| Summarize | From URL, PDF, YouTube, Audio |
+| Smart Notes | Improve note, Find resources, Generate diagram |
+| Flashcards | Export flashcards |
+| Translate | Translate note, Translate selection |
+| Utilities | Command picker, Tag network, Collect tags |
 
-1. **Install the plugin** from Obsidian Community Plugins
-2. **Configure your AI provider**:
-   - Go to Settings → AI Tagger Universe → LLM Settings
-   - Choose between Local LLM (Ollama, LM Studio, etc.) or Cloud Service (OpenAI, Claude, etc.)
-   - Enter your endpoint URL and API key (if required)
-   - Test the connection to verify it works
-3. **Select your tagging mode**:
-   - Choose how you want tags to be generated (new tags, existing tags, or hybrid)
-   - Adjust tag generation limits (0-10 tags per note)
-4. **Optional: Configure interface language**:
-   - Go to Settings → AI Tagger Universe → Interface
-   - Choose between English or 中文 (Chinese)
-   - Restart Obsidian for the language change to take effect
-5. **Start generating tags**:
-   - Use the ribbon icon (left sidebar) to tag the current note
-   - Use the command palette (Ctrl/Cmd+P) for more options
-   - View tag relationships with the Tag Network visualization
+## Development
 
-## 🔧 Configuration Options
+```bash
+# Install dependencies
+npm install
 
-### LLM Settings
-- **Service Type**: Local LLM or Cloud Service
-- **AI Provider**: Choose from 15+ services (Ollama, OpenAI, Claude, Gemini, Groq, etc.)
-- **Endpoint URL**: Your LLM service endpoint
-- **API Key**: Authentication key (if required)
-- **Model Name**: Specific model to use
+# Development build (watch mode)
+npm run dev
 
-### Tag Generation
-- **Tagging Mode**: Select how tags are generated or matched
-  - Generate New: Create entirely new tags from content
-  - Predefined Tags: Match against existing vault tags
-  - Hybrid: Combine generation with existing tags
-  - Custom: Use your own tag list from a file
-- **Tag Limits**: Set maximum numbers for generated/matched tags (0-10)
-- **Tag Language**: Generate tags in your preferred language
-- **Nested Tags** (NEW!):
-  - Enable hierarchical tag generation (e.g., `parent/child/grandchild`)
-  - Configure max nesting depth (1-3 levels)
-  - Creates parent/child relationships for better organization
+# Production build
+npm run build
 
-### Interface & Advanced
-- **Interface Language**: Choose between English and Chinese
-- **Excluded Paths**: Skip specific folders during batch operations
-- **Debug Mode**: Enable detailed logging for troubleshooting
-- **Replace Tags**: Overwrite existing tags or append to them
+# Run tests
+npm test
+```
 
-## 📖 Usage Examples
+## License
 
-- **Research Notes**: Automatically categorize research papers and findings
-- **Project Management**: Tag project notes for better organization
-- **Knowledge Base**: Discover connections between concepts
-- **Content Creation**: Generate relevant tags for blog posts or articles
-- **Personal Journal**: Track themes and topics in your journal entries
+MIT License - see [LICENSE](LICENSE) file
 
-## 🌐 Language Support
+## Contributing
 
-### Tag Generation
-Generate tags in multiple languages including English, Chinese, Japanese, German, French, Spanish, Russian, and many more.
+Contributions are welcome! Please submit issues and pull requests on [GitHub](https://github.com/Lbstrydom/ai-organiser).
 
-### Interface Localization (NEW!)
-- **Full Chinese Interface**: Complete Chinese language support for the plugin interface
-- **Bilingual Support**: Seamlessly switch between English and Chinese interfaces
-- **Localized Settings**: All configuration panels and options available in Chinese
-- **Translated Commands**: Command palette and ribbon actions fully localized
-- **Multilingual Messages**: All notifications, prompts, and feedback in your preferred language
+## Support
 
-To change the interface language:
-1. Go to AI Tagger Universe Settings
-2. Navigate to the "Interface" section
-3. Select your preferred language (English/中文)
-4. Restart Obsidian for the change to take effect
+- [GitHub Issues](https://github.com/Lbstrydom/ai-organiser/issues)
+- [Buy Me a Coffee](https://buymeacoffee.com/lbstrydom)
 
-## 🔄 Fork Improvements
+## Acknowledgments
 
-This fork includes several enhancements over the original plugin:
-
-### Bug Fixes
-
-- **Fixed malformed tag prefixes**: Resolved issue where some LLMs would generate tags like `tag:matchedExistingTags-medical-research` instead of clean tags like `medical-research`
-  - Added robust tag sanitization that strips malformed prefixes (`tag:`, `matchedExistingTags-`, `suggestedTags-`, etc.)
-  - Enhanced prompts with explicit examples of correct vs. incorrect tag formats
-
-### Prompt Engineering Improvements
-
-- **Claude-optimized prompts**: Restructured all prompts using XML-style tags (`<task>`, `<requirements>`, `<output_format>`) for better LLM comprehension
-- **Enforced kebab-case formatting**: All tagging modes now consistently generate tags in kebab-case format (e.g., `machine-learning`, `data-science`)
-- **Improved tag quality guidelines**: Added explicit requirements for concise (1-3 words), specific, and descriptive tags
-- **Real-world examples**: Replaced placeholder examples with actual domain-appropriate tag examples
-- **Consistent structure**: Unified prompt structure across all tagging modes (GenerateNew, PredefinedTags, Hybrid, Custom)
-
-### Code Quality
-
-- **Enhanced error handling**: Better validation and sanitization of LLM responses
-- **Comprehensive documentation**: Improved inline code comments and type definitions
-
-### Testing
-
-- Included test script (`test-sanitization.js`) for verifying tag generation with your actual LLM endpoint
-- See `TEST_INSTRUCTIONS.md` for testing guidance
-
-These improvements result in more reliable tag generation, better formatting consistency, and improved compatibility with various LLM providers including Claude, GPT-4, and local models.
-
-## 📝 License
-
-MIT License - see the [LICENSE](LICENSE) file for details
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit Issues or Pull Requests.
-
-## 📮 Support
-
-If you encounter any issues or have feature requests, please submit them on [GitHub Issues](https://github.com/niehu-szkt/obsidian-ai-tagger-universe/issues).
-
-## 🙏 Acknowledgments
-
-Thanks to all the developers and users who have contributed to this project!
+Thanks to all contributors and the Obsidian community!
