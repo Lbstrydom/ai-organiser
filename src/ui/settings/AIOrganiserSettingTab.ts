@@ -6,6 +6,7 @@ import { SupportSection } from './SupportSection';
 import { InterfaceSettingsSection } from './InterfaceSettingsSection';
 import { SummarizationSettingsSection } from './SummarizationSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
+import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -15,6 +16,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private interfaceSection?: InterfaceSettingsSection;
     private summarizationSection?: SummarizationSettingsSection;
     private configurationSection?: ConfigurationSettingsSection;
+    private semanticSearchSection?: SemanticSearchSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -30,14 +32,16 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.taggingSection = new TaggingSettingsSection(this.plugin, containerEl, this);
         this.configurationSection = new ConfigurationSettingsSection(this.plugin, containerEl, this);
         this.interfaceSection = new InterfaceSettingsSection(this.plugin, containerEl, this);
+        this.semanticSearchSection = new SemanticSearchSettingsSection(this.plugin, containerEl, this);
         this.summarizationSection = new SummarizationSettingsSection(this.plugin, containerEl, this);
-        this.supportSection = new SupportSection(this.plugin, containerEl, this);
+        this.supportSection = new SupportSection(this.plugin, containerEl, this); // keep support last
 
         // Display all sections
         this.llmSection.display();
         this.taggingSection.display();
         this.configurationSection.display();
         this.interfaceSection.display();
+        this.semanticSearchSection.display();
         this.summarizationSection.display();
         this.supportSection.display();
     }

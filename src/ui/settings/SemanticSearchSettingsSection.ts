@@ -1,0 +1,347 @@
+import { Setting } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
+import { BaseSettingSection } from './BaseSettingSection';
+
+export class SemanticSearchSettingsSection extends BaseSettingSection {
+    display(): void {
+        const { containerEl, plugin } = this;
+        const t = plugin.t;
+
+        // Section header
+        containerEl.createEl('h2', { text: t.settings.semanticSearch.title });
+        containerEl.createEl('p', { 
+            text: t.settings.semanticSearch.description,
+            cls: 'setting-item-description'
+        });
+
+        // Master toggle for Semantic Search
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.enableSemanticSearch.name)
+            .setDesc(t.settings.semanticSearch.enableSemanticSearch.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.enableSemanticSearch)
+                .onChange(async (value) => {
+                    plugin.settings.enableSemanticSearch = value;
+                    await plugin.saveSettings();
+                    
+                    // Cleanup vector store if disabled
+                    if (!value && plugin.vectorStore) {
+                        plugin.vectorStore = null;
+                    }
+                    
+                    // Refresh settings display to show/hide dependent settings
+                    this.display();
+                }));
+
+        // Only show additional settings if semantic search is enabled
+        if (!plugin.settings.enableSemanticSearch) {
+            containerEl.createEl('p', {
+                text: t.settings.semanticSearch.enableToConfigureMessage,
+                cls: 'setting-item-description mod-warning'
+            });
+            return;
+        }
+
+        // Embedding Provider
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.embeddingProvider.name)
+            .setDesc(t.settings.semanticSearch.embeddingProvider.description)
+            .addDropdown(dropdown => dropdown
+                .addOption('openai', 'OpenAI')
+                .addOption('claude', 'Claude (Anthropic)')
+                .addOption('gemini', 'Google Gemini')
+                .addOption('ollama', 'Ollama (Local)')
+                .addOption('openrouter', 'OpenRouter')
+                .addOption('cohere', 'Cohere')
+                .addOption('voyage', 'Voyage AI')
+                .setValue(plugin.settings.embeddingProvider)
+                .onChange(async (value: any) => {
+                    const previousDefault = this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
+                    plugin.settings.embeddingProvider = value;
+
+                    // Auto-set embedding model if empty or was the previous default
+                    const newDefault = this.getDefaultEmbeddingModel(value);
+                    if (!plugin.settings.embeddingModel || plugin.settings.embeddingModel === previousDefault) {
+                        plugin.settings.embeddingModel = newDefault;
+                    }
+
+                    // Auto-fill embedding API key if blank, using provider-specific or cloud key
+                    if (!plugin.settings.embeddingApiKey) {
+                        const fallbackKey = this.getDefaultEmbeddingApiKey(value, plugin);
+                        if (fallbackKey) {
+                            plugin.settings.embeddingApiKey = fallbackKey;
+                        }
+                    }
+
+                    await plugin.saveSettings();
+                    this.display(); // Refresh to show provider-specific settings
+                }));
+
+        // Embedding Model - dropdown with provider-specific options
+        const currentModel = plugin.settings.embeddingModel || this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
+        const modelOptions = this.getEmbeddingModelsForProvider(plugin.settings.embeddingProvider);
+
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.embeddingModel.name)
+            .setDesc(t.settings.semanticSearch.embeddingModel.description)
+            .addDropdown(dropdown => {
+                // Add all available models for this provider
+                for (const model of modelOptions) {
+                    dropdown.addOption(model.value, model.label);
+                }
+
+                // If current model isn't in options, add it as custom
+                if (!modelOptions.some((m: { value: string; label: string }) => m.value === currentModel)) {
+                    dropdown.addOption(currentModel, currentModel + ' (custom)');
+                }
+
+                return dropdown
+                    .setValue(currentModel)
+                    .onChange(async (value) => {
+                        plugin.settings.embeddingModel = value;
+                        await plugin.saveSettings();
+                    });
+            });
+
+        // Embedding API Key (if not using Ollama)
+        if (plugin.settings.embeddingProvider !== 'ollama') {
+            const inferredKey = this.getDefaultEmbeddingApiKey(plugin.settings.embeddingProvider, plugin);
+            const hasInferredKey = inferredKey && !plugin.settings.embeddingApiKey;
+
+            // Build description - note if using main API key
+            let keyDesc = t.settings.semanticSearch.embeddingApiKey.description;
+            if (hasInferredKey && plugin.settings.embeddingProvider === plugin.settings.cloudServiceType) {
+                keyDesc += ' (Using main LLM API key)';
+            }
+
+            const settingEl = new Setting(containerEl)
+                .setName(t.settings.semanticSearch.embeddingApiKey.name)
+                .setDesc(keyDesc);
+
+            // If we can infer from main API key and same provider, show indicator
+            if (hasInferredKey) {
+                settingEl.addButton(btn => btn
+                    .setButtonText('Use main API key')
+                    .setTooltip('Copy from main LLM settings')
+                    .onClick(async () => {
+                        plugin.settings.embeddingApiKey = inferredKey;
+                        await plugin.saveSettings();
+                        this.display(); // Refresh
+                    }));
+            }
+
+            settingEl.addText(text => {
+                const displayKey = plugin.settings.embeddingApiKey || '';
+                const maskedKey = displayKey && displayKey.length > 6
+                    ? displayKey.substring(0, 6) + '•'.repeat(Math.min(20, displayKey.length - 6))
+                    : displayKey;
+
+                text.setPlaceholder(hasInferredKey ? '(using main API key)' : 'sk-...')
+                    .setValue(maskedKey)
+                    .onChange(async (value) => {
+                        // Only update if user actually typed something (not just the masked version)
+                        if (value !== maskedKey) {
+                            plugin.settings.embeddingApiKey = value;
+                            await plugin.saveSettings();
+                        }
+                    });
+                text.inputEl.type = 'password';
+            });
+        }
+
+        // Embedding Endpoint (for Ollama or custom endpoints)
+        if (plugin.settings.embeddingProvider === 'ollama') {
+            new Setting(containerEl)
+                .setName(t.settings.semanticSearch.embeddingEndpoint.name)
+                .setDesc(t.settings.semanticSearch.embeddingEndpoint.description)
+                .addText(text => text
+                    .setPlaceholder('http://localhost:11434')
+                    .setValue(plugin.settings.embeddingEndpoint)
+                    .onChange(async (value) => {
+                        plugin.settings.embeddingEndpoint = value;
+                        await plugin.saveSettings();
+                    }));
+        }
+
+        // === Indexing Settings ===
+        containerEl.createEl('h3', { text: t.settings.semanticSearch.indexing.title });
+
+        // Auto-index new notes
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.autoIndexNewNotes.name)
+            .setDesc(t.settings.semanticSearch.autoIndexNewNotes.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.autoIndexNewNotes)
+                .onChange(async (value) => {
+                    plugin.settings.autoIndexNewNotes = value;
+                    await plugin.saveSettings();
+                }));
+
+        // Excluded folders for indexing
+        const excludedFoldersDefault = plugin.settings.indexExcludedFolders.length
+            ? plugin.settings.indexExcludedFolders
+            : plugin.settings.excludedFolders;
+
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.indexExcludedFolders.name)
+            .setDesc(t.settings.semanticSearch.indexExcludedFolders.description)
+            .addTextArea(text => text
+                .setPlaceholder('folder1\nfolder2\nfolder3')
+                .setValue(excludedFoldersDefault.join('\n'))
+                .onChange(async (value) => {
+                    plugin.settings.indexExcludedFolders = value
+                        .split('\n')
+                        .map(f => f.trim())
+                        .filter(f => f.length > 0);
+                    await plugin.saveSettings();
+                }));
+
+        // Chunk size
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.chunkSize.name)
+            .setDesc(t.settings.semanticSearch.chunkSize.description)
+            .addText(text => text
+                .setPlaceholder('2000')
+                .setValue(plugin.settings.chunkSize.toString())
+                .onChange(async (value) => {
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue > 0) {
+                        plugin.settings.chunkSize = numValue;
+                        await plugin.saveSettings();
+                    }
+                }));
+
+        // Chunk overlap
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.chunkOverlap.name)
+            .setDesc(t.settings.semanticSearch.chunkOverlap.description)
+            .addText(text => text
+                .setPlaceholder('200')
+                .setValue(plugin.settings.chunkOverlap.toString())
+                .onChange(async (value) => {
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue >= 0) {
+                        plugin.settings.chunkOverlap = numValue;
+                        await plugin.saveSettings();
+                    }
+                }));
+
+        // Max chunks per note
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.maxChunksPerNote.name)
+            .setDesc(t.settings.semanticSearch.maxChunksPerNote.description)
+            .addText(text => text
+                .setPlaceholder('10')
+                .setValue(plugin.settings.maxChunksPerNote.toString())
+                .onChange(async (value) => {
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue > 0) {
+                        plugin.settings.maxChunksPerNote = numValue;
+                        await plugin.saveSettings();
+                    }
+                }));
+
+        // === RAG Settings ===
+        containerEl.createEl('h3', { text: t.settings.semanticSearch.rag.title });
+
+        // Enable Vault Chat
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.enableVaultChat.name)
+            .setDesc(t.settings.semanticSearch.enableVaultChat.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.enableVaultChat)
+                .onChange(async (value) => {
+                    plugin.settings.enableVaultChat = value;
+                    await plugin.saveSettings();
+                }));
+
+        // RAG context chunks
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.ragContextChunks.name)
+            .setDesc(t.settings.semanticSearch.ragContextChunks.description)
+            .addText(text => text
+                .setPlaceholder('5')
+                .setValue(plugin.settings.ragContextChunks.toString())
+                .onChange(async (value) => {
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue > 0) {
+                        plugin.settings.ragContextChunks = numValue;
+                        await plugin.saveSettings();
+                    }
+                }));
+
+        // Include metadata in RAG context
+        new Setting(containerEl)
+            .setName(t.settings.semanticSearch.ragIncludeMetadata.name)
+            .setDesc(t.settings.semanticSearch.ragIncludeMetadata.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.ragIncludeMetadata)
+                .onChange(async (value) => {
+                    plugin.settings.ragIncludeMetadata = value;
+                    await plugin.saveSettings();
+                }));
+    }
+
+    private getDefaultEmbeddingModel(provider: string): string {
+        const defaults: Record<string, string> = {
+            'openai': 'text-embedding-3-small',
+            'claude': 'voyage-2',
+            'gemini': 'text-embedding-004',
+            'ollama': 'nomic-embed-text',
+            'openrouter': 'openai/text-embedding-3-small',
+            'cohere': 'embed-english-v3.0',
+            'voyage': 'voyage-2'
+        };
+        return defaults[provider] || 'text-embedding-3-small';
+    }
+
+    private getEmbeddingModelsForProvider(provider: string): Array<{ value: string; label: string }> {
+        const models: Record<string, Array<{ value: string; label: string }>> = {
+            'openai': [
+                { value: 'text-embedding-3-small', label: 'text-embedding-3-small (recommended)' },
+                { value: 'text-embedding-3-large', label: 'text-embedding-3-large (higher quality)' },
+                { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002 (legacy)' }
+            ],
+            'claude': [
+                { value: 'voyage-2', label: 'voyage-2 (recommended)' },
+                { value: 'voyage-large-2', label: 'voyage-large-2 (higher quality)' },
+                { value: 'voyage-code-2', label: 'voyage-code-2 (code-optimised)' }
+            ],
+            'gemini': [
+                { value: 'text-embedding-004', label: 'text-embedding-004 (recommended)' },
+                { value: 'embedding-001', label: 'embedding-001 (legacy)' }
+            ],
+            'ollama': [
+                { value: 'nomic-embed-text', label: 'nomic-embed-text (recommended)' },
+                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (higher quality)' },
+                { value: 'all-minilm', label: 'all-minilm (lightweight)' },
+                { value: 'snowflake-arctic-embed', label: 'snowflake-arctic-embed' }
+            ],
+            'openrouter': [
+                { value: 'openai/text-embedding-3-small', label: 'OpenAI text-embedding-3-small' },
+                { value: 'openai/text-embedding-3-large', label: 'OpenAI text-embedding-3-large' },
+                { value: 'cohere/embed-english-v3.0', label: 'Cohere embed-english-v3.0' }
+            ],
+            'cohere': [
+                { value: 'embed-english-v3.0', label: 'embed-english-v3.0 (recommended)' },
+                { value: 'embed-multilingual-v3.0', label: 'embed-multilingual-v3.0' },
+                { value: 'embed-english-light-v3.0', label: 'embed-english-light-v3.0 (faster)' }
+            ],
+            'voyage': [
+                { value: 'voyage-2', label: 'voyage-2 (recommended)' },
+                { value: 'voyage-large-2', label: 'voyage-large-2 (higher quality)' },
+                { value: 'voyage-code-2', label: 'voyage-code-2 (code-optimised)' }
+            ]
+        };
+        return models[provider] || [{ value: 'text-embedding-3-small', label: 'text-embedding-3-small' }];
+    }
+
+    private getDefaultEmbeddingApiKey(provider: string, plugin: AIOrganiserPlugin): string {
+        // Prefer existing embedding key, then provider-specific key, then general cloud key
+        const providerKey = plugin.settings.providerSettings?.[provider as keyof typeof plugin.settings.providerSettings]?.apiKey;
+        return plugin.settings.embeddingApiKey
+            || providerKey
+            || plugin.settings.cloudApiKey
+            || '';
+    }
+}

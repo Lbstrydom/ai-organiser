@@ -96,38 +96,70 @@ export interface Translations {
         };
         semanticSearch: {
             title: string;
-            enableFeature: string;
-            enableFeatureDesc: string;
-            embeddingProvider: string;
-            embeddingProviderDesc: string;
-            embeddingModel: string;
-            embeddingModelDesc: string;
-            apiKey: string;
-            apiKeyDesc: string;
-            endpoint: string;
-            endpointDesc: string;
+            description: string;
+            enableSemanticSearch: {
+                name: string;
+                description: string;
+            };
+            enableToConfigureMessage: string;
+            embeddingProvider: {
+                name: string;
+                description: string;
+            };
+            embeddingModel: {
+                name: string;
+                description: string;
+            };
+            embeddingApiKey: {
+                name: string;
+                description: string;
+            };
+            embeddingEndpoint: {
+                name: string;
+                description: string;
+            };
+            indexing: {
+                title: string;
+            };
+            autoIndexNewNotes: {
+                name: string;
+                description: string;
+            };
+            indexExcludedFolders: {
+                name: string;
+                description: string;
+            };
+            chunkSize: {
+                name: string;
+                description: string;
+            };
+            chunkOverlap: {
+                name: string;
+                description: string;
+            };
+            maxChunksPerNote: {
+                name: string;
+                description: string;
+            };
+            rag: {
+                title: string;
+            };
+            enableVaultChat: {
+                name: string;
+                description: string;
+            };
+            ragContextChunks: {
+                name: string;
+                description: string;
+            };
+            ragIncludeMetadata: {
+                name: string;
+                description: string;
+            };
             testConnection: string;
             testing: string;
             connectionSuccessful: string;
             connectionFailed: string;
-            indexingOptions: string;
-            autoIndexNewNotes: string;
-            autoIndexNewNotesDesc: string;
-            excludedFolders: string;
-            excludedFoldersDesc: string;
-            chunkSize: string;
-            chunkSizeDesc: string;
-            chunkOverlap: string;
-            chunkOverlapDesc: string;
-            maxChunksPerNote: string;
-            maxChunksPerNoteDesc: string;
-            vaultChatOptions: string;
-            enableVaultChat: string;
-            enableVaultChatDesc: string;
-            ragContextChunks: string;
-            ragContextChunksDesc: string;
-            ragIncludeMetadata: string;
-            ragIncludeMetadataDesc: string;
             localSetup: string;
             localSetupDesc: string;
             openLocalSetup: string;

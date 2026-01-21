@@ -97,38 +97,70 @@ export const zhCN: Translations = {
         },
         semanticSearch: {
             title: "语义搜索和 RAG",
-            enableFeature: "启用语义搜索",
-            enableFeatureDesc: "使用向量嵌入根据含义（而非仅关键词）查找相关笔记",
-            embeddingProvider: "嵌入服务提供商",
-            embeddingProviderDesc: "用于生成文本嵌入的服务（推荐 OpenAI 以获得最佳质量）",
-            embeddingModel: "嵌入模型",
-            embeddingModelDesc: "用于生成嵌入的模型",
-            apiKey: "嵌入 API 密钥",
-            apiKeyDesc: "嵌入服务的 API 密钥（如需要）",
-            endpoint: "自定义端点",
-            endpointDesc: "自定义端点 URL（可选，用于 Ollama 或自托管服务）",
+            description: "根据含义（而非仅关键词）查找相关笔记。启用相关笔记侧边栏和 RAG 增强功能。",
+            enableSemanticSearch: {
+                name: "启用语义搜索",
+                description: "所有语义搜索和 RAG 功能的主开关。启用后，插件将为语义相似性索引您的库。"
+            },
+            enableToConfigureMessage: "在上方启用语义搜索以配置嵌入和 RAG 设置。",
+            embeddingProvider: {
+                name: "嵌入服务提供商",
+                description: "用于生成文本嵌入的服务。推荐 OpenAI 以获得最佳质量，Ollama 用于本地/离线使用。"
+            },
+            embeddingModel: {
+                name: "嵌入模型",
+                description: "用于生成嵌入的模型。留空以使用提供商默认值。"
+            },
+            embeddingApiKey: {
+                name: "嵌入 API 密钥",
+                description: "嵌入服务的 API 密钥（可能与您的聊天 LLM 密钥不同）。"
+            },
+            embeddingEndpoint: {
+                name: "Ollama 端点",
+                description: "本地 Ollama 实例的 URL（默认：http://localhost:11434）。"
+            },
+            indexing: {
+                title: "索引设置"
+            },
+            autoIndexNewNotes: {
+                name: "自动索引新笔记",
+                description: "创建或修改笔记时自动索引。"
+            },
+            indexExcludedFolders: {
+                name: "排除的文件夹",
+                description: "索引时要跳过的文件夹（每行一个，例如 'templates'、'archive'）。"
+            },
+            chunkSize: {
+                name: "分块大小（字符）",
+                description: "用于嵌入的文本块大小。更大 = 更多上下文，但精确度较低。（默认：2000）"
+            },
+            chunkOverlap: {
+                name: "分块重叠（字符）",
+                description: "块之间的重叠以保持跨边界的上下文。（默认：200）"
+            },
+            maxChunksPerNote: {
+                name: "每个笔记的最大块数",
+                description: "每个笔记的最大块数，以防止内存问题。（默认：10）"
+            },
+            rag: {
+                title: "RAG（检索增强生成）"
+            },
+            enableVaultChat: {
+                name: "启用与库聊天",
+                description: "使用您的库内容作为 AI 响应的上下文。"
+            },
+            ragContextChunks: {
+                name: "上下文块数",
+                description: "在 RAG 上下文中包含的相关块数。（默认：5）"
+            },
+            ragIncludeMetadata: {
+                name: "包含元数据",
+                description: "在 RAG 上下文中包含笔记标题、文件路径和标题。"
+            },
             testConnection: "测试连接",
             testing: "正在测试...",
             connectionSuccessful: "连接成功！可以开始构建索引。",
             connectionFailed: "连接失败。请检查您的设置。",
-            indexingOptions: "索引选项",
-            autoIndexNewNotes: "自动索引新笔记",
-            autoIndexNewNotesDesc: "创建或修改笔记时自动索引",
-            excludedFolders: "排除的文件夹",
-            excludedFoldersDesc: "索引时要跳过的文件夹（例如，附件、模板）",
-            chunkSize: "分块大小（字符）",
-            chunkSizeDesc: "用于嵌入的文本块大小（更大 = 更多上下文，但精确度较低）",
-            chunkOverlap: "分块重叠（字符）",
-            chunkOverlapDesc: "块之间的重叠以保持跨边界的上下文",
-            maxChunksPerNote: "每个笔记的最大块数",
-            maxChunksPerNoteDesc: "每个笔记创建的最大块数（防止内存问题）",
-            vaultChatOptions: "库聊天（RAG）选项",
-            enableVaultChat: "启用与库聊天",
-            enableVaultChatDesc: "使用检索增强生成与您的库内容聊天",
-            ragContextChunks: "上下文块数",
-            ragContextChunksDesc: "在聊天上下文中包含的相关块数",
-            ragIncludeMetadata: "包含元数据",
-            ragIncludeMetadataDesc: "在聊天上下文中包含笔记标题和标题",
             localSetup: "本地/离线设置",
             localSetupDesc: "设置 Ollama 以完全本地生成嵌入（无需 API）",
             openLocalSetup: "打开本地设置向导"

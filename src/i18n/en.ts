@@ -98,38 +98,70 @@ export const en: Translations = {
         },
         semanticSearch: {
             title: "Semantic Search & RAG",
-            enableFeature: "Enable Semantic Search",
-            enableFeatureDesc: "Use vector embeddings to find related notes based on meaning, not just keywords",
-            embeddingProvider: "Embedding Provider",
-            embeddingProviderDesc: "Service to generate text embeddings (OpenAI recommended for best quality)",
-            embeddingModel: "Embedding Model",
-            embeddingModelDesc: "Model used for generating embeddings",
-            apiKey: "Embedding API Key",
-            apiKeyDesc: "API key for the embedding service (if required)",
-            endpoint: "Custom Endpoint",
-            endpointDesc: "Custom endpoint URL (optional, for Ollama or self-hosted services)",
+            description: "Find related notes by meaning, not just keywords. Enables Related Notes sidebar and RAG-enhanced features.",
+            enableSemanticSearch: {
+                name: "Enable Semantic Search",
+                description: "Master toggle for all semantic search and RAG features. When enabled, the plugin will index your vault for semantic similarity."
+            },
+            enableToConfigureMessage: "Enable Semantic Search above to configure embedding and RAG settings.",
+            embeddingProvider: {
+                name: "Embedding Provider",
+                description: "Service to generate text embeddings. OpenAI recommended for best quality, Ollama for local/offline use."
+            },
+            embeddingModel: {
+                name: "Embedding Model",
+                description: "Model used for generating embeddings. Leave empty to use provider default."
+            },
+            embeddingApiKey: {
+                name: "Embedding API Key",
+                description: "API key for the embedding service (may differ from your chat LLM key)."
+            },
+            embeddingEndpoint: {
+                name: "Ollama Endpoint",
+                description: "URL for your local Ollama instance (default: http://localhost:11434)."
+            },
+            indexing: {
+                title: "Indexing Settings"
+            },
+            autoIndexNewNotes: {
+                name: "Auto-index New Notes",
+                description: "Automatically index notes when created or modified."
+            },
+            indexExcludedFolders: {
+                name: "Excluded Folders",
+                description: "Folders to skip during indexing (one per line, e.g., 'templates', 'archive')."
+            },
+            chunkSize: {
+                name: "Chunk Size (characters)",
+                description: "Size of text chunks for embedding. Larger = more context, but less precise. (Default: 2000)"
+            },
+            chunkOverlap: {
+                name: "Chunk Overlap (characters)",
+                description: "Overlap between chunks to preserve context across boundaries. (Default: 200)"
+            },
+            maxChunksPerNote: {
+                name: "Max Chunks Per Note",
+                description: "Maximum number of chunks per note to prevent memory issues. (Default: 10)"
+            },
+            rag: {
+                title: "RAG (Retrieval Augmented Generation)"
+            },
+            enableVaultChat: {
+                name: "Enable Chat with Vault",
+                description: "Use your vault content as context for AI responses."
+            },
+            ragContextChunks: {
+                name: "Context Chunks",
+                description: "Number of relevant chunks to include in RAG context. (Default: 5)"
+            },
+            ragIncludeMetadata: {
+                name: "Include Metadata",
+                description: "In RAG context, include note titles, file paths, and headings."
+            },
             testConnection: "Test Connection",
             testing: "Testing...",
             connectionSuccessful: "Connection successful! Ready to build index.",
             connectionFailed: "Connection failed. Check your settings.",
-            indexingOptions: "Indexing Options",
-            autoIndexNewNotes: "Auto-index New Notes",
-            autoIndexNewNotesDesc: "Automatically index notes when created or modified",
-            excludedFolders: "Excluded Folders",
-            excludedFoldersDesc: "Folders to skip during indexing (e.g., attachments, templates)",
-            chunkSize: "Chunk Size (characters)",
-            chunkSizeDesc: "Size of text chunks for embedding (larger = more context, but less precise)",
-            chunkOverlap: "Chunk Overlap (characters)",
-            chunkOverlapDesc: "Overlap between chunks to preserve context across boundaries",
-            maxChunksPerNote: "Max Chunks Per Note",
-            maxChunksPerNoteDesc: "Maximum number of chunks to create per note (prevents memory issues)",
-            vaultChatOptions: "Vault Chat (RAG) Options",
-            enableVaultChat: "Enable Chat with Vault",
-            enableVaultChatDesc: "Use Retrieval Augmented Generation to chat with your vault content",
-            ragContextChunks: "Context Chunks",
-            ragContextChunksDesc: "Number of relevant chunks to include in chat context",
-            ragIncludeMetadata: "Include Metadata",
-            ragIncludeMetadataDesc: "Include note titles and headings in chat context",
             localSetup: "Local/Offline Setup",
             localSetupDesc: "Set up Ollama for completely local embedding generation (no API required)",
             openLocalSetup: "Open Local Setup Wizard"
