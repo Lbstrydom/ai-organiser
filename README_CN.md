@@ -114,7 +114,7 @@ AI-Organiser/
 ├── Config/                    # 用户可编辑的配置
 │   ├── taxonomy.md            # 标签的主题和学科
 │   ├── excluded-tags.md       # 排除的标签
-│   ├── personas.md            # AI 写作人设
+│   ├── writing-personas.md    # 笔记改进人设
 │   └── summary-personas.md    # 总结风格人设
 ├── Transcripts/               # 音频/YouTube 转录稿
 └── Flashcards/                # 导出的闪卡文件

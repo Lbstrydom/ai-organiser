@@ -80,10 +80,10 @@ This document provides a comprehensive testing checklist for the AI Organiser Ob
 | Test | Steps | Expected Result | Pass |
 |------|-------|-----------------|------|
 | Config folder field | Change folder name | Config folder path updates | [ ] |
-| Create config files | Click "Create Config Files" | Creates taxonomy.md, personas.md, etc. | [ ] |
+| Create config files | Click "Create Config Files" | Creates taxonomy.md, writing-personas.md, etc. | [ ] |
 | Open config folder | After creating files, files appear in vault | Files accessible in file explorer | [ ] |
 | Edit taxonomy | Modify taxonomy.md themes/disciplines | Changes reflected in tag generation | [ ] |
-| Edit personas | Modify personas.md | Changes reflected in persona selection | [ ] |
+| Edit writing personas | Modify writing-personas.md | Changes reflected in note improvement | [ ] |
 | Edit summary personas | Modify summary-personas.md | Changes reflected in summarization | [ ] |
 
 ### 1.5 Interface Settings Section
@@ -373,7 +373,7 @@ This document provides a comprehensive testing checklist for the AI Organiser Ob
 | Concise persona | Use concise | Brief, essential points | [ ] |
 | Creative persona | Use creative | Narrative, engaging | [ ] |
 | Socratic persona | Use Socratic | Question-driven | [ ] |
-| Custom persona | Create in personas.md | Custom style applied | [ ] |
+| Custom persona | Create in writing-personas.md | Custom style applied | [ ] |
 | Default marking | Add (default) to persona | Becomes default selection | [ ] |
 
 ### 9.2 Persona Modal

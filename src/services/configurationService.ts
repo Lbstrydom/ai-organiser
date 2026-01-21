@@ -10,7 +10,7 @@ export interface ConfigPaths {
     taxonomyFile: string;      // Main taxonomy with themes and disciplines
     summaryPrompt: string;     // Summary prompt template
     excludedTags: string;      // Tags to never suggest
-    personas: string;          // AI personas for note improvement/editing
+    writingPersonas: string;   // AI personas for note improvement/editing
     summaryPersonas: string;   // AI personas for summarization (URL, PDF, YouTube, Audio)
 }
 
@@ -394,7 +394,7 @@ export class ConfigurationService {
             taxonomyFile: normalizePath(`${this.configFolder}/taxonomy.md`),
             summaryPrompt: normalizePath(`${this.configFolder}/summary-prompt.md`),
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
-            personas: normalizePath(`${this.configFolder}/personas.md`),
+            writingPersonas: normalizePath(`${this.configFolder}/writing-personas.md`),
             summaryPersonas: normalizePath(`${this.configFolder}/summary-personas.md`),
         };
     }
@@ -412,11 +412,11 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, summaryPrompt, excludedTags, personas, summaryPersonas] = await Promise.all([
+        const [taxonomy, summaryPrompt, excludedTags, writingPersonas, summaryPersonas] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
             this.loadTextFromFile(paths.summaryPrompt),
             this.loadListFromFile(paths.excludedTags, []),
-            this.loadPersonasFromFile(paths.personas, DEFAULT_PERSONAS),
+            this.loadPersonasFromFile(paths.writingPersonas, DEFAULT_PERSONAS),
             this.loadPersonasFromFile(paths.summaryPersonas, DEFAULT_SUMMARY_PERSONAS),
         ]);
 
@@ -424,7 +424,7 @@ export class ConfigurationService {
             taxonomy,
             summaryPromptTemplate: summaryPrompt,
             excludedTags,
-            personas,
+            personas: writingPersonas,
             summaryPersonas,
         };
         this.lastLoadTime = now;
@@ -777,7 +777,7 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
         await this.createFileIfNotExists(paths.taxonomyFile, taxonomyContent);
         await this.createFileIfNotExists(paths.summaryPrompt, summaryPromptContent);
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
-        await this.createFileIfNotExists(paths.personas, personasContent);
+        await this.createFileIfNotExists(paths.writingPersonas, personasContent);
         await this.createFileIfNotExists(paths.summaryPersonas, summaryPersonasContent);
 
         // Invalidate cache after creating files
@@ -837,7 +837,7 @@ The AI reads the "Description" and "Use When" columns to understand how to apply
     }
 
     /**
-     * Generate the personas.md file content
+     * Generate the writing-personas.md file content
      */
     private generatePersonasFileContent(): string {
         const personaSections = DEFAULT_PERSONAS.map(p => {
@@ -851,9 +851,9 @@ ${p.prompt}
 \`\`\``;
         }).join('\n\n');
 
-        return `# AI Personas
+        return `# Writing Personas
 
-Personas control the **writing style and tone** the AI uses when creating or editing your notes. Select a persona when using AI commands to match your preferred note-taking style.
+Personas control the **writing style and tone** the AI uses when improving or editing your notes. Select a persona when using the "Improve note with AI" command to match your preferred note-taking style.
 
 ## How to Use
 

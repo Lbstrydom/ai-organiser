@@ -114,8 +114,8 @@ AI-Organiser/
 ├── Config/                    # User-editable configuration
 │   ├── taxonomy.md            # Themes and disciplines for tagging
 │   ├── excluded-tags.md       # Tags to never suggest
-│   ├── personas.md            # AI writing personas
-│   └── summary-personas.md    # Summary style personas
+│   ├── writing-personas.md    # Personas for note improvement
+│   └── summary-personas.md    # Personas for summarization
 ├── Transcripts/               # Audio/YouTube transcripts
 └── Flashcards/                # Exported flashcard files
 ```

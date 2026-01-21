@@ -250,15 +250,24 @@ A unified modal for accessing all plugin commands, solving the UX challenge of 2
 
 ### Persona System
 
-User-editable AI personas stored in `AI-Organiser/Config/personas.md`.
+Two types of personas for different use cases:
 
-**Built-in Personas:**
+**Writing Personas** (`AI-Organiser/Config/writing-personas.md`):
+Used for "Improve note with AI" command. Controls writing style and tone.
 1. **Balanced** - Clear, well-organized notes (default)
 2. **Academic** - Formal, rigorous with citations
 3. **Practical** - Actionable, step-by-step focus
 4. **Concise** - Brief, essential points only
 5. **Creative** - Narrative, engaging style
 6. **Socratic** - Question-driven exploration
+
+**Summary Personas** (`AI-Organiser/Config/summary-personas.md`):
+Used for URL/PDF/YouTube/Audio summarization. Controls summary format and structure.
+1. **Student** - Academic study notes with hierarchical structure (default)
+2. **Executive** - Business briefing with ROI and action items
+3. **Casual Reader** - Fun, conversational with analogies
+4. **Researcher** - Academic notes with methodology and citations
+5. **Technical** - Developer-focused with code patterns
 
 **UI Integration:**
 - Persona selector button in AI command modals
@@ -322,8 +331,8 @@ AI-Organiser/
 ├── Config/                    # User-editable configuration files
 │   ├── taxonomy.md            # Themes and disciplines for tagging
 │   ├── excluded-tags.md       # Tags to never suggest
-│   ├── personas.md            # AI writing personas
-│   └── summary-personas.md    # Summary style personas
+│   ├── writing-personas.md    # Personas for note improvement
+│   └── summary-personas.md    # Personas for summarization
 ├── Transcripts/               # Audio/YouTube transcripts
 │   └── [note-name] - transcript.md
 └── Flashcards/                # Exported flashcard files
@@ -336,8 +345,8 @@ Located in `AI-Organiser/Config/`:
 
 1. **taxonomy.md** - Themes and disciplines for tagging
 2. **excluded-tags.md** - Tags to never suggest
-3. **personas.md** - AI writing personas
-4. **summary-personas.md** - Summary style personas
+3. **writing-personas.md** - Personas for note improvement
+4. **summary-personas.md** - Personas for summarization
 
 ### Markdown Format
 
