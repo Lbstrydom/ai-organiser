@@ -1110,34 +1110,80 @@ async function summarizeInChunks(
 }
 
 /**
- * Call LLM service to summarize text
+ * Call LLM service to summarize text with optional RAG context
  */
 async function summarizeTextWithLLM(
     plugin: AIOrganiserPlugin,
-    prompt: string
+    prompt: string,
+    useRAG: boolean = false
 ): Promise<{ success: boolean; content?: string; error?: string }> {
     try {
+        // Add RAG context if enabled
+        let finalPrompt = prompt;
+        let ragSources: string[] = [];
+
+        if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
+            try {
+                // Import RAGService
+                const { RAGService } = await import('../services/ragService');
+                const ragService = new RAGService(plugin.vectorStore, plugin.settings);
+
+                // Extract main query from prompt (first sentence)
+                const queryMatch = prompt.match(/^([^.!?]+[.!?])/);
+                const query = queryMatch ? queryMatch[1] : prompt.substring(0, 100);
+
+                // Get related context
+                const context = await ragService.retrieveContext(query, undefined, {
+                    maxChunks: 3,
+                    minSimilarity: 0.7
+                });
+
+                if (context.totalChunks > 0) {
+                    // Build enhanced prompt with context
+                    finalPrompt = ragService.buildRAGPrompt(
+                        prompt,
+                        context,
+                        'You are a summarization assistant that incorporates relevant background knowledge from the user\'s vault.'
+                    );
+                    ragSources = context.sources;
+                }
+            } catch (ragError) {
+                // Silently fail RAG, continue with regular summary
+                console.debug('[AI Organiser] RAG summarization failed, continuing without context', ragError);
+            }
+        }
+
         // Use the formatRequest method to build the request
-        const request = plugin.llmService.formatRequest(prompt);
+        const request = plugin.llmService.formatRequest(finalPrompt);
 
         // Access the cloud service directly for summarization
         // This is a workaround until we add a proper summarize method to LLMService
+        let response: { success: boolean; content?: string; error?: string };
+        
         if (plugin.settings.serviceType === 'cloud') {
             const { CloudLLMService } = await import('../services/cloudService');
             const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
 
             // Use the internal makeRequest method via adapter
-            const response = await cloudService.summarizeText(prompt);
-            return response;
+            response = await cloudService.summarizeText(finalPrompt);
         } else {
             // Local service - use the analyzeTags method as a workaround
             // The prompt already contains the content and instructions
             const { LocalLLMService } = await import('../services/localService');
             const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
 
-            const response = await localService.summarizeText(prompt);
-            return response;
+            response = await localService.summarizeText(finalPrompt);
         }
+
+        // Append sources if RAG was used
+        if (useRAG && ragSources.length > 0 && response.success && response.content) {
+            const { RAGService } = await import('../services/ragService');
+            const ragService = new RAGService(plugin.vectorStore!, plugin.settings);
+            const sourcesSection = ragService.formatSources(ragSources);
+            response.content = response.content + '\n' + sourcesSection;
+        }
+
+        return response;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
