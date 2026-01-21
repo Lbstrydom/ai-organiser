@@ -185,7 +185,7 @@ export async function transcribeAudioFromData(
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
         const formData = buildMultipartFormData(
-            audioData.buffer,
+            audioData.buffer as ArrayBuffer,
             fileName,
             'mp3', // Compressed files are always MP3
             options,

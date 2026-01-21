@@ -10,7 +10,8 @@ export interface ConfigPaths {
     taxonomyFile: string;      // Main taxonomy with themes and disciplines
     summaryPrompt: string;     // Summary prompt template
     excludedTags: string;      // Tags to never suggest
-    personas: string;          // AI personas for different note-taking styles
+    personas: string;          // AI personas for note improvement/editing
+    summaryPersonas: string;   // AI personas for summarization (URL, PDF, YouTube, Audio)
 }
 
 export interface TaxonomyEntry {
@@ -25,6 +26,7 @@ export interface Persona {
     description: string;  // Short description for selection UI
     prompt: string;       // The actual prompt/instructions for the AI
     isDefault?: boolean;  // Mark one as default
+    icon?: string;        // Lucide icon name (optional)
 }
 
 export interface Taxonomy {
@@ -36,7 +38,8 @@ export interface ConfigContent {
     taxonomy: Taxonomy;
     summaryPromptTemplate: string | null;
     excludedTags: string[];
-    personas: Persona[];
+    personas: Persona[];           // For note improvement/editing
+    summaryPersonas: Persona[];    // For summarization (URL, PDF, YouTube, Audio)
 }
 
 // Default taxonomy with descriptions for AI context
@@ -154,6 +157,205 @@ Style guidelines:
     }
 ];
 
+// Default summary personas for summarization (URL, PDF, YouTube, Audio)
+export const DEFAULT_SUMMARY_PERSONAS: Persona[] = [
+    {
+        id: 'student',
+        name: 'Student',
+        description: 'Academic study notes with hierarchical structure, analogies, and synthesis',
+        icon: 'graduation-cap',
+        prompt: `**Role:** Act as an expert academic analyst and master note-taker. Your goal is to convert raw information into a "Study-Ready" Executive Summary that prioritises rapid comprehension and retention.
+
+**Core Philosophy:** Apply the Pyramid Principle. Place the conclusion and core truths at the very top (Bottom Line Up Front). Do not transcribe chronologically; synthesise hierarchically.
+
+**Formatting Rules:**
+1. **No Fluff:** Use active voice. Remove preamble. Keep sentences incisive.
+2. **Scannability:** Use bolding for key terms. Use bullet points over paragraphs.
+3. **Visuals:** Always use Tables for comparisons and Analogies for complex logic.
+4. **Structure:** Strictly follow the four-part template below.
+
+**The Output Template:**
+
+### 1. The 30-Second Read
+* **The Big Idea:** [A single sentence summary of the entire topic].
+* **Key Takeaways:** [3-4 high-value bullet points. What must the reader remember?]
+
+### 2. Core Terminology
+* **[Term]:** [Simple, jargon-free definition].
+* **[Term]:** [Simple, jargon-free definition].
+
+### 3. The Deep Dive
+*Group information by Concept, not by timeline. For every major concept, explain:*
+* **The Logic:** What is it and how does it work?
+* **The Evidence:** Key data or arguments.
+* **The Analogy:** A real-world comparison (e.g., "Think of X like a car engine...").
+* **The Comparison:** If two things are similar, create a Markdown table comparing them.
+
+### 4. Synthesis
+* **Mental Model:** How should the user visualise this system?
+* **Connections:** How does this relate to broader fields or previous topics?`,
+        isDefault: true
+    },
+    {
+        id: 'executive',
+        name: 'Executive',
+        description: 'Business-focused briefing with ROI, risk analysis, and action items',
+        icon: 'briefcase',
+        prompt: `**Role:** Act as a Senior Strategy Consultant or Chief of Staff. Your goal is to synthesize raw information into a high-impact **Executive Briefing**.
+
+**Target Audience:** A C-Level Executive (CEO, CTO, CFO). They have limited time, care about ROI/Risk, and need to make decisions, not study definitions.
+
+**Tone & Style Guidelines:**
+1. **Bottom Line Up Front (BLUF):** Start with the conclusion. Never bury the lead.
+2. **Commercial, Not Academic:** Translate technical features into business outcomes (speed, cost, risk, revenue).
+3. **Decisive:** Avoid wishy-washy language like "it depends." Highlight trade-offs clearly.
+4. **High Signal-to-Noise:** Use active voice. Remove all filler words. Bullet points must be short and punchy.
+
+**Strict Formatting Template:**
+
+### 1. The Bottom Line (BLUF)
+* **The Opportunity/Risk:** [1 sentence on the core value proposition or critical threat.]
+* **Recommendation:** [1 sentence on the specific strategic action to take.]
+
+### 2. Strategic Context
+* **Why Now:** [What market shift, competitor move, or tech breakthrough makes this urgent?]
+* **The Problem:** [The specific business friction or cost this solves.]
+
+### 3. Critical Analysis (Business Impact)
+* **Impact Area A (e.g., Efficiency/Cost):**
+    * *Insight:* [Brief explanation of the mechanism.]
+    * *Metric:* [Projected savings, speed increase, or revenue gain.]
+* **Impact Area B (e.g., Risk/Compliance):**
+    * *Insight:* [Brief explanation.]
+    * *Metric:* [Cost of implementation vs. cost of inaction.]
+
+### 4. The Decision Matrix (Comparison)
+*Create a Markdown table comparing the options/technologies based on: Cost/Effort, Business Value, and Risk.*
+
+### 5. Next Steps
+* **Immediate Action:** [Who does what by when?]
+* **Key Question:** [One strategic question the executive must ask to unblock progress.]`
+    },
+    {
+        id: 'casual',
+        name: 'Casual Reader',
+        description: 'Fun, conversational summary with analogies and dinner party trivia',
+        icon: 'coffee',
+        prompt: `**Role:** Act as a popular science writer or a smart, witty friend. Your goal is to explain complex ideas in a way that is fun, memorable, and easy to read.
+
+**Target Audience:** A casual reader who is curious but busy. They want to learn, but they get bored by dry textbooks or corporate jargon.
+
+**Tone & Style Guidelines:**
+1. **Conversational:** Write like you are talking to a friend over coffee. Use contractions ("it's" not "it is").
+2. **Analogy-First:** Explain the *concept* using a real-world comparison before diving into the details.
+3. **No Jargon:** If you must use a technical term, explain it immediately in plain English.
+4. **Formatting:** Use emojis (sparingly) to break up text. Keep paragraphs short (2-3 sentences max).
+
+**Strict Formatting Template:**
+
+### 🥗 The TL;DR (Too Long; Didn't Read)
+* **In a Nutshell:** [1-2 sentences summarising the whole idea simply.]
+* **Why You Should Care:** [Why is this interesting or relevant to daily life?]
+
+### 💡 The "Aha!" Moment (The Core Analogy)
+*[Explain the main concept using a vivid metaphor. For example, "Think of a Neural Network like a guitar tuner..."]*
+
+### 🔑 The 3 Key Takeaways
+1. **[Point 1 Headline]:** [Explanation].
+2. **[Point 2 Headline]:** [Explanation].
+3. **[Point 3 Headline]:** [Explanation].
+
+### 🧠 Dinner Party Trivia
+*[One fascinating fact, stat, or insight from this text that makes the reader sound smart in conversation.]*`
+    },
+    {
+        id: 'researcher',
+        name: 'Researcher',
+        description: 'Academic research notes with methodology, findings, and citations',
+        icon: 'microscope',
+        prompt: `**Role:** Act as a research assistant helping an academic researcher. Your goal is to extract and organise the scholarly value from the content.
+
+**Target Audience:** A researcher who needs to understand methodology, evaluate evidence quality, and identify gaps for future work.
+
+**Tone & Style Guidelines:**
+1. **Precise:** Use exact terminology. Distinguish between claims, evidence, and speculation.
+2. **Critical:** Note limitations, assumptions, and potential biases.
+3. **Connective:** Identify how this relates to existing literature and research paradigms.
+4. **Structured:** Follow academic conventions for presenting findings.
+
+**Strict Formatting Template:**
+
+### Abstract
+*[2-3 sentences capturing the core contribution and significance.]*
+
+### Key Findings
+* **Finding 1:** [Statement] — *Evidence:* [Supporting data or argument]
+* **Finding 2:** [Statement] — *Evidence:* [Supporting data or argument]
+* **Finding 3:** [Statement] — *Evidence:* [Supporting data or argument]
+
+### Methodology Notes
+* **Approach:** [How was this investigated/built/tested?]
+* **Data/Sample:** [What data or cases were examined?]
+* **Limitations:** [What constraints or caveats apply?]
+
+### Critical Assessment
+* **Strengths:** [What makes this work valuable?]
+* **Weaknesses:** [What limitations or gaps exist?]
+* **Open Questions:** [What remains unanswered?]
+
+### Research Connections
+* **Builds On:** [Prior work this extends]
+* **Contradicts/Challenges:** [Existing ideas this questions]
+* **Future Directions:** [Suggested next steps for research]`
+    },
+    {
+        id: 'technical',
+        name: 'Technical',
+        description: 'Developer-focused notes with implementation details and code patterns',
+        icon: 'code',
+        prompt: `**Role:** Act as a senior software architect documenting technical content. Your goal is to extract actionable technical knowledge.
+
+**Target Audience:** A developer who needs to understand how something works, when to use it, and how to implement it.
+
+**Tone & Style Guidelines:**
+1. **Concrete:** Prefer specific examples over abstract descriptions.
+2. **Practical:** Focus on "how to use" over "what it is."
+3. **Comparative:** Show trade-offs between approaches.
+4. **Code-Aware:** Use code blocks for any technical syntax or commands.
+
+**Strict Formatting Template:**
+
+### Quick Reference
+* **What:** [One-line description of what this is]
+* **When to Use:** [Specific use cases]
+* **Key Benefit:** [Primary advantage]
+
+### Core Concepts
+| Concept | Description | Example |
+|---------|-------------|---------|
+| [Term] | [Definition] | [Concrete example] |
+
+### Implementation Guide
+* **Prerequisites:** [What you need before starting]
+* **Basic Pattern:**
+\`\`\`
+[Code or pseudocode showing the pattern]
+\`\`\`
+* **Common Pitfalls:** [Mistakes to avoid]
+
+### Architecture Decisions
+* **Trade-offs:**
+    * *Pro:* [Advantage]
+    * *Con:* [Disadvantage]
+* **Alternatives:** [Other approaches and when to prefer them]
+
+### Quick Start Checklist
+- [ ] [Step 1]
+- [ ] [Step 2]
+- [ ] [Step 3]`
+    }
+];
+
 // Default folder for configuration files
 export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser-Config';
 
@@ -193,6 +395,7 @@ export class ConfigurationService {
             summaryPrompt: normalizePath(`${this.configFolder}/summary-prompt.md`),
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
             personas: normalizePath(`${this.configFolder}/personas.md`),
+            summaryPersonas: normalizePath(`${this.configFolder}/summary-personas.md`),
         };
     }
 
@@ -209,11 +412,12 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, summaryPrompt, excludedTags, personas] = await Promise.all([
+        const [taxonomy, summaryPrompt, excludedTags, personas, summaryPersonas] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
             this.loadTextFromFile(paths.summaryPrompt),
             this.loadListFromFile(paths.excludedTags, []),
-            this.loadPersonasFromFile(paths.personas),
+            this.loadPersonasFromFile(paths.personas, DEFAULT_PERSONAS),
+            this.loadPersonasFromFile(paths.summaryPersonas, DEFAULT_SUMMARY_PERSONAS),
         ]);
 
         this.cachedConfig = {
@@ -221,6 +425,7 @@ export class ConfigurationService {
             summaryPromptTemplate: summaryPrompt,
             excludedTags,
             personas,
+            summaryPersonas,
         };
         this.lastLoadTime = now;
 
@@ -325,18 +530,18 @@ export class ConfigurationService {
     /**
      * Load personas from markdown file
      */
-    private async loadPersonasFromFile(path: string): Promise<Persona[]> {
+    private async loadPersonasFromFile(path: string, defaults: Persona[]): Promise<Persona[]> {
         const file = this.app.vault.getAbstractFileByPath(path);
 
         if (!file || !(file instanceof TFile)) {
-            return DEFAULT_PERSONAS;
+            return defaults;
         }
 
         try {
             const content = await this.app.vault.read(file);
-            return this.parsePersonasContent(content);
+            return this.parsePersonasContent(content, defaults);
         } catch {
-            return DEFAULT_PERSONAS;
+            return defaults;
         }
     }
 
@@ -344,7 +549,7 @@ export class ConfigurationService {
      * Parse personas from markdown content
      * Format: Each persona is a ### section with metadata and prompt in code block
      */
-    private parsePersonasContent(content: string): Persona[] {
+    private parsePersonasContent(content: string, defaults: Persona[]): Persona[] {
         const personas: Persona[] = [];
 
         // Split by ### headers (persona sections)
@@ -407,7 +612,7 @@ export class ConfigurationService {
         }
 
         // Fall back to defaults if nothing parsed
-        return personas.length > 0 ? personas : DEFAULT_PERSONAS;
+        return personas.length > 0 ? personas : defaults;
     }
 
     /**
@@ -565,11 +770,15 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
         // Create personas file
         const personasContent = this.generatePersonasFileContent();
 
+        // Create summary personas file
+        const summaryPersonasContent = this.generateSummaryPersonasFileContent();
+
         // Create files if they don't exist
         await this.createFileIfNotExists(paths.taxonomyFile, taxonomyContent);
         await this.createFileIfNotExists(paths.summaryPrompt, summaryPromptContent);
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
         await this.createFileIfNotExists(paths.personas, personasContent);
+        await this.createFileIfNotExists(paths.summaryPersonas, summaryPersonasContent);
 
         // Invalidate cache after creating files
         this.cachedConfig = null;
@@ -670,6 +879,57 @@ ${personaSections}
 
 To add your own persona, create a new section following the format above.
 The AI will follow your custom instructions when processing content.
+`;
+    }
+
+    /**
+     * Generate the summary-personas.md file content
+     */
+    private generateSummaryPersonasFileContent(): string {
+        const personaSections = DEFAULT_SUMMARY_PERSONAS.map(p => {
+            const defaultMarker = p.isDefault ? ' (default)' : '';
+            const iconMarker = p.icon ? ` [icon: ${p.icon}]` : '';
+            return `### ${p.name}${defaultMarker}${iconMarker}
+
+> ${p.description}
+
+\`\`\`
+${p.prompt}
+\`\`\``;
+        }).join('\n\n');
+
+        return `# Summary Personas
+
+These personas control how the AI summarizes content from **URLs, PDFs, YouTube videos, and Audio files**. Each persona defines a different note-taking style with its own structure and tone.
+
+## How to Use
+
+1. **When summarizing**: Select a persona from the dropdown in the summarization dialog
+2. **Set default**: Add \`(default)\` after the persona name to make it the default
+3. **Edit existing**: Modify the prompt in the code block to customize behavior
+4. **Add new**: Create a new \`### Section\` following the format below
+
+## Format
+
+Each persona needs:
+- A \`### Name\` header (add \`(default)\` to mark as default, optionally \`[icon: icon-name]\` for icon)
+- A description line starting with \`>\` (shown in the selection dropdown)
+- A code block with the full prompt/instructions for the AI
+
+---
+
+${personaSections}
+
+---
+
+## Tips for Custom Personas
+
+- **Role**: Start by defining who the AI should act as
+- **Target Audience**: Specify who will read the notes
+- **Style Guidelines**: List formatting rules and tone
+- **Output Template**: Provide a structure with markdown headers
+
+The AI will follow your template exactly, so be specific about what sections and formatting you want.
 `;
     }
 
@@ -802,5 +1062,64 @@ ${persona.prompt}
     invalidateCache(): void {
         this.cachedConfig = null;
         this.lastLoadTime = 0;
+    }
+
+    // ==========================================
+    // Summary Personas (for URL, PDF, YouTube, Audio)
+    // ==========================================
+
+    /**
+     * Get all summary personas
+     */
+    async getSummaryPersonas(): Promise<Persona[]> {
+        const config = await this.loadConfig();
+        return config.summaryPersonas;
+    }
+
+    /**
+     * Get the default summary persona
+     */
+    async getDefaultSummaryPersona(): Promise<Persona> {
+        const config = await this.loadConfig();
+        const defaultPersona = config.summaryPersonas.find(p => p.isDefault);
+        return defaultPersona || config.summaryPersonas[0] || DEFAULT_SUMMARY_PERSONAS[0];
+    }
+
+    /**
+     * Get a summary persona by ID
+     */
+    async getSummaryPersonaById(id: string): Promise<Persona | null> {
+        const config = await this.loadConfig();
+        return config.summaryPersonas.find(p => p.id === id) || null;
+    }
+
+    /**
+     * Get summary persona prompt formatted for injection into AI prompts
+     */
+    async getSummaryPersonaPrompt(personaId?: string): Promise<string> {
+        let persona: Persona | null = null;
+
+        if (personaId) {
+            persona = await this.getSummaryPersonaById(personaId);
+        }
+
+        if (!persona) {
+            persona = await this.getDefaultSummaryPersona();
+        }
+
+        return persona.prompt;
+    }
+
+    /**
+     * Open a config file in the editor
+     */
+    async openConfigFile(fileType: keyof ConfigPaths): Promise<void> {
+        const paths = this.getConfigPaths();
+        const path = paths[fileType];
+
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof TFile) {
+            await this.app.workspace.openLinkText(path, '', false);
+        }
     }
 }

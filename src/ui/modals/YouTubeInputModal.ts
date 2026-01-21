@@ -5,7 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
-import { BUILTIN_PERSONAS, SummaryPersona } from '../../services/prompts/summaryPersonas';
+import type { Persona } from '../../services/configurationService';
 
 export interface YouTubeInputResult {
     url: string;
@@ -17,19 +17,20 @@ export class YouTubeInputModal extends Modal {
     private personaId: string;
     private readonly onSubmit: (result: YouTubeInputResult) => void;
     private readonly t: Translations;
-    private readonly personas: SummaryPersona[];
+    private readonly personas: Persona[];
 
     constructor(
         app: App,
         translations: Translations,
         defaultPersonaId: string,
+        personas: Persona[],
         onSubmit: (result: YouTubeInputResult) => void
     ) {
         super(app);
         this.t = translations;
         this.personaId = defaultPersonaId;
         this.onSubmit = onSubmit;
-        this.personas = BUILTIN_PERSONAS;
+        this.personas = personas;
     }
 
     onOpen(): void {

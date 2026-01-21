@@ -12,7 +12,7 @@ import { SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { getLanguageNameForPrompt } from '../services/languages';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider } from '../services/privacyNotice';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
-import { BUILTIN_PERSONAS } from '../services/prompts/summaryPersonas';
+// BUILTIN_PERSONAS no longer imported - using configurationService for summary personas
 import { ImproveNoteModal, ImproveNoteResult } from '../ui/modals/ImproveNoteModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
@@ -246,14 +246,16 @@ async function processSelectedContent(
         return;
     }
 
-    // Build prompt
-    const personaId = plugin.settings.defaultSummaryPersona;
-    const persona = BUILTIN_PERSONAS.find(p => p.id === personaId) || BUILTIN_PERSONAS[0];
+    // Build prompt - get persona from configuration service
+    const configService = plugin.configService;
+    const personaPrompt = await configService.getSummaryPersonaPrompt(plugin.settings.defaultSummaryPersona);
+    const persona = await configService.getSummaryPersonaById(plugin.settings.defaultSummaryPersona)
+        || await configService.getDefaultSummaryPersona();
 
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaId: personaId,
+        personaPrompt: personaPrompt,
     };
 
     // Check if we have binary content to send

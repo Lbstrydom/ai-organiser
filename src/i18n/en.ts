@@ -69,7 +69,17 @@ export const en: Translations = {
             language: "Summary Language",
             languageDesc: "Language for summaries (leave empty for auto-detect)",
             defaultPersona: "Default Summary Style",
-            defaultPersonaDesc: "Choose the default note-taking style for summaries. You can override this when summarizing."
+            defaultPersonaDesc: "Choose the default note-taking style for summaries. You can override this when summarizing.",
+            editPersonas: "Edit Summary Personas",
+            editPersonasDesc: "Customize how summaries are formatted by editing the personas file",
+            openPersonasFile: "Open Personas File",
+            transcriptOptions: "Transcript Options",
+            saveTranscripts: "Save Transcripts",
+            saveTranscriptsDesc: "Save full transcripts from audio and YouTube videos for later reference and searching",
+            transcriptNone: "Do not save",
+            transcriptFile: "Save to separate file",
+            transcriptFolder: "Transcript Folder",
+            transcriptFolderDesc: "Folder where transcript files will be saved (relative to vault root)"
         },
         configuration: {
             title: "Configuration",

@@ -68,6 +68,9 @@ export interface AIOrganiserSettings {
     summaryLanguage: string;
     includeSummaryMetadata: boolean;
     defaultSummaryPersona: string;       // Default persona ID for summarization
+    // Transcript Settings
+    saveTranscripts: 'none' | 'file';    // Whether to save full transcripts
+    transcriptFolder: string;            // Folder for transcript files
     // Configuration Folder Settings
     configFolderPath: string;  // Folder containing taxonomy, prompts, etc.
 }
@@ -92,5 +95,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     summaryLanguage: '',
     includeSummaryMetadata: true,
     defaultSummaryPersona: 'student',
+    saveTranscripts: 'file',
+    transcriptFolder: 'Transcripts',
     configFolderPath: 'AI-Organiser-Config',
 };

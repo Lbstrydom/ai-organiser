@@ -137,6 +137,7 @@ src/
 - Token limit handling with user choice (truncate/chunk)
 - Privacy notices for cloud providers
 - Automatic reference section population
+- **Transcript saving** - Full transcripts from audio/YouTube saved to configurable folder with metadata
 
 ### 3. Smart Note Features
 
@@ -218,7 +219,7 @@ User-editable AI personas stored in `AI-Organiser-Config/personas.md`.
 Settings divided into logical sections:
 1. **LLM Settings** - Provider, API keys, models
 2. **Tagging Settings** - Max tags, language, exclusions
-3. **Summarization Settings** - Length, language, default persona
+3. **Summarization Settings** - Length, language, default persona, transcript saving
 4. **Configuration** - Config folder, taxonomy management
 5. **Interface** - Language selection (EN/ZH)
 6. **Support** - Buy Me a Coffee link
@@ -264,6 +265,7 @@ Located in `AI-Organiser-Config/` (configurable):
 1. **taxonomy.md** - Themes and disciplines for tagging
 2. **excluded-tags.md** - Tags to never suggest
 3. **personas.md** - AI writing personas
+4. **summary-personas.md** - Summary style personas
 
 ### Markdown Format
 
@@ -324,13 +326,19 @@ npm run dev
 # Production build
 npm run build
 
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
 # Version bump
 npm run version
 ```
 
 ### Output
 
-- `main.js` - Bundled plugin (~736kb)
+- `main.js` - Bundled plugin (~746kb)
 - `manifest.json` - Plugin metadata
 - `styles.css` - UI styles
 
@@ -339,6 +347,39 @@ npm run version
 ```
 C:\obsidian\Second Brain\.obsidian\plugins\ai-organiser\
 ```
+
+---
+
+## Testing
+
+### Automated Tests
+
+**95 unit tests** using Vitest:
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| `tests/urlValidator.test.ts` | 30 | SSRF protection, URL validation |
+| `tests/tagUtils.test.ts` | 43 | Tag formatting, merging, exclusion patterns |
+| `tests/summaryPrompts.test.ts` | 22 | Prompt building, content insertion |
+
+**Run tests:**
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # With coverage report
+```
+
+### CI/CD
+
+GitHub Actions workflow (`.github/workflows/ci.yml`):
+- Runs on push to main/develop and PRs
+- Tests on Node 18.x and 20.x
+- Runs unit tests then builds
+- TypeScript type checking
+
+### Manual Testing
+
+See [usertest.md](usertest.md) for comprehensive manual testing checklist (254 test cases).
 
 ---
 
@@ -353,30 +394,33 @@ C:\obsidian\Second Brain\.obsidian\plugins\ai-organiser\
 | Settings | 6 | LLMSettingsSection, TaggingSettingsSection |
 | i18n | 3 | types, en, zh-cn |
 | Utils | 8 | tagUtils, noteStructure, urlValidator |
+| Tests | 3 | urlValidator.test, tagUtils.test, summaryPrompts.test |
 
 **Total TypeScript Files:** 80+
 **Lines of Code:** ~12,000+
+**Unit Tests:** 95
 
 ---
 
 ## Recent Development (This Session)
 
-### 1. Persona System
-- Added user-editable personas in ConfigurationService
-- Created PersonaSelectModal for persona selection
-- Integrated persona button into ImproveNoteModal and integration commands
-- 6 default personas with markdown file generation
+### 1. Transcript Saving Feature
+- Save full transcripts from audio/YouTube to separate files
+- Configurable transcript folder (default: `Transcripts/`)
+- Transcript files include metadata (source, date, duration, type)
+- Summary notes link to transcript files via callout
+- Settings: "Save Transcripts" dropdown and "Transcript Folder" input
 
-### 2. Command Picker UX
-- Created CommandPickerModal using FuzzySuggestModal
-- Organized 27 commands into 5 categories
-- Added sparkles ribbon icon for quick access
-- CSS styling with category badges
+### 2. Test Infrastructure
+- Added Vitest for unit testing
+- 95 tests for pure utility functions
+- GitHub Actions CI for automated testing
+- Tests for tagUtils, urlValidator, and summaryPrompts
 
-### 3. Standard Note Structure
-- `## References` section for source tracking
-- `## Pending Integration` section for content accumulation
-- Automatic section management in noteStructure.ts
+### 3. User Testing Guide
+- Created comprehensive `usertest.md` with 254 test cases
+- Covers all features, settings, and edge cases
+- Organized into 15 categories
 
 ---
 
@@ -387,21 +431,6 @@ C:\obsidian\Second Brain\.obsidian\plugins\ai-organiser\
 3. **Audio Transcription** - Requires OpenAI or Groq API key
 4. **D3.js** - Loaded from CDN, not bundled
 5. **Large Vaults** - Batch operations may take time
-
----
-
-## Testing Checklist
-
-- [ ] Test command picker with all commands
-- [ ] Test persona selection in Improve Note modal
-- [ ] Test taxonomy editing via markdown files
-- [ ] Test summarization with different providers
-- [ ] Test audio transcription with compression
-- [ ] Test tag generation with custom taxonomy
-- [ ] Test Chinese interface
-- [ ] Test tag network visualization
-- [ ] Test privacy notice (shown once per session)
-- [ ] Test content chunking for large documents
 
 ---
 

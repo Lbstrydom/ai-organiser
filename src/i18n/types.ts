@@ -68,6 +68,16 @@ export interface Translations {
             languageDesc: string;
             defaultPersona: string;
             defaultPersonaDesc: string;
+            editPersonas: string;
+            editPersonasDesc: string;
+            openPersonasFile: string;
+            transcriptOptions: string;
+            saveTranscripts: string;
+            saveTranscriptsDesc: string;
+            transcriptNone: string;
+            transcriptFile: string;
+            transcriptFolder: string;
+            transcriptFolderDesc: string;
         };
         configuration: {
             title: string;

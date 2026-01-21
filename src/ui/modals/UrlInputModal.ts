@@ -5,7 +5,7 @@
 
 import { App, Modal, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
-import { BUILTIN_PERSONAS, SummaryPersona } from '../../services/prompts/summaryPersonas';
+import type { Persona } from '../../services/configurationService';
 
 export interface UrlInputResult {
     url: string;
@@ -17,19 +17,20 @@ export class UrlInputModal extends Modal {
     private personaId: string;
     private onSubmit: (result: UrlInputResult) => void;
     private t: Translations;
-    private readonly personas: SummaryPersona[];
+    private readonly personas: Persona[];
 
     constructor(
         app: App,
         translations: Translations,
         defaultPersonaId: string,
+        personas: Persona[],
         onSubmit: (result: UrlInputResult) => void
     ) {
         super(app);
         this.t = translations;
         this.personaId = defaultPersonaId;
         this.onSubmit = onSubmit;
-        this.personas = BUILTIN_PERSONAS;
+        this.personas = personas;
     }
 
     onOpen(): void {

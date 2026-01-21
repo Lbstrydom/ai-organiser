@@ -13,5 +13,5 @@ export abstract class BaseSettingSection {
         this.settingTab = settingTab;
     }
 
-    abstract display(): void;
+    abstract display(): void | Promise<void>;
 }

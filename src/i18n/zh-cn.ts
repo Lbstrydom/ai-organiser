@@ -68,7 +68,17 @@ export const zhCN: Translations = {
             language: "总结语言",
             languageDesc: "总结的语言（留空以自动检测）",
             defaultPersona: "默认总结风格",
-            defaultPersonaDesc: "选择默认的笔记风格。您可以在总结时更改此设置。"
+            defaultPersonaDesc: "选择默认的笔记风格。您可以在总结时更改此设置。",
+            editPersonas: "编辑总结角色",
+            editPersonasDesc: "通过编辑角色文件自定义总结的格式",
+            openPersonasFile: "打开角色文件",
+            transcriptOptions: "转录选项",
+            saveTranscripts: "保存转录",
+            saveTranscriptsDesc: "保存音频和 YouTube 视频的完整转录，以供日后参考和搜索",
+            transcriptNone: "不保存",
+            transcriptFile: "保存到单独文件",
+            transcriptFolder: "转录文件夹",
+            transcriptFolderDesc: "保存转录文件的文件夹（相对于库根目录）"
         },
         configuration: {
             title: "配置",

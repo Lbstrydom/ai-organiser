@@ -5,7 +5,7 @@
 
 import { App, Modal, Setting, TFile } from 'obsidian';
 import type { Translations } from '../../i18n/types';
-import { BUILTIN_PERSONAS, SummaryPersona } from '../../services/prompts/summaryPersonas';
+import type { Persona } from '../../services/configurationService';
 
 export interface PdfSelectResult {
     file: TFile;
@@ -17,13 +17,14 @@ export class PdfSelectModal extends Modal {
     private onSelect: (result: PdfSelectResult) => void;
     private t: Translations;
     private personaId: string;
-    private readonly personas: SummaryPersona[];
+    private readonly personas: Persona[];
 
     constructor(
         app: App,
         translations: Translations,
         files: TFile[],
         defaultPersonaId: string,
+        personas: Persona[],
         onSelect: (result: PdfSelectResult) => void
     ) {
         super(app);
@@ -31,7 +32,7 @@ export class PdfSelectModal extends Modal {
         this.files = files;
         this.personaId = defaultPersonaId;
         this.onSelect = onSelect;
-        this.personas = BUILTIN_PERSONAS;
+        this.personas = personas;
     }
 
     onOpen(): void {
