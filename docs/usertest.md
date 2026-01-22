@@ -112,11 +112,11 @@ After summarizing a URL with Bases enabled:
 
 | Test | Steps | Pass |
 |------|-------|------|
-| Folder context menu | Right-click folder → "Create Bases Dashboard" | [ ] |
+| Folder context menu | Right-click folder → "Create Bases Dashboard Here" | [ ] |
 | Command palette | Ctrl+P → "Create Bases dashboard" | [ ] |
-| 10 templates shown | 5 default + 5 persona | [ ] |
-| Select All/Clear | Buttons work | [ ] |
-| Create dashboards | Creates .base files in target folder | [ ] |
+| Confirmation modal | Shows target folder, Create button | [ ] |
+| Creates .base file | File created in target folder | [ ] |
+| Folder filter works | Dashboard only shows notes in that folder + subfolders | [ ] |
 
 ---
 

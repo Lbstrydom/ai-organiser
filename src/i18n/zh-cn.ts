@@ -230,7 +230,10 @@ export const zhCN: Translations = {
             dashboardAction: "创建仪表板",
             dashboardActionDesc: "为 Obsidian Bases 生成 .base 文件",
             dashboardButton: "创建",
-            dashboardInfo: "要创建仪表板，请右键单击文件夹并选择「创建 Bases 仪表板」，或使用命令面板。"
+            dashboardInfo: "要创建仪表板，请右键单击文件夹并选择「创建 Bases 仪表板」，或使用命令面板。",
+            editTemplates: "编辑仪表板模板",
+            editTemplatesDesc: "自定义创建 Bases 仪表板时可用的模板",
+            editTemplatesButton: "编辑模板"
         },
         notebookLM: {
             title: "NotebookLM 集成",
@@ -835,7 +838,9 @@ export const zhCN: Translations = {
             createButton: "创建仪表板",
             noTemplatesSelected: "请至少选择一个模板",
             allCreated: "成功创建 {count} 个仪表板",
-            someCreated: "创建了 {created} 个仪表板，{failed} 个失败"
+            someCreated: "创建了 {created} 个仪表板，{failed} 个失败",
+            willCreate: "这将创建一个仪表板，显示此文件夹及子文件夹中所有 AI 处理过的笔记。",
+            created: "仪表板已创建于 {folder}"
         },
         notebookLMExport: {
             title: "导出源文件包",

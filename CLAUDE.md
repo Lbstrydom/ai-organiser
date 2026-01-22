@@ -236,12 +236,23 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 ## Testing Approach
 
-**Automated Tests**: 95 unit tests using Vitest
+**Automated Tests**:
 ```bash
-npm test              # Run all tests
+npm test              # Run Vitest unit tests
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
+npm run test:auto     # Run automated integration tests (no Obsidian required)
 ```
+
+**Automated Integration Tests** (`tests/automated-tests.js`):
+- TypeScript compilation verification
+- i18n completeness (EN/ZH structure parity)
+- Template syntax validation (Bases `filters:` syntax)
+- Filter injection logic (folder filtering for dashboards)
+- Sanitization pipeline verification
+- Settings defaults validation
+- Command registration checks
+- Import/export consistency
 
 **Manual Testing**:
 1. Build plugin: `npm run build`
@@ -460,38 +471,23 @@ The Bases integration enables structured metadata and dashboard generation for s
 
 ### Dashboard Generation
 
-**Templates** ([src/services/dashboardTemplates.ts](src/services/dashboardTemplates.ts))
-- 10 built-in `.base` templates in 2 categories:
-  - **Default Templates** (5):
-    1. **General Knowledge Base**: All processed notes with status filters
-    2. **Research Tracker**: `type=research` with source URL column
-    3. **Pending Review**: `status=pending` sorted by created date
-    4. **Content by Type**: Grouped by `aio_type`
-    5. **Processing Errors**: `status=error` for troubleshooting
-  - **Persona Templates** (5): Filter by `aio_persona` field
-    1. **Study Notes**: Student persona (icon: graduation-cap)
-    2. **Executive Briefings**: Executive persona (icon: briefcase)
-    3. **Casual Reads**: Casual persona (icon: smile)
-    4. **Research Papers**: Researcher persona (icon: microscope)
-    5. **Tech Documentation**: Technical persona (icon: code)
-- `DashboardCategory` type: `'default' | 'persona'`
-- YAML structure: `filters[]`, `columns[]`, `sorting[]`, optional `grouping[]`
-- `getTemplateByName()`, `getTemplateNames()`, `getTemplatesByCategory()` helpers
+**Templates** ([src/services/configurationService.ts](src/services/configurationService.ts))
+- Single "Notes Dashboard" template for simplicity
+- YAML structure with `filters:` (plural), `columns:`, optional `sorting:`
+- Folder filtering automatically applied via `file.inFolder()` function
 
 **Dashboard Service** ([src/services/dashboardService.ts](src/services/dashboardService.ts))
-- `createDashboard(options)`: Create single `.base` file from template
-- `createDashboardsFromTemplates()`: Create multiple dashboards
-- `createCustomDashboard(fileName, content, folder)`: User-defined YAML
+- `createDashboard(options)`: Create `.base` file from template with folder filtering
+- `injectFolderFilter(content, folderPath)`: Automatically adds `file.inFolder("path")` filter
 - `getRecommendedDashboardFolder()`: Searches for 'Dashboards'/'Views'/'Bases'
-- `ensureDashboardFolder()`: Creates folder if needed
-- File validation: `.base` extension, YAML structure, prevents overwrites
+- Folder filter includes all subfolders recursively
+- Uses `filters:` (plural) syntax as required by Obsidian Bases
 
 **Dashboard Modal** ([src/ui/modals/DashboardCreationModal.ts](src/ui/modals/DashboardCreationModal.ts))
-- Template picker UI with checkboxes and descriptions
-- Folder selector (can create new folders)
-- Quick actions: Select All / Clear Selection
-- Multi-select with `Set<string>` tracking
-- Validation: Must select at least 1 template
+- Simple confirmation dialog (not template picker)
+- Shows target folder path with change option
+- Single "Create Dashboard" action
+- Dashboard automatically scoped to selected folder
 
 **Commands** ([src/commands/dashboardCommands.ts](src/commands/dashboardCommands.ts))
 - `create-bases-dashboard`: Opens DashboardCreationModal
@@ -504,10 +500,8 @@ The Bases integration enables structured metadata and dashboard generation for s
   - `includeModelInMetadata`: Add `aio_model` property (default: true)
   - `autoDetectContentType`: Auto-detect content type from keywords (default: true)
 - Info box with usage guidance (3 bullet points)
-- 2 action buttons:
-  - **Migrate** (icon: database): Calls `upgrade-metadata` command
-  - **Create Dashboards** (icon: layout-dashboard): Calls `create-bases-dashboard` command
-- Uses `app.commands.executeCommandById()` to trigger commands
+- Migration action button (icon: database): Calls `upgrade-metadata` command
+- Dashboard creation via right-click folder context menu
 
 ### Summarization Integration
 

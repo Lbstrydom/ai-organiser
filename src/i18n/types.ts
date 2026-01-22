@@ -218,6 +218,9 @@ export interface Translations {
             dashboardActionDesc: string;
             dashboardButton: string;
             dashboardInfo: string;
+            editTemplates: string;
+            editTemplatesDesc: string;
+            editTemplatesButton: string;
         };
         notebookLM: {
             title: string;
@@ -834,6 +837,8 @@ export interface Translations {
             noTemplatesSelected: string;
             allCreated: string;
             someCreated: string;
+            willCreate: string;
+            created: string;
         };
         notebookLMExport: {
             title: string;

@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:auto": "node tests/automated-tests.js",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "install-ffmpeg": "node scripts/install-ffmpeg.js"
   },

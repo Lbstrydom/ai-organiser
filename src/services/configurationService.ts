@@ -11,6 +11,7 @@ export interface ConfigPaths {
     excludedTags: string;      // Tags to never suggest
     writingPersonas: string;   // AI personas for note improvement/editing
     summaryPersonas: string;   // AI personas for summarization (URL, PDF, YouTube, Audio)
+    basesTemplates: string;    // Bases dashboard templates
 }
 
 export interface TaxonomyEntry {
@@ -33,11 +34,22 @@ export interface Taxonomy {
     disciplines: TaxonomyEntry[];
 }
 
+export interface BasesTemplate {
+    name: string;              // Display name
+    description: string;       // Short description
+    fileName: string;          // Output filename (e.g., "Knowledge Base.base")
+    category: 'default' | 'persona';  // Template category
+    personaId?: string;        // For persona templates, links to summary persona
+    icon?: string;             // Lucide icon name
+    content: string;           // YAML content for .base file
+}
+
 export interface ConfigContent {
     taxonomy: Taxonomy;
     excludedTags: string[];
     personas: Persona[];           // For note improvement/editing
     summaryPersonas: Persona[];    // For summarization (URL, PDF, YouTube, Audio)
+    basesTemplates: BasesTemplate[];  // Bases dashboard templates
 }
 
 // Default taxonomy with descriptions for AI context
@@ -354,6 +366,31 @@ export const DEFAULT_SUMMARY_PERSONAS: Persona[] = [
     }
 ];
 
+// Default Bases dashboard templates
+// Note: Bases uses 'filters:' (plural) with and/or/not operators
+// Property names use property.propname syntax for custom properties
+// Folder filtering uses file.inFolder("path") - includes subfolders recursively
+// Keep templates minimal - users can add more via config file
+export const DEFAULT_BASES_TEMPLATES: BasesTemplate[] = [
+    {
+        name: 'Notes Dashboard',
+        description: 'All AI-processed notes in this folder',
+        fileName: 'Notes Dashboard.base',
+        category: 'default',
+        content: `---
+name: Notes Dashboard
+description: AI-processed notes with summaries and metadata
+filters: 'property.aio_status == "processed"'
+columns:
+  - property.name
+  - property.aio_summary
+  - property.aio_persona
+  - property.aio_type
+  - property.tags
+  - property.aio_processed`
+    }
+];
+
 // Default folder for configuration files (within the main plugin folder)
 export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser/Config';
 
@@ -393,6 +430,7 @@ export class ConfigurationService {
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
             writingPersonas: normalizePath(`${this.configFolder}/writing-personas.md`),
             summaryPersonas: normalizePath(`${this.configFolder}/summary-personas.md`),
+            basesTemplates: normalizePath(`${this.configFolder}/bases-templates.md`),
         };
     }
 
@@ -409,11 +447,12 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, excludedTags, writingPersonas, summaryPersonas] = await Promise.all([
+        const [taxonomy, excludedTags, writingPersonas, summaryPersonas, basesTemplates] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
             this.loadListFromFile(paths.excludedTags, []),
             this.loadPersonasFromFile(paths.writingPersonas, DEFAULT_PERSONAS),
             this.loadPersonasFromFile(paths.summaryPersonas, DEFAULT_SUMMARY_PERSONAS),
+            this.loadBasesTemplatesFromFile(paths.basesTemplates),
         ]);
 
         this.cachedConfig = {
@@ -421,6 +460,7 @@ export class ConfigurationService {
             excludedTags,
             personas: writingPersonas,
             summaryPersonas,
+            basesTemplates,
         };
         this.lastLoadTime = now;
 
@@ -735,11 +775,15 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
         // Create summary personas file
         const summaryPersonasContent = this.generateSummaryPersonasFileContent();
 
+        // Create bases templates file
+        const basesTemplatesContent = this.generateBasesTemplatesFileContent();
+
         // Create files if they don't exist
         await this.createFileIfNotExists(paths.taxonomyFile, taxonomyContent);
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
         await this.createFileIfNotExists(paths.writingPersonas, personasContent);
         await this.createFileIfNotExists(paths.summaryPersonas, summaryPersonasContent);
+        await this.createFileIfNotExists(paths.basesTemplates, basesTemplatesContent);
 
         // Invalidate cache after creating files
         this.cachedConfig = null;
@@ -1074,5 +1118,234 @@ ${persona.prompt}
         if (file instanceof TFile) {
             await this.app.workspace.openLinkText(path, '', false);
         }
+    }
+
+    // ==========================================
+    // Bases Templates
+    // ==========================================
+
+    /**
+     * Load bases templates from markdown file
+     */
+    private async loadBasesTemplatesFromFile(path: string): Promise<BasesTemplate[]> {
+        const file = this.app.vault.getAbstractFileByPath(path);
+
+        if (!file || !(file instanceof TFile)) {
+            return DEFAULT_BASES_TEMPLATES;
+        }
+
+        try {
+            const content = await this.app.vault.read(file);
+            return this.parseBasesTemplatesContent(content);
+        } catch {
+            return DEFAULT_BASES_TEMPLATES;
+        }
+    }
+
+    /**
+     * Parse bases templates from markdown content
+     * Format: Each template is a ### section with metadata and YAML content in code block
+     *
+     * ### Template Name [category: default|persona] [persona: id] [icon: icon-name]
+     * > Description text
+     * **File:** filename.base
+     * ```yaml
+     * YAML content here
+     * ```
+     */
+    private parseBasesTemplatesContent(content: string): BasesTemplate[] {
+        const templates: BasesTemplate[] = [];
+
+        // Split by ### headers (template sections)
+        const sections = content.split(/^###\s+/m);
+
+        for (const section of sections) {
+            if (!section.trim()) continue;
+
+            const lines = section.split('\n');
+            const firstLine = lines[0]?.trim() || '';
+
+            // Skip if it's a higher-level header or empty
+            if (!firstLine || firstLine.startsWith('#')) continue;
+
+            // Extract metadata from header line
+            // Format: Template Name [category: default|persona] [persona: id] [icon: icon-name]
+            const categoryMatch = firstLine.match(/\[category:\s*([^\]]+)\]/i);
+            const personaMatch = firstLine.match(/\[persona:\s*([^\]]+)\]/i);
+            const iconMatch = firstLine.match(/\[icon:\s*([^\]]+)\]/i);
+
+            const category = (categoryMatch?.[1]?.trim().toLowerCase() === 'persona' ? 'persona' : 'default') as 'default' | 'persona';
+            const personaId = personaMatch?.[1]?.trim();
+            const icon = iconMatch?.[1]?.trim();
+
+            // Remove metadata markers from name
+            const name = firstLine
+                .replace(/\s*\[category:\s*[^\]]+\]\s*/gi, '')
+                .replace(/\s*\[persona:\s*[^\]]+\]\s*/gi, '')
+                .replace(/\s*\[icon:\s*[^\]]+\]\s*/gi, '')
+                .trim();
+
+            if (!name) continue;
+
+            // Find description, filename, and YAML content
+            let description = '';
+            let fileName = `${name}.base`;
+            let yamlContent = '';
+
+            let inCodeBlock = false;
+            let codeBlockLines: string[] = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+
+                if (trimmed.startsWith('```')) {
+                    if (inCodeBlock) {
+                        // End of code block
+                        yamlContent = codeBlockLines.join('\n').trim();
+                        break;
+                    } else {
+                        // Start of code block
+                        inCodeBlock = true;
+                        codeBlockLines = [];
+                    }
+                } else if (inCodeBlock) {
+                    codeBlockLines.push(line);
+                } else if (trimmed.startsWith('>')) {
+                    // Description line
+                    description = trimmed.replace(/^>\s*/, '').trim();
+                } else if (trimmed.toLowerCase().startsWith('**file:**')) {
+                    // Filename line
+                    fileName = trimmed.replace(/^\*\*file:\*\*\s*/i, '').trim();
+                    if (!fileName.endsWith('.base')) {
+                        fileName += '.base';
+                    }
+                }
+            }
+
+            if (name && yamlContent) {
+                const template: BasesTemplate = {
+                    name,
+                    description: description || `${name} dashboard template`,
+                    fileName,
+                    category,
+                    content: yamlContent
+                };
+                if (personaId) {
+                    template.personaId = personaId;
+                }
+                if (icon) {
+                    template.icon = icon;
+                }
+                templates.push(template);
+            }
+        }
+
+        // Fall back to defaults if nothing parsed
+        return templates.length > 0 ? templates : DEFAULT_BASES_TEMPLATES;
+    }
+
+    /**
+     * Generate the bases-templates.md file content
+     */
+    private generateBasesTemplatesFileContent(): string {
+        const templateSections = DEFAULT_BASES_TEMPLATES.map(t => {
+            const categoryMarker = ` [category: ${t.category}]`;
+            const personaMarker = t.personaId ? ` [persona: ${t.personaId}]` : '';
+            const iconMarker = t.icon ? ` [icon: ${t.icon}]` : '';
+
+            return `### ${t.name}${categoryMarker}${personaMarker}${iconMarker}
+
+> ${t.description}
+
+**File:** ${t.fileName}
+
+\`\`\`yaml
+${t.content}
+\`\`\``;
+        }).join('\n\n');
+
+        return `# Bases Dashboard Templates
+
+These templates define the structure for **Obsidian Bases dashboards** that display your AI-processed notes. Create dashboards by right-clicking a folder and selecting "Create Bases Dashboard".
+
+## How to Use
+
+1. **Create dashboards**: Right-click a folder → "Create Bases Dashboard"
+2. **Edit existing templates**: Modify the YAML in the code blocks below
+3. **Add new templates**: Create a new \`### Section\` following the format
+4. **Remove templates**: Delete the entire section
+
+## Format
+
+Each template needs:
+- A \`### Name\` header with metadata markers:
+  - \`[category: default|persona]\` - Template category
+  - \`[persona: id]\` - For persona templates, links to summary persona
+  - \`[icon: icon-name]\` - Lucide icon name (optional)
+- A description line starting with \`>\`
+- A \`**File:**\` line specifying the output filename
+- A \`\`\`yaml code block with the Bases configuration
+
+## Template Categories
+
+- **default**: General-purpose dashboards (Knowledge Base, Research Tracker, etc.)
+- **persona**: Dashboards filtered by summarization persona (Student, Executive, etc.)
+
+---
+
+${templateSections}
+
+---
+
+## Creating Custom Templates
+
+To add your own template, create a new section following the format above.
+The YAML content follows Obsidian Bases format with filters, columns, sorting, and grouping.
+
+### Available Fields
+
+- \`name\` - Note file name
+- \`tags\` - Note tags
+- \`created\` - Creation date
+- \`{aio_summary}\` - AI-generated summary
+- \`{aio_status}\` - Processing status (pending/processed/error)
+- \`{aio_type}\` - Content type (note/research/meeting/project/reference)
+- \`{aio_processed}\` - Processing timestamp
+- \`{aio_source}\` - Source type (url/pdf/youtube/audio)
+- \`{aio_source_url}\` - Original source URL
+- \`{aio_persona}\` - Summary persona used
+- \`{aio_model}\` - AI model used
+
+### Filter Operators
+
+- \`exists\` - Field has any value
+- \`equals\` - Field equals specific value
+- \`contains\` - Field contains substring
+`;
+    }
+
+    /**
+     * Get all bases templates
+     */
+    async getBasesTemplates(): Promise<BasesTemplate[]> {
+        const config = await this.loadConfig();
+        return config.basesTemplates;
+    }
+
+    /**
+     * Get bases templates by category
+     */
+    async getBasesTemplatesByCategory(category: 'default' | 'persona'): Promise<BasesTemplate[]> {
+        const config = await this.loadConfig();
+        return config.basesTemplates.filter(t => t.category === category);
+    }
+
+    /**
+     * Get a bases template by name
+     */
+    async getBasesTemplateByName(name: string): Promise<BasesTemplate | null> {
+        const config = await this.loadConfig();
+        return config.basesTemplates.find(t => t.name === name) || null;
     }
 }

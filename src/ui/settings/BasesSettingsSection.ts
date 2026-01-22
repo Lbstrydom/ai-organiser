@@ -77,10 +77,10 @@ export class BasesSettingsSection extends BaseSettingSection {
                     });
             });
 
-        // Dashboard info (moved creation to folder context menu)
+        // Dashboard info
         const dashboardInfo = this.containerEl.createDiv({ cls: 'setting-item-description' });
         dashboardInfo.style.marginTop = '12px';
         dashboardInfo.innerHTML = this.plugin.t.settings.bases.dashboardInfo ||
-            'To create dashboards, right-click a folder and select "Create Bases Dashboard Here", or use the command palette.';
+            'To create dashboards, right-click a folder and select "Create Bases Dashboard Here".';
     }
 }

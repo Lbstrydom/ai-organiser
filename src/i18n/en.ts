@@ -230,7 +230,10 @@ export const en: Translations = {
             dashboardAction: "Create Dashboards",
             dashboardActionDesc: "Generate .base files for Obsidian Bases",
             dashboardButton: "Create",
-            dashboardInfo: "To create dashboards, right-click a folder and select 'Create Bases Dashboard', or use the command palette."
+            dashboardInfo: "To create dashboards, right-click a folder and select 'Create Bases Dashboard', or use the command palette.",
+            editTemplates: "Edit Dashboard Templates",
+            editTemplatesDesc: "Customize the dashboard templates available when creating Bases dashboards",
+            editTemplatesButton: "Edit Templates"
         },
         notebookLM: {
             title: "NotebookLM Integration",
@@ -832,10 +835,12 @@ export const en: Translations = {
             personaTemplates: "Persona Templates",
             selectAll: "Select All",
             selectNone: "Clear Selection",
-            createButton: "Create Dashboards",
+            createButton: "Create Dashboard",
             noTemplatesSelected: "Please select at least one template",
             allCreated: "{count} dashboards created successfully",
-            someCreated: "{created} dashboards created, {failed} failed"
+            someCreated: "{created} dashboards created, {failed} failed",
+            willCreate: "This will create a dashboard showing all AI-processed notes in this folder and subfolders.",
+            created: "Dashboard created in {folder}"
         },
         notebookLMExport: {
             title: "Export Source Pack",
