@@ -10,6 +10,7 @@ import { registerSemanticSearchCommands } from './semanticSearchCommands';
 import { registerChatCommands } from './chatCommands';
 import { registerMigrationCommands } from './migrationCommands';
 import { registerDashboardCommands } from './dashboardCommands';
+import { registerNotebookLMCommands } from './notebookLMCommands';
 import AIOrganiserPlugin from '../main';
 
 export function registerCommands(plugin: AIOrganiserPlugin) {
@@ -25,4 +26,5 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerChatCommands(plugin);
     registerMigrationCommands(plugin);
     registerDashboardCommands(plugin);
+    registerNotebookLMCommands(plugin);
 }

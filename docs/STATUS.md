@@ -60,6 +60,7 @@ main.ts (Plugin)
 | **Smart Notes** | Improve, Find resources, Diagrams | AI personas, Mermaid support |
 | **Translation** | Note, Selection | 20+ languages |
 | **Semantic Search** | Search, Index, Related notes | Voy WASM, 5 embedding providers |
+| **NotebookLM** | Export, Toggle, Clear, Open folder | Sanitized source packs, modular export |
 | **Utilities** | Tag network, Export flashcards | D3.js visualization, Anki/Brainscape |
 
 ### LLM Providers
@@ -91,8 +92,9 @@ Settings display in logical order:
 4. **Summarization** - Length, personas, transcript saving
 5. **Semantic Search** - Embeddings, indexing, RAG options
 6. **Obsidian Bases** - Structured metadata, migration, dashboards
-7. **Mobile** - Provider fallback, vector store guards
-8. **Configuration** - Config folder, taxonomy files
+7. **NotebookLM** - Export settings, sanitisation, module word budget
+8. **Mobile** - Provider fallback, vector store guards
+9. **Configuration** - Config folder, taxonomy files
 
 ---
 
@@ -156,10 +158,23 @@ AI-Organiser/
 - RAG-enhanced summarization with source citations
 - Search result caching (5-min TTL)
 
+### NotebookLM Integration (New)
+- Export Obsidian notes as sanitized source packs for NotebookLM
+- 8-step sanitisation pipeline (frontmatter, dataview, callouts, embeds, links, images, plugin noise)
+- 3 export modes: auto, modular (split by word budget), single file
+- Cycle detection for embedded notes
+- Revision management with automatic changelog generation
+- Stable anchors with short IDs for NotebookLM citations
+- Post-export tag actions (keep/clear/archive)
+- Full i18n support (EN/ZH-CN)
+
 ### Obsidian Bases Integration (Completed January 2025)
-- Structured metadata system (10 `aio_*` properties)
+- Structured metadata system (10 `aio_*` properties including `aio_persona`)
 - 4-stage migration wizard with smart content detection
-- 5 built-in dashboard templates (.base files)
+- 10 built-in dashboard templates (.base files) in 2 categories:
+  - 5 default templates (Knowledge Base, Research Tracker, etc.)
+  - 5 persona templates (Student, Executive, Casual, Researcher, Technical)
+- Persona tracking: `aio_persona` written to frontmatter during summarization
 - Conditional structured output in summarization
 - Complete bilingual support (EN/ZH-CN)
 - Settings section with migration and dashboard creation buttons

@@ -34,6 +34,9 @@ export const AIO_META = {
     
     /** Detected content language */
     LANGUAGE: 'aio_language',
+    
+    /** Persona ID used for summarization (e.g., 'student', 'executive') */
+    PERSONA: 'aio_persona',
 } as const;
 
 /**

@@ -8,6 +8,7 @@ import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
 import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
 import { MobileSettingsSection } from './MobileSettingsSection';
 import { BasesSettingsSection } from './BasesSettingsSection';
+import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -19,6 +20,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private semanticSearchSection?: SemanticSearchSettingsSection;
     private mobileSection?: MobileSettingsSection;
     private basesSection?: BasesSettingsSection;
+    private notebookLMSection?: NotebookLMSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -53,11 +55,15 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.basesSection = new BasesSettingsSection(this.plugin, containerEl, this);
         this.basesSection.display();
 
-        // 6. Mobile
+        // 6. NotebookLM integration
+        this.notebookLMSection = new NotebookLMSettingsSection(this.plugin, containerEl, this);
+        this.notebookLMSection.display();
+
+        // 7. Mobile
         this.mobileSection = new MobileSettingsSection(this.plugin, containerEl, this);
         this.mobileSection.display();
 
-        // 7. Configuration (advanced - config files)
+        // 8. Configuration (advanced - config files)
         this.configurationSection = new ConfigurationSettingsSection(this.plugin, containerEl, this);
         this.configurationSection.display();
     }

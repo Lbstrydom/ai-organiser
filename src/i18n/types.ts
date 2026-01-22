@@ -218,6 +218,57 @@ export interface Translations {
             dashboardActionDesc: string;
             dashboardButton: string;
         };
+        notebookLM: {
+            title: string;
+            description: string;
+            selectionTitle: string;
+            selectionTag: string;
+            selectionTagDesc: string;
+            exportFolder: string;
+            exportFolderDesc: string;
+            exportTitle: string;
+            exportMode: string;
+            exportModeDesc: string;
+            modeAuto: string;
+            modeModular: string;
+            modeSingle: string;
+            maxWords: string;
+            maxWordsDesc: string;
+            postExport: string;
+            postExportDesc: string;
+            actionKeep: string;
+            actionClear: string;
+            actionArchive: string;
+            sanitisationTitle: string;
+            removeFrontmatter: string;
+            removeFrontmatterDesc: string;
+            flattenCallouts: string;
+            flattenCalloutsDesc: string;
+            stripDataview: string;
+            stripDataviewDesc: string;
+            stripDataviewJs: string;
+            stripDataviewJsDesc: string;
+            imageHandling: string;
+            imageHandlingDesc: string;
+            imageStrip: string;
+            imagePlaceholder: string;
+            imageExport: string;
+            embedTitle: string;
+            resolveEmbeds: string;
+            resolveEmbedsDesc: string;
+            embedNone: string;
+            embedTitleOnly: string;
+            embedExcerpt: string;
+            embedMaxDepth: string;
+            embedMaxDepthDesc: string;
+            embedMaxChars: string;
+            embedMaxCharsDesc: string;
+            linkContextTitle: string;
+            includeLinkContext: string;
+            includeLinkContextDesc: string;
+            linkContextMaxChars: string;
+            linkContextMaxCharsDesc: string;
+        };
     };
 
     // Commands
@@ -266,6 +317,10 @@ export interface Translations {
         upgradeToBases: string;
         upgradeFolderToBases: string;
         createBasesDashboard: string;
+        notebookLMExport: string;
+        notebookLMToggle: string;
+        notebookLMClear: string;
+        notebookLMOpenFolder: string;
     };
 
     // Messages and notifications
@@ -413,6 +468,19 @@ export interface Translations {
         mobileIndexTooLarge: string;
         mobileDataWarning: string;
         mobileExternalNotSupported: string;
+        notebookLMServiceNotReady: string;
+        notebookLMNoSelection: string;
+        notebookLMExporting: string;
+        notebookLMExportComplete: string;
+        notebookLMExportFailed: string;
+        notebookLMSelectionAdded: string;
+        notebookLMSelectionRemoved: string;
+        notebookLMToggleFailed: string;
+        notebookLMSelectionCleared: string;
+        notebookLMClearFailed: string;
+        notebookLMFolderNotFound: string;
+        notebookLMOpenFolderFailed: string;
+        desktopOnly: string;
     };
 
     // Common UI strings
@@ -756,12 +824,41 @@ export interface Translations {
             folderPrompt: string;
             folderError: string;
             templateTitle: string;
+            defaultTemplates: string;
+            personaTemplates: string;
             selectAll: string;
             selectNone: string;
             createButton: string;
             noTemplatesSelected: string;
             allCreated: string;
             someCreated: string;
+        };
+        notebookLMExport: {
+            title: string;
+            description: string;
+            statsTitle: string;
+            noteCount: string;
+            wordCount: string;
+            moduleCount: string;
+            scope: string;
+            warningsTitle: string;
+            configTitle: string;
+            exportModeLabel: string;
+            exportModeDesc: string;
+            modeAuto: string;
+            modeModular: string;
+            modeSingle: string;
+            wordBudgetLabel: string;
+            wordBudgetDesc: string;
+            postExportLabel: string;
+            postExportDesc: string;
+            actionKeep: string;
+            actionClear: string;
+            actionArchive: string;
+            notesTitle: string;
+            showNotes: string;
+            hideNotes: string;
+            exportButton: string;
         };
     };
 

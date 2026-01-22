@@ -2269,6 +2269,19 @@
     font-size: var(--font-ui-large);
 }
 
+.ai-organiser-dashboard-modal h4 {
+    margin: var(--size-4-4) 0 var(--size-4-2) 0;
+    color: var(--text-muted);
+    font-size: var(--font-ui-medium);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ai-organiser-template-category {
+    margin-bottom: var(--size-4-5);
+}
+
 .ai-organiser-dashboard-description {
     color: var(--text-muted);
     margin-bottom: var(--size-4-5);
@@ -2300,6 +2313,22 @@
     height: 18px;
     flex-shrink: 0;
     cursor: pointer;
+}
+
+.ai-organiser-template-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-top: var(--size-2-1);
+    flex-shrink: 0;
+    color: var(--interactive-accent);
+}
+
+.ai-organiser-template-icon svg {
+    width: 20px;
+    height: 20px;
 }
 
 .ai-organiser-template-label {

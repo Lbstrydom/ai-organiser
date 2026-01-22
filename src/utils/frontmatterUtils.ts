@@ -20,6 +20,7 @@ export interface AIOMetadata {
     [AIO_META.SOURCE_URL]?: string;
     [AIO_META.WORD_COUNT]?: number;
     [AIO_META.LANGUAGE]?: string;
+    [AIO_META.PERSONA]?: string;
 }
 
 /**

@@ -53,7 +53,8 @@ async function updateNoteMetadataAfterSummary(
     suggestedTags: string[],
     contentType: string,
     sourceType?: SourceType,
-    sourceUrl?: string
+    sourceUrl?: string,
+    personaId?: string
 ): Promise<void> {
     if (!plugin.settings.enableStructuredMetadata) {
         return;
@@ -74,6 +75,11 @@ async function updateNoteMetadataAfterSummary(
         aio_processed: new Date().toISOString(),
         aio_word_count: wordCount
     };
+    
+    // Add persona if provided
+    if (personaId) {
+        metadata.aio_persona = personaId;
+    }
 
     // Add source info if available
     if (sourceType) {
@@ -239,15 +245,14 @@ async function executeSmartSummarize(
         return;
     }
 
-    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(
-        plugin.settings.defaultSummaryPersona
-    );
+    const defaultPersonaId = plugin.settings.defaultSummaryPersona;
+    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
 
     const selection = editor.getSelection().trim();
     if (selection) {
         const selectionTarget = detectTargetFromText(plugin, selection, view.file, false);
         if (selectionTarget.type !== 'none') {
-            await handleSmartTarget(plugin, pdfService, editor, selectionTarget, personaPrompt);
+            await handleSmartTarget(plugin, pdfService, editor, selectionTarget, personaPrompt, defaultPersonaId);
             return;
         }
 
@@ -261,20 +266,20 @@ async function executeSmartSummarize(
     if (isYouTubeUrlText(line)) {
         const url = extractUrl(line);
         if (url) {
-            await handleYouTubeSummarization(plugin, editor, url, personaPrompt);
+            await handleYouTubeSummarization(plugin, editor, url, personaPrompt, undefined, defaultPersonaId);
             return;
         }
     }
 
     const lineTarget = detectTargetFromText(plugin, line, view.file, false);
     if (lineTarget.type !== 'none') {
-        await handleSmartTarget(plugin, pdfService, editor, lineTarget, personaPrompt);
+        await handleSmartTarget(plugin, pdfService, editor, lineTarget, personaPrompt, defaultPersonaId);
         return;
     }
 
     const frontmatterTarget = detectTargetFromFrontmatter(plugin, view.file);
     if (frontmatterTarget.type !== 'none') {
-        await handleSmartTarget(plugin, pdfService, editor, frontmatterTarget, personaPrompt);
+        await handleSmartTarget(plugin, pdfService, editor, frontmatterTarget, personaPrompt, defaultPersonaId);
         return;
     }
 
@@ -286,7 +291,8 @@ async function handleSmartTarget(
     pdfService: PdfService,
     editor: Editor,
     target: SmartSummarizeTarget,
-    personaPrompt: string
+    personaPrompt: string,
+    personaId?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -299,10 +305,10 @@ async function handleSmartTarget(
 
     if (target.type === 'url') {
         if (isYouTubeUrlText(target.url)) {
-            await handleYouTubeSummarization(plugin, editor, target.url, personaPrompt);
+            await handleYouTubeSummarization(plugin, editor, target.url, personaPrompt, undefined, personaId);
             return;
         }
-        await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt);
+        await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt, undefined, personaId);
         return;
     }
 
@@ -311,7 +317,7 @@ async function handleSmartTarget(
             new Notice(plugin.t.messages.pdfNotSupported);
             return;
         }
-        await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt);
+        await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt, undefined, personaId);
         return;
     }
 
@@ -324,7 +330,7 @@ async function handleSmartTarget(
             new Notice(plugin.t.messages.pdfNotSupported);
             return;
         }
-        await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt);
+        await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt, undefined, personaId);
         return;
     }
 }
@@ -393,7 +399,7 @@ async function openUrlSummarizeModal(
         personas,
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context);
+            await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context, result.personaId);
         }
     );
     modal.open();
@@ -463,12 +469,12 @@ async function openPdfSummarizeModal(
         async (result) => {
             if (result.file) {
                 const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
+                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context, result.personaId);
             }
         },
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context);
+            await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context, result.personaId);
         }
     );
     modal.open();
@@ -486,7 +492,7 @@ async function openYouTubeSummarizeModal(
         personas,
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context);
+            await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context, result.personaId);
         }
     );
     modal.open();
@@ -688,7 +694,8 @@ async function handleUrlSummarization(
     editor: Editor,
     url: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -741,13 +748,13 @@ async function handleUrlSummarization(
                 return;
             } else if (choice === 'truncate') {
                 const truncatedContent = truncateContent(content, serviceType);
-                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext);
+                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext, personaId);
                 new Notice(plugin.t.messages.contentTruncated);
             } else if (choice === 'chunk') {
                 await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext);
             }
         } else {
-            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext);
+            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId);
         }
 
     } else if (result.requiresPdfFallback) {
@@ -813,7 +820,8 @@ async function handlePdfSummarization(
     editor: Editor,
     file: TFile,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -837,7 +845,7 @@ async function handlePdfSummarization(
         return;
     }
 
-    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, true);
+    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, true, personaId);
 }
 
 /**
@@ -849,7 +857,8 @@ async function handleExternalPdfSummarization(
     editor: Editor,
     filePath: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -871,7 +880,7 @@ async function handleExternalPdfSummarization(
         return;
     }
 
-    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, false);
+    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, false, personaId);
 }
 
 /**
@@ -1248,7 +1257,8 @@ async function handleYouTubeSummarization(
     editor: Editor,
     url: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -1309,13 +1319,13 @@ async function handleYouTubeSummarization(
             return;
         } else if (choice === 'truncate') {
             const truncatedContent = truncateContent(transcript, serviceType);
-            await summarizeYouTubeAndInsert(plugin, editor, truncatedContent, videoInfo, personaPrompt, transcriptPath, userContext);
+            await summarizeYouTubeAndInsert(plugin, editor, truncatedContent, videoInfo, personaPrompt, transcriptPath, userContext, personaId);
             new Notice(plugin.t.messages.contentTruncated);
         } else if (choice === 'chunk') {
-            await summarizeYouTubeInChunks(plugin, editor, transcript, videoInfo, serviceType, personaPrompt, transcriptPath, userContext);
+            await summarizeYouTubeInChunks(plugin, editor, transcript, videoInfo, serviceType, personaPrompt, transcriptPath, userContext, personaId);
         }
     } else {
-        await summarizeYouTubeAndInsert(plugin, editor, transcript, videoInfo, personaPrompt, transcriptPath, userContext);
+        await summarizeYouTubeAndInsert(plugin, editor, transcript, videoInfo, personaPrompt, transcriptPath, userContext, personaId);
     }
 }
 
@@ -1329,7 +1339,8 @@ async function summarizeYouTubeAndInsert(
     videoInfo: YouTubeVideoInfo | undefined,
     personaPrompt: string,
     transcriptPath?: string | null,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
@@ -1347,6 +1358,23 @@ async function summarizeYouTubeAndInsert(
         if (response.success && response.content) {
             insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath);
             new Notice(plugin.t.messages.summaryInserted);
+
+            // Update metadata with persona if structured metadata is enabled
+            if (plugin.settings.enableStructuredMetadata && personaId) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && videoInfo) {
+                    await updateNoteMetadataAfterSummary(
+                        plugin,
+                        view,
+                        response.content.substring(0, 280),
+                        [],
+                        'research',
+                        'youtube',
+                        getYouTubeUrl(videoInfo.videoId),
+                        personaId
+                    );
+                }
+            }
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
         }
@@ -1367,7 +1395,8 @@ async function summarizeYouTubeInChunks(
     provider: string,
     personaPrompt: string,
     transcriptPath?: string | null,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     const limits = getProviderLimits(provider);
     const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
@@ -1425,6 +1454,23 @@ async function summarizeYouTubeInChunks(
         if (response.success && response.content) {
             insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath);
             new Notice(plugin.t.messages.summaryInserted);
+
+            // Update metadata with persona if structured metadata is enabled
+            if (plugin.settings.enableStructuredMetadata && personaId) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view && videoInfo) {
+                    await updateNoteMetadataAfterSummary(
+                        plugin,
+                        view,
+                        response.content.substring(0, 280),
+                        [],
+                        'research',
+                        'youtube',
+                        getYouTubeUrl(videoInfo.videoId),
+                        personaId
+                    );
+                }
+            }
         } else {
             insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath);
             new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
@@ -1515,7 +1561,8 @@ async function summarizeAndInsert(
     content: string,
     webContent: WebContent,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    personaId?: string
 ): Promise<void> {
     // Use structured output if enabled, otherwise use traditional prompts
     if (plugin.settings.enableStructuredMetadata) {
@@ -1551,7 +1598,8 @@ async function summarizeAndInsert(
                             structured.suggested_tags || [],
                             structured.content_type || 'note',
                             'url',
-                            webContent.url
+                            webContent.url,
+                            personaId
                         );
                     }
                 } else {
@@ -1925,7 +1973,8 @@ async function summarizePdfContent(
     pdfContent: PdfContent,
     personaPrompt: string,
     userContext: string | undefined,
-    isInternal: boolean
+    isInternal: boolean,
+    personaId?: string
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
@@ -1942,6 +1991,23 @@ async function summarizePdfContent(
         if (response.success && response.content) {
             insertPdfSummary(editor, response.content, pdfContent, plugin, isInternal);
             new Notice(plugin.t.messages.summaryInserted);
+
+            // Update metadata with persona if structured metadata is enabled
+            if (plugin.settings.enableStructuredMetadata && personaId) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view) {
+                    await updateNoteMetadataAfterSummary(
+                        plugin,
+                        view,
+                        response.content.substring(0, 280), // Summary hook
+                        [],
+                        'reference',
+                        'pdf',
+                        pdfContent.filePath,
+                        personaId
+                    );
+                }
+            }
         } else {
             new Notice(`PDF summarization failed: ${response.error || 'Unknown error'}`);
         }

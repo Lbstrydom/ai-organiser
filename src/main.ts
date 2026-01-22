@@ -27,6 +27,8 @@ import { VectorStoreService, IVectorStore } from './services/vector';
 import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
+import { SourcePackService } from './services/notebooklm/sourcePackService';
+import type { SourcePackConfig } from './services/notebooklm/types';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
@@ -35,6 +37,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public embeddingService: IEmbeddingService | null = null;
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
+    public sourcePackService: SourcePackService | null = null;
     private eventHandlers: EventHandlers;
     private tagNetworkManager: TagNetworkManager;
     private tagOperations: TagOperations;
@@ -104,6 +107,33 @@ export default class AIOrganiserPlugin extends Plugin {
 
     private getProviderApiKey(type: AdapterType): string {
         return this.settings.providerSettings?.[type]?.apiKey || this.settings.cloudApiKey;
+    }
+
+    /**
+     * Initialize or reinitialize the NotebookLM source pack service
+     */
+    private initializeSourcePackService(): void {
+        const config: SourcePackConfig = {
+            exportMode: this.settings.notebooklmExportMode,
+            maxWordsPerModule: this.settings.notebooklmMaxWordsPerModule,
+            removeFrontmatter: this.settings.notebooklmRemoveFrontmatter,
+            flattenCallouts: this.settings.notebooklmFlattenCallouts,
+            stripDataview: this.settings.notebooklmStripDataview,
+            stripDataviewJs: this.settings.notebooklmStripDataviewJs,
+            resolveEmbeds: this.settings.notebooklmResolveEmbeds,
+            embedMaxDepth: this.settings.notebooklmEmbedMaxDepth,
+            embedMaxChars: this.settings.notebooklmEmbedMaxChars,
+            includeLinkContext: this.settings.notebooklmIncludeLinkContext,
+            linkContextMaxChars: this.settings.notebooklmLinkContextMaxChars,
+            linkContextDepth: this.settings.notebooklmLinkContextDepth,
+            imageHandling: this.settings.notebooklmImageHandling,
+            postExportTagAction: this.settings.notebooklmPostExportTagAction
+        };
+
+        this.sourcePackService = new SourcePackService(this.app, config);
+        this.sourcePackService.initialize().catch(error => {
+            console.error('Failed to initialize NotebookLM source pack service:', error);
+        });
     }
 
     private getProviderModel(type: AdapterType): string {
@@ -228,6 +258,9 @@ export default class AIOrganiserPlugin extends Plugin {
                 new Notice('Failed to initialize semantic search: ' + (error as any).message, 5000);
             }
         }
+
+        // Initialize NotebookLM source pack service
+        this.initializeSourcePackService();
 
         this.eventHandlers.registerEventHandlers();
         this.addSettingTab(new AIOrganiserSettingTab(this.app, this));

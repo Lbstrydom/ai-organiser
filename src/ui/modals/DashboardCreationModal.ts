@@ -3,10 +3,10 @@
  * UI for creating Obsidian Bases dashboards
  */
 
-import { App, Modal, Notice, TFolder, Setting } from 'obsidian';
+import { App, Modal, Notice, TFolder, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { DashboardService } from '../../services/dashboardService';
-import { DashboardTemplate } from '../../services/dashboardTemplates';
+import { DashboardTemplate, getTemplatesByCategory } from '../../services/dashboardTemplates';
 
 /**
  * Modal for creating Bases dashboards
@@ -90,11 +90,24 @@ export class DashboardCreationModal extends Modal {
         const templateSection = container.createDiv({ cls: 'ai-organiser-dashboard-section' });
         templateSection.createEl('h3', { text: this.plugin.t.modals.dashboardCreation.templateTitle });
         
-        const templates = this.dashboardService.getAvailableTemplates();
-        
-        templates.forEach(template => {
-            this.createTemplateCheckbox(templateSection, template);
+        // Default templates section
+        const defaultSection = templateSection.createDiv({ cls: 'ai-organiser-template-category' });
+        defaultSection.createEl('h4', { text: this.plugin.t.modals.dashboardCreation.defaultTemplates || 'Default Templates' });
+        const defaultTemplates = getTemplatesByCategory('default');
+        defaultTemplates.forEach(template => {
+            this.createTemplateCheckbox(defaultSection, template);
         });
+        
+        // Persona templates section
+        const personaSection = templateSection.createDiv({ cls: 'ai-organiser-template-category' });
+        personaSection.createEl('h4', { text: this.plugin.t.modals.dashboardCreation.personaTemplates || 'Persona Templates' });
+        const personaTemplates = getTemplatesByCategory('persona');
+        personaTemplates.forEach(template => {
+            this.createTemplateCheckbox(personaSection, template);
+        });
+        
+        // Get all templates for quick actions
+        const allTemplates = [...defaultTemplates, ...personaTemplates];
         
         // Quick actions
         const quickActions = templateSection.createDiv({ cls: 'ai-organiser-dashboard-quick-actions' });
@@ -103,7 +116,7 @@ export class DashboardCreationModal extends Modal {
             text: this.plugin.t.modals.dashboardCreation.selectAll
         });
         selectAllBtn.addEventListener('click', () => {
-            templates.forEach(t => this.selectedTemplates.add(t.name));
+            allTemplates.forEach(t => this.selectedTemplates.add(t.name));
             this.contentEl.empty();
             this.renderContent();
         });
@@ -148,6 +161,12 @@ export class DashboardCreationModal extends Modal {
             this.contentEl.empty();
             this.renderContent();
         });
+        
+        // Add icon for persona templates
+        if (template.icon) {
+            const iconSpan = templateItem.createSpan({ cls: 'ai-organiser-template-icon' });
+            setIcon(iconSpan, template.icon);
+        }
         
         const label = templateItem.createDiv({ cls: 'ai-organiser-template-label' });
         label.createEl('strong', { text: template.name });

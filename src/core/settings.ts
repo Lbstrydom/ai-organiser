@@ -114,6 +114,37 @@ export interface AIOrganiserSettings {
     mobileCustomEndpoint: string;
     mobileIndexingMode: 'disabled' | 'read-only' | 'full';
     mobileIndexSizeLimit: number;        // Max index size (MB) before skipping load
+
+    // === NOTEBOOKLM INTEGRATION ===
+    // Selection
+    notebooklmSelectionTag: string;      // Tag to mark notes for export (default: 'notebooklm')
+    notebooklmExportFolder: string;      // Root folder for pack exports (under pluginFolder)
+    
+    // Export Configuration
+    notebooklmExportMode: 'auto' | 'modular' | 'single';
+    notebooklmMaxWordsPerModule: number; // Word budget per module (default: 120,000; max: 500,000)
+    
+    // Sanitisation Options
+    notebooklmRemoveFrontmatter: boolean;
+    notebooklmFlattenCallouts: boolean;
+    notebooklmStripDataview: boolean;
+    notebooklmStripDataviewJs: boolean;
+    
+    // Embed Handling
+    notebooklmResolveEmbeds: 'none' | 'titleOnly' | 'excerpt';
+    notebooklmEmbedMaxDepth: number;
+    notebooklmEmbedMaxChars: number;
+    
+    // Link Context (optional feature)
+    notebooklmIncludeLinkContext: boolean;
+    notebooklmLinkContextMaxChars: number;
+    notebooklmLinkContextDepth: number;
+    
+    // Image Handling
+    notebooklmImageHandling: 'strip' | 'placeholder' | 'exportAssets';
+    
+    // Post-Export Actions
+    notebooklmPostExportTagAction: 'keep' | 'clear' | 'archive';
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -174,6 +205,24 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     mobileCustomEndpoint: '',
     mobileIndexingMode: 'read-only',
     mobileIndexSizeLimit: 50,
+    
+    // NotebookLM Integration Defaults
+    notebooklmSelectionTag: 'notebooklm',
+    notebooklmExportFolder: 'NotebookLM',               // Under AI-Organiser/NotebookLM/
+    notebooklmExportMode: 'auto',
+    notebooklmMaxWordsPerModule: 120000,                // 120k words (safely under 500k limit)
+    notebooklmRemoveFrontmatter: true,
+    notebooklmFlattenCallouts: true,
+    notebooklmStripDataview: true,
+    notebooklmStripDataviewJs: true,
+    notebooklmResolveEmbeds: 'none',                    // Default: omit embed content
+    notebooklmEmbedMaxDepth: 2,
+    notebooklmEmbedMaxChars: 2000,
+    notebooklmIncludeLinkContext: false,
+    notebooklmLinkContextMaxChars: 1000,
+    notebooklmLinkContextDepth: 1,
+    notebooklmImageHandling: 'strip',                   // Default: remove image noise
+    notebooklmPostExportTagAction: 'keep',
 };
 
 /**

@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.0.0",
+    "@types/uuid": "^10.0.0",
     "builtin-modules": "^5.0.0",
     "esbuild": "^0.27.0",
     "obsidian": "latest",
@@ -35,6 +36,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "js-yaml": "^4.1.0",
+    "uuid": "^13.0.0",
     "voy-search": "^0.6.0"
   }
 }

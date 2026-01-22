@@ -461,14 +461,22 @@ The Bases integration enables structured metadata and dashboard generation for s
 ### Dashboard Generation
 
 **Templates** ([src/services/dashboardTemplates.ts](src/services/dashboardTemplates.ts))
-- 5 built-in `.base` templates:
-  1. **General Knowledge Base**: All processed notes with status filters
-  2. **Research Tracker**: `type=research` with source URL column
-  3. **Pending Review**: `status=pending` sorted by created date
-  4. **Content by Type**: Grouped by `aio_type`
-  5. **Processing Errors**: `status=error` for troubleshooting
+- 10 built-in `.base` templates in 2 categories:
+  - **Default Templates** (5):
+    1. **General Knowledge Base**: All processed notes with status filters
+    2. **Research Tracker**: `type=research` with source URL column
+    3. **Pending Review**: `status=pending` sorted by created date
+    4. **Content by Type**: Grouped by `aio_type`
+    5. **Processing Errors**: `status=error` for troubleshooting
+  - **Persona Templates** (5): Filter by `aio_persona` field
+    1. **Study Notes**: Student persona (icon: graduation-cap)
+    2. **Executive Briefings**: Executive persona (icon: briefcase)
+    3. **Casual Reads**: Casual persona (icon: smile)
+    4. **Research Papers**: Researcher persona (icon: microscope)
+    5. **Tech Documentation**: Technical persona (icon: code)
+- `DashboardCategory` type: `'default' | 'persona'`
 - YAML structure: `filters[]`, `columns[]`, `sorting[]`, optional `grouping[]`
-- `getTemplateByName()` and `getTemplateNames()` helpers
+- `getTemplateByName()`, `getTemplateNames()`, `getTemplatesByCategory()` helpers
 
 **Dashboard Service** ([src/services/dashboardService.ts](src/services/dashboardService.ts))
 - `createDashboard(options)`: Create single `.base` file from template
@@ -545,4 +553,9 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Planned Features
+
+See `docs/` folder for implementation plans:
+- [docs/notebooklm_integration_plan.md](docs/notebooklm_integration_plan.md): NotebookLM Source Pack export for consumer mode
 
