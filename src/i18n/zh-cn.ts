@@ -1,6 +1,17 @@
 import { Translations } from './types';
 
 export const zhCN: Translations = {
+    // Common UI strings
+    common: {
+        cancel: '取消',
+        close: '关闭',
+        back: '返回',
+        next: '下一步',
+        save: '保存',
+        delete: '删除',
+        confirm: '确认'
+    },
+
     // 设置部分
     settings: {
         llm: {
@@ -199,6 +210,26 @@ export const zhCN: Translations = {
             indexSizeLimit: "索引大小限制（MB）",
             indexSizeLimitDesc: "超过此大小则跳过加载索引",
             desktopOnlyNote: "这些设置仅在移动端生效。"
+        },
+        bases: {
+            title: "Obsidian Bases 集成",
+            description: "为 Obsidian Bases 仪表板配置结构化元数据。这些设置控制 AI Organiser 如何向您的笔记添加元数据属性。",
+            enableStructuredMetadata: "启用结构化元数据",
+            enableStructuredMetadataDesc: "在 AI 处理期间向笔记添加 aio_* 元数据属性",
+            includeModelInMetadata: "包含模型信息",
+            includeModelInMetadataDesc: "记录使用的 AI 模型",
+            autoDetectContentType: "自动检测内容类型",
+            autoDetectContentTypeDesc: "自动将笔记分类为笔记/研究/会议/项目/参考",
+            infoTitle: "关于 Bases 集成",
+            info1: "结构化元数据可通过 Obsidian Bases 插件实现丰富的仪表板。",
+            info2: "使用迁移工具为现有笔记添加元数据。",
+            info3: "创建 .base 仪表板文件来可视化您的知识库。",
+            migrateAction: "迁移现有笔记",
+            migrateActionDesc: "升级笔记以包含 Bases 兼容的元数据",
+            migrateButton: "迁移",
+            dashboardAction: "创建仪表板",
+            dashboardActionDesc: "为 Obsidian Bases 生成 .base 文件",
+            dashboardButton: "创建"
         }
     },
 
@@ -244,7 +275,10 @@ export const zhCN: Translations = {
         manageIndex: "管理索引",
         showRelatedNotes: "显示相关笔记",
         searchSemanticVault: "语义搜索库",
-        chatWithVault: "与库聊天（RAG）"
+        chatWithVault: "与库聊天（RAG）",
+        upgradeToBases: "升级到 Bases 元数据",
+        upgradeFolderToBases: "升级文件夹到 Bases 元数据",
+        createBasesDashboard: "创建 Bases 仪表板"
     },
 
     // 消息和通知
@@ -687,6 +721,49 @@ export const zhCN: Translations = {
             closeButton: "关闭",
             ramWarning: "⚠️ 您的系统内存少于 8GB。性能可能受限。",
             ramRecommendation: "💡 建议：8GB+ RAM 以实现流畅的嵌入生成。"
+        },
+        migration: {
+            title: "升级到 Bases 元数据",
+            analyzing: "正在分析笔记...",
+            analysisTitle: "迁移分析",
+            totalNotes: "总笔记数",
+            needsMigration: "需要迁移",
+            alreadyMigrated: "已迁移",
+            noMigrationNeeded: "所有笔记已是最新状态！",
+            analysisFailed: "分析失败",
+            optionsTitle: "迁移选项",
+            overwriteExisting: "覆盖现有元数据",
+            extractSummary: "从笔记内容中提取摘要",
+            optionsInfo: "迁移将向笔记的 frontmatter 添加 aio_* 元数据属性。现有标签和内容将被保留。",
+            startMigration: "开始迁移",
+            progressTitle: "迁移进行中",
+            starting: "正在开始迁移...",
+            processing: "正在处理",
+            failed: "迁移失败",
+            resultsTitle: "迁移完成",
+            processed: "已处理",
+            updated: "已更新",
+            skipped: "已跳过",
+            errors: "错误",
+            errorList: "错误详情：",
+            moreErrors: "以及 {count} 个其他错误",
+            completed: "迁移成功完成！您的笔记现已支持 Bases。"
+        },
+        dashboardCreation: {
+            title: "创建 Bases 仪表板",
+            description: "选择仪表板模板以创建用于 Obsidian Bases 集成的 .base 文件。",
+            folderTitle: "仪表板位置",
+            folderLabel: "目标文件夹",
+            changeFolder: "更改",
+            folderPrompt: "输入仪表板的文件夹路径：",
+            folderError: "无效的文件夹路径",
+            templateTitle: "选择模板",
+            selectAll: "全选",
+            selectNone: "清除选择",
+            createButton: "创建仪表板",
+            noTemplatesSelected: "请至少选择一个模板",
+            allCreated: "成功创建 {count} 个仪表板",
+            someCreated: "创建了 {created} 个仪表板，{failed} 个失败"
         }
     },
 

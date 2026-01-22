@@ -78,6 +78,11 @@ export interface LLMService {
     dispose(): Promise<void>;
 
     setDebugMode(enabled: boolean): void;
+
+    /**
+     * Get the current model name (optional method for metadata tracking)
+     */
+    getModelName?(): string;
 }
 
 export interface ConnectionTestError {

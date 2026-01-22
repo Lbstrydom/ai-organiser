@@ -102,6 +102,11 @@ export interface AIOrganiserSettings {
     ragContextChunks: number;            // How many chunks to include in context (default: 5)
     ragIncludeMetadata: boolean;         // Include file path, headings in context
 
+    // === OBSIDIAN BASES INTEGRATION ===
+    enableStructuredMetadata: boolean;   // Use aio_* frontmatter properties for Bases
+    includeModelInMetadata: boolean;     // Track which LLM model was used
+    autoDetectContentType: boolean;      // Auto-classify content type
+
     // Mobile Settings
     mobileProviderMode: 'auto' | 'cloud-only' | 'custom';
     mobileFallbackProvider: AdapterType;
@@ -157,6 +162,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     enableVaultChat: false,                             // Phase 2 feature
     ragContextChunks: 5,                                // Standard context window
     ragIncludeMetadata: true,                           // Include paths/headings
+    
+    // Bases Integration Defaults
+    enableStructuredMetadata: true,                     // Enable by default
+    includeModelInMetadata: true,                       // Track model usage
+    autoDetectContentType: true,                        // Auto-classify content
+    
     mobileProviderMode: 'auto',
     mobileFallbackProvider: 'openai',
     mobileFallbackModel: 'gpt-5.2',

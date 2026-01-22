@@ -198,6 +198,26 @@ export interface Translations {
             indexSizeLimitDesc: string;
             desktopOnlyNote: string;
         };
+        bases: {
+            title: string;
+            description: string;
+            enableStructuredMetadata: string;
+            enableStructuredMetadataDesc: string;
+            includeModelInMetadata: string;
+            includeModelInMetadataDesc: string;
+            autoDetectContentType: string;
+            autoDetectContentTypeDesc: string;
+            infoTitle: string;
+            info1: string;
+            info2: string;
+            info3: string;
+            migrateAction: string;
+            migrateActionDesc: string;
+            migrateButton: string;
+            dashboardAction: string;
+            dashboardActionDesc: string;
+            dashboardButton: string;
+        };
     };
 
     // Commands
@@ -243,6 +263,9 @@ export interface Translations {
         showRelatedNotes: string;
         searchSemanticVault: string;
         chatWithVault: string;
+        upgradeToBases: string;
+        upgradeFolderToBases: string;
+        createBasesDashboard: string;
     };
 
     // Messages and notifications
@@ -390,6 +413,17 @@ export interface Translations {
         mobileIndexTooLarge: string;
         mobileDataWarning: string;
         mobileExternalNotSupported: string;
+    };
+
+    // Common UI strings
+    common: {
+        cancel: string;
+        close: string;
+        back: string;
+        next: string;
+        save: string;
+        delete: string;
+        confirm: string;
     };
 
     // Modal dialogs
@@ -685,6 +719,49 @@ export interface Translations {
             closeButton: string;
             ramWarning: string;
             ramRecommendation: string;
+        };
+        migration: {
+            title: string;
+            analyzing: string;
+            analysisTitle: string;
+            totalNotes: string;
+            needsMigration: string;
+            alreadyMigrated: string;
+            noMigrationNeeded: string;
+            analysisFailed: string;
+            optionsTitle: string;
+            overwriteExisting: string;
+            extractSummary: string;
+            optionsInfo: string;
+            startMigration: string;
+            progressTitle: string;
+            starting: string;
+            processing: string;
+            failed: string;
+            resultsTitle: string;
+            processed: string;
+            updated: string;
+            skipped: string;
+            errors: string;
+            errorList: string;
+            moreErrors: string;
+            completed: string;
+        };
+        dashboardCreation: {
+            title: string;
+            description: string;
+            folderTitle: string;
+            folderLabel: string;
+            changeFolder: string;
+            folderPrompt: string;
+            folderError: string;
+            templateTitle: string;
+            selectAll: string;
+            selectNone: string;
+            createButton: string;
+            noTemplatesSelected: string;
+            allCreated: string;
+            someCreated: string;
         };
     };
 

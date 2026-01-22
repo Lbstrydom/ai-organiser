@@ -1,6 +1,17 @@
 import { Translations } from './types';
 
 export const en: Translations = {
+    // Common UI strings
+    common: {
+        cancel: 'Cancel',
+        close: 'Close',
+        back: 'Back',
+        next: 'Next',
+        save: 'Save',
+        delete: 'Delete',
+        confirm: 'Confirm'
+    },
+
     // Settings sections
     settings: {
         llm: {
@@ -199,6 +210,26 @@ export const en: Translations = {
             indexSizeLimit: "Index Size Limit (MB)",
             indexSizeLimitDesc: "Skip loading the index if it exceeds this size",
             desktopOnlyNote: "These settings apply on mobile only."
+        },
+        bases: {
+            title: "Obsidian Bases Integration",
+            description: "Configure structured metadata for Obsidian Bases dashboards. These settings control how AI Organiser adds metadata properties to your notes.",
+            enableStructuredMetadata: "Enable structured metadata",
+            enableStructuredMetadataDesc: "Add aio_* metadata properties to notes during AI processing",
+            includeModelInMetadata: "Include model information",
+            includeModelInMetadataDesc: "Record which AI model was used for processing",
+            autoDetectContentType: "Auto-detect content type",
+            autoDetectContentTypeDesc: "Automatically classify notes as note/research/meeting/project/reference",
+            infoTitle: "About Bases Integration",
+            info1: "Structured metadata enables rich dashboards with Obsidian Bases plugin.",
+            info2: "Use the migration tool to upgrade existing notes with metadata.",
+            info3: "Create .base dashboard files to visualize your knowledge base.",
+            migrateAction: "Migrate Existing Notes",
+            migrateActionDesc: "Upgrade notes to include Bases-compatible metadata",
+            migrateButton: "Migrate",
+            dashboardAction: "Create Dashboards",
+            dashboardActionDesc: "Generate .base files for Obsidian Bases",
+            dashboardButton: "Create"
         }
     },
 
@@ -244,7 +275,10 @@ export const en: Translations = {
         manageIndex: "Manage index",
         showRelatedNotes: "Related notes",
         searchSemanticVault: "Semantic search",
-        chatWithVault: "Chat with vault"
+        chatWithVault: "Chat with vault",
+        upgradeToBases: "Upgrade to Bases metadata",
+        upgradeFolderToBases: "Upgrade folder to Bases metadata",
+        createBasesDashboard: "Create Bases dashboard"
     },
 
     // Messages and notifications
@@ -687,6 +721,49 @@ export const en: Translations = {
             closeButton: "Close",
             ramWarning: "⚠️ Your system has less than 8GB RAM. Performance may be limited.",
             ramRecommendation: "💡 Recommended: 8GB+ RAM for smooth embedding generation."
+        },
+        migration: {
+            title: "Upgrade to Bases Metadata",
+            analyzing: "Analyzing notes...",
+            analysisTitle: "Migration Analysis",
+            totalNotes: "Total notes",
+            needsMigration: "Needs migration",
+            alreadyMigrated: "Already migrated",
+            noMigrationNeeded: "All notes are already up to date!",
+            analysisFailed: "Analysis failed",
+            optionsTitle: "Migration Options",
+            overwriteExisting: "Overwrite existing metadata",
+            extractSummary: "Extract summaries from note content",
+            optionsInfo: "Migration will add aio_* metadata properties to your notes' frontmatter. Existing tags and content will be preserved.",
+            startMigration: "Start Migration",
+            progressTitle: "Migration in Progress",
+            starting: "Starting migration...",
+            processing: "Processing",
+            failed: "Migration failed",
+            resultsTitle: "Migration Complete",
+            processed: "Processed",
+            updated: "Updated",
+            skipped: "Skipped",
+            errors: "Errors",
+            errorList: "Error Details:",
+            moreErrors: "and {count} more errors",
+            completed: "Migration completed successfully! Your notes are now Bases-ready."
+        },
+        dashboardCreation: {
+            title: "Create Bases Dashboard",
+            description: "Select dashboard templates to create .base files for Obsidian Bases integration.",
+            folderTitle: "Dashboard Location",
+            folderLabel: "Target folder",
+            changeFolder: "Change",
+            folderPrompt: "Enter folder path for dashboards:",
+            folderError: "Invalid folder path",
+            templateTitle: "Select Templates",
+            selectAll: "Select All",
+            selectNone: "Clear Selection",
+            createButton: "Create Dashboards",
+            noTemplatesSelected: "Please select at least one template",
+            allCreated: "{count} dashboards created successfully",
+            someCreated: "{created} dashboards created, {failed} failed"
         }
     },
 

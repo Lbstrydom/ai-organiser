@@ -329,7 +329,11 @@ Key mobile constraints:
 - Touch interaction (sidebars are awkward)
 - Battery drain from background operations
 
-See `docs/mobile-optimization-plan.md` for full implementation details.
+Mobile settings section in plugin settings provides:
+- Tri-state provider mode (auto/cloud-only/custom)
+- Fallback provider selection
+- Index size limits and read-only mode
+- Custom endpoint for home servers
 
 ## Settings UX Patterns
 
@@ -387,7 +391,158 @@ Embedding models are provider-specific dropdowns (not free text):
 
 2026 model recommendations included: Llama 3.3, Qwen 2.5, DeepSeek R1, Mistral 7B, Phi-4.
 
-## Planned Features
+## Obsidian Bases Integration
 
-See `docs/` folder for implementation plans:
-- `mobile-optimization-plan.md`: Mobile environment adaptations
+**Status**: ✅ Fully Implemented (January 2025)
+
+See [docs/bases_integration.md](docs/bases_integration.md) for complete implementation details and [docs/bases_user_guide.md](docs/bases_user_guide.md) for user documentation.
+
+### Overview
+
+The Bases integration enables structured metadata and dashboard generation for seamless integration with the Obsidian Bases plugin. This allows users to:
+- Auto-populate 10 metadata properties during AI operations
+- Migrate existing notes to the new metadata format
+- Generate dashboard views with 5 built-in templates
+- Query and organize notes using Bases' powerful filtering system
+
+### Core Components
+
+**Metadata Namespace** ([src/core/constants.ts](src/core/constants.ts))
+- `AIO_META` object: 10 properties with `aio_` prefix
+- Core: `aio_summary`, `aio_status`, `aio_type`, `aio_processed`
+- Optional: `aio_model`, `aio_source`, `aio_source_url`, `aio_word_count`, `aio_language`, `aio_tags`
+- Type definitions: `ContentType`, `StatusValue`, `SourceType` enums
+- `SUMMARY_HOOK_MAX_LENGTH = 280` (optimized for Bases preview pane)
+
+**Frontmatter Utilities** ([src/utils/frontmatterUtils.ts](src/utils/frontmatterUtils.ts))
+- `updateAIOMetadata(app, file, metadata)`: CRUD operations preserving existing frontmatter
+- `getAIOMetadata(app, file)`: Read all `aio_*` properties
+- `createSummaryHook(summary)`: Truncate to 280 chars at sentence boundaries
+- `isAIOProcessed(app, file)`: Check processing status
+- `countWords(content)` and `detectLanguage(content)`: Auto-population helpers
+
+**Structured Prompts** ([src/services/prompts/structuredPrompts.ts](src/services/prompts/structuredPrompts.ts))
+- `StructuredSummaryResponse` interface: 5 fields (summary_hook, body_content, suggested_tags, content_type, detected_language)
+- `buildStructuredSummaryPrompt(options)`: XML-style prompt requesting JSON output
+- `insertContentIntoStructuredPrompt(prompt, content)`: Template function
+
+**Response Parser** ([src/utils/responseParser.ts](src/utils/responseParser.ts))
+- 4-tier fallback JSON parsing:
+  1. Direct `JSON.parse()` of response
+  2. Extract from markdown code fence (```json ... ```)
+  3. Search for JSON object in text ({...})
+  4. Create fallback from plain text (keyword detection)
+- `createFallbackResponse(text)`: Infers type from keywords, extracts #tags, uses first sentences
+- `sanitizeSummaryHook(hook)`: Validates 280-char limit
+
+### Migration System
+
+**Migration Service** ([src/services/migrationService.ts](src/services/migrationService.ts))
+- `analyzeMigrationScope(folder?)`: Counts `needsMigration` vs `alreadyMigrated`
+- `migrateNote(file, options)`: Extracts summaries from `##Summary`/`##TL;DR`/first paragraph
+- `determineStatus()`: Checks for existing tags (processed vs pending)
+- `detectContentType()`: Analyzes keywords (research/meeting/project/reference)
+- `migrateFolder()` and `migrateVault()`: Batch operations with progress callbacks
+- `extractSummaryFromContent()`: Regex patterns for section extraction
+- `getMarkdownFilesInFolder()`: Recursive traversal
+
+**Migration Modal** ([src/ui/modals/MigrationModal.ts](src/ui/modals/MigrationModal.ts))
+- 4-stage UI workflow:
+  1. **Analysis**: Display stats (total/needsMigration/alreadyMigrated)
+  2. **Options**: Toggle `overwriteExisting`, `extractSummary`
+  3. **Progress**: Live progress bar with updates
+  4. **Results**: Summary with error details
+- Each stage has dedicated `renderStage()` method with proper cleanup
+
+**Commands** ([src/commands/migrationCommands.ts](src/commands/migrationCommands.ts))
+- `upgrade-metadata`: Opens MigrationModal for entire vault
+- `upgrade-folder-metadata`: Opens MigrationModal scoped to current folder
+
+### Dashboard Generation
+
+**Templates** ([src/services/dashboardTemplates.ts](src/services/dashboardTemplates.ts))
+- 5 built-in `.base` templates:
+  1. **General Knowledge Base**: All processed notes with status filters
+  2. **Research Tracker**: `type=research` with source URL column
+  3. **Pending Review**: `status=pending` sorted by created date
+  4. **Content by Type**: Grouped by `aio_type`
+  5. **Processing Errors**: `status=error` for troubleshooting
+- YAML structure: `filters[]`, `columns[]`, `sorting[]`, optional `grouping[]`
+- `getTemplateByName()` and `getTemplateNames()` helpers
+
+**Dashboard Service** ([src/services/dashboardService.ts](src/services/dashboardService.ts))
+- `createDashboard(options)`: Create single `.base` file from template
+- `createDashboardsFromTemplates()`: Create multiple dashboards
+- `createCustomDashboard(fileName, content, folder)`: User-defined YAML
+- `getRecommendedDashboardFolder()`: Searches for 'Dashboards'/'Views'/'Bases'
+- `ensureDashboardFolder()`: Creates folder if needed
+- File validation: `.base` extension, YAML structure, prevents overwrites
+
+**Dashboard Modal** ([src/ui/modals/DashboardCreationModal.ts](src/ui/modals/DashboardCreationModal.ts))
+- Template picker UI with checkboxes and descriptions
+- Folder selector (can create new folders)
+- Quick actions: Select All / Clear Selection
+- Multi-select with `Set<string>` tracking
+- Validation: Must select at least 1 template
+
+**Commands** ([src/commands/dashboardCommands.ts](src/commands/dashboardCommands.ts))
+- `create-bases-dashboard`: Opens DashboardCreationModal
+
+### Settings Integration
+
+**Bases Settings Section** ([src/ui/settings/BasesSettingsSection.ts](src/ui/settings/BasesSettingsSection.ts))
+- 3 toggle settings:
+  - `enableStructuredMetadata`: Enable Bases integration (default: true)
+  - `includeModelInMetadata`: Add `aio_model` property (default: true)
+  - `autoDetectContentType`: Auto-detect content type from keywords (default: true)
+- Info box with usage guidance (3 bullet points)
+- 2 action buttons:
+  - **Migrate** (icon: database): Calls `upgrade-metadata` command
+  - **Create Dashboards** (icon: layout-dashboard): Calls `create-bases-dashboard` command
+- Uses `app.commands.executeCommandById()` to trigger commands
+
+### Summarization Integration
+
+**Conditional Structured Output** ([src/commands/summarizeCommands.ts](src/commands/summarizeCommands.ts))
+- `updateNoteMetadataAfterSummary()` function (lines 43-111):
+  - Checks `enableStructuredMetadata` setting
+  - Builds metadata object with `aio_summary`/`status`/`type`/`processed`/`word_count`
+  - Optionally adds `aio_model`, `aio_source`, `aio_source_url`
+  - Calls `updateAIOMetadata()` to write frontmatter
+  - Adds `suggested_tags` if present
+
+- `summarizeAndInsert()` modified (lines 1515-1599):
+  - **If `enableStructuredMetadata`**:
+    - Use `buildStructuredSummaryPrompt()`
+    - Parse JSON response with `parseStructuredResponse()`
+    - Extract `body_content`, `summary_hook`, `suggested_tags`, `content_type`
+    - Insert body content into note
+    - Update metadata with `updateNoteMetadataAfterSummary()`
+  - **Else**: Use traditional `buildSummaryPrompt()` (backward compatibility)
+
+### Key Implementation Patterns
+
+**Namespace Isolation**: All metadata uses `aio_` prefix to avoid conflicts with other plugins
+
+**280-Char Summaries**: Optimized for Bases preview pane, truncates at sentence boundaries
+
+**Graceful Degradation**: Works without Bases plugin (metadata still useful for Dataview, search)
+
+**Type Safety**: `ContentType`, `StatusValue`, `SourceType` enums in constants.ts
+
+**Bilingual Support**: Complete EN + ZH-CN translations for all UI elements (130+ strings)
+
+**4-Tier JSON Parsing**: Handles various LLM response formats gracefully
+
+**Backward Compatibility**: Structured output controlled by settings toggle, preserves existing summarization behavior when disabled
+
+### Integration Points
+
+**Tag Generation**: Suggested tags from structured responses automatically added to frontmatter
+
+**Semantic Search**: Content type filters improve RAG context retrieval
+
+**Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
+
+**Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+

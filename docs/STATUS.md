@@ -90,7 +90,9 @@ Settings display in logical order:
 3. **Tagging** - Max tags, exclusions, note structure toggle
 4. **Summarization** - Length, personas, transcript saving
 5. **Semantic Search** - Embeddings, indexing, RAG options
-6. **Configuration** - Config folder, taxonomy files
+6. **Obsidian Bases** - Structured metadata, migration, dashboards
+7. **Mobile** - Provider fallback, vector store guards
+8. **Configuration** - Config folder, taxonomy files
 
 ---
 
@@ -124,13 +126,13 @@ AI-Organiser/
 - Context-aware detection eliminates "Click Tax"
 - Smart dispatchers for Summarize, Translate, Tag, Clear Tags, Enhance
 
-### Mobile Optimization Plan
+### Mobile Optimization (Implemented)
 - Tri-state provider fallback (auto/cloud-only/custom)
 - Vector store size guards with lazy loading
 - UI adaptations (Tag Network list, Related Notes modal)
 - Vault-only file pickers on mobile
 - Network hardening (60s timeouts, data warnings)
-- See [mobile-optimization-plan.md](mobile-optimization-plan.md)
+- Mobile settings section in plugin settings
 
 ### Audit Fixes
 - Fixed settings re-render issue (semantic search toggle)
@@ -153,6 +155,14 @@ AI-Organiser/
 - Related Notes sidebar view
 - RAG-enhanced summarization with source citations
 - Search result caching (5-min TTL)
+
+### Obsidian Bases Integration (Completed January 2025)
+- Structured metadata system (10 `aio_*` properties)
+- 4-stage migration wizard with smart content detection
+- 5 built-in dashboard templates (.base files)
+- Conditional structured output in summarization
+- Complete bilingual support (EN/ZH-CN)
+- Settings section with migration and dashboard creation buttons
 
 ---
 

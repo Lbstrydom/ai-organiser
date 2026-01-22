@@ -8,6 +8,8 @@ import { registerIntegrationCommands } from './integrationCommands';
 import { registerHighlightCommands } from './highlightCommands';
 import { registerSemanticSearchCommands } from './semanticSearchCommands';
 import { registerChatCommands } from './chatCommands';
+import { registerMigrationCommands } from './migrationCommands';
+import { registerDashboardCommands } from './dashboardCommands';
 import AIOrganiserPlugin from '../main';
 
 export function registerCommands(plugin: AIOrganiserPlugin) {
@@ -21,4 +23,6 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerHighlightCommands(plugin);
     registerSemanticSearchCommands(plugin);
     registerChatCommands(plugin);
+    registerMigrationCommands(plugin);
+    registerDashboardCommands(plugin);
 }

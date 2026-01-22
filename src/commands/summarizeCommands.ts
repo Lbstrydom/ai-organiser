@@ -8,6 +8,10 @@ import type AIOrganiserPlugin from '../main';
 import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
 import { PdfService, serviceCanSummarizePdf, PdfContent } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
+import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
+import { parseStructuredResponse } from '../utils/responseParser';
+import { updateAIOMetadata, countWords } from '../utils/frontmatterUtils';
+import { SourceType } from '../core/constants';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider, resetPrivacyNotice } from '../services/privacyNotice';
 import { isPdfUrl, extractFilenameFromUrl } from '../utils/urlValidator';
@@ -38,6 +42,62 @@ import {
 } from '../utils/noteStructure';
 import { SummarizeSourceModal, SummarizeSourceOption } from '../ui/modals/SummarizeSourceModal';
 import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
+
+/**
+ * Update note with structured metadata after summarization
+ */
+async function updateNoteMetadataAfterSummary(
+    plugin: AIOrganiserPlugin,
+    view: MarkdownView | MarkdownFileInfo,
+    summaryHook: string,
+    suggestedTags: string[],
+    contentType: string,
+    sourceType?: SourceType,
+    sourceUrl?: string
+): Promise<void> {
+    if (!plugin.settings.enableStructuredMetadata) {
+        return;
+    }
+
+    const file = view.file;
+    if (!file) return;
+
+    // Read current content to get word count
+    const content = await plugin.app.vault.read(file);
+    const wordCount = countWords(content);
+
+    // Build metadata object
+    const metadata: any = {
+        aio_summary: summaryHook,
+        aio_status: 'processed',
+        aio_type: contentType,
+        aio_processed: new Date().toISOString(),
+        aio_word_count: wordCount
+    };
+
+    // Add source info if available
+    if (sourceType) {
+        metadata.aio_source = sourceType;
+    }
+    if (sourceUrl) {
+        metadata.aio_source_url = sourceUrl;
+    }
+
+    // Add model info if enabled
+    if (plugin.settings.includeModelInMetadata) {
+        metadata.aio_model = plugin.llmService.getModelName?.() || 'unknown';
+    }
+
+    // Update frontmatter
+    await updateAIOMetadata(plugin.app, file, metadata);
+
+    // Add tags if any suggested
+    if (suggestedTags && suggestedTags.length > 0) {
+        // Tags need to be added separately via Obsidian's tag update mechanism
+        // This will be handled by the calling code after metadata update
+        // Just store the suggested tags for now
+    }
+}
 
 /**
  * Save transcript to a separate file in the configured transcript folder
@@ -1457,28 +1517,78 @@ async function summarizeAndInsert(
     personaPrompt: string,
     userContext?: string
 ): Promise<void> {
-    const promptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
+    // Use structured output if enabled, otherwise use traditional prompts
+    if (plugin.settings.enableStructuredMetadata) {
+        const promptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
 
-    const promptTemplate = buildSummaryPrompt(promptOptions);
-    const prompt = insertContentIntoPrompt(promptTemplate, content);
+        const promptTemplate = buildStructuredSummaryPrompt(promptOptions);
+        const prompt = insertContentIntoStructuredPrompt(promptTemplate, content);
 
-    try {
-        const response = await summarizeTextWithLLM(plugin, prompt);
+        try {
+            const response = await summarizeTextWithLLM(plugin, prompt);
 
-        if (response.success && response.content) {
-            insertWebSummary(editor, response.content, webContent, plugin);
-            new Notice(plugin.t.messages.summaryInserted);
-        } else {
-            new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+            if (response.success && response.content) {
+                // Parse structured response
+                const structured = parseStructuredResponse(response.content);
+
+                if (structured) {
+                    // Insert body content
+                    insertWebSummary(editor, structured.body_content, webContent, plugin);
+                    new Notice(plugin.t.messages.summaryInserted);
+
+                    // Update metadata
+                    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (view) {
+                        await updateNoteMetadataAfterSummary(
+                            plugin,
+                            view,
+                            structured.summary_hook,
+                            structured.suggested_tags || [],
+                            structured.content_type || 'note',
+                            'url',
+                            webContent.url
+                        );
+                    }
+                } else {
+                    new Notice('Failed to parse structured response');
+                }
+            } else {
+                new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`Error summarizing content: ${errorMessage}`);
         }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error summarizing content: ${errorMessage}`);
+    } else {
+        // Traditional summarization without structured metadata
+        const promptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
+
+        const promptTemplate = buildSummaryPrompt(promptOptions);
+        const prompt = insertContentIntoPrompt(promptTemplate, content);
+
+        try {
+            const response = await summarizeTextWithLLM(plugin, prompt);
+
+            if (response.success && response.content) {
+                insertWebSummary(editor, response.content, webContent, plugin);
+                new Notice(plugin.t.messages.summaryInserted);
+            } else {
+                new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`Error summarizing content: ${errorMessage}`);
+        }
     }
 }
 
