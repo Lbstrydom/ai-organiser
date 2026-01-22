@@ -53,7 +53,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -89,7 +88,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -125,7 +123,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -161,7 +158,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -197,7 +193,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -237,7 +232,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -276,7 +270,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -309,7 +302,6 @@ columns:
 sorting:
   - field: created
     order: desc
----
 `;
 
 /**
@@ -343,7 +335,6 @@ grouping:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
@@ -373,7 +364,6 @@ columns:
 sorting:
   - field: ${'{aio_processed}'}
     order: desc
----
 `;
 
 /**
