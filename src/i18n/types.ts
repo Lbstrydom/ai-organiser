@@ -217,6 +217,7 @@ export interface Translations {
             dashboardAction: string;
             dashboardActionDesc: string;
             dashboardButton: string;
+            dashboardInfo: string;
         };
         notebookLM: {
             title: string;
@@ -317,6 +318,7 @@ export interface Translations {
         upgradeToBases: string;
         upgradeFolderToBases: string;
         createBasesDashboard: string;
+        createBasesDashboardHere: string;
         notebookLMExport: string;
         notebookLMToggle: string;
         notebookLMClear: string;

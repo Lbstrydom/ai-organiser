@@ -229,7 +229,8 @@ export const zhCN: Translations = {
             migrateButton: "迁移",
             dashboardAction: "创建仪表板",
             dashboardActionDesc: "为 Obsidian Bases 生成 .base 文件",
-            dashboardButton: "创建"
+            dashboardButton: "创建",
+            dashboardInfo: "要创建仪表板，请右键单击文件夹并选择「创建 Bases 仪表板」，或使用命令面板。"
         },
         notebookLM: {
             title: "NotebookLM 集成",
@@ -330,6 +331,7 @@ export const zhCN: Translations = {
         upgradeToBases: "升级到 Bases 元数据",
         upgradeFolderToBases: "升级文件夹到 Bases 元数据",
         createBasesDashboard: "创建 Bases 仪表板",
+        createBasesDashboardHere: "创建 Bases 仪表板",
         notebookLMExport: "NotebookLM: 导出源文件包",
         notebookLMToggle: "NotebookLM: 切换选择",
         notebookLMClear: "NotebookLM: 清除选择",

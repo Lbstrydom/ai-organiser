@@ -1,344 +1,227 @@
-# AI Organiser - Quick Test Checklist
+# AI Organiser - Test Checklist
 
 **Version:** 1.0.15
-**Focus:** Obsidian Bases Integration + Audit fixes + Note Structure + Language improvements
+**Features:** Core AI, Semantic Search, Bases Integration, NotebookLM Export
 
 ---
 
 ## Pre-Test Setup
 
-- [ ] Run `npm run build`
-- [ ] Copy `main.js`, `manifest.json`, `styles.css` to Obsidian plugin folder
-- [ ] Restart Obsidian
-- [ ] Enable plugin
+- [x] `npm run build` passes
+- [ ] Files deployed to Obsidian plugins folder
+- [ ] Obsidian restarted, plugin enabled
 
 ---
 
-## 1. Audit Fixes
+## 1. Settings UI (/4)
 
-### 1.1 Settings Re-render (HIGH)
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| No duplicate UI | Toggle semantic search on/off 5 times | No duplicate settings blocks | [ ] |
-| Clean redraw | Change embedding provider multiple times | Settings refresh cleanly | [ ] |
-
-### 1.2 Semantic Search Disable Cleanup (HIGH)
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Stop indexing | Disable semantic search | Console shows no indexing activity | [ ] |
-| Resources freed | Disable, check memory | No memory growth | [ ] |
-| Re-enable works | Disable then enable | Semantic search works again | [ ] |
-
-### 1.3 Similarity Display (MEDIUM)
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Related badge | Open Related Notes panel | Shows "Related" not "90%" | [ ] |
-| No fake scores | Check multiple results | All show "Related" badge | [ ] |
+| Test | Steps | Pass |
+|------|-------|------|
+| Sections order | Open Settings | AI Provider → Language → Tagging → Summarization → Semantic Search → Bases → NotebookLM → Mobile → Configuration | [x] |
+| No duplicate UI | Toggle semantic search 5× | No duplicate blocks | [ ] |
+| Clean redraw | Change embedding provider 3× | Settings refresh cleanly | [ ] |
+| API key masking | Enter API key | Shows `sk-abc•••••••` format | [ ] |
 
 ---
 
-## 2. Note Structure Feature
+## 2. Core AI Features (/12)
 
-### 2.1 Settings Toggle
+### Tagging
 
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Setting exists | Open Settings > Tagging | "Add Note Sections" toggle visible | [ ] |
-| Default on | Fresh install | Toggle is ON by default | [ ] |
-| Persists | Toggle off, restart | Setting stays off | [ ] |
+| Test | Pass |
+|------|------|
+| Tag this note (Ctrl+P) | [ ] |
+| Tags appear in frontmatter | [ ] |
+| Predefined tags mode | [ ] |
 
-### 2.2 Sections Added After Commands
+### Summarization
 
-Test each command with "Add Note Sections" enabled:
+| Test | Pass |
+|------|------|
+| Summarize URL → metadata added | [ ] |
+| Summarize PDF (Claude/Gemini) | [ ] |
+| Summarize YouTube | [ ] |
+| Summarize audio file | [ ] |
+| 5 personas available | [ ] |
 
-| Command | Test Note | Has Sections After? | Pass |
-|---------|-----------|---------------------|------|
-| Tag this note | Any note | [ ] |
-| Tag folder | Folder with notes | [ ] |
-| Summarize URL | Note with URL | [ ] |
-| Summarize PDF | Note | [ ] |
-| Summarize YouTube | Note | [ ] |
-| Summarize audio | Note | [ ] |
-| Translate note | Note with content | [ ] |
-| Translate selection | Selected text | [ ] |
-| Improve with AI | Note with content | [ ] |
-| Create diagram | Note with content | [ ] |
-| Generate from embedded | Note with embeds | [ ] |
-| Ask about note | Note with content | [ ] |
-| Insert related notes | Note with content | [ ] |
-| Clear tags (note) | Tagged note | [ ] |
+### Other AI
 
-### 2.3 Sections NOT Added When Disabled
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Disable setting | Turn off "Add Note Sections" | | |
-| Run tag command | Tag a note | No sections added | [ ] |
-| Run summarize | Summarize URL | No sections added | [ ] |
-
-### 2.4 No Duplicates
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Existing sections | Note already has References | No duplicate sections | [ ] |
-| Multiple commands | Run 3 commands on same note | Still only 1 of each section | [ ] |
+| Test | Pass |
+|------|------|
+| Translate note | [ ] |
+| Improve with AI | [ ] |
+| Create diagram (Mermaid) | [ ] |
+| Ask about note | [ ] |
 
 ---
 
-## 3. Language & UI Improvements
+## 3. Semantic Search (/8)
 
-### 3.1 Settings Labels
-
-| Section | Check | Pass |
-|---------|-------|------|
-| AI Provider | Concise labels, no jargon | [ ] |
-| Language | Clear descriptions | [ ] |
-| Tagging | Brief tooltips | [ ] |
-| Summarization | Readable options | [ ] |
-| Semantic Search | Understandable settings | [ ] |
-| Advanced | Clean config section | [ ] |
-
-### 3.2 Support Section Removed
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| No coffee button | Open Settings | No "Buy me a coffee" section | [ ] |
-
-### 3.3 Command Names
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Command palette | Ctrl+P, browse commands | Short, clear command names | [ ] |
-| No redundancy | Check command list | No repeated words | [ ] |
-
-### 3.4 Notifications
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Success messages | Complete any action | Brief confirmation | [ ] |
-| Error messages | Trigger an error | Clear, actionable message | [ ] |
-| Progress messages | Run batch operation | Shows progress concisely | [ ] |
+| Test | Steps | Pass |
+|------|-------|------|
+| Enable toggle | Settings → Semantic Search → Enable | [ ] |
+| Embedding provider | Select OpenAI/Ollama/Gemini | [ ] |
+| Index builds | Check console for indexing activity | [ ] |
+| Search command | Ctrl+P → "Semantic search" | [ ] |
+| Related Notes panel | Open sidebar, switch notes | [ ] |
+| "Related" badge | Check panel shows "Related" not "90%" | [ ] |
+| Disable cleanup | Disable semantic search | Console shows no indexing | [ ] |
+| Re-enable works | Enable again | Indexing resumes | [ ] |
 
 ---
 
-## 4. Obsidian Bases Integration (NEW)
+## 4. Obsidian Bases Integration (/16)
 
-### 4.1 Settings Section
+### Settings
 
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Section exists | Settings > Obsidian Bases | Section visible between Semantic Search and Mobile | [ ] |
-| Enable toggle | Check "Enable Structured Metadata" | Toggle is ON by default | [ ] |
-| Model toggle | Check "Include Model in Metadata" | Toggle is ON by default | [ ] |
-| Content type toggle | Check "Auto-detect Content Type" | Toggle is ON by default | [ ] |
-| Info box | Check info box text | Shows 3 bullet points with guidance | [ ] |
-| Migrate button | Check "Migrate" button (database icon) | Button visible and clickable | [ ] |
-| Dashboard button | Check "Create Dashboards" button (layout icon) | Button visible and clickable | [ ] |
+| Test | Pass |
+|------|------|
+| Section visible between Semantic Search and NotebookLM | [x] |
+| Enable structured metadata toggle (default ON) | [ ] |
+| Include model toggle (default ON) | [ ] |
+| Auto-detect content type toggle (default ON) | [ ] |
+| Migrate button visible | [ ] |
+| Dashboard info text visible (no button) | [ ] |
 
-### 4.2 Structured Metadata in Summarization
+### Structured Metadata
 
-Test with "Enable Structured Metadata" ON:
+After summarizing a URL with Bases enabled:
 
-| T6st | Steps | Expected | Pass |
-|------|-------|----------|------|
-| URL summary metadata | Summarize a URL | Frontmatter has `aio_summary`, `aio_status`, `aio_type`, `aio_processed`, `aio_source`, `aio_source_url` | [ ] |
-| PDF summary metadata | Summarize a PDF | Frontmatter has all `aio_*` properties | [ ] |
-| YouTube metadata | Summarize YouTube video | Frontmatter includes `aio_source: youtube` | [ ] |
-| Audio metadata | Summarize audio file | Frontmatter includes `aio_source: audio` | [ ] |
-| Summary hook length | Check `aio_summary` value | Max 280 characters, ends at sentence boundary | [ ] |
-| Model tracking | Check `aio_model` property | Shows model name (e.g., 'gpt-4o', 'claude-3-5-sonnet') | [ ] |
-| Content type detection | Check `aio_type` | Correctly detected (note/research/meeting/project/reference) | [ ] |
-| Word count | Check `aio_word_count` | Approximate count is reasonable | [ ] |
-| Status value | Check `aio_status` | Set to 'processed' | [ ] |
-| Suggested tags | Check if tags added | Suggested tags from JSON added to frontmatter | [ ] |
+| Property | Check | Pass |
+|----------|-------|------|
+| `aio_summary` | Max 280 chars | [ ] |
+| `aio_status` | = "processed" | [ ] |
+| `aio_type` | = note/research/meeting/project/reference | [ ] |
+| `aio_processed` | ISO timestamp | [ ] |
+| `aio_model` | Model name (if enabled) | [ ] |
+| `aio_source` | = url/pdf/youtube/audio | [ ] |
+| `aio_source_url` | Original URL | [ ] |
+| `aio_persona` | Summary persona used | [ ] |
 
-### 4.3 Migration Modal - Analysis Stage
+### Migration
 
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Open via button | Settings > Bases > "Migrate" button | Modal opens to analysis stage | [ ] |
-| Open via command | Cmd Palette > "Upgrade Vault Metadata" | Modal opens, analyzing vault | [ ] |
-| Folder scope | Cmd Palette > "Upgrade Folder Metadata" | Modal analyzes current folder only | [ ] |
-| Analysis stats | Wait for analysis | Shows: Total Notes, Needs Migration, Already Migrated | [ ] |
-| Zero migration | Test with migrated vault | Shows "No migration needed" with Close button | [ ] |
-| Next button | Click Next (when needed) | Advances to Options stage | [ ] |
-| Cancel button | Click Cancel | Modal closes, no changes | [ ] |
-| Analysis error | Disconnect/corrupt vault | Shows error message with details | [ ] |
+| Test | Steps | Pass |
+|------|-------|------|
+| Open modal | Settings → Bases → Migrate | [ ] |
+| Analysis stage | Shows note counts | [ ] |
+| Options stage | Click Next, see toggles | [ ] |
+| Progress stage | Start migration, see progress | [ ] |
+| Results stage | See processed/skipped/errors | [ ] |
 
-### 4.4 Migration Modal - Options Stage
+### Dashboard Creation
 
-| Test | Steps | Expected | Pass |
-|-Bases Integration | /84 | | NEW - Structured metadata, migration, dashboards |
-| Core Features | /9 | | |
-| Providers | /6 | | |
-| **TOTAL** | /133e | Check "Overwrite existing metadata" | Checkbox toggles on/off | [ ] |
-| Extract toggle | Check "Extract summary from content" | Checkbox toggles on/off | [ ] |
-| Info text | Read info box | Explains what migration does | [ ] |
-| Back button | Click Back | Returns to Analysis stage | [ ] |
-| Start button | Click "Start Migration" | Advances to Progress stage | [ ] |
-
-### 4.5 Migration Modal - Progress Stage
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Progress display | Start migration | Shows progress bar + status text | [ ] |
-| Live updates | Watch migration | Status shows "Processing X/Y: filename" | [ ] |
-| Progress bar | Watch migration | Progress bar fills from 0% to 100% | [ ] |
-| Completion | Wait for finish | Advances to Results stage | [ ] |
-| Error handling | Force error (disconnect API) | Shows error message, can close modal | [ ] |
-
-### 4.6 Migration Modal - Results Stage
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Results screen | Complete migration | Shows summary stats | [ ] |
-| Processed count | Check stats | Shows number of notes processed | [ ] |
-| Updated count | Check stats | Shows number of notes updated | [ ] |
-| Skipped count | Check stats | Shows number of notes skipped | [ ] |
-| Errors count | Check stats | Shows number of errors (if any) | [ ] |
-| Error list | If errors occurred | Shows first 10 errors with filenames | [ ] |
-| Completion notice | Check notice | Shows "Migration completed" message | [ ] |
-| Close button | Click Close | Modal closes | [ ] |
-
-### 4.7 Migration Data Validation
-
-After running migration, check several notes:
-
-| Test | Expected | Pass |
-|------|-------|----------|
-| Summary extracted | Notes with ##Summary section have `aio_summary` | [ ] |
-| TL;DR extracted | Notes with ##TL;DR have `aio_summary` | [ ] |
-| First paragraph | Notes without sections use first paragraph | [ ] |
-| Status detection | Notes with existing tags have `aio_status: processed` | [ ] |
-| Status pending | Notes without tags have `aio_status: pending` | [ ] |
-| Type detection | Research notes have `aio_type: research` | [ ] |
-| Type detection | Meeting notes have `aio_type: meeting` | [ ] |
-| Type detection | Project notes have `aio_type: project` | [ ] |
-| Existing preserved | Non-AIO frontmatter preserved unchanged | [ ] |
-
-### 4.8 Dashboard Creation Modal
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Open via button | Settings > Bases > "Create Dashboards" | Modal opens with template picker | [ ] |
-| Open via command | Cmd Palette > "Create Bases Dashboard" | Modal opens | [ ] |
-| Template list | Check templates | Shows 5 templates with descriptions | [ ] |
-| Template names | Read names | "General Knowledge Base", "Research Tracker", "Pending Review", "Content by Type", "Processing Errors" | [ ] |
-| Checkboxes | Click checkboxes | Can select/deselect templates | [ ] |
-| Select All | Click "Select All" | All templates selected | [ ] |
-| Clear Selection | Click "Clear Selection" | All templates deselected | [ ] |
-| Folder selector | Check folder field | Shows folder input with browse button | [ ] |
-| Validation | Try create with 0 selected | Shows error or prevents creation | [ ] |
-| Create button | Select 2+ templates, click Create | Creates `.base` files in target folder | [ ] |
-| Cancel button | Click Cancel | Modal closes, no files created | [ ] |
-
-### 4.9 Dashboard Files Validation
-
-After creating dashboards:
-
-| Test | Expected | Pass |
-|------|-------|----------|------|
-| Files created | Check target folder | `.base` files exist | [ ] |
-| General KB | Open file | Contains `filters`, `columns`, `sorting` YAML | [ ] |
-| Research Tracker | Open file | Has filter `aio_type: research` | [ ] |
-| Pending Review | Open file | Has filter `aio_status: pending` | [ ] |
-| Content by Type | Open file | Has `grouping` by `aio_type` | [ ] |
-| Processing Errors | Open file | Has filter `aio_status: error` | [ ] |
-| Column names | Check columns | Includes Title, Summary, Status, Type, etc. | [ ] |
-| Sorting | Check sorting config | Proper sort keys (created, modified) | [ ] |
-| No overwrites | Try create again in same folder | Prevents overwriting or shows error | [ ] |
-
-### 4.10 Bases Plugin Integration
-
-**Note:** Requires Obsidian Bases plugin installed
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Open dashboard | Click on `.base` file | Bases plugin opens dashboard view | [ ] |
-| See metadata | Check dashboard | Shows `aio_*` properties in columns | [ ] |
-| Filter works | Use Bases filters | Filters notes by `aio_status`, `aio_type` | [ ] |
-| Sort works | Use Bases sorting | Sorts by date, status, type | [ ] |
-| Group works | Open "Content by Type" | Notes grouped by research/meeting/project | [ ] |
-| Summary preview | Hover/click note | Shows 280-char summary hook | [ ] |
-
-### 4.11 Backward Compatibility
-
-Test with "Enable Structured Metadata" OFF:
-
-| Test | Steps | Expected | Pass |
-|------|-------|----------|------|
-| Traditional summary | Disable setting, summarize URL | No `aio_*` properties added | [ ] |
-| Body content | Check summary | Summary inserted as before (traditional format) | [ ] |
-| No JSON parsing | Check behavior | Works like previous versions | [ ] |
-| Toggle back on | Re-enable, summarize another URL | Structured metadata works again | [ ] |
-
-### 4.12 i18n (Bilingual Support)
-
-Test with Chinese interface (if applicable):
-
-| Test | Expected | Pass |
-|------|-------|----------|------|
-| Settings labels | All Bases settings in Chinese | [ ] |
-| Modal titles | Migration/Dashboard modals in Chinese | [ ] |
-| Button text | All buttons translated | [ ] |
-| Info messages | Info boxes in Chinese | [ ] |
-| Command names | Commands in Chinese | [ ] |
+| Test | Steps | Pass |
+|------|-------|------|
+| Folder context menu | Right-click folder → "Create Bases Dashboard" | [ ] |
+| Command palette | Ctrl+P → "Create Bases dashboard" | [ ] |
+| 10 templates shown | 5 default + 5 persona | [ ] |
+| Select All/Clear | Buttons work | [ ] |
+| Create dashboards | Creates .base files in target folder | [ ] |
 
 ---
 
-## 5. Core Functionality Smoke Test
+## 5. NotebookLM Export (/16)
 
-Quick check that main features still work:
+### Settings
 
-| Feature | Test | Pass |
-|---------|------|------|
-| Tag generation | Tag a note with content | [ ] |
-| URL summarize | Summarize a web article | [ ] |
-| PDF summarize | Summarize a PDF (Claude/Gemini) | [ ] |
-| YouTube summarize | Summarize a video with captions | [ ] |
-| Translation | Translate a note | [ ] |
-| Improve note | Ask AI to improve | [ ] |
-| Related notes | Open Related Notes panel | [ ] |
-| Semantic search | Search vault semantically | [ ] |
-| Tag network | View tag network | [ ] |
+| Setting | Default | Pass |
+|---------|---------|------|
+| Selection tag | notebooklm | [ ] |
+| Export folder | NotebookLM | [ ] |
+| Export mode | auto | [ ] |
+| Words per module | 120,000 | [ ] |
+| Remove frontmatter | ON | [ ] |
+| Flatten callouts | ON | [ ] |
+| Strip Dataview | ON | [ ] |
+| Image handling | strip | [ ] |
+| Resolve embeds | none | [ ] |
+| Post-export action | keep | [ ] |
+
+### Commands
+
+| Test | Steps | Pass |
+|------|-------|------|
+| Toggle selection | Ctrl+P → "NotebookLM: Toggle Selection" on 3 notes | [ ] |
+| Tag added | Notes have `notebooklm` tag | [ ] |
+| Export command | Ctrl+P → "NotebookLM: Export Source Pack" | [ ] |
+| Preview modal | Shows note count, word count, warnings | [ ] |
+| Export completes | Creates pack folder | [ ] |
+| Clear selection | Ctrl+P → "NotebookLM: Clear Selection" | [ ] |
+
+### Export Validation
+
+Check output in `AI-Organiser/NotebookLM/Pack_*/`:
+
+| File | Check | Pass |
+|------|-------|------|
+| `index.md` | Upload instructions, TOC | [ ] |
+| `module_01.md` | Sanitized content, stable anchors | [ ] |
+| `manifest.json` | Note entries, stats | [ ] |
+| `changelog.md` | Changes from previous export | [ ] |
+
+### Sanitization
+
+In `module_01.md`:
+
+| Check | Pass |
+|-------|------|
+| No YAML frontmatter | [ ] |
+| No dataview blocks | [ ] |
+| Callouts flattened | [ ] |
+| Images removed/placeholder | [ ] |
+| Links converted to plain text | [ ] |
+| Stable anchors: `## Note: Title (id: abc123)` | [ ] |
 
 ---
 
-## 5. Provider Tests
+## 6. Mobile Compatibility (/4)
 
-### 5.1 Cloud Providers
+| Test | Pass |
+|------|------|
+| Mobile provider fallback setting | [ ] |
+| Vector store size guard | [ ] |
+| Tag network shows list on mobile | [ ] |
+| Related notes uses modal on mobile | [ ] |
+
+---
+
+## 7. LLM Providers (/6)
 
 Test with at least one provider:
 
-| Provider | Connection Test | Tag Generation | Summarize | Pass |
-|----------|-----------------|----------------|-----------|------|
+| Provider | Connection | Tag | Summarize | Pass |
+|----------|------------|-----|-----------|------|
 | OpenAI | [ ] | [ ] | [ ] | [ ] |
 | Claude | [ ] | [ ] | [ ] | [ ] |
 | Gemini | [ ] | [ ] | [ ] | [ ] |
-
-### 5.2 Local (Ollama)
-
-| Test | Expected | Pass |
-|------|----------|------|
-| Connection test | Shows "Connected" | [ ] |
-| Tag generation | Tags generated | [ ] |
-| Embedding generation | Index builds | [ ] |
+| Ollama (local) | [ ] | [ ] | [ ] | [ ] |
 
 ---
 
-## Test Summary
+## 8. Utility Features (/4)
 
-| Category | Passed | Failed | Notes |
-|----------|--------|--------|-------|
-| Audit Fixes | /6 | | |
-| Note Structure | /18 | | |
-| Language/UI | /10 | | |
-| Core Features | /9 | | |
-| Providers | /6 | | |
-| **TOTAL** | /49 | | |
+| Test | Pass |
+|------|------|
+| Tag network visualization | [ ] |
+| Export flashcards (Anki) | [ ] |
+| Collect vault tags | [ ] |
+| Insert related notes | [ ] |
+
+---
+
+## Summary
+
+| Category | Passed | Total |
+|----------|--------|-------|
+| Settings UI | 1 | 4 |
+| Core AI | | 12 |
+| Semantic Search | | 8 |
+| Bases Integration | 1 | 16 |
+| NotebookLM Export | | 16 |
+| Mobile | | 4 |
+| LLM Providers | | 6 |
+| Utilities | | 4 |
+| **TOTAL** | 2 | **70** |
 
 ---
 
@@ -354,7 +237,7 @@ Test with at least one provider:
 
 | Issue | Description | Fixed |
 |-------|-------------|-------|
-| | | [ ] |
+| Bases dashboard button | Was in Settings, should be folder context menu | [x] |
 
 ---
 

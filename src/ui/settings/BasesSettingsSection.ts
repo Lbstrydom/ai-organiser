@@ -63,11 +63,8 @@ export class BasesSettingsSection extends BaseSettingSection {
         infoBox.createEl('p', { text: this.plugin.t.settings.bases.info2 });
         infoBox.createEl('p', { text: this.plugin.t.settings.bases.info3 });
 
-        // Action buttons
-        const actionsContainer = this.containerEl.createDiv({ cls: 'ai-organiser-bases-actions' });
-
-        // Migration button
-        new Setting(actionsContainer)
+        // Migration action
+        new Setting(this.containerEl)
             .setName(this.plugin.t.settings.bases.migrateAction)
             .setDesc(this.plugin.t.settings.bases.migrateActionDesc)
             .addButton(button => {
@@ -80,18 +77,10 @@ export class BasesSettingsSection extends BaseSettingSection {
                     });
             });
 
-        // Dashboard button
-        new Setting(actionsContainer)
-            .setName(this.plugin.t.settings.bases.dashboardAction)
-            .setDesc(this.plugin.t.settings.bases.dashboardActionDesc)
-            .addButton(button => {
-                button
-                    .setButtonText(this.plugin.t.settings.bases.dashboardButton)
-                    .setIcon('layout-dashboard')
-                    .onClick(() => {
-                        // Trigger dashboard command
-                        (this.plugin.app as any).commands.executeCommandById('ai-organiser:create-bases-dashboard');
-                    });
-            });
+        // Dashboard info (moved creation to folder context menu)
+        const dashboardInfo = this.containerEl.createDiv({ cls: 'setting-item-description' });
+        dashboardInfo.style.marginTop = '12px';
+        dashboardInfo.innerHTML = this.plugin.t.settings.bases.dashboardInfo ||
+            'To create dashboards, right-click a folder and select "Create Bases Dashboard Here", or use the command palette.';
     }
 }

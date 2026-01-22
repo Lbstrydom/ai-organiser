@@ -229,7 +229,8 @@ export const en: Translations = {
             migrateButton: "Migrate",
             dashboardAction: "Create Dashboards",
             dashboardActionDesc: "Generate .base files for Obsidian Bases",
-            dashboardButton: "Create"
+            dashboardButton: "Create",
+            dashboardInfo: "To create dashboards, right-click a folder and select 'Create Bases Dashboard', or use the command palette."
         },
         notebookLM: {
             title: "NotebookLM Integration",
@@ -330,6 +331,7 @@ export const en: Translations = {
         upgradeToBases: "Upgrade to Bases metadata",
         upgradeFolderToBases: "Upgrade folder to Bases metadata",
         createBasesDashboard: "Create Bases dashboard",
+        createBasesDashboardHere: "Create Bases Dashboard",
         notebookLMExport: "NotebookLM: Export Source Pack",
         notebookLMToggle: "NotebookLM: Toggle Selection",
         notebookLMClear: "NotebookLM: Clear Selection",
