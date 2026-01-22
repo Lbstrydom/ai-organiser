@@ -33,6 +33,10 @@ export interface Translations {
             maxTagsDesc: string;
             outputLanguage: string;
             outputLanguageDesc: string;
+            autoEnsureNoteStructure: {
+                name: string;
+                description: string;
+            };
             fileExclusion: string;
             excludedFiles: string;
             excludedFilesDesc: string;
@@ -188,13 +192,18 @@ export interface Translations {
         showTagNetwork: string;
         aiTagSelectedNotes: string;
         aiTagThisNote: string;
+        summarize: string;
         summarizeFromUrl: string;
         summarizeFromPdf: string;
         summarizeFromYouTube: string;
         summarizeFromAudio: string;
         summarizeSmart: string;
+        translate: string;
         translateNote: string;
         translateSelection: string;
+        tag: string;
+        clearTags: string;
+        enhance: string;
         generateFromEmbedded: string;
         improveNote: string;
         findResources: string;
@@ -207,6 +216,7 @@ export interface Translations {
         buildSemanticIndex: string;
         updateSemanticIndex: string;
         clearSemanticIndex: string;
+        manageIndex: string;
         showRelatedNotes: string;
         searchSemanticVault: string;
         chatWithVault: string;
@@ -289,6 +299,7 @@ export interface Translations {
         externalFilesDesktopOnly: string;
         noSelection: string;
         translating: string;
+        translatingFullNote: string;
         translationComplete: string;
         invalidYouTubeUrl: string;
         fetchingTranscript: string;
@@ -351,6 +362,8 @@ export interface Translations {
         chatFailed: string;
         embeddingGenerationFailed: string;
         vectorStoreFailed: string;
+        semanticSearchDisabled: string;
+        externalCompressionNotSupported: string;
     };
 
     // Modal dialogs
@@ -399,6 +412,9 @@ export interface Translations {
             contextLabel: string;
             contextDesc: string;
             contextPlaceholder: string;
+            browseLabel: string;
+            browseDesc: string;
+            browseButton: string;
         };
         contentSize: {
             title: string;
@@ -426,6 +442,55 @@ export interface Translations {
             languageLabel: string;
             languageDesc: string;
             translateButton: string;
+        };
+        summarizeSource: {
+            title: string;
+            thisNote: string;
+            pasteUrl: string;
+            selectPdf: string;
+            youtubeVideo: string;
+            audioFile: string;
+            continueButton: string;
+        };
+        enhance: {
+            title: string;
+            improve: string;
+            improveDesc: string;
+            diagram: string;
+            diagramDesc: string;
+            resources: string;
+            resourcesDesc: string;
+            flashcards: string;
+            flashcardsDesc: string;
+        };
+        tagScope: {
+            title: string;
+            thisNote: string;
+            currentFolder: string;
+            entireVault: string;
+            tagButton: string;
+        };
+        clearTagsScope: {
+            title: string;
+            thisNote: string;
+            currentFolder: string;
+            entireVault: string;
+            clearButton: string;
+        };
+        manageIndex: {
+            title: string;
+            description: string;
+            buildLabel: string;
+            buildDesc: string;
+            buildButton: string;
+            updateLabel: string;
+            updateDesc: string;
+            updateButton: string;
+            clearLabel: string;
+            clearDesc: string;
+            clearButton: string;
+            clearConfirm: string;
+            closeButton: string;
         };
         youtubeInput: {
             title: string;
@@ -516,6 +581,9 @@ export interface Translations {
             compressionTooltip: string;
             largeFileTooltip: string;
             compressAndTranscribe: string;
+            browseLabel: string;
+            browseDesc: string;
+            browseButton: string;
         };
         mermaidDiagram: {
             title: string;

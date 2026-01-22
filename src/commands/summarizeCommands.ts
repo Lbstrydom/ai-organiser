@@ -22,6 +22,7 @@ import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo }
 import {
     transcribeAudio,
     transcribeAudioFromData,
+    transcribeExternalAudio,
     getAvailableTranscriptionProvider
 } from '../services/audioTranscriptionService';
 import {
@@ -32,8 +33,11 @@ import {
     addToReferencesSection,
     SourceReference,
     getTodayDate,
-    formatDuration
+    formatDuration,
+    ensureNoteStructureIfEnabled
 } from '../utils/noteStructure';
+import { SummarizeSourceModal, SummarizeSourceOption } from '../ui/modals/SummarizeSourceModal';
+import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
 
 /**
  * Save transcript to a separate file in the configured transcript folder
@@ -134,245 +138,324 @@ type SmartSummarizeTarget =
     | { type: 'selection-text'; text: string }
     | { type: 'none' };
 
+/** Audio file info for both vault and external files */
+interface AudioFileInfo {
+    basename: string;
+    path: string;
+    isExternal?: boolean;
+}
+
 export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     const pdfService = new PdfService(plugin.app);
 
     // Reset privacy notice on plugin load
     resetPrivacyNotice();
 
-    // Command: Smart Summarize (auto-detect selection/link/frontmatter)
+    // Command: Summarize (smart dispatcher)
     plugin.addCommand({
-        id: 'summarize-smart',
-        name: plugin.t.commands.summarizeSmart || 'Smart Summarize',
-        icon: 'sparkles',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            if (!plugin.settings.enableWebSummarization) {
-                new Notice('Web summarization is disabled in settings');
-                return;
-            }
-
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-
-            const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(
-                plugin.settings.defaultSummaryPersona
-            );
-
-            const target = detectSmartSummarizeTarget(plugin, editor, view);
-            if (target.type === 'none') {
-                new Notice(plugin.t.messages.smartSummarizeNoContent || 'No content detected to summarize');
-                return;
-            }
-
-            const serviceType = plugin.settings.serviceType === 'cloud'
-                ? plugin.settings.cloudServiceType
-                : 'local';
-
-            if (target.type === 'selection-text') {
-                await handleTextSummarization(plugin, editor, target.text, personaPrompt);
-                return;
-            }
-
-            if (target.type === 'url') {
-                await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt);
-                return;
-            }
-
-            if (target.type === 'internal-pdf') {
-                if (!serviceCanSummarizePdf(serviceType)) {
-                    new Notice(plugin.t.messages.pdfNotSupported);
-                    return;
-                }
-                await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt);
-                return;
-            }
-
-            if (target.type === 'external-pdf') {
-                if (Platform.isMobile) {
-                    new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
-                    return;
-                }
-                if (!serviceCanSummarizePdf(serviceType)) {
-                    new Notice(plugin.t.messages.pdfNotSupported);
-                    return;
-                }
-                await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt);
-                return;
-            }
-        }
-    });
-
-    // Command: Summarize from URL
-    plugin.addCommand({
-        id: 'summarize-from-url',
-        name: plugin.t.commands.summarizeFromUrl,
-        icon: 'link',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            if (!plugin.settings.enableWebSummarization) {
-                new Notice('Web summarization is disabled in settings');
-                return;
-            }
-
-            // Show URL input modal with persona selection
-            const personas = await plugin.configService.getSummaryPersonas();
-            const modal = new UrlInputModal(
-                plugin.app,
-                plugin.t,
-                plugin.settings.defaultSummaryPersona,
-                personas,
-                async (result) => {
-                    // Get persona prompt from config service
-                    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context);
-                }
-            );
-            modal.open();
-        }
-    });
-
-    // Command: Summarize from PDF
-    plugin.addCommand({
-        id: 'summarize-from-pdf',
-        name: plugin.t.commands.summarizeFromPdf,
+        id: 'smart-summarize',
+        name: plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summarize',
         icon: 'file-text',
         editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            if (!plugin.settings.enableWebSummarization) {
-                new Notice('Web summarization is disabled in settings');
-                return;
-            }
-
-            // Check if LLM supports PDF
-            const serviceType = plugin.settings.serviceType === 'cloud'
-                ? plugin.settings.cloudServiceType
-                : 'local';
-
-            if (!serviceCanSummarizePdf(serviceType)) {
-                new Notice(plugin.t.messages.pdfNotSupported);
-                return;
-            }
-
-            const defaultPersona = plugin.settings.defaultSummaryPersona;
-            const personas = await plugin.configService.getSummaryPersonas();
-
-            // Show PDF selection modal
-            const pdfs = await pdfService.getPdfsInAttachments();
-            if (pdfs.length === 0) {
-                // Fall back to all PDFs in vault
-                const allPdfs = pdfService.getAllPdfs();
-                if (allPdfs.length === 0) {
-                    new Notice(plugin.t.messages.noPdfsFound);
-                    return;
-                }
-                const modal = new PdfSelectModal(plugin.app, plugin.t, allPdfs, defaultPersona, personas, async (result) => {
-                    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
-                });
-                modal.open();
-                return;
-            }
-
-            const modal = new PdfSelectModal(plugin.app, plugin.t, pdfs, defaultPersona, personas, async (result) => {
-                const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
-            });
-            modal.open();
-        }
-    });
-
-    // Command: Summarize from YouTube
-    plugin.addCommand({
-        id: 'summarize-from-youtube',
-        name: plugin.t.commands.summarizeFromYouTube || 'Summarize from YouTube',
-        icon: 'youtube',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            if (!plugin.settings.enableWebSummarization) {
-                new Notice('Web summarization is disabled in settings');
-                return;
-            }
-
-            // Show YouTube input modal with persona selection
-            const personas = await plugin.configService.getSummaryPersonas();
-            const modal = new YouTubeInputModal(
-                plugin.app,
-                plugin.t,
-                plugin.settings.defaultSummaryPersona,
-                personas,
-                async (result) => {
-                    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                    await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context);
-                }
-            );
-            modal.open();
-        }
-    });
-
-    // Command: Summarize from Audio
-    plugin.addCommand({
-        id: 'summarize-from-audio',
-        name: plugin.t.commands.summarizeFromAudio || 'Summarize from Audio',
-        icon: 'mic',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            if (!plugin.settings.enableWebSummarization) {
-                new Notice('Web summarization is disabled in settings');
-                return;
-            }
-
-            // Check if transcription provider is available
-            const cloudServiceType = plugin.settings.cloudServiceType;
-            const apiKey = plugin.settings.cloudApiKey;
-            const provider = getAvailableTranscriptionProvider(cloudServiceType, apiKey);
-
-            if (!provider) {
-                new Notice(
-                    plugin.t.messages.transcriptionNotAvailable ||
-                    'Audio transcription requires OpenAI or Groq API key. Please configure in settings.'
-                );
-                return;
-            }
-
-            // Show audio file selection modal
-            const modal = new AudioSelectModal(
-                plugin.app,
-                plugin.t,
-                async (result: AudioSelectResult) => {
-                    await handleAudioSummarization(plugin, editor, result, provider);
-                }
-            );
-            modal.open();
+            await executeSmartSummarize(plugin, pdfService, editor, ctx);
         }
     });
 }
 
-function detectSmartSummarizeTarget(
+async function executeSmartSummarize(
     plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
     editor: Editor,
-    view: MarkdownView
-): SmartSummarizeTarget {
-    // If no file is open, return none
-    if (!view.file) {
-        return { type: 'none' };
+    ctx: MarkdownView | MarkdownFileInfo
+): Promise<void> {
+    if (!plugin.settings.enableWebSummarization) {
+        new Notice('Web summarization is disabled in settings');
+        return;
     }
+
+    const view = ctx instanceof MarkdownView ? ctx : null;
+    if (!view?.file) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(
+        plugin.settings.defaultSummaryPersona
+    );
 
     const selection = editor.getSelection().trim();
     if (selection) {
-        return detectTargetFromText(plugin, selection, view.file, true);
+        const selectionTarget = detectTargetFromText(plugin, selection, view.file, false);
+        if (selectionTarget.type !== 'none') {
+            await handleSmartTarget(plugin, pdfService, editor, selectionTarget, personaPrompt);
+            return;
+        }
+
+        if (selection.length > 50) {
+            await handleTextSummarization(plugin, editor, selection, personaPrompt);
+            return;
+        }
     }
 
     const line = editor.getLine(editor.getCursor().line);
+    if (isYouTubeUrlText(line)) {
+        const url = extractUrl(line);
+        if (url) {
+            await handleYouTubeSummarization(plugin, editor, url, personaPrompt);
+            return;
+        }
+    }
+
     const lineTarget = detectTargetFromText(plugin, line, view.file, false);
     if (lineTarget.type !== 'none') {
-        return lineTarget;
+        await handleSmartTarget(plugin, pdfService, editor, lineTarget, personaPrompt);
+        return;
     }
 
     const frontmatterTarget = detectTargetFromFrontmatter(plugin, view.file);
     if (frontmatterTarget.type !== 'none') {
-        return frontmatterTarget;
+        await handleSmartTarget(plugin, pdfService, editor, frontmatterTarget, personaPrompt);
+        return;
     }
 
-    return { type: 'none' };
+    openSummarizeSourceModal(plugin, pdfService, editor, view, personaPrompt);
+}
+
+async function handleSmartTarget(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    target: SmartSummarizeTarget,
+    personaPrompt: string
+): Promise<void> {
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    if (target.type === 'selection-text') {
+        await handleTextSummarization(plugin, editor, target.text, personaPrompt);
+        return;
+    }
+
+    if (target.type === 'url') {
+        if (isYouTubeUrlText(target.url)) {
+            await handleYouTubeSummarization(plugin, editor, target.url, personaPrompt);
+            return;
+        }
+        await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt);
+        return;
+    }
+
+    if (target.type === 'internal-pdf') {
+        if (!serviceCanSummarizePdf(serviceType)) {
+            new Notice(plugin.t.messages.pdfNotSupported);
+            return;
+        }
+        await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt);
+        return;
+    }
+
+    if (target.type === 'external-pdf') {
+        if (Platform.isMobile) {
+            new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
+            return;
+        }
+        if (!serviceCanSummarizePdf(serviceType)) {
+            new Notice(plugin.t.messages.pdfNotSupported);
+            return;
+        }
+        await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt);
+        return;
+    }
+}
+
+function openSummarizeSourceModal(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    view: MarkdownView,
+    personaPrompt: string
+): void {
+    const modal = new SummarizeSourceModal(plugin.app, plugin, (source: SummarizeSourceOption) => {
+        switch (source) {
+            case 'note':
+                void summarizeCurrentNote(plugin, editor, view, personaPrompt);
+                break;
+            case 'url':
+                void openUrlSummarizeModal(plugin, pdfService, editor);
+                break;
+            case 'pdf':
+                void openPdfSummarizeModal(plugin, pdfService, editor, view);
+                break;
+            case 'youtube':
+                void openYouTubeSummarizeModal(plugin, editor);
+                break;
+            case 'audio':
+                void openAudioSummarizeModal(plugin, editor);
+                break;
+            default:
+                break;
+        }
+    });
+    modal.open();
+}
+
+async function summarizeCurrentNote(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    view: MarkdownView,
+    personaPrompt: string
+): Promise<void> {
+    if (!view.file) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const content = await plugin.app.vault.read(view.file);
+    if (!content.trim()) {
+        new Notice(plugin.t.messages.noContent);
+        return;
+    }
+
+    await handleTextSummarization(plugin, editor, content, personaPrompt);
+}
+
+async function openUrlSummarizeModal(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor
+): Promise<void> {
+    const personas = await plugin.configService.getSummaryPersonas();
+    const modal = new UrlInputModal(
+        plugin.app,
+        plugin.t,
+        plugin.settings.defaultSummaryPersona,
+        personas,
+        async (result) => {
+            const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
+            await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context);
+        }
+    );
+    modal.open();
+}
+
+async function openPdfSummarizeModal(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    view: MarkdownView
+): Promise<void> {
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    if (!serviceCanSummarizePdf(serviceType)) {
+        new Notice(plugin.t.messages.pdfNotSupported);
+        return;
+    }
+
+    const defaultPersona = plugin.settings.defaultSummaryPersona;
+    const personas = await plugin.configService.getSummaryPersonas();
+    const currentFile = view.file;
+
+    const embeddedPdfs: TFile[] = [];
+    if (currentFile) {
+        const content = await plugin.app.vault.read(currentFile);
+        const pdfLinks = findEmbeddedPdfLinks(content);
+        if (plugin.settings.debugMode) {
+            console.log('[AI Organiser] Current file:', currentFile.path);
+            console.log('[AI Organiser] Found PDF links in note:', pdfLinks);
+        }
+        for (const linkPath of pdfLinks) {
+            const resolved = plugin.app.metadataCache.getFirstLinkpathDest(linkPath, currentFile.path);
+            if (plugin.settings.debugMode) {
+                console.log('[AI Organiser] Resolving link:', linkPath, '-> resolved:', resolved?.path || 'null');
+            }
+            if (resolved instanceof TFile && resolved.extension === 'pdf') {
+                embeddedPdfs.push(resolved);
+            }
+        }
+        if (plugin.settings.debugMode) {
+            console.log('[AI Organiser] Embedded PDFs found:', embeddedPdfs.map(f => f.path));
+        }
+    }
+
+    let pdfs = await pdfService.getPdfsInAttachments();
+    if (pdfs.length === 0) {
+        pdfs = pdfService.getAllPdfs();
+    }
+
+    if (pdfs.length === 0 && embeddedPdfs.length === 0) {
+        new Notice(plugin.t.messages.noPdfsFound);
+        return;
+    }
+
+    const embeddedPaths = new Set(embeddedPdfs.map(f => f.path));
+    const otherPdfs = pdfs.filter(f => !embeddedPaths.has(f.path));
+    const orderedPdfs = [...embeddedPdfs, ...otherPdfs];
+
+    const modal = new PdfSelectModal(
+        plugin.app,
+        plugin.t,
+        orderedPdfs,
+        defaultPersona,
+        personas,
+        async (result) => {
+            if (result.file) {
+                const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
+                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context);
+            }
+        },
+        async (result) => {
+            const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
+            await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context);
+        }
+    );
+    modal.open();
+}
+
+async function openYouTubeSummarizeModal(
+    plugin: AIOrganiserPlugin,
+    editor: Editor
+): Promise<void> {
+    const personas = await plugin.configService.getSummaryPersonas();
+    const modal = new YouTubeInputModal(
+        plugin.app,
+        plugin.t,
+        plugin.settings.defaultSummaryPersona,
+        personas,
+        async (result) => {
+            const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
+            await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context);
+        }
+    );
+    modal.open();
+}
+
+async function openAudioSummarizeModal(
+    plugin: AIOrganiserPlugin,
+    editor: Editor
+): Promise<void> {
+    const cloudServiceType = plugin.settings.cloudServiceType;
+    const apiKey = plugin.settings.cloudApiKey;
+    const provider = getAvailableTranscriptionProvider(cloudServiceType, apiKey);
+
+    if (!provider) {
+        new Notice(
+            plugin.t.messages.transcriptionNotAvailable ||
+            'Audio transcription requires OpenAI or Groq API key. Please configure in settings.'
+        );
+        return;
+    }
+
+    const modal = new AudioSelectModal(
+        plugin.app,
+        plugin.t,
+        async (result: AudioSelectResult) => {
+            await handleAudioSummarization(plugin, editor, result, provider);
+        }
+    );
+    modal.open();
 }
 
 function detectTargetFromFrontmatter(
@@ -471,6 +554,28 @@ function extractInternalPdfFile(
     }
 
     return null;
+}
+
+/**
+ * Find all embedded PDF links in note content
+ * Returns array of link paths (without resolved TFiles)
+ */
+function findEmbeddedPdfLinks(content: string): string[] {
+    const pdfLinks: string[] = [];
+    // Match both ![[file.pdf]] and [[file.pdf]] patterns
+    const wikiLinkRegex = /!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]|\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+    const matches = [...content.matchAll(wikiLinkRegex)];
+
+    for (const match of matches) {
+        const rawPath = match[1] || match[2];
+        if (!rawPath) continue;
+        const trimmedPath = rawPath.trim();
+        if (trimmedPath.toLowerCase().endsWith('.pdf')) {
+            pdfLinks.push(trimmedPath);
+        }
+    }
+
+    return pdfLinks;
 }
 
 function extractExternalPdfPath(text: string): string | null {
@@ -718,7 +823,7 @@ async function handleAudioSummarization(
     result: AudioSelectResult,
     provider: 'openai' | 'groq'
 ): Promise<void> {
-    const { file, language, context, needsCompression } = result;
+    const { file, externalPath, language, context, needsCompression } = result;
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
@@ -733,56 +838,88 @@ async function handleAudioSummarization(
     }
 
     let transcriptionResult;
+    let audioName: string;
+    let audioPath: string;
 
-    if (needsCompression) {
-        // Compress the audio first
-        new Notice(plugin.t.messages.compressingAudio || 'Compressing audio file...');
+    // Handle external file (outside vault)
+    if (externalPath) {
+        const path = require('path');
+        audioName = path.basename(externalPath, path.extname(externalPath));
+        audioPath = externalPath;
 
-        const compressionResult = await compressAudio(
-            plugin.app,
-            file,
-            (progress: CompressionProgress) => {
-                if (plugin.settings.debugMode) {
-                    console.log('[AI Organiser] Compression progress:', progress);
-                }
-                // Show progress notices for key stages
-                if (progress.stage === 'loading' || progress.stage === 'done' || progress.stage === 'error') {
-                    new Notice(progress.message);
-                }
-            }
-        );
-
-        if (!compressionResult.success || !compressionResult.data) {
-            new Notice(
-                (plugin.t.messages.compressionFailed || 'Compression failed') +
-                `: ${compressionResult.error || 'Unknown error'}`
-            );
+        // External files: compression not yet supported, transcribe directly
+        if (needsCompression) {
+            new Notice(plugin.t.messages.externalCompressionNotSupported ||
+                'Compression for external files not yet supported. Please use a smaller file or compress it externally.');
             return;
         }
 
         new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
 
-        // Transcribe the compressed audio
-        transcriptionResult = await transcribeAudioFromData(
-            compressionResult.data,
-            file.basename + '_compressed.mp3',
-            {
-                provider,
-                apiKey: plugin.settings.cloudApiKey,
-                language: language || plugin.settings.summaryLanguage || undefined,
-                prompt: context || undefined
-            }
-        );
-    } else {
-        new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
-
-        // Transcribe the audio directly
-        transcriptionResult = await transcribeAudio(plugin.app, file, {
+        transcriptionResult = await transcribeExternalAudio(externalPath, {
             provider,
             apiKey: plugin.settings.cloudApiKey,
             language: language || plugin.settings.summaryLanguage || undefined,
             prompt: context || undefined
         });
+    } else if (file) {
+        // Handle vault file
+        audioName = file.basename;
+        audioPath = file.path;
+
+        if (needsCompression) {
+            // Compress the audio first
+            new Notice(plugin.t.messages.compressingAudio || 'Compressing audio file...');
+
+            const compressionResult = await compressAudio(
+                plugin.app,
+                file,
+                (progress: CompressionProgress) => {
+                    if (plugin.settings.debugMode) {
+                        console.log('[AI Organiser] Compression progress:', progress);
+                    }
+                    // Show progress notices for key stages
+                    if (progress.stage === 'loading' || progress.stage === 'done' || progress.stage === 'error') {
+                        new Notice(progress.message);
+                    }
+                }
+            );
+
+            if (!compressionResult.success || !compressionResult.data) {
+                new Notice(
+                    (plugin.t.messages.compressionFailed || 'Compression failed') +
+                    `: ${compressionResult.error || 'Unknown error'}`
+                );
+                return;
+            }
+
+            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
+
+            // Transcribe the compressed audio
+            transcriptionResult = await transcribeAudioFromData(
+                compressionResult.data,
+                file.basename + '_compressed.mp3',
+                {
+                    provider,
+                    apiKey: plugin.settings.cloudApiKey,
+                    language: language || plugin.settings.summaryLanguage || undefined,
+                    prompt: context || undefined
+                }
+            );
+        } else {
+            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
+
+            // Transcribe the audio directly
+            transcriptionResult = await transcribeAudio(plugin.app, file, {
+                provider,
+                apiKey: plugin.settings.cloudApiKey,
+                language: language || plugin.settings.summaryLanguage || undefined,
+                prompt: context || undefined
+            });
+        }
+    } else {
+        new Notice('No audio file selected');
+        return;
     }
 
     if (plugin.settings.debugMode) {
@@ -807,10 +944,10 @@ async function handleAudioSummarization(
     const transcriptPath = await saveTranscriptToFile(
         plugin,
         transcript,
-        file.basename,
+        audioName,
         'audio',
         {
-            sourcePath: file.path,
+            sourcePath: audioPath,
             duration: transcriptionResult.duration
         }
     );
@@ -825,6 +962,13 @@ async function handleAudioSummarization(
     // Check content size against limits
     const maxChars = getMaxContentChars(serviceType);
 
+    // Create a file-like object for external files to pass to summary functions
+    const audioFileInfo = {
+        basename: audioName,
+        path: audioPath,
+        isExternal: !!externalPath
+    };
+
     if (isContentTooLarge(transcript, serviceType)) {
         // Show content size modal for user choice
         const choice = await showContentSizeModal(plugin, transcript.length, maxChars);
@@ -833,13 +977,13 @@ async function handleAudioSummarization(
             return;
         } else if (choice === 'truncate') {
             const truncatedContent = truncateContent(transcript, serviceType);
-            await summarizeAudioAndInsert(plugin, editor, truncatedContent, file, transcriptionResult.duration, undefined, transcriptPath);
+            await summarizeAudioAndInsert(plugin, editor, truncatedContent, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
             new Notice(plugin.t.messages.contentTruncated);
         } else if (choice === 'chunk') {
-            await summarizeAudioInChunks(plugin, editor, transcript, file, serviceType, transcriptionResult.duration, transcriptPath);
+            await summarizeAudioInChunks(plugin, editor, transcript, audioFileInfo, serviceType, transcriptionResult.duration, transcriptPath);
         }
     } else {
-        await summarizeAudioAndInsert(plugin, editor, transcript, file, transcriptionResult.duration, undefined, transcriptPath);
+        await summarizeAudioAndInsert(plugin, editor, transcript, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
     }
 }
 
@@ -850,7 +994,7 @@ async function summarizeAudioAndInsert(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     transcript: string,
-    file: TFile,
+    file: AudioFileInfo,
     duration?: number,
     personaPrompt?: string,
     transcriptPath?: string | null
@@ -906,7 +1050,7 @@ async function summarizeAudioInChunks(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     transcript: string,
-    file: TFile,
+    file: AudioFileInfo,
     provider: string,
     duration?: number,
     transcriptPath?: string | null
@@ -985,7 +1129,7 @@ async function summarizeAudioInChunks(
 function insertAudioSummary(
     editor: Editor,
     summary: string,
-    file: TFile,
+    file: AudioFileInfo,
     duration: number | undefined,
     plugin: AIOrganiserPlugin,
     transcriptPath?: string | null
@@ -1017,6 +1161,7 @@ function insertAudioSummary(
         isInternal: true
     };
     addToReferencesSection(editor, sourceRef);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
 /**
@@ -1254,6 +1399,7 @@ function insertYouTubeSummary(
         };
         addToReferencesSection(editor, sourceRef);
     }
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
 /**
@@ -1425,7 +1571,12 @@ async function summarizePlainTextAndInsert(
         const response = await summarizeTextWithLLM(plugin, prompt);
 
         if (response.success && response.content) {
-            insertTextSummary(editor, response.content, plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            insertTextSummary(
+                editor,
+                response.content,
+                plugin,
+                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
+            );
             new Notice(plugin.t.messages.summaryInserted);
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
@@ -1499,14 +1650,29 @@ async function summarizePlainTextInChunks(
         const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
         if (response.success && response.content) {
-            insertTextSummary(editor, response.content, plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            insertTextSummary(
+                editor,
+                response.content,
+                plugin,
+                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
+            );
             new Notice(plugin.t.messages.summaryInserted);
         } else {
-            insertTextSummary(editor, chunkSummaries.join('\n\n'), plugin, plugin.t.commands.summarizeSmart || 'Summary');
+            insertTextSummary(
+                editor,
+                chunkSummaries.join('\n\n'),
+                plugin,
+                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
+            );
             new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
         }
     } catch (error) {
-        insertTextSummary(editor, chunkSummaries.join('\n\n'), plugin, plugin.t.commands.summarizeSmart || 'Summary');
+        insertTextSummary(
+            editor,
+            chunkSummaries.join('\n\n'),
+            plugin,
+            plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
+        );
         new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
     }
 }
@@ -1711,6 +1877,7 @@ function insertWebSummary(
         isInternal: false
     };
     addToReferencesSection(editor, sourceRef);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
 /**
@@ -1731,6 +1898,7 @@ function insertTextSummary(
 
     output += summary;
     editor.replaceRange(output, cursor);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
 /**
@@ -1787,4 +1955,5 @@ function insertPdfSummary(
         isInternal: isInternal
     };
     addToReferencesSection(editor, sourceRef);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }

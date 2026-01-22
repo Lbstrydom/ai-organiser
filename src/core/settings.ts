@@ -61,6 +61,7 @@ export interface AIOrganiserSettings {
     interfaceLanguage: SupportedLanguage;
     replaceTags: boolean;
     maxTags: number;                     // Maximum number of tags to generate
+    autoEnsureNoteStructure: boolean;    // Ensure References/Pending Integration sections after commands
     debugMode: boolean;
     // Web Summarization Settings
     enableWebSummarization: boolean;
@@ -76,12 +77,14 @@ export interface AIOrganiserSettings {
     // Plugin Folder Settings (unified structure)
     pluginFolder: string;                // Main plugin folder (contains Config, Transcripts, Flashcards)
     configFolderPath: string;            // Subfolder for config files (under pluginFolder)
+    lastSummarizeSource: 'note' | 'url' | 'pdf' | 'youtube' | 'audio';
     
     // === SEMANTIC SEARCH SETTINGS ===
     enableSemanticSearch: boolean;       // Master toggle for semantic search features
     
     // Embedding Provider Configuration
-    embeddingProvider: 'openai' | 'claude' | 'gemini' | 'ollama' | 'openrouter' | 'cohere' | 'voyage';
+    // Note: Claude does not offer embedding APIs, so it's not a valid embedding provider
+    embeddingProvider: 'openai' | 'gemini' | 'ollama' | 'openrouter' | 'cohere' | 'voyage';
     embeddingModel: string;              // e.g., 'text-embedding-3-small', 'nomic-embed-text'
     embeddingApiKey: string;             // May differ from chat API key
     embeddingEndpoint: string;           // For local providers (Ollama URL)
@@ -117,6 +120,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     interfaceLanguage: DEFAULT_LANGUAGE,
     replaceTags: true,
     maxTags: 5,
+    autoEnsureNoteStructure: true,
     debugMode: false,
     enableWebSummarization: true,
     summaryLength: 'detailed',
@@ -128,6 +132,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     flashcardFolder: 'Flashcards',
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',
+    lastSummarizeSource: 'note',
     
     // Semantic Search Defaults
     enableSemanticSearch: false,                        // User must opt-in

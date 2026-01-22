@@ -122,11 +122,22 @@ export class SimpleVectorStore implements IVectorStore {
         topK: number = 5
     ): Promise<SearchResult[]> {
         try {
-            // For now, return empty results
-            // Full implementation requires embedding service integration
-            return [];
+            if (!embeddingService || typeof embeddingService.generateEmbedding !== 'function') {
+                console.warn('[SimpleVectorStore] Invalid embedding service provided');
+                return [];
+            }
+
+            // Generate embedding for the query
+            const result = await embeddingService.generateEmbedding(query);
+            if (!result.success || !result.embedding) {
+                console.warn('[SimpleVectorStore] Failed to generate query embedding');
+                return [];
+            }
+
+            // Use the vector search
+            return this.search(result.embedding, topK);
         } catch (error) {
-            console.error('Error in semantic search:', error);
+            console.error('[SimpleVectorStore] Error in semantic search:', error);
             return [];
         }
     }

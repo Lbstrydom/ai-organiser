@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Note:** This file and `AGENTS.md` should be kept in sync. `AGENTS.md` is the canonical reference for all AI coding agents.
+
 ## Build Commands
 
 ```bash

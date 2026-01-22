@@ -3,19 +3,21 @@
  * Commands for translating note content
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Notice } from 'obsidian';
+import { Editor, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { TranslateModal } from '../ui/modals/TranslateModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
-import { replaceMainContent, ensureStandardStructure } from '../utils/noteStructure';
+import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
-    // Command: Translate current note
+    // Command: Translate (smart dispatcher)
     plugin.addCommand({
-        id: 'translate-note',
-        name: plugin.t.commands.translateNote || 'Translate note',
+        id: 'smart-translate',
+        name: plugin.t.commands.translate || plugin.t.commands.translateNote || 'Translate',
         icon: 'languages',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+        editorCallback: async (editor: Editor) => {
+            const selection = editor.getSelection();
+            const hasSelection = !!selection.trim();
             const content = editor.getValue();
 
             if (!content.trim()) {
@@ -23,37 +25,22 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
-            // Show language selection modal
             const modal = new TranslateModal(
                 plugin.app,
                 plugin.t,
                 async (result) => {
-                    await translateNote(plugin, editor, content, result.targetLanguageName);
-                }
-            );
-            modal.open();
-        }
-    });
+                    if (hasSelection) {
+                        await translateSelection(plugin, editor, selection, result.targetLanguageName);
+                        return;
+                    }
 
-    // Command: Translate selection
-    plugin.addCommand({
-        id: 'translate-selection',
-        name: plugin.t.commands.translateSelection || 'Translate selection',
-        icon: 'languages',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const selection = editor.getSelection();
-
-            if (!selection.trim()) {
-                new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
-                return;
-            }
-
-            // Show language selection modal
-            const modal = new TranslateModal(
-                plugin.app,
-                plugin.t,
-                async (result) => {
-                    await translateSelection(plugin, editor, selection, result.targetLanguageName);
+                    await translateNote(
+                        plugin,
+                        editor,
+                        content,
+                        result.targetLanguageName,
+                        plugin.t.messages.translatingFullNote
+                    );
                 }
             );
             modal.open();
@@ -68,9 +55,10 @@ async function translateNote(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     content: string,
-    targetLanguage: string
+    targetLanguage: string,
+    noticeMessage?: string
 ): Promise<void> {
-    new Notice(plugin.t.messages.translating || 'Translating...');
+    new Notice(noticeMessage || plugin.t.messages.translating || 'Translating...');
 
     const promptTemplate = buildTranslatePrompt({ targetLanguage });
     const prompt = insertContentIntoTranslatePrompt(promptTemplate, content);
@@ -83,7 +71,7 @@ async function translateNote(
             replaceMainContent(editor, response.content);
 
             // Ensure standard structure exists after translation
-            ensureStandardStructure(editor);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
 
             new Notice(plugin.t.messages.translationComplete || 'Translation complete');
         } else {
@@ -115,6 +103,7 @@ async function translateSelection(
         if (response.success && response.content) {
             // Replace selection with translated content
             editor.replaceSelection(response.content);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
             new Notice(plugin.t.messages.translationComplete || 'Translation complete');
         } else {
             new Notice(`Translation failed: ${response.error || 'Unknown error'}`);

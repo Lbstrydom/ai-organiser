@@ -117,11 +117,15 @@ export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings
     }
 
     try {
+        // Only pass custom endpoint for providers that support it (Ollama)
+        // Other providers use their default endpoints unless explicitly configured
+        const endpoint = provider === 'ollama' ? settings.embeddingEndpoint : undefined;
+
         return createEmbeddingService({
             provider: provider as any,
             model: settings.embeddingModel,
             apiKey,
-            endpoint: settings.embeddingEndpoint
+            endpoint
         });
     } catch (error) {
         console.error('Failed to create embedding service:', error);

@@ -29,7 +29,7 @@ export function registerFlashcardCommands(plugin: AIOrganiserPlugin): void {
 /**
  * Export flashcards from the current note
  */
-async function exportFlashcardsFromCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
+export async function exportFlashcardsFromCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     const activeFile = plugin.app.workspace.getActiveFile();
 
     if (!activeFile) {

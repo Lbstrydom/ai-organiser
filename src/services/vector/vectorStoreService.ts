@@ -3,7 +3,7 @@
  * Manages lifecycle of vector store, handles embeddings, and coordinates indexing
  */
 
-import { App, TFile } from 'obsidian';
+import { App, TFile, EventRef } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
@@ -112,6 +112,7 @@ export class VectorStoreService {
     private settings: AIOrganiserSettings;
     private isIndexing = false;
     private searchCache = new SearchCache();
+    private fileEventRefs: EventRef[] = [];
 
     constructor(
         app: App,
@@ -354,33 +355,46 @@ export class VectorStoreService {
      * Register file event handlers for automatic indexing
      */
     public registerFileEventHandlers(): void {
+        this.unregisterFileEventHandlers();
         // Listen for file creation
-        this.app.vault.on('create', async (file) => {
+        this.fileEventRefs.push(this.app.vault.on('create', async (file) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
                 await this.indexNote(file);
             }
-        });
+        }));
 
         // Listen for file modification
-        this.app.vault.on('modify', async (file) => {
+        this.fileEventRefs.push(this.app.vault.on('modify', async (file) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
                 await this.indexNote(file);
             }
-        });
+        }));
 
         // Listen for file deletion
-        this.app.vault.on('delete', async (file) => {
+        this.fileEventRefs.push(this.app.vault.on('delete', async (file) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
                 await this.removeNote(file);
             }
-        });
+        }));
 
         // Listen for file rename
-        this.app.vault.on('rename', async (file, oldPath) => {
+        this.fileEventRefs.push(this.app.vault.on('rename', async (file, oldPath) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
                 await this.renameNote(oldPath, file.path);
             }
-        });
+        }));
+    }
+
+    /**
+     * Unregister file event handlers
+     */
+    public unregisterFileEventHandlers(): void {
+        if (this.fileEventRefs.length === 0) return;
+
+        for (const ref of this.fileEventRefs) {
+            this.app.vault.offref(ref);
+        }
+        this.fileEventRefs = [];
     }
 
     /**
@@ -433,6 +447,9 @@ export class VectorStoreService {
      * Cleanup and dispose resources
      */
     public async dispose(): Promise<void> {
+        this.unregisterFileEventHandlers();
+        this.searchCache.clear();
+        this.isIndexing = false;
         if (this.vectorStore) {
             // Save before disposing
             try {

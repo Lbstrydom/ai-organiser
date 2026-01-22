@@ -4,9 +4,37 @@
  * Features: Binary storage, fast search, persistence, low memory footprint
  */
 
-import { Voy as VoyClient } from 'voy-search';
+import type { Voy as VoyClient } from 'voy-search';
 import { App } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker } from './types';
+
+const voyWasm = require('voy-search/voy_search_bg.wasm') as Uint8Array;
+const voyBg = require('voy-search/voy_search_bg.js') as any;
+const VoyClass = voyBg.Voy as typeof import('voy-search').Voy;
+
+let voyWasmInit: Promise<void> | null = null;
+
+async function ensureVoyWasmReady(): Promise<void> {
+    if (voyWasmInit) {
+        return voyWasmInit;
+    }
+
+    voyWasmInit = (async () => {
+        if (typeof voyBg.__wbg_set_wasm !== 'function') {
+            throw new Error('Voy WASM glue is missing __wbg_set_wasm');
+        }
+
+        const result = await WebAssembly.instantiate(voyWasm, {
+            './voy_search_bg.js': voyBg
+        });
+
+        // WebAssembly.instantiate with BufferSource returns WebAssemblyInstantiatedSource
+        const instantiatedSource = result as unknown as WebAssembly.WebAssemblyInstantiatedSource;
+        voyBg.__wbg_set_wasm(instantiatedSource.instance.exports);
+    })();
+
+    return voyWasmInit;
+}
 
 /**
  * Simple FileChangeTracker implementation
@@ -69,7 +97,8 @@ export class VoyVectorStore implements IVectorStore {
 
         try {
             // Initialize Voy with embedding dimensions
-            this.voy = new VoyClient();
+            await ensureVoyWasmReady();
+            this.voy = new VoyClass();
             console.log('Voy vector store initialized');
         } catch (error) {
             console.error('Failed to initialize Voy:', error);
@@ -328,7 +357,7 @@ export class VoyVectorStore implements IVectorStore {
             }
 
             // Deserialize Voy index
-            this.voy = VoyClient.deserialize(serialized);
+            this.voy = VoyClass.deserialize(serialized);
 
             console.log(`Voy index loaded: ${this.metadata.totalDocuments} documents`);
         } catch (error) {

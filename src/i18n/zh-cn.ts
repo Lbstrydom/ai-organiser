@@ -35,6 +35,10 @@ export const zhCN: Translations = {
             maxTagsDesc: "每篇笔记生成的最大标签数量（1-10）",
             outputLanguage: "输出语言",
             outputLanguageDesc: "生成标签的语言",
+            autoEnsureNoteStructure: {
+                name: "自动补全笔记结构",
+                description: "在执行命令后自动添加 References 和 Pending Integration 章节"
+            },
             fileExclusion: "排除文件夹",
             excludedFiles: "批量标记时跳过的文件夹",
             excludedFilesDesc: "这些文件夹中的笔记在批量标记时将被跳过。用于附件、模板或其他非内容文件夹。要设置永不建议的标签，请编辑配置文件夹中的 excluded-tags.md。",
@@ -190,6 +194,11 @@ export const zhCN: Translations = {
         showTagNetwork: "显示标签网络",
         aiTagSelectedNotes: "AI 标记选中的笔记",
         aiTagThisNote: "AI 标记这篇笔记",
+        summarize: "总结",
+        translate: "翻译",
+        tag: "标签",
+        clearTags: "清除标签",
+        enhance: "增强",
         summarizeFromUrl: "从 URL 总结",
         summarizeFromPdf: "从 PDF 总结",
         summarizeFromYouTube: "从 YouTube 总结",
@@ -209,6 +218,7 @@ export const zhCN: Translations = {
         buildSemanticIndex: "构建语义搜索索引",
         updateSemanticIndex: "更新语义搜索索引",
         clearSemanticIndex: "清除语义搜索索引",
+        manageIndex: "管理索引",
         showRelatedNotes: "显示相关笔记",
         searchSemanticVault: "语义搜索库",
         chatWithVault: "与库聊天（RAG）"
@@ -291,6 +301,7 @@ export const zhCN: Translations = {
         externalFilesDesktopOnly: "\u5916\u90e8\u6587\u4ef6\u8bbf\u95ee\u4ec5\u652f\u6301\u684c\u9762\u7aef",
         noSelection: "请选择要翻译的文本",
         translating: "正在翻译...",
+        translatingFullNote: "正在翻译整个笔记...",
         translationComplete: "翻译完成",
         invalidYouTubeUrl: "无效的 YouTube URL",
         fetchingTranscript: "正在获取字幕...",
@@ -333,7 +344,7 @@ export const zhCN: Translations = {
         flashcardsExported: "已导出",
         flashcardsTo: "张闪卡到",
         buildingIndex: "正在构建语义索引...",
-        indexBuildComplete: "索引构建成功",
+        indexBuildComplete: "已索引 {indexed} 个笔记，失败 {failed}",
         indexBuildFailed: "索引构建失败",
         updatingIndex: "正在更新语义索引...",
         indexUpdateComplete: "索引更新成功",
@@ -352,7 +363,9 @@ export const zhCN: Translations = {
         chatReady: "聊天已就绪",
         chatFailed: "聊天初始化失败",
         embeddingGenerationFailed: "生成嵌入失败",
-        vectorStoreFailed: "向量存储操作失败"
+        vectorStoreFailed: "向量存储操作失败",
+        semanticSearchDisabled: "语义搜索未启用，请在设置中启用。",
+        externalCompressionNotSupported: "不支持压缩外部文件。请使用较小的文件。"
     },
 
     // 模态对话框
@@ -400,7 +413,10 @@ export const zhCN: Translations = {
             personaDesc: "选择总结的格式",
             contextLabel: "附加上下文",
             contextDesc: "可选：指导总结焦点（例如，'关注第3章'或'提取关键发现'）",
-            contextPlaceholder: "例如，关注方法学部分..."
+            contextPlaceholder: "例如，关注方法学部分...",
+            browseLabel: "外部 PDF",
+            browseDesc: "浏览库外的 PDF 文件（Google Drive、OneDrive 等）",
+            browseButton: "浏览..."
         },
         contentSize: {
             title: "内容大小",
@@ -428,6 +444,55 @@ export const zhCN: Translations = {
             languageLabel: "目标语言",
             languageDesc: "笔记将被翻译成的语言",
             translateButton: "翻译"
+        },
+        summarizeSource: {
+            title: "总结",
+            thisNote: "此笔记",
+            pasteUrl: "粘贴 URL",
+            selectPdf: "选择 PDF",
+            youtubeVideo: "YouTube 视频",
+            audioFile: "音频文件",
+            continueButton: "继续"
+        },
+        enhance: {
+            title: "增强笔记",
+            improve: "改进写作",
+            improveDesc: "改进清晰度、结构和流畅性",
+            diagram: "生成图表",
+            diagramDesc: "从笔记生成 Mermaid 图表",
+            resources: "查找资源",
+            resourcesDesc: "搜索相关学习资料",
+            flashcards: "导出闪卡",
+            flashcardsDesc: "从此笔记生成闪卡"
+        },
+        tagScope: {
+            title: "标签笔记",
+            thisNote: "此笔记",
+            currentFolder: "当前文件夹",
+            entireVault: "整个仓库",
+            tagButton: "标签"
+        },
+        clearTagsScope: {
+            title: "清除标签",
+            thisNote: "此笔记",
+            currentFolder: "当前文件夹",
+            entireVault: "整个仓库",
+            clearButton: "清除"
+        },
+        manageIndex: {
+            title: "管理索引",
+            description: "构建、更新或清除语义搜索索引。",
+            buildLabel: "构建完整索引",
+            buildDesc: "为仓库中的所有笔记建立索引",
+            buildButton: "构建",
+            updateLabel: "更新当前笔记",
+            updateDesc: "重新索引当前笔记",
+            updateButton: "更新",
+            clearLabel: "清除索引",
+            clearDesc: "移除所有索引数据",
+            clearButton: "清除",
+            clearConfirm: "确定要清除语义搜索索引吗？你可以随时重新构建。",
+            closeButton: "关闭"
         },
         youtubeInput: {
             title: "总结 YouTube 视频",
@@ -517,7 +582,10 @@ export const zhCN: Translations = {
             compressionBadge: "需压缩",
             compressionTooltip: "此文件将在转录前进行压缩",
             largeFileTooltip: "文件超过 {maxSize}MB - 将自动压缩",
-            compressAndTranscribe: "压缩并转录"
+            compressAndTranscribe: "压缩并转录",
+            browseLabel: "外部音频",
+            browseDesc: "浏览库外的音频文件（Google Drive、OneDrive 等）",
+            browseButton: "浏览..."
         },
         mermaidDiagram: {
             title: "生成 Mermaid 图表",

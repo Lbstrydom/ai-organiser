@@ -6,6 +6,7 @@
 import { Notice, Modal, App, Setting, TextAreaComponent, ButtonComponent } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { RAGService, RAGContext } from '../services/ragService';
+import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 
 /**
  * Chat message interface
@@ -249,7 +250,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     // Chat with vault command
     plugin.addCommand({
         id: 'chat-with-vault',
-        name: 'Chat with Vault (RAG)',
+        name: plugin.t.commands.chatWithVault,
         callback: async () => {
             if (!plugin.settings.enableSemanticSearch) {
                 new Notice('Semantic search is not enabled. Enable it in settings.');
@@ -337,6 +338,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     // Insert response at cursor
                     const answer = `\n\n**Q: ${question}**\n\n${response.content}${ragService.formatSources(context.sources)}\n\n`;
                     editor.replaceSelection(answer);
+                    ensureNoteStructureIfEnabled(editor, plugin.settings);
                     new Notice('Answer inserted');
                 } else {
                     new Notice('Failed to generate answer');
@@ -382,7 +384,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     '\n\n---\n',
                     '## Related Notes\n',
                     ...related.map(r => 
-                        `- [[${r.document.filePath}|${r.document.metadata.title}]] (${(r.score * 100).toFixed(0)}% similar)`
+                        `- [[${r.document.filePath}|${r.document.metadata.title}]] (related)`
                     ),
                     '\n'
                 ].join('\n');
@@ -390,6 +392,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 // Insert at cursor or end
                 const cursor = editor.getCursor();
                 editor.replaceRange(relatedSection, cursor);
+                ensureNoteStructureIfEnabled(editor, plugin.settings);
                 new Notice(`Inserted ${related.length} related notes`);
             } catch (error) {
                 new Notice('Error: ' + (error as any).message);

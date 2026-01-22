@@ -19,6 +19,7 @@ export interface PickerCommand {
     name: string;
     icon: string;
     description?: string;
+    aliases?: string[];
     callback: () => void | Promise<void>;
 }
 
@@ -56,7 +57,8 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
 
     getItemText(item: CommandItem): string {
         // Include category in search text for better filtering
-        return `${item.category} ${item.command.name}`;
+        const aliasText = item.command.aliases ? item.command.aliases.join(' ') : '';
+        return `${item.category} ${item.command.name} ${aliasText}`.trim();
     }
 
     renderSuggestion(fuzzyMatch: FuzzyMatch<CommandItem>, el: HTMLElement): void {
@@ -134,40 +136,26 @@ export function buildCommandCategories(
             icon: 'tag',
             commands: [
                 {
-                    id: 'generate-tags-for-current-note',
-                    name: t.commands.generateTagsForCurrentNote,
+                    id: 'smart-tag',
+                    name: t.commands.tag || t.commands.generateTagsForCurrentNote,
                     icon: 'tag',
-                    callback: () => executeCommand('ai-organiser:generate-tags-for-current-note')
+                    aliases: [
+                        t.commands.generateTagsForCurrentNote,
+                        t.commands.generateTagsForCurrentFolder,
+                        t.commands.generateTagsForVault
+                    ],
+                    callback: () => executeCommand('ai-organiser:smart-tag')
                 },
                 {
-                    id: 'generate-tags-for-current-folder',
-                    name: t.commands.generateTagsForCurrentFolder,
-                    icon: 'folder-tree',
-                    callback: () => executeCommand('ai-organiser:generate-tags-for-current-folder')
-                },
-                {
-                    id: 'generate-tags-for-vault',
-                    name: t.commands.generateTagsForVault,
-                    icon: 'vault',
-                    callback: () => executeCommand('ai-organiser:generate-tags-for-vault')
-                },
-                {
-                    id: 'clear-tags-for-current-note',
-                    name: t.commands.clearTagsForCurrentNote,
+                    id: 'clear-tags',
+                    name: t.commands.clearTags || t.commands.clearTagsForCurrentNote,
                     icon: 'eraser',
-                    callback: () => executeCommand('ai-organiser:clear-tags-for-current-note')
-                },
-                {
-                    id: 'clear-tags-for-current-folder',
-                    name: t.commands.clearTagsForCurrentFolder,
-                    icon: 'folder-minus',
-                    callback: () => executeCommand('ai-organiser:clear-tags-for-current-folder')
-                },
-                {
-                    id: 'clear-tags-for-vault',
-                    name: t.commands.clearTagsForVault,
-                    icon: 'trash-2',
-                    callback: () => executeCommand('ai-organiser:clear-tags-for-vault')
+                    aliases: [
+                        t.commands.clearTagsForCurrentNote,
+                        t.commands.clearTagsForCurrentFolder,
+                        t.commands.clearTagsForVault
+                    ],
+                    callback: () => executeCommand('ai-organiser:clear-tags')
                 }
             ]
         },
@@ -177,34 +165,40 @@ export function buildCommandCategories(
             icon: 'file-text',
             commands: [
                 {
-                    id: 'summarize-smart',
-                    name: t.commands.summarizeSmart || 'Smart Summarize',
-                    icon: 'sparkles',
-                    callback: () => executeCommand('ai-organiser:summarize-smart')
-                },
-                {
-                    id: 'summarize-from-url',
-                    name: t.commands.summarizeFromUrl,
-                    icon: 'link',
-                    callback: () => executeCommand('ai-organiser:summarize-from-url')
-                },
-                {
-                    id: 'summarize-from-pdf',
-                    name: t.commands.summarizeFromPdf,
+                    id: 'smart-summarize',
+                    name: t.commands.summarize || t.commands.summarizeSmart || 'Summarize',
                     icon: 'file-text',
-                    callback: () => executeCommand('ai-organiser:summarize-from-pdf')
-                },
+                    aliases: [
+                        t.commands.summarizeSmart,
+                        t.commands.summarizeFromUrl,
+                        t.commands.summarizeFromPdf,
+                        t.commands.summarizeFromYouTube,
+                        t.commands.summarizeFromAudio,
+                        'YouTube',
+                        'PDF',
+                        'URL',
+                        'Audio'
+                    ],
+                    callback: () => executeCommand('ai-organiser:smart-summarize')
+                }
+            ]
+        },
+        {
+            id: 'enhance',
+            name: 'Enhance',
+            icon: 'sparkles',
+            commands: [
                 {
-                    id: 'summarize-from-youtube',
-                    name: t.commands.summarizeFromYouTube,
-                    icon: 'youtube',
-                    callback: () => executeCommand('ai-organiser:summarize-from-youtube')
-                },
-                {
-                    id: 'summarize-from-audio',
-                    name: t.commands.summarizeFromAudio,
-                    icon: 'mic',
-                    callback: () => executeCommand('ai-organiser:summarize-from-audio')
+                    id: 'enhance-note',
+                    name: t.commands.enhance || t.commands.improveNote,
+                    icon: 'sparkles',
+                    aliases: [
+                        t.commands.improveNote,
+                        t.commands.generateMermaidDiagram,
+                        t.commands.findResources,
+                        t.commands.exportFlashcards
+                    ],
+                    callback: () => executeCommand('ai-organiser:enhance-note')
                 }
             ]
         },
@@ -218,18 +212,6 @@ export function buildCommandCategories(
                     name: t.commands.generateFromEmbedded,
                     icon: 'file-plus',
                     callback: () => executeCommand('ai-organiser:generate-from-embedded')
-                },
-                {
-                    id: 'improve-note',
-                    name: t.commands.improveNote,
-                    icon: 'wand-2',
-                    callback: () => executeCommand('ai-organiser:improve-note')
-                },
-                {
-                    id: 'find-resources',
-                    name: t.commands.findResources,
-                    icon: 'search',
-                    callback: () => executeCommand('ai-organiser:find-resources')
                 }
             ]
         },
@@ -239,16 +221,44 @@ export function buildCommandCategories(
             icon: 'languages',
             commands: [
                 {
-                    id: 'translate-note',
-                    name: t.commands.translateNote,
+                    id: 'smart-translate',
+                    name: t.commands.translate || t.commands.translateNote,
                     icon: 'languages',
-                    callback: () => executeCommand('ai-organiser:translate-note')
+                    aliases: [
+                        t.commands.translateNote,
+                        t.commands.translateSelection
+                    ],
+                    callback: () => executeCommand('ai-organiser:smart-translate')
+                }
+            ]
+        },
+        {
+            id: 'semantic-search',
+            name: 'Semantic Search',
+            icon: 'search',
+            commands: [
+                {
+                    id: 'semantic-search',
+                    name: t.commands.searchSemanticVault,
+                    icon: 'search',
+                    callback: () => executeCommand('ai-organiser:semantic-search')
                 },
                 {
-                    id: 'translate-selection',
-                    name: t.commands.translateSelection,
-                    icon: 'text-cursor-input',
-                    callback: () => executeCommand('ai-organiser:translate-selection')
+                    id: 'find-related',
+                    name: t.commands.showRelatedNotes,
+                    icon: 'git-branch',
+                    callback: () => executeCommand('ai-organiser:find-related')
+                },
+                {
+                    id: 'manage-index',
+                    name: t.commands.manageIndex,
+                    icon: 'database',
+                    aliases: [
+                        t.commands.buildSemanticIndex,
+                        t.commands.updateSemanticIndex,
+                        t.commands.clearSemanticIndex
+                    ],
+                    callback: () => executeCommand('ai-organiser:manage-index')
                 }
             ]
         },
@@ -268,6 +278,12 @@ export function buildCommandCategories(
                     name: t.commands.showTagNetwork,
                     icon: 'git-branch',
                     callback: () => executeCommand('ai-organiser:show-tag-network')
+                },
+                {
+                    id: 'chat-with-vault',
+                    name: t.commands.chatWithVault,
+                    icon: 'message-circle',
+                    callback: () => executeCommand('ai-organiser:chat-with-vault')
                 }
             ]
         }

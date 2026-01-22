@@ -3,12 +3,13 @@
  * Modal for selecting a PDF file to summarize with persona selection and optional context
  */
 
-import { App, Modal, Setting, TFile } from 'obsidian';
+import { App, Modal, Setting, TFile, Platform } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import type { Persona } from '../../services/configurationService';
 
 export interface PdfSelectResult {
-    file: TFile;
+    file?: TFile;
+    externalPath?: string;  // For files outside the vault
     personaId: string;
     context?: string;  // Optional user context to guide summarization
 }
@@ -16,6 +17,7 @@ export interface PdfSelectResult {
 export class PdfSelectModal extends Modal {
     private readonly files: TFile[];
     private onSelect: (result: PdfSelectResult) => void;
+    private onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string }) => void;
     private t: Translations;
     private personaId: string;
     private context: string = '';
@@ -27,13 +29,15 @@ export class PdfSelectModal extends Modal {
         files: TFile[],
         defaultPersonaId: string,
         personas: Persona[],
-        onSelect: (result: PdfSelectResult) => void
+        onSelect: (result: PdfSelectResult) => void,
+        onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string }) => void
     ) {
         super(app);
         this.t = translations;
         this.files = files;
         this.personaId = defaultPersonaId;
         this.onSelect = onSelect;
+        this.onExternalSelect = onExternalSelect;
         this.personas = personas;
     }
 
@@ -100,12 +104,54 @@ export class PdfSelectModal extends Modal {
             };
         });
 
+        // Add browse button for external files (desktop only)
+        if (!Platform.isMobile && this.onExternalSelect) {
+            const browseSection = new Setting(contentEl)
+                .setName(this.t.modals.pdfSelect.browseLabel || 'Browse External')
+                .setDesc(this.t.modals.pdfSelect.browseDesc || 'Select a PDF from outside your vault (Google Drive, OneDrive, etc.)');
+
+            browseSection.addButton(btn => btn
+                .setButtonText(this.t.modals.pdfSelect.browseButton || 'Browse...')
+                .onClick(() => this.browseForExternalPdf())
+            );
+        }
+
         // Add cancel button
         new Setting(contentEl)
             .addButton(btn => btn
                 .setButtonText(this.t.modals.cancel)
                 .onClick(() => this.close())
             );
+    }
+
+    /**
+     * Open file picker for external PDF files
+     */
+    private browseForExternalPdf(): void {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,application/pdf';
+        input.style.display = 'none';
+
+        input.onchange = () => {
+            const file = input.files?.[0];
+            if (file && this.onExternalSelect) {
+                // Get the file path - on Electron we can access the path property
+                const filePath = (file as File & { path?: string }).path;
+                if (filePath) {
+                    this.close();
+                    this.onExternalSelect({
+                        externalPath: filePath,
+                        personaId: this.personaId,
+                        context: this.context.trim() || undefined
+                    });
+                }
+            }
+            input.remove();
+        };
+
+        document.body.appendChild(input);
+        input.click();
     }
 
     onClose(): void {

@@ -2,9 +2,10 @@
  * Audio Select Modal
  * Modal for selecting an audio file from the vault to transcribe
  * Supports files over 25MB with compression indicator
+ * Supports browsing for external files (Google Drive, OneDrive, etc.)
  */
 
-import { App, Modal, TFile, setIcon, Setting } from 'obsidian';
+import { App, Modal, TFile, setIcon, Setting, Platform } from 'obsidian';
 import { Translations } from '../../i18n/types';
 import {
     getAllAudioFiles,
@@ -15,7 +16,8 @@ import { needsCompression, getCompressionEstimate } from '../../services/audioCo
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 
 export interface AudioSelectResult {
-    file: TFile;
+    file?: TFile;
+    externalPath?: string;  // For files outside the vault
     language: string;
     context: string;
     needsCompression: boolean;
@@ -135,6 +137,18 @@ export class AudioSelectModal extends Modal {
                 text.inputEl.addClass('audio-select-context-input');
             });
 
+        // Browse button for external files (desktop only)
+        if (!Platform.isMobile) {
+            const browseSection = new Setting(optionsSection)
+                .setName(this.t.modals.audioSelect?.browseLabel || 'Browse External')
+                .setDesc(this.t.modals.audioSelect?.browseDesc || 'Select an audio file from outside your vault (Google Drive, OneDrive, etc.)');
+
+            browseSection.addButton(btn => btn
+                .setButtonText(this.t.modals.audioSelect?.browseButton || 'Browse...')
+                .onClick(() => this.browseForExternalAudio())
+            );
+        }
+
         // Buttons
         const buttonContainer = contentEl.createEl('div', { cls: 'audio-select-buttons' });
 
@@ -151,6 +165,37 @@ export class AudioSelectModal extends Modal {
 
         // Disable submit if no file selected
         this.updateSubmitButton(submitButton);
+    }
+
+    /**
+     * Open file picker for external audio files
+     */
+    private browseForExternalAudio(): void {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'audio/*,.mp3,.wav,.m4a,.ogg,.webm,.mp4';
+        input.style.display = 'none';
+
+        input.onchange = () => {
+            const file = input.files?.[0];
+            if (file) {
+                // Get the file path - on Electron we can access the path property
+                const filePath = (file as File & { path?: string }).path;
+                if (filePath) {
+                    this.close();
+                    this.onSelect({
+                        externalPath: filePath,
+                        language: this.selectedLanguage === 'auto' ? '' : this.selectedLanguage,
+                        context: this.contextPrompt.trim(),
+                        needsCompression: file.size > MAX_FILE_SIZE_MB * 1024 * 1024
+                    });
+                }
+            }
+            input.remove();
+        };
+
+        document.body.appendChild(input);
+        input.click();
     }
 
     private renderFileList(container: HTMLElement) {

@@ -6,7 +6,6 @@ import { registerTranslateCommands } from './translateCommands';
 import { registerSmartNoteCommands } from './smartNoteCommands';
 import { registerIntegrationCommands } from './integrationCommands';
 import { registerHighlightCommands } from './highlightCommands';
-import { registerFlashcardCommands } from './flashcardCommands';
 import { registerSemanticSearchCommands } from './semanticSearchCommands';
 import { registerChatCommands } from './chatCommands';
 import AIOrganiserPlugin from '../main';
@@ -20,7 +19,6 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerSmartNoteCommands(plugin);
     registerIntegrationCommands(plugin);
     registerHighlightCommands(plugin);
-    registerFlashcardCommands(plugin);
     registerSemanticSearchCommands(plugin);
     registerChatCommands(plugin);
 }

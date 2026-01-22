@@ -46,7 +46,7 @@ export default class AIOrganiserPlugin extends Plugin {
             language: DEFAULT_SETTINGS.language
         }, app);
         this.configService = new ConfigurationService(app, `${DEFAULT_SETTINGS.pluginFolder}/${DEFAULT_SETTINGS.configFolderPath}`);
-        this.eventHandlers = new EventHandlers(app);
+        this.eventHandlers = new EventHandlers(this);
         this.tagNetworkManager = new TagNetworkManager(app);
         this.tagOperations = new TagOperations(app);
     }

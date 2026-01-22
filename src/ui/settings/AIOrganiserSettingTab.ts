@@ -2,7 +2,6 @@ import { App, PluginSettingTab } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { LLMSettingsSection } from './LLMSettingsSection';
 import { TaggingSettingsSection } from './TaggingSettingsSection';
-import { SupportSection } from './SupportSection';
 import { InterfaceSettingsSection } from './InterfaceSettingsSection';
 import { SummarizationSettingsSection } from './SummarizationSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
@@ -12,7 +11,6 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
     private llmSection?: LLMSettingsSection;
     private taggingSection?: TaggingSettingsSection;
-    private supportSection?: SupportSection;
     private interfaceSection?: InterfaceSettingsSection;
     private summarizationSection?: SummarizationSettingsSection;
     private configurationSection?: ConfigurationSettingsSection;
@@ -50,9 +48,5 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // 5. Configuration (advanced - config files)
         this.configurationSection = new ConfigurationSettingsSection(this.plugin, containerEl, this);
         this.configurationSection.display();
-
-        // 6. Support section (always last)
-        this.supportSection = new SupportSection(this.plugin, containerEl, this);
-        this.supportSection.display();
     }
 }

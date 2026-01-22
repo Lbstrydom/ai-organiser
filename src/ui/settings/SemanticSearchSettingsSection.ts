@@ -3,19 +3,27 @@ import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class SemanticSearchSettingsSection extends BaseSettingSection {
+    private sectionEl: HTMLElement | null = null;
+
     display(): void {
         const { containerEl, plugin } = this;
         const t = plugin.t;
+        if (!this.sectionEl) {
+            this.sectionEl = containerEl.createDiv({ cls: 'semantic-search-settings-section' });
+        }
+
+        const sectionEl = this.sectionEl;
+        sectionEl.empty();
 
         // Section header
-        containerEl.createEl('h2', { text: t.settings.semanticSearch.title });
-        containerEl.createEl('p', { 
+        sectionEl.createEl('h2', { text: t.settings.semanticSearch.title });
+        sectionEl.createEl('p', { 
             text: t.settings.semanticSearch.description,
             cls: 'setting-item-description'
         });
 
         // Master toggle for Semantic Search
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.enableSemanticSearch.name)
             .setDesc(t.settings.semanticSearch.enableSemanticSearch.description)
             .addToggle(toggle => toggle
@@ -25,7 +33,9 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     await plugin.saveSettings();
                     
                     // Cleanup vector store if disabled
-                    if (!value && plugin.vectorStore) {
+                    if (!value && plugin.vectorStoreService) {
+                        await plugin.vectorStoreService.dispose();
+                        plugin.vectorStoreService = null;
                         plugin.vectorStore = null;
                     }
                     
@@ -35,7 +45,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
         // Only show additional settings if semantic search is enabled
         if (!plugin.settings.enableSemanticSearch) {
-            containerEl.createEl('p', {
+            sectionEl.createEl('p', {
                 text: t.settings.semanticSearch.enableToConfigureMessage,
                 cls: 'setting-item-description mod-warning'
             });
@@ -43,12 +53,12 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         }
 
         // Embedding Provider
-        new Setting(containerEl)
+        // Note: Claude does not offer embedding APIs - use Voyage AI (Anthropic's recommended partner)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.embeddingProvider.name)
             .setDesc(t.settings.semanticSearch.embeddingProvider.description)
             .addDropdown(dropdown => dropdown
                 .addOption('openai', 'OpenAI')
-                .addOption('claude', 'Claude (Anthropic)')
                 .addOption('gemini', 'Google Gemini')
                 .addOption('ollama', 'Ollama (Local)')
                 .addOption('openrouter', 'OpenRouter')
@@ -81,7 +91,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         const currentModel = plugin.settings.embeddingModel || this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
         const modelOptions = this.getEmbeddingModelsForProvider(plugin.settings.embeddingProvider);
 
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.embeddingModel.name)
             .setDesc(t.settings.semanticSearch.embeddingModel.description)
             .addDropdown(dropdown => {
@@ -114,7 +124,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 keyDesc += ' (Using main LLM API key)';
             }
 
-            const settingEl = new Setting(containerEl)
+            const settingEl = new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.embeddingApiKey.name)
                 .setDesc(keyDesc);
 
@@ -151,7 +161,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
         // Embedding Endpoint (for Ollama or custom endpoints)
         if (plugin.settings.embeddingProvider === 'ollama') {
-            new Setting(containerEl)
+            new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.embeddingEndpoint.name)
                 .setDesc(t.settings.semanticSearch.embeddingEndpoint.description)
                 .addText(text => text
@@ -163,7 +173,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     }));
 
             // Local Setup Wizard button
-            new Setting(containerEl)
+            new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.localSetup)
                 .setDesc(t.settings.semanticSearch.localSetupDesc)
                 .addButton(button => button
@@ -176,10 +186,10 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         }
 
         // === Indexing Settings ===
-        containerEl.createEl('h3', { text: t.settings.semanticSearch.indexing.title });
+        sectionEl.createEl('h3', { text: t.settings.semanticSearch.indexing.title });
 
         // Auto-index new notes
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.autoIndexNewNotes.name)
             .setDesc(t.settings.semanticSearch.autoIndexNewNotes.description)
             .addToggle(toggle => toggle
@@ -190,7 +200,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // Use shared excluded folders toggle
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.useSharedExcludedFolders.name)
             .setDesc(t.settings.semanticSearch.useSharedExcludedFolders.description)
             .addToggle(toggle => toggle
@@ -205,7 +215,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         if (plugin.settings.useSharedExcludedFolders) {
             // Show read-only info about which folders are being used from tagging
             const sharedFolders = plugin.settings.excludedFolders;
-            const infoEl = containerEl.createDiv({ cls: 'setting-item' });
+            const infoEl = sectionEl.createDiv({ cls: 'setting-item' });
             const infoContent = infoEl.createDiv({ cls: 'setting-item-info' });
             infoContent.createDiv({
                 cls: 'setting-item-name',
@@ -226,7 +236,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             }
         } else {
             // Show custom excluded folders textarea
-            new Setting(containerEl)
+            new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.indexExcludedFolders.name)
                 .setDesc(t.settings.semanticSearch.indexExcludedFolders.description)
                 .addTextArea(text => text
@@ -242,7 +252,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         }
 
         // Chunk size
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.chunkSize.name)
             .setDesc(t.settings.semanticSearch.chunkSize.description)
             .addText(text => text
@@ -257,7 +267,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // Chunk overlap
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.chunkOverlap.name)
             .setDesc(t.settings.semanticSearch.chunkOverlap.description)
             .addText(text => text
@@ -272,7 +282,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // Max chunks per note
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.maxChunksPerNote.name)
             .setDesc(t.settings.semanticSearch.maxChunksPerNote.description)
             .addText(text => text
@@ -287,10 +297,10 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // === RAG Settings ===
-        containerEl.createEl('h3', { text: t.settings.semanticSearch.rag.title });
+        sectionEl.createEl('h3', { text: t.settings.semanticSearch.rag.title });
 
         // Enable Vault Chat
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.enableVaultChat.name)
             .setDesc(t.settings.semanticSearch.enableVaultChat.description)
             .addToggle(toggle => toggle
@@ -301,7 +311,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // RAG context chunks
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.ragContextChunks.name)
             .setDesc(t.settings.semanticSearch.ragContextChunks.description)
             .addText(text => text
@@ -316,7 +326,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 }));
 
         // Include metadata in RAG context
-        new Setting(containerEl)
+        new Setting(sectionEl)
             .setName(t.settings.semanticSearch.ragIncludeMetadata.name)
             .setDesc(t.settings.semanticSearch.ragIncludeMetadata.description)
             .addToggle(toggle => toggle
@@ -330,12 +340,11 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
     private getDefaultEmbeddingModel(provider: string): string {
         const defaults: Record<string, string> = {
             'openai': 'text-embedding-3-small',
-            'claude': 'voyage-2',
             'gemini': 'text-embedding-004',
             'ollama': 'nomic-embed-text',
             'openrouter': 'openai/text-embedding-3-small',
             'cohere': 'embed-english-v3.0',
-            'voyage': 'voyage-2'
+            'voyage': 'voyage-3'
         };
         return defaults[provider] || 'text-embedding-3-small';
     }
@@ -346,11 +355,6 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 { value: 'text-embedding-3-small', label: 'text-embedding-3-small (recommended)' },
                 { value: 'text-embedding-3-large', label: 'text-embedding-3-large (higher quality)' },
                 { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002 (legacy)' }
-            ],
-            'claude': [
-                { value: 'voyage-2', label: 'voyage-2 (recommended)' },
-                { value: 'voyage-large-2', label: 'voyage-large-2 (higher quality)' },
-                { value: 'voyage-code-2', label: 'voyage-code-2 (code-optimised)' }
             ],
             'gemini': [
                 { value: 'text-embedding-004', label: 'text-embedding-004 (recommended)' },
@@ -373,9 +377,10 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 { value: 'embed-english-light-v3.0', label: 'embed-english-light-v3.0 (faster)' }
             ],
             'voyage': [
-                { value: 'voyage-2', label: 'voyage-2 (recommended)' },
-                { value: 'voyage-large-2', label: 'voyage-large-2 (higher quality)' },
-                { value: 'voyage-code-2', label: 'voyage-code-2 (code-optimised)' }
+                { value: 'voyage-3', label: 'voyage-3 (recommended)' },
+                { value: 'voyage-3-lite', label: 'voyage-3-lite (faster, cheaper)' },
+                { value: 'voyage-code-3', label: 'voyage-code-3 (code-optimised)' },
+                { value: 'voyage-large-2', label: 'voyage-large-2 (legacy)' }
             ]
         };
         return models[provider] || [{ value: 'text-embedding-3-small', label: 'text-embedding-3-small' }];

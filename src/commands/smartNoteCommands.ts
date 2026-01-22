@@ -13,13 +13,15 @@ import { getLanguageNameForPrompt } from '../services/languages';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider } from '../services/privacyNotice';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 // BUILTIN_PERSONAS no longer imported - using configurationService for summary personas
-import { ImproveNoteModal, ImproveNoteResult } from '../ui/modals/ImproveNoteModal';
+import { ImproveNoteModal } from '../ui/modals/ImproveNoteModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
-import { replaceMainContent, ensureStandardStructure } from '../utils/noteStructure';
+import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { ConfigurationService, Persona } from '../services/configurationService';
 import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidDiagramModal';
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
+import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
+import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     const extractionService = new ContentExtractionService(plugin.app);
@@ -78,118 +80,140 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
         }
     });
 
-    // Command: Improve/Query note with AI
+    // Command: Enhance note (action menu)
     plugin.addCommand({
-        id: 'improve-note',
-        name: plugin.t.commands.improveNote || 'Improve note with AI',
-        icon: 'message-square-plus',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-
-            const content = await plugin.app.vault.read(view.file);
-
-            if (!content.trim()) {
-                new Notice(plugin.t.messages.noContent);
-                return;
-            }
-
-            // Load personas from configuration
-            const configService = new ConfigurationService(plugin.app);
-            const personas = await configService.getPersonas();
-            const defaultPersona = await configService.getDefaultPersona();
-
-            // Show improve note modal with persona selection
-            const modal = new ImproveNoteModal(
-                plugin.app,
-                plugin.t,
-                personas,
-                defaultPersona,
-                async (result) => {
-                    if (!result.query.trim()) {
-                        return;
-                    }
-
-                    // Get selected persona prompt
-                    const personaPrompt = result.personaId
-                        ? await configService.getPersonaPrompt(result.personaId)
-                        : await configService.getPersonaPrompt();
-
-                    await improveNoteWithQuery(plugin, editor, content, result.query, personaPrompt);
-                }
-            );
-            modal.open();
-        }
+        id: 'enhance-note',
+        name: plugin.t.commands.enhance || 'Enhance',
+        icon: 'sparkles',
+        callback: () => openEnhanceModal(plugin)
     });
+}
 
-    // Command: Find resources related to note
-    plugin.addCommand({
-        id: 'find-resources',
-        name: plugin.t.commands.findResources || 'Find related resources',
-        icon: 'search',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-
-            const content = await plugin.app.vault.read(view.file);
-
-            if (!content.trim()) {
-                new Notice(plugin.t.messages.noContent);
-                return;
-            }
-
-            // Show find resources modal
-            const modal = new FindResourcesModal(
-                plugin.app,
-                plugin.t,
-                async (query: string) => {
-                    if (!query.trim()) {
-                        return;
-                    }
-
-                    await findAndShowResources(plugin, content, query);
-                }
-            );
-            modal.open();
+function openEnhanceModal(plugin: AIOrganiserPlugin): void {
+    const actions: EnhanceAction[] = [
+        {
+            id: 'improve',
+            icon: 'wand-2',
+            label: plugin.t.modals.enhance.improve,
+            description: plugin.t.modals.enhance.improveDesc,
+            onClick: () => void executeImproveNote(plugin)
+        },
+        {
+            id: 'diagram',
+            icon: 'git-branch',
+            label: plugin.t.modals.enhance.diagram,
+            description: plugin.t.modals.enhance.diagramDesc,
+            onClick: () => void executeGenerateMermaidDiagram(plugin)
+        },
+        {
+            id: 'resources',
+            icon: 'search',
+            label: plugin.t.modals.enhance.resources,
+            description: plugin.t.modals.enhance.resourcesDesc,
+            onClick: () => void executeFindResources(plugin)
+        },
+        {
+            id: 'flashcards',
+            icon: 'layers',
+            label: plugin.t.modals.enhance.flashcards,
+            description: plugin.t.modals.enhance.flashcardsDesc,
+            onClick: () => void exportFlashcardsFromCurrentNote(plugin)
         }
-    });
+    ];
 
-    // Command: Generate Mermaid diagram from note
-    plugin.addCommand({
-        id: 'generate-mermaid-diagram',
-        name: plugin.t.commands.generateMermaidDiagram || 'Generate Mermaid diagram',
-        icon: 'git-branch',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
+    new EnhanceNoteModal(plugin.app, plugin, actions).open();
+}
+
+function getActiveMarkdownView(plugin: AIOrganiserPlugin): MarkdownView | null {
+    return plugin.app.workspace.getActiveViewOfType(MarkdownView);
+}
+
+async function executeImproveNote(plugin: AIOrganiserPlugin): Promise<void> {
+    const view = getActiveMarkdownView(plugin);
+    if (!view?.file) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const content = await plugin.app.vault.read(view.file);
+    if (!content.trim()) {
+        new Notice(plugin.t.messages.noContent);
+        return;
+    }
+
+    const configService = new ConfigurationService(plugin.app);
+    const personas = await configService.getPersonas();
+    const defaultPersona = await configService.getDefaultPersona();
+
+    const modal = new ImproveNoteModal(
+        plugin.app,
+        plugin.t,
+        personas,
+        defaultPersona,
+        async (result) => {
+            if (!result.query.trim()) {
                 return;
             }
 
-            const content = await plugin.app.vault.read(view.file);
+            const personaPrompt = result.personaId
+                ? await configService.getPersonaPrompt(result.personaId)
+                : await configService.getPersonaPrompt();
 
-            if (!content.trim()) {
-                new Notice(plugin.t.messages.noContent);
-                return;
-            }
-
-            // Show diagram options modal
-            const modal = new MermaidDiagramModal(
-                plugin.app,
-                plugin.t,
-                async (result: MermaidDiagramResult) => {
-                    await generateMermaidDiagram(plugin, editor, content, result);
-                }
-            );
-            modal.open();
+            await improveNoteWithQuery(plugin, view.editor, content, result.query, personaPrompt);
         }
-    });
+    );
+    modal.open();
+}
+
+async function executeFindResources(plugin: AIOrganiserPlugin): Promise<void> {
+    const view = getActiveMarkdownView(plugin);
+    if (!view?.file) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const content = await plugin.app.vault.read(view.file);
+    if (!content.trim()) {
+        new Notice(plugin.t.messages.noContent);
+        return;
+    }
+
+    const modal = new FindResourcesModal(
+        plugin.app,
+        plugin.t,
+        async (query: string) => {
+            if (!query.trim()) {
+                return;
+            }
+
+            await findAndShowResources(plugin, content, query);
+        }
+    );
+    modal.open();
+    ensureNoteStructureIfEnabled(view.editor, plugin.settings);
+}
+
+async function executeGenerateMermaidDiagram(plugin: AIOrganiserPlugin): Promise<void> {
+    const view = getActiveMarkdownView(plugin);
+    if (!view?.file) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const content = await plugin.app.vault.read(view.file);
+    if (!content.trim()) {
+        new Notice(plugin.t.messages.noContent);
+        return;
+    }
+
+    const modal = new MermaidDiagramModal(
+        plugin.app,
+        plugin.t,
+        async (result: MermaidDiagramResult) => {
+            await generateMermaidDiagram(plugin, view.editor, content, result);
+        }
+    );
+    modal.open();
 }
 
 /**
@@ -244,6 +268,7 @@ async function generateMermaidDiagram(
             // Insert at cursor position
             const cursor = editor.getCursor();
             editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
 
             new Notice(plugin.t.messages.diagramGenerated || 'Diagram generated successfully');
         } else {
@@ -449,7 +474,7 @@ async function improveNoteWithQuery(
             replaceMainContent(editor, improvedContent);
 
             // Ensure standard structure exists after improvement
-            ensureStandardStructure(editor);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
 
             new Notice(plugin.t.messages.noteImproved || 'Note improved successfully');
         } else {
@@ -654,4 +679,5 @@ function insertGeneratedNote(
     // Insert content first, then sources
     const finalOutput = content + output;
     editor.replaceRange(finalOutput, cursor);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }

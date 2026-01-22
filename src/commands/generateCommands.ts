@@ -1,107 +1,30 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Menu, Notice, TFile } from 'obsidian';
+import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
 
 export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
-    // Command to generate tags for current note (with selection support)
+    // Command: Tag (scope modal)
     plugin.addCommand({
-        id: 'generate-tags-for-current-note',
-        name: plugin.t.commands.generateTagsForCurrentNote,
+        id: 'smart-tag',
+        name: plugin.t.commands.tag || plugin.t.commands.generateTagsForCurrentNote,
         icon: 'tag',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-
-            const selectedText = editor.getSelection();
-            const content = selectedText || await plugin.app.vault.read(view.file);
-
-            if (!content.trim()) {
-                new Notice(plugin.t.messages.noContentToAnalyze);
-                return;
-            }
-
-            new Notice(plugin.t.messages.analyzing);
-
-            try {
-                const result = await plugin.analyzeAndTagNote(view.file, content);
-
-                if (selectedText && result.success) {
-                    editor.replaceSelection(selectedText);
+        callback: () => {
+            new TagScopeModal(plugin.app, plugin, async (scope: TagScope) => {
+                switch (scope) {
+                    case 'note':
+                        await tagCurrentNote(plugin);
+                        break;
+                    case 'folder':
+                        await tagCurrentFolder(plugin);
+                        break;
+                    case 'vault':
+                        await tagVault(plugin);
+                        break;
+                    default:
+                        break;
                 }
-                plugin.handleTagUpdateResult(result);
-
-                // Show suggestion modal if there are title or folder suggestions
-                if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
-                    await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
-                }
-            } catch (error) {
-                new Notice(plugin.t.messages.failedToGenerateTags);
-            }
-        }
-    });
-
-    // Command to generate tags for current folder
-    plugin.addCommand({
-        id: 'generate-tags-for-current-folder',
-        name: plugin.t.commands.generateTagsForCurrentFolder,
-        icon: 'tag',
-        callback: async () => {
-            const activeFile = plugin.app.workspace.getActiveFile();
-            if (!activeFile) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-
-            const parentFolder = activeFile.parent;
-            if (!parentFolder) {
-                new Notice(plugin.t.messages.noParentFolder);
-                return;
-            }
-
-            const filesInFolder = plugin.getNonExcludedMarkdownFilesFromFolder(parentFolder);
-
-            if (filesInFolder.length === 0) {
-                new Notice(plugin.t.messages.noMdFiles);
-                return;
-            }
-
-            const confirmed = await plugin.showConfirmationDialog(
-                `${plugin.t.messages.generateTagsForFolderConfirm.replace('{count}', String(filesInFolder.length))}`
-            );
-
-            if (!confirmed) {
-                new Notice(plugin.t.messages.operationCancelled);
-                return;
-            }
-
-            await plugin.analyzeAndTagFiles(filesInFolder);
-        }
-    });
-
-    // Command to generate tags for vault
-    plugin.addCommand({
-        id: 'generate-tags-for-vault',
-        name: plugin.t.commands.generateTagsForVault,
-        icon: 'tag',
-        callback: async () => {
-            const files = plugin.getNonExcludedMarkdownFiles();
-            if (files.length === 0) {
-                new Notice(plugin.t.messages.noMdFiles);
-                return;
-            }
-
-            const confirmed = await plugin.showConfirmationDialog(
-                `${plugin.t.messages.generateTagsForVaultConfirm.replace('{count}', String(files.length))}`
-            );
-
-            if (!confirmed) {
-                new Notice(plugin.t.messages.operationCancelled);
-                return;
-            }
-
-            await plugin.analyzeAndTagFiles(files);
+            }).open();
         }
     });
 
@@ -142,4 +65,101 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
             }
         })
     );
+}
+
+async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
+    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file || !view.editor) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const editor = view.editor;
+    const selectedText = editor.getSelection();
+    const content = selectedText || await plugin.app.vault.read(view.file);
+
+    if (!content.trim()) {
+        new Notice(plugin.t.messages.noContentToAnalyze);
+        return;
+    }
+
+    new Notice(plugin.t.messages.analyzing);
+
+    try {
+        const result = await plugin.analyzeAndTagNote(view.file, content);
+
+        if (selectedText && result.success) {
+            editor.replaceSelection(selectedText);
+        }
+        plugin.handleTagUpdateResult(result);
+
+        if (result.success) {
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
+        }
+
+        if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+            await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
+        }
+    } catch (error) {
+        new Notice(plugin.t.messages.failedToGenerateTags);
+    }
+}
+
+async function tagCurrentFolder(plugin: AIOrganiserPlugin): Promise<void> {
+    const activeFile = plugin.app.workspace.getActiveFile();
+    if (!activeFile) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
+    const parentFolder = activeFile.parent;
+    if (!parentFolder) {
+        new Notice(plugin.t.messages.noParentFolder);
+        return;
+    }
+
+    const filesInFolder = plugin.getNonExcludedMarkdownFilesFromFolder(parentFolder);
+
+    if (filesInFolder.length === 0) {
+        new Notice(plugin.t.messages.noMdFiles);
+        return;
+    }
+
+    const confirmed = await plugin.showConfirmationDialog(
+        `${plugin.t.messages.generateTagsForFolderConfirm.replace('{count}', String(filesInFolder.length))}`
+    );
+
+    if (!confirmed) {
+        new Notice(plugin.t.messages.operationCancelled);
+        return;
+    }
+
+    await plugin.analyzeAndTagFiles(filesInFolder);
+    const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView?.editor) {
+        ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);
+    }
+}
+
+async function tagVault(plugin: AIOrganiserPlugin): Promise<void> {
+    const files = plugin.getNonExcludedMarkdownFiles();
+    if (files.length === 0) {
+        new Notice(plugin.t.messages.noMdFiles);
+        return;
+    }
+
+    const confirmed = await plugin.showConfirmationDialog(
+        `${plugin.t.messages.generateTagsForVaultConfirm.replace('{count}', String(files.length))}`
+    );
+
+    if (!confirmed) {
+        new Notice(plugin.t.messages.operationCancelled);
+        return;
+    }
+
+    await plugin.analyzeAndTagFiles(files);
+    const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView?.editor) {
+        ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);
+    }
 }

@@ -1,72 +1,89 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Notice, TFile } from 'obsidian';
+import { MarkdownView, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../main';
+import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { ClearTagsScopeModal, ClearTagsScope } from '../ui/modals/ClearTagsScopeModal';
 
 export function registerClearCommands(plugin: AIOrganiserPlugin) {
-    // Command to clear tags in current note
+    // Command: Clear Tags (scope modal)
     plugin.addCommand({
-        id: 'clear-tags-for-current-note',
-        name: plugin.t.commands.clearTagsForCurrentNote,
+        id: 'clear-tags',
+        name: plugin.t.commands.clearTags || plugin.t.commands.clearTagsForCurrentNote,
         icon: 'eraser',
-        editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
-            if (view?.file) {
-                plugin.clearNoteTags();
-            } else {
-                new Notice(plugin.t.messages.openNoteFirst);
-            }
+        callback: () => {
+            new ClearTagsScopeModal(plugin.app, plugin, async (scope: ClearTagsScope) => {
+                switch (scope) {
+                    case 'note':
+                        await clearTagsForCurrentNote(plugin);
+                        break;
+                    case 'folder':
+                        await clearTagsForCurrentFolder(plugin);
+                        break;
+                    case 'vault':
+                        await clearTagsForVault(plugin);
+                        break;
+                    default:
+                        break;
+                }
+            }).open();
         }
     });
+}
 
-    // Command to clear tags in current folder
-    plugin.addCommand({
-        id: 'clear-tags-for-current-folder',
-        name: plugin.t.commands.clearTagsForCurrentFolder,
-        icon: 'eraser',
-        callback: async () => {
-            const activeFile = plugin.app.workspace.getActiveFile();
-            if (!activeFile) {
-                new Notice(plugin.t.messages.openNoteFirst);
-                return;
-            }
+async function clearTagsForCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
+    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file && view.editor) {
+        await plugin.clearNoteTags();
+        ensureNoteStructureIfEnabled(view.editor, plugin.settings);
+    } else {
+        new Notice(plugin.t.messages.openNoteFirst);
+    }
+}
 
-            const parentFolder = activeFile.parent;
-            if (!parentFolder) {
-                new Notice(plugin.t.messages.noParentFolderFound);
-                return;
-            }
+async function clearTagsForCurrentFolder(plugin: AIOrganiserPlugin): Promise<void> {
+    const activeFile = plugin.app.workspace.getActiveFile();
+    if (!activeFile) {
+        new Notice(plugin.t.messages.openNoteFirst);
+        return;
+    }
 
-            const filesInFolder = plugin.getNonExcludedMarkdownFilesFromFolder(parentFolder);
+    const parentFolder = activeFile.parent;
+    if (!parentFolder) {
+        new Notice(plugin.t.messages.noParentFolderFound);
+        return;
+    }
 
-            if (filesInFolder.length === 0) {
-                new Notice(plugin.t.messages.noMarkdownFilesFound);
-                return;
-            }
+    const filesInFolder = plugin.getNonExcludedMarkdownFilesFromFolder(parentFolder);
 
-            const confirmed = await plugin.showConfirmationDialog(
-                `${plugin.t.messages.clearTagsForFolderConfirm.replace('{count}', String(filesInFolder.length))}`
-            );
+    if (filesInFolder.length === 0) {
+        new Notice(plugin.t.messages.noMarkdownFilesFound);
+        return;
+    }
 
-            if (!confirmed) {
-                new Notice(plugin.t.messages.operationCancelled);
-                return;
-            }
+    const confirmed = await plugin.showConfirmationDialog(
+        `${plugin.t.messages.clearTagsForFolderConfirm.replace('{count}', String(filesInFolder.length))}`
+    );
 
-            const result = await plugin.clearDirectoryTags(filesInFolder);
-            if (result.success) {
-                new Notice(`${plugin.t.messages.tagsClearedFrom.replace('{count}', String(result.successCount))}`);
-            } else {
-                new Notice(plugin.t.messages.failedToClearTags);
-            }
+    if (!confirmed) {
+        new Notice(plugin.t.messages.operationCancelled);
+        return;
+    }
+
+    const result = await plugin.clearDirectoryTags(filesInFolder);
+    if (result.success) {
+        new Notice(`${plugin.t.messages.tagsClearedFrom.replace('{count}', String(result.successCount))}`);
+        const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView?.editor) {
+            ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);
         }
-    });
+    } else {
+        new Notice(plugin.t.messages.failedToClearTags);
+    }
+}
 
-    // Command to clear tags in vault
-    plugin.addCommand({
-        id: 'clear-tags-for-vault',
-        name: plugin.t.commands.clearTagsForVault,
-        icon: 'eraser',
-        callback: async () => {
-            await plugin.clearAllNotesTags();
-        }
-    });
+async function clearTagsForVault(plugin: AIOrganiserPlugin): Promise<void> {
+    await plugin.clearAllNotesTags();
+    const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    if (activeView?.editor) {
+        ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);
+    }
 }

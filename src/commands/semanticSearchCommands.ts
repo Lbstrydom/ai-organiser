@@ -5,6 +5,7 @@
 
 import { Notice, Modal, App, Setting } from 'obsidian';
 import AIOrganiserPlugin from '../main';
+import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
 
 /**
  * Modal for displaying semantic search results
@@ -17,7 +18,7 @@ class SemanticSearchResultsModal extends Modal {
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
         this.plugin = plugin;
-        this.titleEl.setText('Semantic Search Results');
+        this.titleEl.setText(this.plugin.t.modals.semanticSearch.title);
     }
 
     async onOpen(): Promise<void> {
@@ -29,16 +30,16 @@ class SemanticSearchResultsModal extends Modal {
         const searchDiv = contentEl.querySelector('.search-input-container') as HTMLElement;
         
         new Setting(searchDiv)
-            .setName('Search Query')
+            .setName(this.plugin.t.modals.semanticSearch.title)
             .addText(text => {
-                text.setPlaceholder('Enter search query...')
+                text.setPlaceholder(this.plugin.t.modals.semanticSearch.searchPlaceholder)
                     .setValue(this.query)
                     .onChange(value => {
                         this.query = value;
                     });
             })
             .addButton(btn => {
-                btn.setButtonText('Search')
+                btn.setButtonText(this.plugin.t.modals.semanticSearch.searchButton)
                     .onClick(async () => {
                         await this.performSearch();
                     });
@@ -48,7 +49,7 @@ class SemanticSearchResultsModal extends Modal {
         const resultsDiv = contentEl.createEl('div', { cls: 'search-results' });
         if (this.results.length === 0) {
             resultsDiv.createEl('p', {
-                text: 'No results yet. Enter a query and click Search.',
+                text: this.plugin.t.modals.semanticSearch.noResults,
                 cls: 'search-empty'
             });
         } else {
@@ -58,17 +59,17 @@ class SemanticSearchResultsModal extends Modal {
 
     private async performSearch(): Promise<void> {
         if (!this.query.trim()) {
-            new Notice('Please enter a search query');
+            new Notice(this.plugin.t.modals.semanticSearch.searchPlaceholder);
             return;
         }
 
         try {
             if (!this.plugin.vectorStore) {
-                new Notice('Vector store not initialized. Enable semantic search in settings.');
+                new Notice(this.plugin.t.messages.vectorStoreFailed);
                 return;
             }
 
-            new Notice('Searching...', 2000);
+            new Notice(this.plugin.t.messages.searchingVault, 2000);
             const embeddingService =
                 this.plugin.embeddingService ||
                 (this.plugin.llmService as any).getEmbeddingService?.();
@@ -93,7 +94,7 @@ class SemanticSearchResultsModal extends Modal {
     private displayResults(container: HTMLElement): void {
         if (this.results.length === 0) {
             container.createEl('p', {
-                text: 'No results found.',
+                text: this.plugin.t.modals.semanticSearch.noResults,
                 cls: 'search-empty'
             });
             return;
@@ -118,7 +119,7 @@ class SemanticSearchResultsModal extends Modal {
             });
 
             resultEl.createEl('button', {
-                text: 'Open',
+                text: this.plugin.t.modals.semanticSearch.clickToOpen,
                 cls: 'search-result-open'
             }).onclick = () => {
                 const file = this.app.vault.getFileByPath(result.document.filePath);
@@ -142,16 +143,16 @@ class SemanticSearchResultsModal extends Modal {
 export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void {
     // Semantic search command
     plugin.addCommand({
-        id: 'semantic-search-vault',
-        name: 'Semantic Search: Search vault by meaning',
+        id: 'semantic-search',
+        name: plugin.t.commands.searchSemanticVault,
         callback: async () => {
             if (!plugin.settings.enableSemanticSearch) {
-                new Notice('Semantic search is not enabled. Enable it in settings.');
+                new Notice(plugin.t.messages.semanticSearchDisabled);
                 return;
             }
 
             if (!plugin.vectorStore) {
-                new Notice('Vector store not initialized. Please try again in a moment.');
+                new Notice(plugin.t.messages.vectorStoreFailed);
                 return;
             }
 
@@ -160,87 +161,28 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
         }
     });
 
-    // Index vault command
+    // Manage index command
     plugin.addCommand({
-        id: 'semantic-search-index-vault',
-        name: 'Semantic Search: Index entire vault',
+        id: 'manage-index',
+        name: plugin.t.commands.manageIndex,
         callback: async () => {
-            if (!plugin.vectorStoreService) {
-                new Notice('Vector store service not initialized.');
-                return;
-            }
-
-            const statusNotice = new Notice('Indexing vault...', 0);
-            try {
-                const result = await plugin.vectorStoreService.indexVault();
-                statusNotice.hide();
-                new Notice(`Indexed ${result.indexed} notes. Failed: ${result.failed}`);
-            } catch (error) {
-                statusNotice.hide();
-                new Notice('Indexing error: ' + (error as any).message, 5000);
-            }
-        }
-    });
-
-    // Index current note command
-    plugin.addCommand({
-        id: 'semantic-search-index-note',
-        name: 'Semantic Search: Index current note',
-        editorCallback: async (editor, view) => {
-            if (!plugin.vectorStoreService) {
-                new Notice('Vector store service not initialized.');
-                return;
-            }
-
-            try {
-                const file = view.file;
-                if (file) {
-                    await plugin.vectorStoreService.indexNote(file);
-                    new Notice('Note indexed for semantic search');
-                }
-            } catch (error) {
-                new Notice('Indexing error: ' + (error as any).message, 5000);
-            }
-        }
-    });
-
-    // Clear index command
-    plugin.addCommand({
-        id: 'semantic-search-clear-index',
-        name: 'Semantic Search: Clear index',
-        callback: async () => {
-            if (!plugin.vectorStore) {
-                new Notice('Vector store not initialized.');
-                return;
-            }
-
-            const shouldClear = await plugin.showConfirmationDialog(
-                'Clear all semantic search data? You can rebuild it anytime.'
-            );
-
-            if (shouldClear) {
-                try {
-                    await plugin.vectorStore.clear();
-                    new Notice('Search index cleared');
-                } catch (error) {
-                    new Notice('Clear error: ' + (error as any).message, 5000);
-                }
-            }
+            const modal = new ManageIndexModal(plugin.app, plugin);
+            modal.open();
         }
     });
 
     // Show related notes view command
     plugin.addCommand({
-        id: 'related-notes-show',
-        name: 'Show Related Notes Panel',
+        id: 'find-related',
+        name: plugin.t.commands.showRelatedNotes,
         callback: async () => {
             if (!plugin.settings.enableSemanticSearch) {
-                new Notice('Semantic search is not enabled. Enable it in settings.');
+                new Notice(plugin.t.messages.semanticSearchDisabled);
                 return;
             }
 
             if (!plugin.vectorStore) {
-                new Notice('Vector store not initialized. Try reloading Obsidian or check settings.');
+                new Notice(plugin.t.messages.vectorStoreFailed);
                 return;
             }
 
@@ -248,7 +190,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
             try {
                 const metadata = await plugin.vectorStore.getMetadata();
                 if (metadata.totalDocuments === 0) {
-                    new Notice('Index is empty. Run "Build semantic search index" first.');
+                    new Notice(plugin.t.messages.noIndexFound);
                 }
             } catch {
                 // Ignore errors checking metadata

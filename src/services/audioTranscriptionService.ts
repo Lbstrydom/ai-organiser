@@ -355,6 +355,108 @@ function combineArrayBuffers(parts: (string | ArrayBuffer)[]): ArrayBuffer {
 }
 
 /**
+ * Transcribe external audio file (outside vault)
+ */
+export async function transcribeExternalAudio(
+    filePath: string,
+    options: TranscriptionOptions
+): Promise<TranscriptionResult> {
+    try {
+        // Use Node.js fs to read external file
+        const { promises: fs } = require('fs');
+        const path = require('path');
+
+        // Normalize the file path
+        let normalizedPath = filePath;
+        if (filePath.startsWith('file://')) {
+            try {
+                const url = new URL(filePath);
+                normalizedPath = decodeURIComponent(url.pathname);
+                if (process.platform === 'win32' && normalizedPath.startsWith('/')) {
+                    normalizedPath = normalizedPath.slice(1);
+                }
+            } catch {
+                // Keep original path
+            }
+        }
+        normalizedPath = path.normalize(normalizedPath);
+
+        // Read the file
+        const data = await fs.readFile(normalizedPath);
+        const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        const fileSize = arrayBuffer.byteLength;
+
+        // Check file size
+        if (!isFileSizeValid(fileSize)) {
+            return {
+                success: false,
+                error: `File size (${formatFileSize(fileSize)}) exceeds ${MAX_FILE_SIZE_MB}MB limit. Please compress the audio file first.`
+            };
+        }
+
+        // Get the file extension and name
+        const fileName = path.basename(normalizedPath);
+        const extension = path.extname(normalizedPath).slice(1).toLowerCase();
+
+        // Get the appropriate endpoint and prepare the request
+        const endpoint = getWhisperEndpoint(options.provider);
+
+        // Create form data manually for Obsidian's requestUrl
+        const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+        const formData = buildMultipartFormData(
+            arrayBuffer,
+            fileName,
+            extension,
+            options,
+            boundary
+        );
+
+        // Make the API request
+        const { requestUrl } = require('obsidian');
+        const response = await requestUrl({
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${options.apiKey}`,
+                'Content-Type': `multipart/form-data; boundary=${boundary}`
+            },
+            body: formData
+        });
+
+        if (response.status !== 200) {
+            const errorText = typeof response.json === 'object'
+                ? JSON.stringify(response.json)
+                : response.text;
+            return {
+                success: false,
+                error: `API error (${response.status}): ${errorText}`
+            };
+        }
+
+        const result = response.json;
+
+        return {
+            success: true,
+            transcript: result.text,
+            duration: result.duration
+        };
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.includes('ENOENT')) {
+            return {
+                success: false,
+                error: 'File not found. Please ensure the file exists and is accessible.'
+            };
+        }
+        return {
+            success: false,
+            error: `Transcription failed: ${errorMessage}`
+        };
+    }
+}
+
+/**
  * Check if a provider is available based on settings
  */
 export function getAvailableTranscriptionProvider(

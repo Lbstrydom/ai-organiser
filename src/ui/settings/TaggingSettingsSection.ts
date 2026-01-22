@@ -31,6 +31,17 @@ export class TaggingSettingsSection extends BaseSettingSection {
                 return slider;
             });
 
+        // Ensure note structure after commands
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.settings.tagging.autoEnsureNoteStructure.name)
+            .setDesc(this.plugin.t.settings.tagging.autoEnsureNoteStructure.description)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoEnsureNoteStructure)
+                .onChange(async (value) => {
+                    this.plugin.settings.autoEnsureNoteStructure = value;
+                    await this.plugin.saveSettings();
+                }));
+
         // File exclusion Setting
         this.containerEl.createEl('h3', { text: this.plugin.t.settings.tagging.fileExclusion });
 

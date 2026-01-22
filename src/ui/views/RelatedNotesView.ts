@@ -154,14 +154,24 @@ export class RelatedNotesView extends ItemView {
             this.initializeRAGService();
         }
 
-        // Check prerequisites
-        if (!this.ragService) {
-            this.renderDisabledState('Semantic search not enabled');
+        // Check prerequisites with detailed messages
+        if (!this.plugin.settings.enableSemanticSearch) {
+            this.renderDisabledState('Semantic search is disabled');
+            return;
+        }
+
+        if (!this.plugin.embeddingService) {
+            this.renderDisabledState('Embedding service not configured - check API key in settings');
             return;
         }
 
         if (!this.plugin.vectorStore) {
             this.renderDisabledState('Vector store not initialized');
+            return;
+        }
+
+        if (!this.ragService) {
+            this.renderDisabledState('RAG service not initialized');
             return;
         }
 
@@ -193,11 +203,13 @@ export class RelatedNotesView extends ItemView {
             }
 
             // Get related notes
+            console.log('[Related Notes] Searching for related notes...');
             const results = await this.ragService.getRelatedNotes(
                 currentFile,
                 content,
                 5  // Max 5 related notes
             );
+            console.log(`[Related Notes] Found ${results.length} related notes`);
 
             this.state.results = results;
             this.state.timestamp = Date.now();
@@ -294,20 +306,11 @@ export class RelatedNotesView extends ItemView {
                 this.openNote(result.document.filePath);
             });
 
-            // Similarity badge
-            const scoreEl = itemEl.createEl('span', {
+            // Related badge (no fake similarity score)
+            itemEl.createEl('span', {
                 cls: 'related-notes-score',
-                text: `${(result.score * 100).toFixed(0)}%`
+                text: 'Related'
             });
-
-            // Set color based on similarity
-            if (result.score > 0.85) {
-                scoreEl.addClass('score-excellent');
-            } else if (result.score > 0.7) {
-                scoreEl.addClass('score-good');
-            } else {
-                scoreEl.addClass('score-fair');
-            }
 
             // Preview (optional)
             if (result.document.metadata.title) {
@@ -362,12 +365,6 @@ export class RelatedNotesView extends ItemView {
             cls: 'popup-preview'
         });
 
-        // Similarity
-        const scoreEl = popup.createEl('div', {
-            cls: 'popup-score',
-            text: `Similarity: ${(result.score * 100).toFixed(1)}%`
-        });
-
         // Position popup near item
         const rect = itemEl.getBoundingClientRect();
         popup.style.position = 'fixed';
@@ -398,7 +395,7 @@ export class RelatedNotesView extends ItemView {
             lines.push('## Related Notes\n');
             for (const result of this.state.results) {
                 const fileName = result.document.filePath.split('/').pop()?.replace('.md', '') || 'Untitled';
-                lines.push(`- [[${result.document.filePath}|${fileName}]] (${(result.score * 100).toFixed(0)}% similar)`);
+                lines.push(`- [[${result.document.filePath}|${fileName}]] (related)`);
             }
         }
 

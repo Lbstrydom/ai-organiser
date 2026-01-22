@@ -13,6 +13,7 @@
  */
 
 import { Editor } from 'obsidian';
+import { AIOrganiserSettings } from '../core/settings';
 
 // Section markers
 export const REFERENCES_HEADER = '## References';
@@ -374,6 +375,18 @@ export function ensureStandardStructure(editor: Editor): void {
         }
         const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
         editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
+    }
+}
+
+/**
+ * Ensure the note has the standard structure only if enabled in settings
+ */
+export function ensureNoteStructureIfEnabled(
+    editor: Editor,
+    settings: AIOrganiserSettings
+): void {
+    if (settings.autoEnsureNoteStructure) {
+        ensureStandardStructure(editor);
     }
 }
 
