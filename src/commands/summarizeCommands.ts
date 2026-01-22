@@ -827,6 +827,7 @@ async function handleAudioSummarization(
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
+    const mobileWarningThresholdMb = 10;
 
     // Show privacy notice for cloud providers
     if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
@@ -843,6 +844,10 @@ async function handleAudioSummarization(
 
     // Handle external file (outside vault)
     if (externalPath) {
+        if (Platform.isMobile) {
+            new Notice(plugin.t.messages.mobileExternalNotSupported);
+            return;
+        }
         const path = require('path');
         audioName = path.basename(externalPath, path.extname(externalPath));
         audioPath = externalPath;
@@ -863,6 +868,17 @@ async function handleAudioSummarization(
             prompt: context || undefined
         });
     } else if (file) {
+        if (Platform.isMobile && file.stat?.size) {
+            const sizeMb = Math.ceil(file.stat.size / (1024 * 1024));
+            if (sizeMb >= mobileWarningThresholdMb) {
+                const proceed = await plugin.showConfirmationDialog(
+                    plugin.t.messages.mobileDataWarning.replace('{size}', String(sizeMb))
+                );
+                if (!proceed) {
+                    return;
+                }
+            }
+        }
         // Handle vault file
         audioName = file.basename;
         audioPath = file.path;

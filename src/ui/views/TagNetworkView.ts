@@ -1,4 +1,4 @@
-import { App, ItemView, ViewStateResult, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, ViewStateResult, WorkspaceLeaf, Platform } from 'obsidian';
 import { NetworkData, NetworkNode, NetworkEdge } from '../../utils/tagNetworkUtils';
 
 export const TAG_NETWORK_VIEW_TYPE = 'tag-network-view';
@@ -74,9 +74,15 @@ export class TagNetworkView extends ItemView {
         
         const statusEl = contentEl.createDiv({ cls: 'tag-network-status' });
         statusEl.setText('Loading visualization...');
-        
+
         if (this.networkData.nodes.length === 0) {
             statusEl.setText('No tags found in your vault. Add some tags first!');
+            return;
+        }
+
+        if (Platform.isMobile) {
+            statusEl.setText('');
+            this.renderMobileList(container, searchInput, statusEl);
             return;
         }
         
@@ -98,6 +104,9 @@ export class TagNetworkView extends ItemView {
     }
 
     public async onResize(): Promise<void> {
+        if (Platform.isMobile) {
+            return;
+        }
         // Re-render visualization with new dimensions
         const container = this.contentEl.querySelector('.tag-network-container') as HTMLElement;
         const searchInput = this.contentEl.querySelector('.tag-network-search-input') as HTMLInputElement;
@@ -322,6 +331,63 @@ export class TagNetworkView extends ItemView {
 
         this.cleanup.push(() => simulation.stop());
         statusEl.style.display = 'none';
+    }
+
+    private renderMobileList(container: HTMLElement, searchInput: HTMLInputElement, statusEl: HTMLElement): void {
+        container.empty();
+        const listEl = container.createEl('ul', { cls: 'tag-network-list' });
+
+        const connectionCounts = new Map<string, number>();
+        for (const edge of this.networkData.edges) {
+            connectionCounts.set(edge.source, (connectionCounts.get(edge.source) || 0) + 1);
+            connectionCounts.set(edge.target, (connectionCounts.get(edge.target) || 0) + 1);
+        }
+
+        const nodes = [...this.networkData.nodes].sort((a, b) => b.frequency - a.frequency);
+
+        const renderList = () => {
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            listEl.empty();
+
+            const filtered = searchTerm
+                ? nodes.filter(node => node.label.toLowerCase().includes(searchTerm))
+                : nodes;
+
+            if (filtered.length === 0) {
+                statusEl.setText('No matching tags');
+                return;
+            }
+
+            statusEl.setText('');
+            for (const node of filtered) {
+                const itemEl = listEl.createEl('li', { cls: 'tag-network-list-item' });
+                const button = itemEl.createEl('button', {
+                    cls: 'tag-network-list-button',
+                    text: `#${node.label}`
+                });
+                button.addEventListener('click', async () => {
+                    const leaf = this.app.workspace.getLeaf('tab');
+                    if (leaf) {
+                        await leaf.setViewState({
+                            type: 'search',
+                            state: { query: `tag:#${node.label}` },
+                            active: true
+                        });
+                        this.app.workspace.revealLeaf(leaf);
+                    }
+                });
+
+                const connectionCount = connectionCounts.get(node.id) || 0;
+                itemEl.createEl('small', {
+                    cls: 'tag-network-list-meta',
+                    text: `Frequency: ${node.frequency} · Connections: ${connectionCount}`
+                });
+            }
+        };
+
+        searchInput.addEventListener('input', renderList);
+        this.cleanup.push(() => searchInput.removeEventListener('input', renderList));
+        renderList();
     }
     
     private drag(simulation: any) {

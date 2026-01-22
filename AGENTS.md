@@ -263,8 +263,34 @@ Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 - Modal styles in `styles.css`
 - Settings section styles follow Obsidian conventions
 
+## Mobile Considerations
+
+Use `Platform.isMobile` from Obsidian API to detect mobile environment:
+
+```typescript
+import { Platform } from 'obsidian';
+
+if (Platform.isMobile) {
+    // Mobile-specific behavior
+}
+```
+
+Key mobile constraints:
+- `localhost` URLs fail (points to phone, not desktop)
+- Limited RAM (~2-6GB shared)
+- Vault-only file access (no external files)
+- Touch interaction (sidebars are awkward)
+- Battery drain from background operations
+
+Mobile guidance:
+- Gate external file pickers with `!Platform.isMobile`
+- Prefer modal UI on mobile for navigation-heavy views
+- Add size guards and lazy loading for vector store/index data
+- Use longer network timeouts and data-usage warnings on large uploads
+
+See `docs/mobile-optimization-plan.md` for full implementation details.
+
 ## Planned Features
 
 See `docs/` folder for implementation plans:
-- `command-consolidation-proposal.md`: Smart Dispatcher pattern for command reduction
-- `command-consolidation-implementation-prompt.md`: Implementation instructions
+- `mobile-optimization-plan.md`: Mobile environment adaptations

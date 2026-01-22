@@ -176,6 +176,29 @@ export const zhCN: Translations = {
             localSetup: "本地/离线设置",
             localSetupDesc: "设置 Ollama 以完全本地生成嵌入（无需 API）",
             openLocalSetup: "打开本地设置向导"
+        },
+        mobile: {
+            title: "移动端",
+            description: "移动端专用性能与网络设置。",
+            providerMode: "服务提供商模式",
+            providerModeDesc: "移动端如何选择 AI 提供商",
+            providerAuto: "自动（本地不可用时回退）",
+            providerCloudOnly: "仅云服务",
+            providerCustom: "自定义端点",
+            fallbackProvider: "回退提供商",
+            fallbackProviderDesc: "本地不可用时使用的云服务",
+            fallbackModel: "回退模型",
+            fallbackModelDesc: "移动端云请求使用的模型",
+            customEndpoint: "自定义端点",
+            customEndpointDesc: "OpenAI 兼容的移动端端点",
+            indexMode: "索引模式",
+            indexModeDesc: "移动端语义索引行为",
+            indexDisabled: "关闭",
+            indexReadOnly: "只读",
+            indexFull: "完整",
+            indexSizeLimit: "索引大小限制（MB）",
+            indexSizeLimitDesc: "超过此大小则跳过加载索引",
+            desktopOnlyNote: "这些设置仅在移动端生效。"
         }
     },
 
@@ -365,7 +388,10 @@ export const zhCN: Translations = {
         embeddingGenerationFailed: "生成嵌入失败",
         vectorStoreFailed: "向量存储操作失败",
         semanticSearchDisabled: "语义搜索未启用，请在设置中启用。",
-        externalCompressionNotSupported: "不支持压缩外部文件。请使用较小的文件。"
+        externalCompressionNotSupported: "无法压缩外部文件。请使用更小的文件。",
+        mobileIndexTooLarge: "移动端已跳过索引（{size}MB 超过 {limit}MB）。",
+        mobileDataWarning: "?????? {size}MB???????????????",
+        mobileExternalNotSupported: "???????????"
     },
 
     // 模态对话框

@@ -23,7 +23,7 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 
 ### Core Plugin Structure
 
-**Entry Point**: `src/main.ts` (`AITaggerPlugin` class)
+**Entry Point**: `src/main.ts` (`AIOrganiserPlugin` class)
 - Main plugin class extending Obsidian's `Plugin`
 - Manages lifecycle: settings loading, LLM service initialization, command registration
 - Handles tag operations: `analyzeAndTagNote()`, `showTagNetwork()`, batch processing
@@ -67,7 +67,6 @@ Mode selection affects prompt structure and tag merging logic in `analyzeAndTagN
   - `InterfaceSettingsSection`: Interface language, tag output language, summary language (consolidated)
   - `SemanticSearchSettingsSection`: Embeddings, indexing, RAG settings (Phase 4.4)
   - `SummarizationSettingsSection`: Summary style, personas, transcript options
-  - `SupportSection`: Buy me a coffee (always last)
 
 **Settings persistence**: Loaded in `loadSettings()`, saved via `saveSettings()`, triggers service reinitialization.
 
@@ -237,15 +236,21 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 ## Testing Approach
 
-No formal test suite exists. Testing process:
+**Automated Tests**: 95 unit tests using Vitest
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # With coverage report
+```
+
+**Manual Testing**:
 1. Build plugin: `npm run build`
-2. Copy `main.js`, `manifest.json`, `styles.css` to the Obsidian plugin folder:
+2. Copy `main.js`, `manifest.json`, `styles.css` to Obsidian plugin folder:
    - **Deploy path**: `C:\obsidian\Second Brain\.obsidian\plugins\ai-organiser\`
 3. Reload Obsidian (Ctrl/Cmd+R or restart)
-4. Test with various LLM providers and tagging modes
-5. Check console logs if `debugMode` is enabled
+4. Test with various LLM providers and features
 
-Manual testing script available: `test-sanitization.js` (see `TEST_INSTRUCTIONS.md`).
+See `docs/usertest.md` for manual testing checklist.
 
 ## Code Organization Principles
 
@@ -297,6 +302,34 @@ Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 - D3.js loaded dynamically from CDN (no bundling) for network visualization
 - Interface language change requires Obsidian restart (output languages do not)
 - Tag formatting preserves `/` for nested tags but converts other special chars to hyphens
+- Claude/Anthropic has no embeddings API (use Voyage AI instead)
+
+## CSS Conventions
+
+- Use `ai-organiser-*` prefix for all CSS classes
+- Modal styles in `styles.css`
+- Settings section styles follow Obsidian conventions
+
+## Mobile Considerations
+
+Use `Platform.isMobile` from Obsidian API to detect mobile environment:
+
+```typescript
+import { Platform } from 'obsidian';
+
+if (Platform.isMobile) {
+    // Mobile-specific behavior
+}
+```
+
+Key mobile constraints:
+- `localhost` URLs fail (points to phone, not desktop)
+- Limited RAM (~2-6GB shared)
+- Vault-only file access (no external files)
+- Touch interaction (sidebars are awkward)
+- Battery drain from background operations
+
+See `docs/mobile-optimization-plan.md` for full implementation details.
 
 ## Settings UX Patterns
 
@@ -357,5 +390,4 @@ Embedding models are provider-specific dropdowns (not free text):
 ## Planned Features
 
 See `docs/` folder for implementation plans:
-- `web-summarization-feature-plan.md`: URL/PDF summarization with multimodal LLM support
-- `semantic-search-rag-implementation-plan.md`: Phase 4 RAG implementation roadmap
+- `mobile-optimization-plan.md`: Mobile environment adaptations

@@ -101,6 +101,14 @@ export interface AIOrganiserSettings {
     enableVaultChat: boolean;            // Enable Chat with Vault (RAG) - Phase 2
     ragContextChunks: number;            // How many chunks to include in context (default: 5)
     ragIncludeMetadata: boolean;         // Include file path, headings in context
+
+    // Mobile Settings
+    mobileProviderMode: 'auto' | 'cloud-only' | 'custom';
+    mobileFallbackProvider: AdapterType;
+    mobileFallbackModel: string;
+    mobileCustomEndpoint: string;
+    mobileIndexingMode: 'disabled' | 'read-only' | 'full';
+    mobileIndexSizeLimit: number;        // Max index size (MB) before skipping load
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -149,6 +157,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     enableVaultChat: false,                             // Phase 2 feature
     ragContextChunks: 5,                                // Standard context window
     ragIncludeMetadata: true,                           // Include paths/headings
+    mobileProviderMode: 'auto',
+    mobileFallbackProvider: 'openai',
+    mobileFallbackModel: 'gpt-5.2',
+    mobileCustomEndpoint: '',
+    mobileIndexingMode: 'read-only',
+    mobileIndexSizeLimit: 50,
 };
 
 /**

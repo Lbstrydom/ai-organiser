@@ -1,0 +1,132 @@
+import { App, Modal, TFile } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
+import { RAGService } from '../../services/ragService';
+import { SearchResult } from '../../services/vector/types';
+
+export class RelatedNotesModal extends Modal {
+    private plugin: AIOrganiserPlugin;
+    private ragService: RAGService | null = null;
+    private results: SearchResult[] = [];
+    private statusEl: HTMLElement | null = null;
+    private listEl: HTMLElement | null = null;
+
+    constructor(app: App, plugin: AIOrganiserPlugin) {
+        super(app);
+        this.plugin = plugin;
+        this.initializeRAGService();
+        this.titleEl.setText(this.plugin.t.commands.showRelatedNotes);
+    }
+
+    private initializeRAGService(): void {
+        if (this.plugin.vectorStore && this.plugin.settings.enableSemanticSearch) {
+            this.ragService = new RAGService(
+                this.plugin.vectorStore,
+                this.plugin.settings,
+                this.plugin.embeddingService
+            );
+        }
+    }
+
+    async onOpen(): Promise<void> {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('related-notes-modal');
+
+        const header = contentEl.createDiv({ cls: 'related-notes-header' });
+        header.createEl('h3', { text: this.plugin.t.commands.showRelatedNotes });
+        const refreshButton = header.createEl('button', {
+            cls: 'mod-cta',
+            text: 'Refresh'
+        });
+        refreshButton.addEventListener('click', async () => {
+            refreshButton.disabled = true;
+            await this.fetchRelatedNotes();
+            refreshButton.disabled = false;
+        });
+
+        this.statusEl = contentEl.createDiv({ cls: 'related-notes-status' });
+        this.listEl = contentEl.createEl('ul', { cls: 'related-notes-list' });
+
+        await this.fetchRelatedNotes();
+    }
+
+    private async fetchRelatedNotes(): Promise<void> {
+        if (!this.statusEl || !this.listEl) {
+            return;
+        }
+
+        if (!this.ragService) {
+            this.initializeRAGService();
+        }
+
+        if (!this.plugin.settings.enableSemanticSearch) {
+            this.statusEl.setText(this.plugin.t.messages.semanticSearchDisabled);
+            this.listEl.empty();
+            return;
+        }
+
+        if (!this.plugin.embeddingService || !this.plugin.vectorStore || !this.ragService) {
+            this.statusEl.setText(this.plugin.t.messages.vectorStoreFailed);
+            this.listEl.empty();
+            return;
+        }
+
+        const currentFile = this.app.workspace.getActiveFile();
+        if (!currentFile || currentFile.extension !== 'md') {
+            this.statusEl.setText(this.plugin.t.messages.noActiveFile);
+            this.listEl.empty();
+            return;
+        }
+
+        this.statusEl.setText(this.plugin.t.messages.findingRelatedNotes);
+        this.listEl.empty();
+
+        try {
+            const content = await this.app.vault.cachedRead(currentFile);
+            if (!content.trim()) {
+                this.statusEl.setText(this.plugin.t.messages.noContent);
+                return;
+            }
+
+            this.results = await this.ragService.getRelatedNotes(currentFile, content, 5);
+            if (this.results.length === 0) {
+                this.statusEl.setText(this.plugin.t.messages.noRelatedNotes);
+                return;
+            }
+
+            this.statusEl.setText('');
+            this.renderResults();
+        } catch (error) {
+            console.error('Related notes modal error:', error);
+            this.statusEl.setText(this.plugin.t.messages.relatedNotesFailed);
+            this.listEl.empty();
+        }
+    }
+
+    private renderResults(): void {
+        if (!this.listEl) return;
+        this.listEl.empty();
+
+        for (const result of this.results) {
+            const itemEl = this.listEl.createEl('li', { cls: 'related-notes-item' });
+            const fileName = result.document.filePath.split('/').pop()?.replace('.md', '') || 'Untitled';
+            const linkEl = itemEl.createEl('a', {
+                cls: 'related-notes-link internal-link',
+                text: fileName
+            });
+
+            linkEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                void this.openNote(result.document.filePath);
+                this.close();
+            });
+        }
+    }
+
+    private async openNote(filePath: string): Promise<void> {
+        const file = this.app.vault.getFileByPath(filePath);
+        if (file && file instanceof TFile) {
+            await this.app.workspace.openLinkText(filePath, '', false);
+        }
+    }
+}

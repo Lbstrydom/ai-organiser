@@ -175,6 +175,29 @@ export interface Translations {
             localSetupDesc: string;
             openLocalSetup: string;
         };
+        mobile: {
+            title: string;
+            description: string;
+            providerMode: string;
+            providerModeDesc: string;
+            providerAuto: string;
+            providerCloudOnly: string;
+            providerCustom: string;
+            fallbackProvider: string;
+            fallbackProviderDesc: string;
+            fallbackModel: string;
+            fallbackModelDesc: string;
+            customEndpoint: string;
+            customEndpointDesc: string;
+            indexMode: string;
+            indexModeDesc: string;
+            indexDisabled: string;
+            indexReadOnly: string;
+            indexFull: string;
+            indexSizeLimit: string;
+            indexSizeLimitDesc: string;
+            desktopOnlyNote: string;
+        };
     };
 
     // Commands
@@ -364,6 +387,9 @@ export interface Translations {
         vectorStoreFailed: string;
         semanticSearchDisabled: string;
         externalCompressionNotSupported: string;
+        mobileIndexTooLarge: string;
+        mobileDataWarning: string;
+        mobileExternalNotSupported: string;
     };
 
     // Modal dialogs

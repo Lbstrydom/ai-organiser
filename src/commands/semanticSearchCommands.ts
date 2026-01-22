@@ -3,7 +3,7 @@
  * Enables searching vault by semantic similarity
  */
 
-import { Notice, Modal, App, Setting } from 'obsidian';
+import { Notice, Modal, App, Setting, Platform } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
 
@@ -194,6 +194,12 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
                 }
             } catch {
                 // Ignore errors checking metadata
+            }
+
+            if (Platform.isMobile) {
+                const { RelatedNotesModal } = await import('../ui/modals/RelatedNotesModal');
+                new RelatedNotesModal(plugin.app, plugin).open();
+                return;
             }
 
             // Import here to avoid circular dependency

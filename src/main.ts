@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
+import { App, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
 import {
     ConnectionTestError,
     ConnectionTestResult,
@@ -25,6 +25,8 @@ import { getTranslations } from './i18n';
 import { ConfigurationService } from './services/configurationService';
 import { VectorStoreService, IVectorStore } from './services/vector';
 import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
+import { AdapterType } from './services/adapters';
+import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
@@ -100,20 +102,80 @@ export default class AIOrganiserPlugin extends Plugin {
         }
     }
 
+    private getProviderApiKey(type: AdapterType): string {
+        return this.settings.providerSettings?.[type]?.apiKey || this.settings.cloudApiKey;
+    }
+
+    private getProviderModel(type: AdapterType): string {
+        return this.settings.providerSettings?.[type]?.model || this.settings.cloudModel;
+    }
+
+    private getProviderEndpoint(type: AdapterType): string {
+        if (type === 'openai-compatible') {
+            return this.settings.cloudEndpoint || 'http://your-api-endpoint/v1/chat/completions';
+        }
+        if (type === this.settings.cloudServiceType && this.settings.cloudEndpoint) {
+            return this.settings.cloudEndpoint;
+        }
+        const endpointMap = cloudEndpoints as Record<string, string>;
+        return endpointMap[type] || this.settings.cloudEndpoint;
+    }
+
+    private isLikelyLocalEndpoint(endpoint: string): boolean {
+        try {
+            const url = new URL(endpoint);
+            const host = url.hostname.toLowerCase();
+            return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1';
+        } catch {
+            return false;
+        }
+    }
+
     private async initializeLLMService(): Promise<void> {
         await this.llmService?.dispose();
 
-        this.llmService = this.settings.serviceType === 'local'
+        let serviceType = this.settings.serviceType;
+        let localEndpoint = this.settings.localEndpoint;
+        let localModel = this.settings.localModel;
+        let cloudType = this.settings.cloudServiceType;
+        let cloudEndpoint = this.settings.cloudEndpoint;
+        let cloudModel = this.settings.cloudModel;
+        let cloudApiKey = this.settings.cloudApiKey;
+
+        if (Platform.isMobile) {
+            const fallbackProvider = this.settings.mobileFallbackProvider || this.settings.cloudServiceType;
+            const fallbackModel = this.settings.mobileFallbackModel || this.getProviderModel(fallbackProvider);
+
+            if (this.settings.mobileProviderMode === 'cloud-only') {
+                serviceType = 'cloud';
+                cloudType = fallbackProvider;
+                cloudModel = fallbackModel;
+                cloudEndpoint = this.getProviderEndpoint(fallbackProvider);
+                cloudApiKey = this.getProviderApiKey(fallbackProvider);
+            } else if (this.settings.mobileProviderMode === 'custom') {
+                serviceType = 'local';
+                localEndpoint = this.settings.mobileCustomEndpoint || this.settings.localEndpoint;
+                localModel = this.settings.mobileFallbackModel || this.settings.localModel;
+            } else if (this.settings.serviceType === 'local' && this.isLikelyLocalEndpoint(this.settings.localEndpoint)) {
+                serviceType = 'cloud';
+                cloudType = fallbackProvider;
+                cloudModel = fallbackModel;
+                cloudEndpoint = this.getProviderEndpoint(fallbackProvider);
+                cloudApiKey = this.getProviderApiKey(fallbackProvider);
+            }
+        }
+
+        this.llmService = serviceType === 'local'
             ? new LocalLLMService({
-                endpoint: this.settings.localEndpoint,
-                modelName: this.settings.localModel,
+                endpoint: localEndpoint,
+                modelName: localModel,
                 language: this.settings.language
             }, this.app)
             : new CloudLLMService({
-                endpoint: this.settings.cloudEndpoint,
-                apiKey: this.settings.cloudApiKey,
-                modelName: this.settings.cloudModel,
-                type: this.settings.cloudServiceType,
+                endpoint: cloudEndpoint,
+                apiKey: cloudApiKey,
+                modelName: cloudModel,
+                type: cloudType,
                 language: this.settings.language
             }, this.app);
 

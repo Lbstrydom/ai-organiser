@@ -176,6 +176,29 @@ export const en: Translations = {
             localSetup: "Local Setup",
             localSetupDesc: "Run completely offline with Ollama",
             openLocalSetup: "Setup Wizard"
+        },
+        mobile: {
+            title: "Mobile",
+            description: "Mobile-specific performance and network settings.",
+            providerMode: "Provider Mode",
+            providerModeDesc: "How to select an AI provider on mobile",
+            providerAuto: "Auto (fallback if local)",
+            providerCloudOnly: "Cloud only",
+            providerCustom: "Custom endpoint",
+            fallbackProvider: "Fallback Provider",
+            fallbackProviderDesc: "Cloud provider to use when local is unavailable",
+            fallbackModel: "Fallback Model",
+            fallbackModelDesc: "Model name for mobile cloud requests",
+            customEndpoint: "Custom Endpoint",
+            customEndpointDesc: "OpenAI-compatible endpoint for mobile",
+            indexMode: "Index Mode",
+            indexModeDesc: "How semantic index behaves on mobile",
+            indexDisabled: "Disabled",
+            indexReadOnly: "Read-only",
+            indexFull: "Full",
+            indexSizeLimit: "Index Size Limit (MB)",
+            indexSizeLimitDesc: "Skip loading the index if it exceeds this size",
+            desktopOnlyNote: "These settings apply on mobile only."
         }
     },
 
@@ -365,7 +388,10 @@ export const en: Translations = {
         embeddingGenerationFailed: "Embedding failed",
         vectorStoreFailed: "Storage failed",
         semanticSearchDisabled: "Semantic search is not enabled. Enable it in settings.",
-        externalCompressionNotSupported: "Can't compress external files. Use a smaller file."
+        externalCompressionNotSupported: "Can't compress external files. Use a smaller file.",
+        mobileIndexTooLarge: "Mobile index skipped ({size}MB exceeds {limit}MB).",
+        mobileDataWarning: "This audio file is {size}MB. It may use significant mobile data. Continue?",
+        mobileExternalNotSupported: "External files are not supported on mobile."
     },
 
     // Modal dialogs

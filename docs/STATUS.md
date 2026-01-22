@@ -119,10 +119,18 @@ AI-Organiser/
 - Removed support section from settings
 - Updated command names for conciseness
 
-### Command Consolidation Proposal
-- Analyzed 27 commands using MECE principles
-- Proposed consolidation to 17 commands (37% reduction)
-- See [command-consolidation-proposal.md](command-consolidation-proposal.md)
+### Command Consolidation (Implemented)
+- Consolidated 27 commands to 12 using Smart Dispatcher pattern (56% reduction)
+- Context-aware detection eliminates "Click Tax"
+- Smart dispatchers for Summarize, Translate, Tag, Clear Tags, Enhance
+
+### Mobile Optimization Plan
+- Tri-state provider fallback (auto/cloud-only/custom)
+- Vector store size guards with lazy loading
+- UI adaptations (Tag Network list, Related Notes modal)
+- Vault-only file pickers on mobile
+- Network hardening (60s timeouts, data warnings)
+- See [mobile-optimization-plan.md](mobile-optimization-plan.md)
 
 ### Audit Fixes
 - Fixed settings re-render issue (semantic search toggle)

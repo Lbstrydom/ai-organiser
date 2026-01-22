@@ -3,12 +3,13 @@
  * Manages lifecycle of vector store, handles embeddings, and coordinates indexing
  */
 
-import { App, TFile, EventRef } from 'obsidian';
+import { App, TFile, EventRef, Notice, Platform } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings } from '../../core/settings';
 import { createContentHash } from './hashUtils';
+import { getTranslations } from '../../i18n';
 
 /**
  * Search cache entry
@@ -113,6 +114,7 @@ export class VectorStoreService {
     private isIndexing = false;
     private searchCache = new SearchCache();
     private fileEventRefs: EventRef[] = [];
+    private loadPromise: Promise<void> | null = null;
 
     constructor(
         app: App,
@@ -137,6 +139,29 @@ export class VectorStoreService {
             const embeddingInfo = await this.embeddingService?.getModelInfo?.();
             const dims = embeddingInfo?.dimensions || 1536;
             const storagePath = this.settings.pluginFolder || 'AI-Organiser';
+            const t = getTranslations(this.settings.interfaceLanguage);
+
+            if (Platform.isMobile && this.settings.mobileIndexingMode === 'disabled') {
+                this.vectorStore = new SimpleVectorStore();
+                return this.vectorStore;
+            }
+
+            if (Platform.isMobile) {
+                const indexSizeBytes = await this.getIndexSizeBytes(storagePath);
+                const limitBytes = Math.max(1, this.settings.mobileIndexSizeLimit) * 1024 * 1024;
+                if (indexSizeBytes > limitBytes) {
+                    const sizeMb = Math.ceil(indexSizeBytes / (1024 * 1024));
+                    const limitMb = Math.max(1, this.settings.mobileIndexSizeLimit);
+                    new Notice(
+                        t.messages.mobileIndexTooLarge
+                            .replace('{size}', String(sizeMb))
+                            .replace('{limit}', String(limitMb)),
+                        5000
+                    );
+                    this.vectorStore = new SimpleVectorStore();
+                    return this.vectorStore;
+                }
+            }
 
             // Create Voy WASM vector store (production)
             this.vectorStore = new VoyVectorStore(this.app, dims, storagePath);
@@ -148,7 +173,11 @@ export class VectorStoreService {
             );
 
             // Try to load existing index
-            await this.vectorStore.load();
+            if (Platform.isMobile) {
+                this.startIndexLoad();
+            } else {
+                await this.vectorStore.load();
+            }
 
             console.log('VoyVectorStore initialized successfully');
         } catch (error) {
@@ -194,6 +223,10 @@ export class VectorStoreService {
      */
     public async indexNote(file: TFile): Promise<boolean> {
         try {
+            if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
+                return false;
+            }
+
             if (!this.vectorStore) {
                 console.warn('Vector store not initialized');
                 return false;
@@ -203,6 +236,8 @@ export class VectorStoreService {
                 console.warn('Embedding service not available for indexing');
                 return false;
             }
+
+            await this.ensureIndexLoaded();
 
             // Read file content
             const content = await this.app.vault.read(file);
@@ -299,11 +334,16 @@ export class VectorStoreService {
             return { indexed: 0, failed: 0 };
         }
 
+        if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
+            return { indexed: 0, failed: 0 };
+        }
+
         this.isIndexing = true;
         let indexed = 0;
         let failed = 0;
 
         try {
+            await this.ensureIndexLoaded();
             // Get excluded folders (shared with tagging or custom)
             const excludedFolders = this.getEffectiveExcludedFolders();
 
@@ -334,6 +374,7 @@ export class VectorStoreService {
      */
     public async removeNote(file: TFile): Promise<void> {
         if (this.vectorStore) {
+            await this.ensureIndexLoaded();
             await this.vectorStore.removeFile(file.path);
             // Invalidate cache when content removed
             this.searchCache.invalidateForFile(file.path);
@@ -345,6 +386,7 @@ export class VectorStoreService {
      */
     public async renameNote(oldPath: string, newPath: string): Promise<void> {
         if (this.vectorStore) {
+            await this.ensureIndexLoaded();
             await this.vectorStore.renameFile(oldPath, newPath);
             // Invalidate cache when file renamed
             this.searchCache.clear();
@@ -356,6 +398,9 @@ export class VectorStoreService {
      */
     public registerFileEventHandlers(): void {
         this.unregisterFileEventHandlers();
+        if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
+            return;
+        }
         // Listen for file creation
         this.fileEventRefs.push(this.app.vault.on('create', async (file) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
@@ -405,6 +450,8 @@ export class VectorStoreService {
             return [];
         }
 
+        await this.ensureIndexLoaded();
+
         // Check cache first
         const cached = this.searchCache.get(query, topK);
         if (cached) {
@@ -439,6 +486,7 @@ export class VectorStoreService {
      */
     public async saveIndex(): Promise<void> {
         if (this.vectorStore) {
+            await this.ensureIndexLoaded();
             await this.vectorStore.save();
         }
     }
@@ -477,6 +525,42 @@ export class VectorStoreService {
 
     private getChangeTracker(): FileChangeTracker | null {
         return this.vectorStore?.getFileChangeTracker?.() || null;
+    }
+
+    private startIndexLoad(): void {
+        if (!this.vectorStore || this.loadPromise) {
+            return;
+        }
+        this.loadPromise = this.vectorStore.load()
+            .catch((error) => {
+                console.error('Failed to load vector index:', error);
+            })
+            .finally(() => {
+                this.loadPromise = null;
+            });
+    }
+
+    private async ensureIndexLoaded(): Promise<void> {
+        if (this.loadPromise) {
+            await this.loadPromise;
+        }
+    }
+
+    private async getIndexSizeBytes(storagePath: string): Promise<number> {
+        const adapter = this.app.vault.adapter;
+        const indexPath = `${storagePath}/index.voy`;
+        const metadataPath = `${storagePath}/meta.json`;
+        const legacyMetadataPath = `${storagePath}/metadata.json`;
+        let total = 0;
+
+        for (const path of [indexPath, metadataPath, legacyMetadataPath]) {
+            if (await adapter.exists(path)) {
+                const stat = await adapter.stat(path);
+                total += stat?.size || 0;
+            }
+        }
+
+        return total;
     }
 
     private splitIntoChunks(content: string, chunkSize: number, overlap: number): string[] {

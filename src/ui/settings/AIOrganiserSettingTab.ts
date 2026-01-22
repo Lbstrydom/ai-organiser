@@ -6,6 +6,7 @@ import { InterfaceSettingsSection } from './InterfaceSettingsSection';
 import { SummarizationSettingsSection } from './SummarizationSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
 import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
+import { MobileSettingsSection } from './MobileSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -15,6 +16,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private summarizationSection?: SummarizationSettingsSection;
     private configurationSection?: ConfigurationSettingsSection;
     private semanticSearchSection?: SemanticSearchSettingsSection;
+    private mobileSection?: MobileSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -45,7 +47,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.semanticSearchSection = new SemanticSearchSettingsSection(this.plugin, containerEl, this);
         this.semanticSearchSection.display();
 
-        // 5. Configuration (advanced - config files)
+        // 5. Mobile
+        this.mobileSection = new MobileSettingsSection(this.plugin, containerEl, this);
+        this.mobileSection.display();
+
+        // 6. Configuration (advanced - config files)
         this.configurationSection = new ConfigurationSettingsSection(this.plugin, containerEl, this);
         this.configurationSection.display();
     }

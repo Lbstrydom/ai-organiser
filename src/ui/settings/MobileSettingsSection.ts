@@ -1,0 +1,136 @@
+import { Platform, Setting } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
+import { AdapterType } from '../../services/adapters';
+import { BaseSettingSection } from './BaseSettingSection';
+
+export class MobileSettingsSection extends BaseSettingSection {
+    display(): void {
+        const { containerEl, plugin } = this;
+        const t = plugin.t;
+
+        containerEl.createEl('h1', { text: t.settings.mobile.title });
+        containerEl.createEl('p', {
+            text: t.settings.mobile.description,
+            cls: 'setting-item-description'
+        });
+
+        if (!Platform.isMobile) {
+            containerEl.createEl('p', {
+                text: t.settings.mobile.desktopOnlyNote,
+                cls: 'setting-item-description mod-warning'
+            });
+        }
+
+        new Setting(containerEl)
+            .setName(t.settings.mobile.providerMode)
+            .setDesc(t.settings.mobile.providerModeDesc)
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('auto', t.settings.mobile.providerAuto)
+                    .addOption('cloud-only', t.settings.mobile.providerCloudOnly)
+                    .addOption('custom', t.settings.mobile.providerCustom)
+                    .setValue(plugin.settings.mobileProviderMode)
+                    .onChange(async (value) => {
+                        plugin.settings.mobileProviderMode = value as 'auto' | 'cloud-only' | 'custom';
+                        await plugin.saveSettings();
+                        this.settingTab.display();
+                    })
+            );
+
+        if (plugin.settings.mobileProviderMode !== 'custom') {
+            new Setting(containerEl)
+                .setName(t.settings.mobile.fallbackProvider)
+                .setDesc(t.settings.mobile.fallbackProviderDesc)
+                .addDropdown(dropdown =>
+                    dropdown
+                        .addOptions(this.getProviderOptions(t))
+                        .setValue(plugin.settings.mobileFallbackProvider)
+                        .onChange(async (value) => {
+                            plugin.settings.mobileFallbackProvider = value as AdapterType;
+                            await plugin.saveSettings();
+                        })
+                );
+
+            new Setting(containerEl)
+                .setName(t.settings.mobile.fallbackModel)
+                .setDesc(t.settings.mobile.fallbackModelDesc)
+                .addText(text => text
+                    .setPlaceholder(plugin.settings.cloudModel || '')
+                    .setValue(plugin.settings.mobileFallbackModel)
+                    .onChange(async (value) => {
+                        plugin.settings.mobileFallbackModel = value.trim();
+                        await plugin.saveSettings();
+                    }));
+        } else {
+            new Setting(containerEl)
+                .setName(t.settings.mobile.customEndpoint)
+                .setDesc(t.settings.mobile.customEndpointDesc)
+                .addText(text => text
+                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions')
+                    .setValue(plugin.settings.mobileCustomEndpoint)
+                    .onChange(async (value) => {
+                        plugin.settings.mobileCustomEndpoint = value.trim();
+                        await plugin.saveSettings();
+                    }));
+
+            new Setting(containerEl)
+                .setName(t.settings.mobile.fallbackModel)
+                .setDesc(t.settings.mobile.fallbackModelDesc)
+                .addText(text => text
+                    .setPlaceholder(plugin.settings.localModel || '')
+                    .setValue(plugin.settings.mobileFallbackModel)
+                    .onChange(async (value) => {
+                        plugin.settings.mobileFallbackModel = value.trim();
+                        await plugin.saveSettings();
+                    }));
+        }
+
+        new Setting(containerEl)
+            .setName(t.settings.mobile.indexMode)
+            .setDesc(t.settings.mobile.indexModeDesc)
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('disabled', t.settings.mobile.indexDisabled)
+                    .addOption('read-only', t.settings.mobile.indexReadOnly)
+                    .addOption('full', t.settings.mobile.indexFull)
+                    .setValue(plugin.settings.mobileIndexingMode)
+                    .onChange(async (value) => {
+                        plugin.settings.mobileIndexingMode = value as 'disabled' | 'read-only' | 'full';
+                        await plugin.saveSettings();
+                    })
+            );
+
+        new Setting(containerEl)
+            .setName(t.settings.mobile.indexSizeLimit)
+            .setDesc(t.settings.mobile.indexSizeLimitDesc)
+            .addText(text => text
+                .setPlaceholder('50')
+                .setValue(String(plugin.settings.mobileIndexSizeLimit))
+                .onChange(async (value) => {
+                    const parsed = Number.parseInt(value, 10);
+                    if (!Number.isNaN(parsed) && parsed > 0) {
+                        plugin.settings.mobileIndexSizeLimit = parsed;
+                        await plugin.saveSettings();
+                    }
+                }));
+    }
+
+    private getProviderOptions(t: AIOrganiserPlugin['t']): Record<string, string> {
+        return {
+            openai: t.dropdowns.openai,
+            gemini: t.dropdowns.gemini,
+            deepseek: t.dropdowns.deepseek,
+            aliyun: t.dropdowns.aliyun,
+            claude: t.dropdowns.claude,
+            groq: t.dropdowns.groq,
+            vertex: t.dropdowns.vertex,
+            openrouter: t.dropdowns.openrouter,
+            bedrock: t.dropdowns.bedrock,
+            requesty: t.dropdowns.requesty,
+            cohere: t.dropdowns.cohere,
+            grok: t.dropdowns.grok,
+            mistral: t.dropdowns.mistral,
+            'openai-compatible': t.dropdowns.openaiCompatible
+        };
+    }
+}

@@ -66,15 +66,18 @@ export class LocalLLMService extends BaseLLMService {
                 ...(options.headers as Record<string, string> || {})
             };
 
-            const response = await requestUrl({
-                url: this.endpoint,
-                method: options.method as string || 'POST',
-                headers: mergedHeaders,
-                body: options.body as string,
-                throw: false
-            });
-
+            const response = await this.requestWithTimeout(
+                requestUrl({
+                    url: this.endpoint,
+                    method: options.method as string || 'POST',
+                    headers: mergedHeaders,
+                    body: options.body as string,
+                    throw: false
+                }),
+                timeoutMs
+            );
             return response;
+
         } catch (error) {
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
@@ -231,7 +234,7 @@ export class LocalLLMService extends BaseLLMService {
                 ],
                 temperature: 0.3
             })
-        }, this.TIMEOUT);
+        }, this.getRequestTimeoutMs());
 
         if (response.status < 200 || response.status >= 300) {
             const errorText = response.text;
@@ -277,7 +280,7 @@ export class LocalLLMService extends BaseLLMService {
                     ],
                     temperature: 0.3
                 })
-            }, this.TIMEOUT);
+            }, this.getRequestTimeoutMs());
 
             if (response.status < 200 || response.status >= 300) {
                 const errorText = response.text;

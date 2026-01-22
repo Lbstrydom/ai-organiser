@@ -2,7 +2,7 @@ import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestErro
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';
 import { SYSTEM_PROMPT } from '../utils/constants';
-import { App } from 'obsidian';
+import { App, Platform } from 'obsidian';
 
 /**
  * Base class for LLM service implementations
@@ -32,6 +32,25 @@ export abstract class BaseLLMService {
      */
     public setDebugMode(enabled: boolean): void {
         this.debugMode = enabled;
+    }
+
+    protected getRequestTimeoutMs(): number {
+        return Platform.isMobile ? 60000 : this.TIMEOUT;
+    }
+
+    protected async requestWithTimeout<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
+        let timeoutId: NodeJS.Timeout | null = null;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+        });
+
+        try {
+            return await Promise.race([request, timeoutPromise]);
+        } finally {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        }
     }
 
     /**

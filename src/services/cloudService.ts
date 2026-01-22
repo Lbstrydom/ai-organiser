@@ -40,15 +40,18 @@ export class CloudLLMService extends BaseLLMService {
                 throw new Error(validationError);
             }
 
-            const response = await requestUrl({
-                url: this.adapter.getEndpoint(),
-                method: 'POST',
-                headers: this.adapter.getHeaders(),
-                body: JSON.stringify(this.adapter.formatRequest(prompt)),
-                throw: false
-            });
-
+            const response = await this.requestWithTimeout(
+                requestUrl({
+                    url: this.adapter.getEndpoint(),
+                    method: 'POST',
+                    headers: this.adapter.getHeaders(),
+                    body: JSON.stringify(this.adapter.formatRequest(prompt)),
+                    throw: false
+                }),
+                timeoutMs
+            );
             return response;
+
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new Error('Request timed out');
@@ -176,7 +179,7 @@ export class CloudLLMService extends BaseLLMService {
      * @returns Promise resolving to the response
      */
     protected async sendRequest(prompt: string): Promise<string> {
-        const response = await this.makeRequestWithRetry(prompt, this.TIMEOUT);
+        const response = await this.makeRequestWithRetry(prompt, this.getRequestTimeoutMs());
 
         if (response.status < 200 || response.status >= 300) {
             const responseText = response.text;
@@ -257,13 +260,16 @@ export class CloudLLMService extends BaseLLMService {
             console.log('  - prompt length:', prompt.length);
         }
 
-        const response = await requestUrl({
-            url: endpoint,
-            method: 'POST',
-            headers: this.adapter.getHeaders(),
-            body: JSON.stringify(requestBody),
-            throw: false
-        });
+        const response = await this.requestWithTimeout(
+            requestUrl({
+                url: endpoint,
+                method: 'POST',
+                headers: this.adapter.getHeaders(),
+                body: JSON.stringify(requestBody),
+                throw: false
+            }),
+            this.getRequestTimeoutMs()
+        );
 
         if (response.status < 200 || response.status >= 300) {
             const responseText = response.text;
@@ -433,13 +439,16 @@ export class CloudLLMService extends BaseLLMService {
                 return { success: false, error: 'PDF summarization not supported for this provider' };
             }
 
-            const response = await requestUrl({
-                url: this.adapter.getEndpoint(),
-                method: 'POST',
-                headers: this.adapter.getHeaders(),
-                body: JSON.stringify(requestBody),
-                throw: false
-            });
+            const response = await this.requestWithTimeout(
+                requestUrl({
+                    url: this.adapter.getEndpoint(),
+                    method: 'POST',
+                    headers: this.adapter.getHeaders(),
+                    body: JSON.stringify(requestBody),
+                    throw: false
+                }),
+                this.getRequestTimeoutMs()
+            );
 
             if (response.status < 200 || response.status >= 300) {
                 const responseText = response.text;
@@ -534,13 +543,16 @@ export class CloudLLMService extends BaseLLMService {
                 return { success: false, error: 'Image analysis not supported for this provider' };
             }
 
-            const response = await requestUrl({
-                url: this.adapter.getEndpoint(),
-                method: 'POST',
-                headers: this.adapter.getHeaders(),
-                body: JSON.stringify(requestBody),
-                throw: false
-            });
+            const response = await this.requestWithTimeout(
+                requestUrl({
+                    url: this.adapter.getEndpoint(),
+                    method: 'POST',
+                    headers: this.adapter.getHeaders(),
+                    body: JSON.stringify(requestBody),
+                    throw: false
+                }),
+                this.getRequestTimeoutMs()
+            );
 
             if (response.status < 200 || response.status >= 300) {
                 const responseText = response.text;
@@ -652,13 +664,16 @@ export class CloudLLMService extends BaseLLMService {
                 return { success: false, error: 'Multimodal analysis not supported for this provider' };
             }
 
-            const response = await requestUrl({
-                url: this.adapter.getEndpoint(),
-                method: 'POST',
-                headers: this.adapter.getHeaders(),
-                body: JSON.stringify(requestBody),
-                throw: false
-            });
+            const response = await this.requestWithTimeout(
+                requestUrl({
+                    url: this.adapter.getEndpoint(),
+                    method: 'POST',
+                    headers: this.adapter.getHeaders(),
+                    body: JSON.stringify(requestBody),
+                    throw: false
+                }),
+                this.getRequestTimeoutMs()
+            );
 
             if (response.status < 200 || response.status >= 300) {
                 const responseText = response.text;
