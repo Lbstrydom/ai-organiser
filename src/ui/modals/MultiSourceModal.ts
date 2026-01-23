@@ -11,6 +11,7 @@
 
 import { App, Modal, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
+import type { Persona } from '../../services/configurationService';
 import {
     DetectedSource,
     DetectedSources,
@@ -30,6 +31,7 @@ export interface MultiSourceModalResult {
     sources: SelectedSources;
     summarizeNote: boolean;
     focusContext?: string;
+    personaId?: string;
 }
 
 interface SourceSection {
@@ -54,12 +56,16 @@ export class MultiSourceModal extends Modal {
     private selectedAudio = new Set<string>();
     private summarizeNote: boolean;
     private focusContext = '';
+    private selectedPersonaId: string;
 
     // Manual input state
     private manualUrls: string[] = [];
     private manualYoutube: string[] = [];
     private manualPdfs: string[] = [];
     private manualAudio: string[] = [];
+
+    // Personas
+    private personas: Persona[] = [];
 
     // UI references
     private ctaButton!: HTMLButtonElement;
@@ -94,6 +100,9 @@ export class MultiSourceModal extends Modal {
         } else {
             this.summarizeNote = true;
         }
+
+        // Initialize persona to default
+        this.selectedPersonaId = plugin.settings.defaultSummaryPersona || 'student';
     }
 
     /**
@@ -123,6 +132,17 @@ export class MultiSourceModal extends Modal {
         contentEl.addClass('ai-organiser-multi-source-modal');
 
         const t = this.plugin.t.modals.multiSource;
+
+        // Load personas asynchronously, then re-render settings section
+        this.plugin.configService.getSummaryPersonas().then(personas => {
+            this.personas = personas;
+            // Re-render settings section to include persona dropdown
+            const settingsSection = this.sectionsContainer?.querySelector('.ai-organiser-multi-source-settings');
+            if (settingsSection) {
+                settingsSection.remove();
+                this.renderSettingsSection();
+            }
+        });
 
         // Title
         contentEl.createEl('h2', {
@@ -402,6 +422,22 @@ export class MultiSourceModal extends Modal {
             cls: 'ai-organiser-multi-source-settings'
         });
 
+        // Persona selection dropdown
+        if (this.personas.length > 0) {
+            new Setting(settingsSection)
+                .setName(t?.persona || 'Summary Style')
+                .setDesc(t?.personaDesc || 'Choose how the summary should be written')
+                .addDropdown(dropdown => {
+                    for (const persona of this.personas) {
+                        dropdown.addOption(persona.id, persona.name);
+                    }
+                    dropdown.setValue(this.selectedPersonaId);
+                    dropdown.onChange(value => {
+                        this.selectedPersonaId = value;
+                    });
+                });
+        }
+
         // Focus context input
         new Setting(settingsSection)
             .setName(t?.focusContext || 'Focus Context')
@@ -665,7 +701,8 @@ export class MultiSourceModal extends Modal {
                 }))
             },
             summarizeNote: this.summarizeNote,
-            focusContext: this.focusContext.trim() || undefined
+            focusContext: this.focusContext.trim() || undefined,
+            personaId: this.selectedPersonaId
         };
 
         this.close();

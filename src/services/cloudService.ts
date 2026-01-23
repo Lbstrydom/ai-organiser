@@ -447,7 +447,7 @@ export class CloudLLMService extends BaseLLMService {
                     body: JSON.stringify(requestBody),
                     throw: false
                 }),
-                this.getRequestTimeoutMs()
+                this.getSummarizeTimeoutMs() // Use configurable summarize timeout for PDF processing
             );
 
             if (response.status < 200 || response.status >= 300) {
@@ -551,7 +551,7 @@ export class CloudLLMService extends BaseLLMService {
                     body: JSON.stringify(requestBody),
                     throw: false
                 }),
-                this.getRequestTimeoutMs()
+                this.getSummarizeTimeoutMs() // Use configurable summarize timeout for image analysis
             );
 
             if (response.status < 200 || response.status >= 300) {
@@ -672,7 +672,7 @@ export class CloudLLMService extends BaseLLMService {
                     body: JSON.stringify(requestBody),
                     throw: false
                 }),
-                this.getRequestTimeoutMs()
+                this.getSummarizeTimeoutMs() // Use configurable summarize timeout for multimodal analysis
             );
 
             if (response.status < 200 || response.status >= 300) {

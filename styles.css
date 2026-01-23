@@ -2934,3 +2934,89 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ============================================
+   YouTube Settings Section
+   Gestalt principles: proximity, similarity, visual hierarchy
+   ============================================ */
+
+/* Info/description box - grouped with title */
+.ai-organiser-settings-info {
+    background: var(--background-secondary);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-left: 3px solid var(--interactive-accent);
+}
+
+.ai-organiser-settings-info p {
+    margin: 0;
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* Status indicator - success state */
+.ai-organiser-settings-status {
+    background: var(--background-modifier-success);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-organiser-status-success {
+    color: var(--text-success);
+    font-size: var(--font-ui-small);
+    font-weight: 500;
+}
+
+.ai-organiser-status-success::before {
+    content: "✓";
+    margin-right: 6px;
+    font-weight: bold;
+}
+
+/* Link to external resource - visually separated */
+.ai-organiser-settings-link {
+    margin-top: 8px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.ai-organiser-settings-link a {
+    color: var(--text-accent);
+    text-decoration: none;
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-settings-link a:hover {
+    text-decoration: underline;
+}
+
+/* Warning state for missing configuration */
+.ai-organiser-settings-warning {
+    background: var(--background-modifier-error);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 3px solid var(--text-error);
+}
+
+.ai-organiser-status-warning {
+    color: var(--text-error);
+    font-size: var(--font-ui-small);
+    font-weight: 500;
+}
+
+.ai-organiser-status-warning::before {
+    content: "⚠";
+    margin-right: 6px;
+}

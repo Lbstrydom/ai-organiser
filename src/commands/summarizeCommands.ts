@@ -22,16 +22,20 @@ import { AudioSelectModal, AudioSelectResult } from '../ui/modals/AudioSelectMod
 import { ContentSizeModal, ContentSizeChoice } from '../ui/modals/ContentSizeModal';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 import { getLanguageNameForPrompt } from '../services/languages';
-import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo } from '../services/youtubeService';
+import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo, summarizeYouTubeWithGemini } from '../services/youtubeService';
 import {
     transcribeAudio,
     transcribeAudioFromData,
     transcribeExternalAudio,
-    getAvailableTranscriptionProvider
+    transcribeChunkedAudioWithCleanup,
+    ChunkedTranscriptionProgress
 } from '../services/audioTranscriptionService';
 import {
     compressAudio,
-    CompressionProgress
+    CompressionProgress,
+    needsChunking,
+    compressAndChunkAudio,
+    ChunkProgress
 } from '../services/audioCompressionService';
 import {
     addToReferencesSection,
@@ -172,6 +176,67 @@ async function saveTranscriptToFile(
     }
 }
 
+/**
+ * Get the Gemini API key for YouTube processing
+ * Priority: 1) dedicated YouTube key, 2) main Gemini key if provider is Gemini, 3) provider settings
+ */
+function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
+    // First, check for dedicated YouTube Gemini key
+    if (plugin.settings.youtubeGeminiApiKey) {
+        return plugin.settings.youtubeGeminiApiKey;
+    }
+
+    // If main provider is Gemini, use that key
+    if (plugin.settings.cloudServiceType === 'gemini' && plugin.settings.cloudApiKey) {
+        return plugin.settings.cloudApiKey;
+    }
+
+    // Check provider settings for Gemini
+    if (plugin.settings.providerSettings?.gemini?.apiKey) {
+        return plugin.settings.providerSettings.gemini.apiKey;
+    }
+
+    return null;
+}
+
+/**
+ * Get the API key for audio transcription (Whisper)
+ * Priority: 1) dedicated transcription key, 2) main key if provider matches, 3) provider settings
+ */
+function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): { key: string; provider: 'openai' | 'groq' } | null {
+    const selectedProvider = plugin.settings.audioTranscriptionProvider || 'openai';
+
+    // First, check for dedicated transcription key
+    if (plugin.settings.audioTranscriptionApiKey) {
+        return { key: plugin.settings.audioTranscriptionApiKey, provider: selectedProvider };
+    }
+
+    // Check if main provider matches and has a key
+    if (plugin.settings.cloudServiceType === selectedProvider && plugin.settings.cloudApiKey) {
+        return { key: plugin.settings.cloudApiKey, provider: selectedProvider };
+    }
+
+    // Check provider settings for the selected provider
+    const providerKey = plugin.settings.providerSettings?.[selectedProvider]?.apiKey;
+    if (providerKey) {
+        return { key: providerKey, provider: selectedProvider };
+    }
+
+    // Fallback: try the other provider if available
+    const otherProvider = selectedProvider === 'openai' ? 'groq' : 'openai';
+
+    if (plugin.settings.cloudServiceType === otherProvider && plugin.settings.cloudApiKey) {
+        return { key: plugin.settings.cloudApiKey, provider: otherProvider as 'openai' | 'groq' };
+    }
+
+    const otherProviderKey = plugin.settings.providerSettings?.[otherProvider]?.apiKey;
+    if (otherProviderKey) {
+        return { key: otherProviderKey, provider: otherProvider as 'openai' | 'groq' };
+    }
+
+    return null;
+}
+
 type SmartSummarizeTarget =
     | { type: 'url'; url: string }
     | { type: 'internal-pdf'; file: TFile }
@@ -264,8 +329,21 @@ async function handleMultiSourceResult(
     view: MarkdownView,
     result: MultiSourceModalResult
 ): Promise<void> {
-    const defaultPersonaId = plugin.settings.defaultSummaryPersona;
-    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
+    // Debug: Log what we received
+    if (plugin.settings.debugMode) {
+        console.log('[AI Organiser] handleMultiSourceResult called with:', {
+            summarizeNote: result.summarizeNote,
+            urls: result.sources.urls.length,
+            youtube: result.sources.youtube.length,
+            pdfs: result.sources.pdfs,
+            audio: result.sources.audio.length,
+            personaId: result.personaId
+        });
+    }
+
+    // Use persona from modal result, fallback to settings default
+    const personaId = result.personaId || plugin.settings.defaultSummaryPersona;
+    const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(personaId);
 
     // Count total sources to process
     const totalSources =
@@ -289,7 +367,7 @@ async function handleMultiSourceResult(
         if (result.sources.urls.length === 1) {
             const url = result.sources.urls[0];
             try {
-                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, defaultPersonaId);
+                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, personaId);
                 // Remove URL from note body after processing
                 removeSourceFromEditor(editor, url);
             } catch (e) {
@@ -301,7 +379,7 @@ async function handleMultiSourceResult(
         if (result.sources.youtube.length === 1) {
             const url = result.sources.youtube[0];
             try {
-                await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, defaultPersonaId);
+                await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, personaId);
                 // Remove YouTube URL from note body after processing
                 removeSourceFromEditor(editor, url);
             } catch (e) {
@@ -313,12 +391,36 @@ async function handleMultiSourceResult(
         if (result.sources.pdfs.length === 1) {
             const pdf = result.sources.pdfs[0];
             if (pdf.isVaultFile) {
-                const file = plugin.app.vault.getAbstractFileByPath(pdf.path);
+                // Use Obsidian's link resolution to handle short links (just filename)
+                // getFirstLinkpathDest resolves links relative to the current file
+                const currentFile = view.file;
+                let file = plugin.app.metadataCache.getFirstLinkpathDest(pdf.path, currentFile?.path || '');
+
+                // Fallback to direct path lookup if link resolution fails
+                if (!file) {
+                    const directFile = plugin.app.vault.getAbstractFileByPath(pdf.path);
+                    if (directFile instanceof TFile) {
+                        file = directFile;
+                    }
+                }
+
                 if (file instanceof TFile) {
-                    await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, defaultPersonaId);
+                    try {
+                        await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, personaId);
+                    } catch (e) {
+                        console.error('Error in handlePdfSummarization:', e);
+                        new Notice(`Error processing PDF: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                    }
+                } else {
+                    new Notice(`Could not find PDF file: ${pdf.path}`);
                 }
             } else {
-                await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, defaultPersonaId);
+                try {
+                    await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, personaId);
+                } catch (e) {
+                    console.error('Error in handleExternalPdfSummarization:', e);
+                    new Notice(`Error processing external PDF: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                }
             }
             return;
         }
@@ -335,14 +437,16 @@ async function handleMultiSourceResult(
     const summaries: string[] = [];
     const sourceLabels: string[] = [];
 
-    // Track source data for References and Pending Integration
+    // Track source data for References and status checklist
     interface ProcessedSource {
-        type: 'web' | 'youtube' | 'note';
+        type: 'web' | 'youtube' | 'note' | 'pdf' | 'audio';
         url?: string;
         title: string;
         date: string;
+        success: boolean;
+        error?: string;
     }
-    const processedSources: ProcessedSource[] = [];
+    const allSources: ProcessedSource[] = [];
     const today = new Date().toISOString().split('T')[0];
 
     // Track progress
@@ -361,15 +465,31 @@ async function handleMultiSourceResult(
             if (summary) {
                 summaries.push(summary);
                 sourceLabels.push(`Current Note: ${view.file.basename}`);
-                processedSources.push({
+                allSources.push({
                     type: 'note',
                     title: view.file.basename,
-                    date: today
+                    date: today,
+                    success: true
+                });
+            } else {
+                allSources.push({
+                    type: 'note',
+                    title: view.file.basename,
+                    date: today,
+                    success: false,
+                    error: 'Failed to generate summary'
                 });
             }
             processedCount++;
         } catch (e) {
             console.error('Failed to summarize note:', e);
+            allSources.push({
+                type: 'note',
+                title: view.file.basename,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            });
             processedCount++;
         }
     }
@@ -383,68 +503,271 @@ async function handleMultiSourceResult(
             if (webResult.success && webResult.content) {
                 new Notice(`Summarizing: ${webResult.content.title?.substring(0, 40) || 'web page'}...`, 10000);
                 const summary = await callSummarizeService(plugin, webResult.content.textContent, personaPrompt, result.focusContext);
+                const title = webResult.content.title || url;
                 if (summary) {
                     summaries.push(summary);
-                    const title = webResult.content.title || url;
                     sourceLabels.push(`URL: ${title}`);
-                    processedSources.push({
+                    allSources.push({
                         type: 'web',
                         url: url,
                         title: title,
-                        date: today
+                        date: today,
+                        success: true
+                    });
+                } else {
+                    allSources.push({
+                        type: 'web',
+                        url: url,
+                        title: title,
+                        date: today,
+                        success: false,
+                        error: 'Failed to generate summary'
                     });
                 }
+            } else {
+                allSources.push({
+                    type: 'web',
+                    url: url,
+                    title: url,
+                    date: today,
+                    success: false,
+                    error: webResult.error || 'Could not fetch page (may require login or JavaScript)'
+                });
             }
             processedCount++;
         } catch (e) {
             console.error(`Failed to summarize URL ${url}:`, e);
             new Notice(`Failed to fetch: ${url}`);
+            allSources.push({
+                type: 'web',
+                url: url,
+                title: url,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Network error'
+            });
             processedCount++;
         }
     }
 
-    // Process YouTube videos
+    // Process YouTube videos using Gemini-native processing
+    const youtubeGeminiKey = getYouTubeGeminiApiKey(plugin);
     for (const url of result.sources.youtube) {
         showProgress();
         try {
-            new Notice('Fetching YouTube transcript...', 5000);
-            const transcriptResult = await fetchYouTubeTranscript(url);
-            if (transcriptResult?.success && transcriptResult.transcript) {
-                new Notice(`Summarizing: ${transcriptResult.videoInfo?.title?.substring(0, 40) || 'video'}...`, 10000);
-                const summary = await callSummarizeService(plugin, transcriptResult.transcript, personaPrompt, result.focusContext);
-                if (summary) {
-                    summaries.push(summary);
-                    const title = transcriptResult.videoInfo?.title || url;
+            if (youtubeGeminiKey) {
+                // Use Gemini-native YouTube processing (more reliable)
+                new Notice('Processing YouTube video with Gemini...', 5000);
+
+                // Build prompt for YouTube summarization
+                const promptOptions: SummaryPromptOptions = {
+                    length: plugin.settings.summaryLength,
+                    language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+                    personaPrompt: personaPrompt,
+                    userContext: result.focusContext,
+                };
+                const prompt = buildSummaryPrompt(promptOptions);
+
+                const geminiResult = await summarizeYouTubeWithGemini(
+                    url,
+                    youtubeGeminiKey,
+                    prompt,
+                    plugin.settings.youtubeGeminiModel,
+                    plugin.settings.summarizeTimeoutSeconds * 1000
+                );
+
+                const title = geminiResult.videoInfo?.title || url;
+
+                if (geminiResult.success && geminiResult.content) {
+                    new Notice(`Summarized: ${title.substring(0, 40)}...`, 3000);
+                    summaries.push(geminiResult.content);
                     sourceLabels.push(`YouTube: ${title}`);
-                    processedSources.push({
+                    allSources.push({
                         type: 'youtube',
                         url: url,
                         title: title,
-                        date: today
+                        date: today,
+                        success: true
+                    });
+                } else {
+                    allSources.push({
+                        type: 'youtube',
+                        url: url,
+                        title: title,
+                        date: today,
+                        success: false,
+                        error: geminiResult.error || 'Gemini failed to process video'
                     });
                 }
+            } else {
+                // No Gemini key - fail with helpful message
+                allSources.push({
+                    type: 'youtube',
+                    url: url,
+                    title: url,
+                    date: today,
+                    success: false,
+                    error: 'Configure Gemini API key in Settings > YouTube to enable video processing'
+                });
             }
             processedCount++;
         } catch (e) {
             console.error(`Failed to summarize YouTube ${url}:`, e);
-            new Notice(`Failed to fetch transcript: ${url}`);
+            new Notice(`Failed to process YouTube video: ${url}`);
+            allSources.push({
+                type: 'youtube',
+                url: url,
+                title: url,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Could not process video'
+            });
             processedCount++;
         }
     }
 
-    // Process PDFs - these require multimodal API, skip for multi-source for now
-    if (result.sources.pdfs.length > 0) {
-        new Notice(`PDF summarization in multi-source mode is not yet supported. Please summarize PDFs individually.`);
+    // Process PDFs
+    for (const pdf of result.sources.pdfs) {
+        showProgress();
+        const pdfTitle = pdf.path.split('/').pop() || pdf.path;
+
+        try {
+            let file: TFile | null = null;
+
+            if (pdf.isVaultFile) {
+                // Use Obsidian's link resolution
+                const currentFile = view.file;
+                file = plugin.app.metadataCache.getFirstLinkpathDest(pdf.path, currentFile?.path || '');
+
+                // Fallback to direct path lookup
+                if (!file) {
+                    const directFile = plugin.app.vault.getAbstractFileByPath(pdf.path);
+                    if (directFile instanceof TFile) {
+                        file = directFile;
+                    }
+                }
+            }
+
+            if (file) {
+                new Notice(`Reading PDF: ${pdfTitle}...`, 3000);
+                const pdfResult = await pdfService.readPdfAsBase64(file);
+
+                if (pdfResult.success && pdfResult.content) {
+                    // Build prompt for PDF summarization
+                    const promptOptions: SummaryPromptOptions = {
+                        length: plugin.settings.summaryLength,
+                        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+                        personaPrompt: personaPrompt,
+                        userContext: result.focusContext,
+                    };
+                    const prompt = buildSummaryPrompt(promptOptions);
+
+                    // Use PDF-specific summarization
+                    const summaryResult = await summarizePdfWithLLM(plugin, pdfResult.content, prompt);
+                    if (summaryResult.success && summaryResult.content) {
+                        summaries.push(summaryResult.content);
+                        sourceLabels.push(`PDF: ${pdfTitle}`);
+                        allSources.push({
+                            type: 'pdf',
+                            url: pdf.path,
+                            title: pdfTitle,
+                            date: today,
+                            success: true
+                        });
+                    } else {
+                        allSources.push({
+                            type: 'pdf',
+                            url: pdf.path,
+                            title: pdfTitle,
+                            date: today,
+                            success: false,
+                            error: summaryResult.error || 'Failed to generate summary'
+                        });
+                    }
+                } else {
+                    allSources.push({
+                        type: 'pdf',
+                        url: pdf.path,
+                        title: pdfTitle,
+                        date: today,
+                        success: false,
+                        error: pdfResult.error || 'Failed to read PDF'
+                    });
+                }
+            } else {
+                allSources.push({
+                    type: 'pdf',
+                    url: pdf.path,
+                    title: pdfTitle,
+                    date: today,
+                    success: false,
+                    error: 'Could not find PDF file in vault'
+                });
+            }
+        } catch (e) {
+            console.error('Error processing PDF:', e);
+            allSources.push({
+                type: 'pdf',
+                url: pdf.path,
+                title: pdfTitle,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            });
+        }
+
+        processedCount++;
     }
 
-    // Audio files - notify user to use individual processing
-    if (result.sources.audio.length > 0) {
-        new Notice(`Audio files require individual processing. Please use the audio summarize option.`);
+    // Audio files - track as not supported in multi-source mode
+    for (const audio of result.sources.audio) {
+        allSources.push({
+            type: 'audio',
+            url: audio.path,
+            title: audio.path.split('/').pop() || audio.path,
+            date: today,
+            success: false,
+            error: 'Audio files must be summarized individually'
+        });
     }
 
-    // Combine summaries
+    // If no summaries but we have sources, show the status checklist
     if (summaries.length === 0) {
-        new Notice('No content could be summarized');
+        if (allSources.length > 1) {
+            // Build and show the status checklist even for complete failure
+            let failureOutput = '\n\n## Summary\n\n*No content could be summarized.*\n\n### Sources Processed\n\n';
+            for (const source of allSources) {
+                const icon = source.success ? '✓' : '✗';
+                const status = source.success ? '' : ` - *${source.error || 'Failed'}*`;
+                const displayTitle = source.title.length > 60
+                    ? source.title.substring(0, 57) + '...'
+                    : source.title;
+                failureOutput += `- [${icon}] ${displayTitle}${status}\n`;
+            }
+            failureOutput += '\n*0 of ' + allSources.length + ' sources processed successfully. Please try again or process sources individually.*\n';
+
+            // Remove processed URLs first
+            const urlsToRemove = allSources
+                .filter((s: ProcessedSource) => s.url && s.type !== 'note')
+                .map((s: ProcessedSource) => s.url as string);
+
+            let fullContent = editor.getValue();
+            if (urlsToRemove.length > 0) {
+                fullContent = removeProcessedSources(fullContent, urlsToRemove);
+            }
+
+            // Insert the failure report
+            const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
+            const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
+            const frontmatter = fullContent.substring(0, frontmatterEnd);
+            editor.setValue(frontmatter + failureOutput.trimStart());
+
+            new Notice('No content could be summarized. See note for details.', 5000);
+        } else {
+            // Single source failure
+            const error = allSources[0]?.error || 'Unknown error';
+            new Notice(`Failed to summarize: ${error}`, 8000);
+        }
         return;
     }
 
@@ -475,17 +798,58 @@ async function handleMultiSourceResult(
         }
     }
 
-    // Insert summary at cursor (no longer add "Sources:" text - use proper sections instead)
-    editor.replaceSelection(combinedOutput);
+    // Add source processing status checklist if multiple sources
+    if (allSources.length > 1) {
+        const successCount = allSources.filter(s => s.success).length;
+        const failCount = allSources.length - successCount;
 
-    // Add each source to References section only
-    // Note: We don't add to Pending Integration here because the URL has already been processed
-    // Pending Integration is for content that hasn't been integrated yet
-    for (const source of processedSources) {
-        if (source.url) {
-            // Add to References section
+        combinedOutput += '\n\n### Sources Processed\n\n';
+
+        for (const source of allSources) {
+            const icon = source.success ? '✓' : '✗';
+            const status = source.success ? '' : ` - *${source.error || 'Failed'}*`;
+            const displayTitle = source.title.length > 60
+                ? source.title.substring(0, 57) + '...'
+                : source.title;
+            combinedOutput += `- [${icon}] ${displayTitle}${status}\n`;
+        }
+
+        if (failCount > 0) {
+            combinedOutput += `\n*${successCount} of ${allSources.length} sources processed successfully. Failed sources may need to be added manually.*\n`;
+        }
+    }
+
+    // Remove successfully processed source URLs FIRST (before inserting summary)
+    // Failed sources remain so user can try again or handle manually
+    const urlsToRemove = allSources
+        .filter((s: ProcessedSource) => s.url && s.type !== 'note' && s.success)
+        .map((s: ProcessedSource) => s.url as string);
+
+    let fullContent = editor.getValue();
+    if (urlsToRemove.length > 0) {
+        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove);
+        if (cleanedContent !== fullContent) {
+            fullContent = cleanedContent;
+            editor.setValue(fullContent);
+        }
+    }
+
+    // Insert summary - replace content body (after frontmatter)
+    // Find where the content body starts (after frontmatter if present)
+    const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
+    const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
+
+    // Build new content: frontmatter + summary (replacing body)
+    const frontmatter = fullContent.substring(0, frontmatterEnd);
+    const newContent = frontmatter + combinedOutput.trimStart();
+
+    editor.setValue(newContent);
+
+    // Add successful sources to References section
+    for (const source of allSources) {
+        if (source.url && source.success) {
             const sourceRef: SourceReference = {
-                type: source.type,
+                type: source.type === 'web' ? 'web' : source.type === 'youtube' ? 'youtube' : 'note',
                 title: source.title,
                 link: source.url,
                 date: source.date,
@@ -497,23 +861,6 @@ async function handleMultiSourceResult(
 
     // Ensure note structure (References and Pending Integration sections)
     ensureNoteStructureIfEnabled(editor, plugin.settings);
-
-    // Remove processed source URLs from note body (move to References only)
-    const urlsToRemove = processedSources
-        .filter(s => s.url && s.type !== 'note')
-        .map(s => s.url as string);
-
-    if (urlsToRemove.length > 0) {
-        const fullContent = editor.getValue();
-        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove);
-        if (cleanedContent !== fullContent) {
-            // Save cursor position relative to end
-            const cursor = editor.getCursor();
-            editor.setValue(cleanedContent);
-            // Try to restore cursor position
-            editor.setCursor(cursor);
-        }
-    }
 
     new Notice(`Summarized ${summaries.length} source(s)`);
 }
@@ -836,14 +1183,13 @@ async function openAudioSummarizeModal(
     plugin: AIOrganiserPlugin,
     editor: Editor
 ): Promise<void> {
-    const cloudServiceType = plugin.settings.cloudServiceType;
-    const apiKey = plugin.settings.cloudApiKey;
-    const provider = getAvailableTranscriptionProvider(cloudServiceType, apiKey);
+    // Use the new helper that checks dedicated key, main provider, and provider settings
+    const transcriptionConfig = getAudioTranscriptionApiKey(plugin);
 
-    if (!provider) {
+    if (!transcriptionConfig) {
         new Notice(
-            plugin.t.messages.transcriptionNotAvailable ||
-            'Audio transcription requires OpenAI or Groq API key. Please configure in settings.'
+            plugin.t.settings.audioTranscription?.noKeyWarning ||
+            'Audio transcription requires OpenAI or Groq API key. Configure in Settings > Audio Transcription.'
         );
         return;
     }
@@ -852,7 +1198,7 @@ async function openAudioSummarizeModal(
         plugin.app,
         plugin.t,
         async (result: AudioSelectResult) => {
-            await handleAudioSummarization(plugin, editor, result, provider);
+            await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key);
         }
     );
     modal.open();
@@ -1249,7 +1595,8 @@ async function handleAudioSummarization(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     result: AudioSelectResult,
-    provider: 'openai' | 'groq'
+    provider: 'openai' | 'groq',
+    apiKey: string
 ): Promise<void> {
     const { file, externalPath, language, context, needsCompression } = result;
     const serviceType = plugin.settings.serviceType === 'cloud'
@@ -1291,7 +1638,7 @@ async function handleAudioSummarization(
 
         transcriptionResult = await transcribeExternalAudio(externalPath, {
             provider,
-            apiKey: plugin.settings.cloudApiKey,
+            apiKey,
             language: language || plugin.settings.summaryLanguage || undefined,
             prompt: context || undefined
         });
@@ -1311,8 +1658,85 @@ async function handleAudioSummarization(
         audioName = file.basename;
         audioPath = file.path;
 
-        if (needsCompression) {
-            // Compress the audio first
+        // Check if file needs chunking (long audio > 20 minutes)
+        // This supports files up to 6+ hours by splitting into 5-minute chunks
+        const chunkingCheck = await needsChunking(plugin.app, file);
+
+        if (chunkingCheck.needsChunking) {
+            // CHUNKED PATH: For long audio files (20+ minutes)
+            const durationMinutes = chunkingCheck.estimatedDuration
+                ? Math.round(chunkingCheck.estimatedDuration / 60)
+                : 'unknown';
+
+            new Notice(
+                `Processing ${durationMinutes} minute audio file. This may take a while...`
+            );
+
+            if (plugin.settings.debugMode) {
+                console.log('[AI Organiser] Using chunked transcription:', chunkingCheck.reason);
+            }
+
+            // Step 1: Compress and split into chunks
+            const chunkResult = await compressAndChunkAudio(
+                plugin.app,
+                file,
+                (progress: ChunkProgress) => {
+                    if (plugin.settings.debugMode) {
+                        console.log('[AI Organiser] Chunk progress:', progress);
+                    }
+                    // Show progress notices for key stages
+                    if (progress.stage === 'preparing') {
+                        new Notice(progress.message);
+                    } else if (progress.stage === 'compressing' && progress.progress % 25 === 0) {
+                        new Notice(`Compressing: ${progress.progress}%`);
+                    } else if (progress.stage === 'done') {
+                        new Notice(progress.message);
+                    } else if (progress.stage === 'error') {
+                        new Notice(progress.message);
+                    }
+                }
+            );
+
+            if (!chunkResult.success || !chunkResult.chunks || !chunkResult.outputDir) {
+                new Notice(
+                    (plugin.t.messages.compressionFailed || 'Audio processing failed') +
+                    `: ${chunkResult.error || 'Unknown error'}`
+                );
+                return;
+            }
+
+            new Notice(`Transcribing ${chunkResult.chunks.length} chunks...`);
+
+            // Step 2: Transcribe all chunks with context chaining
+            transcriptionResult = await transcribeChunkedAudioWithCleanup(
+                chunkResult.chunks,
+                chunkResult.outputDir,
+                {
+                    provider,
+                    apiKey,
+                    language: language || plugin.settings.summaryLanguage || undefined,
+                    prompt: context || undefined
+                },
+                (progress: ChunkedTranscriptionProgress) => {
+                    if (plugin.settings.debugMode) {
+                        console.log('[AI Organiser] Transcription progress:', progress);
+                    }
+                    // Show progress every few chunks or on completion
+                    if (progress.currentChunk === 1 ||
+                        progress.currentChunk === progress.totalChunks ||
+                        progress.currentChunk % 3 === 0) {
+                        new Notice(`Transcribing chunk ${progress.currentChunk}/${progress.totalChunks} (${progress.globalPercent}%)`);
+                    }
+                }
+            );
+
+            // Set duration from chunk result
+            if (chunkResult.totalDuration && transcriptionResult.success) {
+                transcriptionResult.duration = chunkResult.totalDuration;
+            }
+
+        } else if (needsCompression) {
+            // COMPRESSION PATH: For files > 25MB but < 20 minutes
             new Notice(plugin.t.messages.compressingAudio || 'Compressing audio file...');
 
             const compressionResult = await compressAudio(
@@ -1345,18 +1769,19 @@ async function handleAudioSummarization(
                 file.basename + '_compressed.mp3',
                 {
                     provider,
-                    apiKey: plugin.settings.cloudApiKey,
+                    apiKey,
                     language: language || plugin.settings.summaryLanguage || undefined,
                     prompt: context || undefined
                 }
             );
         } else {
+            // DIRECT PATH: For small files (< 25MB and < 20 minutes)
             new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
 
             // Transcribe the audio directly
             transcriptionResult = await transcribeAudio(plugin.app, file, {
                 provider,
-                apiKey: plugin.settings.cloudApiKey,
+                apiKey,
                 language: language || plugin.settings.summaryLanguage || undefined,
                 prompt: context || undefined
             });
@@ -1619,72 +2044,81 @@ async function handleYouTubeSummarization(
     userContext?: string,
     personaId?: string
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
-
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
-    }
-
     // Validate YouTube URL
     if (!isYouTubeUrl(url)) {
         new Notice(plugin.t.messages.invalidYouTubeUrl || 'Invalid YouTube URL');
         return;
     }
 
-    new Notice(plugin.t.messages.fetchingTranscript || 'Fetching transcript...');
-
-    // Fetch transcript
-    const result = await fetchYouTubeTranscript(url);
-
-    if (!result.success || !result.transcript) {
-        new Notice(result.error || 'Failed to fetch transcript');
+    // Check for Gemini API key
+    const geminiKey = getYouTubeGeminiApiKey(plugin);
+    if (!geminiKey) {
+        new Notice(plugin.t.settings.youtube?.noKeyWarning || 'Configure Gemini API key in Settings > YouTube to enable video processing');
         return;
     }
 
-    const transcript = result.transcript;
-    const videoInfo = result.videoInfo;
-
-    // Save transcript to file if enabled
-    const transcriptPath = await saveTranscriptToFile(
-        plugin,
-        transcript,
-        videoInfo?.title || 'YouTube Video',
-        'youtube',
-        {
-            sourceUrl: url,
-            channelName: videoInfo?.channelName
+    // Show privacy notice for Gemini (cloud provider)
+    if (shouldShowPrivacyNotice(true)) {
+        const proceed = await showPrivacyNotice(plugin, 'gemini');
+        if (!proceed) {
+            return;
         }
-    );
-
-    if (transcriptPath && plugin.settings.debugMode) {
-        console.log('[AI Organiser] YouTube transcript saved to:', transcriptPath);
+        markPrivacyNoticeShown();
     }
 
-    // Check content size against limits
-    const maxChars = getMaxContentChars(serviceType);
+    new Notice('Processing YouTube video with Gemini...', 5000);
 
-    if (isContentTooLarge(transcript, serviceType)) {
-        // Show content size modal for user choice
-        const choice = await showContentSizeModal(plugin, transcript.length, maxChars);
+    // Build prompt for YouTube summarization
+    const promptOptions: SummaryPromptOptions = {
+        length: plugin.settings.summaryLength,
+        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+        personaPrompt: personaPrompt,
+        userContext: userContext,
+    };
+    const prompt = buildSummaryPrompt(promptOptions);
 
-        if (choice === 'cancel') {
+    try {
+        const result = await summarizeYouTubeWithGemini(
+            url,
+            geminiKey,
+            prompt,
+            plugin.settings.youtubeGeminiModel,
+            plugin.settings.summarizeTimeoutSeconds * 1000
+        );
+
+        if (!result.success || !result.content) {
+            new Notice(result.error || 'Failed to process YouTube video');
             return;
-        } else if (choice === 'truncate') {
-            const truncatedContent = truncateContent(transcript, serviceType);
-            await summarizeYouTubeAndInsert(plugin, editor, truncatedContent, videoInfo, personaPrompt, transcriptPath, userContext, personaId);
-            new Notice(plugin.t.messages.contentTruncated);
-        } else if (choice === 'chunk') {
-            await summarizeYouTubeInChunks(plugin, editor, transcript, videoInfo, serviceType, personaPrompt, transcriptPath, userContext, personaId);
         }
-    } else {
-        await summarizeYouTubeAndInsert(plugin, editor, transcript, videoInfo, personaPrompt, transcriptPath, userContext, personaId);
+
+        const videoInfo = result.videoInfo;
+        const summary = result.content;
+
+        // Insert summary into editor (no transcript file with Gemini-native processing)
+        insertYouTubeSummary(editor, summary, videoInfo, plugin, null);
+
+        // Update metadata with persona if structured metadata is enabled
+        if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view) {
+                await updateNoteMetadataAfterSummary(
+                    plugin,
+                    view,
+                    summary.substring(0, 280),
+                    [],
+                    'research',
+                    'youtube',
+                    url,
+                    personaId
+                );
+            }
+        }
+
+        new Notice(`YouTube video summarized: ${videoInfo?.title?.substring(0, 40) || 'video'}...`);
+
+    } catch (error) {
+        console.error('[AI Organiser] YouTube Gemini error:', error);
+        new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 }
 

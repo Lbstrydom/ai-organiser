@@ -288,3 +288,110 @@ function formatTranscript(segments: TranscriptSegment[]): string {
 export function getYouTubeUrl(videoId: string): string {
     return `https://www.youtube.com/watch?v=${videoId}`;
 }
+
+/**
+ * Summarize YouTube video using Gemini's native YouTube understanding
+ * This is more reliable than transcript scraping as Gemini can process videos directly
+ */
+export async function summarizeYouTubeWithGemini(
+    url: string,
+    apiKey: string,
+    prompt: string,
+    model: string = 'gemini-2.0-flash',
+    timeoutMs: number = 120000
+): Promise<{ success: boolean; content?: string; videoInfo?: YouTubeVideoInfo; error?: string }> {
+    const videoId = extractYouTubeVideoId(url);
+
+    if (!videoId) {
+        return {
+            success: false,
+            error: 'Invalid YouTube URL. Could not extract video ID.',
+        };
+    }
+
+    if (!apiKey) {
+        return {
+            success: false,
+            error: 'Gemini API key required for YouTube processing. Configure in settings.',
+        };
+    }
+
+    try {
+        // Fetch video info for metadata
+        const videoInfo = await fetchVideoInfo(videoId);
+
+        // Build Gemini request with YouTube URL
+        // Gemini can process YouTube URLs directly via its File API or inline
+        const requestBody = {
+            contents: [
+                {
+                    parts: [
+                        {
+                            fileData: {
+                                mimeType: 'video/youtube',
+                                fileUri: url
+                            }
+                        },
+                        {
+                            text: prompt
+                        }
+                    ]
+                }
+            ],
+            generationConfig: {
+                maxOutputTokens: 4096
+            }
+        };
+
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+        });
+
+        // Make request with timeout
+        const responsePromise = requestUrl({
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+            throw: false
+        });
+
+        const response = await Promise.race([responsePromise, timeoutPromise]);
+
+        if (response.status < 200 || response.status >= 300) {
+            const errorText = response.text;
+            try {
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.error?.message || `API error: ${response.status}`);
+            } catch {
+                throw new Error(`Gemini API error: ${response.status}`);
+            }
+        }
+
+        const data = JSON.parse(response.text);
+
+        // Extract content from Gemini response
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!content) {
+            throw new Error('No content in Gemini response');
+        }
+
+        return {
+            success: true,
+            content,
+            videoInfo,
+        };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return {
+            success: false,
+            error: `Gemini YouTube processing failed: ${errorMessage}`,
+        };
+    }
+}

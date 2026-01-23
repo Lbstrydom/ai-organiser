@@ -9,6 +9,8 @@ import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
 import { MobileSettingsSection } from './MobileSettingsSection';
 import { BasesSettingsSection } from './BasesSettingsSection';
 import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
+import { YouTubeSettingsSection } from './YouTubeSettingsSection';
+import { AudioTranscriptionSettingsSection } from './AudioTranscriptionSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -21,6 +23,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private mobileSection?: MobileSettingsSection;
     private basesSection?: BasesSettingsSection;
     private notebookLMSection?: NotebookLMSettingsSection;
+    private youtubeSection?: YouTubeSettingsSection;
+    private audioTranscriptionSection?: AudioTranscriptionSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -45,6 +49,14 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // 3. Summarization (core feature)
         this.summarizationSection = new SummarizationSettingsSection(this.plugin, containerEl, this);
         this.summarizationSection.display();
+
+        // 3b. YouTube (Gemini-native processing for YouTube videos)
+        this.youtubeSection = new YouTubeSettingsSection(this.plugin, containerEl, this);
+        this.youtubeSection.display();
+
+        // 3c. Audio Transcription (Whisper API for audio files)
+        this.audioTranscriptionSection = new AudioTranscriptionSettingsSection(this.plugin, containerEl, this);
+        this.audioTranscriptionSection.display();
 
         // 4. Vault Context / RAG (advanced feature - enhances core features)
         this.semanticSearchSection = new SemanticSearchSettingsSection(this.plugin, containerEl, this);

@@ -293,6 +293,31 @@ export const en: Translations = {
             includeLinkContextDesc: "Add context snippets for outgoing links",
             linkContextMaxChars: "Link Context Max Characters",
             linkContextMaxCharsDesc: "Maximum characters of context per link"
+        },
+        youtube: {
+            title: "YouTube",
+            description: "YouTube videos are processed using Gemini's native video understanding, which is more reliable than transcript scraping.",
+            usingMainKey: "Using your main Gemini API key",
+            apiKey: "Gemini API Key",
+            apiKeyDesc: "Required for YouTube processing. Get a free key from Google AI Studio.",
+            showKey: "Show/hide key",
+            getApiKey: "Get a free Gemini API key from Google AI Studio",
+            model: "Gemini Model",
+            modelDesc: "Model to use for YouTube video analysis",
+            noKeyWarning: "Configure a Gemini API key to enable YouTube summarization"
+        },
+        audioTranscription: {
+            title: "Audio Transcription",
+            description: "Audio files are transcribed using Whisper API (OpenAI or Groq). Requires an API key from either provider.",
+            usingOpenAIKey: "Using your OpenAI API key",
+            usingGroqKey: "Using your Groq API key",
+            noKeyWarning: "No transcription API key configured. Add an OpenAI or Groq key to enable audio transcription.",
+            provider: "Transcription Provider",
+            providerDesc: "Choose which Whisper API to use for audio transcription",
+            apiKey: "API Key",
+            apiKeyDesc: "Required for audio transcription. Your key is used only for Whisper API calls.",
+            showKey: "Show/hide key",
+            getApiKey: "Get an API key"
         }
     },
 
@@ -614,6 +639,8 @@ export const en: Translations = {
             addYoutubePlaceholder: "https://youtube.com/watch?v=...",
             addPdfPlaceholder: "Path to PDF or URL",
             addAudioPlaceholder: "Path to audio file",
+            persona: "Summary Style",
+            personaDesc: "Choose how the summary should be written",
             focusContext: "Focus Context",
             focusContextDesc: "Optional: Specify what aspects to focus on",
             focusPlaceholder: "e.g., \"key findings\" or \"action items\"",

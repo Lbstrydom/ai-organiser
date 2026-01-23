@@ -281,6 +281,31 @@ export interface Translations {
             linkContextMaxChars: string;
             linkContextMaxCharsDesc: string;
         };
+        youtube: {
+            title: string;
+            description: string;
+            usingMainKey: string;
+            apiKey: string;
+            apiKeyDesc: string;
+            showKey: string;
+            getApiKey: string;
+            model: string;
+            modelDesc: string;
+            noKeyWarning: string;
+        };
+        audioTranscription: {
+            title: string;
+            description: string;
+            usingOpenAIKey: string;
+            usingGroqKey: string;
+            noKeyWarning: string;
+            provider: string;
+            providerDesc: string;
+            apiKey: string;
+            apiKeyDesc: string;
+            showKey: string;
+            getApiKey: string;
+        };
     };
 
     // Commands
@@ -612,6 +637,8 @@ export interface Translations {
             addYoutubePlaceholder: string;
             addPdfPlaceholder: string;
             addAudioPlaceholder: string;
+            persona: string;
+            personaDesc: string;
             focusContext: string;
             focusContextDesc: string;
             focusPlaceholder: string;

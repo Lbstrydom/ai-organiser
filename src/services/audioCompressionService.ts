@@ -219,11 +219,11 @@ async function compressWithFFmpeg(
             }
         });
 
-        // Timeout after 10 minutes
+        // Timeout after 60 minutes (supports 6+ hour audio files)
         setTimeout(() => {
             proc.kill();
-            reject(new Error('FFmpeg timeout (10 minutes)'));
-        }, 600000);
+            reject(new Error('FFmpeg timeout (60 minutes)'));
+        }, 3600000);
     });
 }
 
@@ -696,11 +696,11 @@ async function compressAndSplitOnePass(
             else reject(new Error(`FFmpeg exited with code ${code}`));
         });
 
-        // 30 minute timeout for very long files
+        // 2 hour timeout for very long files (supports 6+ hour recordings)
         setTimeout(() => {
             proc.kill();
             reject(new Error('FFmpeg compress+split timeout'));
-        }, 1800000);
+        }, 7200000);
     });
 }
 

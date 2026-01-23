@@ -1,7 +1,7 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 22, 2026
+**Last Updated:** January 23, 2026
 **Status:** Feature Complete
 
 ---
@@ -30,7 +30,7 @@ src/
 │   └── prompts/               # Prompt engineering
 ├── ui/
 │   ├── modals/                # 15 interaction modals
-│   ├── settings/              # 6 settings sections
+│   ├── settings/              # 11 settings sections
 │   └── views/                 # Tag network, Related notes
 ├── utils/                     # Utilities (tag, note structure, URL validation)
 └── i18n/                      # English + Chinese translations
@@ -56,7 +56,7 @@ main.ts (Plugin)
 | Feature | Commands | Notes |
 |---------|----------|-------|
 | **Tagging** | Tag note/folder/vault, Clear tags | Taxonomy-based, 3-tier hierarchy |
-| **Summarization** | URL, PDF, YouTube, Audio | 5 personas, RAG-enhanced |
+| **Summarization** | URL, PDF, YouTube, Audio | 5 personas, RAG-enhanced, Gemini-native YouTube, 6hr+ audio chunking |
 | **Smart Notes** | Improve, Find resources, Diagrams | AI personas, Mermaid support |
 | **Translation** | Note, Selection | 20+ languages |
 | **Semantic Search** | Search, Index, Related notes | Voy WASM, 5 embedding providers |
@@ -90,11 +90,13 @@ Settings display in logical order:
 2. **Language** - Interface and output language settings
 3. **Tagging** - Max tags, exclusions, note structure toggle
 4. **Summarization** - Length, personas, transcript saving
-5. **Semantic Search** - Embeddings, indexing, RAG options
-6. **Obsidian Bases** - Structured metadata, migration, dashboards
-7. **NotebookLM** - Export settings, sanitisation, module word budget
-8. **Mobile** - Provider fallback, vector store guards
-9. **Configuration** - Config folder, taxonomy files
+5. **YouTube** - Gemini API key (auto-inherits), model selection
+6. **Audio Transcription** - Provider (OpenAI/Groq), API key (auto-inherits)
+7. **Semantic Search** - Embeddings, indexing, RAG options
+8. **Obsidian Bases** - Structured metadata, migration, dashboards
+9. **NotebookLM** - Export settings, sanitisation, module word budget
+10. **Mobile** - Provider fallback, vector store guards
+11. **Configuration** - Config folder, taxonomy files
 
 ---
 
@@ -116,6 +118,25 @@ AI-Organiser/
 ---
 
 ## Recent Updates (January 2026)
+
+### YouTube & Audio Processing (January 23)
+- **YouTube**: Switched to Gemini-native video understanding (no more transcript scraping)
+  - Gemini processes YouTube URLs directly via native video API
+  - Falls back to transcript scraping only if Gemini unavailable
+  - Dedicated YouTube settings section with model selection
+  - Auto-inherits Gemini API key from main provider settings
+- **Audio Transcription**: Now supports 6+ hour recordings with chunked processing
+  - Automatic chunking for files > 20 minutes (5-minute segments)
+  - Context chaining between chunks for seamless transcription
+  - Extended timeouts: FFmpeg (60 min), compress+split (2 hr), API (10 min/chunk)
+  - Dedicated Audio Transcription settings section
+  - Auto-inherits OpenAI/Groq API key from main provider settings
+  - Progress notifications: "Transcribing chunk 4/24 (17%)"
+
+### Multi-Source Summarization (January 22)
+- Persona selection in multi-source modal
+- Source processing status checklist
+- Summary placement fixed (before references, not after)
 
 ### Language & UX Audit
 - Rewrote all UI text for clarity and brevity
@@ -199,8 +220,10 @@ npm test         # Run 95 unit tests
 
 1. Interface language change requires Obsidian restart
 2. PDF summarization only with Claude/Gemini (multimodal)
-3. Audio transcription requires OpenAI or Groq API
+3. Audio transcription requires OpenAI or Groq API key (auto-inherits from main provider)
 4. Claude/Anthropic has no embeddings API (use Voyage AI)
+5. YouTube processing requires Gemini API key (auto-inherits from main provider)
+6. Audio chunking requires FFmpeg installed on system
 
 ---
 

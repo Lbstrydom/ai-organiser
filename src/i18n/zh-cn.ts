@@ -293,6 +293,31 @@ export const zhCN: Translations = {
             includeLinkContextDesc: "为外链添加上下文片段",
             linkContextMaxChars: "链接上下文最大字符数",
             linkContextMaxCharsDesc: "每个链接的最大上下文字符数"
+        },
+        youtube: {
+            title: "YouTube",
+            description: "使用 Gemini 的原生视频理解功能处理 YouTube 视频，比字幕抓取更可靠。",
+            usingMainKey: "使用您的主 Gemini API 密钥",
+            apiKey: "Gemini API 密钥",
+            apiKeyDesc: "YouTube 处理所需。从 Google AI Studio 获取免费密钥。",
+            showKey: "显示/隐藏密钥",
+            getApiKey: "从 Google AI Studio 获取免费 Gemini API 密钥",
+            model: "Gemini 模型",
+            modelDesc: "用于 YouTube 视频分析的模型",
+            noKeyWarning: "配置 Gemini API 密钥以启用 YouTube 摘要"
+        },
+        audioTranscription: {
+            title: "音频转录",
+            description: "使用 Whisper API（OpenAI 或 Groq）转录音频文件。需要任一提供商的 API 密钥。",
+            usingOpenAIKey: "使用您的 OpenAI API 密钥",
+            usingGroqKey: "使用您的 Groq API 密钥",
+            noKeyWarning: "未配置转录 API 密钥。添加 OpenAI 或 Groq 密钥以启用音频转录。",
+            provider: "转录提供商",
+            providerDesc: "选择用于音频转录的 Whisper API",
+            apiKey: "API 密钥",
+            apiKeyDesc: "音频转录所需。您的密钥仅用于 Whisper API 调用。",
+            showKey: "显示/隐藏密钥",
+            getApiKey: "获取 API 密钥"
         }
     },
 
@@ -614,6 +639,8 @@ export const zhCN: Translations = {
             addYoutubePlaceholder: "https://youtube.com/watch?v=...",
             addPdfPlaceholder: "PDF 路径或 URL",
             addAudioPlaceholder: "音频文件路径",
+            persona: "总结风格",
+            personaDesc: "选择总结的写作风格",
             focusContext: "聚焦上下文",
             focusContextDesc: "可选：指定要关注的方面",
             focusPlaceholder: "例如：\"主要发现\" 或 \"行动项目\"",

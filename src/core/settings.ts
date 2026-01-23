@@ -122,6 +122,16 @@ export interface AIOrganiserSettings {
     notebooklmSelectionTag: string;      // Tag to mark notes for export (default: 'notebooklm')
     notebooklmExportFolder: string;      // Root folder for pack exports (under pluginFolder)
     notebooklmPostExportTagAction: 'clear' | 'archive';  // No 'keep' - tags should be cleared after PDF export
+
+    // === YOUTUBE SETTINGS ===
+    // Gemini-native YouTube processing (more reliable than transcript scraping)
+    youtubeGeminiApiKey: string;         // Dedicated Gemini key for YouTube (uses main key if provider is Gemini)
+    youtubeGeminiModel: string;          // Gemini model for YouTube (default: gemini-2.0-flash)
+
+    // === AUDIO TRANSCRIPTION SETTINGS ===
+    // Whisper API for audio transcription (OpenAI or Groq)
+    audioTranscriptionApiKey: string;    // Dedicated key for transcription (uses main key if provider supports Whisper)
+    audioTranscriptionProvider: 'openai' | 'groq';  // Which Whisper provider to use
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -188,6 +198,14 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     notebooklmSelectionTag: 'notebooklm',
     notebooklmExportFolder: 'NotebookLM',               // Under AI-Organiser/NotebookLM/
     notebooklmPostExportTagAction: 'clear',             // Clear tags after export (no reason to keep for PDF)
+
+    // YouTube Defaults (Gemini-native processing)
+    youtubeGeminiApiKey: '',                            // Empty = use main Gemini key if available
+    youtubeGeminiModel: 'gemini-2.0-flash',             // Fast and capable model
+
+    // Audio Transcription Defaults (Whisper API)
+    audioTranscriptionApiKey: '',                       // Empty = use main OpenAI/Groq key if available
+    audioTranscriptionProvider: 'openai',              // OpenAI Whisper by default
 };
 
 /**

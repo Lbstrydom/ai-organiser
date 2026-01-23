@@ -124,16 +124,26 @@ export async function transcribeAudio(
             boundary
         );
 
-        // Make the API request
-        const response = await requestUrl({
+        // Make the API request with 10 minute timeout
+        // (Whisper API typically returns within 1-2 minutes for 25MB files)
+        const timeoutMs = 600000; // 10 minutes
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
+        });
+
+        const requestPromise = requestUrl({
             url: endpoint,
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${options.apiKey}`,
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
-            body: formData
+            body: formData,
+            throw: false
         });
+
+        const response = await Promise.race([requestPromise, timeoutPromise]);
 
         if (response.status !== 200) {
             const errorText = typeof response.json === 'object'
@@ -192,16 +202,25 @@ export async function transcribeAudioFromData(
             boundary
         );
 
-        // Make the API request
-        const response = await requestUrl({
+        // Make the API request with 10 minute timeout
+        const timeoutMs = 600000; // 10 minutes
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
+        });
+
+        const requestPromise = requestUrl({
             url: endpoint,
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${options.apiKey}`,
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
-            body: formData
+            body: formData,
+            throw: false
         });
+
+        const response = await Promise.race([requestPromise, timeoutPromise]);
 
         if (response.status !== 200) {
             const errorText = typeof response.json === 'object'
