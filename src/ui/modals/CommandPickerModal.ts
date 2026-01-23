@@ -212,6 +212,13 @@ export function buildCommandCategories(
                     name: t.commands.generateFromEmbedded,
                     icon: 'file-plus',
                     callback: () => executeCommand('ai-organiser:generate-from-embedded')
+                },
+                {
+                    id: 'create-meeting-minutes',
+                    name: t.commands.createMeetingMinutes,
+                    icon: 'clipboard-list',
+                    aliases: ['meeting', 'minutes', 'transcript'],
+                    callback: () => executeCommand('ai-organiser:create-meeting-minutes')
                 }
             ]
         },
