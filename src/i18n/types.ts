@@ -1038,5 +1038,25 @@ export interface Translations {
         errorParsing: string;
         errorMissingFields: string;
         errorNoPersonas: string;
+        // Audio transcription
+        audioTranscriptionSection: string;
+        audioDetected: string;
+        transcribeButton: string;
+        transcribing: string;
+        transcriptionComplete: string;
+        transcriptionFailed: string;
+        noTranscriptionProvider: string;
+        errorAudioNotFound: string;
+        // Context documents
+        contextDocumentsSection: string;
+        contextDocumentsDesc: string;
+        addDocument: string;
+        extractAll: string;
+        extracting: string;
+        removeDocument: string;
+        documentExtracted: string;
+        documentFailed: string;
+        noDocumentsAttached: string;
+        noDocumentsFound: string;
     };
 }

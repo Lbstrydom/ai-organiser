@@ -181,6 +181,16 @@ external
   - Keep commitments, decisions, and next steps crisp.
   - When in doubt, omit.
 
+<<< CONTEXT DOCUMENTS >>>
+
+If context_documents is provided in the input, use it to:
+- Identify correct spelling of names, project codes, and technical terms
+- Cross-reference agenda items with supporting materials (e.g., slides, reports)
+- Clarify acronyms and abbreviations mentioned in the transcript
+- Verify numerical data, dates, and figures referenced in discussion
+
+IMPORTANT: Do NOT summarize the context documents themselves. They are reference only for improving transcript accuracy.
+
 <<< OUTPUT SCHEMA >>>
 
 MinutesJSON (valid JSON, no markdown fences, must be first in response):
@@ -275,9 +285,10 @@ export function buildMinutesUserPrompt(
     metadata: MeetingMetadata,
     participants: Participant[],
     participantsRaw: string,
-    transcript: TranscriptSegment[] | string
+    transcript: TranscriptSegment[] | string,
+    contextDocuments?: string
 ): string {
-    const payload = {
+    const payload: Record<string, unknown> = {
         meeting: {
             title: metadata.title,
             date: metadata.date,
@@ -297,6 +308,12 @@ export function buildMinutesUserPrompt(
         participants_raw: participantsRaw,
         transcript,
     };
+
+    // Add context documents if provided
+    if (contextDocuments && contextDocuments.trim().length > 0) {
+        payload.context_documents = contextDocuments;
+    }
+
     return JSON.stringify(payload, null, 2);
 }
 

@@ -1,8 +1,17 @@
-import { App, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, Modal, Notice, Platform, Setting, setIcon, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
+import { detectEmbeddedAudio, detectEmbeddedDocuments, DetectedContent } from '../../utils/embeddedContentDetector';
+
+interface ContextDocument {
+    file: TFile;
+    displayName: string;
+    extractedText?: string;
+    isProcessing: boolean;
+    error?: string;
+}
 
 interface MinutesModalState {
     title: string;
@@ -22,6 +31,12 @@ interface MinutesModalState {
     obsidianTasks: boolean;
     languageOverride: string;
     customInstructions: string;
+    // Audio transcription
+    detectedAudioFiles: DetectedContent[];
+    isTranscribing: boolean;
+    transcriptionProgress: string;
+    // Document context
+    contextDocuments: ContextDocument[];
 }
 
 export class MinutesCreationModal extends Modal {
@@ -30,6 +45,8 @@ export class MinutesCreationModal extends Modal {
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
+    private audioSectionEl: HTMLElement | null = null;
+    private documentsSectionEl: HTMLElement | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
@@ -53,7 +70,13 @@ export class MinutesCreationModal extends Modal {
             dualOutput: false,
             obsidianTasks: plugin.settings.minutesObsidianTasksFormat,
             languageOverride: 'auto',
-            customInstructions: ''
+            customInstructions: '',
+            // Audio transcription
+            detectedAudioFiles: [],
+            isTranscribing: false,
+            transcriptionProgress: '',
+            // Document context
+            contextDocuments: []
         };
     }
 
@@ -68,6 +91,14 @@ export class MinutesCreationModal extends Modal {
 
         await this.ensurePersonasLoaded();
         this.renderTopSection(contentEl);
+
+        // Desktop-only features: Audio transcription and document context
+        if (!Platform.isMobile) {
+            await this.detectEmbeddedContent();
+            this.renderAudioTranscriptionSection(contentEl);
+            this.renderContextDocumentsSection(contentEl);
+        }
+
         this.renderParticipantsSection(contentEl);
         this.renderAdvancedSection(contentEl);
         this.renderFooter(contentEl);
@@ -313,6 +344,9 @@ export class MinutesCreationModal extends Modal {
         const notice = new Notice(this.plugin.t.minutes?.generating || 'Generating minutes...', 0);
 
         try {
+            // Get extracted context from documents
+            const contextDocuments = this.getExtractedContextText();
+
             const result = await this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
@@ -320,7 +354,8 @@ export class MinutesCreationModal extends Modal {
                 personaId: this.state.personaId,
                 outputFolder: this.plugin.settings.minutesOutputFolder,
                 customInstructions: this.state.customInstructions,
-                languageOverride: this.state.languageOverride
+                languageOverride: this.state.languageOverride,
+                contextDocuments: contextDocuments || undefined
             });
 
             notice.hide();
@@ -397,5 +432,429 @@ export class MinutesCreationModal extends Modal {
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    // ==================== Audio Transcription ====================
+
+    private async detectEmbeddedContent(): Promise<void> {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'md') {
+            return;
+        }
+
+        try {
+            const content = await this.app.vault.read(activeFile);
+
+            // Detect audio files
+            this.state.detectedAudioFiles = detectEmbeddedAudio(this.app, content, activeFile);
+
+            // Detect documents (PDFs and Office docs)
+            const detectedDocs = detectEmbeddedDocuments(this.app, content, activeFile);
+            this.state.contextDocuments = detectedDocs
+                .filter(doc => doc.resolvedFile)
+                .map(doc => ({
+                    file: doc.resolvedFile!,
+                    displayName: doc.displayName,
+                    isProcessing: false
+                }));
+        } catch {
+            // Ignore detection errors
+        }
+    }
+
+    private renderAudioTranscriptionSection(containerEl: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+
+        // Only show if audio files detected and transcript is empty
+        if (this.state.detectedAudioFiles.length === 0) {
+            return;
+        }
+
+        this.audioSectionEl = containerEl.createDiv({ cls: 'minutes-audio-section' });
+
+        const header = this.audioSectionEl.createDiv({ cls: 'minutes-section-header' });
+        const iconEl = header.createSpan({ cls: 'minutes-section-icon' });
+        setIcon(iconEl, 'mic');
+        header.createSpan({ text: t?.audioTranscriptionSection || 'Audio Transcription' });
+
+        const desc = this.audioSectionEl.createDiv({ cls: 'minutes-section-desc' });
+        desc.setText(t?.audioDetected || 'Audio files detected in note. Transcribe to populate transcript.');
+
+        const listEl = this.audioSectionEl.createDiv({ cls: 'minutes-audio-list' });
+
+        for (const audioItem of this.state.detectedAudioFiles) {
+            const itemEl = listEl.createDiv({ cls: 'minutes-audio-item' });
+
+            const nameEl = itemEl.createDiv({ cls: 'minutes-audio-name' });
+            const fileIcon = nameEl.createSpan({ cls: 'minutes-audio-icon' });
+            setIcon(fileIcon, 'file-audio');
+            nameEl.createSpan({ text: audioItem.displayName });
+
+            const transcribeBtn = itemEl.createEl('button', {
+                text: t?.transcribeButton || 'Transcribe',
+                cls: 'minutes-transcribe-btn'
+            });
+            transcribeBtn.addEventListener('click', () => void this.handleTranscribeAudio(audioItem));
+        }
+
+        this.updateAudioSectionUI();
+    }
+
+    private updateAudioSectionUI(): void {
+        if (!this.audioSectionEl) return;
+
+        const buttons = this.audioSectionEl.querySelectorAll('.minutes-transcribe-btn');
+        buttons.forEach(btn => {
+            (btn as HTMLButtonElement).disabled = this.state.isTranscribing;
+            if (this.state.isTranscribing) {
+                btn.textContent = this.state.transcriptionProgress ||
+                    (this.plugin.t.minutes?.transcribing || 'Transcribing...');
+            } else {
+                btn.textContent = this.plugin.t.minutes?.transcribeButton || 'Transcribe';
+            }
+        });
+    }
+
+    private async handleTranscribeAudio(audioItem: DetectedContent): Promise<void> {
+        if (!audioItem.resolvedFile) {
+            new Notice(this.plugin.t.minutes?.errorAudioNotFound || 'Audio file not found');
+            return;
+        }
+
+        // Check for transcription provider
+        const provider = this.getTranscriptionProvider();
+        if (!provider) {
+            new Notice(this.plugin.t.minutes?.noTranscriptionProvider ||
+                'Configure OpenAI or Groq API key for transcription');
+            return;
+        }
+
+        this.state.isTranscribing = true;
+        this.state.transcriptionProgress = this.plugin.t.minutes?.transcribing || 'Transcribing...';
+        this.updateAudioSectionUI();
+
+        try {
+            // Import transcription service dynamically to avoid circular deps
+            const { transcribeAudio, transcribeChunkedAudioWithCleanup } = await import('../../services/audioTranscriptionService');
+            const { needsChunking, compressAndChunkAudio } = await import('../../services/audioCompressionService');
+
+            const file = audioItem.resolvedFile;
+            const chunkCheck = await needsChunking(this.app, file);
+
+            let transcript: string;
+
+            if (chunkCheck.needsChunking) {
+                // Chunked transcription for long audio
+                const chunkResult = await compressAndChunkAudio(this.app, file, (progress) => {
+                    this.state.transcriptionProgress = `Compressing: ${Math.round(progress.progress)}%`;
+                    this.updateAudioSectionUI();
+                });
+
+                if (!chunkResult.success || !chunkResult.chunks || !chunkResult.outputDir) {
+                    throw new Error(chunkResult.error || 'Failed to prepare audio chunks');
+                }
+
+                const transcriptResult = await transcribeChunkedAudioWithCleanup(
+                    chunkResult.chunks,
+                    chunkResult.outputDir,
+                    {
+                        provider: provider.provider,
+                        apiKey: provider.apiKey
+                    },
+                    (progress) => {
+                        this.state.transcriptionProgress =
+                            `Transcribing chunk ${progress.currentChunk + 1}/${progress.totalChunks} (${Math.round(progress.globalPercent)}%)`;
+                        this.updateAudioSectionUI();
+                    }
+                );
+
+                if (!transcriptResult.success || !transcriptResult.transcript) {
+                    throw new Error(transcriptResult.error || 'Transcription failed');
+                }
+                transcript = transcriptResult.transcript;
+            } else {
+                // Direct transcription
+                this.state.transcriptionProgress = this.plugin.t.minutes?.transcribing || 'Transcribing...';
+                this.updateAudioSectionUI();
+
+                const result = await transcribeAudio(this.app, file, {
+                    provider: provider.provider,
+                    apiKey: provider.apiKey
+                });
+
+                if (!result.success || !result.transcript) {
+                    throw new Error(result.error || 'Transcription failed');
+                }
+                transcript = result.transcript;
+            }
+
+            // Update state and UI
+            this.state.transcript = transcript;
+            if (this.transcriptTextArea) {
+                this.transcriptTextArea.value = transcript;
+            }
+
+            new Notice(this.plugin.t.minutes?.transcriptionComplete || 'Transcription complete');
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`${this.plugin.t.minutes?.transcriptionFailed || 'Transcription failed'}: ${message}`);
+        } finally {
+            this.state.isTranscribing = false;
+            this.state.transcriptionProgress = '';
+            this.updateAudioSectionUI();
+        }
+    }
+
+    private getTranscriptionProvider(): { provider: 'openai' | 'groq'; apiKey: string } | null {
+        const settings = this.plugin.settings;
+
+        // Check dedicated transcription settings first
+        if (settings.audioTranscriptionProvider && settings.audioTranscriptionApiKey) {
+            return {
+                provider: settings.audioTranscriptionProvider as 'openai' | 'groq',
+                apiKey: settings.audioTranscriptionApiKey
+            };
+        }
+
+        // Fall back to main provider settings
+        if (settings.cloudServiceType === 'openai' && settings.cloudApiKey) {
+            return { provider: 'openai', apiKey: settings.cloudApiKey };
+        }
+
+        if (settings.cloudServiceType === 'groq' && settings.cloudApiKey) {
+            return { provider: 'groq', apiKey: settings.cloudApiKey };
+        }
+
+        // Check provider-specific settings
+        const openaiKey = settings.providerSettings?.openai?.apiKey;
+        if (openaiKey) {
+            return { provider: 'openai', apiKey: openaiKey };
+        }
+
+        const groqKey = settings.providerSettings?.groq?.apiKey;
+        if (groqKey) {
+            return { provider: 'groq', apiKey: groqKey };
+        }
+
+        return null;
+    }
+
+    // ==================== Context Documents ====================
+
+    private renderContextDocumentsSection(containerEl: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+
+        this.documentsSectionEl = containerEl.createDiv({ cls: 'minutes-documents-section' });
+
+        const header = this.documentsSectionEl.createDiv({ cls: 'minutes-section-header' });
+        const iconEl = header.createSpan({ cls: 'minutes-section-icon' });
+        setIcon(iconEl, 'file-text');
+        header.createSpan({ text: t?.contextDocumentsSection || 'Context Documents' });
+
+        const desc = this.documentsSectionEl.createDiv({ cls: 'minutes-section-desc' });
+        desc.setText(t?.contextDocumentsDesc || 'Attach agendas, presentations, or spreadsheets to improve accuracy');
+
+        // Document list
+        const listEl = this.documentsSectionEl.createDiv({ cls: 'minutes-document-list' });
+        this.renderDocumentList(listEl);
+
+        // Add document button
+        const addRow = this.documentsSectionEl.createDiv({ cls: 'minutes-add-document-row' });
+        const addBtn = addRow.createEl('button', {
+            text: t?.addDocument || 'Add Document'
+        });
+        const addIcon = addBtn.createSpan({ cls: 'minutes-btn-icon' });
+        setIcon(addIcon, 'plus');
+        addBtn.prepend(addIcon);
+        addBtn.addEventListener('click', () => void this.openDocumentPicker());
+
+        // Extract all button (if documents exist)
+        if (this.state.contextDocuments.length > 0) {
+            const extractBtn = addRow.createEl('button', {
+                text: t?.extractAll || 'Extract All',
+                cls: 'mod-cta'
+            });
+            extractBtn.addEventListener('click', () => void this.extractAllDocuments());
+        }
+    }
+
+    private renderDocumentList(listEl: HTMLElement): void {
+        listEl.empty();
+        const t = this.plugin.t.minutes;
+
+        if (this.state.contextDocuments.length === 0) {
+            listEl.createDiv({
+                text: t?.noDocumentsAttached || 'No documents attached',
+                cls: 'minutes-document-empty'
+            });
+            return;
+        }
+
+        for (let i = 0; i < this.state.contextDocuments.length; i++) {
+            const doc = this.state.contextDocuments[i];
+            const itemEl = listEl.createDiv({ cls: 'minutes-document-item' });
+
+            const infoEl = itemEl.createDiv({ cls: 'minutes-document-info' });
+
+            const nameRow = infoEl.createDiv({ cls: 'minutes-document-name' });
+            const fileIcon = nameRow.createSpan({ cls: 'minutes-document-icon' });
+            setIcon(fileIcon, this.getDocumentIcon(doc.file.extension));
+            nameRow.createSpan({ text: doc.displayName });
+
+            // Status
+            const statusEl = infoEl.createDiv({ cls: 'minutes-document-status' });
+            if (doc.isProcessing) {
+                statusEl.setText(t?.extracting || 'Extracting...');
+            } else if (doc.error) {
+                statusEl.addClass('error');
+                statusEl.setText(doc.error);
+            } else if (doc.extractedText) {
+                statusEl.addClass('success');
+                const chars = doc.extractedText.length;
+                statusEl.setText((t?.documentExtracted || 'Extracted ({chars} chars)').replace('{chars}', String(chars)));
+            }
+
+            // Actions
+            const actionsEl = itemEl.createDiv({ cls: 'minutes-document-actions' });
+
+            if (!doc.extractedText && !doc.isProcessing) {
+                const extractBtn = actionsEl.createEl('button', { text: 'Extract' });
+                extractBtn.addEventListener('click', () => void this.extractDocument(i));
+            }
+
+            const removeBtn = actionsEl.createEl('button', { cls: 'minutes-document-remove' });
+            setIcon(removeBtn, 'x');
+            removeBtn.setAttribute('aria-label', t?.removeDocument || 'Remove');
+            removeBtn.addEventListener('click', () => this.removeDocument(i));
+        }
+    }
+
+    private getDocumentIcon(extension: string): string {
+        switch (extension.toLowerCase()) {
+            case 'pdf': return 'file-text';
+            case 'docx':
+            case 'doc': return 'file-type';
+            case 'xlsx':
+            case 'xls': return 'table';
+            case 'pptx':
+            case 'ppt': return 'presentation';
+            default: return 'file';
+        }
+    }
+
+    private async openDocumentPicker(): Promise<void> {
+        // Get all documents in vault
+        const files = this.app.vault.getFiles()
+            .filter(f => {
+                const ext = f.extension.toLowerCase();
+                return ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext);
+            })
+            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+
+        if (files.length === 0) {
+            new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');
+            return;
+        }
+
+        // Use a simple selection modal
+        const { FuzzySuggestModal } = await import('obsidian');
+
+        class DocumentPickerModal extends FuzzySuggestModal<TFile> {
+            private onSelect: (file: TFile) => void;
+
+            constructor(app: App, files: TFile[], onSelect: (file: TFile) => void) {
+                super(app);
+                this.onSelect = onSelect;
+            }
+
+            getItems(): TFile[] {
+                return files;
+            }
+
+            getItemText(file: TFile): string {
+                return file.path;
+            }
+
+            onChooseItem(file: TFile): void {
+                this.onSelect(file);
+            }
+        }
+
+        new DocumentPickerModal(this.app, files, (file) => {
+            // Check if already added
+            if (this.state.contextDocuments.some(d => d.file.path === file.path)) {
+                new Notice('Document already added');
+                return;
+            }
+
+            this.state.contextDocuments.push({
+                file,
+                displayName: file.name,
+                isProcessing: false
+            });
+
+            this.refreshDocumentsSection();
+        }).open();
+    }
+
+    private async extractDocument(index: number): Promise<void> {
+        const doc = this.state.contextDocuments[index];
+        if (!doc || doc.isProcessing) return;
+
+        doc.isProcessing = true;
+        this.refreshDocumentsSection();
+
+        try {
+            const { DocumentExtractionService } = await import('../../services/documentExtractionService');
+            const extractionService = new DocumentExtractionService(this.app);
+
+            const result = await extractionService.extractText(doc.file);
+
+            if (result.success && result.text) {
+                // Truncate very large documents
+                const maxChars = 50000;
+                doc.extractedText = result.text.length > maxChars
+                    ? result.text.substring(0, maxChars) + '\n\n[Truncated...]'
+                    : result.text;
+            } else {
+                doc.error = result.error || 'Extraction failed';
+            }
+        } catch (error) {
+            doc.error = error instanceof Error ? error.message : 'Extraction failed';
+        } finally {
+            doc.isProcessing = false;
+            this.refreshDocumentsSection();
+        }
+    }
+
+    private async extractAllDocuments(): Promise<void> {
+        for (let i = 0; i < this.state.contextDocuments.length; i++) {
+            const doc = this.state.contextDocuments[i];
+            if (!doc.extractedText && !doc.error) {
+                await this.extractDocument(i);
+            }
+        }
+    }
+
+    private removeDocument(index: number): void {
+        this.state.contextDocuments.splice(index, 1);
+        this.refreshDocumentsSection();
+    }
+
+    private refreshDocumentsSection(): void {
+        if (!this.documentsSectionEl) return;
+
+        const listEl = this.documentsSectionEl.querySelector('.minutes-document-list');
+        if (listEl) {
+            this.renderDocumentList(listEl as HTMLElement);
+        }
+    }
+
+    private getExtractedContextText(): string {
+        return this.state.contextDocuments
+            .filter(doc => doc.extractedText)
+            .map(doc => `### ${doc.displayName}\n\n${doc.extractedText}`)
+            .join('\n\n---\n\n');
     }
 }

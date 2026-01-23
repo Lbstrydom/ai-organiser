@@ -31,6 +31,8 @@ export interface MinutesGenerationInput {
     outputFolder: string;
     customInstructions?: string;
     languageOverride?: string;
+    /** Optional context from attached documents (agendas, presentations, etc.) */
+    contextDocuments?: string;
 }
 
 export interface MinutesGenerationResult {
@@ -71,7 +73,13 @@ export class MinutesService {
         } else {
             const prompt = [
                 buildMinutesSystemPrompt(outputLanguage, personaInstructions),
-                buildMinutesUserPrompt(input.metadata, this.parseParticipants(input.participantsRaw), input.participantsRaw, input.transcript)
+                buildMinutesUserPrompt(
+                    input.metadata,
+                    this.parseParticipants(input.participantsRaw),
+                    input.participantsRaw,
+                    input.transcript,
+                    input.contextDocuments
+                )
             ].join('\n\n');
 
             const responseText = await this.callLLM(prompt);

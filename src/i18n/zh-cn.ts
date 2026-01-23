@@ -1039,6 +1039,26 @@ export const zhCN: Translations = {
         saved: "\u7EAA\u8981\u5DF2\u4FDD\u5B58",
         errorParsing: "\u89E3\u6790\u4F1A\u8BAE\u7EAA\u8981\u5931\u8D25",
         errorMissingFields: "\u8BF7\u586B\u5199\u6240\u6709\u5FC5\u586B\u5B57\u6BB5",
-        errorNoPersonas: "\u672A\u627E\u5230\u98CE\u683C\u6A21\u677F\u3002\u8BF7\u521B\u5EFA AI-Organiser/Config/minutes-personas.md"
+        errorNoPersonas: "未找到风格模板。请创建 AI-Organiser/Config/minutes-personas.md",
+        // Audio transcription
+        audioTranscriptionSection: "音频转录",
+        audioDetected: "检测到笔记中的音频文件。转录以填充文字记录。",
+        transcribeButton: "转录",
+        transcribing: "正在转录...",
+        transcriptionComplete: "转录完成",
+        transcriptionFailed: "转录失败",
+        noTranscriptionProvider: "请配置 OpenAI 或 Groq API 密钥进行转录",
+        errorAudioNotFound: "未找到音频文件",
+        // Context documents
+        contextDocumentsSection: "上下文文档",
+        contextDocumentsDesc: "附加议程、演示文稿或电子表格以提高准确性",
+        addDocument: "添加文档",
+        extractAll: "提取全部",
+        extracting: "正在提取...",
+        removeDocument: "移除",
+        documentExtracted: "已提取（{chars} 字符）",
+        documentFailed: "提取失败",
+        noDocumentsAttached: "未附加文档",
+        noDocumentsFound: "库中未找到文档"
     }
 };

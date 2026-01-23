@@ -6,7 +6,7 @@
 import { App, TFile } from 'obsidian';
 import { isYouTubeUrl } from '../services/youtubeService';
 
-export type ContentType = 'image' | 'pdf' | 'youtube' | 'web-link' | 'internal-link' | 'document';
+export type ContentType = 'image' | 'pdf' | 'youtube' | 'web-link' | 'internal-link' | 'document' | 'audio';
 
 export interface DetectedContent {
     type: ContentType;
@@ -27,6 +27,8 @@ export interface DetectionResult {
     hasYouTube: boolean;
     hasWebLinks: boolean;
     hasInternalLinks: boolean;
+    hasAudio: boolean;
+    hasDocuments: boolean;
 }
 
 // Image file extensions
@@ -34,6 +36,9 @@ const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.sv
 
 // Document file extensions
 const DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf'];
+
+// Audio file extensions (matches audioTranscriptionService.ts)
+const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm', '.ogg', '.mp4', '.mpeg', '.mpga', '.oga'];
 
 // PDF extension specifically
 const PDF_EXTENSION = '.pdf';
@@ -68,7 +73,9 @@ export function detectEmbeddedContent(app: App, content: string, currentFile?: T
         hasPdfs: uniqueItems.some(i => i.type === 'pdf'),
         hasYouTube: uniqueItems.some(i => i.type === 'youtube'),
         hasWebLinks: uniqueItems.some(i => i.type === 'web-link'),
-        hasInternalLinks: uniqueItems.some(i => i.type === 'internal-link')
+        hasInternalLinks: uniqueItems.some(i => i.type === 'internal-link'),
+        hasAudio: uniqueItems.some(i => i.type === 'audio'),
+        hasDocuments: uniqueItems.some(i => i.type === 'document')
     };
 }
 
@@ -285,6 +292,8 @@ function classifyInternalFile(
         type = 'image';
     } else if (lowerPath.endsWith(PDF_EXTENSION)) {
         type = 'pdf';
+    } else if (AUDIO_EXTENSIONS.some(ext => lowerPath.endsWith(ext))) {
+        type = 'audio';
     } else if (DOCUMENT_EXTENSIONS.some(ext => lowerPath.endsWith(ext))) {
         type = 'document';
     }
@@ -370,6 +379,7 @@ export function getContentTypeDisplayName(type: ContentType): string {
         case 'web-link': return 'Web Link';
         case 'internal-link': return 'Internal Link';
         case 'document': return 'Document';
+        case 'audio': return 'Audio';
         default: return 'Unknown';
     }
 }
@@ -385,6 +395,25 @@ export function getContentTypeIcon(type: ContentType): string {
         case 'web-link': return 'link';
         case 'internal-link': return 'file';
         case 'document': return 'file-text';
+        case 'audio': return 'mic';
         default: return 'file';
     }
+}
+
+/**
+ * Helper: Detect only embedded audio files from content
+ * Useful for meeting minutes auto-transcription
+ */
+export function detectEmbeddedAudio(app: App, content: string, currentFile?: TFile): DetectedContent[] {
+    const result = detectEmbeddedContent(app, content, currentFile);
+    return result.items.filter(item => item.type === 'audio');
+}
+
+/**
+ * Helper: Detect only embedded documents from content
+ * Useful for meeting minutes context extraction
+ */
+export function detectEmbeddedDocuments(app: App, content: string, currentFile?: TFile): DetectedContent[] {
+    const result = detectEmbeddedContent(app, content, currentFile);
+    return result.items.filter(item => item.type === 'document' || item.type === 'pdf');
 }

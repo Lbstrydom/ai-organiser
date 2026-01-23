@@ -1039,6 +1039,26 @@ export const en: Translations = {
         saved: "Minutes saved",
         errorParsing: "Failed to parse minutes response",
         errorMissingFields: "Please fill in all required fields",
-        errorNoPersonas: "No personas found. Create AI-Organiser/Config/minutes-personas.md"
+        errorNoPersonas: "No personas found. Create AI-Organiser/Config/minutes-personas.md",
+        // Audio transcription
+        audioTranscriptionSection: "Audio Transcription",
+        audioDetected: "Audio files detected in note. Transcribe to populate transcript.",
+        transcribeButton: "Transcribe",
+        transcribing: "Transcribing...",
+        transcriptionComplete: "Transcription complete",
+        transcriptionFailed: "Transcription failed",
+        noTranscriptionProvider: "Configure OpenAI or Groq API key for transcription",
+        errorAudioNotFound: "Audio file not found",
+        // Context documents
+        contextDocumentsSection: "Context Documents",
+        contextDocumentsDesc: "Attach agendas, presentations, or spreadsheets to improve accuracy",
+        addDocument: "Add Document",
+        extractAll: "Extract All",
+        extracting: "Extracting...",
+        removeDocument: "Remove",
+        documentExtracted: "Extracted ({chars} chars)",
+        documentFailed: "Extraction failed",
+        noDocumentsAttached: "No documents attached",
+        noDocumentsFound: "No documents found in vault"
     }
 };
