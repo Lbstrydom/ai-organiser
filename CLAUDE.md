@@ -158,6 +158,10 @@ Commands registered in `src/commands/`:
 - `clearCommands.ts`: Clear tags from notes/folders/vault
 - `predefinedTagsCommands.ts`: Assign predefined tags
 - `utilityCommands.ts`: Collect tags, show network visualization
+- `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
+- `translateCommands.ts`: Note and selection translation
+- `smartNoteCommands.ts`: Improve note, find resources, diagrams
+- `minutesCommands.ts`: Meeting minutes generation
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 
@@ -586,6 +590,68 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Meeting Minutes Generation
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+Generate structured meeting minutes from transcripts with persona-based output styles.
+
+### Core Components
+
+**Minutes Service** (`src/services/minutesService.ts`):
+- `generateMinutes()`: Main generation function with transcript chunking
+- Supports transcripts over 5000 tokens via chunked processing
+- Context chaining between chunks for coherent output
+- Consolidation pass for final unified minutes
+
+**Minutes Prompts** (`src/services/prompts/minutesPrompts.ts`):
+- `buildMinutesPrompt()`: XML-structured prompt for LLM
+- Includes meeting metadata, participants, agenda, transcript
+- Persona-based tone and style instructions
+- Obsidian Tasks format support for action items
+
+**Minutes Modal** (`src/ui/modals/MinutesCreationModal.ts`):
+- Comprehensive meeting input form
+- Fields: title, date, time, location, participants, agenda, transcript
+- Persona selector from `minutes-personas.md`
+- Dual output toggle (internal + public versions)
+- Obsidian Tasks format toggle
+
+**Minutes Settings** (`src/ui/settings/MinutesSettingsSection.ts`):
+- Output folder configuration
+- Default timezone (IANA format)
+- Default persona selection
+- Obsidian Tasks format toggle
+
+**Minutes Utilities** (`src/utils/minutesUtils.ts`):
+- `formatMinutesFilename()`: Generate standardized filenames
+- `parseMinutesResponse()`: Extract structured data from LLM response
+- `formatMinutesMarkdown()`: Convert to final markdown output
+
+**Text Chunker** (`src/utils/textChunker.ts`):
+- `chunkText()`: Split long transcripts by token count
+- Sentence boundary detection for clean splits
+- Overlap support for context continuity
+
+### Configuration Files
+
+Add `minutes-personas.md` to the config folder with persona definitions:
+```markdown
+## Executive Summary
+- **Description**: Brief, action-focused minutes for executives
+- **Tone**: Professional, concise, results-oriented
+```
+
+### Key Patterns
+
+- **Transcript Chunking**: Long meetings split into 5000-token chunks
+- **Context Chaining**: Each chunk receives previous chunk's summary
+- **Persona System**: Reuses existing persona infrastructure
+- **Obsidian Tasks**: Actions formatted as `- [ ] Task @due(date)`
+- **Dual Output**: Optional public version with confidential info redacted
 
 ## Planned Features
 

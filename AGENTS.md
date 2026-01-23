@@ -182,6 +182,7 @@ Commands registered in `src/commands/`:
 - `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
 - `translateCommands.ts`: Translation commands
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
+- `minutesCommands.ts`: Meeting minutes generation
 - `flashcardCommands.ts`: Flashcard export (Anki/Brainscape)
 - `utilityCommands.ts`: Collect tags, tag network
 
@@ -538,6 +539,43 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Meeting Minutes Generation
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+Generate structured meeting minutes from transcripts with persona-based output styles.
+
+### Core Components
+
+**Minutes Service** (`src/services/minutesService.ts`):
+- `generateMinutes()`: Main generation function with transcript chunking
+- Supports long transcripts via 5000-token chunked processing
+- Context chaining between chunks for coherent output
+
+**Minutes Prompts** (`src/services/prompts/minutesPrompts.ts`):
+- `buildMinutesPrompt()`: XML-structured prompt for LLM
+- Persona-based tone and style instructions
+- Obsidian Tasks format support for action items
+
+**Minutes Modal** (`src/ui/modals/MinutesCreationModal.ts`):
+- Meeting input form: title, date, time, participants, agenda, transcript
+- Persona selector, dual output toggle, Obsidian Tasks toggle
+
+**Minutes Settings** (`src/ui/settings/MinutesSettingsSection.ts`):
+- Output folder, default timezone, default persona, Obsidian Tasks format
+
+**Text Chunker** (`src/utils/textChunker.ts`):
+- `chunkText()`: Split long transcripts by token count with sentence boundaries
+
+### Key Patterns
+
+- **Transcript Chunking**: Long meetings split into manageable chunks
+- **Context Chaining**: Each chunk receives previous summary for continuity
+- **Persona System**: Reuses existing persona infrastructure
+- **Obsidian Tasks**: Actions as `- [ ] Task @due(date)`
 
 ## Planned Features
 

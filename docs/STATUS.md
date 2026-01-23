@@ -57,6 +57,7 @@ main.ts (Plugin)
 |---------|----------|-------|
 | **Tagging** | Tag note/folder/vault, Clear tags | Taxonomy-based, 3-tier hierarchy |
 | **Summarization** | URL, PDF, YouTube, Audio | 5 personas, RAG-enhanced, Gemini-native YouTube, 6hr+ audio chunking |
+| **Meeting Minutes** | Create meeting minutes | Persona-based, transcript chunking, Obsidian Tasks |
 | **Smart Notes** | Improve, Find resources, Diagrams | AI personas, Mermaid support |
 | **Translation** | Note, Selection | 20+ languages |
 | **Semantic Search** | Search, Index, Related notes | Voy WASM, 5 embedding providers |
@@ -118,6 +119,21 @@ AI-Organiser/
 ---
 
 ## Recent Updates (January 2026)
+
+### Meeting Minutes & Bug Fixes (January 23)
+- **Meeting Minutes Generation**: New feature for structured meeting notes
+  - MinutesCreationModal with comprehensive meeting input fields
+  - MinutesService with transcript chunking for long meetings (5000 token chunks)
+  - Persona-based output styles via `minutes-personas.md` config file
+  - Obsidian Tasks format support (`- [ ]` tasks below minutes)
+  - Dual output option (internal + public versions)
+  - Full i18n support (EN + ZH-CN)
+  - New settings section for output folder, timezone, default persona
+- **Bug Fixes**:
+  - Fixed Enhance actions silently failing (async error handling in all modals)
+  - Fixed duplicate References/Pending Integration sections (idempotent detection with case-insensitive matching)
+  - Fixed folder suggestions ignoring selected root folder (now respects folder scope)
+  - Fixed translation adding unwanted formatting (explicit preserve-only instruction)
 
 ### YouTube & Audio Processing (January 23)
 - **YouTube**: Switched to Gemini-native video understanding (no more transcript scraping)
