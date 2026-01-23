@@ -3020,3 +3020,73 @@
     content: "⚠";
     margin-right: 6px;
 }
+
+/* Minutes modal */
+.minutes-modal {
+    padding: 8px 4px 12px 4px;
+}
+
+.minutes-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.minutes-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.minutes-col .setting-item {
+    padding: 0;
+}
+
+.minutes-textarea {
+    width: 100%;
+}
+
+.minutes-warning {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(255, 194, 10, 0.12);
+    color: var(--text-normal);
+    font-size: 0.9em;
+}
+
+.minutes-collapsible {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin: 10px 0;
+}
+
+.minutes-collapsible-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.minutes-collapsible-content {
+    margin-top: 8px;
+}
+
+.minutes-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+@media (max-width: 700px) {
+    .minutes-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.minutes-warning.is-hidden {
+    display: none;
+}
+

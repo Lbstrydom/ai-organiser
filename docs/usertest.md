@@ -39,10 +39,25 @@
 | Test | Pass |
 |------|------|
 | Summarize URL → metadata added | [x] |
-| Summarize PDF (Claude/Gemini) | [ ] |
-| Summarize YouTube | [ ] |
-| Summarize audio file | [ ] |
-| 5 personas available | [ ] |
+| Summarize PDF (Claude/Gemini) | [x] |
+| Summarize YouTube | [x] |
+| Summarize audio file | [x] |
+| 5 personas available | [x] |
+
+### Meeting Minutes
+
+| Test | Steps | Pass |
+|------|-------|------|
+| Open modal | Ctrl+P → "Create Meeting Minutes" | [ ] |
+| Persona dropdown | Shows personas from minutes-personas.md | [ ] |
+| Privacy warning toggles | Set Output audience = External or enable external version | [ ] |
+| Transcript autofill | Open transcript in AI-Organiser/Transcripts, open modal | [ ] |
+| Output note created | File saved in Minutes folder | [ ] |
+| Frontmatter keys | Includes aio_meeting_date, aio_context, aio_attendees | [ ] |
+| External/internal callouts | External (info) + Internal (danger) blocks in same file | [ ] |
+| Hidden JSON comment | HTML comment with AIO_MINUTES_JSON at bottom | [ ] |
+| Tasks format | Enable Tasks toggle → actions appended as - [ ] | [ ] |
+| Chunked transcript | Use long transcript (>6k tokens) → no UI freeze | [ ] |
 
 ### Other AI
 
@@ -186,14 +201,14 @@ Test with at least one provider:
 | Category | Passed | Total |
 |----------|--------|-------|
 | Settings UI | 4 | 4 |
-| Core AI | 1 | 12 |
+| Core AI | 5 | 22 |
 | Semantic Search | | 8 |
 | Bases Integration | 3 | 9 |
 | NotebookLM Export | | 8 |
 | Mobile | | 4 |
 | LLM Providers | | 6 |
 | Utilities | | 4 |
-| **TOTAL** | 8 | **55** |
+| **TOTAL** | 12 | **65** |
 
 ---
 

@@ -89,6 +89,18 @@ export interface Translations {
             timeoutDesc: string;
             resetToDefault: string;
         };
+        minutes: {
+            title: string;
+            description: string;
+            outputFolder: string;
+            outputFolderDesc: string;
+            defaultTimezone: string;
+            defaultTimezoneDesc: string;
+            defaultPersona: string;
+            defaultPersonaDesc: string;
+            obsidianTasks: string;
+            obsidianTasksDesc: string;
+        };
         configuration: {
             title: string;
             useConfigFiles: string;
@@ -359,6 +371,7 @@ export interface Translations {
         notebookLMToggle: string;
         notebookLMClear: string;
         notebookLMOpenFolder: string;
+        createMeetingMinutes: string;
     };
 
     // Messages and notifications
@@ -975,5 +988,55 @@ export interface Translations {
         lmStudio: string;
         jan: string;
         koboldcpp: string;
+    };
+
+    // Minutes generation
+    minutes: {
+        modalTitle: string;
+        fieldTitle: string;
+        fieldDate: string;
+        fieldStartTime: string;
+        fieldEndTime: string;
+        fieldLocation: string;
+        fieldMeetingContext: string;
+        fieldMeetingContextInternal: string;
+        fieldMeetingContextExternal: string;
+        fieldMeetingContextBoard: string;
+        fieldOutputAudience: string;
+        fieldOutputAudienceInternal: string;
+        fieldOutputAudienceExternal: string;
+        fieldConfidentiality: string;
+        confidentialityPublic: string;
+        confidentialityInternal: string;
+        confidentialityConfidential: string;
+        confidentialityStrict: string;
+        fieldChair: string;
+        fieldPersona: string;
+        fieldAgenda: string;
+        fieldTranscript: string;
+        fieldTranscriptDesc: string;
+        fieldDualOutput: string;
+        fieldDualOutputDesc: string;
+        fieldObsidianTasks: string;
+        fieldObsidianTasksDesc: string;
+        privacyWarning: string;
+        participantsSection: string;
+        fieldParticipants: string;
+        fieldParticipantsDesc: string;
+        advancedSection: string;
+        fieldModel: string;
+        fieldModelDesc: string;
+        fieldLanguageOverride: string;
+        fieldLanguageOverrideDesc: string;
+        fieldCustomInstructions: string;
+        fieldCustomInstructionsDesc: string;
+        submitButton: string;
+        generating: string;
+        generatingChunk: string;
+        consolidating: string;
+        saved: string;
+        errorParsing: string;
+        errorMissingFields: string;
+        errorNoPersonas: string;
     };
 }

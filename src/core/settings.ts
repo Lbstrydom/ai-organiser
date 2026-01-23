@@ -74,6 +74,11 @@ export interface AIOrganiserSettings {
     transcriptFolder: string;            // Subfolder for transcript files (under pluginFolder)
     // Advanced Summarization Settings
     summarizeTimeoutSeconds: number;     // Timeout for summarization requests (default: 120s)
+    // Meeting Minutes Settings
+    minutesOutputFolder: string;         // Folder for meeting minutes notes
+    minutesDefaultTimezone: string;      // Default timezone for meetings
+    minutesDefaultPersona: string;       // Default minutes persona ID
+    minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
     // Flashcard Settings
     flashcardFolder: string;             // Subfolder for flashcard exports (under pluginFolder)
     // Plugin Folder Settings (unified structure)
@@ -137,6 +142,14 @@ export interface AIOrganiserSettings {
 // Main plugin folder - all subfolders are relative to this
 export const DEFAULT_PLUGIN_FOLDER = 'AI-Organiser';
 
+function getDefaultTimezone(): string {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    } catch {
+        return 'UTC';
+    }
+}
+
 export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     serviceType: 'cloud',
     localEndpoint: 'http://localhost:11434/v1/chat/completions',
@@ -161,6 +174,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     saveTranscripts: 'file',
     transcriptFolder: 'Transcripts',
     summarizeTimeoutSeconds: 120,        // 2 minutes default, power users can increase
+    minutesOutputFolder: 'Meetings',
+    minutesDefaultTimezone: getDefaultTimezone(),
+    minutesDefaultPersona: 'corporate-minutes',
+    minutesObsidianTasksFormat: false,
     flashcardFolder: 'Flashcards',
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',

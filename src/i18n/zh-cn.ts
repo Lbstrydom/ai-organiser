@@ -318,6 +318,18 @@ export const zhCN: Translations = {
             apiKeyDesc: "音频转录所需。您的密钥仅用于 Whisper API 调用。",
             showKey: "显示/隐藏密钥",
             getApiKey: "获取 API 密钥"
+        },
+        minutes: {
+            title: "会议记录",
+            description: "从会议记录生成结构化的会议纪要。",
+            outputFolder: "输出文件夹",
+            outputFolderDesc: "保存生成的会议纪要的位置",
+            defaultTimezone: "默认时区",
+            defaultTimezoneDesc: "IANA 时区（例如 Asia/Shanghai）",
+            defaultPersona: "默认会议纪要角色",
+            defaultPersonaDesc: "来自 minutes-personas.md 的默认角色",
+            obsidianTasks: "Obsidian Tasks 格式",
+            obsidianTasksDesc: "将行动项作为 - [ ] 任务添加到会议纪要下方"
         }
     },
 
@@ -371,7 +383,8 @@ export const zhCN: Translations = {
         notebookLMExport: "NotebookLM: 导出源文件包",
         notebookLMToggle: "NotebookLM: 切换选择",
         notebookLMClear: "NotebookLM: 清除选择",
-        notebookLMOpenFolder: "NotebookLM: 打开导出文件夹"
+        notebookLMOpenFolder: "NotebookLM: 打开导出文件夹",
+        createMeetingMinutes: "创建会议纪要"
     },
 
     // 消息和通知
@@ -977,5 +990,55 @@ export const zhCN: Translations = {
         lmStudio: "确保 LM Studio 正在运行并且服务器已启用",
         jan: "确保 Jan 正在运行并且本地服务器已激活",
         koboldcpp: "确保 KoboldCpp 正在运行并且 API 端点可访问"
+    },
+
+    // 会议记录生成
+    minutes: {
+        modalTitle: "\u521B\u5EFA\u4F1A\u8BAE\u7EAA\u8981",
+        fieldTitle: "\u4F1A\u8BAE\u6807\u9898",
+        fieldDate: "\u65E5\u671F",
+        fieldStartTime: "\u5F00\u59CB\u65F6\u95F4",
+        fieldEndTime: "\u7ED3\u675F\u65F6\u95F4",
+        fieldLocation: "\u5730\u70B9",
+        fieldMeetingContext: "\u4F1A\u8BAE\u7C7B\u578B",
+        fieldMeetingContextInternal: "\u5185\u90E8",
+        fieldMeetingContextExternal: "\u5916\u90E8\uFF08\u5BA2\u6237/\u5408\u4F5C\u4F19\u4F34\uFF09",
+        fieldMeetingContextBoard: "\u8463\u4E8B\u4F1A",
+        fieldOutputAudience: "\u8F93\u51FA\u53D7\u4F17",
+        fieldOutputAudienceInternal: "\u4EC5\u5185\u90E8",
+        fieldOutputAudienceExternal: "\u5916\u90E8\uFF08\u53EF\u5206\u4EAB\uFF09",
+        fieldConfidentiality: "\u4FDD\u5BC6\u7EA7\u522B",
+        confidentialityPublic: "\u516C\u5F00",
+        confidentialityInternal: "\u5185\u90E8",
+        confidentialityConfidential: "\u673A\u5BC6",
+        confidentialityStrict: "\u7EDD\u5BC6",
+        fieldChair: "\u4E3B\u6301\u4EBA",
+        fieldPersona: "\u7EAA\u8981\u98CE\u683C",
+        fieldAgenda: "\u8BAE\u7A0B\uFF08\u6BCF\u884C\u4E00\u9879\uFF09",
+        fieldTranscript: "\u4F1A\u8BAE\u8BB0\u5F55",
+        fieldTranscriptDesc: "\u7C98\u8D34\u6216\u7F16\u8F91\u4F1A\u8BAE\u8BB0\u5F55",
+        fieldDualOutput: "\u751F\u6210\u5916\u90E8\u7248\u672C",
+        fieldDualOutputDesc: "\u751F\u6210\u4F9B\u5916\u90E8\u5206\u4EAB\u7684\u7CBE\u7B80\u7248\u672C",
+        fieldObsidianTasks: "Obsidian Tasks \u683C\u5F0F",
+        fieldObsidianTasksDesc: "\u5C06\u884C\u52A8\u9879\u4EE5 - [ ] \u590D\u9009\u6846\u6DFB\u52A0",
+        privacyWarning: "\u4F1A\u8BAE\u8BB0\u5F55\u53EF\u80FD\u5305\u542B\u673A\u5BC6\u4FE1\u606F\u3002\u5916\u90E8\u8F93\u51FA\u5C06\u88AB\u8131\u654F\u5904\u7406\uFF0C\u4F46\u5206\u4EAB\u524D\u5E94\u8FDB\u884C\u5BA1\u6838\u3002",
+        participantsSection: "\u53C2\u4F1A\u4EBA\u5458",
+        fieldParticipants: "\u53C2\u4F1A\u4EBA\u5458",
+        fieldParticipantsDesc: "\u7C98\u8D34\u5217\u8868\uFF0C\u683C\u5F0F\uFF1A\"\u59D3\u540D (\u804C\u4F4D) - present/apologies\"",
+        advancedSection: "\u9AD8\u7EA7\u9009\u9879",
+        fieldModel: "\u6A21\u578B",
+        fieldModelDesc: "\u4F7F\u7528\u5F53\u524D\u914D\u7F6E\u6A21\u578B",
+        fieldLanguageOverride: "\u8BED\u8A00\u8986\u76D6",
+        fieldLanguageOverrideDesc: "\u5F3A\u5236\u4EE5\u6307\u5B9A\u8BED\u8A00\u8F93\u51FA",
+        fieldCustomInstructions: "\u81EA\u5B9A\u4E49\u6307\u4EE4",
+        fieldCustomInstructionsDesc: "\u9644\u52A0\u5230\u4EBA\u8BBE\u540E\u7684\u5176\u4ED6\u6307\u4EE4",
+        submitButton: "\u521B\u5EFA\u7EAA\u8981",
+        generating: "\u6B63\u5728\u751F\u6210\u7EAA\u8981...",
+        generatingChunk: "\u6B63\u5728\u5904\u7406\u7247\u6BB5 {current}/{total}...",
+        consolidating: "\u6B63\u5728\u6574\u5408\u4F1A\u8BAE\u7EAA\u8981...",
+        saved: "\u7EAA\u8981\u5DF2\u4FDD\u5B58",
+        errorParsing: "\u89E3\u6790\u4F1A\u8BAE\u7EAA\u8981\u5931\u8D25",
+        errorMissingFields: "\u8BF7\u586B\u5199\u6240\u6709\u5FC5\u586B\u5B57\u6BB5",
+        errorNoPersonas: "\u672A\u627E\u5230\u98CE\u683C\u6A21\u677F\u3002\u8BF7\u521B\u5EFA AI-Organiser/Config/minutes-personas.md"
     }
 };

@@ -102,6 +102,18 @@ export const en: Translations = {
             timeoutDesc: "Seconds to wait for AI response. Increase for slow models or large content (30-600s).",
             resetToDefault: "Reset to default (120s)"
         },
+        minutes: {
+            title: "Meeting Minutes",
+            description: "Generate structured meeting minutes from transcripts.",
+            outputFolder: "Output folder",
+            outputFolderDesc: "Where to save generated meeting minutes",
+            defaultTimezone: "Default timezone",
+            defaultTimezoneDesc: "IANA timezone (e.g., America/New_York)",
+            defaultPersona: "Default minutes persona",
+            defaultPersonaDesc: "Default persona from minutes-personas.md",
+            obsidianTasks: "Obsidian Tasks format",
+            obsidianTasksDesc: "Add actions as - [ ] tasks below the minutes"
+        },
         configuration: {
             title: "Advanced",
             useConfigFiles: "Use Config Files",
@@ -318,7 +330,7 @@ export const en: Translations = {
             apiKeyDesc: "Required for audio transcription. Your key is used only for Whisper API calls.",
             showKey: "Show/hide key",
             getApiKey: "Get an API key"
-        }
+        },
     },
 
     // Commands
@@ -371,7 +383,8 @@ export const en: Translations = {
         notebookLMExport: "NotebookLM: Export Source Pack",
         notebookLMToggle: "NotebookLM: Toggle Selection",
         notebookLMClear: "NotebookLM: Clear Selection",
-        notebookLMOpenFolder: "NotebookLM: Open Export Folder"
+        notebookLMOpenFolder: "NotebookLM: Open Export Folder",
+        createMeetingMinutes: "Create Meeting Minutes"
     },
 
     // Messages and notifications
@@ -977,5 +990,55 @@ export const en: Translations = {
         lmStudio: "Make sure LM Studio is running and the server is enabled",
         jan: "Make sure Jan is running and the local server is activated",
         koboldcpp: "Make sure KoboldCpp is running and the API endpoint is accessible"
+    },
+
+    // Minutes generation
+    minutes: {
+        modalTitle: "Create Meeting Minutes",
+        fieldTitle: "Meeting title",
+        fieldDate: "Date",
+        fieldStartTime: "Start time",
+        fieldEndTime: "End time",
+        fieldLocation: "Location",
+        fieldMeetingContext: "Meeting context",
+        fieldMeetingContextInternal: "Internal",
+        fieldMeetingContextExternal: "External (client/partner)",
+        fieldMeetingContextBoard: "Board",
+        fieldOutputAudience: "Output audience",
+        fieldOutputAudienceInternal: "Internal only",
+        fieldOutputAudienceExternal: "External (shareable)",
+        fieldConfidentiality: "Confidentiality",
+        confidentialityPublic: "Public",
+        confidentialityInternal: "Internal",
+        confidentialityConfidential: "Confidential",
+        confidentialityStrict: "Strictly confidential",
+        fieldChair: "Chair",
+        fieldPersona: "Minutes style",
+        fieldAgenda: "Agenda (one item per line)",
+        fieldTranscript: "Transcript",
+        fieldTranscriptDesc: "Paste or edit the transcript text",
+        fieldDualOutput: "Generate external version",
+        fieldDualOutputDesc: "Creates sanitized version for external sharing",
+        fieldObsidianTasks: "Obsidian Tasks format",
+        fieldObsidianTasksDesc: "Add actions as - [ ] checkboxes",
+        privacyWarning: "Transcripts may contain confidential information. External output will be sanitized but should be reviewed before sharing.",
+        participantsSection: "Participants",
+        fieldParticipants: "Participants",
+        fieldParticipantsDesc: "Paste list here. Format: \"Name (Role) - Present/Apologies\"",
+        advancedSection: "Advanced",
+        fieldModel: "Model",
+        fieldModelDesc: "Using configured model",
+        fieldLanguageOverride: "Language override",
+        fieldLanguageOverrideDesc: "Override the minutes output language",
+        fieldCustomInstructions: "Custom instructions",
+        fieldCustomInstructionsDesc: "Optional instructions appended to persona",
+        submitButton: "Create Minutes",
+        generating: "Generating minutes...",
+        generatingChunk: "Processing chunk {current}/{total}...",
+        consolidating: "Consolidating minutes...",
+        saved: "Minutes saved",
+        errorParsing: "Failed to parse minutes response",
+        errorMissingFields: "Please fill in all required fields",
+        errorNoPersonas: "No personas found. Create AI-Organiser/Config/minutes-personas.md"
     }
 };

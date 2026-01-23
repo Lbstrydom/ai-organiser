@@ -2,8 +2,10 @@
  * Chunking utilities for NotebookLM Source Packs
  *
  * NOTE: With PDF-based export, chunking is no longer needed.
- * This file is kept as a stub for potential future use.
+ * This file re-exports the generic text chunker for potential future use.
  */
+
+export { chunkPlainTextAsync, chunkSegmentsAsync, TextChunkerOptions } from '../../utils/textChunker';
 
 // Stub exports for compatibility - these are no longer used with PDF export
 export function estimateModuleCount(): number {

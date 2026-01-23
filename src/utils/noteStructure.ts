@@ -20,6 +20,10 @@ export const REFERENCES_HEADER = '## References';
 export const PENDING_INTEGRATION_HEADER = '## Pending Integration';
 export const SECTION_DIVIDER = '\n---\n';
 
+// Case-insensitive patterns for robust section detection
+const REFERENCES_PATTERN = /^##\s*references\s*$/i;
+const PENDING_INTEGRATION_PATTERN = /^##\s*pending\s*integration\s*$/i;
+
 export interface SectionLocation {
     found: boolean;
     startLine: number;
@@ -34,17 +38,34 @@ export interface NoteStructure {
 }
 
 /**
+ * Get the detection pattern for a header (case-insensitive)
+ */
+function getHeaderPattern(header: string): RegExp {
+    if (header === REFERENCES_HEADER) {
+        return REFERENCES_PATTERN;
+    } else if (header === PENDING_INTEGRATION_HEADER) {
+        return PENDING_INTEGRATION_PATTERN;
+    }
+    // Fallback: create case-insensitive pattern from header
+    const headerText = header.replaceAll(/^##\s*/g, '').trim();
+    return new RegExp(String.raw`^##\s*` + headerText.replaceAll(/\s+/g, String.raw`\s*`) + String.raw`\s*$`, 'i');
+}
+
+/**
  * Find the location of a section header in the editor
+ * Uses case-insensitive matching for robust detection
  */
 export function findSectionInEditor(editor: Editor, header: string): SectionLocation {
     const lineCount = editor.lineCount();
     let headerLine = -1;
     let endLine = lineCount - 1;
 
-    // Find the header line
+    const pattern = getHeaderPattern(header);
+
+    // Find the header line using case-insensitive pattern
     for (let i = 0; i < lineCount; i++) {
         const line = editor.getLine(i).trim();
-        if (line === header || line === header.trim()) {
+        if (pattern.test(line)) {
             headerLine = i;
             break;
         }
@@ -73,16 +94,19 @@ export function findSectionInEditor(editor: Editor, header: string): SectionLoca
 
 /**
  * Find the location of a section header in text content
+ * Uses case-insensitive matching for robust detection
  */
 export function findSectionInText(content: string, header: string): SectionLocation {
     const lines = content.split('\n');
     let headerLine = -1;
     let endLine = lines.length - 1;
 
-    // Find the header line
+    const pattern = getHeaderPattern(header);
+
+    // Find the header line using case-insensitive pattern
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (line === header || line === header.trim()) {
+        if (pattern.test(line)) {
             headerLine = i;
             break;
         }
@@ -196,49 +220,24 @@ export function formatSourceReference(source: SourceReference): string {
 
 /**
  * Add a reference to the References section
- * Creates the section if it doesn't exist
+ * Creates the section if it doesn't exist using robust detection
  */
 export function addToReferencesSection(
     editor: Editor,
     source: SourceReference
 ): void {
+    // First ensure the section exists (idempotent - won't create duplicates)
+    ensureReferencesExists(editor);
+
+    // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
     const referenceText = formatSourceReference(source);
 
-    if (structure.references.found) {
-        // Add to existing References section
-        const insertLine = structure.references.startLine;
-        const insertPos = { line: insertLine, ch: 0 };
+    // Add to the References section
+    const insertLine = structure.references.startLine;
+    const insertPos = { line: insertLine, ch: 0 };
 
-        // Check if there's already content, add newline if needed
-        const existingFirstLine = editor.getLine(insertLine)?.trim();
-        const prefix = existingFirstLine ? '' : '';
-        const suffix = existingFirstLine ? '\n' : '\n';
-
-        editor.replaceRange(prefix + referenceText + suffix, insertPos);
-    } else {
-        // Create References section
-        // Insert before Pending Integration if it exists, otherwise at end
-        let insertLine: number;
-        let insertContent: string;
-
-        if (structure.pendingIntegration.found) {
-            // Insert before Pending Integration
-            insertLine = structure.pendingIntegration.headerLine;
-            // Go back past any dividers
-            while (insertLine > 0 && editor.getLine(insertLine - 1).trim() === '---') {
-                insertLine--;
-            }
-            insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n${referenceText}\n`;
-        } else {
-            // Insert at end of document
-            insertLine = editor.lineCount();
-            insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n${referenceText}\n`;
-        }
-
-        const insertPos = { line: insertLine, ch: 0 };
-        editor.replaceRange(insertContent, insertPos);
-    }
+    editor.replaceRange(referenceText + '\n', insertPos);
 }
 
 /**
@@ -264,33 +263,24 @@ export function formatPendingContent(source: PendingSource): string {
 
 /**
  * Add content to the Pending Integration section
- * Creates the section if it doesn't exist
+ * Creates the section if it doesn't exist using robust detection
  */
 export function addToPendingIntegration(
     editor: Editor,
     source: PendingSource
 ): void {
+    // First ensure the section exists (idempotent - won't create duplicates)
+    ensurePendingIntegrationExists(editor);
+
+    // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
     const pendingContent = formatPendingContent(source);
 
-    if (structure.pendingIntegration.found) {
-        // Add to existing Pending Integration section
-        const insertLine = structure.pendingIntegration.startLine;
-        const insertPos = { line: insertLine, ch: 0 };
+    // Add to the Pending Integration section
+    const insertLine = structure.pendingIntegration.startLine;
+    const insertPos = { line: insertLine, ch: 0 };
 
-        // Check if there's already content
-        const existingFirstLine = editor.getLine(insertLine)?.trim();
-        const suffix = existingFirstLine ? '\n' : '\n';
-
-        editor.replaceRange(pendingContent + suffix, insertPos);
-    } else {
-        // Create Pending Integration section at end
-        const insertLine = editor.lineCount();
-        const insertContent = `${SECTION_DIVIDER}\n${PENDING_INTEGRATION_HEADER}\n\n${pendingContent}`;
-
-        const insertPos = { line: insertLine, ch: 0 };
-        editor.replaceRange(insertContent, insertPos);
-    }
+    editor.replaceRange(pendingContent + '\n', insertPos);
 }
 
 /**
@@ -351,31 +341,13 @@ export function clearPendingIntegration(editor: Editor): void {
 
 /**
  * Ensure the note has the standard structure (References and Pending Integration sections)
- * Adds them if missing
+ * Adds them if missing. Uses idempotent helper functions for robust detection.
  */
 export function ensureStandardStructure(editor: Editor): void {
-    const structure = analyzeNoteStructure(editor);
-
-    // Add Pending Integration if missing
-    if (!structure.pendingIntegration.found) {
-        const insertLine = editor.lineCount();
-        const insertContent = `${SECTION_DIVIDER}\n${PENDING_INTEGRATION_HEADER}\n\n`;
-        editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
-    }
-
-    // Re-analyze after potential change
-    const newStructure = analyzeNoteStructure(editor);
-
-    // Add References if missing (before Pending Integration)
-    if (!newStructure.references.found && newStructure.pendingIntegration.found) {
-        let insertLine = newStructure.pendingIntegration.headerLine;
-        // Go back past any dividers
-        while (insertLine > 0 && editor.getLine(insertLine - 1).trim() === '---') {
-            insertLine--;
-        }
-        const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
-        editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
-    }
+    // Use the idempotent functions that have robust detection
+    // Order matters: add Pending Integration first, then References (which goes before it)
+    ensurePendingIntegrationExists(editor);
+    ensureReferencesExists(editor);
 }
 
 /**
@@ -388,6 +360,80 @@ export function ensureNoteStructureIfEnabled(
     if (settings.autoEnsureNoteStructure) {
         ensureStandardStructure(editor);
     }
+}
+
+/**
+ * Check if the Pending Integration section exists in the editor
+ * Uses case-insensitive matching for robust detection
+ */
+export function hasPendingIntegrationSection(editor: Editor): boolean {
+    const location = findSectionInEditor(editor, PENDING_INTEGRATION_HEADER);
+    return location.found;
+}
+
+/**
+ * Ensure the Pending Integration section exists (idempotent)
+ * Creates the section only if it doesn't already exist.
+ * This is the single entry point for ensuring the section exists.
+ *
+ * @returns true if section was created, false if it already existed
+ */
+export function ensurePendingIntegrationExists(editor: Editor): boolean {
+    // Check using robust detection
+    if (hasPendingIntegrationSection(editor)) {
+        return false; // Already exists, nothing to do
+    }
+
+    // Create the section at the end of the document
+    const insertLine = editor.lineCount();
+    const insertContent = `${SECTION_DIVIDER}\n${PENDING_INTEGRATION_HEADER}\n\n`;
+    editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
+
+    return true; // Section was created
+}
+
+/**
+ * Check if the References section exists in the editor
+ * Uses case-insensitive matching for robust detection
+ */
+export function hasReferencesSection(editor: Editor): boolean {
+    const location = findSectionInEditor(editor, REFERENCES_HEADER);
+    return location.found;
+}
+
+/**
+ * Ensure the References section exists (idempotent)
+ * Creates the section only if it doesn't already exist.
+ * Places it before Pending Integration if that section exists.
+ *
+ * @returns true if section was created, false if it already existed
+ */
+export function ensureReferencesExists(editor: Editor): boolean {
+    // Check using robust detection
+    if (hasReferencesSection(editor)) {
+        return false; // Already exists, nothing to do
+    }
+
+    // Check if Pending Integration exists to place References before it
+    const pendingLocation = findSectionInEditor(editor, PENDING_INTEGRATION_HEADER);
+
+    if (pendingLocation.found) {
+        // Insert before Pending Integration
+        let insertLine = pendingLocation.headerLine;
+        // Go back past any dividers
+        while (insertLine > 0 && editor.getLine(insertLine - 1).trim() === '---') {
+            insertLine--;
+        }
+        const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
+    } else {
+        // Insert at end of document
+        const insertLine = editor.lineCount();
+        const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
+    }
+
+    return true; // Section was created
 }
 
 /**

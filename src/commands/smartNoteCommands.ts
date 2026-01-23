@@ -96,28 +96,28 @@ function openEnhanceModal(plugin: AIOrganiserPlugin): void {
             icon: 'wand-2',
             label: plugin.t.modals.enhance.improve,
             description: plugin.t.modals.enhance.improveDesc,
-            onClick: () => void executeImproveNote(plugin)
+            onClick: () => executeImproveNote(plugin)
         },
         {
             id: 'diagram',
             icon: 'git-branch',
             label: plugin.t.modals.enhance.diagram,
             description: plugin.t.modals.enhance.diagramDesc,
-            onClick: () => void executeGenerateMermaidDiagram(plugin)
+            onClick: () => executeGenerateMermaidDiagram(plugin)
         },
         {
             id: 'resources',
             icon: 'search',
             label: plugin.t.modals.enhance.resources,
             description: plugin.t.modals.enhance.resourcesDesc,
-            onClick: () => void executeFindResources(plugin)
+            onClick: () => executeFindResources(plugin)
         },
         {
             id: 'flashcards',
             icon: 'layers',
             label: plugin.t.modals.enhance.flashcards,
             description: plugin.t.modals.enhance.flashcardsDesc,
-            onClick: () => void exportFlashcardsFromCurrentNote(plugin)
+            onClick: () => exportFlashcardsFromCurrentNote(plugin)
         }
     ];
 

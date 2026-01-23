@@ -4,6 +4,7 @@ import { LLMSettingsSection } from './LLMSettingsSection';
 import { TaggingSettingsSection } from './TaggingSettingsSection';
 import { InterfaceSettingsSection } from './InterfaceSettingsSection';
 import { SummarizationSettingsSection } from './SummarizationSettingsSection';
+import { MinutesSettingsSection } from './MinutesSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
 import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
 import { MobileSettingsSection } from './MobileSettingsSection';
@@ -18,6 +19,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private taggingSection?: TaggingSettingsSection;
     private interfaceSection?: InterfaceSettingsSection;
     private summarizationSection?: SummarizationSettingsSection;
+    private minutesSection?: MinutesSettingsSection;
     private configurationSection?: ConfigurationSettingsSection;
     private semanticSearchSection?: SemanticSearchSettingsSection;
     private mobileSection?: MobileSettingsSection;
@@ -50,11 +52,15 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.summarizationSection = new SummarizationSettingsSection(this.plugin, containerEl, this);
         this.summarizationSection.display();
 
-        // 3b. YouTube (Gemini-native processing for YouTube videos)
+        // 3b. Meeting Minutes (corporate workflow)
+        this.minutesSection = new MinutesSettingsSection(this.plugin, containerEl, this);
+        this.minutesSection.display();
+
+        // 3c. YouTube (Gemini-native processing for YouTube videos)
         this.youtubeSection = new YouTubeSettingsSection(this.plugin, containerEl, this);
         this.youtubeSection.display();
 
-        // 3c. Audio Transcription (Whisper API for audio files)
+        // 3d. Audio Transcription (Whisper API for audio files)
         this.audioTranscriptionSection = new AudioTranscriptionSettingsSection(this.plugin, containerEl, this);
         this.audioTranscriptionSection.display();
 

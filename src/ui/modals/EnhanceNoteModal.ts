@@ -1,4 +1,4 @@
-import { App, Modal, Setting, setIcon } from 'obsidian';
+import { App, Modal, Notice, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 
 export interface EnhanceAction {
@@ -6,7 +6,7 @@ export interface EnhanceAction {
     icon?: string;
     label: string;
     description: string;
-    onClick: () => void;
+    onClick: () => void | Promise<void>;
 }
 
 export class EnhanceNoteModal extends Modal {
@@ -40,9 +40,14 @@ export class EnhanceNoteModal extends Modal {
             textEl.createEl('div', { text: action.label, cls: 'ai-organiser-enhance-label' });
             textEl.createEl('div', { text: action.description, cls: 'ai-organiser-enhance-desc' });
 
-            actionEl.addEventListener('click', () => {
+            actionEl.addEventListener('click', async () => {
                 this.close();
-                action.onClick();
+                try {
+                    await action.onClick();
+                } catch (error) {
+                    console.error('[AI Organiser] Enhance action error:', error);
+                    new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
             });
         }
 

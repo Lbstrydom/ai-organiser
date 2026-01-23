@@ -3,19 +3,19 @@
  * Modal for entering a query to search for related resources
  */
 
-import { App, Modal, Setting, TextAreaComponent } from 'obsidian';
+import { App, Modal, Notice, Setting, TextAreaComponent } from 'obsidian';
 import { Translations } from '../../i18n/types';
 
 export class FindResourcesModal extends Modal {
     private t: Translations;
-    private onSubmit: (query: string) => void;
+    private onSubmit: (query: string) => void | Promise<void>;
     private query: string = '';
     private textAreaComponent: TextAreaComponent | null = null;
 
     constructor(
         app: App,
         t: Translations,
-        onSubmit: (query: string) => void
+        onSubmit: (query: string) => void | Promise<void>
     ) {
         super(app);
         this.t = t;
@@ -105,10 +105,15 @@ export class FindResourcesModal extends Modal {
         submitButton.addEventListener('click', () => this.submit());
     }
 
-    private submit() {
+    private async submit() {
         if (this.query.trim()) {
             this.close();
-            this.onSubmit(this.query.trim());
+            try {
+                await this.onSubmit(this.query.trim());
+            } catch (error) {
+                console.error('[AI Organiser] Find resources error:', error);
+                new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
     }
 

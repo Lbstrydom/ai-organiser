@@ -75,6 +75,39 @@ IMPORTANT CONSTRAINTS:
 `;
     }
 
+    // Build folder rules and example based on whether folder context is provided
+    let folderRules: string;
+    let folderExample: string;
+
+    if (folderContext) {
+        // When folder scope is provided, constrain to that root
+        folderRules = `Folder rules:
+- IMPORTANT: The folder path MUST start with "${folderContext.rootPath}"
+- Suggest a subfolder within this root that fits the content
+- Use forward slashes for nested folders
+- Use Title Case for folder names
+- Example: "${folderContext.rootPath}/Subtopic" or "${folderContext.rootPath}/Category/Subtopic"`;
+
+        folderExample = `{
+  "tags": ["technology", "computer-science", "neural-networks", "backpropagation", "gradient-descent"],
+  "title": "Understanding Neural Network Training",
+  "folder": "${folderContext.rootPath}/Computer Science"
+}`;
+    } else {
+        // Default behavior without folder scope
+        folderRules = `Folder rules:
+- Suggest a folder path using the Theme and Discipline
+- Use forward slashes for nested folders (e.g., "Technology/Programming")
+- Use Title Case for folder names
+- Keep it to 1-3 levels deep`;
+
+        folderExample = `{
+  "tags": ["technology", "computer-science", "neural-networks", "backpropagation", "gradient-descent"],
+  "title": "Understanding Neural Network Training",
+  "folder": "Technology/Computer Science"
+}`;
+    }
+
     return `${langInstructions}${folderScopeInstructions}<task>
 You are a knowledge organizer. Analyze the document and:
 1. Assign tags using a structured 3-level taxonomy
@@ -113,7 +146,7 @@ Return your response in exactly this JSON format:
 {
   "tags": ["theme", "discipline", "topic1", "topic2"],
   "title": "Suggested Note Title",
-  "folder": "Theme/Discipline"
+  "folder": "${folderContext ? folderContext.rootPath + '/Subtopic' : 'Theme/Discipline'}"
 }
 
 Tag rules:
@@ -130,20 +163,12 @@ Title rules:
 - Keep it concise (3-8 words)
 - Do not include special characters except hyphens and colons
 
-Folder rules:
-- Suggest a folder path using the Theme and Discipline
-- Use forward slashes for nested folders (e.g., "Technology/Programming")
-- Use Title Case for folder names
-- Keep it to 1-3 levels deep
+${folderRules}
 </output_rules>
 
 <output_format>
 Example output:
-{
-  "tags": ["technology", "computer-science", "neural-networks", "backpropagation", "gradient-descent"],
-  "title": "Understanding Neural Network Training",
-  "folder": "Technology/Computer Science"
-}
+${folderExample}
 
 Return ONLY the JSON object, no additional text or explanation.
 </output_format>`;

@@ -3,7 +3,7 @@
  * Allows users to generate Mermaid diagrams from note content
  */
 
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 
 export type DiagramType =
@@ -36,14 +36,14 @@ const DIAGRAM_TYPES: { value: DiagramType; label: string; description: string }[
 
 export class MermaidDiagramModal extends Modal {
     private t: Translations;
-    private onSubmit: (result: MermaidDiagramResult) => void;
+    private onSubmit: (result: MermaidDiagramResult) => void | Promise<void>;
     private diagramType: DiagramType = 'auto';
     private instruction: string = '';
 
     constructor(
         app: App,
         t: Translations,
-        onSubmit: (result: MermaidDiagramResult) => void
+        onSubmit: (result: MermaidDiagramResult) => void | Promise<void>
     ) {
         super(app);
         this.t = t;
@@ -123,15 +123,20 @@ export class MermaidDiagramModal extends Modal {
                 button
                     .setButtonText(t?.generateButton || 'Generate Diagram')
                     .setCta()
-                    .onClick(() => {
+                    .onClick(async () => {
                         if (!this.instruction.trim()) {
                             this.instruction = 'Diagram the entire note';
                         }
-                        this.onSubmit({
-                            diagramType: this.diagramType,
-                            instruction: this.instruction.trim()
-                        });
                         this.close();
+                        try {
+                            await this.onSubmit({
+                                diagramType: this.diagramType,
+                                instruction: this.instruction.trim()
+                            });
+                        } catch (error) {
+                            console.error('[AI Organiser] Mermaid diagram error:', error);
+                            new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                        }
                     });
             });
     }

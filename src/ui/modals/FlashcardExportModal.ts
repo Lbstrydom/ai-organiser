@@ -3,7 +3,7 @@
  * Modal for selecting flashcard export format and optional context
  */
 
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { FLASHCARD_FORMATS, FLASHCARD_STYLES, type FlashcardFormat, type FlashcardStyle } from '../../services/prompts/flashcardPrompts';
 
@@ -17,13 +17,13 @@ export class FlashcardExportModal extends Modal {
     private selectedFormatId: string = 'anki';
     private selectedStyle: FlashcardStyle = 'standard';
     private context: string = '';
-    private onSubmit: (result: FlashcardExportResult) => void;
+    private onSubmit: (result: FlashcardExportResult) => void | Promise<void>;
     private t: Translations;
 
     constructor(
         app: App,
         translations: Translations,
-        onSubmit: (result: FlashcardExportResult) => void
+        onSubmit: (result: FlashcardExportResult) => void | Promise<void>
     ) {
         super(app);
         this.t = translations;
@@ -124,15 +124,20 @@ export class FlashcardExportModal extends Modal {
         }
     }
 
-    private submit(): void {
+    private async submit(): Promise<void> {
         const format = FLASHCARD_FORMATS.find(f => f.id === this.selectedFormatId);
         if (format) {
             this.close();
-            this.onSubmit({
-                format,
-                style: this.selectedStyle,
-                context: this.context.trim()
-            });
+            try {
+                await this.onSubmit({
+                    format,
+                    style: this.selectedStyle,
+                    context: this.context.trim()
+                });
+            } catch (error) {
+                console.error('[AI Organiser] Flashcard export error:', error);
+                new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
     }
 

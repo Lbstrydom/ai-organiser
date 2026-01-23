@@ -11,6 +11,7 @@ export interface ConfigPaths {
     excludedTags: string;      // Tags to never suggest
     writingPersonas: string;   // AI personas for note improvement/editing
     summaryPersonas: string;   // AI personas for summarization (URL, PDF, YouTube, Audio)
+    minutesPersonas: string;   // AI personas for meeting minutes
     basesTemplates: string;    // Bases dashboard templates
 }
 
@@ -49,6 +50,7 @@ export interface ConfigContent {
     excludedTags: string[];
     personas: Persona[];           // For note improvement/editing
     summaryPersonas: Persona[];    // For summarization (URL, PDF, YouTube, Audio)
+    minutesPersonas: Persona[];    // For meeting minutes
     basesTemplates: BasesTemplate[];  // Bases dashboard templates
 }
 
@@ -366,6 +368,56 @@ export const DEFAULT_SUMMARY_PERSONAS: Persona[] = [
     }
 ];
 
+// Default minutes personas for meeting minutes
+export const DEFAULT_MINUTES_PERSONAS: Persona[] = [
+    {
+        id: 'corporate-minutes',
+        name: 'Corporate minutes',
+        description: 'Standard corporate minutes with decisions, actions, and key discussion points',
+        prompt: `Create professional corporate meeting minutes with clear decisions, actions, and key discussion points.
+
+Focus on:
+- Decisions and approvals
+- Action items with owners and due dates (use TBC if missing)
+- Risks and open questions
+- Neutral, factual tone`
+        ,
+        isDefault: true
+    },
+    {
+        id: 'board-governance',
+        name: 'Board governance',
+        description: 'Governance-focused minutes with resolutions, quorum, and fiduciary matters',
+        prompt: `Emphasize governance items such as resolutions, approvals, delegations, risk appetite, and fiduciary matters.
+Record conflicts of interest, abstentions, and quorum if mentioned.
+Use formal resolution language when applicable.`
+    },
+    {
+        id: 'action-register-only',
+        name: 'Action register only',
+        description: 'Minimal output focused on actions and decisions only',
+        prompt: `Keep minutes minimal and operational.
+Focus on actions and decisions only.
+Skip detailed discussion summaries unless needed for context.`
+    },
+    {
+        id: 'client-mom-short',
+        name: 'Client MoM short',
+        description: 'Brief client-facing minutes focusing on commitments and next steps',
+        prompt: `Create a brief meeting summary for client circulation.
+Focus on agreed commitments and next steps.
+Omit internal context and detailed discussion.`
+    },
+    {
+        id: 'technical-review',
+        name: 'Technical review',
+        description: 'Detailed technical minutes with architecture decisions and trade-offs',
+        prompt: `Capture technical decisions, trade-offs, and risks.
+Include architecture choices, dependencies, and technical debt items.
+Use precise technical language where appropriate.`
+    }
+];
+
 // Default Bases dashboard templates
 // Note: Bases uses 'filters:' (plural) with and/or/not operators
 // Property names use property.propname syntax for custom properties
@@ -430,6 +482,7 @@ export class ConfigurationService {
             excludedTags: normalizePath(`${this.configFolder}/excluded-tags.md`),
             writingPersonas: normalizePath(`${this.configFolder}/writing-personas.md`),
             summaryPersonas: normalizePath(`${this.configFolder}/summary-personas.md`),
+            minutesPersonas: normalizePath(`${this.configFolder}/minutes-personas.md`),
             basesTemplates: normalizePath(`${this.configFolder}/bases-templates.md`),
         };
     }
@@ -447,11 +500,12 @@ export class ConfigurationService {
 
         const paths = this.getConfigPaths();
 
-        const [taxonomy, excludedTags, writingPersonas, summaryPersonas, basesTemplates] = await Promise.all([
+        const [taxonomy, excludedTags, writingPersonas, summaryPersonas, minutesPersonas, basesTemplates] = await Promise.all([
             this.loadTaxonomyFromFile(paths.taxonomyFile),
             this.loadListFromFile(paths.excludedTags, []),
             this.loadPersonasFromFile(paths.writingPersonas, DEFAULT_PERSONAS),
             this.loadPersonasFromFile(paths.summaryPersonas, DEFAULT_SUMMARY_PERSONAS),
+            this.loadPersonasFromFile(paths.minutesPersonas, DEFAULT_MINUTES_PERSONAS),
             this.loadBasesTemplatesFromFile(paths.basesTemplates),
         ]);
 
@@ -460,6 +514,7 @@ export class ConfigurationService {
             excludedTags,
             personas: writingPersonas,
             summaryPersonas,
+            minutesPersonas,
             basesTemplates,
         };
         this.lastLoadTime = now;
@@ -775,6 +830,9 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
         // Create summary personas file
         const summaryPersonasContent = this.generateSummaryPersonasFileContent();
 
+        // Create minutes personas file
+        const minutesPersonasContent = this.generateMinutesPersonasFileContent();
+
         // Create bases templates file
         const basesTemplatesContent = this.generateBasesTemplatesFileContent();
 
@@ -783,6 +841,7 @@ Tags listed here will **never be suggested** by the AI when tagging your notes.
         await this.createFileIfNotExists(paths.excludedTags, excludedTagsContent);
         await this.createFileIfNotExists(paths.writingPersonas, personasContent);
         await this.createFileIfNotExists(paths.summaryPersonas, summaryPersonasContent);
+        await this.createFileIfNotExists(paths.minutesPersonas, minutesPersonasContent);
         await this.createFileIfNotExists(paths.basesTemplates, basesTemplatesContent);
 
         // Invalidate cache after creating files
@@ -935,6 +994,54 @@ ${personaSections}
 - **Output Template**: Provide a structure with markdown headers
 
 The AI will follow your template exactly, so be specific about what sections and formatting you want.
+`;
+    }
+
+    /**
+     * Generate the minutes-personas.md file content
+     */
+    private generateMinutesPersonasFileContent(): string {
+        const personaSections = DEFAULT_MINUTES_PERSONAS.map(p => {
+            const defaultMarker = p.isDefault ? ' (default)' : '';
+            return `### ${p.name}${defaultMarker}
+
+> ${p.description}
+
+\`\`\`
+${p.prompt}
+\`\`\``;
+        }).join('\n\n');
+
+        return `# Minutes Personas
+
+These personas control how the AI generates **meeting minutes** from transcripts. Each persona defines the structure, tone, and focus areas for minutes output.
+
+## How to Use
+
+1. **When creating minutes**: Select a persona from the dropdown in the minutes modal
+2. **Set default**: Add \`(default)\` after the persona name to make it the default
+3. **Edit existing**: Modify the prompt in the code block to customize behavior
+4. **Add new**: Create a new \`### Section\` following the format below
+
+## Format
+
+Each persona needs:
+- A \`### Name\` header (add \`(default)\` to mark as default)
+- A description line starting with \`>\` (shown in the selection dropdown)
+- A code block with the full prompt/instructions for the AI
+
+---
+
+${personaSections}
+
+---
+
+## Tips for Custom Personas
+
+- **Role**: Define the role and audience (e.g., board secretary, client-facing consultant)
+- **Structure**: Specify which sections must appear in the minutes
+- **Tone**: Set the desired formality and level of detail
+- **Constraints**: Reinforce accuracy rules (no invented decisions or owners)
 `;
     }
 
@@ -1102,6 +1209,52 @@ ${persona.prompt}
 
         if (!persona) {
             persona = await this.getDefaultSummaryPersona();
+        }
+
+        return persona.prompt;
+    }
+
+    // ==========================================
+    // Minutes Personas (for meeting minutes)
+    // ==========================================
+
+    /**
+     * Get all minutes personas
+     */
+    async getMinutesPersonas(): Promise<Persona[]> {
+        const config = await this.loadConfig();
+        return config.minutesPersonas;
+    }
+
+    /**
+     * Get the default minutes persona
+     */
+    async getDefaultMinutesPersona(): Promise<Persona> {
+        const config = await this.loadConfig();
+        const defaultPersona = config.minutesPersonas.find(p => p.isDefault);
+        return defaultPersona || config.minutesPersonas[0] || DEFAULT_MINUTES_PERSONAS[0];
+    }
+
+    /**
+     * Get a minutes persona by ID
+     */
+    async getMinutesPersonaById(id: string): Promise<Persona | null> {
+        const config = await this.loadConfig();
+        return config.minutesPersonas.find(p => p.id === id) || null;
+    }
+
+    /**
+     * Get minutes persona prompt formatted for injection into AI prompts
+     */
+    async getMinutesPersonaPrompt(personaId?: string): Promise<string> {
+        let persona: Persona | null = null;
+
+        if (personaId) {
+            persona = await this.getMinutesPersonaById(personaId);
+        }
+
+        if (!persona) {
+            persona = await this.getDefaultMinutesPersona();
         }
 
         return persona.prompt;

@@ -22,10 +22,11 @@ Translate the following content into ${options.targetLanguage}.
 <requirements>
 - Translate ALL text content into ${options.targetLanguage}
 - Preserve the original meaning, tone, and style as much as possible
-- Keep markdown formatting intact (headers, lists, links, bold, italic, etc.)
+- Keep ONLY the markdown formatting that exists in the original (headers, lists, links, bold, italic, etc.)
+- Do NOT add any new formatting that wasn't in the original (no extra bold, no extra headers, no emphasis)
 - Preserve code blocks, URLs, and file paths unchanged
 - Keep proper nouns, technical terms, and brand names in their original form unless there's a common translation
-- Maintain paragraph structure and line breaks
+- Maintain paragraph structure and line breaks exactly as in the original
 - Do NOT add any explanations or notes - only output the translated content
 </requirements>
 

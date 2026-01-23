@@ -3,7 +3,7 @@
  * Modal for entering a query to improve/enhance the current note
  */
 
-import { App, Modal, Setting, TextAreaComponent } from 'obsidian';
+import { App, Modal, Notice, Setting, TextAreaComponent } from 'obsidian';
 import { Translations } from '../../i18n/types';
 import { Persona } from '../../services/configurationService';
 import { PersonaSelectModal, createPersonaButton } from './PersonaSelectModal';
@@ -15,7 +15,7 @@ export interface ImproveNoteResult {
 
 export class ImproveNoteModal extends Modal {
     private t: Translations;
-    private onSubmit: (result: ImproveNoteResult) => void;
+    private onSubmit: (result: ImproveNoteResult) => void | Promise<void>;
     private query: string = '';
     private textAreaComponent: TextAreaComponent | null = null;
     private personas: Persona[];
@@ -27,7 +27,7 @@ export class ImproveNoteModal extends Modal {
         t: Translations,
         personas: Persona[],
         defaultPersona: Persona,
-        onSubmit: (result: ImproveNoteResult) => void
+        onSubmit: (result: ImproveNoteResult) => void | Promise<void>
     ) {
         super(app);
         this.t = t;
@@ -134,13 +134,18 @@ export class ImproveNoteModal extends Modal {
         submitButton.addEventListener('click', () => this.submit());
     }
 
-    private submit() {
+    private async submit() {
         if (this.query.trim()) {
             this.close();
-            this.onSubmit({
-                query: this.query.trim(),
-                personaId: this.selectedPersona.id
-            });
+            try {
+                await this.onSubmit({
+                    query: this.query.trim(),
+                    personaId: this.selectedPersona.id
+                });
+            } catch (error) {
+                console.error('[AI Organiser] Improve note error:', error);
+                new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
     }
 

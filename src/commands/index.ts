@@ -2,6 +2,7 @@ import { registerGenerateCommands } from './generateCommands';
 import { registerClearCommands } from './clearCommands';
 import { registerUtilityCommands } from './utilityCommands';
 import { registerSummarizeCommands } from './summarizeCommands';
+import { registerMinutesCommands } from './minutesCommands';
 import { registerTranslateCommands } from './translateCommands';
 import { registerSmartNoteCommands } from './smartNoteCommands';
 import { registerIntegrationCommands } from './integrationCommands';
@@ -18,6 +19,7 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerClearCommands(plugin);
     registerUtilityCommands(plugin);
     registerSummarizeCommands(plugin);
+    registerMinutesCommands(plugin);
     registerTranslateCommands(plugin);
     registerSmartNoteCommands(plugin);
     registerIntegrationCommands(plugin);
