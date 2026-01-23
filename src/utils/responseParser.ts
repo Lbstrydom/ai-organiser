@@ -58,9 +58,10 @@ export function parseStructuredResponse(
 
 /**
  * Validate that parsed JSON has required structure
+ * Also sanitizes body_content and summary_hook
  */
 function isValidStructuredResponse(obj: any): obj is StructuredSummaryResponse {
-    return (
+    const isValid = (
         obj &&
         typeof obj === 'object' &&
         typeof obj.summary_hook === 'string' &&
@@ -69,6 +70,66 @@ function isValidStructuredResponse(obj: any): obj is StructuredSummaryResponse {
         typeof obj.content_type === 'string' &&
         ['note', 'research', 'meeting', 'project', 'reference'].includes(obj.content_type)
     );
+
+    // Sanitize content if valid
+    if (isValid) {
+        obj.summary_hook = sanitizeSummaryHookContent(obj.summary_hook);
+        obj.body_content = sanitizeBodyContent(obj.body_content);
+    }
+
+    return isValid;
+}
+
+/**
+ * Sanitize summary hook by removing headings, links, and other markdown that shouldn't be there
+ */
+function sanitizeSummaryHookContent(hook: string): string {
+    if (!hook) return hook;
+
+    let sanitized = hook;
+
+    // Remove any ## heading markers and their content that follows
+    // e.g., "Summary text. ## Heading Title" -> "Summary text."
+    sanitized = sanitized.replaceAll(/\s*##\s+[^\n]+/g, '');
+
+    // Remove markdown links [text](url) - replace with just the text
+    sanitized = sanitized.replaceAll(/\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+    // Remove bare URLs
+    sanitized = sanitized.replaceAll(/https?:\/\/[^\s]+/g, '');
+
+    // Clean up extra whitespace and punctuation issues
+    sanitized = sanitized.replaceAll(/\s{2,}/g, ' ').trim();
+
+    // Ensure it ends cleanly (not with dangling punctuation)
+    sanitized = sanitized.replaceAll(/[,\s]+$/g, '').trim();
+
+    // Truncate to 280 chars if needed
+    if (sanitized.length > 280) {
+        sanitized = sanitized.substring(0, 277).trim() + '...';
+    }
+
+    return sanitized;
+}
+
+/**
+ * Sanitize body content by removing leading source links
+ * Some LLMs add the source URL as a link at the start despite instructions not to
+ */
+function sanitizeBodyContent(content: string): string {
+    if (!content) return content;
+
+    // Pattern: Leading markdown link followed by heading or newline
+    // e.g., "[Title](https://example.com) ## Heading" or "[Title](url)\n## Heading"
+    const leadingLinkPattern = /^\s*\[[^\]]*\]\(https?:\/\/[^)]+\)\s*/;
+
+    // Remove leading link if present
+    let sanitized = content.replace(leadingLinkPattern, '');
+
+    // Also handle case where link is on its own line at the start
+    sanitized = sanitized.replace(/^\s*\[[^\]]*\]\(https?:\/\/[^)]+\)\s*\n+/, '');
+
+    return sanitized.trim();
 }
 
 /**

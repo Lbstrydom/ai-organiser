@@ -27,7 +27,7 @@ export class SummarizationSettingsSection extends BaseSettingSection {
     this.personas = await plugin.configService.getSummaryPersonas();
 
     // Main section header
-    containerEl.createEl('h3', { text: t.title });
+    this.createSectionHeader(t.title, 'file-text');
 
     // Enable summarization feature toggle
     new Setting(containerEl)
@@ -130,6 +130,42 @@ export class SummarizationSettingsSection extends BaseSettingSection {
           .onChange(async value => {
             plugin.settings.transcriptFolder = value || 'Transcripts';
             await plugin.saveSettings();
+          })
+      );
+
+    // Advanced Options subheader
+    containerEl.createEl('h4', { text: t.advancedOptions || 'Advanced Options' });
+
+    // Summarization timeout (power user setting)
+    new Setting(containerEl)
+      .setName(t.timeout || 'Request Timeout')
+      .setDesc(t.timeoutDesc || 'Seconds to wait for AI response. Increase for slow models or large content (30-600 seconds).')
+      .addSlider(slider =>
+        slider
+          .setLimits(30, 600, 30)
+          .setValue(plugin.settings.summarizeTimeoutSeconds)
+          .setDynamicTooltip()
+          .onChange(async value => {
+            plugin.settings.summarizeTimeoutSeconds = value;
+            await plugin.saveSettings();
+            // Update LLM service timeout if available
+            if (plugin.llmService) {
+              plugin.llmService.setSummarizeTimeout(value);
+            }
+          })
+      )
+      .addExtraButton(button =>
+        button
+          .setIcon('reset')
+          .setTooltip(t.resetToDefault || 'Reset to default (120s)')
+          .onClick(async () => {
+            plugin.settings.summarizeTimeoutSeconds = 120;
+            await plugin.saveSettings();
+            if (plugin.llmService) {
+              plugin.llmService.setSummarizeTimeout(120);
+            }
+            // Refresh the settings display
+            this.settingTab.display();
           })
       );
   }

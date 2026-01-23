@@ -1,3 +1,21 @@
+/* Settings Header with Icon */
+.ai-organiser-settings-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-organiser-settings-header-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-accent);
+}
+
+.ai-organiser-settings-header-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
 /* Connection Test Styles */
 .connection-test-container {
     display: flex;
@@ -25,6 +43,7 @@
 .ai-organiser-modal-content {
     text-align: center;
     padding: var(--size-4-4);
+    min-width: 450px;
 }
 
 .ai-organiser-modal-title {
@@ -2383,4 +2402,535 @@
     margin-top: var(--size-4-4);
     padding-top: var(--size-4-4);
     border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Settings Tab - H1 Major Section Headers (with line separator) */
+.ai-organiser-settings h1 {
+    display: block !important;
+    font-size: 1.4em !important;
+    font-weight: 600 !important;
+    margin-top: 3em !important;
+    margin-bottom: 0.75em !important;
+    padding-top: 1.5em !important;
+    border-top: 1px solid var(--background-modifier-border) !important;
+    color: var(--text-normal) !important;
+}
+
+/* First H1 section header - no top border needed */
+.ai-organiser-settings > h1:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+}
+
+/* Settings Tab - H2 Subsection Headers (no line separator, same size as settings) */
+.ai-organiser-settings h2 {
+    display: block !important;
+    font-size: 1em !important;
+    font-weight: 600 !important;
+    margin-top: 1.5em !important;
+    margin-bottom: 0.5em !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+    color: var(--text-normal) !important;
+}
+
+/* ============================================
+   Folder Scope Picker Modal
+   ============================================ */
+
+.ai-organiser-folder-picker .folder-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    margin: 12px 0;
+    background-color: var(--background-secondary);
+}
+
+.ai-organiser-folder-picker .folder-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    transition: background-color 0.1s ease;
+}
+
+.ai-organiser-folder-picker .folder-item:last-child {
+    border-bottom: none;
+}
+
+.ai-organiser-folder-picker .folder-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.ai-organiser-folder-picker .folder-item.selected {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.ai-organiser-folder-picker .folder-item.selected:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.ai-organiser-folder-picker .folder-item-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-organiser-folder-picker .folder-item-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ai-organiser-folder-picker .folder-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-organiser-folder-picker .folder-list-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.ai-organiser-folder-picker .folder-picker-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+}
+
+.ai-organiser-folder-picker .folder-picker-search-input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+.ai-organiser-folder-picker .folder-picker-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-folder-picker .search-highlight {
+    background-color: var(--text-highlight-bg);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+/* ============================================
+   AI Suggestions Modal - Wider text inputs
+   ============================================ */
+
+.ai-organiser-suggestion-item .setting-item {
+    flex-wrap: wrap;
+}
+
+.ai-organiser-suggestion-item .setting-item-control {
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ai-organiser-suggestion-item .setting-item-control input[type="text"] {
+    min-width: 280px;
+    width: 100%;
+    max-width: 350px;
+}
+
+/* ============================================
+   Scope Modal (Tag/Clear) - Card-based design
+   ============================================ */
+
+.ai-organiser-scope-modal {
+    padding: 20px;
+    width: 400px;
+    max-width: 90vw;
+}
+
+.ai-organiser-scope-title {
+    margin: 0 0 16px 0;
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.ai-organiser-scope-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.ai-organiser-scope-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--background-primary);
+}
+
+.ai-organiser-scope-card:hover {
+    background: var(--background-modifier-hover);
+    border-color: var(--background-modifier-border-hover);
+}
+
+.ai-organiser-scope-card.selected {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.ai-organiser-scope-card.selected:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.ai-organiser-scope-card-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--background-secondary);
+}
+
+.ai-organiser-scope-card.selected .ai-organiser-scope-card-icon {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.ai-organiser-scope-card-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ai-organiser-scope-card-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ai-organiser-scope-card-label {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.ai-organiser-scope-card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-organiser-scope-card.selected .ai-organiser-scope-card-desc {
+    color: var(--text-on-accent);
+    opacity: 0.85;
+}
+
+.ai-organiser-scope-radio-hidden {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ai-organiser-detected-badge {
+    font-size: 10px;
+    color: var(--text-accent);
+    font-weight: normal;
+    margin-left: 4px;
+}
+
+.ai-organiser-scope-card.selected .ai-organiser-detected-badge {
+    color: var(--text-on-accent);
+    opacity: 0.85;
+}
+
+.ai-organiser-scope-buttons {
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 16px;
+}
+
+.ai-organiser-scope-buttons .setting-item {
+    border-top: none;
+    padding-top: 0;
+}
+
+/* ============================================
+   Multi-Source Summarization Modal
+   Gestalt-optimized design
+   ============================================ */
+
+.ai-organiser-multi-source-modal {
+    padding: 20px;
+    width: 500px;
+    max-width: 95vw;
+}
+
+.ai-organiser-multi-source-title {
+    margin: 0 0 8px 0;
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.ai-organiser-multi-source-desc {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin: 0 0 20px 0;
+}
+
+.ai-organiser-multi-source-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* Section styling - Gestalt Enclosure */
+.ai-organiser-multi-source-section {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-multi-source-section-note {
+    background: var(--background-primary-alt);
+    border-color: var(--interactive-accent);
+}
+
+/* Empty sections - Gestalt Figure/Ground */
+.ai-organiser-multi-source-section-empty {
+    opacity: 0.6;
+    background: var(--background-primary);
+}
+
+.ai-organiser-multi-source-section-empty:hover {
+    opacity: 0.8;
+}
+
+/* Section header - Gestalt Proximity */
+.ai-organiser-multi-source-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.ai-organiser-multi-source-section-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+}
+
+.ai-organiser-multi-source-section-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ai-organiser-multi-source-section-title {
+    flex: 1;
+    font-size: 13px;
+}
+
+/* Count badge - Gestalt Similarity */
+.ai-organiser-multi-source-count-badge {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* Items container */
+.ai-organiser-multi-source-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+/* Individual source item - Gestalt Common Fate */
+.ai-organiser-multi-source-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--background-primary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s ease;
+}
+
+.ai-organiser-multi-source-item:hover {
+    background: var(--background-modifier-hover);
+}
+
+.ai-organiser-multi-source-checkbox {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.ai-organiser-multi-source-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ai-organiser-multi-source-item-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ai-organiser-multi-source-item-label {
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.ai-organiser-multi-source-item-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.ai-organiser-multi-source-item-context {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 2px;
+}
+
+/* Manual item with remove button */
+.ai-organiser-multi-source-item-manual {
+    position: relative;
+    padding-right: 32px;
+}
+
+.ai-organiser-multi-source-remove-button {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-organiser-multi-source-remove-button:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-error);
+}
+
+.ai-organiser-multi-source-remove-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Add input row - Gestalt Proximity (inside section) */
+.ai-organiser-multi-source-add-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.ai-organiser-multi-source-add-input {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+}
+
+.ai-organiser-multi-source-add-input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+.ai-organiser-multi-source-add-button {
+    padding: 6px 10px;
+    background: var(--background-modifier-border);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: all 0.1s ease;
+}
+
+.ai-organiser-multi-source-add-button:hover {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.ai-organiser-multi-source-add-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Settings section */
+.ai-organiser-multi-source-settings {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-multi-source-settings .setting-item {
+    border-top: none;
+    padding: 8px 0;
+}
+
+.ai-organiser-multi-source-settings .setting-item:first-child {
+    padding-top: 0;
+}
+
+.ai-organiser-multi-source-settings .setting-item:last-child {
+    padding-bottom: 0;
+}
+
+/* Button container */
+.ai-organiser-multi-source-buttons {
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 16px;
+    margin-top: 8px;
+}
+
+.ai-organiser-multi-source-buttons .setting-item {
+    border-top: none;
+    padding-top: 0;
+}
+
+.ai-organiser-multi-source-buttons button[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
 }

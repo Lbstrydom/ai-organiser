@@ -6,7 +6,7 @@ import { ExcludedFilesModal } from '../modals/ExcludedFilesModal';
 export class TaggingSettingsSection extends BaseSettingSection {
 
     display(): void {
-        this.containerEl.createEl('h1', { text: this.plugin.t.settings.tagging.title });
+        this.createSectionHeader(this.plugin.t.settings.tagging.title, 'tag');
 
         // Max Tags Setting
         new Setting(this.containerEl)

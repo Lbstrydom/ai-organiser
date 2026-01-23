@@ -21,6 +21,13 @@ function processNode(node: Node): string {
         return node.textContent || '';
     }
 
+    // Handle DocumentFragment (e.g., template.content) by processing its children
+    if (node.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+        return Array.from(node.childNodes)
+            .map(child => processNode(child))
+            .join('');
+    }
+
     if (node.nodeType !== Node.ELEMENT_NODE) {
         return '';
     }

@@ -13,7 +13,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
         this.initialLanguage = this.plugin.settings.interfaceLanguage;
 
         // === Interface Language ===
-        this.containerEl.createEl('h1', { text: this.plugin.t.settings.interface.title });
+        this.createSectionHeader(this.plugin.t.settings.interface.title, 'languages');
 
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.interface.language)

@@ -2,6 +2,7 @@ import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
+import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 
 export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command: Tag (scope modal)
@@ -83,26 +84,39 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
         return;
     }
 
-    new Notice(plugin.t.messages.analyzing);
+    // Show folder scope picker first
+    const t = plugin.t.modals?.folderScopePicker;
+    new FolderScopePickerModal(plugin.app, plugin, {
+        title: t?.title,
+        description: t?.description,
+        allowSkip: true,
+        onSelect: async (folderPath: string | null) => {
+            new Notice(plugin.t.messages.analyzing);
 
-    try {
-        const result = await plugin.analyzeAndTagNote(view.file, content);
+            try {
+                const result = await plugin.analyzeAndTagNote(
+                    view.file!,
+                    content,
+                    folderPath ? { folderScope: folderPath } : undefined
+                );
 
-        if (selectedText && result.success) {
-            editor.replaceSelection(selectedText);
+                if (selectedText && result.success) {
+                    editor.replaceSelection(selectedText);
+                }
+                plugin.handleTagUpdateResult(result);
+
+                if (result.success) {
+                    ensureNoteStructureIfEnabled(editor, plugin.settings);
+                }
+
+                if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+                    await plugin.showSuggestionModal(view.file!, result.suggestedTitle, result.suggestedFolder);
+                }
+            } catch (error) {
+                new Notice(plugin.t.messages.failedToGenerateTags);
+            }
         }
-        plugin.handleTagUpdateResult(result);
-
-        if (result.success) {
-            ensureNoteStructureIfEnabled(editor, plugin.settings);
-        }
-
-        if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
-            await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
-        }
-    } catch (error) {
-        new Notice(plugin.t.messages.failedToGenerateTags);
-    }
+    }).open();
 }
 
 async function tagCurrentFolder(plugin: AIOrganiserPlugin): Promise<void> {

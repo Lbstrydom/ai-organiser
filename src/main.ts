@@ -29,6 +29,7 @@ import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import type { SourcePackConfig } from './services/notebooklm/types';
+import { buildFolderContext, FolderContext } from './utils/folderContextUtils';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
@@ -114,19 +115,8 @@ export default class AIOrganiserPlugin extends Plugin {
      */
     private initializeSourcePackService(): void {
         const config: SourcePackConfig = {
-            exportMode: this.settings.notebooklmExportMode,
-            maxWordsPerModule: this.settings.notebooklmMaxWordsPerModule,
-            removeFrontmatter: this.settings.notebooklmRemoveFrontmatter,
-            flattenCallouts: this.settings.notebooklmFlattenCallouts,
-            stripDataview: this.settings.notebooklmStripDataview,
-            stripDataviewJs: this.settings.notebooklmStripDataviewJs,
-            resolveEmbeds: this.settings.notebooklmResolveEmbeds,
-            embedMaxDepth: this.settings.notebooklmEmbedMaxDepth,
-            embedMaxChars: this.settings.notebooklmEmbedMaxChars,
-            includeLinkContext: this.settings.notebooklmIncludeLinkContext,
-            linkContextMaxChars: this.settings.notebooklmLinkContextMaxChars,
-            linkContextDepth: this.settings.notebooklmLinkContextDepth,
-            imageHandling: this.settings.notebooklmImageHandling,
+            selectionTag: this.settings.notebooklmSelectionTag,
+            exportFolder: this.settings.notebooklmExportFolder,
             postExportTagAction: this.settings.notebooklmPostExportTagAction
         };
 
@@ -210,6 +200,7 @@ export default class AIOrganiserPlugin extends Plugin {
             }, this.app);
 
         this.llmService.setDebugMode(this.settings.debugMode);
+        this.llmService.setSummarizeTimeout(this.settings.summarizeTimeoutSeconds);
         setGlobalDebugMode(this.settings.debugMode);
     }
 
@@ -530,8 +521,15 @@ export default class AIOrganiserPlugin extends Plugin {
 
     /**
      * Analyzes note content and applies tags using taxonomy-based approach
+     * @param file - File to analyze and tag
+     * @param contentOrAnalysis - Note content string or pre-analyzed LLMResponse
+     * @param options - Optional settings including folder scope
      */
-    public async analyzeAndTagNote(file: TFile, contentOrAnalysis: string | LLMResponse): Promise<TagOperationResult> {
+    public async analyzeAndTagNote(
+        file: TFile,
+        contentOrAnalysis: string | LLMResponse,
+        options?: { folderScope?: string }
+    ): Promise<TagOperationResult> {
         try {
             let tags: string[];
             let suggestedTitle: string | undefined;
@@ -547,12 +545,23 @@ export default class AIOrganiserPlugin extends Plugin {
                 const taxonomyPrompt = await this.configService.getTaxonomyForPrompt();
                 const excludedTags = await this.configService.getExcludedTags();
 
-                // Build the prompt
+                // Build folder context if scope provided
+                let folderContext: FolderContext | undefined;
+                if (options?.folderScope) {
+                    folderContext = buildFolderContext(this.app, options.folderScope);
+                    if (this.settings.debugMode) {
+                        console.log('[AI Organiser Debug] Folder scope:', options.folderScope);
+                        console.log('[AI Organiser Debug] Folder context:', folderContext);
+                    }
+                }
+
+                // Build the prompt with optional folder context
                 const prompt = buildTaxonomyTagPrompt(
                     content,
                     taxonomyPrompt,
                     this.settings.maxTags,
-                    this.settings.language
+                    this.settings.language,
+                    folderContext
                 );
 
                 // Get tags from LLM

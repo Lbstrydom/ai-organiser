@@ -96,7 +96,11 @@ export const en: Translations = {
             transcriptNone: "Don't save",
             transcriptFile: "Save to file",
             transcriptFolder: "Folder",
-            transcriptFolderDesc: "Where to save transcript files"
+            transcriptFolderDesc: "Where to save transcript files",
+            advancedOptions: "Advanced",
+            timeout: "Request Timeout",
+            timeoutDesc: "Seconds to wait for AI response. Increase for slow models or large content (30-600s).",
+            resetToDefault: "Reset to default (120s)"
         },
         configuration: {
             title: "Advanced",
@@ -210,6 +214,10 @@ export const en: Translations = {
             indexSizeLimit: "Index Size Limit (MB)",
             indexSizeLimitDesc: "Skip loading the index if it exceeds this size",
             desktopOnlyNote: "These settings apply on mobile only."
+        },
+        integrations: {
+            title: "Integrations",
+            description: "Configure integrations with external tools and plugins."
         },
         bases: {
             title: "Obsidian Bases Integration",
@@ -581,11 +589,37 @@ export const en: Translations = {
         summarizeSource: {
             title: "Summarize",
             thisNote: "This note",
-            pasteUrl: "Paste URL",
-            selectPdf: "Select PDF",
+            thisNoteDesc: "Summarize the current note content",
+            pasteUrl: "Web URL",
+            pasteUrlDesc: "Fetch and summarize a web page",
+            selectPdf: "PDF file",
+            selectPdfDesc: "Summarize a PDF from your vault",
             youtubeVideo: "YouTube video",
+            youtubeDesc: "Summarize from video transcript",
             audioFile: "Audio file",
+            audioDesc: "Transcribe and summarize audio",
             continueButton: "Continue"
+        },
+        multiSource: {
+            title: "Summarize Sources",
+            description: "Select sources to summarize. The AI will synthesize content from all selected sources.",
+            currentNote: "Current Note",
+            includeNoteContent: "Include note content",
+            noteContentDesc: "Analyze the current note alongside external sources",
+            webPages: "Web Pages",
+            youtubeVideos: "YouTube Videos",
+            pdfDocuments: "PDF Documents",
+            audioFiles: "Audio Files",
+            addUrlPlaceholder: "https://example.com",
+            addYoutubePlaceholder: "https://youtube.com/watch?v=...",
+            addPdfPlaceholder: "Path to PDF or URL",
+            addAudioPlaceholder: "Path to audio file",
+            focusContext: "Focus Context",
+            focusContextDesc: "Optional: Specify what aspects to focus on",
+            focusPlaceholder: "e.g., \"key findings\" or \"action items\"",
+            summarizeButton: "Summarize",
+            summarizeOne: "Summarize 1 source",
+            summarizeMultiple: "Summarize {count} sources"
         },
         enhance: {
             title: "Enhance Note",
@@ -604,6 +638,14 @@ export const en: Translations = {
             currentFolder: "Current folder",
             entireVault: "Entire vault",
             tagButton: "Tag"
+        },
+        folderScopePicker: {
+            title: "Select Folder Scope",
+            description: "Choose a root folder to constrain AI suggestions within your organizational structure.",
+            searchPlaceholder: "Search folders...",
+            useEntireVault: "Use entire vault",
+            selectButton: "Select",
+            noFoldersFound: "No folders found"
         },
         clearTagsScope: {
             title: "Clear Tags",

@@ -1002,7 +1002,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
         const { containerEl } = this;
         const t = this.plugin.t;
 
-        containerEl.createEl('h3', { text: t.settings.configuration.title });
+        this.createSectionHeader(t.settings.configuration.title, 'settings');
 
         // Config folder path
         new Setting(containerEl)

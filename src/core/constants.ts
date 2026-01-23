@@ -4,39 +4,39 @@
  */
 
 /**
- * Frontmatter property namespace for AI Organiser metadata
- * All properties use the aio_ prefix to avoid conflicts with user properties
+ * Frontmatter property names for AI Organiser metadata
+ * Uses simple, user-friendly names for better readability in notes
  */
 export const AIO_META = {
     /** 280-char summary hook for Bases preview */
-    SUMMARY: 'aio_summary',
-    
+    SUMMARY: 'summary',
+
     /** Processing status: 'processed' | 'pending' | 'error' */
-    STATUS: 'aio_status',
-    
+    STATUS: 'status',
+
     /** Content type classification: 'note' | 'research' | 'meeting' | 'project' | 'reference' */
-    TYPE: 'aio_type',
-    
+    TYPE: 'type',
+
     /** ISO timestamp of last AI processing */
-    PROCESSED: 'aio_processed',
-    
+    PROCESSED: 'processed',
+
     /** LLM model used (e.g., 'gpt-4o', 'claude-3-5-sonnet') */
-    MODEL: 'aio_model',
-    
+    MODEL: 'model',
+
     /** Content source type: 'url' | 'pdf' | 'youtube' | 'audio' | 'note' */
-    SOURCE: 'aio_source',
-    
+    SOURCE: 'source',
+
     /** Original URL if web content */
-    SOURCE_URL: 'aio_source_url',
-    
+    SOURCE_URL: 'source_url',
+
     /** Approximate word count */
-    WORD_COUNT: 'aio_word_count',
-    
+    WORD_COUNT: 'word_count',
+
     /** Detected content language */
-    LANGUAGE: 'aio_language',
-    
+    LANGUAGE: 'language',
+
     /** Persona ID used for summarization (e.g., 'student', 'executive') */
-    PERSONA: 'aio_persona',
+    PERSONA: 'persona',
 } as const;
 
 /**

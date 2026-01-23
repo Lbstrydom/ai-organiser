@@ -10,7 +10,7 @@ import { PdfService, serviceCanSummarizePdf, PdfContent } from '../services/pdfS
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
-import { updateAIOMetadata, countWords } from '../utils/frontmatterUtils';
+import { updateAIOMetadata } from '../utils/frontmatterUtils';
 import { SourceType } from '../core/constants';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider, resetPrivacyNotice } from '../services/privacyNotice';
@@ -41,7 +41,9 @@ import {
     ensureNoteStructureIfEnabled
 } from '../utils/noteStructure';
 import { SummarizeSourceModal, SummarizeSourceOption } from '../ui/modals/SummarizeSourceModal';
+import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
 import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
+import { removeProcessedSources } from '../utils/sourceDetection';
 
 /**
  * Update note with structured metadata after summarization
@@ -50,11 +52,11 @@ async function updateNoteMetadataAfterSummary(
     plugin: AIOrganiserPlugin,
     view: MarkdownView | MarkdownFileInfo,
     summaryHook: string,
-    suggestedTags: string[],
-    contentType: string,
-    sourceType?: SourceType,
+    _suggestedTags: string[],
+    _contentType: string,
+    _sourceType?: SourceType,
     sourceUrl?: string,
-    personaId?: string
+    _personaId?: string
 ): Promise<void> {
     if (!plugin.settings.enableStructuredMetadata) {
         return;
@@ -63,46 +65,19 @@ async function updateNoteMetadataAfterSummary(
     const file = view.file;
     if (!file) return;
 
-    // Read current content to get word count
-    const content = await plugin.app.vault.read(file);
-    const wordCount = countWords(content);
-
-    // Build metadata object
+    // Build minimal metadata - just summary and source URL
     const metadata: any = {
-        aio_summary: summaryHook,
-        aio_status: 'processed',
-        aio_type: contentType,
-        aio_processed: new Date().toISOString(),
-        aio_word_count: wordCount
+        summary: summaryHook
     };
-    
-    // Add persona if provided
-    if (personaId) {
-        metadata.aio_persona = personaId;
-    }
 
-    // Add source info if available
-    if (sourceType) {
-        metadata.aio_source = sourceType;
-    }
+    // Add source URL if available (most useful reference)
     if (sourceUrl) {
-        metadata.aio_source_url = sourceUrl;
-    }
-
-    // Add model info if enabled
-    if (plugin.settings.includeModelInMetadata) {
-        metadata.aio_model = plugin.llmService.getModelName?.() || 'unknown';
+        metadata.source_url = sourceUrl;
     }
 
     // Update frontmatter
     await updateAIOMetadata(plugin.app, file, metadata);
 
-    // Add tags if any suggested
-    if (suggestedTags && suggestedTags.length > 0) {
-        // Tags need to be added separately via Obsidian's tag update mechanism
-        // This will be handled by the calling code after metadata update
-        // Just store the suggested tags for now
-    }
 }
 
 /**
@@ -245,45 +220,401 @@ async function executeSmartSummarize(
         return;
     }
 
+    // Get current note content for source detection
+    const noteContent = editor.getValue();
+
+    // Open multi-source modal with auto-detected sources
+    openMultiSourceModal(plugin, pdfService, editor, view, noteContent);
+}
+
+/**
+ * Open the multi-source summarization modal
+ */
+function openMultiSourceModal(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    view: MarkdownView,
+    noteContent: string
+): void {
+    const modal = new MultiSourceModal(
+        plugin.app,
+        plugin,
+        noteContent,
+        async (result: MultiSourceModalResult) => {
+            try {
+                await handleMultiSourceResult(plugin, pdfService, editor, view, result);
+            } catch (e) {
+                console.error('Error in handleMultiSourceResult:', e);
+                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+        }
+    );
+    modal.open();
+}
+
+/**
+ * Handle the result from multi-source modal
+ * Routes to appropriate handlers based on selection
+ */
+async function handleMultiSourceResult(
+    plugin: AIOrganiserPlugin,
+    pdfService: PdfService,
+    editor: Editor,
+    view: MarkdownView,
+    result: MultiSourceModalResult
+): Promise<void> {
     const defaultPersonaId = plugin.settings.defaultSummaryPersona;
     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
 
-    const selection = editor.getSelection().trim();
-    if (selection) {
-        const selectionTarget = detectTargetFromText(plugin, selection, view.file, false);
-        if (selectionTarget.type !== 'none') {
-            await handleSmartTarget(plugin, pdfService, editor, selectionTarget, personaPrompt, defaultPersonaId);
-            return;
-        }
+    // Count total sources to process
+    const totalSources =
+        (result.summarizeNote ? 1 : 0) +
+        result.sources.urls.length +
+        result.sources.youtube.length +
+        result.sources.pdfs.length +
+        result.sources.audio.length;
 
-        if (selection.length > 50) {
-            await handleTextSummarization(plugin, editor, selection, personaPrompt);
-            return;
-        }
-    }
-
-    const line = editor.getLine(editor.getCursor().line);
-    if (isYouTubeUrlText(line)) {
-        const url = extractUrl(line);
-        if (url) {
-            await handleYouTubeSummarization(plugin, editor, url, personaPrompt, undefined, defaultPersonaId);
-            return;
-        }
-    }
-
-    const lineTarget = detectTargetFromText(plugin, line, view.file, false);
-    if (lineTarget.type !== 'none') {
-        await handleSmartTarget(plugin, pdfService, editor, lineTarget, personaPrompt, defaultPersonaId);
+    if (totalSources === 0) {
+        new Notice('No sources selected');
         return;
     }
 
-    const frontmatterTarget = detectTargetFromFrontmatter(plugin, view.file);
-    if (frontmatterTarget.type !== 'none') {
-        await handleSmartTarget(plugin, pdfService, editor, frontmatterTarget, personaPrompt, defaultPersonaId);
+    // For single source, use existing handlers directly
+    if (totalSources === 1) {
+        if (result.summarizeNote) {
+            await summarizeCurrentNote(plugin, editor, view, personaPrompt);
+            return;
+        }
+        if (result.sources.urls.length === 1) {
+            const url = result.sources.urls[0];
+            try {
+                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, defaultPersonaId);
+                // Remove URL from note body after processing
+                removeSourceFromEditor(editor, url);
+            } catch (e) {
+                console.error('Error in handleUrlSummarization:', e);
+                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+            return;
+        }
+        if (result.sources.youtube.length === 1) {
+            const url = result.sources.youtube[0];
+            try {
+                await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, defaultPersonaId);
+                // Remove YouTube URL from note body after processing
+                removeSourceFromEditor(editor, url);
+            } catch (e) {
+                console.error('Error in handleYouTubeSummarization:', e);
+                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+            return;
+        }
+        if (result.sources.pdfs.length === 1) {
+            const pdf = result.sources.pdfs[0];
+            if (pdf.isVaultFile) {
+                const file = plugin.app.vault.getAbstractFileByPath(pdf.path);
+                if (file instanceof TFile) {
+                    await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, defaultPersonaId);
+                }
+            } else {
+                await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, defaultPersonaId);
+            }
+            return;
+        }
+        if (result.sources.audio.length === 1) {
+            // Audio requires the AudioSelectModal for transcription options
+            void openAudioSummarizeModal(plugin, editor);
+            return;
+        }
+    }
+
+    // Multiple sources - process sequentially
+    new Notice(`Processing ${totalSources} sources...`);
+
+    const summaries: string[] = [];
+    const sourceLabels: string[] = [];
+
+    // Track source data for References and Pending Integration
+    interface ProcessedSource {
+        type: 'web' | 'youtube' | 'note';
+        url?: string;
+        title: string;
+        date: string;
+    }
+    const processedSources: ProcessedSource[] = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    // Track progress
+    let processedCount = 0;
+    const showProgress = () => {
+        new Notice(`Processing source ${processedCount + 1} of ${totalSources}...`, 3000);
+    };
+
+    // Process note content first if selected
+    if (result.summarizeNote && view.file) {
+        showProgress();
+        try {
+            const content = await plugin.app.vault.read(view.file);
+            new Notice('Summarizing note content...', 5000);
+            const summary = await callSummarizeService(plugin, content, personaPrompt, result.focusContext);
+            if (summary) {
+                summaries.push(summary);
+                sourceLabels.push(`Current Note: ${view.file.basename}`);
+                processedSources.push({
+                    type: 'note',
+                    title: view.file.basename,
+                    date: today
+                });
+            }
+            processedCount++;
+        } catch (e) {
+            console.error('Failed to summarize note:', e);
+            processedCount++;
+        }
+    }
+
+    // Process URLs
+    for (const url of result.sources.urls) {
+        showProgress();
+        try {
+            new Notice('Fetching web page...', 5000);
+            const webResult = await fetchArticle(url);
+            if (webResult.success && webResult.content) {
+                new Notice(`Summarizing: ${webResult.content.title?.substring(0, 40) || 'web page'}...`, 10000);
+                const summary = await callSummarizeService(plugin, webResult.content.textContent, personaPrompt, result.focusContext);
+                if (summary) {
+                    summaries.push(summary);
+                    const title = webResult.content.title || url;
+                    sourceLabels.push(`URL: ${title}`);
+                    processedSources.push({
+                        type: 'web',
+                        url: url,
+                        title: title,
+                        date: today
+                    });
+                }
+            }
+            processedCount++;
+        } catch (e) {
+            console.error(`Failed to summarize URL ${url}:`, e);
+            new Notice(`Failed to fetch: ${url}`);
+            processedCount++;
+        }
+    }
+
+    // Process YouTube videos
+    for (const url of result.sources.youtube) {
+        showProgress();
+        try {
+            new Notice('Fetching YouTube transcript...', 5000);
+            const transcriptResult = await fetchYouTubeTranscript(url);
+            if (transcriptResult?.success && transcriptResult.transcript) {
+                new Notice(`Summarizing: ${transcriptResult.videoInfo?.title?.substring(0, 40) || 'video'}...`, 10000);
+                const summary = await callSummarizeService(plugin, transcriptResult.transcript, personaPrompt, result.focusContext);
+                if (summary) {
+                    summaries.push(summary);
+                    const title = transcriptResult.videoInfo?.title || url;
+                    sourceLabels.push(`YouTube: ${title}`);
+                    processedSources.push({
+                        type: 'youtube',
+                        url: url,
+                        title: title,
+                        date: today
+                    });
+                }
+            }
+            processedCount++;
+        } catch (e) {
+            console.error(`Failed to summarize YouTube ${url}:`, e);
+            new Notice(`Failed to fetch transcript: ${url}`);
+            processedCount++;
+        }
+    }
+
+    // Process PDFs - these require multimodal API, skip for multi-source for now
+    if (result.sources.pdfs.length > 0) {
+        new Notice(`PDF summarization in multi-source mode is not yet supported. Please summarize PDFs individually.`);
+    }
+
+    // Audio files - notify user to use individual processing
+    if (result.sources.audio.length > 0) {
+        new Notice(`Audio files require individual processing. Please use the audio summarize option.`);
+    }
+
+    // Combine summaries
+    if (summaries.length === 0) {
+        new Notice('No content could be summarized');
         return;
     }
 
-    openSummarizeSourceModal(plugin, pdfService, editor, view, personaPrompt);
+    // Create combined summary section
+    let combinedOutput = '\n\n## Summary\n\n';
+
+    if (summaries.length === 1) {
+        combinedOutput += summaries[0];
+    } else {
+        // Synthesize multiple summaries
+        const synthesisPrompt = buildSynthesisPrompt(summaries, sourceLabels, result.focusContext, personaPrompt);
+        try {
+            const synthesisResult = await callSummarizeService(plugin, synthesisPrompt, '', undefined, true);
+            if (synthesisResult) {
+                combinedOutput += synthesisResult;
+            } else {
+                // Fallback: just combine with headers
+                for (let i = 0; i < summaries.length; i++) {
+                    combinedOutput += `### ${sourceLabels[i]}\n\n${summaries[i]}\n\n`;
+                }
+            }
+        } catch (e) {
+            console.error('Failed to synthesize summaries:', e);
+            // Fallback: just combine with headers
+            for (let i = 0; i < summaries.length; i++) {
+                combinedOutput += `### ${sourceLabels[i]}\n\n${summaries[i]}\n\n`;
+            }
+        }
+    }
+
+    // Insert summary at cursor (no longer add "Sources:" text - use proper sections instead)
+    editor.replaceSelection(combinedOutput);
+
+    // Add each source to References section only
+    // Note: We don't add to Pending Integration here because the URL has already been processed
+    // Pending Integration is for content that hasn't been integrated yet
+    for (const source of processedSources) {
+        if (source.url) {
+            // Add to References section
+            const sourceRef: SourceReference = {
+                type: source.type,
+                title: source.title,
+                link: source.url,
+                date: source.date,
+                isInternal: false
+            };
+            addToReferencesSection(editor, sourceRef);
+        }
+    }
+
+    // Ensure note structure (References and Pending Integration sections)
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
+
+    // Remove processed source URLs from note body (move to References only)
+    const urlsToRemove = processedSources
+        .filter(s => s.url && s.type !== 'note')
+        .map(s => s.url as string);
+
+    if (urlsToRemove.length > 0) {
+        const fullContent = editor.getValue();
+        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove);
+        if (cleanedContent !== fullContent) {
+            // Save cursor position relative to end
+            const cursor = editor.getCursor();
+            editor.setValue(cleanedContent);
+            // Try to restore cursor position
+            editor.setCursor(cursor);
+        }
+    }
+
+    new Notice(`Summarized ${summaries.length} source(s)`);
+}
+
+/**
+ * Remove a single source URL from the editor content
+ * Used after processing to move URLs to References section
+ */
+function removeSourceFromEditor(editor: Editor, url: string): void {
+    const fullContent = editor.getValue();
+    const cleanedContent = removeProcessedSources(fullContent, [url]);
+    if (cleanedContent !== fullContent) {
+        const cursor = editor.getCursor();
+        editor.setValue(cleanedContent);
+        editor.setCursor(cursor);
+    }
+}
+
+/**
+ * Call the summarize service to get a summary
+ */
+async function callSummarizeService(
+    plugin: AIOrganiserPlugin,
+    content: string,
+    personaPrompt: string,
+    focusContext?: string,
+    isRawPrompt: boolean = false
+): Promise<string | null> {
+    try {
+        let finalPrompt: string;
+
+        if (isRawPrompt) {
+            // Content is already a complete prompt
+            finalPrompt = content;
+        } else {
+            const language = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
+            const promptOptions: SummaryPromptOptions = {
+                length: plugin.settings.summaryLength,
+                language,
+                personaPrompt,
+                userContext: focusContext
+            };
+            const prompt = buildSummaryPrompt(promptOptions);
+            finalPrompt = insertContentIntoPrompt(prompt, content);
+        }
+
+        // Use the same approach as summarizeTextWithLLM
+        let response: { success: boolean; content?: string; error?: string };
+
+        if (plugin.settings.serviceType === 'cloud') {
+            const { CloudLLMService } = await import('../services/cloudService');
+            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
+            response = await cloudService.summarizeText(finalPrompt);
+        } else {
+            const { LocalLLMService } = await import('../services/localService');
+            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
+            response = await localService.summarizeText(finalPrompt);
+        }
+
+        return response.success ? response.content || null : null;
+    } catch (e) {
+        console.error('Failed to summarize content:', e);
+        return null;
+    }
+}
+
+/**
+ * Build a prompt to synthesize multiple summaries
+ */
+function buildSynthesisPrompt(
+    summaries: string[],
+    sourceLabels: string[],
+    focusContext: string | undefined,
+    personaPrompt: string
+): string {
+    let prompt = `<task>
+Synthesize the following ${summaries.length} summaries into a single, coherent summary.
+Combine related information, eliminate redundancy, and organize the content logically.
+${focusContext ? `Focus on: ${focusContext}` : ''}
+</task>
+
+${personaPrompt ? `<persona>${personaPrompt}</persona>` : ''}
+
+<summaries>
+`;
+
+    for (let i = 0; i < summaries.length; i++) {
+        prompt += `\n### Source: ${sourceLabels[i]}\n${summaries[i]}\n`;
+    }
+
+    prompt += `</summaries>
+
+<output_format>
+Provide a unified summary that:
+1. Integrates key points from all sources
+2. Highlights common themes and connections
+3. Notes any contrasting perspectives
+4. Is well-structured with clear organization
+</output_format>`;
+
+    return prompt;
 }
 
 async function handleSmartTarget(
@@ -340,9 +671,12 @@ function openSummarizeSourceModal(
     pdfService: PdfService,
     editor: Editor,
     view: MarkdownView,
-    personaPrompt: string
+    detectedSource?: SummarizeSourceOption
 ): void {
-    const modal = new SummarizeSourceModal(plugin.app, plugin, (source: SummarizeSourceOption) => {
+    const modal = new SummarizeSourceModal(plugin.app, plugin, async (source: SummarizeSourceOption) => {
+        const defaultPersonaId = plugin.settings.defaultSummaryPersona;
+        const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
+
         switch (source) {
             case 'note':
                 void summarizeCurrentNote(plugin, editor, view, personaPrompt);
@@ -362,7 +696,7 @@ function openSummarizeSourceModal(
             default:
                 break;
         }
-    });
+    }, detectedSource);
     modal.open();
 }
 
@@ -735,10 +1069,35 @@ async function handleUrlSummarization(
 
     const result = await fetchArticle(url);
 
+    // Debug logging for URL fetch
+    if (plugin.settings.debugMode) {
+        console.log('[AI Organiser] URL fetch result:', {
+            success: result.success,
+            error: result.error,
+            hasContent: !!result.content,
+            contentLength: result.content?.content?.length || 0,
+            textContentLength: result.content?.textContent?.length || 0,
+            title: result.content?.title
+        });
+    }
+
     if (result.success && result.content) {
+        // Show progress - summarization can take a while for large content
+        const contentSize = result.content.textContent?.length || 0;
+        const sizeDesc = contentSize > 15000 ? 'large article' : contentSize > 5000 ? 'article' : 'content';
+        new Notice(`Summarizing ${sizeDesc} (${Math.round(contentSize / 1000)}k chars)... This may take a moment.`, 15000);
+
         // Check content size against limits
         const content = result.content.content; // Markdown content
         const maxChars = getMaxContentChars(serviceType);
+
+        // Debug logging for content being summarized
+        if (plugin.settings.debugMode) {
+            console.log('[AI Organiser] Content to summarize:', {
+                length: content.length,
+                preview: content.substring(0, 500)
+            });
+        }
 
         if (isContentTooLarge(content, serviceType)) {
             // Show content size modal for user choice
@@ -1564,6 +1923,17 @@ async function summarizeAndInsert(
     userContext?: string,
     personaId?: string
 ): Promise<void> {
+    // Debug logging for summarizeAndInsert
+    if (plugin.settings.debugMode) {
+        console.log('[AI Organiser] summarizeAndInsert called:', {
+            contentLength: content?.length || 0,
+            contentEmpty: !content || content.trim().length === 0,
+            contentPreview: content?.substring(0, 300) || 'EMPTY',
+            webContentUrl: webContent?.url,
+            enableStructuredMetadata: plugin.settings.enableStructuredMetadata
+        });
+    }
+
     // Use structured output if enabled, otherwise use traditional prompts
     if (plugin.settings.enableStructuredMetadata) {
         const promptOptions = {
@@ -1575,6 +1945,16 @@ async function summarizeAndInsert(
 
         const promptTemplate = buildStructuredSummaryPrompt(promptOptions);
         const prompt = insertContentIntoStructuredPrompt(promptTemplate, content);
+
+        // Debug logging for prompt
+        if (plugin.settings.debugMode) {
+            console.log('[AI Organiser] Structured prompt:', {
+                promptLength: prompt.length,
+                hasContentPlaceholder: prompt.includes('{{CONTENT}}'),
+                contentSectionStart: prompt.indexOf('<content>'),
+                promptPreview: prompt.substring(prompt.indexOf('<content>'), prompt.indexOf('<content>') + 500)
+            });
+        }
 
         try {
             const response = await summarizeTextWithLLM(plugin, prompt);
@@ -2069,6 +2449,10 @@ function insertWebSummary(
         isInternal: false
     };
     addToReferencesSection(editor, sourceRef);
+
+    // Note: We don't add to Pending Integration because the URL has been processed
+    // Pending Integration is for raw content that hasn't been summarized yet
+
     ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 

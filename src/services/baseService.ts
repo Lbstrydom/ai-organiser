@@ -11,7 +11,9 @@ import { App, Platform } from 'obsidian';
 export abstract class BaseLLMService {
     protected endpoint: string;
     protected modelName: string;
-    protected readonly TIMEOUT = 30000; // 30 seconds timeout
+    protected readonly TIMEOUT = 30000; // 30 seconds for quick requests
+    protected readonly DEFAULT_SUMMARIZE_TIMEOUT = 120000; // 120 seconds default for summarization
+    private _customSummarizeTimeoutMs: number | null = null; // User-configurable timeout
     private activeRequests = new Set<{ controller: AbortController; timeoutId?: NodeJS.Timeout }>();
     protected readonly app: App;
     protected debugMode: boolean = false;
@@ -34,8 +36,24 @@ export abstract class BaseLLMService {
         this.debugMode = enabled;
     }
 
+    /**
+     * Sets custom summarization timeout (for power users)
+     * @param seconds - Timeout in seconds (minimum 30, maximum 600)
+     */
+    public setSummarizeTimeout(seconds: number): void {
+        // Clamp between 30 seconds and 10 minutes
+        const clampedSeconds = Math.max(30, Math.min(600, seconds));
+        this._customSummarizeTimeoutMs = clampedSeconds * 1000;
+    }
+
     protected getRequestTimeoutMs(): number {
         return Platform.isMobile ? 60000 : this.TIMEOUT;
+    }
+
+    protected getSummarizeTimeoutMs(): number {
+        const baseTimeout = this._customSummarizeTimeoutMs ?? this.DEFAULT_SUMMARIZE_TIMEOUT;
+        // Mobile gets 50% more time due to slower connections
+        return Platform.isMobile ? Math.round(baseTimeout * 1.5) : baseTimeout;
     }
 
     protected async requestWithTimeout<T>(request: Promise<T>, timeoutMs: number): Promise<T> {

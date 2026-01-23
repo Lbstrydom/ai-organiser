@@ -80,6 +80,12 @@ export interface LLMService {
     setDebugMode(enabled: boolean): void;
 
     /**
+     * Set custom summarization timeout (for power users)
+     * @param seconds - Timeout in seconds (30-600)
+     */
+    setSummarizeTimeout(seconds: number): void;
+
+    /**
      * Get the current model name (optional method for metadata tracking)
      */
     getModelName?(): string;

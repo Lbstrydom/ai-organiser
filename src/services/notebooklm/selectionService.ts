@@ -1,13 +1,13 @@
 /**
  * Selection Service for NotebookLM Source Packs
- * 
+ *
  * Handles note selection for export via:
  * - Tag-based selection (notes with specified tag)
  * - Manual selection (specific note list)
  * - Toggle selection (add/remove tag from current note)
  */
 
-import { App, TFile, MetadataCache } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { SelectionResult } from './types';
 
 /**
@@ -20,14 +20,13 @@ export class SelectionService {
     ) {}
 
     /**
-     * Select notes by tag from frontmatter
+     * Get notes selected by tag
      * @param tag Tag to search for (default: 'notebooklm')
-     * @returns Selection result with files and metadata
+     * @returns Selection result with files
      */
-    async selectByTag(tag?: string): Promise<SelectionResult> {
+    async getSelectedNotes(tag?: string): Promise<SelectionResult> {
         const searchTag = tag || this.selectionTag;
         const files: TFile[] = [];
-        let estimatedWords = 0;
 
         // Get all markdown files
         const allFiles = this.app.vault.getMarkdownFiles();
@@ -36,13 +35,11 @@ export class SelectionService {
             // Check if file has the tag in frontmatter
             if (await this.hasTag(file, searchTag)) {
                 files.push(file);
-                estimatedWords += await this.estimateWordCount(file);
             }
         }
 
         return {
             files,
-            estimatedWords,
             selectionMethod: 'tag',
             scopeValue: searchTag
         };
@@ -56,24 +53,21 @@ export class SelectionService {
      */
     async selectByFolder(folderPath: string, recursive: boolean = true): Promise<SelectionResult> {
         const files: TFile[] = [];
-        let estimatedWords = 0;
 
         const allFiles = this.app.vault.getMarkdownFiles();
 
         for (const file of allFiles) {
-            const inFolder = recursive 
+            const inFolder = recursive
                 ? file.path.startsWith(folderPath + '/')
                 : file.parent?.path === folderPath;
 
             if (inFolder) {
                 files.push(file);
-                estimatedWords += await this.estimateWordCount(file);
             }
         }
 
         return {
             files,
-            estimatedWords,
             selectionMethod: 'folder',
             scopeValue: folderPath
         };
@@ -86,19 +80,16 @@ export class SelectionService {
      */
     async selectManual(filePaths: string[]): Promise<SelectionResult> {
         const files: TFile[] = [];
-        let estimatedWords = 0;
 
         for (const path of filePaths) {
             const file = this.app.vault.getAbstractFileByPath(path);
             if (file instanceof TFile && file.extension === 'md') {
                 files.push(file);
-                estimatedWords += await this.estimateWordCount(file);
             }
         }
 
         return {
             files,
-            estimatedWords,
             selectionMethod: 'manual',
             scopeValue: `${files.length} notes`
         };
@@ -123,10 +114,10 @@ export class SelectionService {
 
             if (hasSelectionTag) {
                 // Remove tag
-                frontmatter.tags = frontmatter.tags.filter((t: string) => 
+                frontmatter.tags = frontmatter.tags.filter((t: string) =>
                     t !== this.selectionTag && t !== `#${this.selectionTag}`
                 );
-                
+
                 // Clean up empty tags array
                 if (frontmatter.tags.length === 0) {
                     delete frontmatter.tags;
@@ -153,11 +144,11 @@ export class SelectionService {
                     if (typeof frontmatter.tags === 'string') {
                         frontmatter.tags = [frontmatter.tags];
                     }
-                    
-                    frontmatter.tags = frontmatter.tags.filter((t: string) => 
+
+                    frontmatter.tags = frontmatter.tags.filter((t: string) =>
                         t !== this.selectionTag && t !== `#${this.selectionTag}`
                     );
-                    
+
                     if (frontmatter.tags.length === 0) {
                         delete frontmatter.tags;
                     }
@@ -183,11 +174,11 @@ export class SelectionService {
                     if (typeof frontmatter.tags === 'string') {
                         frontmatter.tags = [frontmatter.tags];
                     }
-                    
-                    frontmatter.tags = frontmatter.tags.filter((t: string) => 
+
+                    frontmatter.tags = frontmatter.tags.filter((t: string) =>
                         t !== this.selectionTag && t !== `#${this.selectionTag}`
                     );
-                    
+
                     if (!frontmatter.tags.includes(archiveTag)) {
                         frontmatter.tags.push(archiveTag);
                     }
@@ -213,9 +204,9 @@ export class SelectionService {
         if (cache?.frontmatter?.tags) {
             const tags = cache.frontmatter.tags;
             const tagArray = Array.isArray(tags) ? tags : [tags];
-            
+
             // Check for tag with or without # prefix
-            return tagArray.some((t: string) => 
+            return tagArray.some((t: string) =>
                 t === tag || t === `#${tag}` || t.replace(/^#/, '') === tag
             );
         }
@@ -223,7 +214,7 @@ export class SelectionService {
         // Fallback: parse frontmatter manually
         const content = await this.app.vault.read(file);
         const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-        
+
         if (!frontmatterMatch) return false;
 
         // Simple tag check in frontmatter (covers most cases)
@@ -232,31 +223,11 @@ export class SelectionService {
     }
 
     /**
-     * Estimate word count for a file
-     * @param file File to count
-     * @returns Estimated word count
-     */
-    private async estimateWordCount(file: TFile): Promise<number> {
-        const content = await this.app.vault.read(file);
-        
-        // Remove frontmatter
-        const withoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n/, '');
-        
-        // Remove code blocks
-        const withoutCode = withoutFrontmatter.replace(/```[\s\S]*?```/g, '');
-        
-        // Count words (split by whitespace)
-        const words = withoutCode.trim().split(/\s+/).filter(w => w.length > 0);
-        
-        return words.length;
-    }
-
-    /**
      * Get all files with selection tag
      * @returns Array of files with selection tag
      */
     async getSelectedFiles(): Promise<TFile[]> {
-        const result = await this.selectByTag();
+        const result = await this.getSelectedNotes();
         return result.files;
     }
 

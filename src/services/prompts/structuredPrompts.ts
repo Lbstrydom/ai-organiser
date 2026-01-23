@@ -81,6 +81,8 @@ You MUST return valid JSON with this exact structure (no additional text before 
 CRITICAL:
 - summary_hook must be 280 characters or less
 - body_content should use markdown formatting (headers, lists, emphasis)
+- body_content must NOT start with a link to the source URL - jump straight into the summary content
+- Do NOT include any reference to the source URL in body_content (it's stored separately in metadata)
 - suggested_tags: array of 3-7 relevant tags
 - content_type: exactly one of: note, research, meeting, project, reference
 - Return ONLY the JSON object, no explanations or wrapper text

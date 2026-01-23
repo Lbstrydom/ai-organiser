@@ -8,7 +8,7 @@ export class LLMSettingsSection extends BaseSettingSection {
     private statusEl: HTMLElement = null!;
 
     display(): void {
-        this.containerEl.createEl('h1', { text: this.plugin.t.settings.llm.title });
+        this.createSectionHeader(this.plugin.t.settings.llm.title, 'bot');
         this.createServiceTypeDropdown();
         this.plugin.settings.serviceType === 'local' ?
             this.displayLocalSettings() :
@@ -378,8 +378,8 @@ export class LLMSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.apiKey)
             .setDesc(this.plugin.t.settings.llm.apiKeyDesc)
-            .addText(text => text
-                .setPlaceholder(
+            .addText(text => {
+                const placeholder =
                     this.plugin.settings.cloudServiceType === 'openai' ? 'sk-...' :
                     this.plugin.settings.cloudServiceType === 'gemini' ? 'AIza...' :
                     this.plugin.settings.cloudServiceType === 'deepseek' ? 'deepseek-...' :
@@ -393,13 +393,28 @@ export class LLMSettingsSection extends BaseSettingSection {
                     this.plugin.settings.cloudServiceType === 'grok' ? 'grok-...' :
                     this.plugin.settings.cloudServiceType === 'mistral' ? 'mist-...' :
                     this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'your-api-key' :
-                    'Bearer oauth2-token'
-                )
-                .setValue(this.plugin.settings.cloudApiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.cloudApiKey = value;
-                    await this.plugin.saveSettings();
-                }));
+                    'Bearer oauth2-token';
+
+                // Display masked API key
+                const currentKey = this.plugin.settings.cloudApiKey || '';
+                const maskedKey = currentKey && currentKey.length > 6
+                    ? currentKey.substring(0, 6) + '•'.repeat(Math.min(20, currentKey.length - 6))
+                    : currentKey;
+
+                text.setPlaceholder(placeholder)
+                    .setValue(maskedKey)
+                    .onChange(async (value) => {
+                        // Only update if user typed something different (not the masked version)
+                        if (value !== maskedKey) {
+                            this.plugin.settings.cloudApiKey = value;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+
+                // Make it a password field for security
+                text.inputEl.type = 'password';
+                return text;
+            });
 
         // For providers with known models, show a dropdown
         const serviceType = this.plugin.settings.cloudServiceType;

@@ -263,6 +263,47 @@ npm run test:auto     # Run automated integration tests (no Obsidian required)
 
 See `docs/usertest.md` for manual testing checklist.
 
+## Deployment Verification ⚠️ CRITICAL
+
+**Always verify deployment after building.** Stale builds in the Obsidian vault cause confusion when changes appear not to work.
+
+### Deploy Path
+```
+C:\obsidian\Second Brain\.obsidian\plugins\ai-organiser\
+```
+
+### Required Files to Deploy
+After `npm run build`, copy these files to the deploy path:
+- `main.js` (required)
+- `manifest.json` (required)
+- `styles.css` (required)
+
+### Verification Steps
+After every build, verify the deployed files are current:
+
+```bash
+# Check repo build timestamp
+ls -la main.js
+
+# Check deployed file timestamp
+ls -la "C:/obsidian/Second Brain/.obsidian/plugins/ai-organiser/main.js"
+
+# Deploy if timestamps don't match
+cp main.js manifest.json styles.css "C:/obsidian/Second Brain/.obsidian/plugins/ai-organiser/"
+```
+
+### Common Issue: Stale Builds
+If changes don't appear after Obsidian restart:
+1. Compare timestamps between repo and vault
+2. Check file sizes match
+3. Re-deploy all three files
+4. Restart Obsidian completely (not just reload)
+
+### Quick Deploy Command
+```bash
+npm run build && cp main.js manifest.json styles.css "C:/obsidian/Second Brain/.obsidian/plugins/ai-organiser/"
+```
+
 ## Code Organization Principles
 
 ### Modular Settings UI
@@ -419,15 +460,15 @@ The Bases integration enables structured metadata and dashboard generation for s
 ### Core Components
 
 **Metadata Namespace** ([src/core/constants.ts](src/core/constants.ts))
-- `AIO_META` object: 10 properties with `aio_` prefix
-- Core: `aio_summary`, `aio_status`, `aio_type`, `aio_processed`
-- Optional: `aio_model`, `aio_source`, `aio_source_url`, `aio_word_count`, `aio_language`, `aio_tags`
+- `AIO_META` object: Simple, user-friendly property names (no prefix)
+- Core properties: `summary`, `source_url` (minimal set used by default)
+- Additional properties available: `status`, `type`, `processed`, `model`, `source`, `word_count`, `language`, `persona`
 - Type definitions: `ContentType`, `StatusValue`, `SourceType` enums
 - `SUMMARY_HOOK_MAX_LENGTH = 280` (optimized for Bases preview pane)
 
 **Frontmatter Utilities** ([src/utils/frontmatterUtils.ts](src/utils/frontmatterUtils.ts))
 - `updateAIOMetadata(app, file, metadata)`: CRUD operations preserving existing frontmatter
-- `getAIOMetadata(app, file)`: Read all `aio_*` properties
+- `getAIOMetadata(app, file)`: Read all AI Organiser metadata properties
 - `createSummaryHook(summary)`: Truncate to 280 chars at sentence boundaries
 - `isAIOProcessed(app, file)`: Check processing status
 - `countWords(content)` and `detectLanguage(content)`: Auto-population helpers
@@ -497,7 +538,7 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Bases Settings Section** ([src/ui/settings/BasesSettingsSection.ts](src/ui/settings/BasesSettingsSection.ts))
 - 3 toggle settings:
   - `enableStructuredMetadata`: Enable Bases integration (default: true)
-  - `includeModelInMetadata`: Add `aio_model` property (default: true)
+  - `includeModelInMetadata`: Add `model` property (default: true)
   - `autoDetectContentType`: Auto-detect content type from keywords (default: true)
 - Info box with usage guidance (3 bullet points)
 - Migration action button (icon: database): Calls `upgrade-metadata` command
@@ -506,12 +547,10 @@ The Bases integration enables structured metadata and dashboard generation for s
 ### Summarization Integration
 
 **Conditional Structured Output** ([src/commands/summarizeCommands.ts](src/commands/summarizeCommands.ts))
-- `updateNoteMetadataAfterSummary()` function (lines 43-111):
+- `updateNoteMetadataAfterSummary()` function:
   - Checks `enableStructuredMetadata` setting
-  - Builds metadata object with `aio_summary`/`status`/`type`/`processed`/`word_count`
-  - Optionally adds `aio_model`, `aio_source`, `aio_source_url`
+  - Builds minimal metadata: `summary` (hook) and `source_url` (if available)
   - Calls `updateAIOMetadata()` to write frontmatter
-  - Adds `suggested_tags` if present
 
 - `summarizeAndInsert()` modified (lines 1515-1599):
   - **If `enableStructuredMetadata`**:
@@ -524,7 +563,7 @@ The Bases integration enables structured metadata and dashboard generation for s
 
 ### Key Implementation Patterns
 
-**Namespace Isolation**: All metadata uses `aio_` prefix to avoid conflicts with other plugins
+**Simple Property Names**: Metadata uses clean, user-friendly names (`summary`, `source_url`) for better readability
 
 **280-Char Summaries**: Optimized for Bases preview pane, truncates at sentence boundaries
 

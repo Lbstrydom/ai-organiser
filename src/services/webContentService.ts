@@ -106,6 +106,14 @@ export async function fetchArticle(url: string): Promise<WebFetchResult> {
         const reader = new Readability(doc);
         const article = reader.parse();
 
+        // Debug logging
+        console.log('[AI Organiser] Readability result:', {
+            hasArticle: !!article,
+            title: article?.title,
+            textContentLength: article?.textContent?.length || 0,
+            htmlContentLength: article?.content?.length || 0,
+        });
+
         if (!article || !article.textContent || article.textContent.length < 100) {
             return {
                 success: false,
@@ -118,6 +126,13 @@ export async function fetchArticle(url: string): Promise<WebFetchResult> {
         const markdownContent = article.content
             ? cleanMarkdown(htmlToMarkdown(article.content))
             : article.textContent;
+
+        // Debug logging for markdown conversion
+        console.log('[AI Organiser] Markdown conversion:', {
+            inputHtmlLength: article.content?.length || 0,
+            outputMarkdownLength: markdownContent?.length || 0,
+            markdownPreview: markdownContent?.substring(0, 200) || 'EMPTY',
+        });
 
         // Extract links for reference
         const links = article.content ? extractLinks(article.content) : [];

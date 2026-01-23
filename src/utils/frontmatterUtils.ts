@@ -69,8 +69,12 @@ export async function updateAIOMetadata(
             noRefs: true   // No YAML references
         }).trim();
         
-        // Build new content
-        const newContent = `---\n${newFrontmatterYAML}\n---${contentAfterFrontmatter}`;
+        // Build new content - ensure newline after closing ---
+        // If contentAfterFrontmatter doesn't start with newline, add one
+        const contentPart = contentAfterFrontmatter.startsWith('\n')
+            ? contentAfterFrontmatter
+            : '\n' + contentAfterFrontmatter;
+        const newContent = `---\n${newFrontmatterYAML}\n---${contentPart}`;
         
         // Write back to file
         await app.vault.modify(file, newContent);

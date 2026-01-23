@@ -8,7 +8,7 @@ export class MobileSettingsSection extends BaseSettingSection {
         const { containerEl, plugin } = this;
         const t = plugin.t;
 
-        containerEl.createEl('h1', { text: t.settings.mobile.title });
+        this.createSectionHeader(t.settings.mobile.title, 'smartphone');
         containerEl.createEl('p', {
             text: t.settings.mobile.description,
             cls: 'setting-item-description'

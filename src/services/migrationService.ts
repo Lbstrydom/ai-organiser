@@ -15,7 +15,7 @@ import {
 import type AIOrganiserPlugin from '../main';
 
 export interface MigrationOptions {
-    /** Whether to overwrite existing aio_* properties */
+    /** Whether to overwrite existing AI Organiser metadata properties */
     overwriteExisting: boolean;
     
     /** Whether to extract summaries from note body */

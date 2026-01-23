@@ -268,7 +268,7 @@ export class CloudLLMService extends BaseLLMService {
                 body: JSON.stringify(requestBody),
                 throw: false
             }),
-            this.getRequestTimeoutMs()
+            this.getSummarizeTimeoutMs() // Use longer timeout for summarization
         );
 
         if (response.status < 200 || response.status >= 300) {

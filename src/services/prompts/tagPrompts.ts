@@ -1,6 +1,7 @@
 import { LanguageCode } from '../types';
 import { LanguageUtils } from '../../utils/languageUtils';
 import { AIOrganiserSettings } from '../../core/settings';
+import { FolderContext } from '../../utils/folderContextUtils';
 
 let pluginSettings: AIOrganiserSettings | undefined;
 
@@ -16,13 +17,15 @@ export function setSettings(settings: AIOrganiserSettings): void {
  * @param taxonomyPrompt - Formatted taxonomy from ConfigurationService.getTaxonomyForPrompt()
  * @param maxTags - Maximum number of tags to return
  * @param language - Language for generated tags
+ * @param folderContext - Optional folder context to constrain suggestions
  * @returns Formatted prompt string
  */
 export function buildTaxonomyTagPrompt(
     content: string,
     taxonomyPrompt: string,
     maxTags: number = 5,
-    language?: LanguageCode | 'default'
+    language?: LanguageCode | 'default',
+    folderContext?: FolderContext
 ): string {
     let langInstructions = '';
 
@@ -35,7 +38,44 @@ Regardless of what language the content is in, all tags, title, and folder must 
 `;
     }
 
-    return `${langInstructions}<task>
+    // Build folder scope constraint if provided
+    let folderScopeInstructions = '';
+    if (folderContext) {
+        // Format subfolder list (limit to 20 for prompt size)
+        let subfolderList = 'None';
+        if (folderContext.subfolders.length > 0) {
+            const displayedFolders = folderContext.subfolders.slice(0, 20);
+            const suffix = folderContext.subfolders.length > 20 ? '...' : '';
+            subfolderList = displayedFolders.join(', ') + suffix;
+        }
+
+        // Format tag list (limit to 30 for prompt size)
+        let tagList = 'None';
+        if (folderContext.existingTags.length > 0) {
+            const displayedTags = folderContext.existingTags.slice(0, 30);
+            const suffix = folderContext.existingTags.length > 30 ? '...' : '';
+            tagList = displayedTags.join(', ') + suffix;
+        }
+
+        folderScopeInstructions = `
+<folder_scope>
+The user's vault is organized with the root folder: "${folderContext.rootPath}"
+This folder contains ${folderContext.noteCount} notes.
+
+Subfolders in this scope: ${subfolderList}
+
+Existing tags used in this scope: ${tagList}
+
+IMPORTANT CONSTRAINTS:
+- Suggest a folder path that fits within "${folderContext.rootPath}" and its subfolders
+- Prefer matching existing tags from this scope when appropriate
+- New tags should be consistent with the organizational style of existing tags
+- The suggested folder should be relative to or within "${folderContext.rootPath}"
+</folder_scope>
+`;
+    }
+
+    return `${langInstructions}${folderScopeInstructions}<task>
 You are a knowledge organizer. Analyze the document and:
 1. Assign tags using a structured 3-level taxonomy
 2. Suggest a descriptive title for the note

@@ -96,7 +96,11 @@ export const zhCN: Translations = {
             transcriptNone: "不保存",
             transcriptFile: "保存到单独文件",
             transcriptFolder: "转录文件夹",
-            transcriptFolderDesc: "保存转录文件的文件夹（相对于库根目录）"
+            transcriptFolderDesc: "保存转录文件的文件夹（相对于库根目录）",
+            advancedOptions: "高级选项",
+            timeout: "请求超时",
+            timeoutDesc: "等待 AI 响应的秒数。对于较慢的模型或大内容，可增加此值（30-600秒）。",
+            resetToDefault: "重置为默认值 (120秒)"
         },
         configuration: {
             title: "配置",
@@ -210,6 +214,10 @@ export const zhCN: Translations = {
             indexSizeLimit: "索引大小限制（MB）",
             indexSizeLimitDesc: "超过此大小则跳过加载索引",
             desktopOnlyNote: "这些设置仅在移动端生效。"
+        },
+        integrations: {
+            title: "集成",
+            description: "配置与外部工具和插件的集成。"
         },
         bases: {
             title: "Obsidian Bases 集成",
@@ -581,11 +589,37 @@ export const zhCN: Translations = {
         summarizeSource: {
             title: "总结",
             thisNote: "此笔记",
-            pasteUrl: "粘贴 URL",
-            selectPdf: "选择 PDF",
+            thisNoteDesc: "总结当前笔记内容",
+            pasteUrl: "网页 URL",
+            pasteUrlDesc: "获取并总结网页内容",
+            selectPdf: "PDF 文件",
+            selectPdfDesc: "总结库中的 PDF 文件",
             youtubeVideo: "YouTube 视频",
+            youtubeDesc: "从视频字幕总结",
             audioFile: "音频文件",
+            audioDesc: "转录并总结音频",
             continueButton: "继续"
+        },
+        multiSource: {
+            title: "总结来源",
+            description: "选择要总结的来源。AI 将综合所有选定来源的内容。",
+            currentNote: "当前笔记",
+            includeNoteContent: "包含笔记内容",
+            noteContentDesc: "与外部来源一起分析当前笔记",
+            webPages: "网页",
+            youtubeVideos: "YouTube 视频",
+            pdfDocuments: "PDF 文档",
+            audioFiles: "音频文件",
+            addUrlPlaceholder: "https://example.com",
+            addYoutubePlaceholder: "https://youtube.com/watch?v=...",
+            addPdfPlaceholder: "PDF 路径或 URL",
+            addAudioPlaceholder: "音频文件路径",
+            focusContext: "聚焦上下文",
+            focusContextDesc: "可选：指定要关注的方面",
+            focusPlaceholder: "例如：\"主要发现\" 或 \"行动项目\"",
+            summarizeButton: "总结",
+            summarizeOne: "总结 1 个来源",
+            summarizeMultiple: "总结 {count} 个来源"
         },
         enhance: {
             title: "增强笔记",
@@ -604,6 +638,14 @@ export const zhCN: Translations = {
             currentFolder: "当前文件夹",
             entireVault: "整个仓库",
             tagButton: "标签"
+        },
+        folderScopePicker: {
+            title: "选择文件夹范围",
+            description: "选择根文件夹以限制 AI 建议在您的组织结构内。",
+            searchPlaceholder: "搜索文件夹...",
+            useEntireVault: "使用整个仓库",
+            selectButton: "选择",
+            noFoldersFound: "未找到文件夹"
         },
         clearTagsScope: {
             title: "清除标签",

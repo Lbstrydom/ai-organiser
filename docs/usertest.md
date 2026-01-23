@@ -13,14 +13,14 @@
 
 ---
 
-## 1. Settings UI (/4)
+## 1. Settings UI (4/4) ✓
 
 | Test | Steps | Pass |
 |------|-------|------|
-| Sections order | Open Settings | AI Provider → Language → Tagging → Summarization → Semantic Search → Bases → NotebookLM → Mobile → Configuration | [x] |
-| No duplicate UI | Toggle semantic search 5× | No duplicate blocks | [ ] |
-| Clean redraw | Change embedding provider 3× | Settings refresh cleanly | [ ] |
-| API key masking | Enter API key | Shows `sk-abc•••••••` format | [ ] |
+| Sections order | Open Settings | AI Provider → Tagging → Summarization → Vault Context → Integrations (Bases, NotebookLM) → Interface → Mobile → Configuration | [x] |
+| No duplicate UI | Toggle semantic search 5× | No duplicate blocks | [x] |
+| Clean redraw | Change embedding provider 3× | Settings refresh cleanly | [x] |
+| API key masking | Enter API key | Shows `sk-abc•••••••` format | [x] |
 
 ---
 
@@ -38,7 +38,7 @@
 
 | Test | Pass |
 |------|------|
-| Summarize URL → metadata added | [ ] |
+| Summarize URL → metadata added | [x] |
 | Summarize PDF (Claude/Gemini) | [ ] |
 | Summarize YouTube | [ ] |
 | Summarize audio file | [ ] |
@@ -70,7 +70,7 @@
 
 ---
 
-## 4. Obsidian Bases Integration (/16)
+## 4. Obsidian Bases Integration (/15)
 
 ### Settings
 
@@ -81,7 +81,6 @@
 | Include model toggle (default ON) | [ ] |
 | Auto-detect content type toggle (default ON) | [ ] |
 | Migrate button visible | [ ] |
-| Dashboard info text visible (no button) | [ ] |
 
 ### Structured Metadata
 
@@ -89,14 +88,8 @@ After summarizing a URL with Bases enabled:
 
 | Property | Check | Pass |
 |----------|-------|------|
-| `aio_summary` | Max 280 chars | [ ] |
-| `aio_status` | = "processed" | [ ] |
-| `aio_type` | = note/research/meeting/project/reference | [ ] |
-| `aio_processed` | ISO timestamp | [ ] |
-| `aio_model` | Model name (if enabled) | [ ] |
-| `aio_source` | = url/pdf/youtube/audio | [ ] |
-| `aio_source_url` | Original URL | [ ] |
-| `aio_persona` | Summary persona used | [ ] |
+| `summary` | Max 280 chars summary hook | [x] |
+| `source_url` | Original URL | [x] |
 
 ### Migration
 
@@ -120,57 +113,36 @@ After summarizing a URL with Bases enabled:
 
 ---
 
-## 5. NotebookLM Export (/16)
+## 5. NotebookLM Export (/8)
 
 ### Settings
 
 | Setting | Default | Pass |
 |---------|---------|------|
+| Section header visible | "NotebookLM Export" | [ ] |
 | Selection tag | notebooklm | [ ] |
-| Export folder | NotebookLM | [ ] |
-| Export mode | auto | [ ] |
-| Words per module | 120,000 | [ ] |
-| Remove frontmatter | ON | [ ] |
-| Flatten callouts | ON | [ ] |
-| Strip Dataview | ON | [ ] |
-| Image handling | strip | [ ] |
-| Resolve embeds | none | [ ] |
-| Post-export action | keep | [ ] |
+| Export folder picker | AI-Organiser/NotebookLM | [ ] |
+| PDF info box visible | Shows why PDF format | [ ] |
 
-### Commands
+### Commands (Not Yet Implemented)
 
 | Test | Steps | Pass |
 |------|-------|------|
 | Toggle selection | Ctrl+P → "NotebookLM: Toggle Selection" on 3 notes | [ ] |
 | Tag added | Notes have `notebooklm` tag | [ ] |
 | Export command | Ctrl+P → "NotebookLM: Export Source Pack" | [ ] |
-| Preview modal | Shows note count, word count, warnings | [ ] |
-| Export completes | Creates pack folder | [ ] |
-| Clear selection | Ctrl+P → "NotebookLM: Clear Selection" | [ ] |
+| Preview modal | Shows note count, size estimate | [ ] |
+| Export completes | Creates pack folder with PDFs | [ ] |
 
-### Export Validation
+### PDF Export Validation
 
 Check output in `AI-Organiser/NotebookLM/Pack_*/`:
 
 | File | Check | Pass |
 |------|-------|------|
-| `index.md` | Upload instructions, TOC | [ ] |
-| `module_01.md` | Sanitized content, stable anchors | [ ] |
+| `README.md` | Upload instructions, note list | [ ] |
+| `*.pdf` files | PDFs preserve images, diagrams | [ ] |
 | `manifest.json` | Note entries, stats | [ ] |
-| `changelog.md` | Changes from previous export | [ ] |
-
-### Sanitization
-
-In `module_01.md`:
-
-| Check | Pass |
-|-------|------|
-| No YAML frontmatter | [ ] |
-| No dataview blocks | [ ] |
-| Callouts flattened | [ ] |
-| Images removed/placeholder | [ ] |
-| Links converted to plain text | [ ] |
-| Stable anchors: `## Note: Title (id: abc123)` | [ ] |
 
 ---
 
@@ -213,15 +185,15 @@ Test with at least one provider:
 
 | Category | Passed | Total |
 |----------|--------|-------|
-| Settings UI | 1 | 4 |
-| Core AI | | 12 |
+| Settings UI | 4 | 4 |
+| Core AI | 1 | 12 |
 | Semantic Search | | 8 |
-| Bases Integration | 1 | 16 |
-| NotebookLM Export | | 16 |
+| Bases Integration | 3 | 9 |
+| NotebookLM Export | | 8 |
 | Mobile | | 4 |
 | LLM Providers | | 6 |
 | Utilities | | 4 |
-| **TOTAL** | 2 | **70** |
+| **TOTAL** | 8 | **55** |
 
 ---
 

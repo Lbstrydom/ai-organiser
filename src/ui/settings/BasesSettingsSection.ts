@@ -4,18 +4,12 @@
  */
 
 import { Setting } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class BasesSettingsSection extends BaseSettingSection {
     display(): void {
-        // === Obsidian Bases Integration ===
-        this.containerEl.createEl('h1', { text: this.plugin.t.settings.bases.title });
-
-        const description = this.containerEl.createEl('p', {
-            cls: 'setting-item-description',
-            text: this.plugin.t.settings.bases.description
-        });
+        // === Obsidian Bases (subsection under Integrations) ===
+        this.containerEl.createEl('h2', { text: this.plugin.t.settings.bases.title });
 
         // Enable structured metadata
         new Setting(this.containerEl)
@@ -56,13 +50,6 @@ export class BasesSettingsSection extends BaseSettingSection {
                     });
             });
 
-        // Info box
-        const infoBox = this.containerEl.createDiv({ cls: 'ai-organiser-info-box' });
-        infoBox.createEl('h3', { text: this.plugin.t.settings.bases.infoTitle });
-        infoBox.createEl('p', { text: this.plugin.t.settings.bases.info1 });
-        infoBox.createEl('p', { text: this.plugin.t.settings.bases.info2 });
-        infoBox.createEl('p', { text: this.plugin.t.settings.bases.info3 });
-
         // Migration action
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.bases.migrateAction)
@@ -76,11 +63,5 @@ export class BasesSettingsSection extends BaseSettingSection {
                         (this.plugin.app as any).commands.executeCommandById('ai-organiser:upgrade-metadata');
                     });
             });
-
-        // Dashboard info
-        const dashboardInfo = this.containerEl.createDiv({ cls: 'setting-item-description' });
-        dashboardInfo.style.marginTop = '12px';
-        dashboardInfo.innerHTML = this.plugin.t.settings.bases.dashboardInfo ||
-            'To create dashboards, right-click a folder and select "Create Bases Dashboard Here".';
     }
 }

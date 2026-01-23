@@ -6,11 +6,12 @@
  * - Toggle selection on current note
  * - Clear selection tags
  * - Open export folder
+ *
+ * NOTE: PDF export not yet implemented - commands show placeholder messages.
  */
 
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
-import { NotebookLMExportModal, NotebookLMExportResult } from '../ui/modals/NotebookLMExportModal';
 
 export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
@@ -27,66 +28,20 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
             }
 
             try {
-                // Get selection by tag
-                const selection = await plugin.sourcePackService.getSelectionByTag();
+                // Get preview
+                const preview = await plugin.sourcePackService.getExportPreview();
 
-                if (selection.files.length === 0) {
+                if (preview.selection.files.length === 0) {
                     new Notice(t.messages?.notebookLMNoSelection || 'No notes selected for export. Add the "notebooklm" tag to notes you want to export.');
                     return;
                 }
 
-                // Generate preview
-                const preview = await plugin.sourcePackService.generatePreview(selection);
-
-                // Open preview modal
-                const modal = new NotebookLMExportModal(
-                    plugin.app,
-                    plugin.t,
-                    preview,
-                    async (result: NotebookLMExportResult) => {
-                        if (!result.proceed) return;
-
-                        // Update service config
-                        plugin.sourcePackService!.updateConfig(result.config);
-
-                        // Execute export with progress notification
-                        const progressNotice = new Notice(
-                            t.messages?.notebookLMExporting || 'Exporting source pack...',
-                            0
-                        );
-
-                        try {
-                            const exportResult = await plugin.sourcePackService!.exportSourcePack(
-                                selection,
-                                (stage, progress) => {
-                                    progressNotice.setMessage(
-                                        `${stage} (${Math.round(progress * 100)}%)`
-                                    );
-                                }
-                            );
-
-                            progressNotice.hide();
-
-                            if (exportResult.success) {
-                                new Notice(
-                                    (t.messages?.notebookLMExportComplete || 'Source pack exported: {notes} notes, {modules} modules')
-                                        .replace('{notes}', String(exportResult.stats?.noteCount || 0))
-                                        .replace('{modules}', String(exportResult.stats?.moduleCount || 0))
-                                );
-                            } else {
-                                new Notice(
-                                    (t.messages?.notebookLMExportFailed || 'Export failed: {error}')
-                                        .replace('{error}', exportResult.errorMessage || 'Unknown error')
-                                );
-                            }
-                        } catch (error) {
-                            progressNotice.hide();
-                            console.error('NotebookLM export failed:', error);
-                            new Notice(t.messages?.notebookLMExportFailed || 'Export failed');
-                        }
-                    }
+                // Show info about PDF export (not yet implemented)
+                const count = preview.selection.files.length;
+                new Notice(
+                    `PDF export coming soon! ${count} notes selected for export.`,
+                    5000
                 );
-                modal.open();
 
             } catch (error) {
                 console.error('Failed to start NotebookLM export:', error);
@@ -107,15 +62,40 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
-            if (!plugin.sourcePackService) {
-                new Notice(t.messages?.notebookLMServiceNotReady || 'NotebookLM service not initialized');
-                return;
-            }
-
             try {
-                const added = await plugin.sourcePackService.toggleSelection(file);
+                // Use processFrontMatter to toggle the tag
+                const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
+                let wasAdded = false;
 
-                if (added) {
+                await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                    // Initialize tags array if needed
+                    if (!frontmatter.tags) {
+                        frontmatter.tags = [];
+                    } else if (typeof frontmatter.tags === 'string') {
+                        frontmatter.tags = [frontmatter.tags];
+                    }
+
+                    const hasTag = frontmatter.tags.some((t: string) =>
+                        t === selectionTag || t === `#${selectionTag}`
+                    );
+
+                    if (hasTag) {
+                        // Remove tag
+                        frontmatter.tags = frontmatter.tags.filter((t: string) =>
+                            t !== selectionTag && t !== `#${selectionTag}`
+                        );
+                        if (frontmatter.tags.length === 0) {
+                            delete frontmatter.tags;
+                        }
+                        wasAdded = false;
+                    } else {
+                        // Add tag
+                        frontmatter.tags.push(selectionTag);
+                        wasAdded = true;
+                    }
+                });
+
+                if (wasAdded) {
                     new Notice(t.messages?.notebookLMSelectionAdded || 'Note added to NotebookLM selection');
                 } else {
                     new Notice(t.messages?.notebookLMSelectionRemoved || 'Note removed from NotebookLM selection');
@@ -139,17 +119,36 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
             }
 
             try {
-                const selection = await plugin.sourcePackService.getSelectionByTag();
+                const preview = await plugin.sourcePackService.getExportPreview();
+                const files = preview.selection.files;
 
-                if (selection.files.length === 0) {
+                if (files.length === 0) {
                     new Notice(t.messages?.notebookLMNoSelection || 'No notes selected');
                     return;
                 }
 
-                await plugin.sourcePackService.clearSelectionTags(selection.files);
+                const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
+
+                // Clear tags from all selected files
+                for (const file of files) {
+                    await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                        if (frontmatter.tags) {
+                            if (typeof frontmatter.tags === 'string') {
+                                frontmatter.tags = [frontmatter.tags];
+                            }
+                            frontmatter.tags = frontmatter.tags.filter((t: string) =>
+                                t !== selectionTag && t !== `#${selectionTag}`
+                            );
+                            if (frontmatter.tags.length === 0) {
+                                delete frontmatter.tags;
+                            }
+                        }
+                    });
+                }
+
                 new Notice(
                     (t.messages?.notebookLMSelectionCleared || 'Cleared selection from {count} notes')
-                        .replace('{count}', String(selection.files.length))
+                        .replace('{count}', String(files.length))
                 );
 
             } catch (error) {

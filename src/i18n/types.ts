@@ -84,6 +84,10 @@ export interface Translations {
             transcriptFile: string;
             transcriptFolder: string;
             transcriptFolderDesc: string;
+            advancedOptions: string;
+            timeout: string;
+            timeoutDesc: string;
+            resetToDefault: string;
         };
         configuration: {
             title: string;
@@ -197,6 +201,10 @@ export interface Translations {
             indexSizeLimit: string;
             indexSizeLimitDesc: string;
             desktopOnlyNote: string;
+        };
+        integrations: {
+            title: string;
+            description: string;
         };
         bases: {
             title: string;
@@ -579,11 +587,37 @@ export interface Translations {
         summarizeSource: {
             title: string;
             thisNote: string;
+            thisNoteDesc: string;
             pasteUrl: string;
+            pasteUrlDesc: string;
             selectPdf: string;
+            selectPdfDesc: string;
             youtubeVideo: string;
+            youtubeDesc: string;
             audioFile: string;
+            audioDesc: string;
             continueButton: string;
+        };
+        multiSource: {
+            title: string;
+            description: string;
+            currentNote: string;
+            includeNoteContent: string;
+            noteContentDesc: string;
+            webPages: string;
+            youtubeVideos: string;
+            pdfDocuments: string;
+            audioFiles: string;
+            addUrlPlaceholder: string;
+            addYoutubePlaceholder: string;
+            addPdfPlaceholder: string;
+            addAudioPlaceholder: string;
+            focusContext: string;
+            focusContextDesc: string;
+            focusPlaceholder: string;
+            summarizeButton: string;
+            summarizeOne: string;
+            summarizeMultiple: string;
         };
         enhance: {
             title: string;
@@ -602,6 +636,14 @@ export interface Translations {
             currentFolder: string;
             entireVault: string;
             tagButton: string;
+        };
+        folderScopePicker: {
+            title: string;
+            description: string;
+            searchPlaceholder: string;
+            useEntireVault: string;
+            selectButton: string;
+            noFoldersFound: string;
         };
         clearTagsScope: {
             title: string;
