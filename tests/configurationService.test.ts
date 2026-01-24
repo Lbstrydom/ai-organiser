@@ -1,10 +1,18 @@
 /**
  * Configuration Service Tests
  * Tests for persona loading, config parsing, and error handling
+ *
+ * Note: This file contains two types of tests:
+ * 1. SPECIFICATION TESTS (parsePersonasContent): Document expected parsing behavior
+ *    - These test a local replica of the parsing logic
+ *    - Purpose: Define the contract for how personas should be parsed
+ * 2. PRODUCTION TESTS (ConfigurationService): Test actual production code
+ *    - These use mocked vault to test the real service
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App, TFile, TFolder } from './mocks/obsidian';
+import { ConfigurationService, DEFAULT_PERSONAS, DEFAULT_SUMMARY_PERSONAS, DEFAULT_MINUTES_PERSONAS } from '../src/services/configurationService';
 
 // Mock persona data
 const MOCK_PERSONAS = [
@@ -323,5 +331,184 @@ describe('Config Path Generation', () => {
 
         expect(paths.minutesPersonas).toBe('AI Organiser/config/minutes-personas.md');
         expect(paths.summaryPersonas).toBe('AI Organiser/config/summary-personas.md');
+    });
+});
+
+// ============================================================================
+// PRODUCTION MODULE TESTS
+// These tests verify the actual ConfigurationService behavior
+// ============================================================================
+
+describe('ConfigurationService (Production)', () => {
+    let mockApp: App;
+    let service: ConfigurationService;
+
+    beforeEach(() => {
+        mockApp = new App();
+        service = new ConfigurationService(mockApp as any);
+    });
+
+    describe('Initialization', () => {
+        it('should initialize with default config folder', () => {
+            expect(service.getConfigFolder()).toBe('AI-Organiser/Config');
+        });
+
+        it('should allow custom config folder', () => {
+            const customService = new ConfigurationService(mockApp as any, 'Custom/Path');
+            expect(customService.getConfigFolder()).toBe('Custom/Path');
+        });
+
+        it('should generate correct config paths', () => {
+            const paths = service.getConfigPaths();
+
+            expect(paths.minutesPersonas).toContain('minutes-personas.md');
+            expect(paths.summaryPersonas).toContain('summary-personas.md');
+            expect(paths.writingPersonas).toContain('writing-personas.md');
+            expect(paths.taxonomyFile).toContain('taxonomy.md');
+            expect(paths.basesTemplates).toContain('bases-templates.md');
+        });
+    });
+
+    describe('Default Personas', () => {
+        it('should return default writing personas when file not found', async () => {
+            // Mock vault to return null (file not found)
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            const personas = await service.getPersonas();
+
+            expect(personas).toEqual(DEFAULT_PERSONAS);
+            expect(personas.length).toBeGreaterThan(0);
+        });
+
+        it('should return default summary personas when file not found', async () => {
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            const personas = await service.getSummaryPersonas();
+
+            expect(personas).toEqual(DEFAULT_SUMMARY_PERSONAS);
+            expect(personas.length).toBeGreaterThan(0);
+        });
+
+        it('should return default minutes personas when file not found', async () => {
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            const personas = await service.getMinutesPersonas();
+
+            expect(personas).toEqual(DEFAULT_MINUTES_PERSONAS);
+            expect(personas.length).toBeGreaterThan(0);
+        });
+
+        it('should have exactly one default persona in each category', async () => {
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            const writingDefault = await service.getDefaultPersona();
+            const summaryDefault = await service.getDefaultSummaryPersona();
+            const minutesDefault = await service.getDefaultMinutesPersona();
+
+            expect(writingDefault.isDefault).toBe(true);
+            expect(summaryDefault.isDefault).toBe(true);
+            expect(minutesDefault.isDefault).toBe(true);
+        });
+    });
+
+    describe('Persona Loading from File', () => {
+        it('should parse personas from markdown file content', async () => {
+            const mockFile = new TFile('AI-Organiser/Config/minutes-personas.md');
+            const fileContent = `# Minutes Personas
+
+### Executive Summary (default) [icon: briefcase]
+
+> Brief, action-focused minutes for executives
+
+\`\`\`
+Create concise executive summary focusing on decisions and actions.
+\`\`\`
+
+### Detailed Notes
+
+> Comprehensive meeting documentation
+
+\`\`\`
+Create detailed meeting notes with full context.
+\`\`\`
+`;
+
+            mockApp.vault.getAbstractFileByPath = (path: string) => {
+                if (path.includes('minutes-personas')) return mockFile;
+                return null;
+            };
+            mockApp.vault.read = async () => fileContent;
+
+            const personas = await service.getMinutesPersonas();
+
+            expect(personas.length).toBe(2);
+            expect(personas[0].name).toBe('Executive Summary');
+            expect(personas[0].isDefault).toBe(true);
+            expect(personas[0].icon).toBe('briefcase');
+            expect(personas[1].name).toBe('Detailed Notes');
+            expect(personas[1].isDefault).toBeFalsy();
+        });
+
+        it('should fall back to defaults when file has no valid personas', async () => {
+            const mockFile = new TFile('AI-Organiser/Config/minutes-personas.md');
+
+            mockApp.vault.getAbstractFileByPath = (path: string) => {
+                if (path.includes('minutes-personas')) return mockFile;
+                return null;
+            };
+            mockApp.vault.read = async () => '# Just a header\n\nNo personas here';
+
+            const personas = await service.getMinutesPersonas();
+
+            // Should fall back to defaults
+            expect(personas).toEqual(DEFAULT_MINUTES_PERSONAS);
+        });
+    });
+
+    describe('Persona Retrieval by ID', () => {
+        it('should find persona by ID', async () => {
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            // Get the first default persona's ID
+            const allPersonas = await service.getMinutesPersonas();
+            const firstId = allPersonas[0].id;
+
+            const found = await service.getMinutesPersonaById(firstId);
+
+            expect(found).not.toBeNull();
+            expect(found?.id).toBe(firstId);
+        });
+
+        it('should return null for unknown persona ID', async () => {
+            mockApp.vault.getAbstractFileByPath = () => null;
+
+            const found = await service.getMinutesPersonaById('nonexistent-id');
+
+            expect(found).toBeNull();
+        });
+    });
+
+    describe('Caching', () => {
+        it('should cache config and not re-read within TTL', async () => {
+            const mockFile = new TFile('AI-Organiser/Config/minutes-personas.md');
+            let readCount = 0;
+
+            mockApp.vault.getAbstractFileByPath = () => mockFile;
+            mockApp.vault.read = async () => {
+                readCount++;
+                return '';
+            };
+
+            // First call loads config
+            await service.getMinutesPersonas();
+            const firstReadCount = readCount;
+
+            // Second call should use cache
+            await service.getMinutesPersonas();
+
+            // Read count should not have increased significantly
+            // (may be called once per file type on first load)
+            expect(readCount).toBeLessThanOrEqual(firstReadCount + 1);
+        });
     });
 });

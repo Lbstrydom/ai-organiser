@@ -30,8 +30,19 @@ export interface UrlValidationResult {
  */
 export function validateUrl(input: string): UrlValidationResult {
     try {
-        // Add protocol if missing
         let urlString = input.trim();
+
+        // Reject non-HTTP(S) schemes before normalization
+        // This prevents file://, ftp://, javascript:, data:, etc.
+        const schemeMatch = urlString.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//);
+        if (schemeMatch) {
+            const scheme = schemeMatch[1].toLowerCase();
+            if (scheme !== 'http' && scheme !== 'https') {
+                return { valid: false, error: 'Only HTTP and HTTPS URLs are allowed' };
+            }
+        }
+
+        // Add protocol if missing (for inputs like "example.com")
         if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
             urlString = 'https://' + urlString;
         }

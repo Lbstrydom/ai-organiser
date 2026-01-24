@@ -117,19 +117,28 @@ describe('validateUrl', () => {
       expect(result.error).toContain('Invalid');
     });
 
-    it('should add https to file:// making it a valid https URL', () => {
-      // Note: The validator adds https:// prefix, so file:///etc/passwd becomes https://file:///etc/passwd
-      // which is technically a valid URL format (though nonsensical)
+    it('should reject file:// URLs', () => {
+      // Security: file:// URLs should be rejected before any normalization
       const result = validateUrl('file:///etc/passwd');
-      // This becomes https://file:///etc/passwd which parses as https://file/ with path //etc/passwd
-      expect(result.valid).toBe(true); // The host 'file' is valid
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('Only HTTP and HTTPS');
     });
 
-    it('should add https to ftp:// making it a valid https URL', () => {
-      // Note: The validator adds https:// prefix, so ftp://... becomes https://ftp://...
+    it('should reject ftp:// URLs', () => {
+      // Security: ftp:// URLs should be rejected before any normalization
       const result = validateUrl('ftp://ftp.example.com/file');
-      // This becomes https://ftp://ftp.example.com/file which parses oddly
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('Only HTTP and HTTPS');
+    });
+
+    it('should reject javascript: URLs', () => {
+      const result = validateUrl('javascript:alert(1)');
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject data: URLs', () => {
+      const result = validateUrl('data:text/html,<script>alert(1)</script>');
+      expect(result.valid).toBe(false);
     });
 
     it('should handle empty string', () => {
