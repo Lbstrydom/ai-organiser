@@ -16,6 +16,18 @@ import { setTooltip } from 'obsidian';
 import { TruncationChoice } from '../../core/constants';
 import { TruncationOption } from '../utils/truncation';
 
+/** Shape of translation object for truncation controls */
+export interface TruncationTranslations {
+    truncateOption?: string;
+    truncateTooltip?: string;
+    useFullOption?: string;
+    useFullTooltip?: string;
+    skipOption?: string;
+    skipTooltip?: string;
+    oversizedDocuments?: string;
+    applyToAll?: string;
+}
+
 /**
  * Create a truncation dropdown for a single document
  * 
@@ -44,7 +56,7 @@ export function createTruncationDropdown(
     options: Record<TruncationChoice, TruncationOption>,
     onChange: (choice: TruncationChoice) => void
 ): HTMLSelectElement {
-    const select = containerEl.createEl('select', { cls: 'minutes-truncation-select' });
+    const select = containerEl.createEl('select', { cls: 'ai-organiser-truncation-select' });
     select.setAttribute('aria-label', 'Document size handling');
 
     const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
@@ -119,13 +131,13 @@ export function createTruncationWarning(
     select: HTMLSelectElement;
     fullWarningEl: HTMLElement;
 } {
-    const warningEl = containerEl.createDiv({ cls: 'minutes-doc-warning' });
+    const warningEl = containerEl.createDiv({ cls: 'ai-organiser-truncation-warning' });
     
     // Character count warning
     const formattedCount = formatChars ? formatChars(charCount) : String(charCount);
     warningEl.createSpan({
         text: `! ${formattedCount} chars`,
-        cls: 'minutes-doc-size-warning'
+        cls: 'ai-organiser-truncation-size-warning'
     });
     
     // Truncation dropdown
@@ -136,7 +148,7 @@ export function createTruncationWarning(
     });
     
     // Full document warning (shown only when "Use Full" selected)
-    const fullWarningEl = warningEl.createDiv({ cls: 'minutes-full-warning' });
+    const fullWarningEl = warningEl.createDiv({ cls: 'ai-organiser-truncation-full-warning' });
     fullWarningEl.setText(fullWarningText || 'Warning: may exceed token limits');
     fullWarningEl.style.display = currentChoice === 'full' ? 'block' : 'none';
     
@@ -199,7 +211,7 @@ export function createBulkTruncationControls(
     if (oversizedCount > 1) {
         containerEl.createSpan({
             text: countText,
-            cls: 'minutes-bulk-warning'
+            cls: 'ai-organiser-truncation-bulk-warning'
         });
         containerEl.createSpan({ text: applyText });
     } else {
@@ -215,6 +227,9 @@ export function createBulkTruncationControls(
             text: options[choice].label,
             cls: choice === 'truncate' ? 'mod-cta' : ''
         });
+        
+        // Accessibility: aria-label from option label
+        btn.setAttribute('aria-label', `Apply ${options[choice].label} to all documents`);
         
         // Optional tooltip
         if (options[choice].tooltip) {

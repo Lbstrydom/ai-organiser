@@ -16,11 +16,21 @@ export interface TruncationOption {
     tooltip: string;
 }
 
+/** Shape of translation strings for truncation options */
+export interface TruncationTranslations {
+    truncateOption?: string;
+    truncateTooltip?: string;
+    useFullOption?: string;
+    useFullTooltip?: string;
+    skipOption?: string;
+    skipTooltip?: string;
+}
+
 /**
  * Get truncation options with labels and tooltips
  * Single source of truth for truncation UI text
  * 
- * @param t - Translation object from plugin.t.minutes or plugin.t.multiSource
+ * @param t - Translation object from plugin.t.minutes or plugin.t.multiSource (type-safe)
  * @returns Record mapping each TruncationChoice to its label and tooltip
  * 
  * Usage:
@@ -30,7 +40,7 @@ export interface TruncationOption {
  * console.log(options.full.tooltip); // "Use entire document..."
  * ```
  */
-export function getTruncationOptions(t: any): Record<TruncationChoice, TruncationOption> {
+export function getTruncationOptions(t?: TruncationTranslations): Record<TruncationChoice, TruncationOption> {
     return {
         truncate: {
             label: t?.truncateOption || 'Truncate',
