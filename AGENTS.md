@@ -672,9 +672,66 @@ Centralized document detection and extraction supporting Office documents (docx,
 - **Inline Truncation**: Gestalt proximity - controls next to affected documents
 - **Graceful Errors**: RTF validation catches complex formatting, shows user-friendly message
 
+## Controller Architecture (MinutesCreationModal)
+
+**Status**: Implemented (January 2026)
+
+The MinutesCreationModal uses a controller-based architecture to separate concerns and improve testability.
+
+### Controllers
+
+**Location**: `src/ui/controllers/`
+
+| Controller | Responsibility | Tests |
+|------------|----------------|-------|
+| `DocumentHandlingController` | Document detection, extraction, caching, truncation | 23 |
+| `DictionaryController` | Dictionary CRUD, term extraction, merging | 56 |
+| `AudioController` | Audio detection and transcription state | 35 |
+
+**Shared Components**: `src/ui/components/TruncationControls.ts` (8 tests)
+
+### Controller Lifecycle
+
+Controllers instantiated per modal open for fresh state:
+
+```typescript
+onOpen() {
+    this.docController = new DocumentHandlingController(app, plugin, documentService, embeddedDetector);
+    this.dictController = new DictionaryController(dictionaryService);
+    this.audioController = new AudioController(app); // App only (ISP)
+}
+```
+
+### No-Stubs Policy
+
+**Critical**: All new code must follow the no-stubs policy:
+
+- **No placeholder methods**: If a method isn't used by modal or tests, remove it
+- **Public methods must have call sites**: Modal, other UI, or tests
+- **Private helpers allowed**: If used by public methods
+- **Errors returned, not thrown**: Use `errors: string[]` on result objects
+
+### Key Patterns
+
+- **Immutable external interface**: All getters return shallow copies
+- **ID-based tracking**: File paths for vault items, normalized URLs for external
+- **Result objects**: `DocumentHandlingResult`, `DictionaryResult<T>`, `AudioResult<T>` with `errors: string[]`
+- **Callback-based UI**: TruncationControls uses callbacks (IoC), no modal dependencies
+- **Type-safe translations**: `TruncationTranslations` interface
+
+### Testing
+
+- `tests/documentHandlingController.test.ts` (23 tests)
+- `tests/dictionaryController.test.ts` (56 tests)
+- `tests/audioController.test.ts` (35 tests)
+- `tests/components/truncationControls.test.ts` (8 tests)
+
+Total: 122 controller/component tests (348 total project tests)
+
 ## Documentation
 
 See `docs/` folder for additional documentation:
 - [docs/STATUS.md](docs/STATUS.md): Development status and recent updates
 - [docs/bases_user_guide.md](docs/bases_user_guide.md): Obsidian Bases integration guide
 - [docs/usertest.md](docs/usertest.md): Manual testing checklist
+- [docs/refactoring-plan.md](docs/refactoring-plan.md): Controller extraction completion report

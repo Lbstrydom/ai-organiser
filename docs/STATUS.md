@@ -154,12 +154,18 @@ AI-Organiser/
   - Case-insensitive deduplication when adding entries across meetings
   - Dictionary content injected into prompts for consistent name/term usage
 - **i18n**: 84+ new translation strings across EN + ZH-CN
-- **SOLID/DRY Refactoring**:
+- **SOLID/DRY Refactoring** (Controller Extraction):
+  - **DocumentHandlingController**: Extracted document detection, extraction, caching, truncation (23 tests)
+  - **DictionaryController**: Extracted dictionary CRUD, term extraction, merging (56 tests)
+  - **AudioController**: Extracted audio detection and transcription state (35 tests)
+  - **TruncationControls**: Reusable UI components for document truncation (8 tests)
   - Centralized `DEFAULT_MAX_DOCUMENT_CHARS` (50000) and `DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS` (100000) constants
   - Added `TruncationChoice` and `OversizedBehavior` type aliases
   - Created unified `getTruncationOptions()` for DRY label/tooltip handling
   - Added `MinutesModalDependencies` interface for dependency injection
   - Modal services now support optional DI for testability
+  - **No-stubs policy**: All public methods fully implemented with call sites (modal or tests)
+  - **348 total tests** (122 new controller/component tests)
 
 ### Meeting Minutes & Bug Fixes (January 23)
 - **Meeting Minutes Generation**: New feature for structured meeting notes

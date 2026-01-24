@@ -776,10 +776,67 @@ constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies
 - **Inline Truncation**: Gestalt proximity - controls next to affected documents
 - **Graceful Errors**: RTF validation catches complex formatting, shows user-friendly message
 
+## Controller Architecture (MinutesCreationModal)
+
+**Status**: Implemented (January 2026)
+
+The MinutesCreationModal uses a controller-based architecture to separate concerns and improve testability.
+
+### Controllers
+
+**Location**: `src/ui/controllers/`
+
+| Controller | Responsibility | Tests |
+|------------|----------------|-------|
+| `DocumentHandlingController` | Document detection, extraction, caching, truncation | 23 |
+| `DictionaryController` | Dictionary CRUD, term extraction, merging | 56 |
+| `AudioController` | Audio detection and transcription state | 35 |
+
+**Shared Components**: `src/ui/components/TruncationControls.ts` (8 tests)
+
+### Controller Lifecycle
+
+Controllers are instantiated per modal open to ensure fresh state:
+
+```typescript
+onOpen() {
+    this.docController = new DocumentHandlingController(
+        this.app, this.plugin, this.documentService, this.embeddedDetector
+    );
+    this.dictController = new DictionaryController(this.dictionaryService);
+    this.audioController = new AudioController(this.app); // App only (ISP)
+}
+```
+
+### No-Stubs Policy
+
+**Critical**: All new code must follow the no-stubs policy:
+
+- **No placeholder methods**: If a method isn't used by modal or tests, remove it
+- **Public methods must have call sites**: Modal, other UI, or tests
+- **Private helpers allowed**: If used by public methods
+- **Errors returned, not thrown**: Use `errors: string[]` on result objects (except programmer misuse)
+
+### Key Patterns
+
+- **Immutable external interface**: All getters return shallow copies to prevent mutation
+- **ID-based tracking**: File paths for vault items, normalized URLs for external items
+- **Result objects**: `DocumentHandlingResult`, `DictionaryResult<T>`, `AudioResult<T>` with `errors: string[]`
+- **Callback-based UI**: TruncationControls uses callbacks (IoC pattern), no modal dependencies
+- **Type-safe translations**: `TruncationTranslations` interface for truncation UI text
+
+### Testing
+
+Controller tests: `tests/documentHandlingController.test.ts`, `tests/dictionaryController.test.ts`, `tests/audioController.test.ts`
+Component tests: `tests/components/truncationControls.test.ts`
+
+Total: 122 controller/component tests (348 total project tests)
+
 ## Documentation
 
 See `docs/` folder for additional documentation:
 - [docs/STATUS.md](docs/STATUS.md): Development status and recent updates
 - [docs/bases_user_guide.md](docs/bases_user_guide.md): Obsidian Bases integration guide
 - [docs/usertest.md](docs/usertest.md): Manual testing checklist
+- [docs/refactoring-plan.md](docs/refactoring-plan.md): Controller extraction completion report
 
