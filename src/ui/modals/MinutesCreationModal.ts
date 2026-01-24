@@ -12,6 +12,8 @@ import {
     TruncationChoice
 } from '../../core/constants';
 import { DocumentHandlingController, DocumentItem } from '../controllers/DocumentHandlingController';
+import { AudioController } from '../controllers/AudioController';
+import { DictionaryController } from '../controllers/DictionaryController';
 import { getTruncationOptions } from '../utils/truncation';
 import {
     createTruncationWarning,
@@ -60,6 +62,8 @@ export interface MinutesModalDependencies {
     dictionaryService?: DictionaryService;
     documentService?: DocumentExtractionService;
     docController?: DocumentHandlingController;
+    audioController?: AudioController;
+    dictController?: DictionaryController;
 }
 
 export class MinutesCreationModal extends Modal {
@@ -68,6 +72,8 @@ export class MinutesCreationModal extends Modal {
     private dictionaryService: DictionaryService;
     private documentService: DocumentExtractionService;
     private docController!: DocumentHandlingController;
+    private audioController!: AudioController;
+    private dictController!: DictionaryController;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
@@ -120,6 +126,15 @@ export class MinutesCreationModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('minutes-modal');
+
+        // Instantiate controllers per modal open to avoid stale state
+        this.docController = new DocumentHandlingController(
+            this.app,
+            this.plugin,
+            this.documentService
+        );
+        this.audioController = new AudioController(this.app);
+        this.dictController = new DictionaryController(this.dictionaryService);
 
         contentEl.createEl('h2', {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
