@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DocumentHandlingController, DocumentItem, AddResult } from '../src/ui/controllers/DocumentHandlingController';
 import type { App, TFile } from 'obsidian';
 import { DocumentExtractionService } from '../src/services/documentExtractionService';
@@ -19,6 +19,7 @@ describe('DocumentHandlingController', () => {
     let mockDocumentService: any;
 
     beforeEach(() => {
+        vi.useFakeTimers();
         // Setup mocks
         mockApp = {
             workspace: {
@@ -46,6 +47,10 @@ describe('DocumentHandlingController', () => {
             mockPlugin as any,
             mockDocumentService
         );
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     describe('addFromVault', () => {
@@ -535,9 +540,11 @@ describe('DocumentHandlingController', () => {
 
             const extractPromise = controller.extractDocument('folder/doc.pdf');
 
-            // Check immediately while processing
+            // Check immediately while processing (before timers advance)
             expect(controller.isAnyProcessing()).toBe(true);
 
+            // Advance timers and wait for promise
+            await vi.runAllTimersAsync();
             await extractPromise;
 
             expect(controller.isAnyProcessing()).toBe(false);
@@ -612,12 +619,14 @@ describe('DocumentHandlingController', () => {
             // Start first extraction
             const firstPromise = controller.extractDocument('folder/doc.pdf');
 
-            // Try to start another extraction immediately
+            // Try to start another extraction immediately (before timers advance)
             const secondResult = await controller.extractDocument('folder/doc.pdf');
 
             expect(secondResult.success).toBe(false);
             expect(secondResult.error).toContain('already being processed');
 
+            // Advance timers and complete first extraction
+            await vi.runAllTimersAsync();
             await firstPromise;
         });
     });

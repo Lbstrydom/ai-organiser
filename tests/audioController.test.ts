@@ -3,7 +3,7 @@
  * Comprehensive validation of audio state management and transcription
  */
 
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import { AudioController } from '../src/ui/controllers/AudioController';
 import { App, TFile } from 'obsidian';
 
@@ -33,8 +33,9 @@ describe('AudioController', () => {
     let mockFile2: TFile;
 
     beforeEach(() => {
-        // Reset mocks
+        // Reset mocks and use fake timers
         vi.clearAllMocks();
+        vi.useFakeTimers();
 
         // Create mock app
         mockApp = {} as App;
@@ -53,6 +54,10 @@ describe('AudioController', () => {
         } as TFile;
 
         controller = new AudioController(mockApp);
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     // === State Management Tests ===
@@ -623,7 +628,7 @@ describe('AudioController', () => {
         it('should check if any transcribing', async () => {
             expect(controller.isAnyTranscribing()).toBe(false);
 
-            // Mock slow transcription
+            // Mock slow transcription with timer
             (needsChunking as Mock).mockResolvedValue({ needsChunking: false });
             (transcribeAudio as Mock).mockImplementation(async () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -631,11 +636,13 @@ describe('AudioController', () => {
             });
 
             const promise = controller.transcribe('audio/meeting1.mp3', 'openai', 'key');
-            
-            // Check during transcription
-            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // Check during transcription (before timers advance)
+            await vi.advanceTimersByTimeAsync(10);
             expect(controller.isAnyTranscribing()).toBe(true);
 
+            // Complete the transcription
+            await vi.runAllTimersAsync();
             await promise;
             expect(controller.isAnyTranscribing()).toBe(false);
         });
@@ -643,7 +650,7 @@ describe('AudioController', () => {
         it('should get transcription status message', async () => {
             expect(controller.getTranscriptionStatus()).toBe('');
 
-            // Mock slow transcription
+            // Mock slow transcription with timer
             (needsChunking as Mock).mockResolvedValue({ needsChunking: false });
             (transcribeAudio as Mock).mockImplementation(async () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
@@ -651,13 +658,15 @@ describe('AudioController', () => {
             });
 
             const promise = controller.transcribe('audio/meeting1.mp3', 'openai', 'key');
-            
+
             // Check during transcription - should show display name
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await vi.advanceTimersByTimeAsync(10);
             const status = controller.getTranscriptionStatus();
             expect(status).toContain('meeting1.mp3');
             expect(status).toContain('Transcribing');
 
+            // Complete the transcription
+            await vi.runAllTimersAsync();
             await promise;
             expect(controller.getTranscriptionStatus()).toBe('');
         });
