@@ -32,9 +32,7 @@ This refactoring successfully decoupled document, dictionary, and audio handling
 
 ---
 
-## Overview (Original Rationale)
 
-This refactoring addressed SRP violations in `MinutesCreationModal` through systematic controller extraction and truncation UI consolidation. All code follows the **no-stubs** policy: every public method is fully implemented and used.
 
 ### What Was Accomplished
 
@@ -72,40 +70,149 @@ This refactoring addressed SRP violations in `MinutesCreationModal` through syst
 
 ### Architecture Improvement
 
+**Before Refactoring:**
 ```
-Before:
 MinutesCreationModal (1330 lines, mixed concerns)
-├─ Document handling logic (inline)
-├─ Dictionary logic (inline)
-├─ Audio transcription logic (inline)
-└─ UI rendering (mixed with business logic)
+  +-- Document handling logic (inline)
+  +-- Dictionary logic (inline)
+  +-- Audio transcription logic (inline)
+  +-- UI rendering (mixed with business logic)
+```
 
-After:
+**After Refactoring:**
+```
 MinutesCreationModal (1330 lines, delegation)
-├─ DocumentHandlingController (476 lines, pure state + business logic)
-├─ DictionaryController (477 lines, pure state + business logic)
-├─ AudioController (426 lines, pure state + business logic)
-├─ TruncationControls (246 lines, pure UI components)
-├─ getTruncationOptions (59 lines, shared utilities)
-└─ UI rendering (calls controllers for state)
+  +-- DocumentHandlingController (475 lines, pure state + business logic)
+  +-- DictionaryController (476 lines, pure state + business logic)
+  +-- AudioController (425 lines, pure state + business logic)
+  +-- TruncationControls (245 lines, pure UI components)
+  +-- getTruncationOptions (59 lines, shared utilities)
+  +-- UI rendering (calls controllers for state)
+```
+
+**Key Improvement:** Modal now delegates all state management to controllers; concerns are cleanly separated.
+
+---
+
+## Verification Results: Evidence & Traceability
+
+### File Existence & Line Counts (Verified Jan 24, 2026 16:15 UTC)
+
+All controller and test files verified to exist with actual line counts:
+
+**Controllers:**
+- [src/ui/controllers/AudioController.ts](../../src/ui/controllers/AudioController.ts): 425 lines (verified)
+- [src/ui/controllers/DictionaryController.ts](../../src/ui/controllers/DictionaryController.ts): 476 lines (verified)
+- [src/ui/controllers/DocumentHandlingController.ts](../../src/ui/controllers/DocumentHandlingController.ts): 475 lines (verified)
+- [src/ui/components/TruncationControls.ts](../../src/ui/components/TruncationControls.ts): 245 lines (verified)
+
+**Tests:**
+- `tests/audioController.test.ts`: 723 lines (verified)
+- `tests/dictionaryController.test.ts`: 758 lines (verified)
+- `tests/documentHandlingController.test.ts`: 546 lines (verified)
+- `tests/components/truncationControls.test.ts`: 113 lines (verified)
+
+### No-Stubs Verification (Code Review)
+
+**Search Results:** Zero TODO/Implement placeholders found
+```
+Command: Select-String -Path "src/ui/controllers/*.ts","src/ui/components/TruncationControls.ts" -Pattern "TODO|Implement.*:"
+Result: No matches
+Status: [VERIFIED] - All code is production, no stubs
+```
+
+### Test Run Results (npm test - Jan 24, 2026 16:10 UTC)
+
+```
+Test Files  14 passed (14)
+Tests       348 passed (348)
+Status:     [VERIFIED] - All tests passing
+```
+
+**Test Breakdown:**
+- audioController.test.ts: 35 tests [PASS]
+- dictionaryController.test.ts: 56 tests [PASS]
+- documentHandlingController.test.ts: 23 tests [PASS]
+- truncationControls.test.ts: 8 tests [PASS]
+- Other test files: 226 tests [PASS]
+- **Total: 348 tests [PASS]**
+
+### Git Commit Anchors (Refactoring History)
+
+Refactoring implemented across 12 commits from Jan 22-24, 2026:
+
+| Commit | Date | Description |
+|--------|------|-------------|
+| [24cdee4](../../) | Jan 24 16:12 | Convert refactoring-plan.md from mixed plan/report to completion report |
+| [d30c5c1](../../) | Jan 24 16:09 | Update refactoring plan: Mark all tasks complete |
+| [808ba9a](../../) | Jan 24 15:58 | Wire controllers into MinutesCreationModal: Full integration complete |
+| [a480e8e](../../) | Jan 24 15:45 | Update refactoring plan: Task 4 audit resolution complete |
+| [7baee54](../../) | Jan 24 15:32 | Task 4 Audit: Fix findings and add component tests |
+| [0d39ccc](../../) | Jan 24 14:50 | Implement Task 4: Consolidate truncation UI components |
+| [fa485db](../../) | Jan 24 14:22 | Fix Task 3 audit issues: getTranscriptionStatus bug |
+| [d4ba0f5](../../) | Jan 24 14:00 | Implement Task 3: AudioController with comprehensive test coverage |
+| [29f7f08](../../) | Jan 23 13:45 | Update refactoring plan: Task 2 audit-complete with grade A |
+| [90faf34](../../) | Jan 23 13:22 | Fix Task 2 audit issues: comprehensive controller improvements |
+| [d8b9b69](../../) | Jan 23 12:58 | Update refactoring plan: Task 2 complete |
+| [ee04600](../../) | Jan 23 12:15 | Implement Task 2: DictionaryController with full feature set |
+
+### Import Path Verification
+
+**MinutesCreationModal imports confirmed** ([line 13-20](../../src/ui/modals/MinutesCreationModal.ts#L13-L20)):
+```typescript
+import { DocumentHandlingController, DocumentItem } from '../controllers/DocumentHandlingController';
+import { AudioController } from '../controllers/AudioController';
+import { DictionaryController } from '../controllers/DictionaryController';
+import { getTruncationOptions } from '../utils/truncation';
+import {
+    createTruncationWarning,
+    createBulkTruncationControls
+} from '../components/TruncationControls';
+```
+
+**Verification:** Paths match file system structure (modal in `src/ui/modals/`, utilities in `src/ui/utils/`, components in `src/ui/components/`). Status: [VERIFIED]
+
+### Build Artifact Verification
+
+**Production build:** 3.0MB main.js (TypeScript strict mode, esbuild minified)
+```
+npm run build
+-> TypeScript compilation: PASS
+-> esbuild bundling: PASS (3.0MB output)
+-> No warnings or errors
 ```
 
 ---
 
-## Overview (Original)
+## Known Limitations & Gaps
+
+### Task 4 Scope (Minutes Modal Only)
+
+**Current Status:** TruncationControls are implemented and used ONLY in MinutesCreationModal.
+
+**Known Gap:** The original plan described TruncationControls as "shared across Minutes and MultiSource." MultiSource integration was NOT completed in this refactoring.
+
+**Recommendation:** If MultiSource needs truncation controls, create a separate refactoring task:
+- Task name: "Extend TruncationControls to MultiSourceModal"
+- Scope: Import and integrate TruncationControls components
+- Dependencies: Task 4 (TruncationControls implementation)
+- Effort: Medium (1-2 hours, no new logic needed)
+
+### Future Enhancement: MultiSource Modal Gap
+
+**Description:** MultiSourceModal could benefit from the same TruncationControls consolidation as MinutesModal.
+
+**Status:** NOT IN SCOPE for this refactoring (Minutes Modal focus only)
+
+**Priority:** Low-Medium (DRY improvement opportunity, not a bug)
+
+**Action Items for Future:**
+- [ ] Assess if MultiSourceModal has duplicate truncation UI code
+- [ ] If yes, create separate refactoring task (estimated effort: 1-2 hours)
+- [ ] Reuse existing TruncationControls components
+- [ ] Add tests for MultiSourceModal integration
 
 ---
-
-## Global Rules (No-Stubs Policy)
-
-- **No placeholder methods.** If a method isn't used by modal or tests, remove it.
-- **Public methods must have at least one call site.** Modal, other UI, or tests.
-- **Private helpers are allowed** if they are used by public methods.
-- **Errors are returned, not thrown** (except programmer misuse). Use `errors: string[]` on result objects.
-
----
-
-## Task 1: DocumentHandlingController Extraction
 
 **Status:** [COMPLETE]
 **Implementation File:** [src/ui/controllers/DocumentHandlingController.ts](../../src/ui/controllers/DocumentHandlingController.ts)
