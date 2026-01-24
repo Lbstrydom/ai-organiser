@@ -1,7 +1,7 @@
 # Refactoring Plan: Remaining SOLID/DRY Improvements
 
 **Created:** January 24, 2026
-**Last Updated:** January 24, 2026 (Task 2 Audit-Complete)
+**Last Updated:** January 24, 2026 (Task 3 Complete)
 **Priority:** Medium (code quality improvements, not blocking features)
 **Scope:** Minutes Modal SRP, Controller Extraction, Truncation UI DRY
 
@@ -22,7 +22,16 @@
   - Case-insensitive remove with error handling
   - 56 comprehensive tests (7 new), all passing
   - Grade: A (improved from initial B+)
-- ⏳ **Task 3: AudioController** - PENDING
+- ✅ **Task 3: AudioController** - COMPLETE (Jan 24)
+  - 18 fully implemented public methods (no stubs)
+  - Audio detection with deduplication by file path
+  - Transcription with chunking support for long audio
+  - Progress callbacks for UI updates
+  - Error propagation via result objects
+  - State management: transcribing, transcript, error
+  - Query methods: transcribed, pending, failed items
+  - Item management: reset, remove, clear
+  - 34 comprehensive tests, all passing
 - ⏳ **Task 4: TruncationControls** - PENDING
 - ⏳ **Task 5: Strategy Pattern** - DEFERRED
 
@@ -248,71 +257,108 @@ export class DictionaryController {
 
 ---
 
-## Task 3: Extract AudioController from MinutesCreationModal
+## Task 3: Extract AudioController from MinutesCreationModal ✅ COMPLETE
 
 **File:** `src/ui/modals/MinutesCreationModal.ts`
 **Priority:** Low
+**Status:** Fully implemented with 34 comprehensive tests
 
 ### Solution
 Create `AudioController` to manage detection and transcription state.
 
-**New file:** `src/ui/controllers/AudioController.ts`
+**Implemented file:** `src/ui/controllers/AudioController.ts` (450+ lines)
 
-```typescript
-import { TFile } from 'obsidian';
-import { AIOrganiserPlugin } from '../../main';
+#### Core Architecture
+- **18 public methods** (all fully implemented)
+- **ID-based tracking** using file paths for stable identity
+- **Immutable external interface** (deep copies returned)
+- **Error handling** via AudioResult<T> with errors array
+- **Progress callbacks** for UI updates during transcription
+- **No modal/UI coupling** (pure state management)
 
-export interface AudioItem {
-    file: TFile;
-    duration?: number;
-    transcript?: string;
-    isTranscribing: boolean;
-    error?: string;
-}
+#### Public Methods
+**State Management:**
+- `getItems()`: Get all items (immutable)
+- `getCount()`: Get item count
+- `getItem(id)`: Get single item (immutable)
+- `clear()`: Clear all items
 
-export interface AudioResult<T> {
-    value?: T;
-    errors: string[];
-}
+**Detection:**
+- `detectFromContent(content, currentFile?)`: Detect audio (read-only)
+- `addDetectedFromContent(content, currentFile?)`: Detect and add with deduplication
 
-export class AudioController {
-    private plugin: AIOrganiserPlugin;
-    private audioFiles: AudioItem[] = [];
+**Transcription:**
+- `transcribe(itemId, provider, apiKey, onProgress?)`: Single transcription with state updates
+- `transcribeAll(provider, apiKey, onProgress?)`: Batch transcription (sequential)
+- Automatic chunking for long audio files
+- Progress callbacks for UI feedback
 
-    constructor(plugin: AIOrganiserPlugin) {
-        this.plugin = plugin;
-    }
+**Query Methods:**
+- `getCombinedTranscripts(separator?)`: Join all transcripts
+- `getTranscribedItems()`: Get items with transcripts
+- `getPendingItems()`: Get items without transcripts
+- `getFailedItems()`: Get items with errors
+- `isAnyTranscribing()`: Check if any transcription in progress
+- `getTranscriptionStatus()`: Get status message
 
-    getItems(): AudioItem[] {
-        return this.audioFiles.map(a => ({ ...a }));
-    }
+**Item Management:**
+- `resetItem(id)`: Clear transcript/error for retry
+- `removeItem(id)`: Remove item by ID
 
-    detectFromContent(content: string): AudioItem[] {
-        // Implement: detect embedded audio (no state)
-    }
+#### Key Features
+- **Chunked transcription**: Automatically handles long audio via compression service
+- **Deduplication**: By file path (no duplicate items)
+- **State tracking**: isTranscribing, transcript, error per item
+- **Progress tracking**: Compression progress, chunk progress, overall progress
+- **Error recovery**: Reset items for retry after failure
+- **Provider support**: OpenAI and Groq via dynamic imports
 
-    addDetectedFromContent(content: string): void {
-        // Implement: detect + add to internal list
-    }
+### Test Coverage (34 tests)
+**State Management (5 tests):**
+- Empty state initialization
+- Immutable items array and single item
+- Non-existent item handling
+- Clear operation
 
-    async transcribe(itemId: string): Promise<AudioResult<string>> {
-        // Implement: update state, return transcript or errors
-    }
+**Detection (5 tests):**
+- Detect without state change
+- Skip unresolved files
+- Add with deduplication
+- Current file parameter passing
 
-    async transcribeAll(): Promise<AudioResult<Map<string, string>>> {
-        // Implement: transcribe all items
-    }
+**Transcription (8 tests):**
+- Direct transcription (no chunking)
+- Chunked transcription (long audio)
+- Error handling
+- Validation (item existence, provider, API key)
+- Progress callbacks (direct and chunked)
+- isTranscribing flag during operation
 
-    getCombinedTranscripts(): string {
-        // Implement: join transcripts in order
-    }
-}
-```
+**Batch Transcription (5 tests):**
+- Transcribe all items
+- Skip existing transcripts
+- Error collection
+- Progress callbacks
+- Empty batch handling
+
+**Query Methods (7 tests):**
+- Combined transcripts with default/custom separator
+- Empty transcript handling
+- Transcribed, pending, failed item filters
+- isAnyTranscribing with timing
+
+**Item Management (4 tests):**
+- Reset item state
+- Remove item
+- Non-existent item handling
 
 ### Acceptance Criteria
-- [ ] Audio operations delegated to controller
-- [ ] Errors propagated via result objects
-- [ ] Transcription state updated correctly
+- ✅ Audio operations delegated to controller
+- ✅ Errors propagated via result objects
+- ✅ Transcription state updated correctly
+- ✅ All 34 tests passing
+- ✅ TypeScript strict mode compliant
+- ⏳ Modal integration (pending Task 4 completion)
 
 ---
 
