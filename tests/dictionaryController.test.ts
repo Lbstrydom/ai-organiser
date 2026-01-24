@@ -7,7 +7,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DictionaryController } from '../src/ui/controllers/DictionaryController';
 import { DictionaryService, Dictionary, DictionaryEntry } from '../src/services/dictionaryService';
 import { LLMService } from '../src/services/types';
-import { AIOrganiserPlugin } from '../src/main';
 
 // Mock DictionaryService
 const mockDictionaryService = {
@@ -26,16 +25,13 @@ const mockLLMService = {
     analyzeTags: vi.fn() as ReturnType<typeof vi.fn>
 };
 
-// Mock Plugin
-const mockPlugin: Partial<AIOrganiserPlugin> = {};
-
 // Sample test data
 const testDictionary: Dictionary = {
     id: 'test-dict',
     name: 'Test Dictionary',
     description: 'Test dictionary',
     entries: [
-        { term: 'John Smith', category: 'person', definition: 'CEO' },
+        { term: 'John Smith', category: 'person', definition: 'CEO', aliases: ['JS', 'Johnny'] },
         { term: 'API', category: 'acronym', definition: 'Application Programming Interface' }
     ],
     createdAt: '2025-01-24T12:00:00Z',
@@ -53,14 +49,22 @@ const testDictionary2: Dictionary = {
     updatedAt: '2025-01-24T12:00:00Z'
 };
 
+// Helper to create fresh dictionary copies
+function createTestDict(): Dictionary {
+    return JSON.parse(JSON.stringify(testDictionary));
+}
+
+function createTestDict2(): Dictionary {
+    return JSON.parse(JSON.stringify(testDictionary2));
+}
+
 describe('DictionaryController', () => {
     let controller: DictionaryController;
 
     beforeEach(() => {
         vi.clearAllMocks();
         controller = new DictionaryController(
-            mockDictionaryService as DictionaryService,
-            mockPlugin as AIOrganiserPlugin
+            mockDictionaryService as DictionaryService
         );
     });
 
@@ -88,8 +92,27 @@ describe('DictionaryController', () => {
 
             expect(current).toEqual(testDictionary);
             if (current) {
+                // Test name immutability
                 current.name = 'Modified';
                 expect(controller.getCurrent()?.name).toBe('Test Dictionary');
+
+                // Test entries array immutability (Issue 2 test)
+                current.entries.push({ term: 'Injected', category: 'term' });
+                expect(controller.getCurrent()?.entries.length).toBe(2); // Still original count
+
+                // Test entry mutation doesn't affect original
+                if (current.entries[0]) {
+                    current.entries[0].term = 'Mutated';
+                    expect(controller.getCurrent()?.entries[0].term).toBe('John Smith');
+                }
+
+                // Test aliases array immutability
+                if (current.entries[0]?.aliases) {
+                    current.entries[0].aliases.push('NewAlias');
+                    // Original should not have this alias
+                    const original = controller.getCurrent();
+                    expect(original?.entries[0].aliases?.includes('NewAlias')).toBe(false);
+                }
             }
         });
     });
@@ -589,6 +612,22 @@ describe('DictionaryController', () => {
             expect(results.length).toBe(1);
         });
 
+        it('should search by aliases (Issue 8 test)', async () => {
+            mockDictionaryService.listDictionaries.mockResolvedValue([testDictionary]);
+
+            await controller.loadDictionary('Test Dictionary');
+
+            // Search for alias 'JS'
+            const results1 = controller.searchEntries('JS');
+            expect(results1.length).toBe(1);
+            expect(results1[0].term).toBe('John Smith');
+
+            // Search for alias 'Johnny'
+            const results2 = controller.searchEntries('johnny');
+            expect(results2.length).toBe(1);
+            expect(results2[0].term).toBe('John Smith');
+        });
+
         it('should return empty array when no matches', async () => {
             mockDictionaryService.listDictionaries.mockResolvedValue([testDictionary]);
 
@@ -603,6 +642,80 @@ describe('DictionaryController', () => {
             const results = controller.searchEntries('john');
 
             expect(results).toEqual([]);
+        });
+
+        it('should return immutable copies of entries', async () => {
+            mockDictionaryService.listDictionaries.mockResolvedValue([testDictionary]);
+
+            await controller.loadDictionary('Test Dictionary');
+
+            const results = controller.searchEntries('john');
+            if (results[0]?.aliases) {
+                results[0].aliases.push('Mutated');
+                const results2 = controller.searchEntries('john');
+                expect(results2[0].aliases?.includes('Mutated')).toBe(false);
+            }
+        });
+    });
+
+    describe('removeEntry', () => {
+        it('should remove entry by term', async () => {
+            const freshDict = createTestDict();
+            mockDictionaryService.listDictionaries.mockResolvedValue([freshDict]);
+            mockDictionaryService.saveDictionary.mockResolvedValue('path/to/dict.md');
+
+            await controller.loadDictionary('Test Dictionary');
+
+            const result = await controller.removeEntry('John Smith');
+
+            expect(result.errors).toEqual([]);
+            expect(mockDictionaryService.saveDictionary).toHaveBeenCalled();
+            // Verify entry count decreased
+            expect(controller.getEntryCount()).toBe(1);
+        });
+
+        it('should use case-insensitive matching', async () => {
+            const freshDict = createTestDict();
+            mockDictionaryService.listDictionaries.mockResolvedValue([freshDict]);
+            mockDictionaryService.saveDictionary.mockResolvedValue('path/to/dict.md');
+
+            await controller.loadDictionary('Test Dictionary');
+
+            const result = await controller.removeEntry('john smith');
+
+            expect(result.errors).toEqual([]);
+            expect(mockDictionaryService.saveDictionary).toHaveBeenCalled();
+        });
+
+        it('should return error when no dictionary loaded', async () => {
+            const result = await controller.removeEntry('John Smith');
+
+            expect(result.errors).toContain('No dictionary currently loaded');
+        });
+
+        it('should return error when entry not found', async () => {
+            const freshDict = createTestDict();
+            mockDictionaryService.listDictionaries.mockResolvedValue([freshDict]);
+
+            await controller.loadDictionary('Test Dictionary');
+
+            const result = await controller.removeEntry('Nonexistent');
+
+            expect(result.errors.length).toBeGreaterThan(0);
+            expect(result.errors[0]).toContain('not found');
+        });
+
+        it('should handle save failure', async () => {
+            const freshDict = createTestDict();
+            mockDictionaryService.listDictionaries.mockResolvedValue([freshDict]);
+            mockDictionaryService.saveDictionary.mockRejectedValue(new Error('Save failed'));
+
+            await controller.loadDictionary('Test Dictionary');
+
+            const result = await controller.removeEntry('John Smith');
+
+            expect(result.errors.length).toBeGreaterThan(0);
+            expect(result.errors[0]).toContain('Failed to remove entry');
         });
     });
 

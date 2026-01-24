@@ -23,20 +23,27 @@ export interface DictionaryResult<T> {
 
 export class DictionaryController {
     private dictionaryService: DictionaryService;
-    private plugin: AIOrganiserPlugin;
     private currentDictionary: Dictionary | null = null;
     private dictionaryNames: string[] = [];
 
-    constructor(dictionaryService: DictionaryService, plugin: AIOrganiserPlugin) {
+    constructor(dictionaryService: DictionaryService) {
         this.dictionaryService = dictionaryService;
-        this.plugin = plugin;
     }
 
     /**
      * Get the current loaded dictionary
+     * Returns a deep copy to prevent external mutation
      */
     getCurrent(): Dictionary | null {
-        return this.currentDictionary ? { ...this.currentDictionary } : null;
+        if (!this.currentDictionary) return null;
+        
+        return {
+            ...this.currentDictionary,
+            entries: this.currentDictionary.entries.map(e => ({
+                ...e,
+                aliases: e.aliases ? [...e.aliases] : undefined
+            }))
+        };
     }
 
     /**
@@ -55,7 +62,8 @@ export class DictionaryController {
 
     /**
      * List all available dictionary names
-     * Cached after first load
+     * Note: This calls the service each time (not cached from disk,
+     * but stores names in memory for reference)
      */
     async listDictionaries(): Promise<string[]> {
         try {
@@ -159,6 +167,19 @@ export class DictionaryController {
      * Extract terms from document contents using LLM
      * Returns errors array if extraction fails
      * Does NOT modify current dictionary
+     * 
+     * @remarks
+     * **Term Parsing:** LLM returns tags in format "term-category" where category is
+     * one of: person, acronym, term, project, organization. If the last segment after
+     * splitting on "-" matches a category, it's treated as such. Otherwise defaults to "term".
+     * 
+     * **Known Limitation:** Terms containing category words may be mis-parsed:
+     * - "organization-chart" → term="organization", category="chart" (incorrect)
+     * - Workaround: Use different delimiter in LLM prompt or validate results
+     * 
+     * **LLM Service Usage:** Uses `analyzeTags()` method which is designed for note tagging.
+     * This is a semantic mismatch but works because both operations extract keywords.
+     * If `analyzeTags` signature changes, this may break.
      */
     async extractTermsFromContent(
         options: TermExtractionOptions,
@@ -295,6 +316,15 @@ export class DictionaryController {
     /**
      * Add custom entries to current dictionary
      * Similar to mergeEntries but for user-added entries
+     * 
+     * @remarks
+     * **Design Decision:** Both `addCustomEntries` and `mergeEntries` add entries,
+     * but with different use cases:
+     * - `mergeEntries`: For LLM-extracted terms that need deduplication before adding
+     * - `addCustomEntries`: For manually-created entries by user (service handles dedup)
+     * 
+     * The DictionaryService performs deduplication in both cases, so duplicates
+     * won't be added. This method exists for semantic clarity in the modal.
      */
     async addCustomEntries(entries: DictionaryEntry[]): Promise<DictionaryResult<void>> {
         const errors: string[] = [];
@@ -364,7 +394,7 @@ export class DictionaryController {
     }
 
     /**
-     * Search for entries by term (substring match, case-insensitive)
+     * Search for entries by term or aliases (substring match, case-insensitive)
      */
     searchEntries(searchTerm: string): DictionaryEntry[] {
         if (!this.currentDictionary) {
@@ -374,8 +404,59 @@ export class DictionaryController {
         const lowerSearch = searchTerm.toLowerCase();
 
         return this.currentDictionary.entries
-            .filter(e => e.term.toLowerCase().includes(lowerSearch))
-            .map(e => ({ ...e }));
+            .filter(e => {
+                // Search in term
+                if (e.term.toLowerCase().includes(lowerSearch)) {
+                    return true;
+                }
+                // Search in aliases
+                if (e.aliases?.some(a => a.toLowerCase().includes(lowerSearch))) {
+                    return true;
+                }
+                return false;
+            })
+            .map(e => ({
+                ...e,
+                aliases: e.aliases ? [...e.aliases] : undefined
+            }));
+    }
+
+    /**
+     * Remove a single entry from current dictionary by term (case-insensitive)
+     * Returns result indicating success/failure
+     */
+    async removeEntry(term: string): Promise<DictionaryResult<void>> {
+        const errors: string[] = [];
+
+        if (!this.currentDictionary) {
+            errors.push('No dictionary currently loaded');
+            return { errors };
+        }
+
+        const lowerTerm = term.toLowerCase();
+        const index = this.currentDictionary.entries.findIndex(
+            e => e.term.toLowerCase() === lowerTerm
+        );
+
+        if (index === -1) {
+            errors.push(`Entry "${term}" not found in dictionary`);
+            return { errors };
+        }
+
+        try {
+            // Remove entry
+            this.currentDictionary.entries.splice(index, 1);
+            this.currentDictionary.updatedAt = new Date().toISOString();
+
+            // Save updated dictionary
+            await this.dictionaryService.saveDictionary(this.currentDictionary);
+
+            return { errors };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to remove entry: ${message}`);
+            return { errors };
+        }
     }
 
     /**
