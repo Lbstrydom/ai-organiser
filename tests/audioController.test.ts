@@ -720,5 +720,118 @@ describe('AudioController', () => {
             expect(controller.getCount()).toBe(1);
         });
     });
+
+    // === Error Path Tests (Plan item 5) ===
+
+    describe('Error Paths', () => {
+        beforeEach(() => {
+            (detectEmbeddedAudio as Mock).mockReturnValue([
+                {
+                    type: 'audio',
+                    displayName: 'meeting1.mp3',
+                    resolvedFile: mockFile1
+                }
+            ]);
+
+            controller.addDetectedFromContent('content');
+        });
+
+        it('should handle chunk preparation failure', async () => {
+            (needsChunking as Mock).mockResolvedValue({ needsChunking: true });
+            (compressAndChunkAudio as Mock).mockResolvedValue({
+                success: false,
+                error: 'Failed to compress audio'
+            });
+
+            const result = await controller.transcribe(
+                'audio/meeting1.mp3',
+                'openai',
+                'test-api-key'
+            );
+
+            expect(result.errors.length).toBe(1);
+            expect(result.errors[0]).toContain('Failed to compress');
+
+            const item = controller.getItem('audio/meeting1.mp3');
+            expect(item?.error).toContain('Failed to compress');
+            expect(item?.isTranscribing).toBe(false);
+        });
+
+        it('should handle chunked transcription failure', async () => {
+            (needsChunking as Mock).mockResolvedValue({ needsChunking: true });
+            (compressAndChunkAudio as Mock).mockResolvedValue({
+                success: true,
+                chunks: ['chunk1.mp3', 'chunk2.mp3'],
+                outputDir: '/tmp/chunks'
+            });
+            (transcribeChunkedAudioWithCleanup as Mock).mockResolvedValue({
+                success: false,
+                error: 'Transcription API failed for chunk 2'
+            });
+
+            const result = await controller.transcribe(
+                'audio/meeting1.mp3',
+                'openai',
+                'test-api-key'
+            );
+
+            expect(result.errors.length).toBe(1);
+            expect(result.errors[0]).toContain('Transcription API failed');
+
+            const item = controller.getItem('audio/meeting1.mp3');
+            expect(item?.error).toContain('Transcription API failed');
+            expect(item?.transcript).toBeUndefined();
+        });
+    });
+
+    describe('transcribeAll skips items with errors', () => {
+        beforeEach(() => {
+            (detectEmbeddedAudio as Mock).mockReturnValue([
+                {
+                    type: 'audio',
+                    displayName: 'meeting1.mp3',
+                    resolvedFile: mockFile1
+                },
+                {
+                    type: 'audio',
+                    displayName: 'meeting2.m4a',
+                    resolvedFile: mockFile2
+                }
+            ]);
+
+            controller.addDetectedFromContent('content');
+        });
+
+        it('should skip items that already have errors', async () => {
+            // First, fail transcription for item1
+            (needsChunking as Mock).mockResolvedValue({ needsChunking: false });
+            (transcribeAudio as Mock).mockResolvedValue({
+                success: false,
+                error: 'API rate limit'
+            });
+
+            await controller.transcribe('audio/meeting1.mp3', 'openai', 'test-api-key');
+
+            // Verify item1 has an error
+            const item1 = controller.getItem('audio/meeting1.mp3');
+            expect(item1?.error).toBe('API rate limit');
+
+            // Now transcribeAll - should skip item1, only transcribe item2
+            vi.clearAllMocks();
+            (needsChunking as Mock).mockResolvedValue({ needsChunking: false });
+            (transcribeAudio as Mock).mockResolvedValue({
+                success: true,
+                transcript: 'Transcript for item2'
+            });
+
+            const result = await controller.transcribeAll('openai', 'test-api-key');
+
+            // Should only have called transcribeAudio once (for item2)
+            expect(transcribeAudio).toHaveBeenCalledTimes(1);
+            expect(result.value?.get('audio/meeting2.m4a')).toBe('Transcript for item2');
+            // item1 should not be in the result (it was skipped)
+            expect(result.value?.has('audio/meeting1.mp3')).toBe(false);
+        });
+    });
 });
 

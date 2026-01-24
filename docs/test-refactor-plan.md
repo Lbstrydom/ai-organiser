@@ -162,21 +162,10 @@ Related: `docs/test-refactor-audit.md`
 
 ---
 
-### 8) Scope RAG/Embedding coverage explicitly
-**Refactor**
-- Decide whether RAG tests are **in-scope** for this refactor.
-- If in-scope, add tests for:
-  - `RAGService.getRelatedNotes()`
-  - `RAGService.retrieveContext()`
-  - Cache behavior (TTL and eviction)
-  - Embedding service adapters
-- If out-of-scope, document why and when they will be addressed.
+### 8) ~~Scope RAG/Embedding coverage explicitly~~ **REMOVED**
+**Status**: Out of scope per decision D4 in `docs/test-refactor-decisions.md`.
 
-**Reason**
-- RAG is a major feature and current plan doesn?t mention it; this must be explicit.
-
-**Acceptance Criteria**
-- RAG/embedding coverage is either added or explicitly deferred in a decision log.
+**Rationale**: RAG functionality has complex external dependencies (embedding APIs, vector store). Testing requires mocking embedding API responses, vector similarity calculations, and time-based TTL cache behavior. Deferred to a dedicated RAG testing initiative.
 
 ---
 

@@ -543,5 +543,114 @@ describe('DocumentHandlingController', () => {
             expect(controller.isAnyProcessing()).toBe(false);
         });
     });
+
+    describe('default truncation choice by setting', () => {
+        it('should use truncate when oversizedDocumentBehavior is ask', () => {
+            mockPlugin.settings.oversizedDocumentBehavior = 'ask';
+
+            const mockFile: any = {
+                path: 'folder/doc.pdf',
+                name: 'doc.pdf',
+                extension: 'pdf'
+            };
+
+            controller.addFromVault(mockFile);
+            const docs = controller.getDocuments();
+
+            expect(docs[0].truncationChoice).toBe('truncate');
+        });
+
+        it('should use truncate when oversizedDocumentBehavior is truncate', () => {
+            mockPlugin.settings.oversizedDocumentBehavior = 'truncate';
+
+            const mockFile: any = {
+                path: 'folder/doc.pdf',
+                name: 'doc.pdf',
+                extension: 'pdf'
+            };
+
+            controller.addFromVault(mockFile);
+            const docs = controller.getDocuments();
+
+            expect(docs[0].truncationChoice).toBe('truncate');
+        });
+
+        it('should use full when oversizedDocumentBehavior is full', () => {
+            mockPlugin.settings.oversizedDocumentBehavior = 'full';
+
+            const mockFile: any = {
+                path: 'folder/doc.pdf',
+                name: 'doc.pdf',
+                extension: 'pdf'
+            };
+
+            controller.addFromVault(mockFile);
+            const docs = controller.getDocuments();
+
+            expect(docs[0].truncationChoice).toBe('full');
+        });
+    });
+
+    describe('already processing error', () => {
+        it('should return error when document is already being processed', async () => {
+            const mockFile: any = {
+                path: 'folder/doc.pdf',
+                name: 'doc.pdf',
+                extension: 'pdf'
+            };
+
+            controller.addFromVault(mockFile);
+
+            mockDocumentService.extractText.mockImplementation(() => {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({ success: true, text: 'content' });
+                    }, 100);
+                });
+            });
+
+            // Start first extraction
+            const firstPromise = controller.extractDocument('folder/doc.pdf');
+
+            // Try to start another extraction immediately
+            const secondResult = await controller.extractDocument('folder/doc.pdf');
+
+            expect(secondResult.success).toBe(false);
+            expect(secondResult.error).toContain('already being processed');
+
+            await firstPromise;
+        });
+    });
+
+    describe('setTruncationChoice errors', () => {
+        it('should return error for non-existent document', () => {
+            const result = controller.setTruncationChoice('nonexistent', 'truncate');
+
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('not found');
+        });
+    });
+
+    describe('extractDocument with no valid source', () => {
+        it('should return error when document has no file or URL', async () => {
+            // Manually add a document with no source (edge case)
+            const mockFile: any = {
+                path: 'folder/doc.pdf',
+                name: 'doc.pdf',
+                extension: 'pdf'
+            };
+            controller.addFromVault(mockFile);
+
+            // Remove the file reference to simulate edge case
+            const docs = (controller as any).documents;
+            docs[0].file = undefined;
+            docs[0].isExternal = false;
+
+            const result = await controller.extractDocument('folder/doc.pdf');
+
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('No valid source');
+        });
+    });
 });
 

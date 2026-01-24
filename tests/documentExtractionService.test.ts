@@ -128,4 +128,86 @@ describe('DocumentExtractionService (production)', () => {
         expect(result.success).toBe(false);
         expect(result.error).toContain('Office document parsing not available');
     });
+
+    it('extractFromUrl handles RTF files', async () => {
+        (requestUrl as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+            arrayBuffer: new TextEncoder().encode('{\\rtf1\\ansi\\par Hello from URL}').buffer,
+            headers: {}
+        });
+
+        const result = await service.extractFromUrl('https://example.com/file.rtf');
+
+        expect(result.success).toBe(true);
+        expect(result.text).toContain('Hello from URL');
+    });
+
+    it('extractFromUrl returns error for unreadable RTF', async () => {
+        (requestUrl as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+            arrayBuffer: new TextEncoder().encode('{\\rtf1\\ansi\\par Hi}').buffer,
+            headers: {}
+        });
+
+        const result = await service.extractFromUrl('https://example.com/file.rtf');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Complex RTF formatting not supported');
+    });
+
+    it('extractFromUrl handles download errors', async () => {
+        (requestUrl as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+        const result = await service.extractFromUrl('https://example.com/file.txt');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Network error');
+    });
+
+    it('canExtract returns true for supported extensions', () => {
+        expect(service.canExtract(new TFile('file.docx'))).toBe(true);
+        expect(service.canExtract(new TFile('file.xlsx'))).toBe(true);
+        expect(service.canExtract(new TFile('file.pptx'))).toBe(true);
+        expect(service.canExtract(new TFile('file.txt'))).toBe(true);
+        expect(service.canExtract(new TFile('file.rtf'))).toBe(true);
+        expect(service.canExtract(new TFile('file.pdf'))).toBe(true);
+    });
+
+    it('canExtract returns false for unsupported extensions', () => {
+        expect(service.canExtract(new TFile('file.doc'))).toBe(false);
+        expect(service.canExtract(new TFile('file.xls'))).toBe(false);
+        expect(service.canExtract(new TFile('file.jpg'))).toBe(false);
+        expect(service.canExtract(new TFile('file.mp3'))).toBe(false);
+    });
+
+    it('getSupportedExtensions includes all extractable types', () => {
+        const extensions = service.getSupportedExtensions();
+
+        expect(extensions).toContain('docx');
+        expect(extensions).toContain('xlsx');
+        expect(extensions).toContain('pptx');
+        expect(extensions).toContain('txt');
+        expect(extensions).toContain('rtf');
+        expect(extensions).toContain('pdf');
+    });
+
+    it('returns error for unsupported file types', async () => {
+        const file = new TFile('image.jpg');
+
+        const result = await service.extractText(file);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Unsupported file type');
+    });
+
+    it('handles office parser errors gracefully', async () => {
+        const file = new TFile('corrupt.docx');
+        app.vault.readBinary = vi.fn().mockResolvedValue(new ArrayBuffer(8));
+        vi.spyOn(service as any, 'loadOfficeParser').mockResolvedValue({
+            parseOffice: vi.fn().mockRejectedValue(new Error('Corrupt file'))
+        });
+
+        const result = await service.extractText(file);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Corrupt file');
+    });
 });
