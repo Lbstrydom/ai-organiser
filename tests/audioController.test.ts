@@ -639,6 +639,28 @@ describe('AudioController', () => {
             await promise;
             expect(controller.isAnyTranscribing()).toBe(false);
         });
+
+        it('should get transcription status message', async () => {
+            expect(controller.getTranscriptionStatus()).toBe('');
+
+            // Mock slow transcription
+            (needsChunking as Mock).mockResolvedValue({ needsChunking: false });
+            (transcribeAudio as Mock).mockImplementation(async () => {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                return { success: true, transcript: 'Test' };
+            });
+
+            const promise = controller.transcribe('audio/meeting1.mp3', 'openai', 'key');
+            
+            // Check during transcription - should show display name
+            await new Promise(resolve => setTimeout(resolve, 10));
+            const status = controller.getTranscriptionStatus();
+            expect(status).toContain('meeting1.mp3');
+            expect(status).toContain('Transcribing');
+
+            await promise;
+            expect(controller.getTranscriptionStatus()).toBe('');
+        });
     });
 
     // === Item Management Tests ===

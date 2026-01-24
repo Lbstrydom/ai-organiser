@@ -23,7 +23,7 @@
   - 56 comprehensive tests (7 new), all passing
   - Grade: A (improved from initial B+)
 - ✅ **Task 3: AudioController** - COMPLETE (Jan 24)
-  - 18 fully implemented public methods (no stubs)
+  - 16 fully implemented public methods (no stubs)
   - Audio detection with deduplication by file path
   - Transcription with chunking support for long audio
   - Progress callbacks for UI updates
@@ -31,7 +31,7 @@
   - State management: transcribing, transcript, error
   - Query methods: transcribed, pending, failed items
   - Item management: reset, remove, clear
-  - 34 comprehensive tests, all passing
+  - 35 comprehensive tests, all passing
 - ⏳ **Task 4: TruncationControls** - PENDING
 - ⏳ **Task 5: Strategy Pattern** - DEFERRED
 
@@ -261,20 +261,21 @@ export class DictionaryController {
 
 **File:** `src/ui/modals/MinutesCreationModal.ts`
 **Priority:** Low
-**Status:** Fully implemented with 34 comprehensive tests
+**Status:** Fully implemented with 35 comprehensive tests
 
 ### Solution
 Create `AudioController` to manage detection and transcription state.
 
-**Implemented file:** `src/ui/controllers/AudioController.ts` (450+ lines)
+**Implemented file:** `src/ui/controllers/AudioController.ts` (420+ lines)
 
 #### Core Architecture
-- **18 public methods** (all fully implemented)
+- **16 public methods** (all fully implemented)
 - **ID-based tracking** using file paths for stable identity
-- **Immutable external interface** (deep copies returned)
+- **Immutable external interface** (shallow copies with shared TFile references)
 - **Error handling** via AudioResult<T> with errors array
 - **Progress callbacks** for UI updates during transcription
 - **No modal/UI coupling** (pure state management)
+- **Constructor**: `constructor(app: App)` - follows ISP (only needs App, not full plugin)
 
 #### Public Methods
 **State Management:**
@@ -313,7 +314,7 @@ Create `AudioController` to manage detection and transcription state.
 - **Error recovery**: Reset items for retry after failure
 - **Provider support**: OpenAI and Groq via dynamic imports
 
-### Test Coverage (34 tests)
+### Test Coverage (35 tests)
 **State Management (5 tests):**
 - Empty state initialization
 - Immutable items array and single item
@@ -341,22 +342,28 @@ Create `AudioController` to manage detection and transcription state.
 - Progress callbacks
 - Empty batch handling
 
-**Query Methods (7 tests):**
+**Query Methods (8 tests):**
 - Combined transcripts with default/custom separator
 - Empty transcript handling
 - Transcribed, pending, failed item filters
 - isAnyTranscribing with timing
+- getTranscriptionStatus() message format
 
 **Item Management (4 tests):**
 - Reset item state
 - Remove item
 - Non-existent item handling
 
+### Known Limitations
+- **No cancellation support**: Transcriptions cannot be cancelled once started
+- **TFile references shared**: Immutable by Obsidian contract (not an issue)
+- **No duration field**: Determining audio duration requires expensive file parsing
+
 ### Acceptance Criteria
 - ✅ Audio operations delegated to controller
 - ✅ Errors propagated via result objects
 - ✅ Transcription state updated correctly
-- ✅ All 34 tests passing
+- ✅ All 35 tests passing
 - ✅ TypeScript strict mode compliant
 - ⏳ Modal integration (pending Task 4 completion)
 
@@ -449,7 +456,7 @@ onOpen() {
         this.embeddedDetector
     );
     this.dictController = new DictionaryController(this.dictionaryService);
-    this.audioController = new AudioController(this.plugin);
+    this.audioController = new AudioController(this.app); // Note: App not plugin (ISP)
 }
 ```
 

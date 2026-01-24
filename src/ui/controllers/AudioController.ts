@@ -60,6 +60,11 @@ export type ProgressCallback = (progress: TranscriptionProgress) => void;
  * // Get all items (immutable)
  * const items = controller.getItems();
  * ```
+ * 
+ * Known Limitations:
+ * - No cancellation support for in-progress transcriptions
+ * - Constructor accepts App instead of AIOrganiserPlugin (follows ISP)
+ * - TFile references are shared (immutable by Obsidian contract)
  */
 export class AudioController {
     private app: App;
@@ -70,8 +75,9 @@ export class AudioController {
     }
 
     /**
-     * Get all audio items (immutable copy)
-     * Returns deep copies to prevent external mutation
+     * Get all audio items (shallow copy)
+     * Returns copies of items to prevent mutation
+     * Note: TFile references are shared (immutable by Obsidian contract)
      */
     getItems(): AudioItem[] {
         return this.audioItems.map(item => ({ ...item }));
@@ -166,11 +172,11 @@ export class AudioController {
 
     /**
      * Get transcription status message
-     * Returns message for first transcribing item, or empty string
+     * Returns display name of first transcribing item, or empty string
      */
     getTranscriptionStatus(): string {
         const transcribing = this.audioItems.find(item => item.isTranscribing);
-        return transcribing?.error || '';
+        return transcribing ? `Transcribing ${transcribing.displayName}...` : '';
     }
 
     /**
@@ -206,8 +212,18 @@ export class AudioController {
 
         try {
             // Dynamically import transcription service to avoid circular deps
-            const { transcribeAudio, transcribeChunkedAudioWithCleanup } = await import('../../services/audioTranscriptionService');
-            const { needsChunking, compressAndChunkAudio } = await import('../../services/audioCompressionService');
+            const audioService = await import('../../services/audioTranscriptionService');
+            const compressionService = await import('../../services/audioCompressionService');
+            
+            if (!audioService.transcribeAudio || !audioService.transcribeChunkedAudioWithCleanup) {
+                throw new Error('Audio transcription service not available');
+            }
+            if (!compressionService.needsChunking || !compressionService.compressAndChunkAudio) {
+                throw new Error('Audio compression service not available');
+            }
+            
+            const { transcribeAudio, transcribeChunkedAudioWithCleanup } = audioService;
+            const { needsChunking, compressAndChunkAudio } = compressionService;
 
             const file = item.file;
             const chunkCheck = await needsChunking(this.app, file);
@@ -289,6 +305,7 @@ export class AudioController {
      * @param apiKey - API key for provider
      * @param onProgress - Optional progress callback
      * @returns AudioResult with map of itemId -> transcript
+     * @remarks Items with errors are skipped. Call resetItem(id) to clear errors before retry.
      */
     async transcribeAll(
         provider: TranscriptionProvider,
