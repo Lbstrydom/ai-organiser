@@ -12,35 +12,11 @@ import {
     TruncationChoice
 } from '../../core/constants';
 import { DocumentHandlingController, DocumentItem } from '../controllers/DocumentHandlingController';
-
-/**
- * Truncation option definition for DRY label/tooltip handling
- */
-interface TruncationOptionDef {
-    label: string;
-    tooltip: string;
-}
-
-/**
- * Get truncation options with labels and tooltips
- * Single source of truth for truncation UI text
- */
-function getTruncationOptions(t: typeof import('../../i18n/en').en['minutes']): Record<TruncationChoice, TruncationOptionDef> {
-    return {
-        truncate: {
-            label: t?.truncateOption || 'Truncate',
-            tooltip: t?.truncateTooltip || 'Keep first 50k chars - safe for most LLMs'
-        },
-        full: {
-            label: t?.useFullOption || 'Use Full',
-            tooltip: t?.useFullTooltip || 'Use entire document - may exceed LLM token limits and increase costs'
-        },
-        skip: {
-            label: t?.skipOption || 'Exclude',
-            tooltip: t?.skipTooltip || 'Exclude this document from context'
-        }
-    };
-}
+import { getTruncationOptions } from '../utils/truncation';
+import {
+    createTruncationWarning,
+    createBulkTruncationControls
+} from '../components/TruncationControls';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
@@ -925,12 +901,20 @@ export class MinutesCreationModal extends Modal {
         }
 
         if (isOversized && behavior === 'ask') {
-            const warningEl = statusEl.createDiv({ cls: 'minutes-doc-warning' });
-            warningEl.createSpan({
-                text: `! ${this.formatChars(doc.charCount)} chars`,
-                cls: 'minutes-doc-size-warning'
-            });
-            this.renderTruncationDropdown(doc, warningEl);
+            createTruncationWarning(
+                statusEl,
+                doc.charCount || 0,
+                maxChars,
+                doc.truncationChoice || 'truncate',
+                getTruncationOptions(t),
+                (choice) => {
+                    const docId = this.getDocumentId(doc);
+                    this.docController.setTruncationChoice(docId, choice);
+                    this.refreshDocumentsSection();
+                },
+                t?.fullDocumentWarning,
+                (count) => this.formatChars(count)
+            );
 
             if (doc.truncationChoice === 'skip' && doc.error) {
                 const skipEl = statusEl.createDiv({ cls: 'minutes-doc-skip-note' });
@@ -946,84 +930,33 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
-    private renderTruncationDropdown(doc: DocumentItem, container: HTMLElement): void {
-        const t = this.plugin.t.minutes;
-        const truncationOptions = getTruncationOptions(t);
 
-        const select = container.createEl('select', { cls: 'minutes-truncation-select' });
-        select.setAttribute('aria-label', 'Document size handling');
-
-        const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
-        for (const choice of choices) {
-            const opt = select.createEl('option', { value: choice });
-            opt.textContent = truncationOptions[choice].label;
-            if (choice === doc.truncationChoice) opt.selected = true;
-        }
-
-        const tooltipText = truncationOptions[doc.truncationChoice].tooltip;
-        if (tooltipText) {
-            setTooltip(select, tooltipText);
-        }
-
-        const warningEl = container.createDiv({ cls: 'minutes-full-warning' });
-        warningEl.setText(t?.fullDocumentWarning || 'Warning: may exceed token limits');
-        warningEl.style.display = doc.truncationChoice === 'full' ? 'block' : 'none';
-
-        select.addEventListener('change', () => {
-            const newChoice = select.value as TruncationChoice;
-            const docId = this.getDocumentId(doc);
-            this.docController.setTruncationChoice(docId, newChoice);
-            
-            warningEl.style.display = newChoice === 'full' ? 'block' : 'none';
-            const nextTooltip = truncationOptions[newChoice].tooltip;
-            if (nextTooltip) {
-                setTooltip(select, nextTooltip);
-            }
-            this.refreshDocumentsSection();
-        });
-    }
 
     private renderBulkTruncationControl(): void {
         if (!this.bulkTruncationEl) return;
 
         const t = this.plugin.t.minutes;
         const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
-        this.bulkTruncationEl.empty();
 
-        if (behavior !== 'ask') return;
+        if (behavior !== 'ask') {
+            this.bulkTruncationEl.empty();
+            return;
+        }
 
         const oversized = this.docController.getOversizedDocuments();
-        if (oversized.length === 0) return;
-
-        if (oversized.length > 1) {
-            this.bulkTruncationEl.createSpan({
-                text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
-                    .replace('{count}', String(oversized.length))
-                    .replace('{limit}', String(this.docController.getMaxChars())),
-                cls: 'minutes-bulk-warning'
-            });
-            this.bulkTruncationEl.createSpan({ text: t?.applyToAll || 'Apply to all:' });
-        } else {
-            this.bulkTruncationEl.createSpan({
-                text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
-                    .replace('{count}', String(oversized.length))
-                    .replace('{limit}', String(this.docController.getMaxChars())) +
-                    ' ' + (t?.applyToAll || 'Apply to all:')
-            });
-        }
-
-        const truncationOptions = getTruncationOptions(t);
-        const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
-        for (const choice of choices) {
-            const btn = this.bulkTruncationEl.createEl('button', {
-                text: truncationOptions[choice].label,
-                cls: choice === 'truncate' ? 'mod-cta' : ''
-            });
-            btn.addEventListener('click', () => {
+        
+        createBulkTruncationControls(
+            this.bulkTruncationEl,
+            oversized.length,
+            this.docController.getMaxChars(),
+            getTruncationOptions(t),
+            (choice) => {
                 this.docController.applyTruncationToAll(choice);
                 this.refreshDocumentsSection();
-            });
-        }
+            },
+            t?.oversizedDocuments,
+            t?.applyToAll
+        );
     }
 
     /**
