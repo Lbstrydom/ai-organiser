@@ -77,6 +77,14 @@ export interface Translations {
             editPersonas: string;
             editPersonasDesc: string;
             openPersonasFile: string;
+            multiSourceDocuments: string;
+            multiSourceMaxDocumentChars: string;
+            multiSourceMaxDocumentCharsDesc: string;
+            multiSourceOversizedBehavior: string;
+            multiSourceOversizedBehaviorDesc: string;
+            multiSourceOversizedAsk: string;
+            multiSourceOversizedTruncate: string;
+            multiSourceOversizedFull: string;
             transcriptOptions: string;
             saveTranscripts: string;
             saveTranscriptsDesc: string;
@@ -100,6 +108,13 @@ export interface Translations {
             defaultPersonaDesc: string;
             obsidianTasks: string;
             obsidianTasksDesc: string;
+            maxDocumentChars: string;
+            maxDocumentCharsDesc: string;
+            oversizedBehavior: string;
+            oversizedBehaviorDesc: string;
+            oversizedAsk: string;
+            oversizedTruncate: string;
+            oversizedFull: string;
         };
         configuration: {
             title: string;
@@ -645,11 +660,14 @@ export interface Translations {
             webPages: string;
             youtubeVideos: string;
             pdfDocuments: string;
+            officeDocuments: string;
             audioFiles: string;
             addUrlPlaceholder: string;
             addYoutubePlaceholder: string;
             addPdfPlaceholder: string;
+            addDocumentPlaceholder: string;
             addAudioPlaceholder: string;
+            documentDetected: string;
             persona: string;
             personaDesc: string;
             focusContext: string;
@@ -1058,5 +1076,49 @@ export interface Translations {
         documentFailed: string;
         noDocumentsAttached: string;
         noDocumentsFound: string;
+        // Dictionary
+        dictionarySection: string;
+        dictionaryDesc: string;
+        dictionarySelect: string;
+        dictionaryNone: string;
+        dictionaryCreateNew: string;
+        dictionaryEdit: string;
+        dictionaryNamePrompt: string;
+        dictionaryNamePlaceholder: string;
+        dictionaryCreated: string;
+        dictionaryCreateFailed: string;
+        dictionaryExtractFromDocs: string;
+        dictionaryExtracting: string;
+        dictionaryExtracted: string;
+        dictionaryExtractionFailed: string;
+        dictionaryNoDocsExtracted: string;
+        dictionaryCreatePrompt: string;
+        dictionaryNotFound: string;
+        truncateOption: string;
+        useFullOption: string;
+        skipOption: string;
+        truncateTooltip: string;
+        useFullTooltip: string;
+        skipTooltip: string;
+        oversizedDocuments: string;
+        applyToAll: string;
+        downloadingDocument: string;
+        extractingText: string;
+        documentDownloadFailed: string;
+        complexRtfNotSupported: string;
+        fullDocumentWarning: string;
+        excludedFromContext: string;
+    };
+    integration: {
+        resolveEmbeds: string;
+        resolveEmbedsDesc: string;
+        embedsFound: string;
+        resolveConfirm: string;
+        resolveSuccess: string;
+        noEmbedsToResolve: string;
+    };
+    notebooklm: {
+        linkedDocumentsDetected: string;
+        documentExportNotice: string;
     };
 }

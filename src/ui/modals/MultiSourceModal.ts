@@ -24,6 +24,7 @@ export interface SelectedSources {
     urls: string[];
     youtube: string[];
     pdfs: Array<{ path: string; isVaultFile: boolean }>;
+    documents: Array<{ path: string; isVaultFile: boolean }>;
     audio: Array<{ path: string; isVaultFile: boolean }>;
 }
 
@@ -35,7 +36,7 @@ export interface MultiSourceModalResult {
 }
 
 interface SourceSection {
-    type: 'urls' | 'youtube' | 'pdfs' | 'audio';
+    type: 'urls' | 'youtube' | 'pdfs' | 'documents' | 'audio';
     title: string;
     icon: string;
     placeholder: string;
@@ -53,6 +54,7 @@ export class MultiSourceModal extends Modal {
     private selectedUrls = new Set<string>();
     private selectedYoutube = new Set<string>();
     private selectedPdfs = new Set<string>();
+    private selectedDocuments = new Set<string>();
     private selectedAudio = new Set<string>();
     private summarizeNote: boolean;
     private focusContext = '';
@@ -62,6 +64,7 @@ export class MultiSourceModal extends Modal {
     private manualUrls: string[] = [];
     private manualYoutube: string[] = [];
     private manualPdfs: string[] = [];
+    private manualDocuments: string[] = [];
     private manualAudio: string[] = [];
 
     // Personas
@@ -87,6 +90,7 @@ export class MultiSourceModal extends Modal {
         this.detectedSources.urls.forEach(s => this.selectedUrls.add(s.value));
         this.detectedSources.youtube.forEach(s => this.selectedYoutube.add(s.value));
         this.detectedSources.pdfs.forEach(s => this.selectedPdfs.add(s.value));
+        this.detectedSources.documents.forEach(s => this.selectedDocuments.add(s.value));
         this.detectedSources.audio.forEach(s => this.selectedAudio.add(s.value));
 
         // Smart default for "Include note content":
@@ -187,6 +191,14 @@ export class MultiSourceModal extends Modal {
                 placeholder: t?.addPdfPlaceholder || 'Path to PDF or URL',
                 detected: this.detectedSources.pdfs,
                 manualInputs: this.manualPdfs
+            },
+            {
+                type: 'documents',
+                title: t?.officeDocuments || 'Office Documents',
+                icon: 'file-spreadsheet',
+                placeholder: t?.addDocumentPlaceholder || 'Path to .docx/.xlsx/.pptx or URL',
+                detected: this.detectedSources.documents,
+                manualInputs: this.manualDocuments
             },
             {
                 type: 'audio',
@@ -472,7 +484,7 @@ export class MultiSourceModal extends Modal {
         existingSection.remove();
 
         // Find insertion point (after note section, in order)
-        const sectionOrder = ['urls', 'youtube', 'pdfs', 'audio'];
+        const sectionOrder = ['urls', 'youtube', 'pdfs', 'documents', 'audio'];
         const currentIndex = sectionOrder.indexOf(type);
         let insertBefore: Element | null = null;
 
@@ -584,6 +596,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return t?.webPages || 'Web Pages';
             case 'youtube': return t?.youtubeVideos || 'YouTube Videos';
             case 'pdfs': return t?.pdfDocuments || 'PDF Documents';
+            case 'documents': return t?.officeDocuments || 'Office Documents';
             case 'audio': return t?.audioFiles || 'Audio Files';
             default: return type;
         }
@@ -594,6 +607,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return 'link';
             case 'youtube': return 'youtube';
             case 'pdfs': return 'file-text';
+            case 'documents': return 'file-spreadsheet';
             case 'audio': return 'mic';
             default: return 'file';
         }
@@ -604,6 +618,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return this.detectedSources.urls;
             case 'youtube': return this.detectedSources.youtube;
             case 'pdfs': return this.detectedSources.pdfs;
+            case 'documents': return this.detectedSources.documents;
             case 'audio': return this.detectedSources.audio;
             default: return [];
         }
@@ -614,6 +629,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return this.manualUrls;
             case 'youtube': return this.manualYoutube;
             case 'pdfs': return this.manualPdfs;
+            case 'documents': return this.manualDocuments;
             case 'audio': return this.manualAudio;
             default: return [];
         }
@@ -624,6 +640,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return this.selectedUrls.has(value);
             case 'youtube': return this.selectedYoutube.has(value);
             case 'pdfs': return this.selectedPdfs.has(value);
+            case 'documents': return this.selectedDocuments.has(value);
             case 'audio': return this.selectedAudio.has(value);
             default: return false;
         }
@@ -643,6 +660,7 @@ export class MultiSourceModal extends Modal {
             case 'urls': return this.selectedUrls;
             case 'youtube': return this.selectedYoutube;
             case 'pdfs': return this.selectedPdfs;
+            case 'documents': return this.selectedDocuments;
             case 'audio': return this.selectedAudio;
             default: return new Set();
         }
@@ -654,6 +672,7 @@ export class MultiSourceModal extends Modal {
         count += this.selectedUrls.size;
         count += this.selectedYoutube.size;
         count += this.selectedPdfs.size;
+        count += this.selectedDocuments.size;
         count += this.selectedAudio.size;
         return count;
     }
@@ -692,6 +711,10 @@ export class MultiSourceModal extends Modal {
                 urls: Array.from(this.selectedUrls),
                 youtube: Array.from(this.selectedYoutube),
                 pdfs: Array.from(this.selectedPdfs).map(path => ({
+                    path,
+                    isVaultFile: this.isVaultFile(path)
+                })),
+                documents: Array.from(this.selectedDocuments).map(path => ({
                     path,
                     isVaultFile: this.isVaultFile(path)
                 })),

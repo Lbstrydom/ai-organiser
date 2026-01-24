@@ -33,6 +33,8 @@ export interface MinutesGenerationInput {
     languageOverride?: string;
     /** Optional context from attached documents (agendas, presentations, etc.) */
     contextDocuments?: string;
+    /** Optional terminology dictionary content for transcription accuracy */
+    dictionaryContent?: string;
 }
 
 export interface MinutesGenerationResult {
@@ -78,7 +80,8 @@ export class MinutesService {
                     this.parseParticipants(input.participantsRaw),
                     input.participantsRaw,
                     input.transcript,
-                    input.contextDocuments
+                    input.contextDocuments,
+                    input.dictionaryContent
                 )
             ].join('\n\n');
 
@@ -162,7 +165,7 @@ export class MinutesService {
         }
 
         const merged = this.mergeChunkExtracts(extracts);
-        const consolidationPayload = {
+        const consolidationPayload: Record<string, unknown> = {
             meeting: {
                 title: input.metadata.title,
                 date: input.metadata.date,
@@ -182,6 +185,11 @@ export class MinutesService {
             participants_raw: input.participantsRaw,
             extracts: merged
         };
+
+        // Include dictionary in consolidation for name/term consistency
+        if (input.dictionaryContent && input.dictionaryContent.trim().length > 0) {
+            consolidationPayload.terminology_dictionary = input.dictionaryContent;
+        }
 
         new Notice(this.plugin.t.minutes?.consolidating || 'Consolidating minutes...', 2000);
 

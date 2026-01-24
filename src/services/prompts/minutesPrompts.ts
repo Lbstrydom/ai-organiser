@@ -181,6 +181,17 @@ external
   - Keep commitments, decisions, and next steps crisp.
   - When in doubt, omit.
 
+<<< TERMINOLOGY DICTIONARY >>>
+
+If a terminology dictionary is provided, it contains pre-verified terms for this meeting context.
+Use the dictionary to:
+- Ensure correct spelling of names (people, projects, organizations)
+- Expand acronyms correctly using the provided definitions
+- Apply consistent terminology throughout the minutes
+- Match names to roles/titles as specified
+
+The dictionary entries are authoritative - prefer dictionary spellings over transcript guesses.
+
 <<< CONTEXT DOCUMENTS >>>
 
 If context_documents is provided in the input, use it to:
@@ -286,7 +297,8 @@ export function buildMinutesUserPrompt(
     participants: Participant[],
     participantsRaw: string,
     transcript: TranscriptSegment[] | string,
-    contextDocuments?: string
+    contextDocuments?: string,
+    dictionaryContent?: string
 ): string {
     const payload: Record<string, unknown> = {
         meeting: {
@@ -308,6 +320,11 @@ export function buildMinutesUserPrompt(
         participants_raw: participantsRaw,
         transcript,
     };
+
+    // Add terminology dictionary if provided
+    if (dictionaryContent && dictionaryContent.trim().length > 0) {
+        payload.terminology_dictionary = dictionaryContent;
+    }
 
     // Add context documents if provided
     if (contextDocuments && contextDocuments.trim().length > 0) {

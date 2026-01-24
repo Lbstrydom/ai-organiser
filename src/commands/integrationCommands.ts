@@ -3,11 +3,12 @@
  * Commands for adding content to Pending Integration and integrating it into notes
  */
 
-import { Editor, Notice, Modal, App, Setting, TextAreaComponent } from 'obsidian';
+import { Editor, Notice, Modal, App, Setting, TextAreaComponent, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import {
     addToPendingIntegration,
     getPendingIntegrationContent,
+    setPendingIntegrationContent,
     getMainContent,
     clearPendingIntegration,
     replaceMainContent,
@@ -18,6 +19,8 @@ import {
     addToReferencesSection,
     SourceReference
 } from '../utils/noteStructure';
+import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
+import { DocumentExtractionService } from '../services/documentExtractionService';
 import { ConfigurationService, Persona } from '../services/configurationService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 
@@ -113,6 +116,16 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 }
             );
             modal.open();
+        }
+    });
+
+    // Command: Resolve pending embeds
+    plugin.addCommand({
+        id: 'resolve-pending-embeds',
+        name: plugin.t.integration?.resolveEmbeds || 'Resolve pending embeds',
+        icon: 'scan-text',
+        editorCallback: async (editor: Editor) => {
+            await resolvePendingEmbeds(plugin, editor);
         }
     });
 
@@ -227,6 +240,91 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             new Notice('Selection added to Pending Integration');
         }
     });
+}
+
+async function resolvePendingEmbeds(plugin: AIOrganiserPlugin, editor: Editor): Promise<void> {
+    const t = plugin.t.integration;
+    const pendingContent = getPendingIntegrationContent(editor);
+
+    if (!pendingContent) {
+        new Notice(t?.noEmbedsToResolve || 'No embeds to resolve in Pending Integration');
+        return;
+    }
+
+    const activeFile = plugin.app.workspace.getActiveFile() || undefined;
+    const detected = detectEmbeddedContent(plugin.app, pendingContent, activeFile);
+    const extractable = detected.items.filter(item => item.type === 'document' || item.type === 'pdf');
+
+    if (extractable.length === 0) {
+        new Notice(t?.noEmbedsToResolve || 'No embeds to resolve in Pending Integration');
+        return;
+    }
+
+    const typeCounts: Record<string, number> = {};
+    for (const item of extractable) {
+        typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
+    }
+    const typesSummary = Object.entries(typeCounts)
+        .map(([type, count]) => `${count} ${type}`)
+        .join(', ');
+
+    const foundMessage = (t?.embedsFound || '{count} embed(s) found ({types})')
+        .replace('{count}', String(extractable.length))
+        .replace('{types}', typesSummary);
+    const confirmMessage = t?.resolveConfirm || 'Extract text from embeds?';
+
+    const proceed = await plugin.showConfirmationDialog(`${foundMessage}\n\n${confirmMessage}`);
+    if (!proceed) {
+        return;
+    }
+
+    const documentService = new DocumentExtractionService(plugin.app);
+    let updatedContent = pendingContent;
+    let resolvedCount = 0;
+
+    for (const item of extractable) {
+        const result = await extractPendingEmbedText(plugin, documentService, item);
+        if (result.success && result.text) {
+            const replacement = `\n\n### Extracted: ${item.displayName}\n\n${result.text}\n`;
+            updatedContent = updatedContent.split(item.originalText).join(replacement);
+            resolvedCount++;
+        }
+    }
+
+    if (resolvedCount > 0) {
+        setPendingIntegrationContent(editor, updatedContent);
+    }
+
+    new Notice(
+        (t?.resolveSuccess || 'Resolved {count} embed(s)').replace('{count}', String(resolvedCount))
+    );
+}
+
+async function extractPendingEmbedText(
+    plugin: AIOrganiserPlugin,
+    documentService: DocumentExtractionService,
+    item: DetectedContent
+): Promise<{ success: boolean; text?: string; error?: string }> {
+    if (item.isExternal) {
+        if (item.type === 'document') {
+            return await documentService.extractFromUrl(item.url);
+        }
+        return { success: false, error: 'External PDFs are not supported' };
+    }
+
+    let file = item.resolvedFile;
+    if (!file) {
+        const abstractFile = plugin.app.vault.getAbstractFileByPath(item.url);
+        if (abstractFile instanceof TFile) {
+            file = abstractFile;
+        }
+    }
+
+    if (!file) {
+        return { success: false, error: 'File not found' };
+    }
+
+    return await documentService.extractText(file);
 }
 
 /**

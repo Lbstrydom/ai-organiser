@@ -1,6 +1,7 @@
 import { LanguageCode } from '../services/types';
 import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
+import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior } from './constants';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -74,11 +75,16 @@ export interface AIOrganiserSettings {
     transcriptFolder: string;            // Subfolder for transcript files (under pluginFolder)
     // Advanced Summarization Settings
     summarizeTimeoutSeconds: number;     // Timeout for summarization requests (default: 120s)
+    // Multi-source document settings
+    multiSourceMaxDocumentChars: number; // Default: 100000
+    multiSourceOversizedBehavior: 'truncate' | 'full' | 'ask'; // Default: 'full'
     // Meeting Minutes Settings
     minutesOutputFolder: string;         // Folder for meeting minutes notes
     minutesDefaultTimezone: string;      // Default timezone for meetings
     minutesDefaultPersona: string;       // Default minutes persona ID
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
+    maxDocumentChars: number;            // Minutes: max document size before truncation
+    oversizedDocumentBehavior: 'truncate' | 'full' | 'ask'; // Minutes: oversized behavior
     // Flashcard Settings
     flashcardFolder: string;             // Subfolder for flashcard exports (under pluginFolder)
     // Plugin Folder Settings (unified structure)
@@ -174,10 +180,14 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     saveTranscripts: 'file',
     transcriptFolder: 'Transcripts',
     summarizeTimeoutSeconds: 120,        // 2 minutes default, power users can increase
+    multiSourceMaxDocumentChars: DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS,
+    multiSourceOversizedBehavior: 'full' as OversizedBehavior,
     minutesOutputFolder: 'Meetings',
     minutesDefaultTimezone: getDefaultTimezone(),
     minutesDefaultPersona: 'corporate-minutes',
     minutesObsidianTasksFormat: false,
+    maxDocumentChars: DEFAULT_MAX_DOCUMENT_CHARS,
+    oversizedDocumentBehavior: 'ask' as OversizedBehavior,
     flashcardFolder: 'Flashcards',
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',

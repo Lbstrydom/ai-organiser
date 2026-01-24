@@ -38,10 +38,14 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
 
                 // Show info about PDF export (not yet implemented)
                 const count = preview.selection.files.length;
-                new Notice(
-                    `PDF export coming soon! ${count} notes selected for export.`,
-                    5000
-                );
+                new Notice(`PDF export coming soon! ${count} notes selected for export.`, 5000);
+
+                if (preview.linkedDocuments && preview.linkedDocuments.length > 0) {
+                    const linkedText = t.notebooklm?.linkedDocumentsDetected
+                        ? t.notebooklm.linkedDocumentsDetected.replace('{count}', String(preview.linkedDocuments.length))
+                        : `Linked documents: ${preview.linkedDocuments.length}`;
+                    new Notice(linkedText, 5000);
+                }
 
             } catch (error) {
                 console.error('Failed to start NotebookLM export:', error);

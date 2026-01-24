@@ -3,7 +3,8 @@
  * Extracts text from Office documents (DOCX, XLSX, PPTX) for meeting context
  */
 
-import { App, TFile } from 'obsidian';
+import { App, TFile, requestUrl } from 'obsidian';
+import { EXTRACTABLE_DOCUMENT_EXTENSIONS } from '../core/constants';
 
 export interface DocumentExtractionResult {
     success: boolean;
@@ -15,7 +16,7 @@ export interface DocumentExtractionResult {
     error?: string;
 }
 
-export const EXTRACTABLE_EXTENSIONS = ['docx', 'xlsx', 'pptx'];
+export const EXTRACTABLE_EXTENSIONS: string[] = [...EXTRACTABLE_DOCUMENT_EXTENSIONS];
 
 export class DocumentExtractionService {
     private app: App;
@@ -30,7 +31,7 @@ export class DocumentExtractionService {
     async extractText(file: TFile): Promise<DocumentExtractionResult> {
         const ext = file.extension.toLowerCase();
 
-        // Handle PDFs separately (they use multimodal, not text extraction)
+        // Handle PDFs separately (basic text extraction only)
         if (ext === 'pdf') {
             return this.extractPdfText(file);
         }
@@ -44,6 +45,14 @@ export class DocumentExtractionService {
         }
 
         try {
+            if (ext === 'txt') {
+                return await this.extractTextFile(file);
+            }
+
+            if (ext === 'rtf') {
+                return await this.extractRtfFile(file);
+            }
+
             const arrayBuffer = await this.app.vault.readBinary(file);
 
             // Dynamic import for tree-shaking
@@ -77,6 +86,31 @@ export class DocumentExtractionService {
     canExtract(file: TFile): boolean {
         const ext = file.extension.toLowerCase();
         return EXTRACTABLE_EXTENSIONS.includes(ext) || ext === 'pdf';
+    }
+
+    /**
+     * Extract text from a plain text file
+     */
+    private async extractTextFile(file: TFile): Promise<DocumentExtractionResult> {
+        const content = await this.app.vault.read(file);
+        return { success: true, text: content };
+    }
+
+    /**
+     * Extract text from an RTF file (basic support)
+     */
+    private async extractRtfFile(file: TFile): Promise<DocumentExtractionResult> {
+        const content = await this.app.vault.read(file);
+        const text = this.parseRtf(content);
+
+        if (!this.isReadableText(text)) {
+            return {
+                success: false,
+                error: 'Complex RTF formatting not supported. Try saving as .docx or .txt.'
+            };
+        }
+
+        return { success: true, text };
     }
 
     /**
@@ -165,6 +199,117 @@ export class DocumentExtractionService {
             .trim();
 
         return result;
+    }
+
+    /**
+     * Parse RTF into plain text (basic support)
+     */
+    private parseRtf(rtf: string): string {
+        let text = rtf;
+
+        // Decode hex escapes (\'hh -> character)
+        text = text.replace(/\\'([0-9a-f]{2})/gi, (_match, hex) =>
+            String.fromCharCode(parseInt(hex, 16))
+        );
+
+        // Handle unicode escapes (\uN)
+        text = text.replace(/\\u(-?\d+)\s?\??/g, (_match, code) =>
+            String.fromCharCode(parseInt(code, 10) & 0xFFFF)
+        );
+
+        // Preserve paragraph structure
+        text = text.replace(/\\par\b/g, '\n\n');
+        text = text.replace(/\\line\b/g, '\n');
+        text = text.replace(/\\tab\b/g, '\t');
+
+        // Remove header/font tables (greedy match to first \pard)
+        text = text.replace(/^\{\\rtf[\s\S]*?\\pard/m, '');
+
+        // Remove remaining control words
+        text = text.replace(/\\[a-z]+(-?\d+)?\s?/gi, '');
+
+        // Remove braces and unescape
+        text = text.replace(/[{}]/g, '');
+        text = text.replace(/\\\\/g, '\\');
+        text = text.replace(/\\\{/g, '{');
+        text = text.replace(/\\\}/g, '}');
+
+        // Clean whitespace
+        text = text.replace(/\n{3,}/g, '\n\n');
+        return text.trim();
+    }
+
+    /**
+     * Validate extracted text is readable (not garbled)
+     */
+    private isReadableText(text: string): boolean {
+        if (text.length < 10) return false;
+        const printable = text.replace(/[^\x20-\x7E\n\t\u00A0-\uFFFF]/g, '');
+        return printable.length / text.length > 0.8;
+    }
+
+    /**
+     * Extract text from an external document URL
+     */
+    async extractFromUrl(
+        url: string,
+        onProgress?: (status: string) => void
+    ): Promise<DocumentExtractionResult> {
+        try {
+            if (!url.startsWith('https://')) {
+                return { success: false, error: 'Secure HTTPS required for external documents.' };
+            }
+
+            onProgress?.('Downloading...');
+            const response = await requestUrl({ url, throw: true });
+            const contentLength = response.headers?.['content-length'] || response.headers?.['Content-Length'];
+            if (contentLength) {
+                const bytes = parseInt(contentLength, 10);
+                if (!isNaN(bytes)) {
+                    const mb = (bytes / (1024 * 1024)).toFixed(1);
+                    onProgress?.(`Downloading... (${mb} MB)`);
+                }
+            }
+
+            const ext = this.getExtensionFromUrl(url);
+            onProgress?.('Extracting text...');
+
+            if (ext === 'txt') {
+                const decoder = new TextDecoder('utf-8');
+                return { success: true, text: decoder.decode(response.arrayBuffer) };
+            }
+
+            if (ext === 'rtf') {
+                const decoder = new TextDecoder('utf-8');
+                const content = decoder.decode(response.arrayBuffer);
+                const text = this.parseRtf(content);
+                if (!this.isReadableText(text)) {
+                    return { success: false, error: 'Complex RTF formatting not supported. Try saving as .docx or .txt.' };
+                }
+                return { success: true, text };
+            }
+
+            const officeParser = await this.loadOfficeParser();
+            if (!officeParser) {
+                return { success: false, error: 'Office document parsing not available' };
+            }
+
+            const result = await officeParser.parseOffice(response.arrayBuffer);
+            return { success: true, text: result.toText() };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Download failed';
+            return { success: false, error: message };
+        }
+    }
+
+    private getExtensionFromUrl(url: string): string {
+        try {
+            const pathname = new URL(url).pathname;
+            const parts = pathname.split('.');
+            return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+        } catch {
+            return '';
+        }
     }
 
     /**

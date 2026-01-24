@@ -10,7 +10,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/utils/**', 'src/services/prompts/**'],
+      include: [
+        'src/utils/**',
+        'src/services/prompts/**',
+        'src/services/configurationService.ts',
+        'src/services/documentExtractionService.ts',
+        'src/services/minutesService.ts',
+      ],
       exclude: ['**/*.test.ts', '**/*.d.ts'],
     },
   },

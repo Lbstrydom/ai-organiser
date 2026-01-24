@@ -1,7 +1,7 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 23, 2026
+**Last Updated:** January 24, 2026
 **Status:** Feature Complete
 
 ---
@@ -111,7 +111,9 @@ AI-Organiser/
 │   ├── taxonomy.md           # Tagging themes/disciplines
 │   ├── excluded-tags.md      # Tags to never suggest
 │   ├── writing-personas.md   # Note improvement personas
-│   └── summary-personas.md   # Summarization personas
+│   ├── summary-personas.md   # Summarization personas
+│   ├── minutes-personas.md   # Meeting minutes personas
+│   └── dictionaries/         # Terminology dictionaries (syncs across devices)
 ├── Transcripts/              # Audio/YouTube transcripts
 └── Flashcards/               # Exported flashcards
 ```
@@ -119,6 +121,45 @@ AI-Organiser/
 ---
 
 ## Recent Updates (January 2026)
+
+### Document Extraction & Multi-Feature Enhancements (January 24)
+- **Centralized Document Extensions**: Single source of truth in `constants.ts`
+  - `EXTRACTABLE_DOCUMENT_EXTENSIONS`: docx, xlsx, pptx, txt, rtf
+  - `ALL_DOCUMENT_EXTENSIONS`: Includes PDF
+  - Used consistently across detection, extraction, and pickers
+- **Document Extraction Service Enhancements**:
+  - TXT extraction (direct file read)
+  - RTF extraction with hex/unicode decode and readability validation
+  - External document URL download (HTTPS only) with progress feedback
+  - Error handling for network failures and complex RTF formats
+- **Minutes Truncation UX** (inline controls following Gestalt proximity):
+  - Inline dropdown per oversized document (Truncate/Use Full/Exclude)
+  - Bulk "Apply to all" action positioned above document list
+  - Settings: `maxDocumentChars` (default 50000), `oversizedDocumentBehavior` (ask/truncate/full)
+  - Accessibility: aria-labels, touch-friendly inline warnings
+- **Multi-Source Document Support**:
+  - Documents section added between PDFs and Audio
+  - Vault and external URL document detection
+  - Settings: `multiSourceMaxDocumentChars` (100000), `multiSourceOversizedBehavior` (full)
+  - Truncation confirmation modal for oversized documents
+- **NotebookLM Linked Documents**: Detection and display of linked documents in export preview
+- **Pending Integration Enhancement**: Optional "Resolve pending embeds" command
+  - Extracts text from embedded documents/PDFs in Pending Integration section
+  - Replaces embed syntax with extracted content for review before integration
+- **Terminology Dictionary System**: Improve transcription accuracy with reusable dictionaries
+  - `DictionaryService` for CRUD operations on terminology dictionaries
+  - Dictionaries stored as markdown in `AI-Organiser/Config/dictionaries/` (syncs across devices)
+  - Entry categories: person, acronym, term, project, organization
+  - LLM-powered extraction from context documents (agendas, presentations)
+  - Case-insensitive deduplication when adding entries across meetings
+  - Dictionary content injected into prompts for consistent name/term usage
+- **i18n**: 84+ new translation strings across EN + ZH-CN
+- **SOLID/DRY Refactoring**:
+  - Centralized `DEFAULT_MAX_DOCUMENT_CHARS` (50000) and `DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS` (100000) constants
+  - Added `TruncationChoice` and `OversizedBehavior` type aliases
+  - Created unified `getTruncationOptions()` for DRY label/tooltip handling
+  - Added `MinutesModalDependencies` interface for dependency injection
+  - Modal services now support optional DI for testability
 
 ### Meeting Minutes & Bug Fixes (January 23)
 - **Meeting Minutes Generation**: New feature for structured meeting notes

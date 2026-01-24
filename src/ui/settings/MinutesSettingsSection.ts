@@ -67,5 +67,32 @@ export class MinutesSettingsSection extends BaseSettingSection {
                     this.plugin.settings.minutesObsidianTasksFormat = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(this.containerEl)
+            .setName(t.settings.minutes?.maxDocumentChars || 'Maximum document size')
+            .setDesc(t.settings.minutes?.maxDocumentCharsDesc || 'Documents larger than this will trigger truncation options (default: 50000)')
+            .addText(text => text
+                .setPlaceholder('50000')
+                .setValue(String(this.plugin.settings.maxDocumentChars))
+                .onChange(async (value) => {
+                    const num = parseInt(value, 10);
+                    if (!isNaN(num) && num >= 1000) {
+                        this.plugin.settings.maxDocumentChars = num;
+                        await this.plugin.saveSettings();
+                    }
+                }));
+
+        new Setting(this.containerEl)
+            .setName(t.settings.minutes?.oversizedBehavior || 'Oversized document handling')
+            .setDesc(t.settings.minutes?.oversizedBehaviorDesc || 'What to do when a document exceeds the size limit')
+            .addDropdown(dropdown => dropdown
+                .addOption('ask', t.settings.minutes?.oversizedAsk || 'Ask for each document')
+                .addOption('truncate', t.settings.minutes?.oversizedTruncate || 'Always truncate')
+                .addOption('full', t.settings.minutes?.oversizedFull || 'Always use full content')
+                .setValue(this.plugin.settings.oversizedDocumentBehavior)
+                .onChange(async (value) => {
+                    this.plugin.settings.oversizedDocumentBehavior = value as 'truncate' | 'full' | 'ask';
+                    await this.plugin.saveSettings();
+                }));
     }
 }

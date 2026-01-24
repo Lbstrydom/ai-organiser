@@ -1,16 +1,56 @@
-import { App, Modal, Notice, Platform, Setting, setIcon, TFile } from 'obsidian';
+import { App, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
 import { detectEmbeddedAudio, detectEmbeddedDocuments, DetectedContent } from '../../utils/embeddedContentDetector';
+import { DictionaryService, Dictionary } from '../../services/dictionaryService';
+import { DocumentExtractionService } from '../../services/documentExtractionService';
+import {
+    ALL_DOCUMENT_EXTENSIONS,
+    DEFAULT_MAX_DOCUMENT_CHARS,
+    TruncationChoice
+} from '../../core/constants';
+
+/**
+ * Truncation option definition for DRY label/tooltip handling
+ */
+interface TruncationOptionDef {
+    label: string;
+    tooltip: string;
+}
+
+/**
+ * Get truncation options with labels and tooltips
+ * Single source of truth for truncation UI text
+ */
+function getTruncationOptions(t: typeof import('../../i18n/en').en['minutes']): Record<TruncationChoice, TruncationOptionDef> {
+    return {
+        truncate: {
+            label: t?.truncateOption || 'Truncate',
+            tooltip: t?.truncateTooltip || 'Keep first 50k chars - safe for most LLMs'
+        },
+        full: {
+            label: t?.useFullOption || 'Use Full',
+            tooltip: t?.useFullTooltip || 'Use entire document - may exceed LLM token limits and increase costs'
+        },
+        skip: {
+            label: t?.skipOption || 'Exclude',
+            tooltip: t?.skipTooltip || 'Exclude this document from context'
+        }
+    };
+}
 
 interface ContextDocument {
     file: TFile;
     displayName: string;
     extractedText?: string;
+    fullText?: string;
     isProcessing: boolean;
     error?: string;
+    isOversized: boolean;
+    originalLength: number;
+    truncationChoice: TruncationChoice;
 }
 
 interface MinutesModalState {
@@ -37,21 +77,43 @@ interface MinutesModalState {
     transcriptionProgress: string;
     // Document context
     contextDocuments: ContextDocument[];
+    // Dictionary
+    selectedDictionaryId: string;
+    availableDictionaries: Dictionary[];
+    isExtractingDictionary: boolean;
+    dictionaryExtractionProgress: string;
+}
+
+/**
+ * Service dependencies for MinutesCreationModal
+ * Supports dependency injection for testing
+ */
+export interface MinutesModalDependencies {
+    minutesService?: MinutesService;
+    dictionaryService?: DictionaryService;
+    documentService?: DocumentExtractionService;
 }
 
 export class MinutesCreationModal extends Modal {
     private plugin: AIOrganiserPlugin;
     private minutesService: MinutesService;
+    private dictionaryService: DictionaryService;
+    private documentService: DocumentExtractionService;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
     private audioSectionEl: HTMLElement | null = null;
     private documentsSectionEl: HTMLElement | null = null;
+    private bulkTruncationEl: HTMLElement | null = null;
+    private dictionarySectionEl: HTMLElement | null = null;
 
-    constructor(app: App, plugin: AIOrganiserPlugin) {
+    constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
         super(app);
         this.plugin = plugin;
-        this.minutesService = new MinutesService(plugin);
+        // Support dependency injection for testing, with default implementations
+        this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
+        this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, plugin.settings.pluginFolder);
+        this.documentService = deps?.documentService ?? new DocumentExtractionService(app);
 
         this.state = {
             title: '',
@@ -76,7 +138,12 @@ export class MinutesCreationModal extends Modal {
             isTranscribing: false,
             transcriptionProgress: '',
             // Document context
-            contextDocuments: []
+            contextDocuments: [],
+            // Dictionary
+            selectedDictionaryId: '',
+            availableDictionaries: [],
+            isExtractingDictionary: false,
+            dictionaryExtractionProgress: ''
         };
     }
 
@@ -92,11 +159,14 @@ export class MinutesCreationModal extends Modal {
         await this.ensurePersonasLoaded();
         this.renderTopSection(contentEl);
 
-        // Desktop-only features: Audio transcription and document context
+        // Desktop-only features: Document context, dictionary, and audio transcription
+        // Order matters for gestalt: extract docs first, then dictionary, then transcribe
         if (!Platform.isMobile) {
             await this.detectEmbeddedContent();
-            this.renderAudioTranscriptionSection(contentEl);
+            await this.loadAvailableDictionaries();
             this.renderContextDocumentsSection(contentEl);
+            this.renderDictionarySection(contentEl);
+            this.renderAudioTranscriptionSection(contentEl);
         }
 
         this.renderParticipantsSection(contentEl);
@@ -200,9 +270,18 @@ export class MinutesCreationModal extends Modal {
             .addDropdown(dropdown => {
                 const personas = this.plugin.configService.getMinutesPersonas();
                 void personas.then(list => {
-                    list.forEach(p => dropdown.addOption(p.id, p.name));
-                    dropdown.setValue(this.state.personaId || list[0]?.id || '');
+                    if (list.length === 0) {
+                        // Fallback if no personas loaded
+                        dropdown.addOption('default', 'Default Style');
+                        dropdown.setValue('default');
+                    } else {
+                        list.forEach(p => dropdown.addOption(p.id, p.name));
+                        dropdown.setValue(this.state.personaId || list[0]?.id || '');
+                    }
                     dropdown.onChange(value => this.state.personaId = value);
+                }).catch(() => {
+                    dropdown.addOption('default', 'Default Style');
+                    dropdown.setValue('default');
                 });
             });
 
@@ -347,6 +426,9 @@ export class MinutesCreationModal extends Modal {
             // Get extracted context from documents
             const contextDocuments = this.getExtractedContextText();
 
+            // Get dictionary content if selected
+            const dictionaryContent = await this.getDictionaryContent();
+
             const result = await this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
@@ -355,7 +437,8 @@ export class MinutesCreationModal extends Modal {
                 outputFolder: this.plugin.settings.minutesOutputFolder,
                 customInstructions: this.state.customInstructions,
                 languageOverride: this.state.languageOverride,
-                contextDocuments: contextDocuments || undefined
+                contextDocuments: contextDocuments || undefined,
+                dictionaryContent: dictionaryContent || undefined
             });
 
             notice.hide();
@@ -381,11 +464,19 @@ export class MinutesCreationModal extends Modal {
         );
     }
 
-    private async ensurePersonasLoaded(): Promise<void> {
-        const personas = await this.plugin.configService.getMinutesPersonas();
-        if (personas.length === 0) {
-            new Notice(this.plugin.t.minutes?.errorNoPersonas || 'No personas found for meeting minutes');
-            this.close();
+    private async ensurePersonasLoaded(): Promise<boolean> {
+        try {
+            const personas = await this.plugin.configService.getMinutesPersonas();
+            if (personas.length === 0) {
+                console.warn('[AI Organiser] No minutes personas found, using default');
+                // Don't close - we'll handle this in the dropdown
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error('[AI Organiser] Failed to load minutes personas:', error);
+            new Notice(this.plugin.t.minutes?.errorNoPersonas || 'Failed to load personas - using defaults');
+            return false;
         }
     }
 
@@ -455,7 +546,10 @@ export class MinutesCreationModal extends Modal {
                 .map(doc => ({
                     file: doc.resolvedFile!,
                     displayName: doc.displayName,
-                    isProcessing: false
+                    isProcessing: false,
+                    isOversized: false,
+                    originalLength: 0,
+                    truncationChoice: 'full'
                 }));
         } catch {
             // Ignore detection errors
@@ -655,6 +749,10 @@ export class MinutesCreationModal extends Modal {
         const desc = this.documentsSectionEl.createDiv({ cls: 'minutes-section-desc' });
         desc.setText(t?.contextDocumentsDesc || 'Attach agendas, presentations, or spreadsheets to improve accuracy');
 
+        // Bulk truncation control (rendered only when applicable)
+        this.bulkTruncationEl = this.documentsSectionEl.createDiv({ cls: 'minutes-bulk-truncation' });
+        this.renderBulkTruncationControl();
+
         // Document list
         const listEl = this.documentsSectionEl.createDiv({ cls: 'minutes-document-list' });
         this.renderDocumentList(listEl);
@@ -704,21 +802,12 @@ export class MinutesCreationModal extends Modal {
 
             // Status
             const statusEl = infoEl.createDiv({ cls: 'minutes-document-status' });
-            if (doc.isProcessing) {
-                statusEl.setText(t?.extracting || 'Extracting...');
-            } else if (doc.error) {
-                statusEl.addClass('error');
-                statusEl.setText(doc.error);
-            } else if (doc.extractedText) {
-                statusEl.addClass('success');
-                const chars = doc.extractedText.length;
-                statusEl.setText((t?.documentExtracted || 'Extracted ({chars} chars)').replace('{chars}', String(chars)));
-            }
+            this.renderDocumentStatus(doc, statusEl);
 
             // Actions
             const actionsEl = itemEl.createDiv({ cls: 'minutes-document-actions' });
 
-            if (!doc.extractedText && !doc.isProcessing) {
+            if (!doc.extractedText && !doc.isProcessing && !doc.error) {
                 const extractBtn = actionsEl.createEl('button', { text: 'Extract' });
                 extractBtn.addEventListener('click', () => void this.extractDocument(i));
             }
@@ -739,6 +828,8 @@ export class MinutesCreationModal extends Modal {
             case 'xls': return 'table';
             case 'pptx':
             case 'ppt': return 'presentation';
+            case 'txt':
+            case 'rtf': return 'file-text';
             default: return 'file';
         }
     }
@@ -748,7 +839,7 @@ export class MinutesCreationModal extends Modal {
         const files = this.app.vault.getFiles()
             .filter(f => {
                 const ext = f.extension.toLowerCase();
-                return ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext);
+                return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
             })
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
 
@@ -791,7 +882,10 @@ export class MinutesCreationModal extends Modal {
             this.state.contextDocuments.push({
                 file,
                 displayName: file.name,
-                isProcessing: false
+                isProcessing: false,
+                isOversized: false,
+                originalLength: 0,
+                truncationChoice: 'full'
             });
 
             this.refreshDocumentsSection();
@@ -806,17 +900,29 @@ export class MinutesCreationModal extends Modal {
         this.refreshDocumentsSection();
 
         try {
-            const { DocumentExtractionService } = await import('../../services/documentExtractionService');
-            const extractionService = new DocumentExtractionService(this.app);
-
-            const result = await extractionService.extractText(doc.file);
+            const result = await this.documentService.extractText(doc.file);
 
             if (result.success && result.text) {
-                // Truncate very large documents
-                const maxChars = 50000;
-                doc.extractedText = result.text.length > maxChars
-                    ? result.text.substring(0, maxChars) + '\n\n[Truncated...]'
-                    : result.text;
+                const maxChars = this.getMaxDocumentChars();
+                const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
+
+                doc.fullText = result.text;
+                doc.originalLength = result.text.length;
+                doc.isOversized = result.text.length > maxChars;
+
+                if (doc.isOversized) {
+                    if (behavior === 'truncate') {
+                        doc.truncationChoice = 'truncate';
+                    } else if (behavior === 'full') {
+                        doc.truncationChoice = 'full';
+                    } else {
+                        doc.truncationChoice = 'truncate';
+                    }
+                } else {
+                    doc.truncationChoice = 'full';
+                }
+
+                this.applyTruncationChoice(doc);
             } else {
                 doc.error = result.error || 'Extraction failed';
             }
@@ -845,10 +951,178 @@ export class MinutesCreationModal extends Modal {
     private refreshDocumentsSection(): void {
         if (!this.documentsSectionEl) return;
 
+        this.renderBulkTruncationControl();
+
         const listEl = this.documentsSectionEl.querySelector('.minutes-document-list');
         if (listEl) {
             this.renderDocumentList(listEl as HTMLElement);
         }
+    }
+
+    private applyTruncationChoice(doc: ContextDocument): void {
+        const maxChars = this.getMaxDocumentChars();
+        const excludedMessage = this.getExcludedMessage();
+
+        if (!doc.fullText) {
+            return;
+        }
+
+        if (doc.error === excludedMessage && doc.truncationChoice !== 'skip') {
+            doc.error = undefined;
+        }
+
+        switch (doc.truncationChoice) {
+            case 'truncate':
+                doc.extractedText = doc.fullText.substring(0, maxChars) + '\n\n[Truncated...]';
+                doc.error = undefined;
+                break;
+            case 'full':
+                doc.extractedText = doc.fullText;
+                doc.error = undefined;
+                break;
+            case 'skip':
+                doc.extractedText = '';
+                doc.error = excludedMessage;
+                break;
+        }
+    }
+
+    private renderDocumentStatus(doc: ContextDocument, statusEl: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
+
+        statusEl.empty();
+
+        if (doc.isProcessing) {
+            statusEl.setText(t?.extracting || 'Extracting...');
+            return;
+        }
+
+        if (doc.error && doc.truncationChoice !== 'skip') {
+            statusEl.addClass('error');
+            statusEl.setText(doc.error);
+            return;
+        }
+
+        if (doc.isOversized && behavior === 'ask') {
+            const warningEl = statusEl.createDiv({ cls: 'minutes-doc-warning' });
+            warningEl.createSpan({
+                text: `! ${this.formatChars(doc.originalLength)} chars`,
+                cls: 'minutes-doc-size-warning'
+            });
+            this.renderTruncationDropdown(doc, warningEl);
+
+            if (doc.truncationChoice === 'skip' && doc.error) {
+                const skipEl = statusEl.createDiv({ cls: 'minutes-doc-skip-note' });
+                skipEl.setText(doc.error);
+            }
+            return;
+        }
+
+        if (doc.extractedText) {
+            statusEl.addClass('success');
+            const chars = doc.extractedText.length;
+            statusEl.setText((t?.documentExtracted || 'Extracted ({chars} chars)').replace('{chars}', String(chars)));
+        }
+    }
+
+    private renderTruncationDropdown(doc: ContextDocument, container: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+        const truncationOptions = getTruncationOptions(t);
+
+        const select = container.createEl('select', { cls: 'minutes-truncation-select' });
+        select.setAttribute('aria-label', 'Document size handling');
+
+        const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
+        for (const choice of choices) {
+            const opt = select.createEl('option', { value: choice });
+            opt.textContent = truncationOptions[choice].label;
+            if (choice === doc.truncationChoice) opt.selected = true;
+        }
+
+        const tooltipText = truncationOptions[doc.truncationChoice].tooltip;
+        if (tooltipText) {
+            setTooltip(select, tooltipText);
+        }
+
+        const warningEl = container.createDiv({ cls: 'minutes-full-warning' });
+        warningEl.setText(t?.fullDocumentWarning || 'Warning: may exceed token limits');
+        warningEl.style.display = doc.truncationChoice === 'full' ? 'block' : 'none';
+
+        select.addEventListener('change', () => {
+            doc.truncationChoice = select.value as TruncationChoice;
+            warningEl.style.display = doc.truncationChoice === 'full' ? 'block' : 'none';
+            const nextTooltip = truncationOptions[doc.truncationChoice].tooltip;
+            if (nextTooltip) {
+                setTooltip(select, nextTooltip);
+            }
+            this.applyTruncationChoice(doc);
+            this.refreshDocumentsSection();
+        });
+    }
+
+    private renderBulkTruncationControl(): void {
+        if (!this.bulkTruncationEl) return;
+
+        const t = this.plugin.t.minutes;
+        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
+        this.bulkTruncationEl.empty();
+
+        if (behavior !== 'ask') return;
+
+        const oversized = this.state.contextDocuments.filter(d => d.isOversized);
+        if (oversized.length === 0) return;
+
+        if (oversized.length > 1) {
+            this.bulkTruncationEl.createSpan({
+                text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
+                    .replace('{count}', String(oversized.length))
+                    .replace('{limit}', String(this.getMaxDocumentChars())),
+                cls: 'minutes-bulk-warning'
+            });
+            this.bulkTruncationEl.createSpan({ text: t?.applyToAll || 'Apply to all:' });
+        } else {
+            this.bulkTruncationEl.createSpan({
+                text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
+                    .replace('{count}', String(oversized.length))
+                    .replace('{limit}', String(this.getMaxDocumentChars())) +
+                    ' ' + (t?.applyToAll || 'Apply to all:')
+            });
+        }
+
+        const truncationOptions = getTruncationOptions(t);
+        const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
+        for (const choice of choices) {
+            const btn = this.bulkTruncationEl.createEl('button', {
+                text: truncationOptions[choice].label,
+                cls: choice === 'truncate' ? 'mod-cta' : ''
+            });
+            btn.addEventListener('click', () => {
+                for (const doc of oversized) {
+                    doc.truncationChoice = choice;
+                    this.applyTruncationChoice(doc);
+                }
+                this.refreshDocumentsSection();
+            });
+        }
+    }
+
+    /**
+     * Get the maximum document character limit from settings
+     * Single source of truth for the limit value
+     */
+    private getMaxDocumentChars(): number {
+        return this.plugin.settings.maxDocumentChars || DEFAULT_MAX_DOCUMENT_CHARS;
+    }
+
+    private getExcludedMessage(): string {
+        return this.plugin.t.minutes?.excludedFromContext || 'Excluded from context (user choice)';
+    }
+
+    private formatChars(count: number): string {
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return String(count);
     }
 
     private getExtractedContextText(): string {
@@ -856,5 +1130,344 @@ export class MinutesCreationModal extends Modal {
             .filter(doc => doc.extractedText)
             .map(doc => `### ${doc.displayName}\n\n${doc.extractedText}`)
             .join('\n\n---\n\n');
+    }
+
+    // ==================== Dictionary ====================
+
+    private async loadAvailableDictionaries(): Promise<void> {
+        try {
+            this.state.availableDictionaries = await this.dictionaryService.listDictionaries();
+        } catch {
+            console.warn('[AI Organiser] Failed to load dictionaries');
+            this.state.availableDictionaries = [];
+        }
+    }
+
+    private renderDictionarySection(containerEl: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+
+        this.dictionarySectionEl = containerEl.createDiv({ cls: 'minutes-dictionary-section' });
+
+        const header = this.dictionarySectionEl.createDiv({ cls: 'minutes-section-header' });
+        const iconEl = header.createSpan({ cls: 'minutes-section-icon' });
+        setIcon(iconEl, 'book-text');
+        header.createSpan({ text: t?.dictionarySection || 'Terminology Dictionary' });
+
+        const desc = this.dictionarySectionEl.createDiv({ cls: 'minutes-section-desc' });
+        desc.setText(t?.dictionaryDesc || 'Use a dictionary of names, terms, and acronyms for better transcription accuracy');
+
+        // Dictionary selection dropdown
+        const selectRow = this.dictionarySectionEl.createDiv({ cls: 'minutes-dictionary-select-row' });
+
+        new Setting(selectRow)
+            .setName(t?.dictionarySelect || 'Select dictionary')
+            .addDropdown(dropdown => {
+                dropdown.addOption('', t?.dictionaryNone || '(None)');
+                dropdown.addOption('__new__', t?.dictionaryCreateNew || '+ Create new dictionary');
+
+                for (const dict of this.state.availableDictionaries) {
+                    const entryCount = dict.entries.length;
+                    dropdown.addOption(dict.id, `${dict.name} (${entryCount} terms)`);
+                }
+
+                dropdown.setValue(this.state.selectedDictionaryId);
+                dropdown.onChange(value => {
+                    if (value === '__new__') {
+                        void this.handleCreateNewDictionary();
+                        dropdown.setValue(this.state.selectedDictionaryId);
+                    } else {
+                        this.state.selectedDictionaryId = value;
+                        this.refreshDictionarySection();
+                    }
+                });
+            });
+
+        // Show dictionary info if selected
+        if (this.state.selectedDictionaryId) {
+            const selectedDict = this.state.availableDictionaries.find(
+                d => d.id === this.state.selectedDictionaryId
+            );
+            if (selectedDict) {
+                this.renderDictionaryInfo(selectedDict);
+            }
+        }
+
+        // Extract from documents button
+        if (this.state.contextDocuments.some(doc => doc.extractedText)) {
+            const extractRow = this.dictionarySectionEl.createDiv({ cls: 'minutes-dictionary-actions' });
+
+            const extractBtn = extractRow.createEl('button', {
+                text: this.state.isExtractingDictionary
+                    ? (this.state.dictionaryExtractionProgress || t?.dictionaryExtracting || 'Extracting terms...')
+                    : (t?.dictionaryExtractFromDocs || 'Extract terms from documents')
+            });
+
+            if (!this.state.isExtractingDictionary) {
+                const extractIcon = extractBtn.createSpan({ cls: 'minutes-btn-icon' });
+                setIcon(extractIcon, 'sparkles');
+                extractBtn.prepend(extractIcon);
+            }
+
+            extractBtn.disabled = this.state.isExtractingDictionary;
+            extractBtn.addEventListener('click', () => void this.handleExtractDictionaryFromDocs());
+        }
+    }
+
+    private renderDictionaryInfo(dictionary: Dictionary): void {
+        if (!this.dictionarySectionEl) return;
+
+        const infoEl = this.dictionarySectionEl.createDiv({ cls: 'minutes-dictionary-info' });
+
+        if (dictionary.description) {
+            infoEl.createDiv({ text: dictionary.description, cls: 'minutes-dictionary-description' });
+        }
+
+        // Show entry counts by category
+        const counts: Record<string, number> = {};
+        for (const entry of dictionary.entries) {
+            counts[entry.category] = (counts[entry.category] || 0) + 1;
+        }
+
+        if (Object.keys(counts).length > 0) {
+            const statsEl = infoEl.createDiv({ cls: 'minutes-dictionary-stats' });
+            const categoryLabels: Record<string, string> = {
+                person: 'People',
+                acronym: 'Acronyms',
+                project: 'Projects',
+                organization: 'Organizations',
+                term: 'Terms'
+            };
+
+            const statParts = Object.entries(counts)
+                .map(([cat, count]) => `${count} ${categoryLabels[cat] || cat}`)
+                .join(', ');
+            statsEl.setText(statParts);
+        }
+
+        // Edit button
+        const editBtn = infoEl.createEl('button', {
+            text: this.plugin.t.minutes?.dictionaryEdit || 'Edit',
+            cls: 'minutes-dictionary-edit-btn'
+        });
+        editBtn.addEventListener('click', () => void this.openDictionaryFile(dictionary.id));
+    }
+
+    private async handleCreateNewDictionary(): Promise<void> {
+        const t = this.plugin.t.minutes;
+
+        // Simple prompt for dictionary name
+        const name = await this.promptForText(
+            t?.dictionaryNamePrompt || 'Enter dictionary name:',
+            t?.dictionaryNamePlaceholder || 'e.g., Hamina Board Meetings'
+        );
+
+        if (!name) return;
+
+        try {
+            const newDict = this.dictionaryService.createEmptyDictionary(name);
+            await this.dictionaryService.saveDictionary(newDict);
+
+            // Reload dictionaries and select the new one
+            await this.loadAvailableDictionaries();
+            this.state.selectedDictionaryId = newDict.id;
+            this.refreshDictionarySection();
+
+            new Notice(`${t?.dictionaryCreated || 'Dictionary created'}: ${name}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to create dictionary';
+            new Notice(`${t?.dictionaryCreateFailed || 'Failed to create dictionary'}: ${message}`);
+        }
+    }
+
+    private async promptForText(prompt: string, placeholder: string): Promise<string | null> {
+        return new Promise((resolve) => {
+            const modal = new Modal(this.app);
+            let inputValue = '';
+
+            modal.contentEl.createEl('p', { text: prompt });
+
+            const input = modal.contentEl.createEl('input', {
+                type: 'text',
+                placeholder: placeholder
+            });
+            input.addClass('minutes-prompt-input');
+            input.addEventListener('input', (e) => {
+                inputValue = (e.target as HTMLInputElement).value;
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    modal.close();
+                    resolve(inputValue.trim() || null);
+                }
+            });
+
+            const footer = modal.contentEl.createDiv({ cls: 'minutes-prompt-footer' });
+
+            const cancelBtn = footer.createEl('button', { text: this.plugin.t.common?.cancel || 'Cancel' });
+            cancelBtn.addEventListener('click', () => {
+                modal.close();
+                resolve(null);
+            });
+
+            const okBtn = footer.createEl('button', { text: this.plugin.t.common?.save || 'Save', cls: 'mod-cta' });
+            okBtn.addEventListener('click', () => {
+                modal.close();
+                resolve(inputValue.trim() || null);
+            });
+
+            modal.open();
+            input.focus();
+        });
+    }
+
+    private async handleExtractDictionaryFromDocs(): Promise<void> {
+        const t = this.plugin.t.minutes;
+
+        // Check if we have extracted document content
+        const docContent = this.getExtractedContextText();
+        if (!docContent) {
+            new Notice(t?.dictionaryNoDocsExtracted || 'Extract document content first');
+            return;
+        }
+
+        // Check if dictionary is selected or create new
+        if (!this.state.selectedDictionaryId) {
+            const createNew = await this.confirmAction(
+                t?.dictionaryCreatePrompt || 'No dictionary selected. Create a new one?'
+            );
+            if (!createNew) return;
+
+            await this.handleCreateNewDictionary();
+            if (!this.state.selectedDictionaryId) return;
+        }
+
+        this.state.isExtractingDictionary = true;
+        this.state.dictionaryExtractionProgress = t?.dictionaryExtracting || 'Extracting terms...';
+        this.refreshDictionarySection();
+
+        try {
+            // Build prompt for extraction
+            const extractionPrompt = this.dictionaryService.buildExtractionPrompt();
+            const fullPrompt = `${extractionPrompt}\n\n--- DOCUMENT CONTENT ---\n\n${docContent}`;
+
+            // Call LLM
+            const service = this.plugin.llmService as any;
+            if (typeof service.summarizeText !== 'function') {
+                throw new Error('LLM service not available');
+            }
+
+            const response = await service.summarizeText(fullPrompt);
+            if (!response.success || !response.content) {
+                throw new Error(response.error || 'Extraction failed');
+            }
+
+            // Parse response
+            const parseResult = this.dictionaryService.parseExtractionResponse(response.content);
+            if (!parseResult.success || !parseResult.entries) {
+                throw new Error(parseResult.error || 'Failed to parse extracted terms');
+            }
+
+            // Add entries to dictionary (deduplication happens in addEntries)
+            const updatedDict = await this.dictionaryService.addEntries(
+                this.state.selectedDictionaryId,
+                parseResult.entries
+            );
+
+            if (updatedDict) {
+                // Reload to show updated counts
+                await this.loadAvailableDictionaries();
+
+                const newCount = parseResult.entries.length;
+                new Notice(
+                    (t?.dictionaryExtracted || 'Extracted {count} terms')
+                        .replace('{count}', String(newCount))
+                );
+            }
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`${t?.dictionaryExtractionFailed || 'Extraction failed'}: ${message}`);
+        } finally {
+            this.state.isExtractingDictionary = false;
+            this.state.dictionaryExtractionProgress = '';
+            this.refreshDictionarySection();
+        }
+    }
+
+    private async confirmAction(message: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const modal = new Modal(this.app);
+
+            modal.contentEl.createEl('p', { text: message });
+
+            const footer = modal.contentEl.createDiv({ cls: 'minutes-prompt-footer' });
+
+            const cancelBtn = footer.createEl('button', { text: this.plugin.t.common?.cancel || 'Cancel' });
+            cancelBtn.addEventListener('click', () => {
+                modal.close();
+                resolve(false);
+            });
+
+            const okBtn = footer.createEl('button', { text: this.plugin.t.common?.confirm || 'Confirm', cls: 'mod-cta' });
+            okBtn.addEventListener('click', () => {
+                modal.close();
+                resolve(true);
+            });
+
+            modal.open();
+        });
+    }
+
+    private async openDictionaryFile(dictionaryId: string): Promise<void> {
+        const path = `${this.plugin.settings.pluginFolder}/dictionaries/${dictionaryId}.md`;
+        const file = this.app.vault.getAbstractFileByPath(path);
+
+        if (file instanceof TFile) {
+            await this.app.workspace.getLeaf(false).openFile(file);
+            this.close();
+        } else {
+            new Notice(this.plugin.t.minutes?.dictionaryNotFound || 'Dictionary file not found');
+        }
+    }
+
+    private refreshDictionarySection(): void {
+        if (!this.dictionarySectionEl) return;
+
+        // Remove and re-render
+        const parent = this.dictionarySectionEl.parentElement;
+        const nextSibling = this.dictionarySectionEl.nextSibling;
+        this.dictionarySectionEl.remove();
+
+        const newSection = document.createElement('div');
+        if (nextSibling) {
+            parent?.insertBefore(newSection, nextSibling);
+        } else {
+            parent?.appendChild(newSection);
+        }
+
+        // Re-render into a temp container, then replace
+        const tempEl = createDiv();
+        this.dictionarySectionEl = tempEl;
+        this.renderDictionarySection(tempEl);
+
+        // Move children to actual position
+        if (this.dictionarySectionEl.firstChild) {
+            newSection.replaceWith(this.dictionarySectionEl);
+        } else {
+            newSection.remove();
+        }
+    }
+
+    private async getDictionaryContent(): Promise<string> {
+        if (!this.state.selectedDictionaryId) {
+            return '';
+        }
+
+        const dictionary = await this.dictionaryService.getDictionaryById(this.state.selectedDictionaryId);
+        if (!dictionary) {
+            return '';
+        }
+
+        return this.dictionaryService.formatForPrompt(dictionary);
     }
 }

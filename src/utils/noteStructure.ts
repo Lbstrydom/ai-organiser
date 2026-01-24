@@ -303,6 +303,30 @@ export function getPendingIntegrationContent(editor: Editor): string | null {
 }
 
 /**
+ * Replace the content of the Pending Integration section (keeps the header)
+ */
+export function setPendingIntegrationContent(editor: Editor, content: string): void {
+    const structure = analyzeNoteStructure(editor);
+
+    if (!structure.pendingIntegration.found) {
+        return;
+    }
+
+    const startPos = {
+        line: structure.pendingIntegration.startLine,
+        ch: 0
+    };
+    const endPos = {
+        line: structure.pendingIntegration.endLine + 1,
+        ch: 0
+    };
+
+    const trimmedContent = content.trim();
+    const replacement = trimmedContent ? trimmedContent + '\n' : '\n';
+    editor.replaceRange(replacement, startPos, endPos);
+}
+
+/**
  * Get the main content of the note (before References/Pending sections)
  */
 export function getMainContent(editor: Editor): string {

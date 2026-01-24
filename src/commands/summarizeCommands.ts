@@ -11,7 +11,7 @@ import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, i
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
 import { updateAIOMetadata } from '../utils/frontmatterUtils';
-import { SourceType } from '../core/constants';
+import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider, resetPrivacyNotice } from '../services/privacyNotice';
 import { isPdfUrl, extractFilenameFromUrl } from '../utils/urlValidator';
@@ -48,6 +48,7 @@ import { SummarizeSourceModal, SummarizeSourceOption } from '../ui/modals/Summar
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
 import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
 import { removeProcessedSources } from '../utils/sourceDetection';
+import { DocumentExtractionService } from '../services/documentExtractionService';
 
 /**
  * Update note with structured metadata after summarization
@@ -336,6 +337,7 @@ async function handleMultiSourceResult(
             urls: result.sources.urls.length,
             youtube: result.sources.youtube.length,
             pdfs: result.sources.pdfs,
+            documents: result.sources.documents.length,
             audio: result.sources.audio.length,
             personaId: result.personaId
         });
@@ -351,6 +353,7 @@ async function handleMultiSourceResult(
         result.sources.urls.length +
         result.sources.youtube.length +
         result.sources.pdfs.length +
+        result.sources.documents.length +
         result.sources.audio.length;
 
     if (totalSources === 0) {
@@ -424,6 +427,16 @@ async function handleMultiSourceResult(
             }
             return;
         }
+        if (result.sources.documents.length === 1) {
+            const document = result.sources.documents[0];
+            try {
+                await handleDocumentSummarization(plugin, editor, view, document, personaPrompt, result.focusContext, personaId);
+            } catch (e) {
+                console.error('Error in handleDocumentSummarization:', e);
+                new Notice(`Error processing document: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+            return;
+        }
         if (result.sources.audio.length === 1) {
             // Audio requires the AudioSelectModal for transcription options
             void openAudioSummarizeModal(plugin, editor);
@@ -439,7 +452,7 @@ async function handleMultiSourceResult(
 
     // Track source data for References and status checklist
     interface ProcessedSource {
-        type: 'web' | 'youtube' | 'note' | 'pdf' | 'audio';
+        type: 'web' | 'youtube' | 'note' | 'pdf' | 'document' | 'audio';
         url?: string;
         title: string;
         date: string;
@@ -710,6 +723,61 @@ async function handleMultiSourceResult(
                 type: 'pdf',
                 url: pdf.path,
                 title: pdfTitle,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            });
+        }
+
+        processedCount++;
+    }
+
+    // Process Documents
+    for (const document of result.sources.documents) {
+        showProgress();
+        const docTitle = document.path.split('/').pop() || document.path;
+
+        try {
+            const extraction = await extractDocumentTextForMultiSource(plugin, view, document);
+            if (extraction.success && extraction.text) {
+                new Notice(`Summarizing: ${docTitle.substring(0, 40)}...`, 5000);
+                const summary = await callSummarizeService(plugin, extraction.text, personaPrompt, result.focusContext);
+                if (summary) {
+                    summaries.push(summary);
+                    sourceLabels.push(`Document: ${docTitle}`);
+                    allSources.push({
+                        type: 'document',
+                        url: document.path,
+                        title: docTitle,
+                        date: today,
+                        success: true
+                    });
+                } else {
+                    allSources.push({
+                        type: 'document',
+                        url: document.path,
+                        title: docTitle,
+                        date: today,
+                        success: false,
+                        error: 'Failed to generate summary'
+                    });
+                }
+            } else {
+                allSources.push({
+                    type: 'document',
+                    url: document.path,
+                    title: docTitle,
+                    date: today,
+                    success: false,
+                    error: extraction.error || 'Failed to extract document text'
+                });
+            }
+        } catch (e) {
+            console.error('Error processing document:', e);
+            allSources.push({
+                type: 'document',
+                url: document.path,
+                title: docTitle,
                 date: today,
                 success: false,
                 error: e instanceof Error ? e.message : 'Unknown error'
@@ -1586,6 +1654,98 @@ async function handleExternalPdfSummarization(
     }
 
     await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, false, personaId);
+}
+
+/**
+ * Handle document summarization (docx/xlsx/pptx/txt/rtf)
+ */
+async function handleDocumentSummarization(
+    plugin: AIOrganiserPlugin,
+    editor: Editor,
+    view: MarkdownView,
+    document: { path: string; isVaultFile: boolean },
+    personaPrompt: string,
+    userContext?: string,
+    personaId?: string
+): Promise<void> {
+    const result = await extractDocumentTextForMultiSource(plugin, view, document);
+    if (!result.success || !result.text) {
+        new Notice(result.error || 'Failed to extract document text');
+        return;
+    }
+
+    await summarizePlainTextAndInsert(plugin, editor, result.text, personaPrompt, userContext);
+}
+
+async function extractDocumentTextForMultiSource(
+    plugin: AIOrganiserPlugin,
+    view: MarkdownView,
+    document: { path: string; isVaultFile: boolean }
+): Promise<{ success: boolean; text?: string; error?: string }> {
+    const documentService = new DocumentExtractionService(plugin.app);
+
+    if (document.isVaultFile) {
+        const currentFile = view.file;
+        let file = plugin.app.metadataCache.getFirstLinkpathDest(document.path, currentFile?.path || '');
+
+        if (!file) {
+            const directFile = plugin.app.vault.getAbstractFileByPath(document.path);
+            if (directFile instanceof TFile) {
+                file = directFile;
+            }
+        }
+
+        if (!file) {
+            return { success: false, error: 'Document file not found in vault' };
+        }
+
+        const result = await documentService.extractText(file);
+        if (!result.success || !result.text) {
+            return { success: false, error: result.error || 'Failed to extract document text' };
+        }
+
+        const text = await applyMultiSourceTruncation(plugin, result.text, file.basename);
+        return { success: true, text };
+    }
+
+    const progressNotice = (status: string) => {
+        const t = plugin.t.minutes;
+        const message = status.startsWith('Downloading')
+            ? (t?.downloadingDocument || status)
+            : (t?.extractingText || status);
+        new Notice(message, 2000);
+    };
+    const result = await documentService.extractFromUrl(document.path, progressNotice);
+    if (!result.success || !result.text) {
+        return { success: false, error: result.error || 'Failed to extract document from URL' };
+    }
+
+    const title = document.path.split('/').pop() || document.path;
+    const text = await applyMultiSourceTruncation(plugin, result.text, title);
+    return { success: true, text };
+}
+
+async function applyMultiSourceTruncation(
+    plugin: AIOrganiserPlugin,
+    text: string,
+    title: string
+): Promise<string> {
+    const maxChars = plugin.settings.multiSourceMaxDocumentChars || DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS;
+    const behavior = plugin.settings.multiSourceOversizedBehavior || 'full';
+
+    if (text.length <= maxChars) return text;
+
+    if (behavior === 'full') {
+        return text;
+    }
+
+    if (behavior === 'truncate') {
+        return text.substring(0, maxChars) + '\n\n[Truncated...]';
+    }
+
+    const confirmMessage = `Document "${title}" is ${text.length} chars (limit ${maxChars}). Use full content?`;
+    const useFull = await plugin.showConfirmationDialog(confirmMessage);
+    return useFull ? text : text.substring(0, maxChars) + '\n\n[Truncated...]';
 }
 
 /**

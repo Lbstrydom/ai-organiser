@@ -214,9 +214,19 @@ export interface ExportPreview {
     /** Estimated total size */
     estimatedSizeBytes: number;
 
+    /** Linked documents detected in selected notes */
+    linkedDocuments: LinkedDocument[];
+
     /** Validation warnings */
     warnings: ValidationWarnings;
 
     /** Config to be used */
     config: SourcePackConfig;
+}
+
+export interface LinkedDocument {
+    sourceFile: string;
+    path: string;
+    displayName: string;
+    type: 'document' | 'pdf';
 }

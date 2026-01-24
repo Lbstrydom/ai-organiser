@@ -3227,6 +3227,77 @@
     color: var(--color-red);
 }
 
+.minutes-doc-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.minutes-doc-size-warning {
+    color: var(--text-warning);
+    font-size: 0.9em;
+}
+
+.minutes-truncation-select {
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 3px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    cursor: pointer;
+    transition: border-color 0.1s;
+}
+
+.minutes-truncation-select:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+}
+
+.minutes-truncation-select:hover {
+    border-color: var(--text-accent);
+}
+
+.minutes-full-warning {
+    font-size: 0.85em;
+    color: var(--text-warning);
+    margin-top: 4px;
+}
+
+.minutes-doc-skip-note {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.minutes-bulk-truncation {
+    margin-top: 12px;
+    padding: 8px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.minutes-bulk-truncation button {
+    padding: 4px 8px;
+    font-size: 0.85em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.minutes-bulk-truncation button:hover {
+    background: var(--background-modifier-hover);
+}
+
+.minutes-bulk-warning {
+    color: var(--text-warning);
+    font-weight: 500;
+}
+
 .minutes-document-actions {
     display: flex;
     gap: 4px;
@@ -3255,5 +3326,67 @@
 
 .minutes-btn-icon {
     margin-right: 4px;
+}
+
+/* Dictionary Section */
+.minutes-dictionary-section {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 12px 0;
+}
+
+.minutes-dictionary-select-row {
+    margin: 8px 0;
+}
+
+.minutes-dictionary-select-row .setting-item {
+    border: none;
+    padding: 0;
+}
+
+.minutes-dictionary-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    padding: 8px;
+    background: var(--background-primary);
+    border-radius: 4px;
+}
+
+.minutes-dictionary-description {
+    flex: 1 1 100%;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    margin-bottom: 4px;
+}
+
+.minutes-dictionary-stats {
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+}
+
+.minutes-dictionary-edit-btn {
+    margin-left: auto;
+}
+
+.minutes-dictionary-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.minutes-prompt-input {
+    width: 100%;
+    margin: 8px 0;
+}
+
+.minutes-prompt-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
 }
 

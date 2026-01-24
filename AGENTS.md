@@ -546,7 +546,7 @@ The Bases integration enables structured metadata and dashboard generation for s
 
 ### Overview
 
-Generate structured meeting minutes from transcripts with persona-based output styles.
+Generate structured meeting minutes from transcripts with persona-based output styles, terminology dictionaries for transcription accuracy, and context document support.
 
 ### Core Components
 
@@ -554,14 +554,28 @@ Generate structured meeting minutes from transcripts with persona-based output s
 - `generateMinutes()`: Main generation function with transcript chunking
 - Supports long transcripts via 5000-token chunked processing
 - Context chaining between chunks for coherent output
+- Accepts `dictionaryContent` and `contextDocuments` for enhanced accuracy
+
+**Dictionary Service** (`src/services/dictionaryService.ts`):
+- CRUD operations for terminology dictionaries stored as markdown
+- `addEntries()`: Merge with case-insensitive deduplication
+- `formatForPrompt()`: Format dictionary as XML for LLM injection
+- `buildExtractionPrompt()`: Extract terms from context documents
+- Storage: `AI-Organiser/Config/dictionaries/` (syncs across devices)
+- Entry categories: person, acronym, term, project, organization
 
 **Minutes Prompts** (`src/services/prompts/minutesPrompts.ts`):
 - `buildMinutesPrompt()`: XML-structured prompt for LLM
 - Persona-based tone and style instructions
 - Obsidian Tasks format support for action items
+- Dictionary injection for name/term consistency
 
 **Minutes Modal** (`src/ui/modals/MinutesCreationModal.ts`):
 - Meeting input form: title, date, time, participants, agenda, transcript
+- Context Documents section: attach agendas, presentations, spreadsheets
+- Dictionary section: select, create, edit, or extract terminology
+- Audio Transcription section: transcribe embedded audio files
+- UX flow: Documents → Dictionary → Audio (dependency-first ordering)
 - Persona selector, dual output toggle, Obsidian Tasks toggle
 
 **Minutes Settings** (`src/ui/settings/MinutesSettingsSection.ts`):
@@ -576,8 +590,91 @@ Generate structured meeting minutes from transcripts with persona-based output s
 - **Context Chaining**: Each chunk receives previous summary for continuity
 - **Persona System**: Reuses existing persona infrastructure
 - **Obsidian Tasks**: Actions as `- [ ] Task @due(date)`
+- **Dictionary-First Workflow**: Extract terms from documents before transcription
+- **Cross-Meeting Reuse**: Same dictionary works across multiple meetings
+- **Document Truncation**: Inline controls for oversized documents with configurable settings
 
-## Planned Features
+## Document Extraction System
 
-See `docs/` folder for implementation plans:
-- [docs/notebooklm_integration_plan.md](docs/notebooklm_integration_plan.md): NotebookLM Source Pack export for consumer mode
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+Centralized document detection and extraction supporting Office documents (docx, xlsx, pptx), text formats (txt, rtf), and PDFs across Minutes, Multi-Source Summarization, and NotebookLM features.
+
+### Core Components
+
+**Constants** (`src/core/constants.ts`):
+- `EXTRACTABLE_DOCUMENT_EXTENSIONS`: ['docx', 'xlsx', 'pptx', 'txt', 'rtf']
+- `ALL_DOCUMENT_EXTENSIONS`: ['pdf', ...EXTRACTABLE_DOCUMENT_EXTENSIONS]
+- `DOCUMENT_EXTENSIONS_WITH_DOTS`: For file detection with dots
+
+**Document Extraction Service** (`src/services/documentExtractionService.ts`):
+- `extractText(file)`: Extract from vault files (uses officeparser for Office formats)
+- `extractFromUrl(url, onProgress?)`: Download and extract from external URLs (HTTPS only)
+- `canExtract(file)`: Check if file type is supported
+- RTF parsing with hex/unicode decode and readability validation
+- TXT direct read support
+
+**Content Extraction Service** (`src/services/contentExtractionService.ts`):
+- `extractDocumentContent(item)`: Unified extraction for vault and external documents
+- Handles `isExternal` flag for URL-based documents
+- Returns `ExtractedContent` with success/error status
+
+**Embedded Content Detector** (`src/utils/embeddedContentDetector.ts`):
+- `detectEmbeddedContent()`: Detect documents in note content
+- `classifyUrl()`: Classify external URLs including document URLs
+- `getExtractableContent()`: Filter for extractable items including documents
+
+### Feature Integration
+
+**Minutes** (`src/ui/modals/MinutesCreationModal.ts`):
+- Context Documents section with inline truncation controls
+- Settings: `maxDocumentChars`, `oversizedDocumentBehavior`
+- Bulk "Apply to all" for multiple oversized documents
+
+**Multi-Source** (`src/ui/modals/MultiSourceModal.ts`):
+- Documents section between PDFs and Audio
+- Detection from note content and manual input
+- Settings: `multiSourceMaxDocumentChars`, `multiSourceOversizedBehavior`
+
+**NotebookLM** (`src/services/notebooklm/sourcePackService.ts`):
+- `detectLinkedDocuments()`: Find linked documents in selected notes
+- Display in export preview modal
+
+**Pending Integration** (`src/commands/integrationCommands.ts`):
+- "Resolve pending embeds" command extracts text from embedded docs
+- Replaces embed syntax with extracted content for review
+
+### SOLID/DRY Patterns
+
+**Centralized Constants** (`src/core/constants.ts`):
+- `DEFAULT_MAX_DOCUMENT_CHARS = 50000`: Minutes document limit
+- `DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS = 100000`: Multi-source limit
+- `TruncationChoice`: Type alias for 'truncate' | 'full' | 'skip'
+- `OversizedBehavior`: Type alias for 'ask' | 'truncate' | 'full'
+
+**Unified UI Text** (`src/ui/modals/MinutesCreationModal.ts`):
+- `getTruncationOptions(t)`: Single source for truncation labels/tooltips
+- Returns `Record<TruncationChoice, {label, tooltip}>` for DRY dropdown rendering
+
+**Dependency Injection** (`src/ui/modals/MinutesCreationModal.ts`):
+- `MinutesModalDependencies` interface for optional service injection
+- Services: `minutesService`, `dictionaryService`, `documentService`
+- Supports testability without modifying production code
+
+**Key Patterns**:
+- **DRY Extensions**: All extension checks use constants from `constants.ts`
+- **DRY Limits**: Use `DEFAULT_MAX_DOCUMENT_CHARS` / `DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS`
+- **DRY UI Text**: Truncation labels/tooltips via `getTruncationOptions()` helper
+- **DIP**: Modal services injectable via `MinutesModalDependencies` interface
+- **HTTPS Only**: External URLs must use HTTPS (security requirement)
+- **Inline Truncation**: Gestalt proximity - controls next to affected documents
+- **Graceful Errors**: RTF validation catches complex formatting, shows user-friendly message
+
+## Documentation
+
+See `docs/` folder for additional documentation:
+- [docs/STATUS.md](docs/STATUS.md): Development status and recent updates
+- [docs/bases_user_guide.md](docs/bases_user_guide.md): Obsidian Bases integration guide
+- [docs/usertest.md](docs/usertest.md): Manual testing checklist

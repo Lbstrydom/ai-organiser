@@ -59,6 +59,16 @@ export class NotebookLMExportModal extends Modal {
             text: `Estimated size: ${this.formatBytes(this.preview.estimatedSizeBytes)}`
         });
 
+        if (this.preview.linkedDocuments && this.preview.linkedDocuments.length > 0) {
+            const countText = this.t.notebooklm?.linkedDocumentsDetected
+                ? this.t.notebooklm.linkedDocumentsDetected.replace('{count}', String(this.preview.linkedDocuments.length))
+                : `Linked documents: ${this.preview.linkedDocuments.length}`;
+            statsDiv.createEl('p', { text: countText });
+
+            const noticeText = this.t.notebooklm?.documentExportNotice || 'Documents will be exported alongside notes';
+            statsDiv.createEl('p', { text: noticeText, cls: 'setting-item-description' });
+        }
+
         // Warnings
         if (this.preview.warnings.sourceCountWarning || this.preview.warnings.totalSizeWarning) {
             const warningsDiv = contentEl.createDiv({ cls: 'notebooklm-warnings' });

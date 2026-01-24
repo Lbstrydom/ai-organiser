@@ -11,9 +11,11 @@ import {
     ExportResult,
     SelectionResult,
     ExportPreview,
-    ValidationWarnings
+    ValidationWarnings,
+    LinkedDocument
 } from './types';
 import { SelectionService } from './selectionService';
+import { detectEmbeddedContent } from '../../utils/embeddedContentDetector';
 
 /**
  * Main service for NotebookLM source pack operations
@@ -46,6 +48,26 @@ export class SourcePackService {
         const tag = selectionTag || this.config.selectionTag;
         const selection = await this.selectionService.getSelectedNotes(tag);
 
+        const linkedDocuments: LinkedDocument[] = [];
+        for (const file of selection.files) {
+            try {
+                const content = await this.app.vault.read(file);
+                const detected = detectEmbeddedContent(this.app, content, file);
+                for (const item of detected.items) {
+                    if (item.type === 'document' || item.type === 'pdf') {
+                        linkedDocuments.push({
+                            sourceFile: file.path,
+                            path: item.url,
+                            displayName: item.displayName,
+                            type: item.type
+                        });
+                    }
+                }
+            } catch {
+                // Ignore read/detection errors for preview
+            }
+        }
+
         // Estimate size (rough: 50KB per note as PDF)
         const estimatedSizeBytes = selection.files.length * 50 * 1024;
 
@@ -63,6 +85,7 @@ export class SourcePackService {
         return {
             selection,
             estimatedSizeBytes,
+            linkedDocuments,
             warnings,
             config: this.config
         };

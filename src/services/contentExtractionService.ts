@@ -8,6 +8,7 @@ import { DetectedContent } from '../utils/embeddedContentDetector';
 import { fetchArticle } from './webContentService';
 import { PdfService, PdfServiceResult } from './pdfService';
 import { fetchYouTubeTranscript, YouTubeTranscriptResult } from './youtubeService';
+import { DocumentExtractionService } from './documentExtractionService';
 
 export interface ExtractedContent {
     source: DetectedContent;
@@ -28,10 +29,12 @@ export interface ExtractionResult {
 export class ContentExtractionService {
     private app: App;
     private pdfService: PdfService;
+    private documentService: DocumentExtractionService;
 
     constructor(app: App) {
         this.app = app;
         this.pdfService = new PdfService(app);
+        this.documentService = new DocumentExtractionService(app);
     }
 
     /**
@@ -103,12 +106,7 @@ export class ContentExtractionService {
                 return this.extractInternalLinkContent(item);
 
             case 'document':
-                return {
-                    source: item,
-                    content: '',
-                    success: false,
-                    error: 'Document type not supported for extraction'
-                };
+                return this.extractDocumentContent(item);
 
             default:
                 return {
@@ -302,6 +300,63 @@ export class ContentExtractionService {
                 content: `[Image: ${item.displayName}]`,
                 base64,
                 mimeType,
+                success: true
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                source: item,
+                content: '',
+                success: false,
+                error: errorMessage
+            };
+        }
+    }
+
+    /**
+     * Extract content from a document (docx/xlsx/pptx/txt/rtf)
+     */
+    private async extractDocumentContent(item: DetectedContent): Promise<ExtractedContent> {
+        try {
+            if (item.isExternal) {
+                const result = await this.documentService.extractFromUrl(item.url);
+                if (!result.success || !result.text) {
+                    return {
+                        source: item,
+                        content: '',
+                        success: false,
+                        error: result.error || 'Failed to extract document from URL'
+                    };
+                }
+                return {
+                    source: item,
+                    content: result.text,
+                    success: true
+                };
+            }
+
+            if (!item.resolvedFile) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: 'Document file not found in vault'
+                };
+            }
+
+            const result = await this.documentService.extractText(item.resolvedFile);
+            if (!result.success || !result.text) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: result.error || 'Failed to extract document text'
+                };
+            }
+
+            return {
+                source: item,
+                content: result.text,
                 success: true
             };
         } catch (error) {

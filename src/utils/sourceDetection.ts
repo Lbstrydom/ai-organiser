@@ -4,8 +4,9 @@
  */
 
 import { App, TFile } from 'obsidian';
+import { EXTRACTABLE_DOCUMENT_EXTENSIONS } from '../core/constants';
 
-export type SourceType = 'url' | 'youtube' | 'pdf' | 'audio';
+export type SourceType = 'url' | 'youtube' | 'pdf' | 'audio' | 'document';
 
 export interface DetectedSource {
     type: SourceType;
@@ -21,16 +22,25 @@ export interface DetectedSources {
     youtube: DetectedSource[];
     pdfs: DetectedSource[];
     audio: DetectedSource[];
+    documents: DetectedSource[];
 }
 
 // URL patterns
 const URL_PATTERN = /https?:\/\/[^\s\])"'<>]+/gi;
 const YOUTUBE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
 const PDF_URL_PATTERN = /https?:\/\/[^\s\])"'<>]+\.pdf(?:\?[^\s\])"'<>]*)?/gi;
+const DOCUMENT_URL_PATTERN = new RegExp(
+    `https?:\\/\\/[^\\s\\])"'<>]+\\.(${EXTRACTABLE_DOCUMENT_EXTENSIONS.join('|')})(?:\\?[^\\s\\])"'<>]*)?`,
+    'gi'
+);
 
 // Vault link patterns
 const VAULT_PDF_PATTERN = /\[\[([^\]]+\.pdf)\]\]/gi;
 const VAULT_AUDIO_PATTERN = /\[\[([^\]]+\.(mp3|wav|m4a|ogg|flac|webm))\]\]/gi;
+const VAULT_DOCUMENT_PATTERN = new RegExp(
+    `\\[\\[([^\\]]+\\.(${EXTRACTABLE_DOCUMENT_EXTENSIONS.join('|')}))\\]\\]`,
+    'gi'
+);
 
 // Audio URL pattern
 const AUDIO_URL_PATTERN = /https?:\/\/[^\s\])"'<>]+\.(mp3|wav|m4a|ogg|flac|webm)(?:\?[^\s\])"'<>]*)?/gi;
@@ -44,7 +54,8 @@ export function detectSourcesFromContent(content: string, app?: App): DetectedSo
         urls: [],
         youtube: [],
         pdfs: [],
-        audio: []
+        audio: [],
+        documents: []
     };
 
     // Track seen values to avoid duplicates
@@ -121,6 +132,23 @@ export function detectSourcesFromContent(content: string, app?: App): DetectedSo
             }
         }
 
+        // Detect document URLs
+        const documentUrlMatches = line.matchAll(new RegExp(DOCUMENT_URL_PATTERN.source, 'gi'));
+        for (const match of documentUrlMatches) {
+            const url = match[0];
+            if (!seen.has(url)) {
+                seen.add(url);
+                sources.documents.push({
+                    type: 'document',
+                    value: url,
+                    displayName: extractFileName(url) || truncateUrl(url, 40),
+                    lineNumber,
+                    context,
+                    isVaultFile: false
+                });
+            }
+        }
+
         // Detect vault PDF links
         const vaultPdfMatches = line.matchAll(new RegExp(VAULT_PDF_PATTERN.source, 'gi'));
         for (const match of vaultPdfMatches) {
@@ -155,13 +183,30 @@ export function detectSourcesFromContent(content: string, app?: App): DetectedSo
             }
         }
 
+        // Detect vault document links
+        const vaultDocumentMatches = line.matchAll(new RegExp(VAULT_DOCUMENT_PATTERN.source, 'gi'));
+        for (const match of vaultDocumentMatches) {
+            const filePath = match[1];
+            if (!seen.has(filePath)) {
+                seen.add(filePath);
+                sources.documents.push({
+                    type: 'document',
+                    value: filePath,
+                    displayName: extractFileName(filePath) || filePath,
+                    lineNumber,
+                    context,
+                    isVaultFile: true
+                });
+            }
+        }
+
         // Detect general URLs (excluding YouTube, PDFs, audio already matched)
         const urlMatches = line.matchAll(new RegExp(URL_PATTERN.source, 'gi'));
         for (const match of urlMatches) {
             const url = match[0];
             // Skip if already seen or if it's a YouTube/PDF/audio URL
             if (seen.has(url)) continue;
-            if (isYouTubeUrl(url) || isPdfUrl(url) || isAudioUrl(url)) continue;
+            if (isYouTubeUrl(url) || isPdfUrl(url) || isAudioUrl(url) || isDocumentUrl(url)) continue;
 
             seen.add(url);
             sources.urls.push({
@@ -196,6 +241,13 @@ function isPdfUrl(url: string): boolean {
  */
 function isAudioUrl(url: string): boolean {
     return /\.(mp3|wav|m4a|ogg|flac|webm)(?:\?|$)/i.test(url);
+}
+
+/**
+ * Check if URL is a document URL
+ */
+function isDocumentUrl(url: string): boolean {
+    return new RegExp(`\\.(${EXTRACTABLE_DOCUMENT_EXTENSIONS.join('|')})(?:\\?|$)`, 'i').test(url);
 }
 
 /**
@@ -242,7 +294,7 @@ function truncateUrl(url: string, maxLength: number): string {
  * Get total count of detected sources
  */
 export function getTotalSourceCount(sources: DetectedSources): number {
-    return sources.urls.length + sources.youtube.length + sources.pdfs.length + sources.audio.length;
+    return sources.urls.length + sources.youtube.length + sources.pdfs.length + sources.audio.length + sources.documents.length;
 }
 
 /**

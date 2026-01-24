@@ -101,6 +101,42 @@ export class SummarizationSettingsSection extends BaseSettingSection {
           })
       );
 
+    // Multi-source Documents subheader
+    containerEl.createEl('h4', { text: t.multiSourceDocuments || 'Multi-Source Documents' });
+
+    // Multi-source max document characters
+    new Setting(containerEl)
+      .setName(t.multiSourceMaxDocumentChars || 'Maximum document size (multi-source)')
+      .setDesc(t.multiSourceMaxDocumentCharsDesc || 'Documents larger than this will be truncated or handled per setting')
+      .addText(text =>
+        text
+          .setPlaceholder('100000')
+          .setValue(String(plugin.settings.multiSourceMaxDocumentChars))
+          .onChange(async value => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num >= 1000) {
+              plugin.settings.multiSourceMaxDocumentChars = num;
+              await plugin.saveSettings();
+            }
+          })
+      );
+
+    // Multi-source oversized behavior
+    new Setting(containerEl)
+      .setName(t.multiSourceOversizedBehavior || 'Oversized document handling (multi-source)')
+      .setDesc(t.multiSourceOversizedBehaviorDesc || 'What to do when a document exceeds the size limit')
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('ask', t.multiSourceOversizedAsk || 'Ask for each document')
+          .addOption('truncate', t.multiSourceOversizedTruncate || 'Always truncate')
+          .addOption('full', t.multiSourceOversizedFull || 'Always use full content')
+          .setValue(plugin.settings.multiSourceOversizedBehavior)
+          .onChange(async value => {
+            plugin.settings.multiSourceOversizedBehavior = value as 'truncate' | 'full' | 'ask';
+            await plugin.saveSettings();
+          })
+      );
+
     // Transcript Settings subheader
     containerEl.createEl('h4', { text: t.transcriptOptions || 'Transcript Options' });
 

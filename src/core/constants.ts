@@ -62,3 +62,17 @@ export type StatusValue = typeof STATUS_VALUES[number];
  */
 export const SOURCE_TYPES = ['url', 'pdf', 'youtube', 'audio', 'note'] as const;
 export type SourceType = typeof SOURCE_TYPES[number];
+
+// Document format constants (single source of truth)
+export const EXTRACTABLE_DOCUMENT_EXTENSIONS = ['docx', 'xlsx', 'pptx', 'txt', 'rtf'] as const;
+export const ALL_DOCUMENT_EXTENSIONS = ['pdf', ...EXTRACTABLE_DOCUMENT_EXTENSIONS] as const;
+export const DOCUMENT_EXTENSIONS_WITH_DOTS = ALL_DOCUMENT_EXTENSIONS.map(ext => `.${ext}`);
+export type ExtractableDocumentExtension = typeof EXTRACTABLE_DOCUMENT_EXTENSIONS[number];
+
+// Document extraction defaults
+export const DEFAULT_MAX_DOCUMENT_CHARS = 50000;
+export const DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS = 100000;
+
+// Truncation choice types
+export type TruncationChoice = 'truncate' | 'full' | 'skip';
+export type OversizedBehavior = 'ask' | 'truncate' | 'full';

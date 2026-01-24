@@ -5,6 +5,7 @@
 
 import { App, TFile } from 'obsidian';
 import { isYouTubeUrl } from '../services/youtubeService';
+import { DOCUMENT_EXTENSIONS_WITH_DOTS, EXTRACTABLE_DOCUMENT_EXTENSIONS } from '../core/constants';
 
 export type ContentType = 'image' | 'pdf' | 'youtube' | 'web-link' | 'internal-link' | 'document' | 'audio';
 
@@ -33,9 +34,6 @@ export interface DetectionResult {
 
 // Image file extensions
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-
-// Document file extensions
-const DOCUMENT_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf'];
 
 // Audio file extensions (matches audioTranscriptionService.ts)
 const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm', '.ogg', '.mp4', '.mpeg', '.mpga', '.oga'];
@@ -256,6 +254,20 @@ function classifyUrl(
         };
     }
 
+    // Check for document URLs (Office, TXT, RTF)
+    if (EXTRACTABLE_DOCUMENT_EXTENSIONS.some(ext => lowerUrl.endsWith(`.${ext}`))) {
+        return {
+            type: 'document',
+            originalText,
+            url,
+            altText,
+            displayName: altText || getFileNameFromUrl(url),
+            isEmbedded,
+            isExternal: true,
+            lineNumber
+        };
+    }
+
     // Default to web link
     return {
         type: 'web-link',
@@ -294,7 +306,7 @@ function classifyInternalFile(
         type = 'pdf';
     } else if (AUDIO_EXTENSIONS.some(ext => lowerPath.endsWith(ext))) {
         type = 'audio';
-    } else if (DOCUMENT_EXTENSIONS.some(ext => lowerPath.endsWith(ext))) {
+    } else if (DOCUMENT_EXTENSIONS_WITH_DOTS.some(ext => lowerPath.endsWith(ext))) {
         type = 'document';
     }
 
@@ -360,8 +372,9 @@ function removeDuplicates(items: DetectedContent[]): DetectedContent[] {
  */
 export function getExtractableContent(result: DetectionResult): DetectedContent[] {
     return result.items.filter(item => {
-        // Can extract from: PDF, YouTube, web links, images (for multimodal)
+        // Can extract from: PDF, documents, YouTube, web links, images (for multimodal)
         return item.type === 'pdf' ||
+               item.type === 'document' ||
                item.type === 'youtube' ||
                item.type === 'web-link' ||
                item.type === 'image';

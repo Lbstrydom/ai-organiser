@@ -146,7 +146,8 @@ https://docs.example.com/reference
                     { type: 'pdf', value: 'c', displayName: 'c' },
                     { type: 'pdf', value: 'd', displayName: 'd' }
                 ],
-                audio: []
+                audio: [],
+                documents: []
             };
 
             expect(getTotalSourceCount(sources)).toBe(4);
@@ -157,7 +158,8 @@ https://docs.example.com/reference
                 urls: [],
                 youtube: [],
                 pdfs: [],
-                audio: []
+                audio: [],
+                documents: []
             };
 
             expect(getTotalSourceCount(sources)).toBe(0);
@@ -170,7 +172,8 @@ https://docs.example.com/reference
                 urls: [{ type: 'url', value: 'a', displayName: 'a' }],
                 youtube: [],
                 pdfs: [],
-                audio: []
+                audio: [],
+                documents: []
             };
 
             expect(hasAnySources(sources)).toBe(true);
@@ -181,7 +184,8 @@ https://docs.example.com/reference
                 urls: [],
                 youtube: [],
                 pdfs: [],
-                audio: []
+                audio: [],
+                documents: []
             };
 
             expect(hasAnySources(sources)).toBe(false);
