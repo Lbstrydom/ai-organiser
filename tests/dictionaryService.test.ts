@@ -351,10 +351,10 @@ describe('DictionaryService', () => {
 
     describe('createEmptyDictionary', () => {
         it('should create a dictionary with correct ID from name', () => {
-            const dict = service.createEmptyDictionary('Hamina Board Meetings');
+            const dict = service.createEmptyDictionary('Acme Project Team');
 
-            expect(dict.id).toBe('hamina-board-meetings');
-            expect(dict.name).toBe('Hamina Board Meetings');
+            expect(dict.id).toBe('acme-project-team');
+            expect(dict.name).toBe('Acme Project Team');
             expect(dict.entries).toHaveLength(0);
         });
 

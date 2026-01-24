@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
@@ -739,7 +739,7 @@ export class MinutesCreationModal extends Modal {
         const addIcon = addBtn.createSpan({ cls: 'minutes-btn-icon' });
         setIcon(addIcon, 'plus');
         addBtn.prepend(addIcon);
-        addBtn.addEventListener('click', () => void this.openDocumentPicker());
+        addBtn.addEventListener('click', () => this.openDocumentPicker());
 
         // Extract all button (if documents exist)
         if (this.docController.getCount() > 0) {
@@ -809,54 +809,37 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
-    private async openDocumentPicker(): Promise<void> {
-        // Get all documents in vault
-        const files = this.app.vault.getFiles()
-            .filter(f => {
-                const ext = f.extension.toLowerCase();
-                return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
-            })
-            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+    private openDocumentPicker(): void {
+        try {
+            // Get all documents in vault
+            const files = this.app.vault.getFiles()
+                .filter(f => {
+                    const ext = f.extension.toLowerCase();
+                    return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
+                })
+                .sort((a, b) => b.stat.mtime - a.stat.mtime);
 
-        if (files.length === 0) {
-            new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');
-            return;
-        }
-
-        // Use a simple selection modal
-        const { FuzzySuggestModal } = await import('obsidian');
-
-        class DocumentPickerModal extends FuzzySuggestModal<TFile> {
-            private onSelect: (file: TFile) => void;
-
-            constructor(app: App, files: TFile[], onSelect: (file: TFile) => void) {
-                super(app);
-                this.onSelect = onSelect;
-            }
-
-            getItems(): TFile[] {
-                return files;
-            }
-
-            getItemText(file: TFile): string {
-                return file.path;
-            }
-
-            onChooseItem(file: TFile): void {
-                this.onSelect(file);
-            }
-        }
-
-        new DocumentPickerModal(this.app, files, (file) => {
-            // Add via controller
-            const result = this.docController.addFromVault(file);
-            if (!result.added) {
-                new Notice(result.error || 'Failed to add document');
+            if (files.length === 0) {
+                new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');
                 return;
             }
 
-            this.refreshDocumentsSection();
-        }).open();
+            // Create picker modal using static import
+            const picker = new DocumentPickerModal(this.app, files, (file) => {
+                // Add via controller
+                const result = this.docController.addFromVault(file);
+                if (!result.added) {
+                    new Notice(result.error || 'Failed to add document');
+                    return;
+                }
+
+                this.refreshDocumentsSection();
+            });
+            picker.open();
+        } catch (error) {
+            console.error('[AI Organiser] Failed to open document picker:', error);
+            new Notice('Failed to open document picker');
+        }
     }
 
     private async extractDocumentFromUI(doc: DocumentItem): Promise<void> {
@@ -1123,7 +1106,7 @@ export class MinutesCreationModal extends Modal {
         // Simple prompt for dictionary name
         const name = await this.promptForText(
             t?.dictionaryNamePrompt || 'Enter dictionary name:',
-            t?.dictionaryNamePlaceholder || 'e.g., Hamina Board Meetings'
+            t?.dictionaryNamePlaceholder || 'e.g., Acme Project Team'
         );
 
         if (!name) return;
@@ -1334,5 +1317,31 @@ export class MinutesCreationModal extends Modal {
         }
 
         return this.dictionaryService.formatForPrompt(dictionary);
+    }
+}
+
+/**
+ * Document picker modal for selecting vault documents
+ */
+class DocumentPickerModal extends FuzzySuggestModal<TFile> {
+    private readonly files: TFile[];
+    private readonly onSelect: (file: TFile) => void;
+
+    constructor(app: App, files: TFile[], onSelect: (file: TFile) => void) {
+        super(app);
+        this.files = files;
+        this.onSelect = onSelect;
+    }
+
+    getItems(): TFile[] {
+        return this.files;
+    }
+
+    getItemText(file: TFile): string {
+        return file.path;
+    }
+
+    onChooseItem(file: TFile): void {
+        this.onSelect(file);
     }
 }

@@ -1100,7 +1100,7 @@ export const en: Translations = {
         dictionaryCreateNew: "+ Create new dictionary",
         dictionaryEdit: "Edit",
         dictionaryNamePrompt: "Enter dictionary name:",
-        dictionaryNamePlaceholder: "e.g., Hamina Board Meetings",
+        dictionaryNamePlaceholder: "e.g., Acme Project Team",
         dictionaryCreated: "Dictionary created",
         dictionaryCreateFailed: "Failed to create dictionary",
         dictionaryExtractFromDocs: "Extract terms from documents",

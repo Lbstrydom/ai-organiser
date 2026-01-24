@@ -1100,7 +1100,7 @@ export const zhCN: Translations = {
         dictionaryCreateNew: "+ 创建新词典",
         dictionaryEdit: "编辑",
         dictionaryNamePrompt: "输入词典名称：",
-        dictionaryNamePlaceholder: "例如：哈米纳董事会会议",
+        dictionaryNamePlaceholder: "例如：Acme项目团队",
         dictionaryCreated: "词典已创建",
         dictionaryCreateFailed: "创建词典失败",
         dictionaryExtractFromDocs: "从文档中提取术语",
