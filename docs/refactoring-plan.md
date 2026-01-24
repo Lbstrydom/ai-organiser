@@ -1,25 +1,27 @@
 # Refactoring Plan: Remaining SOLID/DRY Improvements
 
 **Created:** January 24, 2026
-**Last Updated:** January 24, 2026 (Task 1 Complete)
+**Last Updated:** January 24, 2026 (Task 2 Audit-Complete)
 **Priority:** Medium (code quality improvements, not blocking features)
 **Scope:** Minutes Modal SRP, Controller Extraction, Truncation UI DRY
 
 ## Task Completion Status
 
-- ✅ **Task 1: DocumentHandlingController** - COMPLETE (Jan 24, audit-fixed)
+- ✅ **Task 1: DocumentHandlingController** - AUDIT-COMPLETE (Jan 24)
   - Explicit `id` field for document identity
   - `AddResult` with duplicate feedback
   - Public static `getDocumentId()` for ID computation
   - `removeDocument()` with boolean return
   - 23 comprehensive tests, all passing
-- ✅ **Task 2: DictionaryController** - COMPLETE (Jan 24)
-  - 15 fully implemented public methods (no stubs)
-  - Full CRUD: load, create, delete
-  - Term extraction with LLM integration
-  - Entry merging with case-insensitive dedup
-  - Category filtering, searching, formatting
-  - 49 comprehensive tests, all passing
+- ✅ **Task 2: DictionaryController** - AUDIT-COMPLETE (Jan 24)
+  - 16 fully implemented public methods (removeEntry added during audit)
+  - Deep copy prevents entry array/aliases mutation
+  - Search includes aliases (term + aliases)
+  - LLM term extraction with documented limitations
+  - Dead code removed (2 unused prompt functions)
+  - Case-insensitive remove with error handling
+  - 56 comprehensive tests (7 new), all passing
+  - Grade: A (improved from initial B+)
 - ⏳ **Task 3: AudioController** - PENDING
 - ⏳ **Task 4: TruncationControls** - PENDING
 - ⏳ **Task 5: Strategy Pattern** - DEFERRED
