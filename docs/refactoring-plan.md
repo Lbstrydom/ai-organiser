@@ -1,9 +1,22 @@
 # Refactoring Plan: Remaining SOLID/DRY Improvements
 
 **Created:** January 24, 2026
-**Last Updated:** January 24, 2026
+**Last Updated:** January 24, 2026 (Task 1 Complete)
 **Priority:** Medium (code quality improvements, not blocking features)
 **Scope:** Minutes Modal SRP, Controller Extraction, Truncation UI DRY
+
+## Task Completion Status
+
+- ✅ **Task 1: DocumentHandlingController** - COMPLETE (Jan 24, audit-fixed)
+  - Explicit `id` field for document identity
+  - `AddResult` with duplicate feedback
+  - Public static `getDocumentId()` for ID computation
+  - `removeDocument()` with boolean return
+  - 23 comprehensive tests, all passing
+- 🔄 **Task 2: DictionaryController** - IN PROGRESS
+- ⏳ **Task 3: AudioController** - PENDING
+- ⏳ **Task 4: TruncationControls** - PENDING
+- ⏳ **Task 5: Strategy Pattern** - DEFERRED
 
 ---
 
@@ -219,8 +232,11 @@ export class DictionaryController {
 
 ### Acceptance Criteria
 - [ ] Modal calls controller for all dictionary operations
-- [ ] Term extraction returns errors array, no throws
+- [ ] All methods fully implemented (no stubs)
+- [ ] Term extraction returns `DictionaryResult<T>` with errors array
 - [ ] Merge uses case-insensitive dedupe
+- [ ] Comprehensive unit tests (20+) all passing
+- [ ] Controller can add detected terms from documents
 
 ---
 
