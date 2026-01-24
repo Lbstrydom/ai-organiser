@@ -13,7 +13,13 @@
   - Public static `getDocumentId()` for ID computation
   - `removeDocument()` with boolean return
   - 23 comprehensive tests, all passing
-- 🔄 **Task 2: DictionaryController** - IN PROGRESS
+- ✅ **Task 2: DictionaryController** - COMPLETE (Jan 24)
+  - 15 fully implemented public methods (no stubs)
+  - Full CRUD: load, create, delete
+  - Term extraction with LLM integration
+  - Entry merging with case-insensitive dedup
+  - Category filtering, searching, formatting
+  - 49 comprehensive tests, all passing
 - ⏳ **Task 3: AudioController** - PENDING
 - ⏳ **Task 4: TruncationControls** - PENDING
 - ⏳ **Task 5: Strategy Pattern** - DEFERRED
