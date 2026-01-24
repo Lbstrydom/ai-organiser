@@ -3,7 +3,7 @@ import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
-import { detectEmbeddedAudio, detectEmbeddedDocuments, DetectedContent } from '../../utils/embeddedContentDetector';
+import { detectEmbeddedAudio, DetectedContent } from '../../utils/embeddedContentDetector';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import {
@@ -11,6 +11,7 @@ import {
     DEFAULT_MAX_DOCUMENT_CHARS,
     TruncationChoice
 } from '../../core/constants';
+import { DocumentHandlingController, DocumentItem } from '../controllers/DocumentHandlingController';
 
 /**
  * Truncation option definition for DRY label/tooltip handling
@@ -41,17 +42,7 @@ function getTruncationOptions(t: typeof import('../../i18n/en').en['minutes']): 
     };
 }
 
-interface ContextDocument {
-    file: TFile;
-    displayName: string;
-    extractedText?: string;
-    fullText?: string;
-    isProcessing: boolean;
-    error?: string;
-    isOversized: boolean;
-    originalLength: number;
-    truncationChoice: TruncationChoice;
-}
+// ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
 interface MinutesModalState {
     title: string;
@@ -75,8 +66,8 @@ interface MinutesModalState {
     detectedAudioFiles: DetectedContent[];
     isTranscribing: boolean;
     transcriptionProgress: string;
-    // Document context
-    contextDocuments: ContextDocument[];
+    // Document context (managed by controller)
+    // contextDocuments removed - access via docController
     // Dictionary
     selectedDictionaryId: string;
     availableDictionaries: Dictionary[];
@@ -92,6 +83,7 @@ export interface MinutesModalDependencies {
     minutesService?: MinutesService;
     dictionaryService?: DictionaryService;
     documentService?: DocumentExtractionService;
+    docController?: DocumentHandlingController;
 }
 
 export class MinutesCreationModal extends Modal {
@@ -99,6 +91,7 @@ export class MinutesCreationModal extends Modal {
     private minutesService: MinutesService;
     private dictionaryService: DictionaryService;
     private documentService: DocumentExtractionService;
+    private docController!: DocumentHandlingController;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
@@ -138,7 +131,7 @@ export class MinutesCreationModal extends Modal {
             isTranscribing: false,
             transcriptionProgress: '',
             // Document context
-            contextDocuments: [],
+            // contextDocuments removed - managed by docController
             // Dictionary
             selectedDictionaryId: '',
             availableDictionaries: [],
@@ -539,18 +532,8 @@ export class MinutesCreationModal extends Modal {
             // Detect audio files
             this.state.detectedAudioFiles = detectEmbeddedAudio(this.app, content, activeFile);
 
-            // Detect documents (PDFs and Office docs)
-            const detectedDocs = detectEmbeddedDocuments(this.app, content, activeFile);
-            this.state.contextDocuments = detectedDocs
-                .filter(doc => doc.resolvedFile)
-                .map(doc => ({
-                    file: doc.resolvedFile!,
-                    displayName: doc.displayName,
-                    isProcessing: false,
-                    isOversized: false,
-                    originalLength: 0,
-                    truncationChoice: 'full'
-                }));
+            // Detect documents (PDFs and Office docs) using controller
+            this.docController.addDetectedFromContent(content);
         } catch {
             // Ignore detection errors
         }
@@ -768,7 +751,7 @@ export class MinutesCreationModal extends Modal {
         addBtn.addEventListener('click', () => void this.openDocumentPicker());
 
         // Extract all button (if documents exist)
-        if (this.state.contextDocuments.length > 0) {
+        if (this.docController.getCount() > 0) {
             const extractBtn = addRow.createEl('button', {
                 text: t?.extractAll || 'Extract All',
                 cls: 'mod-cta'
@@ -780,8 +763,9 @@ export class MinutesCreationModal extends Modal {
     private renderDocumentList(listEl: HTMLElement): void {
         listEl.empty();
         const t = this.plugin.t.minutes;
+        const documents = this.docController.getDocuments();
 
-        if (this.state.contextDocuments.length === 0) {
+        if (documents.length === 0) {
             listEl.createDiv({
                 text: t?.noDocumentsAttached || 'No documents attached',
                 cls: 'minutes-document-empty'
@@ -789,16 +773,16 @@ export class MinutesCreationModal extends Modal {
             return;
         }
 
-        for (let i = 0; i < this.state.contextDocuments.length; i++) {
-            const doc = this.state.contextDocuments[i];
+        for (const doc of documents) {
             const itemEl = listEl.createDiv({ cls: 'minutes-document-item' });
 
             const infoEl = itemEl.createDiv({ cls: 'minutes-document-info' });
 
             const nameRow = infoEl.createDiv({ cls: 'minutes-document-name' });
             const fileIcon = nameRow.createSpan({ cls: 'minutes-document-icon' });
-            setIcon(fileIcon, this.getDocumentIcon(doc.file.extension));
-            nameRow.createSpan({ text: doc.displayName });
+            const extension = doc.file?.extension || doc.name.split('.').pop() || '';
+            setIcon(fileIcon, this.getDocumentIcon(extension));
+            nameRow.createSpan({ text: doc.name });
 
             // Status
             const statusEl = infoEl.createDiv({ cls: 'minutes-document-status' });
@@ -809,13 +793,13 @@ export class MinutesCreationModal extends Modal {
 
             if (!doc.extractedText && !doc.isProcessing && !doc.error) {
                 const extractBtn = actionsEl.createEl('button', { text: 'Extract' });
-                extractBtn.addEventListener('click', () => void this.extractDocument(i));
+                extractBtn.addEventListener('click', () => void this.extractDocumentFromUI(doc));
             }
 
             const removeBtn = actionsEl.createEl('button', { cls: 'minutes-document-remove' });
             setIcon(removeBtn, 'x');
             removeBtn.setAttribute('aria-label', t?.removeDocument || 'Remove');
-            removeBtn.addEventListener('click', () => this.removeDocument(i));
+            removeBtn.addEventListener('click', () => this.removeDocumentFromUI(doc));
         }
     }
 
@@ -873,79 +857,41 @@ export class MinutesCreationModal extends Modal {
         }
 
         new DocumentPickerModal(this.app, files, (file) => {
-            // Check if already added
-            if (this.state.contextDocuments.some(d => d.file.path === file.path)) {
-                new Notice('Document already added');
+            // Add via controller
+            const result = this.docController.addFromVault(file);
+            if (!result.added) {
+                new Notice(result.error || 'Failed to add document');
                 return;
             }
-
-            this.state.contextDocuments.push({
-                file,
-                displayName: file.name,
-                isProcessing: false,
-                isOversized: false,
-                originalLength: 0,
-                truncationChoice: 'full'
-            });
 
             this.refreshDocumentsSection();
         }).open();
     }
 
-    private async extractDocument(index: number): Promise<void> {
-        const doc = this.state.contextDocuments[index];
-        if (!doc || doc.isProcessing) return;
-
-        doc.isProcessing = true;
+    private async extractDocumentFromUI(doc: DocumentItem): Promise<void> {
+        const docId = this.getDocumentId(doc);
+        await this.docController.extractDocument(docId);
         this.refreshDocumentsSection();
+    }
 
-        try {
-            const result = await this.documentService.extractText(doc.file);
+    private async extractAllDocuments(): Promise<void> {
+        const result = await this.docController.extractAll();
+        if (result.errors.length > 0) {
+            console.warn('[AI Organiser] Extraction errors:', result.errors);
+        }
+        this.refreshDocumentsSection();
+    }
 
-            if (result.success && result.text) {
-                const maxChars = this.getMaxDocumentChars();
-                const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
-
-                doc.fullText = result.text;
-                doc.originalLength = result.text.length;
-                doc.isOversized = result.text.length > maxChars;
-
-                if (doc.isOversized) {
-                    if (behavior === 'truncate') {
-                        doc.truncationChoice = 'truncate';
-                    } else if (behavior === 'full') {
-                        doc.truncationChoice = 'full';
-                    } else {
-                        doc.truncationChoice = 'truncate';
-                    }
-                } else {
-                    doc.truncationChoice = 'full';
-                }
-
-                this.applyTruncationChoice(doc);
-            } else {
-                doc.error = result.error || 'Extraction failed';
-            }
-        } catch (error) {
-            doc.error = error instanceof Error ? error.message : 'Extraction failed';
-        } finally {
-            doc.isProcessing = false;
+    private removeDocumentFromUI(doc: DocumentItem): void {
+        const docId = this.getDocumentId(doc);
+        const removed = this.docController.removeDocument(docId);
+        if (removed) {
             this.refreshDocumentsSection();
         }
     }
 
-    private async extractAllDocuments(): Promise<void> {
-        for (let i = 0; i < this.state.contextDocuments.length; i++) {
-            const doc = this.state.contextDocuments[i];
-            if (!doc.extractedText && !doc.error) {
-                await this.extractDocument(i);
-            }
-        }
-    }
-
-    private removeDocument(index: number): void {
-        this.state.contextDocuments.splice(index, 1);
-        this.refreshDocumentsSection();
+    private getDocumentId(doc: DocumentItem): string {
+        return DocumentHandlingController.getDocumentId(doc);
     }
 
     private refreshDocumentsSection(): void {
@@ -959,37 +905,11 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
-    private applyTruncationChoice(doc: ContextDocument): void {
-        const maxChars = this.getMaxDocumentChars();
-        const excludedMessage = this.getExcludedMessage();
-
-        if (!doc.fullText) {
-            return;
-        }
-
-        if (doc.error === excludedMessage && doc.truncationChoice !== 'skip') {
-            doc.error = undefined;
-        }
-
-        switch (doc.truncationChoice) {
-            case 'truncate':
-                doc.extractedText = doc.fullText.substring(0, maxChars) + '\n\n[Truncated...]';
-                doc.error = undefined;
-                break;
-            case 'full':
-                doc.extractedText = doc.fullText;
-                doc.error = undefined;
-                break;
-            case 'skip':
-                doc.extractedText = '';
-                doc.error = excludedMessage;
-                break;
-        }
-    }
-
-    private renderDocumentStatus(doc: ContextDocument, statusEl: HTMLElement): void {
+    private renderDocumentStatus(doc: DocumentItem, statusEl: HTMLElement): void {
         const t = this.plugin.t.minutes;
         const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
+        const maxChars = this.docController.getMaxChars();
+        const isOversized = doc.charCount > maxChars;
 
         statusEl.empty();
 
@@ -1004,10 +924,10 @@ export class MinutesCreationModal extends Modal {
             return;
         }
 
-        if (doc.isOversized && behavior === 'ask') {
+        if (isOversized && behavior === 'ask') {
             const warningEl = statusEl.createDiv({ cls: 'minutes-doc-warning' });
             warningEl.createSpan({
-                text: `! ${this.formatChars(doc.originalLength)} chars`,
+                text: `! ${this.formatChars(doc.charCount)} chars`,
                 cls: 'minutes-doc-size-warning'
             });
             this.renderTruncationDropdown(doc, warningEl);
@@ -1026,7 +946,7 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
-    private renderTruncationDropdown(doc: ContextDocument, container: HTMLElement): void {
+    private renderTruncationDropdown(doc: DocumentItem, container: HTMLElement): void {
         const t = this.plugin.t.minutes;
         const truncationOptions = getTruncationOptions(t);
 
@@ -1050,13 +970,15 @@ export class MinutesCreationModal extends Modal {
         warningEl.style.display = doc.truncationChoice === 'full' ? 'block' : 'none';
 
         select.addEventListener('change', () => {
-            doc.truncationChoice = select.value as TruncationChoice;
-            warningEl.style.display = doc.truncationChoice === 'full' ? 'block' : 'none';
-            const nextTooltip = truncationOptions[doc.truncationChoice].tooltip;
+            const newChoice = select.value as TruncationChoice;
+            const docId = this.getDocumentId(doc);
+            this.docController.setTruncationChoice(docId, newChoice);
+            
+            warningEl.style.display = newChoice === 'full' ? 'block' : 'none';
+            const nextTooltip = truncationOptions[newChoice].tooltip;
             if (nextTooltip) {
                 setTooltip(select, nextTooltip);
             }
-            this.applyTruncationChoice(doc);
             this.refreshDocumentsSection();
         });
     }
@@ -1070,14 +992,14 @@ export class MinutesCreationModal extends Modal {
 
         if (behavior !== 'ask') return;
 
-        const oversized = this.state.contextDocuments.filter(d => d.isOversized);
+        const oversized = this.docController.getOversizedDocuments();
         if (oversized.length === 0) return;
 
         if (oversized.length > 1) {
             this.bulkTruncationEl.createSpan({
                 text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
                     .replace('{count}', String(oversized.length))
-                    .replace('{limit}', String(this.getMaxDocumentChars())),
+                    .replace('{limit}', String(this.docController.getMaxChars())),
                 cls: 'minutes-bulk-warning'
             });
             this.bulkTruncationEl.createSpan({ text: t?.applyToAll || 'Apply to all:' });
@@ -1085,7 +1007,7 @@ export class MinutesCreationModal extends Modal {
             this.bulkTruncationEl.createSpan({
                 text: (t?.oversizedDocuments || '{count} document(s) exceed {limit} chars')
                     .replace('{count}', String(oversized.length))
-                    .replace('{limit}', String(this.getMaxDocumentChars())) +
+                    .replace('{limit}', String(this.docController.getMaxChars())) +
                     ' ' + (t?.applyToAll || 'Apply to all:')
             });
         }
@@ -1098,10 +1020,7 @@ export class MinutesCreationModal extends Modal {
                 cls: choice === 'truncate' ? 'mod-cta' : ''
             });
             btn.addEventListener('click', () => {
-                for (const doc of oversized) {
-                    doc.truncationChoice = choice;
-                    this.applyTruncationChoice(doc);
-                }
+                this.docController.applyTruncationToAll(choice);
                 this.refreshDocumentsSection();
             });
         }
@@ -1126,10 +1045,7 @@ export class MinutesCreationModal extends Modal {
     }
 
     private getExtractedContextText(): string {
-        return this.state.contextDocuments
-            .filter(doc => doc.extractedText)
-            .map(doc => `### ${doc.displayName}\n\n${doc.extractedText}`)
-            .join('\n\n---\n\n');
+        return this.docController.getCombinedExtractedText();
     }
 
     // ==================== Dictionary ====================
@@ -1193,7 +1109,8 @@ export class MinutesCreationModal extends Modal {
         }
 
         // Extract from documents button
-        if (this.state.contextDocuments.some(doc => doc.extractedText)) {
+        const documents = this.docController.getDocuments();
+        if (documents.some(doc => doc.extractedText)) {
             const extractRow = this.dictionarySectionEl.createDiv({ cls: 'minutes-dictionary-actions' });
 
             const extractBtn = extractRow.createEl('button', {
