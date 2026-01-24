@@ -1061,6 +1061,7 @@ export const zhCN: Translations = {
         // Audio transcription
         audioTranscriptionSection: "音频转录",
         audioDetected: "检测到笔记中的音频文件。转录以填充文字记录。",
+        transcriptionLanguage: "音频语言：",
         transcribeButton: "转录",
         transcribing: "正在转录...",
         transcriptionComplete: "转录完成",
@@ -1092,6 +1093,15 @@ export const zhCN: Translations = {
         complexRtfNotSupported: "RTF 格式过于复杂，建议另存为 .docx 或 .txt。",
         fullDocumentWarning: "警告：可能超过 token 限制",
         excludedFromContext: "已从上下文中排除（用户选择）",
+        // Auto-fill
+        agendaAutoFilled: "已从文档自动填充议程",
+        participantsAutoExtracted: "已从文档提取参会人员名单",
+        dictionaryAutoExtracting: "正在从文档提取术语...",
+        // Document extraction feedback
+        allDocumentsExtracted: "所有文档已提取完成",
+        extractingDocuments: "正在提取 {count} 个文档...",
+        extractionErrors: "提取完成，{count} 个错误",
+        extractionComplete: "文档提取完成",
         // Dictionary
         dictionarySection: "术语词典",
         dictionaryDesc: "使用包含姓名、术语和缩写的词典提高转录准确性",

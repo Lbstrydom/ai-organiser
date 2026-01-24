@@ -89,6 +89,16 @@ export class DocumentHandlingController {
     }
 
     /**
+     * Get default truncation choice based on settings
+     * When 'ask', defaults to 'truncate' (safe option) - user can change via UI
+     */
+    private getDefaultTruncationChoice(): TruncationChoice {
+        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
+        if (behavior === 'full') return 'full';
+        return 'truncate'; // Default safe option for 'ask' and 'truncate'
+    }
+
+    /**
      * Get copy of all documents (immutable for UI)
      */
     getDocuments(): DocumentItem[] {
@@ -127,10 +137,7 @@ export class DocumentHandlingController {
             };
         }
 
-        // Determine default truncation choice based on settings
-        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
-        const defaultChoice: TruncationChoice = behavior === 'truncate' ? 'truncate' :
-                                                 behavior === 'full' ? 'full' : 'full';
+        const defaultChoice = this.getDefaultTruncationChoice();
 
         const newDoc: DocumentItem = {
             id: docId,
@@ -182,10 +189,7 @@ export class DocumentHandlingController {
         // Extract filename from URL
         const filename = url.split('/').pop() || 'document';
 
-        // Determine default truncation choice
-        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
-        const defaultChoice: TruncationChoice = behavior === 'truncate' ? 'truncate' :
-                                                 behavior === 'full' ? 'full' : 'full';
+        const defaultChoice = this.getDefaultTruncationChoice();
 
         const newDoc: DocumentItem = {
             id: docId,
@@ -209,10 +213,7 @@ export class DocumentHandlingController {
         const activeFile = this.app.workspace.getActiveFile();
         const detectedContent = detectEmbeddedDocuments(this.app, content, activeFile || undefined);
 
-        // Determine default truncation choice
-        const behavior = this.plugin.settings.oversizedDocumentBehavior || 'ask';
-        const defaultChoice: TruncationChoice = behavior === 'truncate' ? 'truncate' :
-                                                 behavior === 'full' ? 'full' : 'full';
+        const defaultChoice = this.getDefaultTruncationChoice();
 
         return detectedContent
             .filter(doc => doc.resolvedFile)

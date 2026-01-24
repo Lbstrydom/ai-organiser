@@ -165,7 +165,15 @@ AI-Organiser/
   - Added `MinutesModalDependencies` interface for dependency injection
   - Modal services now support optional DI for testability
   - **No-stubs policy**: All public methods fully implemented with call sites (modal or tests)
-  - **348 total tests** (122 new controller/component tests)
+  - **623 total tests** (165 new utility/integration tests)
+- **Utility Testing Expansion** (238 new tests):
+  - `responseParser.test.ts` (40 tests): 4-tier JSON extraction, summary hook sanitization, content type validation
+  - `textChunker.test.ts` (30 tests): Transcript chunking, overlap handling, segment-based chunking
+  - `sourceDetection.test.ts` (58 tests): URL/YouTube/PDF/audio detection, vault links, section context
+  - `frontmatterUtils.test.ts` (45 tests): Summary hook creation, word counting, CJK language detection
+  - `dashboardService.test.ts` (23 tests): Filter injection, folder paths, YAML preservation
+  - `minutesPrompts.test.ts` (42 tests): Prompt generation, response parsing, JSON repair
+  - Fixed `textChunker.ts` bug where `overlapChars: 0` was treated as "use default 400"
 
 ### Meeting Minutes & Bug Fixes (January 23)
 - **Meeting Minutes Generation**: New feature for structured meeting notes
@@ -270,7 +278,8 @@ AI-Organiser/
 ```bash
 npm run dev      # Development (watch mode)
 npm run build    # Production build
-npm test         # Run 95 unit tests
+npm test         # Run 623 unit tests
+npm run test:auto # Run 22 automated integration tests
 ```
 
 **Deploy:** Copy `main.js`, `manifest.json`, `styles.css` to Obsidian plugins folder.

@@ -68,6 +68,9 @@ export function createTruncationDropdown(
         }
     }
 
+    // Explicitly set select value to ensure correct display
+    select.value = currentChoice;
+
     // Set initial tooltip
     const tooltipText = options[currentChoice].tooltip;
     if (tooltipText) {
@@ -155,50 +158,60 @@ export function createTruncationWarning(
     return { warningEl, select, fullWarningEl };
 }
 
+/** Options for bulk truncation controls */
+export interface BulkTruncationOptions {
+    containerEl: HTMLElement;
+    oversizedCount: number;
+    maxChars: number;
+    options: Record<TruncationChoice, TruncationOption>;
+    onApplyAll: (choice: TruncationChoice) => void;
+    countMessage?: string;
+    applyMessage?: string;
+    selectedChoice?: TruncationChoice;
+}
+
 /**
  * Create bulk truncation controls for multiple oversized documents
  * Shows count and buttons to apply choice to all oversized documents
- * 
- * @param containerEl - Parent element to attach controls to
- * @param oversizedCount - Number of oversized documents
- * @param maxChars - Maximum allowed characters
- * @param options - Truncation options with labels and tooltips
- * @param onApplyAll - Callback when a bulk action is clicked
- * @param countMessage - Message template with {count} and {limit} placeholders
- * @param applyMessage - "Apply to all:" message
+ *
+ * @param opts - Bulk truncation control options
  * @returns The created bulk control element
- * 
+ *
  * Usage:
  * ```typescript
- * const bulkEl = createBulkTruncationControls(
- *     container,
- *     oversizedDocs.length,
+ * const bulkEl = createBulkTruncationControls({
+ *     containerEl: container,
+ *     oversizedCount: oversizedDocs.length,
  *     maxChars,
- *     getTruncationOptions(t),
- *     (choice) => {
+ *     options: getTruncationOptions(t),
+ *     onApplyAll: (choice) => {
  *         docController.applyTruncationToAll(choice);
  *         refreshUI();
  *     },
- *     t.oversizedDocuments,
- *     t.applyToAll
- * );
+ *     countMessage: t.oversizedDocuments,
+ *     applyMessage: t.applyToAll,
+ *     selectedChoice: 'truncate'
+ * });
  * ```
  */
-export function createBulkTruncationControls(
-    containerEl: HTMLElement,
-    oversizedCount: number,
-    maxChars: number,
-    options: Record<TruncationChoice, TruncationOption>,
-    onApplyAll: (choice: TruncationChoice) => void,
-    countMessage?: string,
-    applyMessage?: string
-): HTMLElement {
+export function createBulkTruncationControls(opts: BulkTruncationOptions): HTMLElement {
+    const {
+        containerEl,
+        oversizedCount,
+        maxChars,
+        options,
+        onApplyAll,
+        countMessage,
+        applyMessage,
+        selectedChoice
+    } = opts;
+
     containerEl.empty();
-    
+
     if (oversizedCount === 0) {
         return containerEl;
     }
-    
+
     // Default messages
     const defaultCountMsg = '{count} document(s) exceed {limit} chars';
     const defaultApplyMsg = 'Apply to all:';
@@ -206,7 +219,7 @@ export function createBulkTruncationControls(
         .replace('{count}', String(oversizedCount))
         .replace('{limit}', String(maxChars));
     const applyText = applyMessage || defaultApplyMsg;
-    
+
     // Render message
     if (oversizedCount > 1) {
         containerEl.createSpan({
@@ -219,27 +232,30 @@ export function createBulkTruncationControls(
             text: `${countText} ${applyText}`
         });
     }
-    
+
+    // Use selected choice for highlighting, default to 'truncate' if none
+    const highlightChoice = selectedChoice || 'truncate';
+
     // Render buttons
     const choices: TruncationChoice[] = ['truncate', 'full', 'skip'];
     for (const choice of choices) {
         const btn = containerEl.createEl('button', {
             text: options[choice].label,
-            cls: choice === 'truncate' ? 'mod-cta' : ''
+            cls: choice === highlightChoice ? 'mod-cta' : ''
         });
-        
+
         // Accessibility: aria-label from option label
         btn.setAttribute('aria-label', `Apply ${options[choice].label} to all documents`);
-        
+
         // Optional tooltip
         if (options[choice].tooltip) {
             setTooltip(btn, options[choice].tooltip);
         }
-        
+
         btn.addEventListener('click', () => {
             onApplyAll(choice);
         });
     }
-    
+
     return containerEl;
 }

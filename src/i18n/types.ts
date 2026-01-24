@@ -1059,6 +1059,7 @@ export interface Translations {
         // Audio transcription
         audioTranscriptionSection: string;
         audioDetected: string;
+        transcriptionLanguage: string;
         transcribeButton: string;
         transcribing: string;
         transcriptionComplete: string;
@@ -1108,6 +1109,13 @@ export interface Translations {
         complexRtfNotSupported: string;
         fullDocumentWarning: string;
         excludedFromContext: string;
+        agendaAutoFilled: string;
+        participantsAutoExtracted: string;
+        dictionaryAutoExtracting: string;
+        allDocumentsExtracted: string;
+        extractingDocuments: string;
+        extractionErrors: string;
+        extractionComplete: string;
     };
     integration: {
         resolveEmbeds: string;

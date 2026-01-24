@@ -44,6 +44,7 @@ interface MinutesModalState {
     detectedAudioFiles: DetectedContent[];
     isTranscribing: boolean;
     transcriptionProgress: string;
+    transcriptionLanguage: string;
     // Document context (managed by controller)
     // contextDocuments removed - access via docController
     // Dictionary
@@ -51,6 +52,9 @@ interface MinutesModalState {
     availableDictionaries: Dictionary[];
     isExtractingDictionary: boolean;
     dictionaryExtractionProgress: string;
+    dictionaryAutoExtractOffered: boolean;
+    // Bulk truncation
+    bulkTruncationChoice: TruncationChoice;
 }
 
 /**
@@ -76,6 +80,8 @@ export class MinutesCreationModal extends Modal {
     private dictController!: DictionaryController;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
+    private agendaTextArea: HTMLTextAreaElement | null = null;
+    private participantsTextArea: HTMLTextAreaElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
     private audioSectionEl: HTMLElement | null = null;
     private documentsSectionEl: HTMLElement | null = null;
@@ -112,13 +118,17 @@ export class MinutesCreationModal extends Modal {
             detectedAudioFiles: [],
             isTranscribing: false,
             transcriptionProgress: '',
+            transcriptionLanguage: 'auto',
             // Document context
             // contextDocuments removed - managed by docController
             // Dictionary
             selectedDictionaryId: '',
             availableDictionaries: [],
             isExtractingDictionary: false,
-            dictionaryExtractionProgress: ''
+            dictionaryExtractionProgress: '',
+            dictionaryAutoExtractOffered: false,
+            // Bulk truncation
+            bulkTruncationChoice: 'truncate'
         };
     }
 
@@ -276,6 +286,7 @@ export class MinutesCreationModal extends Modal {
                 text.setValue(this.state.agenda);
                 text.onChange(value => this.state.agenda = value);
                 text.inputEl.addClass('minutes-textarea');
+                this.agendaTextArea = text.inputEl;
             });
 
         new Setting(topSection)
@@ -327,6 +338,7 @@ export class MinutesCreationModal extends Modal {
                 text.inputEl.rows = 5;
                 text.setValue(this.state.participants);
                 text.onChange(value => this.state.participants = value);
+                this.participantsTextArea = text.inputEl;
                 text.inputEl.addClass('minutes-textarea');
             });
     }
@@ -548,6 +560,23 @@ export class MinutesCreationModal extends Modal {
         const desc = this.audioSectionEl.createDiv({ cls: 'minutes-section-desc' });
         desc.setText(t?.audioDetected || 'Audio files detected in note. Transcribe to populate transcript.');
 
+        // Language selection for transcription
+        const langRow = this.audioSectionEl.createDiv({ cls: 'minutes-audio-language-row' });
+        langRow.createSpan({ text: t?.transcriptionLanguage || 'Audio language:', cls: 'minutes-audio-language-label' });
+        const langSelect = langRow.createEl('select', { cls: 'minutes-audio-language-select' });
+
+        for (const lang of COMMON_LANGUAGES) {
+            const opt = langSelect.createEl('option', { value: lang.code });
+            opt.textContent = getLanguageDisplayName(lang);
+            if (lang.code === this.state.transcriptionLanguage) {
+                opt.selected = true;
+            }
+        }
+
+        langSelect.addEventListener('change', () => {
+            this.state.transcriptionLanguage = langSelect.value;
+        });
+
         const listEl = this.audioSectionEl.createDiv({ cls: 'minutes-audio-list' });
 
         for (const audioItem of this.state.detectedAudioFiles) {
@@ -627,7 +656,8 @@ export class MinutesCreationModal extends Modal {
                     chunkResult.outputDir,
                     {
                         provider: provider.provider,
-                        apiKey: provider.apiKey
+                        apiKey: provider.apiKey,
+                        language: this.getTranscriptionLanguageCode()
                     },
                     (progress) => {
                         this.state.transcriptionProgress =
@@ -647,7 +677,8 @@ export class MinutesCreationModal extends Modal {
 
                 const result = await transcribeAudio(this.app, file, {
                     provider: provider.provider,
-                    apiKey: provider.apiKey
+                    apiKey: provider.apiKey,
+                    language: this.getTranscriptionLanguageCode()
                 });
 
                 if (!result.success || !result.transcript) {
@@ -672,6 +703,11 @@ export class MinutesCreationModal extends Modal {
             this.state.transcriptionProgress = '';
             this.updateAudioSectionUI();
         }
+    }
+
+    /** Get transcription language code (undefined for auto-detect) */
+    private getTranscriptionLanguageCode(): string | undefined {
+        return this.state.transcriptionLanguage === 'auto' ? undefined : this.state.transcriptionLanguage;
     }
 
     private getTranscriptionProvider(): { provider: 'openai' | 'groq'; apiKey: string } | null {
@@ -846,14 +882,37 @@ export class MinutesCreationModal extends Modal {
         const docId = this.getDocumentId(doc);
         await this.docController.extractDocument(docId);
         this.refreshDocumentsSection();
+        this.autoFillFromDocuments();
     }
 
     private async extractAllDocuments(): Promise<void> {
+        const t = this.plugin.t.minutes;
+        const documents = this.docController.getDocuments();
+
+        // Check if there's anything to extract
+        const unextracted = documents.filter(d => !d.extractedText && !d.error);
+        if (unextracted.length === 0) {
+            new Notice(t?.allDocumentsExtracted || 'All documents already extracted');
+            return;
+        }
+
+        // Show extraction in progress
+        new Notice(t?.extractingDocuments?.replace('{count}', String(unextracted.length)) ||
+            `Extracting ${unextracted.length} document(s)...`);
+
         const result = await this.docController.extractAll();
+
+        // Show result feedback
         if (result.errors.length > 0) {
             console.warn('[AI Organiser] Extraction errors:', result.errors);
+            new Notice(t?.extractionErrors?.replace('{count}', String(result.errors.length)) ||
+                `Extraction completed with ${result.errors.length} error(s)`);
+        } else {
+            new Notice(t?.extractionComplete || 'Document extraction complete');
         }
+
         this.refreshDocumentsSection();
+        this.autoFillFromDocuments();
     }
 
     private removeDocumentFromUI(doc: DocumentItem): void {
@@ -877,6 +936,191 @@ export class MinutesCreationModal extends Modal {
         if (listEl) {
             this.renderDocumentList(listEl as HTMLElement);
         }
+    }
+
+    /**
+     * Auto-fill form fields from extracted document content
+     * - Detects agenda documents and fills Agenda field
+     * - Extracts participant names and suggests them
+     * - Offers to extract dictionary terms if a dictionary is selected
+     */
+    private autoFillFromDocuments(): void {
+        const documents = this.docController.getDocuments();
+
+        for (const doc of documents) {
+            if (!doc.extractedText) continue;
+
+            this.tryAutoFillAgenda(doc);
+            this.tryAutoFillParticipants(doc);
+        }
+
+        // Offer dictionary extraction if dictionary is selected and we haven't offered yet
+        this.tryOfferDictionaryExtraction();
+    }
+
+    /**
+     * Offer to extract dictionary terms from documents
+     * Only offers once per session and only if a dictionary is selected
+     */
+    private tryOfferDictionaryExtraction(): void {
+        // Don't offer if we've already offered or currently extracting
+        if (this.state.dictionaryAutoExtractOffered || this.state.isExtractingDictionary) return;
+
+        // Don't offer if no dictionary selected
+        if (!this.state.selectedDictionaryId) return;
+
+        // Check if any documents have extracted text
+        const documents = this.docController.getDocuments();
+        const hasExtractedContent = documents.some(doc => doc.extractedText);
+        if (!hasExtractedContent) return;
+
+        // Mark as offered so we don't ask again
+        this.state.dictionaryAutoExtractOffered = true;
+
+        // Auto-trigger extraction
+        const t = this.plugin.t.minutes;
+        new Notice(t?.dictionaryAutoExtracting || 'Extracting terminology from documents...');
+        void this.handleExtractDictionaryFromDocs();
+    }
+
+    private tryAutoFillAgenda(doc: DocumentItem): void {
+        if (this.state.agenda.trim()) return; // Already has content
+
+        const nameLower = doc.name.toLowerCase();
+        if (!this.isAgendaDocument(nameLower)) return;
+
+        const agendaContent = this.extractAgendaItems(doc.extractedText || '');
+        if (!agendaContent) return;
+
+        this.state.agenda = agendaContent;
+        if (this.agendaTextArea) {
+            this.agendaTextArea.value = agendaContent;
+        }
+        const t = this.plugin.t.minutes;
+        new Notice(t?.agendaAutoFilled || 'Agenda auto-filled from document');
+    }
+
+    private tryAutoFillParticipants(doc: DocumentItem): void {
+        if (this.state.participants.trim()) return; // Already has content
+
+        const names = this.extractParticipantNames(doc.extractedText || '');
+        if (names.length === 0) return;
+
+        const participantsList = names.join('\n');
+        this.state.participants = participantsList;
+        if (this.participantsTextArea) {
+            this.participantsTextArea.value = participantsList;
+        }
+        const t = this.plugin.t.minutes;
+        new Notice(t?.participantsAutoExtracted || `Found ${names.length} participant names`);
+    }
+
+    /**
+     * Check if document name indicates it's an agenda
+     */
+    private isAgendaDocument(nameLower: string): boolean {
+        const agendaKeywords = ['agenda', 'programme', 'program'];
+        return agendaKeywords.some(kw => nameLower.includes(kw));
+    }
+
+    /** Regex for list item prefixes: 1. or 1) followed by space, or * - •
+     *  The \s+ after digit+period prevents matching times like "10.00" (no space after .)
+     *  But correctly matches "1. 10.00 – 10.05" by stripping "1. " prefix */
+    private static readonly LIST_ITEM_PREFIX = /^(\d{1,2}[.)]\s+|[*\-•]\s+)/;
+    /** Regex for agenda section headers */
+    private static readonly AGENDA_HEADER = /^(agenda|programme|program|items?|topics?)/i;
+    /** Regex for end of agenda section */
+    private static readonly AGENDA_END = /^(attendees|participants|present|apologies|minutes|notes)/i;
+
+    /**
+     * Extract agenda items from document text
+     */
+    private extractAgendaItems(text: string): string {
+        const lines = text.split('\n');
+        const agendaItems: string[] = [];
+        let inAgendaSection = false;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (MinutesCreationModal.AGENDA_HEADER.test(trimmed)) {
+                inAgendaSection = true;
+                continue;
+            }
+
+            if (inAgendaSection && MinutesCreationModal.AGENDA_END.test(trimmed)) {
+                break;
+            }
+
+            const isListItem = MinutesCreationModal.LIST_ITEM_PREFIX.test(trimmed);
+            if (inAgendaSection || isListItem) {
+                const cleanItem = trimmed.replace(MinutesCreationModal.LIST_ITEM_PREFIX, '').trim();
+                if (cleanItem.length > 3 && cleanItem.length < 200) {
+                    agendaItems.push(cleanItem);
+                }
+            }
+        }
+
+        return [...new Set(agendaItems)].slice(0, 20).join('\n');
+    }
+
+    /** Regex for participant section headers */
+    private static readonly PARTICIPANT_HEADER = /^(attendees|participants|present|members|team|people|invitees)/i;
+    /** Regex for end of participant section */
+    private static readonly PARTICIPANT_END = /^(agenda|apologies|absent|minutes|notes|action)/i;
+    /** Regex for valid name pattern: 2-4 capitalized words */
+    private static readonly NAME_PATTERN = /^[A-Z][a-z]+(\s+[A-Z][a-z]+){0,3}$/;
+
+    /**
+     * Extract participant names from document text
+     */
+    private extractParticipantNames(text: string): string[] {
+        const names: string[] = [];
+        const lines = text.split('\n');
+        let inParticipantSection = false;
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
+            if (MinutesCreationModal.PARTICIPANT_HEADER.test(trimmed)) {
+                inParticipantSection = true;
+                continue;
+            }
+
+            if (inParticipantSection && MinutesCreationModal.PARTICIPANT_END.test(trimmed)) {
+                break;
+            }
+
+            if (inParticipantSection) {
+                const extractedNames = this.extractNamesFromLine(trimmed);
+                names.push(...extractedNames);
+            }
+        }
+
+        return [...new Set(names)].slice(0, 30);
+    }
+
+    /**
+     * Extract names from a single line of text
+     */
+    private extractNamesFromLine(line: string): string[] {
+        const cleanLine = line.replace(MinutesCreationModal.LIST_ITEM_PREFIX, '').trim();
+        const names: string[] = [];
+
+        for (const part of cleanLine.split(/[,;]/)) {
+            const name = part
+                .replace(/\s*[([].*?[)\]]/, '')  // Remove (Role) or [Role]
+                .replace(/\s*[-–—].*$/, '')      // Remove - Present/Apologies
+                .trim();
+
+            if (MinutesCreationModal.NAME_PATTERN.test(name)) {
+                names.push(name);
+            }
+        }
+
+        return names;
     }
 
     private renderDocumentStatus(doc: DocumentItem, statusEl: HTMLElement): void {
@@ -942,19 +1186,21 @@ export class MinutesCreationModal extends Modal {
         }
 
         const oversized = this.docController.getOversizedDocuments();
-        
-        createBulkTruncationControls(
-            this.bulkTruncationEl,
-            oversized.length,
-            this.docController.getMaxChars(),
-            getTruncationOptions(t),
-            (choice) => {
+
+        createBulkTruncationControls({
+            containerEl: this.bulkTruncationEl,
+            oversizedCount: oversized.length,
+            maxChars: this.docController.getMaxChars(),
+            options: getTruncationOptions(t),
+            onApplyAll: (choice) => {
+                this.state.bulkTruncationChoice = choice;
                 this.docController.applyTruncationToAll(choice);
                 this.refreshDocumentsSection();
             },
-            t?.oversizedDocuments,
-            t?.applyToAll
-        );
+            countMessage: t?.oversizedDocuments,
+            applyMessage: t?.applyToAll,
+            selectedChoice: this.state.bulkTruncationChoice
+        });
     }
 
     /**
@@ -1025,6 +1271,8 @@ export class MinutesCreationModal extends Modal {
                     } else {
                         this.state.selectedDictionaryId = value;
                         this.refreshDictionarySection();
+                        // Trigger dictionary extraction offer if documents are already extracted
+                        this.tryOfferDictionaryExtraction();
                     }
                 });
             });
@@ -1121,6 +1369,9 @@ export class MinutesCreationModal extends Modal {
             this.refreshDictionarySection();
 
             new Notice(`${t?.dictionaryCreated || 'Dictionary created'}: ${name}`);
+
+            // Trigger dictionary extraction offer if documents are already extracted
+            this.tryOfferDictionaryExtraction();
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to create dictionary';
             new Notice(`${t?.dictionaryCreateFailed || 'Failed to create dictionary'}: ${message}`);

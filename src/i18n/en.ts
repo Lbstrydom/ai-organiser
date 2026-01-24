@@ -1061,6 +1061,7 @@ export const en: Translations = {
         // Audio transcription
         audioTranscriptionSection: "Audio Transcription",
         audioDetected: "Audio files detected in note. Transcribe to populate transcript.",
+        transcriptionLanguage: "Audio language:",
         transcribeButton: "Transcribe",
         transcribing: "Transcribing...",
         transcriptionComplete: "Transcription complete",
@@ -1092,6 +1093,15 @@ export const en: Translations = {
         complexRtfNotSupported: "Complex RTF formatting not supported. Try saving as .docx or .txt.",
         fullDocumentWarning: "Warning: may exceed token limits",
         excludedFromContext: "Excluded from context (user choice)",
+        // Auto-fill
+        agendaAutoFilled: "Agenda auto-filled from document",
+        participantsAutoExtracted: "Participant names extracted from document",
+        dictionaryAutoExtracting: "Extracting terminology from documents...",
+        // Document extraction feedback
+        allDocumentsExtracted: "All documents already extracted",
+        extractingDocuments: "Extracting {count} document(s)...",
+        extractionErrors: "Extraction completed with {count} error(s)",
+        extractionComplete: "Document extraction complete",
         // Dictionary
         dictionarySection: "Terminology Dictionary",
         dictionaryDesc: "Use a dictionary of names, terms, and acronyms for better transcription accuracy",

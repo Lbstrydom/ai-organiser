@@ -362,6 +362,7 @@ Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 - Interface language change requires Obsidian restart (output languages do not)
 - Tag formatting preserves `/` for nested tags but converts other special chars to hyphens
 - Claude/Anthropic has no embeddings API (use Voyage AI instead)
+- URL detection may include trailing punctuation (e.g., `https://example.com.` includes the period) - documented limitation in tests
 
 ## CSS Conventions
 
@@ -721,12 +722,21 @@ onOpen() {
 
 ### Testing
 
+**Controller Tests**:
 - `tests/documentHandlingController.test.ts` (23 tests)
 - `tests/dictionaryController.test.ts` (56 tests)
 - `tests/audioController.test.ts` (35 tests)
 - `tests/components/truncationControls.test.ts` (8 tests)
 
-Total: 122 controller/component tests (348 total project tests)
+**Utility Tests**:
+- `tests/responseParser.test.ts` (40 tests): 4-tier JSON extraction, sanitization
+- `tests/textChunker.test.ts` (30 tests): Transcript chunking, overlap handling
+- `tests/sourceDetection.test.ts` (58 tests): URL/YouTube/PDF/audio detection
+- `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
+- `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
+- `tests/minutesPrompts.test.ts` (42 tests): Prompt generation, response parsing
+
+Total: 623 unit tests + 22 automated integration tests
 
 ## Documentation
 

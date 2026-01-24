@@ -18,9 +18,11 @@ function getMaxChars(options?: TextChunkerOptions): number {
 }
 
 function getOverlapChars(options?: TextChunkerOptions): number {
-    return options?.overlapChars && options.overlapChars >= 0
-        ? options.overlapChars
-        : DEFAULT_OVERLAP_CHARS;
+    // Use explicit undefined check to allow overlapChars: 0
+    if (options?.overlapChars !== undefined && options.overlapChars >= 0) {
+        return options.overlapChars;
+    }
+    return DEFAULT_OVERLAP_CHARS;
 }
 
 function getYieldEvery(options?: TextChunkerOptions): number {

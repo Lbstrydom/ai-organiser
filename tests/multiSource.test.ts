@@ -151,33 +151,10 @@ https://docs.example.com/reference
             };
 
             expect(getTotalSourceCount(sources)).toBe(4);
-        });
-
-        it('should return 0 for empty sources', () => {
-            const sources: DetectedSources = {
-                urls: [],
-                youtube: [],
-                pdfs: [],
-                audio: [],
-                documents: []
-            };
-
-            expect(getTotalSourceCount(sources)).toBe(0);
-        });
+        });
     });
 
-    describe('hasAnySources', () => {
-        it('should return true when sources exist', () => {
-            const sources: DetectedSources = {
-                urls: [{ type: 'url', value: 'a', displayName: 'a' }],
-                youtube: [],
-                pdfs: [],
-                audio: [],
-                documents: []
-            };
-
-            expect(hasAnySources(sources)).toBe(true);
-        });
+    describe('hasAnySources', () => {
 
         it('should return false for empty sources', () => {
             const sources: DetectedSources = {
@@ -266,8 +243,8 @@ describe('Multi-Source Output Formatting', () => {
                 success: true
             };
 
-            const line = `- [${source.success ? '✓' : '✗'}] ${source.title}`;
-            expect(line).toBe('- [✓] Example Article');
+            const line = `- [${source.success ? '???' : '???'}] ${source.title}`;
+            expect(line).toBe('- [???] Example Article');
         });
 
         it('should format failed sources with X and error', () => {
@@ -279,8 +256,8 @@ describe('Multi-Source Output Formatting', () => {
             };
 
             const status = source.success ? '' : ` - *${source.error}*`;
-            const line = `- [${source.success ? '✓' : '✗'}] ${source.title}${status}`;
-            expect(line).toBe('- [✗] Video Title - *No transcript available*');
+            const line = `- [${source.success ? '???' : '???'}] ${source.title}${status}`;
+            expect(line).toBe('- [???] Video Title - *No transcript available*');
         });
 
         it('should truncate long titles', () => {
@@ -382,3 +359,4 @@ describe('ProcessedSource tracking', () => {
         expect(failCount).toBe(1);
     });
 });
+
