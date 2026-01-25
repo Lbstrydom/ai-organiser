@@ -559,7 +559,34 @@ export const en: Translations = {
         notebookLMClearFailed: "Failed to clear selection",
         notebookLMFolderNotFound: "Export folder not found. Run an export first.",
         notebookLMOpenFolderFailed: "Failed to open export folder",
-        desktopOnly: "This feature is only available on desktop"
+        desktopOnly: "This feature is only available on desktop",
+        // Chat/RAG messages
+        searchingVaultContext: "Searching vault...",
+        foundRelevantChunks: "Found {count} relevant chunks from {sources} notes",
+        semanticSearchNotEnabledDetailed: "Semantic search is not enabled. Enable it in settings.",
+        vectorStoreNotInitialized: "Vector store not initialized. Please try again in a moment.",
+        noDocumentsIndexedYet: "No documents indexed yet. Run \"Index entire vault\" first.",
+        noContentToAnalyzeDetailed: "No content to analyze",
+        searchingForRelevantInfo: "Searching for relevant information...",
+        noRelevantInformationFound: "No relevant information found",
+        answerInserted: "Answer inserted",
+        failedToGenerateAnswer: "Failed to generate answer",
+        findingRelatedNotesDetailed: "Finding related notes...",
+        insertedRelatedNotes: "Inserted {count} related notes",
+        // Integration messages
+        contentAddedToPending: "Content added to Pending Integration",
+        noPendingContentToIntegrate: "No pending content to integrate",
+        noMainContentToIntegrateInto: "No main content to integrate into",
+        integratingContent: "Integrating content...",
+        integratingContentFailed: "Integration failed: {error}",
+        contentIntegratedSuccessfully: "Content integrated successfully",
+        noteStructureAdded: "Note structure added",
+        urlAddedToPending: "URL added to Pending Integration",
+        selectTextFirst: "Select some text first",
+        selectionAddedToPending: "Selection added to Pending Integration",
+        // Related notes view messages
+        relatedNotesCopiedToClipboard: "Related notes copied to clipboard",
+        cacheClearedSuccessfully: "Cache cleared",
     },
 
     // Modal dialogs

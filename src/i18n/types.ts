@@ -547,6 +547,33 @@ export interface Translations {
         notebookLMFolderNotFound: string;
         notebookLMOpenFolderFailed: string;
         desktopOnly: string;
+        // Chat/RAG messages
+        searchingVaultContext: string;
+        foundRelevantChunks: string;
+        semanticSearchNotEnabledDetailed: string;
+        vectorStoreNotInitialized: string;
+        noDocumentsIndexedYet: string;
+        noContentToAnalyzeDetailed: string;
+        searchingForRelevantInfo: string;
+        noRelevantInformationFound: string;
+        answerInserted: string;
+        failedToGenerateAnswer: string;
+        findingRelatedNotesDetailed: string;
+        insertedRelatedNotes: string;
+        // Integration messages
+        contentAddedToPending: string;
+        noPendingContentToIntegrate: string;
+        noMainContentToIntegrateInto: string;
+        integratingContent: string;
+        integratingContentFailed: string;
+        contentIntegratedSuccessfully: string;
+        noteStructureAdded: string;
+        urlAddedToPending: string;
+        selectTextFirst: string;
+        selectionAddedToPending: string;
+        // Related notes view messages
+        relatedNotesCopiedToClipboard: string;
+        cacheClearedSuccessfully: string;
     };
 
     // Common UI strings

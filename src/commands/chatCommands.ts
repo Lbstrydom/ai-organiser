@@ -116,7 +116,7 @@ class ChatWithVaultModal extends Modal {
 
         try {
             // Retrieve context from vector store
-            const statusNotice = new Notice('Searching vault...', 0);
+            const statusNotice = new Notice(this.plugin.t.messages.searchingVaultContext, 0);
             const context = await this.ragService.retrieveContext(query);
             statusNotice.hide();
 
@@ -128,7 +128,7 @@ class ChatWithVaultModal extends Modal {
             }
 
             // Show context sources
-            new Notice(`Found ${context.totalChunks} relevant chunks from ${context.sources.length} notes`, 3000);
+            new Notice(this.plugin.t.messages.foundRelevantChunks.replace('{count}', String(context.totalChunks)).replace('{sources}', String(context.sources.length)), 3000);
 
             // Build RAG prompt
             const ragPrompt = this.ragService.buildRAGPrompt(
@@ -253,19 +253,19 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         name: plugin.t.commands.chatWithVault,
         callback: async () => {
             if (!plugin.settings.enableSemanticSearch) {
-                new Notice('Semantic search is not enabled. Enable it in settings.');
+                new Notice(plugin.t.messages.semanticSearchNotEnabledDetailed);
                 return;
             }
 
             if (!plugin.vectorStore) {
-                new Notice('Vector store not initialized. Please try again in a moment.');
+                new Notice(plugin.t.messages.vectorStoreNotInitialized);
                 return;
             }
 
             // Check if index exists
             const metadata = await plugin.vectorStore.getMetadata();
             if (metadata.totalDocuments === 0) {
-                new Notice('No documents indexed yet. Run "Index entire vault" first.');
+                new Notice(plugin.t.messages.noDocumentsIndexedYet);
                 return;
             }
 
@@ -280,7 +280,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         name: 'Ask Question About Current Note',
         editorCallback: async (editor, view) => {
             if (!plugin.vectorStore || !plugin.settings.enableSemanticSearch) {
-                new Notice('Semantic search is not enabled.');
+                new Notice(plugin.t.messages.semanticSearchNotEnabledDetailed);
                 return;
             }
 
@@ -292,7 +292,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             const content = selection || editor.getValue();
 
             if (!content.trim()) {
-                new Notice('No content to analyze');
+                new Notice(plugin.t.messages.noContentToAnalyzeDetailed);
                 return;
             }
 
@@ -310,7 +310,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 // Build query from content and question
                 const query = `Context: ${content.substring(0, 500)}\n\nQuestion: ${question}`;
                 
-                const statusNotice = new Notice('Searching for relevant information...', 0);
+                const statusNotice = new Notice(plugin.t.messages.searchingForRelevantInfo, 0);
                 const context = await ragService.retrieveContext(query, file, {
                     excludeCurrentFile: false,
                     maxChunks: 3
@@ -318,7 +318,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 statusNotice.hide();
 
                 if (context.totalChunks === 0) {
-                    new Notice('No relevant information found');
+                    new Notice(plugin.t.messages.noRelevantInformationFound);
                     return;
                 }
 
@@ -339,12 +339,12 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     const answer = `\n\n**Q: ${question}**\n\n${response.content}${ragService.formatSources(context.sources)}\n\n`;
                     editor.replaceSelection(answer);
                     ensureNoteStructureIfEnabled(editor, plugin.settings);
-                    new Notice('Answer inserted');
+                    new Notice(plugin.t.messages.answerInserted);
                 } else {
-                    new Notice('Failed to generate answer');
+                    new Notice(plugin.t.messages.failedToGenerateAnswer);
                 }
             } catch (error) {
-                new Notice('Error: ' + (error as any).message);
+                new Notice(plugin.t.messages.semanticSearchDisabled + ': ' + (error as any).message);
             }
         }
     });
@@ -370,12 +370,12 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     plugin.embeddingService
                 );
                 
-                const statusNotice = new Notice('Finding related notes...', 0);
+                const statusNotice = new Notice(plugin.t.messages.findingRelatedNotesDetailed, 0);
                 const related = await ragService.getRelatedNotes(file, content, 5);
                 statusNotice.hide();
 
                 if (related.length === 0) {
-                    new Notice('No related notes found');
+                    new Notice(plugin.t.messages.noRelatedNotes);
                     return;
                 }
 
@@ -393,9 +393,9 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 const cursor = editor.getCursor();
                 editor.replaceRange(relatedSection, cursor);
                 ensureNoteStructureIfEnabled(editor, plugin.settings);
-                new Notice(`Inserted ${related.length} related notes`);
+                new Notice(plugin.t.messages.insertedRelatedNotes.replace('{count}', String(related.length)));
             } catch (error) {
-                new Notice('Error: ' + (error as any).message);
+                new Notice(plugin.t.messages.semanticSearchDisabled + ': ' + (error as any).message);
             }
         }
     });

@@ -26,6 +26,7 @@ export interface PickerCommand {
 interface CommandItem {
     category: string;
     categoryIcon: string;
+    categoryId: string;
     command: PickerCommand;
 }
 
@@ -64,6 +65,7 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
     renderSuggestion(fuzzyMatch: FuzzyMatch<CommandItem>, el: HTMLElement): void {
         const item = fuzzyMatch.item;
         el.addClass('command-picker-item');
+        el.setAttribute('data-category', item.categoryId);
 
         // Icon container
         const iconEl = el.createEl('span', { cls: 'command-picker-icon' });
@@ -107,6 +109,7 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
                 items.push({
                     category: category.name,
                     categoryIcon: category.icon,
+                    categoryId: category.id,
                     command
                 });
             }
@@ -175,6 +178,13 @@ export function buildCommandCategories(
                     icon: 'file-symlink',
                     aliases: ['embedded', 'linked', 'generate'],
                     callback: () => executeCommand('ai-organiser:generate-from-embedded')
+                },
+                {
+                    id: 'notebooklm-export',
+                    name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
+                    icon: 'package-export',
+                    aliases: ['notebooklm', 'export', 'pdf', 'pack'],
+                    callback: () => executeCommand('ai-organiser:notebooklm-export')
                 }
             ]
         },
@@ -213,6 +223,20 @@ export function buildCommandCategories(
                         'convert'
                     ],
                     callback: () => executeCommand('ai-organiser:smart-translate')
+                },
+                {
+                    id: 'highlight-selection',
+                    name: t.commands?.highlightSelection || 'Highlight selection',
+                    icon: 'highlighter',
+                    aliases: ['highlight', 'color', 'mark'],
+                    callback: () => executeCommand('ai-organiser:highlight-selection')
+                },
+                {
+                    id: 'remove-highlight',
+                    name: t.commands?.removeHighlight || 'Remove highlight',
+                    icon: 'eraser',
+                    aliases: ['remove', 'clear', 'unhighlight'],
+                    callback: () => executeCommand('ai-organiser:remove-highlight')
                 }
             ]
         },
@@ -247,6 +271,27 @@ export function buildCommandCategories(
                         'delete'
                     ],
                     callback: () => executeCommand('ai-organiser:clear-tags')
+                },
+                {
+                    id: 'upgrade-metadata',
+                    name: t.commands?.upgradeToBases || 'Upgrade to Bases metadata',
+                    icon: 'database',
+                    aliases: ['bases', 'migrate', 'metadata', 'upgrade'],
+                    callback: () => executeCommand('ai-organiser:upgrade-metadata')
+                },
+                {
+                    id: 'upgrade-folder-metadata',
+                    name: t.commands?.upgradeFolderToBases || 'Upgrade folder to Bases metadata',
+                    icon: 'database',
+                    aliases: ['bases', 'folder', 'migrate'],
+                    callback: () => executeCommand('ai-organiser:upgrade-folder-metadata')
+                },
+                {
+                    id: 'create-dashboard',
+                    name: t.commands?.createBasesDashboard || 'Create Bases dashboard',
+                    icon: 'layout-dashboard',
+                    aliases: ['bases', 'dashboard', 'view'],
+                    callback: () => executeCommand('ai-organiser:create-bases-dashboard')
                 }
             ]
         },
@@ -276,6 +321,20 @@ export function buildCommandCategories(
                     icon: 'message-circle',
                     aliases: ['ask', 'question', 'chat', 'RAG'],
                     callback: () => executeCommand('ai-organiser:chat-with-vault')
+                },
+                {
+                    id: 'ask-about-current-note',
+                    name: 'Ask Question About Current Note',
+                    icon: 'message-square-text',
+                    aliases: ['ask', 'current note', 'analyze'],
+                    callback: () => executeCommand('ai-organiser:ask-about-current-note')
+                },
+                {
+                    id: 'insert-related-notes',
+                    name: 'Insert Related Notes',
+                    icon: 'copy-plus',
+                    aliases: ['insert', 'embed', 'related'],
+                    callback: () => executeCommand('ai-organiser:insert-related-notes')
                 },
                 {
                     id: 'manage-index',
@@ -311,6 +370,56 @@ export function buildCommandCategories(
                     icon: 'list-tree',
                     aliases: ['export', 'list', 'all tags'],
                     callback: () => executeCommand('ai-organiser:collect-all-tags')
+                }
+            ]
+        },
+        // === INTEGRATE: Combine and manage content ===
+        {
+            id: 'integrate',
+            name: 'Integrate',
+            icon: 'git-merge',
+            commands: [
+                {
+                    id: 'add-to-pending',
+                    name: 'Add content to Pending Integration',
+                    icon: 'plus-circle',
+                    aliases: ['pending', 'add', 'integration'],
+                    callback: () => executeCommand('ai-organiser:add-to-pending-integration')
+                },
+                {
+                    id: 'integrate-pending',
+                    name: 'Integrate pending content into note',
+                    icon: 'git-merge',
+                    aliases: ['integrate', 'merge', 'pending'],
+                    callback: () => executeCommand('ai-organiser:integrate-pending-content')
+                },
+                {
+                    id: 'resolve-embeds',
+                    name: 'Resolve pending embeds',
+                    icon: 'scan-text',
+                    aliases: ['embeds', 'resolve', 'extract'],
+                    callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
+                },
+                {
+                    id: 'notebooklm-toggle',
+                    name: t.commands?.notebookLMToggle || 'NotebookLM: Toggle Selection',
+                    icon: 'tag-toggle',
+                    aliases: ['notebooklm', 'toggle', 'select'],
+                    callback: () => executeCommand('ai-organiser:notebooklm-toggle-selection')
+                },
+                {
+                    id: 'notebooklm-clear',
+                    name: t.commands?.notebookLMClear || 'NotebookLM: Clear Selection',
+                    icon: 'x-circle',
+                    aliases: ['notebooklm', 'clear', 'selection'],
+                    callback: () => executeCommand('ai-organiser:notebooklm-clear-selection')
+                },
+                {
+                    id: 'notebooklm-open-folder',
+                    name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
+                    icon: 'folder-open',
+                    aliases: ['notebooklm', 'export', 'folder'],
+                    callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
                 }
             ]
         }

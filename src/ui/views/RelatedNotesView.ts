@@ -401,7 +401,9 @@ export class RelatedNotesView extends ItemView {
 
         const markdown = lines.join('\n');
         navigator.clipboard.writeText(markdown).then(() => {
-            new Notice('Related notes copied to clipboard');
+            const plugin = (this.app as any).plugins.plugins['ai-organiser'];
+            const t = plugin?.t?.messages;
+            new Notice(t?.relatedNotesCopiedToClipboard || 'Related notes copied to clipboard');
         });
     }
 
@@ -410,7 +412,9 @@ export class RelatedNotesView extends ItemView {
         this.state.currentFilePath = undefined;
         this.state.error = undefined;
         this.renderEmptyState();
-        new Notice('Cache cleared');
+        const plugin = (this.app as any).plugins.plugins['ai-organiser'];
+        const t = plugin?.t?.messages;
+        new Notice(t?.cacheClearedSuccessfully || 'Cache cleared');
     }
 
     private getRelativeTime(timestamp: number): string {

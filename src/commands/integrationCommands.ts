@@ -47,7 +47,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         addToReferencesSection(editor, sourceRef);
                     }
 
-                    new Notice('Content added to Pending Integration');
+                    new Notice(plugin.t.messages.contentAddedToPending);
                 }
             });
             modal.open();
@@ -63,14 +63,14 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             const pendingContent = getPendingIntegrationContent(editor);
 
             if (!pendingContent) {
-                new Notice('No pending content to integrate');
+                new Notice(plugin.t.messages.noPendingContentToIntegrate);
                 return;
             }
 
             const mainContent = getMainContent(editor);
 
             if (!mainContent.trim()) {
-                new Notice('No main content to integrate into');
+                new Notice(plugin.t.messages.noMainContentToIntegrateInto);
                 return;
             }
 
@@ -84,7 +84,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 personas,
                 defaultPersona,
                 async (selectedPersona) => {
-                    new Notice('Integrating content...');
+                    new Notice(plugin.t.messages.integratingContent);
 
                     try {
                         // Get persona prompt
@@ -97,7 +97,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         const response = await callLLMForIntegration(plugin, prompt);
 
                         if (!response.success || !response.content) {
-                            new Notice(`Integration failed: ${response.error || 'No response from LLM'}`);
+                            new Notice(plugin.t.messages.integratingContentFailed.replace('{error}', response.error || 'No response from LLM'));
                             return;
                         }
 
@@ -107,11 +107,11 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         // Clear the pending integration section
                         clearPendingIntegration(editor);
 
-                        new Notice('Content integrated successfully');
+                        new Notice(plugin.t.messages.contentIntegratedSuccessfully);
 
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                        new Notice(`Integration failed: ${errorMessage}`);
+                        new Notice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
                     }
                 }
             );
@@ -136,7 +136,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         icon: 'layout-template',
         editorCallback: (editor: Editor) => {
             ensureStandardStructure(editor);
-            new Notice('Note structure added');
+            new Notice(plugin.t.messages.noteStructureAdded);
         }
     });
 
@@ -157,7 +157,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         content: text
                     };
                     addToPendingIntegration(editor, source);
-                    new Notice('Content added to Pending Integration');
+                    new Notice(plugin.t.messages.contentAddedToPending);
                 }
             });
             modal.open();
@@ -191,7 +191,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                     };
                     addToReferencesSection(editor, sourceRef);
 
-                    new Notice('URL added to Pending Integration');
+                    new Notice(plugin.t.messages.urlAddedToPending);
                 }
             });
             modal.open();
@@ -207,7 +207,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             const selection = editor.getSelection();
 
             if (!selection || !selection.trim()) {
-                new Notice('Select some text first');
+                new Notice(plugin.t.messages.selectTextFirst);
                 return;
             }
 
@@ -237,7 +237,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 addToReferencesSection(editor, sourceRef);
             }
 
-            new Notice('Selection added to Pending Integration');
+            new Notice(plugin.t.messages.selectionAddedToPending);
         }
     });
 }

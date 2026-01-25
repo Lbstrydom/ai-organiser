@@ -559,7 +559,34 @@ export const zhCN: Translations = {
         notebookLMClearFailed: "清除选择失败",
         notebookLMFolderNotFound: "未找到导出文件夹。请先运行导出。",
         notebookLMOpenFolderFailed: "打开导出文件夹失败",
-        desktopOnly: "此功能仅在桌面端可用"
+        desktopOnly: "此功能仅在桌面端可用",
+        // Chat/RAG messages
+        searchingVaultContext: "正在搜索库...",
+        foundRelevantChunks: "找到来自 {sources} 篇笔记的 {count} 个相关块",
+        semanticSearchNotEnabledDetailed: "未启用语义搜索。请在设置中启用。",
+        vectorStoreNotInitialized: "向量存储未初始化。请稍后重试。",
+        noDocumentsIndexedYet: "还没有索引任何文档。请先运行\"索引整个库\"。",
+        noContentToAnalyzeDetailed: "没有要分析的内容",
+        searchingForRelevantInfo: "正在搜索相关信息...",
+        noRelevantInformationFound: "未找到相关信息",
+        answerInserted: "答案已插入",
+        failedToGenerateAnswer: "生成答案失败",
+        findingRelatedNotesDetailed: "正在查找相关笔记...",
+        insertedRelatedNotes: "已插入 {count} 篇相关笔记",
+        // Integration messages
+        contentAddedToPending: "内容已添加到待处理集成",
+        noPendingContentToIntegrate: "没有待集成的内容",
+        noMainContentToIntegrateInto: "没有要集成的主内容",
+        integratingContent: "正在集成内容...",
+        integratingContentFailed: "集成失败：{error}",
+        contentIntegratedSuccessfully: "内容集成成功",
+        noteStructureAdded: "笔记结构已添加",
+        urlAddedToPending: "URL 已添加到待处理集成",
+        selectTextFirst: "请先选择文本",
+        selectionAddedToPending: "选择的内容已添加到待处理集成",
+        // Related notes view messages
+        relatedNotesCopiedToClipboard: "相关笔记已复制到剪贴板",
+        cacheClearedSuccessfully: "缓存已清除",
     },
 
     // 模态对话框

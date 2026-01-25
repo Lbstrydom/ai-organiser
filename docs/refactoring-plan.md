@@ -3,6 +3,27 @@
 Date: 2026-01-25
 Source of truth: `docs/ux-ui-audit.md`
 
+## Status Update
+
+**Phase 1 (P0): ✅ COMPLETED**
+- Command picker expanded from 13 to 29 commands
+- Category styling implemented with data-category attributes
+- All tests passing (631 unit + 17 integration)
+- Deployed to Obsidian vault
+- Date Completed: 2026-01-25
+
+**Phase 2 (P0): ✅ COMPLETED**
+- Added 24 new i18n keys to types.ts, en.ts, zh-cn.ts with dynamic placeholders
+- Hard-coded notices replaced in:
+  - `src/commands/chatCommands.ts`: 7 notices → plugin.t strings
+  - `src/commands/integrationCommands.ts`: 9 notices → plugin.t strings
+  - `src/ui/views/RelatedNotesView.ts`: 2 notices → plugin.t strings
+- Fixed ChatWithVaultModal class method scope (this.plugin.t)
+- All tests passing (631 unit + 17 integration)
+- Deployed to Obsidian vault
+- Date Completed: 2026-01-25
+- **Remaining Work**: ~20 hard-coded notices in `src/commands/summarizeCommands.ts` can be addressed as part of Phase 3 work or in a targeted update
+
 ## Purpose
 
 This plan replaces the older controller-extraction completion report so that
