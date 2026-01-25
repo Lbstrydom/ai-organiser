@@ -17,7 +17,6 @@ import { ImproveNoteModal } from '../ui/modals/ImproveNoteModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
 import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
-import { ConfigurationService, Persona } from '../services/configurationService';
 import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidDiagramModal';
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
@@ -141,7 +140,7 @@ async function executeImproveNote(plugin: AIOrganiserPlugin): Promise<void> {
         return;
     }
 
-    const configService = new ConfigurationService(plugin.app);
+    const configService = plugin.configService;
     const personas = await configService.getPersonas();
     const defaultPersona = await configService.getDefaultPersona();
 

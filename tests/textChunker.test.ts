@@ -5,8 +5,8 @@
  * These tests verify the chunking logic used for long meeting transcripts
  */
 
-import { describe, it, expect } from 'vitest';
 import { chunkPlainTextAsync, chunkSegmentsAsync, TranscriptSegmentLike } from '../src/utils/textChunker';
+import { CHUNK_TOKEN_LIMIT } from '../src/core/constants';
 
 describe('Text Chunker - chunkPlainTextAsync', () => {
 
@@ -105,9 +105,9 @@ describe('Text Chunker - chunkPlainTextAsync', () => {
             expect(result[0].length).toBe(25);
         });
 
-        it('should use default maxTokens of 6000 when not specified', async () => {
+        it('should use default maxTokens of CHUNK_TOKEN_LIMIT when not specified', async () => {
             const text = 'A'.repeat(100);
-            // Default: 6000 tokens * 4 = 24000 chars
+            // Default: CHUNK_TOKEN_LIMIT tokens * 4 = CHUNK_TOKEN_LIMIT*4 chars
             // 100 chars fits in one chunk
             const result = await chunkPlainTextAsync(text);
 
@@ -284,16 +284,16 @@ describe('Text Chunker - Configuration', () => {
             expect(result.length).toBe(10);
         });
 
-        it('should use default maxTokens of 6000', async () => {
-            // Default: 6000 tokens * 4 chars = 24000 chars per chunk
+        it('should use default maxTokens of CHUNK_TOKEN_LIMIT', async () => {
+            // Default: CHUNK_TOKEN_LIMIT tokens * 4 chars per chunk
             // With overlapChars: 1 (to avoid default 400 overlap)
             const text = 'A'.repeat(30000);
             const result = await chunkPlainTextAsync(text, { overlapChars: 1 });
 
-            // 30000 chars with step of 23999 (24000 - 1)
+            // 30000 chars with step of (CHUNK_TOKEN_LIMIT*4 - 1)
             // 30000 / 23999 ≈ 1.25, so 2 chunks
             expect(result.length).toBe(2);
-            expect(result[0].length).toBe(24000);
+            expect(result[0].length).toBe(CHUNK_TOKEN_LIMIT * 4);
         });
     });
 
@@ -328,7 +328,7 @@ describe('Text Chunker - Configuration', () => {
             // Zero maxTokens should use default
             const result = await chunkPlainTextAsync(text, { maxTokens: 0, overlapChars: 0 });
 
-            // Should use default 6000 tokens = 24000 chars
+            // Should use default CHUNK_TOKEN_LIMIT tokens = CHUNK_TOKEN_LIMIT*4 chars
             expect(result.length).toBe(1);
         });
     });

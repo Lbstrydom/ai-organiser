@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { vi } from 'vitest';
 import { getTruncationOptions, TruncationTranslations } from '../../src/ui/utils/truncation';
 import { TruncationChoice } from '../../src/core/constants';
 

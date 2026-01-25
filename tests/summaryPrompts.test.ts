@@ -3,7 +3,6 @@
  * Tests prompt building functions for summarization
  */
 
-import { describe, it, expect } from 'vitest';
 import {
   buildSummaryPrompt,
   buildChunkCombinePrompt,

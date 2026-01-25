@@ -12,6 +12,7 @@
 
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import { getNotebookLMExportFullPath } from '../core/settings';
 
 export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
@@ -168,7 +169,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
         name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
         icon: 'folder-open',
         callback: async () => {
-            const exportFolder = `${plugin.settings.pluginFolder}/${plugin.settings.notebooklmExportFolder}`;
+            const exportFolder = getNotebookLMExportFullPath(plugin.settings);
 
             try {
                 const folder = plugin.app.vault.getAbstractFileByPath(exportFolder);

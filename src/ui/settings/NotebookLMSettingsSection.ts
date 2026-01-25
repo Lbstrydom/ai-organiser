@@ -7,6 +7,7 @@ import { Setting, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
+import { getNotebookLMExportFullPath } from '../../core/settings';
 
 export class NotebookLMSettingsSection extends BaseSettingSection {
     constructor(
@@ -45,49 +46,50 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Add dropdown with existing folders
         exportFolderSetting.addDropdown(dropdown => {
-            // Get all folders in vault
             const folders = this.getVaultFolders();
+            const pluginPrefix = `${plugin.settings.pluginFolder}/`;
+            const resolvedDefault = getNotebookLMExportFullPath(plugin.settings);
+            const currentResolved = getNotebookLMExportFullPath(plugin.settings);
 
-            // Add "Create in AI-Organiser/" option
-            dropdown.addOption('AI-Organiser/NotebookLM', 'AI-Organiser/NotebookLM (default)');
+            dropdown.addOption(resolvedDefault, `${resolvedDefault} (default)`);
 
-            // Add existing folders
             for (const folder of folders) {
-                if (folder !== 'AI-Organiser/NotebookLM') {
+                if (folder !== resolvedDefault) {
                     dropdown.addOption(folder, folder);
                 }
             }
 
-            // Add custom option
             dropdown.addOption('__custom__', '— Custom path —');
 
-            const currentFolder = plugin.settings.notebooklmExportFolder || 'AI-Organiser/NotebookLM';
-            const isCustom = !folders.includes(currentFolder) && currentFolder !== 'AI-Organiser/NotebookLM';
+            const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
+            dropdown.setValue(isCustom ? '__custom__' : currentResolved);
 
-            dropdown.setValue(isCustom ? '__custom__' : currentFolder);
             dropdown.onChange(async value => {
                 if (value === '__custom__') {
-                    // Show text input for custom path
                     this.settingTab.display();
                 } else {
-                    plugin.settings.notebooklmExportFolder = value;
+                    const normalized = value.startsWith(pluginPrefix) ? value.slice(pluginPrefix.length) : value;
+                    plugin.settings.notebooklmExportFolder = normalized || 'NotebookLM';
                     await plugin.saveSettings();
                 }
             });
         });
 
-        // Show text input if custom is selected or folder not in list
-        const currentFolder = plugin.settings.notebooklmExportFolder || 'AI-Organiser/NotebookLM';
+        const currentResolved = getNotebookLMExportFullPath(plugin.settings);
         const folders = this.getVaultFolders();
-        const isCustom = !folders.includes(currentFolder) && currentFolder !== 'AI-Organiser/NotebookLM';
+        const resolvedDefault = getNotebookLMExportFullPath(plugin.settings);
+        const pluginPrefix = `${plugin.settings.pluginFolder}/`;
+        const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
 
         if (isCustom) {
             exportFolderSetting.addText(text =>
                 text
-                    .setPlaceholder('path/to/export/folder')
+                    .setPlaceholder('NotebookLM')
                     .setValue(plugin.settings.notebooklmExportFolder)
                     .onChange(async value => {
-                        plugin.settings.notebooklmExportFolder = value || 'AI-Organiser/NotebookLM';
+                        const sanitized = (value || 'NotebookLM').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                        const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
+                        plugin.settings.notebooklmExportFolder = normalized || 'NotebookLM';
                         await plugin.saveSettings();
                     })
             );

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { DocumentHandlingController, DocumentItem, AddResult } from '../src/ui/controllers/DocumentHandlingController';
 import type { App, TFile } from 'obsidian';
 import { DocumentExtractionService } from '../src/services/documentExtractionService';

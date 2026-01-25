@@ -22,6 +22,7 @@ import { AudioSelectModal, AudioSelectResult } from '../ui/modals/AudioSelectMod
 import { ContentSizeModal, ContentSizeChoice } from '../ui/modals/ContentSizeModal';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 import { getLanguageNameForPrompt } from '../services/languages';
+import { SUMMARY_HOOK_MAX_LENGTH } from '../core/constants';
 import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo, summarizeYouTubeWithGemini } from '../services/youtubeService';
 import {
     transcribeAudio,
@@ -2264,10 +2265,10 @@ async function handleYouTubeSummarization(
         if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
             if (view) {
-                await updateNoteMetadataAfterSummary(
+                        await updateNoteMetadataAfterSummary(
                     plugin,
                     view,
-                    summary.substring(0, 280),
+                            summary.substring(0, SUMMARY_HOOK_MAX_LENGTH),
                     [],
                     'research',
                     'youtube',
@@ -2319,10 +2320,10 @@ async function summarizeYouTubeAndInsert(
             if (plugin.settings.enableStructuredMetadata && personaId) {
                 const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && videoInfo) {
-                    await updateNoteMetadataAfterSummary(
+                        await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                        response.content.substring(0, 280),
+                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH),
                         [],
                         'research',
                         'youtube',
@@ -2415,10 +2416,10 @@ async function summarizeYouTubeInChunks(
             if (plugin.settings.enableStructuredMetadata && personaId) {
                 const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && videoInfo) {
-                    await updateNoteMetadataAfterSummary(
+                        await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                        response.content.substring(0, 280),
+                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH),
                         [],
                         'research',
                         'youtube',
@@ -2973,10 +2974,10 @@ async function summarizePdfContent(
             if (plugin.settings.enableStructuredMetadata && personaId) {
                 const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view) {
-                    await updateNoteMetadataAfterSummary(
+                        await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                        response.content.substring(0, 280), // Summary hook
+                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH), // Summary hook
                         [],
                         'reference',
                         'pdf',

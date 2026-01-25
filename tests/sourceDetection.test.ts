@@ -5,7 +5,6 @@
  * These tests verify the regex patterns used to detect embedded content in notes
  */
 
-import { describe, it, expect } from 'vitest';
 import {
     detectSourcesFromContent,
     isYouTubeUrl,

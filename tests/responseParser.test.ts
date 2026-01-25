@@ -5,8 +5,8 @@
  * These tests verify the parsing logic that handles various LLM response formats
  */
 
-import { describe, it, expect } from 'vitest';
 import { parseStructuredResponse, sanitizeSummaryHook, extractPlainText } from '../src/utils/responseParser';
+import { SUMMARY_HOOK_MAX_LENGTH } from '../src/core/constants';
 
 describe('Response Parser - parseStructuredResponse', () => {
 
@@ -172,7 +172,7 @@ Hope this helps!`;
 
             const result = parseStructuredResponse(longText);
 
-            expect(result?.summary_hook.length).toBeLessThanOrEqual(280);
+            expect(result?.summary_hook.length).toBeLessThanOrEqual(SUMMARY_HOOK_MAX_LENGTH);
             expect(result?.summary_hook).toContain('...');
         });
 
@@ -228,7 +228,7 @@ describe('Response Parser - Summary Hook Sanitization', () => {
         });
 
         it('should truncate at word boundary for long hooks', () => {
-            const hook = 'This is a very long summary hook that needs to be truncated because it exceeds the maximum allowed length of 280 characters and we want to cut it at a word boundary rather than in the middle of a word which would look ugly and unprofessional in the UI display area.';
+            const hook = 'This is a very long summary hook that needs to be truncated because it exceeds the maximum allowed length of ' + SUMMARY_HOOK_MAX_LENGTH + ' characters and we want to cut it at a word boundary rather than in the middle of a word which would look ugly and unprofessional in the UI display area.';
 
             const result = sanitizeSummaryHook(hook, 100);
 
@@ -242,14 +242,14 @@ describe('Response Parser - Summary Hook Sanitization', () => {
         });
 
         it('should handle string exactly at max length', () => {
-            const hook = 'A'.repeat(280);
+            const hook = 'A'.repeat(SUMMARY_HOOK_MAX_LENGTH);
             expect(sanitizeSummaryHook(hook)).toBe(hook);
         });
 
         it('should handle string one char over max length', () => {
-            const hook = 'A'.repeat(281);
+            const hook = 'A'.repeat(SUMMARY_HOOK_MAX_LENGTH + 1);
             const result = sanitizeSummaryHook(hook);
-            expect(result.length).toBeLessThanOrEqual(280);
+            expect(result.length).toBeLessThanOrEqual(SUMMARY_HOOK_MAX_LENGTH);
             expect(result).toContain('...');
         });
 

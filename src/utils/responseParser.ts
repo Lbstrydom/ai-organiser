@@ -4,6 +4,7 @@
  */
 
 import { StructuredSummaryResponse } from '../services/prompts/structuredPrompts';
+import { SUMMARY_HOOK_MAX_LENGTH } from '../core/constants';
 
 /**
  * Parse LLM response attempting to extract structured JSON
@@ -104,9 +105,9 @@ function sanitizeSummaryHookContent(hook: string): string {
     // Ensure it ends cleanly (not with dangling punctuation)
     sanitized = sanitized.replaceAll(/[,\s]+$/g, '').trim();
 
-    // Truncate to 280 chars if needed
-    if (sanitized.length > 280) {
-        sanitized = sanitized.substring(0, 277).trim() + '...';
+    // Truncate to SUMMARY_HOOK_MAX_LENGTH chars if needed (reserve 3 for ellipsis)
+    if (sanitized.length > SUMMARY_HOOK_MAX_LENGTH) {
+        sanitized = sanitized.substring(0, SUMMARY_HOOK_MAX_LENGTH - 3).trim() + '...';
     }
 
     return sanitized;
@@ -136,10 +137,10 @@ function sanitizeBodyContent(content: string): string {
  * Create a fallback structured response from plain text
  */
 function createFallbackResponse(text: string): StructuredSummaryResponse {
-    // Extract first 280 chars as hook
-    const hook = text.length <= 280 
+    // Extract first SUMMARY_HOOK_MAX_LENGTH chars as hook (reserve 3 for ellipsis)
+    const hook = text.length <= SUMMARY_HOOK_MAX_LENGTH 
         ? text 
-        : text.substring(0, 277).trim() + '...';
+        : text.substring(0, SUMMARY_HOOK_MAX_LENGTH - 3).trim() + '...';
     
     // Try to extract tags from text (look for common patterns)
     const tags: string[] = [];
@@ -182,7 +183,7 @@ export function extractPlainText(response: StructuredSummaryResponse): string {
 /**
  * Validate and sanitize summary hook length
  */
-export function sanitizeSummaryHook(hook: string, maxLength: number = 280): string {
+export function sanitizeSummaryHook(hook: string, maxLength: number = SUMMARY_HOOK_MAX_LENGTH): string {
     if (!hook || hook.length === 0) {
         return '';
     }

@@ -1,5 +1,6 @@
 import AIOrganiserPlugin from '../main';
 import { TagUtils } from '../utils/tagUtils';
+import { getConfigFolderFullPath } from '../core/settings';
 
 export function registerUtilityCommands(plugin: AIOrganiserPlugin) {
     // Command to collect all tags from vault
@@ -9,7 +10,7 @@ export function registerUtilityCommands(plugin: AIOrganiserPlugin) {
         icon: 'tags',
         callback: async () => {
             // Save all tags to the config folder
-            await TagUtils.saveAllTags(plugin.app, plugin.settings.configFolderPath);
+            await TagUtils.saveAllTags(plugin.app, getConfigFolderFullPath(plugin.settings));
         }
     });
 

@@ -3,7 +3,7 @@
  * All assertions exercise the real service via mocked vault I/O.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 import { App, TFile } from './mocks/obsidian';
 import {
     ConfigurationService,

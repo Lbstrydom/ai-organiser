@@ -3,7 +3,6 @@
  * Verifies stable MD5 hashing for change detection
  */
 
-import { describe, it, expect } from 'vitest';
 import { createContentHash } from '../src/services/vector/hashUtils';
 
 describe('createContentHash', () => {

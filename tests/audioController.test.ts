@@ -3,7 +3,7 @@
  * Comprehensive validation of audio state management and transcription
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { vi, Mock } from 'vitest';
 import { AudioController } from '../src/ui/controllers/AudioController';
 import { App, TFile } from 'obsidian';
 

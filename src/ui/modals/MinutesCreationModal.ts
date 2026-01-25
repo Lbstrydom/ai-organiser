@@ -6,6 +6,7 @@ import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../serv
 import { detectEmbeddedAudio, DetectedContent } from '../../utils/embeddedContentDetector';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
+import { getConfigFolderFullPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
     DEFAULT_MAX_DOCUMENT_CHARS,
@@ -93,7 +94,7 @@ export class MinutesCreationModal extends Modal {
         this.plugin = plugin;
         // Support dependency injection for testing, with default implementations
         this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
-        this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, plugin.settings.pluginFolder);
+        this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, getConfigFolderFullPath(plugin.settings));
         this.documentService = deps?.documentService ?? new DocumentExtractionService(app);
 
         this.state = {
@@ -1518,7 +1519,7 @@ export class MinutesCreationModal extends Modal {
     }
 
     private async openDictionaryFile(dictionaryId: string): Promise<void> {
-        const path = `${this.plugin.settings.pluginFolder}/dictionaries/${dictionaryId}.md`;
+        const path = `${this.dictionaryService.getDictionariesFolder()}/${dictionaryId}.md`;
         const file = this.app.vault.getAbstractFileByPath(path);
 
         if (file instanceof TFile) {

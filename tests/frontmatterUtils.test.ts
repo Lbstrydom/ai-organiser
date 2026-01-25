@@ -8,7 +8,6 @@
  * - detectLanguage: English, Chinese, mixed, short text
  */
 
-import { describe, it, expect } from 'vitest';
 import { createSummaryHook, countWords, detectLanguage } from '../src/utils/frontmatterUtils';
 import { SUMMARY_HOOK_MAX_LENGTH } from '../src/core/constants';
 

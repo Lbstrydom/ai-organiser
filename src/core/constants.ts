@@ -46,6 +46,12 @@ export const AIO_META = {
 export const SUMMARY_HOOK_MAX_LENGTH = 280;
 
 /**
+ * Default token limit for transcript chunking
+ * Used by minutesService and textChunker
+ */
+export const CHUNK_TOKEN_LIMIT = 6000;
+
+/**
  * Valid content type values
  */
 export const CONTENT_TYPES = ['note', 'research', 'meeting', 'project', 'reference'] as const;

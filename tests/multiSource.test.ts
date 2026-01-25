@@ -3,7 +3,6 @@
  * Tests mixed content scenarios not covered by sourceDetection.test.ts
  */
 
-import { describe, it, expect } from 'vitest';
 import { detectSourcesFromContent } from '../src/utils/sourceDetection';
 
 describe('Multi-Source Mixed Content', () => {

@@ -14,6 +14,7 @@ import {
     parseMinutesResponse
 } from './prompts/minutesPrompts';
 import { chunkPlainTextAsync, chunkSegmentsAsync } from '../utils/textChunker';
+import { CHUNK_TOKEN_LIMIT } from '../core/constants';
 import {
     buildMinutesFrontmatter,
     buildMinutesJsonComment,
@@ -52,7 +53,7 @@ interface ChunkExtract {
     open_questions: any[];
 }
 
-const CHUNK_TOKEN_LIMIT = 6000;
+// Use shared CHUNK_TOKEN_LIMIT from constants
 
 export class MinutesService {
     private plugin: AIOrganiserPlugin;

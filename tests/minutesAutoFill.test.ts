@@ -3,7 +3,7 @@
  * These tests call the real MinutesCreationModal logic via private method access.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 
 vi.mock('obsidian', async () => await import('./mocks/obsidian'));
 

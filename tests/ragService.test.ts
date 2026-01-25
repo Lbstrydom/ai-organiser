@@ -11,7 +11,6 @@
  * - RAG prompt building
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { RAGService, RAGContext, RAGOptions } from '../src/services/ragService';
 import { IVectorStore, SearchResult, VectorDocument } from '../src/services/vector/types';
 import { AIOrganiserSettings } from '../src/core/settings';

@@ -13,7 +13,7 @@ import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
 import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandPickerModal';
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { registerCommands } from './commands/index';
-import { AIOrganiserSettings, DEFAULT_SETTINGS, getPluginSubfolderPath } from './core/settings';
+import { AIOrganiserSettings, DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
@@ -51,7 +51,7 @@ export default class AIOrganiserPlugin extends Plugin {
             modelName: DEFAULT_SETTINGS.localModel,
             language: DEFAULT_SETTINGS.language
         }, app);
-        this.configService = new ConfigurationService(app, `${DEFAULT_SETTINGS.pluginFolder}/${DEFAULT_SETTINGS.configFolderPath}`);
+        this.configService = new ConfigurationService(app, getConfigFolderFullPath(DEFAULT_SETTINGS));
         this.eventHandlers = new EventHandlers(this);
         this.tagNetworkManager = new TagNetworkManager(app);
         this.tagOperations = new TagOperations(app);
@@ -116,7 +116,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private initializeSourcePackService(): void {
         const config: SourcePackConfig = {
             selectionTag: this.settings.notebooklmSelectionTag,
-            exportFolder: this.settings.notebooklmExportFolder,
+            exportFolder: getNotebookLMExportFullPath(this.settings),
             postExportTagAction: this.settings.notebooklmPostExportTagAction
         };
 
@@ -209,7 +209,7 @@ export default class AIOrganiserPlugin extends Plugin {
         await this.initializeLLMService();
 
         // Initialize configuration service with full path (pluginFolder/configFolderPath)
-        const configFullPath = getPluginSubfolderPath(this.settings, this.settings.configFolderPath);
+        const configFullPath = getConfigFolderFullPath(this.settings);
         this.configService.setConfigFolder(configFullPath);
 
         // Create default config files if they don't exist

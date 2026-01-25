@@ -57,6 +57,13 @@ Manual assertions:
 
 ## Phase 1 - Fix Folder Resolution (P0)
 
+**Status**: ✅ COMPLETE
+
+**Results**:
+- Helpers added: `getConfigFolderFullPath`, `getNotebookLMExportFullPath`, `getDictionariesFolderFullPath`
+- Regression tests added: `tests/pathUtils.test.ts`, `tests/pathIntegration.test.ts`
+- `npm test` (25 suites, 639 tests) passing; `npm run test:auto` (17 checks) passing
+
 ### 1A) Centralize Folder Resolution Helpers
 
 Add helpers in `src/core/settings.ts` (or a new `pathUtils.ts`) and use them everywhere:
@@ -157,6 +164,14 @@ Edge cases to include in tests (as applicable to helper behavior, not filesystem
 - Case variations (document expected behavior; treat as exact string match unless a normalization rule is introduced)
 
 ## Phase 2 - Centralize Key Constants (P1)
+
+**Status**: ✅ COMPLETE
+
+**Results**:
+- Centralized `SUMMARY_HOOK_MAX_LENGTH` usage in code paths (response parser and summarization commands)
+- Introduced shared `CHUNK_TOKEN_LIMIT` in `src/core/constants.ts` and used in minutes and chunking utilities
+- Updated tests to reference shared constants (`tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/minutesService.test.ts`)
+- `npm test` passing (25 suites, 639 tests)
 
 ### 2A) Summary Hook Length
 

@@ -3,7 +3,6 @@
  * Tests SSRF protection and URL validation
  */
 
-import { describe, it, expect } from 'vitest';
 import { validateUrl, isPdfUrl, extractFilenameFromUrl } from '../src/utils/urlValidator';
 
 describe('validateUrl', () => {

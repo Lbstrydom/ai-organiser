@@ -3,7 +3,7 @@
  * Comprehensive tests for state management, CRUD, term extraction, and merging
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { DictionaryController } from '../src/ui/controllers/DictionaryController';
 import { DictionaryService, Dictionary, DictionaryEntry } from '../src/services/dictionaryService';
 import { LLMService } from '../src/services/types';

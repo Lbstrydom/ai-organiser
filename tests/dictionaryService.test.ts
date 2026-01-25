@@ -3,7 +3,7 @@
  * All assertions exercise the real service via mocked vault I/O.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { App, TFile, TFolder } from './mocks/obsidian';
 import { DictionaryService, Dictionary } from '../src/services/dictionaryService';
 

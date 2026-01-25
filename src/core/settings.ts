@@ -242,6 +242,52 @@ export function getPluginSubfolderPath(settings: AIOrganiserSettings, subfolder:
     return `${settings.pluginFolder}/${subfolder}`;
 }
 
+function normalizeFolderSegment(value: string | undefined, fallback: string): string {
+    const cleaned = (value || '')
+        .trim()
+        .replace(/\\/g, '/')
+        .replace(/^\/+|\/+$/g, '');
+
+    return cleaned || fallback;
+}
+
+function collapseDuplicatePrefix(fullPath: string, pluginFolder: string): string {
+    const prefix = `${pluginFolder}/`;
+    const doublePrefix = `${prefix}${pluginFolder}/`;
+
+    let normalized = fullPath;
+    while (normalized.startsWith(doublePrefix)) {
+        normalized = `${prefix}${normalized.slice(doublePrefix.length)}`;
+    }
+
+    return normalized.replace(/\/+$/, '');
+}
+
+function resolvePluginPath(settings: AIOrganiserSettings, folderValue: string | undefined, defaultSubfolder: string): string {
+    const pluginFolder = normalizeFolderSegment(settings.pluginFolder, DEFAULT_PLUGIN_FOLDER);
+    const pluginPrefix = `${pluginFolder}/`;
+    let subfolder = normalizeFolderSegment(folderValue, defaultSubfolder);
+
+    // If the value already includes the plugin folder, treat it as legacy full path
+    if (subfolder.startsWith(pluginPrefix)) {
+        return collapseDuplicatePrefix(subfolder, pluginFolder);
+    }
+
+    return collapseDuplicatePrefix(`${pluginFolder}/${subfolder}`, pluginFolder);
+}
+
+export function getConfigFolderFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.configFolderPath, 'Config');
+}
+
+export function getNotebookLMExportFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.notebooklmExportFolder, 'NotebookLM');
+}
+
+export function getDictionariesFolderFullPath(settings: AIOrganiserSettings): string {
+    return `${getConfigFolderFullPath(settings)}/dictionaries`;
+}
+
 /**
  * Get all plugin-managed folders that should be auto-excluded from tagging
  */

@@ -21,8 +21,8 @@ import {
 } from '../utils/noteStructure';
 import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { DocumentExtractionService } from '../services/documentExtractionService';
-import { ConfigurationService, Persona } from '../services/configurationService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
+import type { Persona } from '../services/configurationService';
 
 export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
@@ -75,9 +75,8 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             }
 
             // Load personas and show confirmation modal with persona selection
-            const configService = new ConfigurationService(plugin.app);
-            const personas = await configService.getPersonas();
-            const defaultPersona = await configService.getDefaultPersona();
+            const personas = await plugin.configService.getPersonas();
+            const defaultPersona = await plugin.configService.getDefaultPersona();
 
             const modal = new IntegrationConfirmModal(
                 plugin.app,
@@ -88,7 +87,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
 
                     try {
                         // Get persona prompt
-                        const personaPrompt = await configService.getPersonaPrompt(selectedPersona.id);
+                        const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
 
                         // Build the integration prompt with persona
                         const prompt = buildIntegrationPrompt(mainContent, pendingContent, plugin, personaPrompt);

@@ -3,7 +3,6 @@
  * Tests pure functions in tagUtils that don't require Obsidian API
  */
 
-import { describe, it, expect } from 'vitest';
 import { TagUtils } from '../src/utils/tagUtils';
 
 describe('TagUtils.formatTag', () => {

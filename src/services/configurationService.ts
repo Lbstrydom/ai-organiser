@@ -5,6 +5,7 @@
  */
 
 import { App, TFile, normalizePath } from 'obsidian';
+import { DEFAULT_PLUGIN_FOLDER } from '../core/settings';
 
 export interface ConfigPaths {
     taxonomyFile: string;      // Main taxonomy with themes and disciplines
@@ -444,7 +445,7 @@ columns:
 ];
 
 // Default folder for configuration files (within the main plugin folder)
-export const DEFAULT_CONFIG_FOLDER = 'AI-Organiser/Config';
+export const DEFAULT_CONFIG_FOLDER = `${DEFAULT_PLUGIN_FOLDER}/Config`;
 
 export class ConfigurationService {
     private app: App;

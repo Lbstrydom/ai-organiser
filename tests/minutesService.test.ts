@@ -8,8 +8,9 @@
  * - Text chunking helpers when needed
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { vi } from 'vitest';
 import { MinutesService, MinutesGenerationInput } from '../src/services/minutesService';
+import { CHUNK_TOKEN_LIMIT } from '../src/core/constants';
 import { App, TFile, clearMockNotices } from './mocks/obsidian';
 import { Notice } from 'obsidian';
 
@@ -295,7 +296,7 @@ This was a kickoff meeting.
         it('throws when chunker returns zero chunks', async () => {
             chunkPlainTextAsyncSpy.mockResolvedValueOnce([]);
             
-            const longTranscript = 'A'.repeat(30000); // Exceeds CHUNK_TOKEN_LIMIT * 4
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 5); // Exceeds CHUNK_TOKEN_LIMIT * 4
             const input = { ...baseInput, transcript: longTranscript };
 
             await expect(service.generateMinutes(input)).rejects.toThrow('Transcript is empty');
@@ -316,13 +317,13 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunkResponse })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 5);
             const input = { ...baseInput, transcript: longTranscript };
 
             await service.generateMinutes(input);
 
             expect(chunkPlainTextAsyncSpy).toHaveBeenCalledWith(longTranscript, {
-                maxTokens: 6000,
+                maxTokens: CHUNK_TOKEN_LIMIT,
                 overlapChars: 500
             });
         });
@@ -357,7 +358,7 @@ This was a kickoff meeting.
             await service.generateMinutes(input);
 
             expect(chunkSegmentsAsyncSpy).toHaveBeenCalledWith(segments, {
-                maxTokens: 6000,
+                maxTokens: CHUNK_TOKEN_LIMIT,
                 overlapChars: 500
             });
         });

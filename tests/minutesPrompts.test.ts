@@ -9,7 +9,6 @@
  * - JSON repair: Trailing commas, unquoted keys
  */
 
-import { describe, it, expect } from 'vitest';
 import {
     buildMinutesSystemPrompt,
     buildMinutesUserPrompt,

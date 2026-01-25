@@ -1,5 +1,6 @@
 import { Setting, Notice, Modal, App } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { getConfigFolderFullPath } from '../../core/settings';
 import { TaxonomySuggestionService, SuggestedDiscipline, SuggestedTheme, TaxonomyChange } from '../../services/taxonomySuggestionService';
 
 /**
@@ -1009,11 +1010,17 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             .setName(t.settings.configuration.configFolder)
             .setDesc(t.settings.configuration.configFolderDesc)
             .addText(text => text
-                .setPlaceholder('AI-Organiser-Config')
+                .setPlaceholder('Config')
                 .setValue(this.plugin.settings.configFolderPath)
                 .onChange(async (value) => {
-                    this.plugin.settings.configFolderPath = value || 'AI-Organiser-Config';
-                    this.plugin.configService.setConfigFolder(this.plugin.settings.configFolderPath);
+                    const pluginPrefix = `${this.plugin.settings.pluginFolder}/`;
+                    const sanitized = (value || 'Config').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                    const normalizedSubfolder = sanitized.startsWith(pluginPrefix)
+                        ? sanitized.slice(pluginPrefix.length)
+                        : sanitized || 'Config';
+
+                    this.plugin.settings.configFolderPath = normalizedSubfolder || 'Config';
+                    this.plugin.configService.setConfigFolder(getConfigFolderFullPath(this.plugin.settings));
                     await this.plugin.saveSettings();
                 })
             );
@@ -1027,35 +1034,36 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
         buttonsContainer.style.marginBottom = '16px';
 
         // Open config folder button
-        const openBtn = buttonsContainer.createEl('button', {
-            text: t.settings.configuration.openConfigFolder
-        });
+            const openBtn = buttonsContainer.createEl('button', {
+                text: t.settings.configuration.openConfigFolder
+            });
         openBtn.addEventListener('click', async () => {
-            const folderPath = this.plugin.settings.configFolderPath;
-            const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
+                const folderPath = getConfigFolderFullPath(this.plugin.settings);
+                const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
 
             if (folder) {
                 // Open the folder in file explorer
                 const leaf = this.plugin.app.workspace.getLeaf(false);
                 if (leaf) {
                     // Navigate to folder by opening taxonomy.md if it exists
-                    const taxonomyFile = this.plugin.app.vault.getAbstractFileByPath(`${folderPath}/taxonomy.md`);
+                        const taxonomyFile = this.plugin.app.vault.getAbstractFileByPath(`${folderPath}/taxonomy.md`);
                     if (taxonomyFile) {
                         await leaf.openFile(taxonomyFile as any);
                     }
                 }
             } else {
-                new Notice(`Folder not found: ${folderPath}`);
+                    new Notice(`Folder not found: ${folderPath}`);
             }
         });
 
         // Create config files button
-        const createBtn = buttonsContainer.createEl('button', {
-            text: t.settings.configuration.createConfigFiles
-        });
+            const createBtn = buttonsContainer.createEl('button', {
+                text: t.settings.configuration.createConfigFiles
+            });
         createBtn.addEventListener('click', async () => {
             await this.plugin.configService.createDefaultConfigFiles();
-            new Notice(`${t.settings.configuration.configFilesCreated} ${this.plugin.settings.configFolderPath}`);
+                const configFolder = getConfigFolderFullPath(this.plugin.settings);
+                new Notice(`${t.settings.configuration.configFilesCreated} ${configFolder}`);
         });
 
         // Suggest themes from vault button

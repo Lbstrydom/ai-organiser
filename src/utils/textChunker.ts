@@ -1,3 +1,4 @@
+import { CHUNK_TOKEN_LIMIT } from '../core/constants';
 export interface TextChunkerOptions {
     maxTokens?: number;
     maxChars?: number;
@@ -13,7 +14,7 @@ function getMaxChars(options?: TextChunkerOptions): number {
     if (options?.maxChars && options.maxChars > 0) {
         return options.maxChars;
     }
-    const maxTokens = options?.maxTokens && options.maxTokens > 0 ? options.maxTokens : 6000;
+    const maxTokens = options?.maxTokens && options.maxTokens > 0 ? options.maxTokens : CHUNK_TOKEN_LIMIT;
     return maxTokens * DEFAULT_APPROX_CHARS_PER_TOKEN;
 }
 

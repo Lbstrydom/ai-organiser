@@ -3,7 +3,7 @@
  * Exercise private filter injection via the public createDashboard API.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 
 vi.mock('obsidian', async () => await import('./mocks/obsidian'));
 
