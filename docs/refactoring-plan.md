@@ -97,7 +97,7 @@ Files:
 - Primary offenders:
   - `src/commands/chatCommands.ts`
   - `src/commands/integrationCommands.ts`
-  - `src/commands/summarizeCommands.ts`
+  - `src/commands/summarizeCommands.ts` (moved to Phase 3)
   - `src/ui/views/TagNetworkView.ts`
   - `src/ui/views/RelatedNotesView.ts`
   - `src/ui/settings/SemanticSearchSettingsSection.ts`
@@ -115,7 +115,27 @@ Acceptance criteria:
 - No hard-coded English notices remain in core command flows.
 - i18n parity checks continue to pass.
 
-## Phase 3: Gate RAG Options Behind Vault Chat (P1)
+## Phase 3: Complete i18n Drift Fix + Gate RAG Options (P1)
+
+Files:
+- `src/i18n/types.ts`
+- `src/i18n/en.ts`
+- `src/i18n/zh-cn.ts`
+- `src/commands/summarizeCommands.ts` (20 hard-coded notices)
+- `src/ui/settings/SemanticSearchSettingsSection.ts` (RAG gating)
+
+Tasks:
+- Replace 20 hard-coded notices in summarizeCommands.ts with i18n keys
+- Show `ragContextChunks` and `ragIncludeMetadata` only when `enableVaultChat` is true
+- When vault chat is disabled, show explanatory message instead of controls
+
+Acceptance criteria:
+- All hard-coded notices in summarizeCommands.ts replaced
+- RAG controls gated behind vault chat setting
+- i18n parity checks pass
+- No regressions in tests
+
+## Phase 4: Replace Browser prompt() in Dashboard Creation (P1)
 
 File:
 - `src/ui/settings/SemanticSearchSettingsSection.ts`

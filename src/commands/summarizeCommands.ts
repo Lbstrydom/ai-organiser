@@ -276,7 +276,7 @@ async function executeSmartSummarize(
     ctx: MarkdownView | MarkdownFileInfo
 ): Promise<void> {
     if (!plugin.settings.enableWebSummarization) {
-        new Notice('Web summarization is disabled in settings');
+        new Notice(plugin.t.messages.webSummarizationDisabled);
         return;
     }
 
@@ -312,7 +312,7 @@ function openMultiSourceModal(
                 await handleMultiSourceResult(plugin, pdfService, editor, view, result);
             } catch (e) {
                 console.error('Error in handleMultiSourceResult:', e);
-                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
             }
         }
     );
@@ -357,7 +357,7 @@ async function handleMultiSourceResult(
         result.sources.audio.length;
 
     if (totalSources === 0) {
-        new Notice('No sources selected');
+        new Notice(plugin.t.messages.noSourcesSelected);
         return;
     }
 
@@ -375,7 +375,7 @@ async function handleMultiSourceResult(
                 removeSourceFromEditor(editor, url);
             } catch (e) {
                 console.error('Error in handleUrlSummarization:', e);
-                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
             }
             return;
         }
@@ -387,7 +387,7 @@ async function handleMultiSourceResult(
                 removeSourceFromEditor(editor, url);
             } catch (e) {
                 console.error('Error in handleYouTubeSummarization:', e);
-                new Notice(`Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
             }
             return;
         }
@@ -412,17 +412,17 @@ async function handleMultiSourceResult(
                         await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, personaId);
                     } catch (e) {
                         console.error('Error in handlePdfSummarization:', e);
-                        new Notice(`Error processing PDF: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                        new Notice(plugin.t.messages.errorProcessingPdf.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
                     }
                 } else {
-                    new Notice(`Could not find PDF file: ${pdf.path}`);
+                    new Notice(plugin.t.messages.couldNotFindPdfFile.replace('{path}', pdf.path));
                 }
             } else {
                 try {
                     await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, personaId);
                 } catch (e) {
                     console.error('Error in handleExternalPdfSummarization:', e);
-                    new Notice(`Error processing external PDF: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                    new Notice(plugin.t.messages.errorProcessingExternalPdf.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
                 }
             }
             return;
@@ -433,7 +433,7 @@ async function handleMultiSourceResult(
                 await handleDocumentSummarization(plugin, editor, view, document, personaPrompt, result.focusContext, personaId);
             } catch (e) {
                 console.error('Error in handleDocumentSummarization:', e);
-                new Notice(`Error processing document: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                new Notice(plugin.t.messages.errorProcessingDocument.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
             }
             return;
         }
@@ -445,7 +445,7 @@ async function handleMultiSourceResult(
     }
 
     // Multiple sources - process sequentially
-    new Notice(`Processing ${totalSources} sources...`);
+    new Notice(plugin.t.messages.processingXSources.replace('{count}', String(totalSources)));
 
     const summaries: string[] = [];
     const sourceLabels: string[] = [];
@@ -465,7 +465,9 @@ async function handleMultiSourceResult(
     // Track progress
     let processedCount = 0;
     const showProgress = () => {
-        new Notice(`Processing source ${processedCount + 1} of ${totalSources}...`, 3000);
+        new Notice(plugin.t.messages.processingSourceXofY
+            .replace('{current}', String(processedCount + 1))
+            .replace('{total}', String(totalSources)), 3000);
     };
 
     // Process note content first if selected
@@ -473,7 +475,7 @@ async function handleMultiSourceResult(
         showProgress();
         try {
             const content = await plugin.app.vault.read(view.file);
-            new Notice('Summarizing note content...', 5000);
+            new Notice(plugin.t.messages.summarizingNoteContent, 5000);
             const summary = await callSummarizeService(plugin, content, personaPrompt, result.focusContext);
             if (summary) {
                 summaries.push(summary);
@@ -511,15 +513,16 @@ async function handleMultiSourceResult(
     for (const url of result.sources.urls) {
         showProgress();
         try {
-            new Notice('Fetching web page...', 5000);
+            new Notice(plugin.t.messages.fetchingWebPage, 5000);
             const webResult = await fetchArticle(url);
             if (webResult.success && webResult.content) {
-                new Notice(`Summarizing: ${webResult.content.title?.substring(0, 40) || 'web page'}...`, 10000);
+                const title = webResult.content.title?.substring(0, 40) || 'web page';
+                new Notice(plugin.t.messages.summarizingTitle.replace('{title}', title), 10000);
                 const summary = await callSummarizeService(plugin, webResult.content.textContent, personaPrompt, result.focusContext);
-                const title = webResult.content.title || url;
+                const fullTitle = webResult.content.title || url;
                 if (summary) {
                     summaries.push(summary);
-                    sourceLabels.push(`URL: ${title}`);
+                    sourceLabels.push(`URL: ${fullTitle}`);
                     allSources.push({
                         type: 'web',
                         url: url,
@@ -550,7 +553,7 @@ async function handleMultiSourceResult(
             processedCount++;
         } catch (e) {
             console.error(`Failed to summarize URL ${url}:`, e);
-            new Notice(`Failed to fetch: ${url}`);
+            new Notice(plugin.t.messages.failedToFetchUrl.replace('{url}', url));
             allSources.push({
                 type: 'web',
                 url: url,
@@ -570,7 +573,7 @@ async function handleMultiSourceResult(
         try {
             if (youtubeGeminiKey) {
                 // Use Gemini-native YouTube processing (more reliable)
-                new Notice('Processing YouTube video with Gemini...', 5000);
+                new Notice(plugin.t.messages.processingYouTubeWithGemini, 5000);
 
                 // Build prompt for YouTube summarization
                 const promptOptions: SummaryPromptOptions = {
@@ -592,7 +595,7 @@ async function handleMultiSourceResult(
                 const title = geminiResult.videoInfo?.title || url;
 
                 if (geminiResult.success && geminiResult.content) {
-                    new Notice(`Summarized: ${title.substring(0, 40)}...`, 3000);
+                    new Notice(plugin.t.messages.summarizedTitle.replace('{title}', title.substring(0, 40)), 3000);
                     summaries.push(geminiResult.content);
                     sourceLabels.push(`YouTube: ${title}`);
                     allSources.push({
@@ -626,7 +629,7 @@ async function handleMultiSourceResult(
             processedCount++;
         } catch (e) {
             console.error(`Failed to summarize YouTube ${url}:`, e);
-            new Notice(`Failed to process YouTube video: ${url}`);
+            new Notice(plugin.t.messages.failedToProcessYouTube.replace('{url}', url));
             allSources.push({
                 type: 'youtube',
                 url: url,
@@ -662,7 +665,7 @@ async function handleMultiSourceResult(
             }
 
             if (file) {
-                new Notice(`Reading PDF: ${pdfTitle}...`, 3000);
+                new Notice(plugin.t.messages.readingPdf.replace('{title}', pdfTitle), 3000);
                 const pdfResult = await pdfService.readPdfAsBase64(file);
 
                 if (pdfResult.success && pdfResult.content) {
@@ -740,7 +743,7 @@ async function handleMultiSourceResult(
         try {
             const extraction = await extractDocumentTextForMultiSource(plugin, view, document);
             if (extraction.success && extraction.text) {
-                new Notice(`Summarizing: ${docTitle.substring(0, 40)}...`, 5000);
+                new Notice(plugin.t.messages.summarizingTitle.replace('{title}', docTitle.substring(0, 40)), 5000);
                 const summary = await callSummarizeService(plugin, extraction.text, personaPrompt, result.focusContext);
                 if (summary) {
                     summaries.push(summary);
@@ -830,11 +833,11 @@ async function handleMultiSourceResult(
             const frontmatter = fullContent.substring(0, frontmatterEnd);
             editor.setValue(frontmatter + failureOutput.trimStart());
 
-            new Notice('No content could be summarized. See note for details.', 5000);
+            new Notice(plugin.t.messages.noContentCouldBeSummarized, 5000);
         } else {
             // Single source failure
             const error = allSources[0]?.error || 'Unknown error';
-            new Notice(`Failed to summarize: ${error}`, 8000);
+            new Notice(plugin.t.messages.errorGeneric.replace('{error}', error), 8000);
         }
         return;
     }

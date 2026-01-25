@@ -574,6 +574,24 @@ export interface Translations {
         // Related notes view messages
         relatedNotesCopiedToClipboard: string;
         cacheClearedSuccessfully: string;
+        // Summarize commands messages (new i18n keys for multi-source summarization)
+        webSummarizationDisabled: string;
+        noSourcesSelected: string;
+        processingXSources: string;
+        processingSourceXofY: string;
+        summarizingNoteContent: string;
+        fetchingWebPage: string;
+        summarizingTitle: string;
+        failedToFetchUrl: string;
+        processingYouTubeWithGemini: string;
+        failedToProcessYouTube: string;
+        errorProcessingPdf: string;
+        couldNotFindPdfFile: string;
+        errorProcessingExternalPdf: string;
+        errorProcessingDocument: string;
+        summarizedTitle: string;
+        noContentCouldBeSummarized: string;
+        errorGeneric: string;
     };
 
     // Common UI strings

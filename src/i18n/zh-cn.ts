@@ -587,6 +587,24 @@ export const zhCN: Translations = {
         // Related notes view messages
         relatedNotesCopiedToClipboard: "相关笔记已复制到剪贴板",
         cacheClearedSuccessfully: "缓存已清除",
+        // Summarize commands messages
+        webSummarizationDisabled: "Web 总结已在设置中禁用",
+        noSourcesSelected: "未选择源",
+        processingXSources: "正在处理 {count} 个源...",
+        processingSourceXofY: "正在处理第 {current} 个源，共 {total} 个...",
+        summarizingNoteContent: "正在总结笔记内容...",
+        fetchingWebPage: "正在获取网页...",
+        summarizingTitle: "正在总结：{title}...",
+        failedToFetchUrl: "获取失败：{url}",
+        processingYouTubeWithGemini: "正在使用 Gemini 处理 YouTube 视频...",
+        failedToProcessYouTube: "处理 YouTube 视频失败：{url}",
+        errorProcessingPdf: "处理 PDF 出错：{error}",
+        couldNotFindPdfFile: "找不到 PDF 文件：{path}",
+        errorProcessingExternalPdf: "处理外部 PDF 出错：{error}",
+        errorProcessingDocument: "处理文档出错：{error}",
+        summarizedTitle: "已总结：{title}...",
+        noContentCouldBeSummarized: "无法总结内容。详见笔记。",
+        errorGeneric: "错误：{error}",
     },
 
     // 模态对话框

@@ -587,6 +587,24 @@ export const en: Translations = {
         // Related notes view messages
         relatedNotesCopiedToClipboard: "Related notes copied to clipboard",
         cacheClearedSuccessfully: "Cache cleared",
+        // Summarize commands messages
+        webSummarizationDisabled: "Web summarization is disabled in settings",
+        noSourcesSelected: "No sources selected",
+        processingXSources: "Processing {count} sources...",
+        processingSourceXofY: "Processing source {current} of {total}...",
+        summarizingNoteContent: "Summarizing note content...",
+        fetchingWebPage: "Fetching web page...",
+        summarizingTitle: "Summarizing: {title}...",
+        failedToFetchUrl: "Failed to fetch: {url}",
+        processingYouTubeWithGemini: "Processing YouTube video with Gemini...",
+        failedToProcessYouTube: "Failed to process YouTube video: {url}",
+        errorProcessingPdf: "Error processing PDF: {error}",
+        couldNotFindPdfFile: "Could not find PDF file: {path}",
+        errorProcessingExternalPdf: "Error processing external PDF: {error}",
+        errorProcessingDocument: "Error processing document: {error}",
+        summarizedTitle: "Summarized: {title}...",
+        noContentCouldBeSummarized: "No content could be summarized. See note for details.",
+        errorGeneric: "Error: {error}",
     },
 
     // Modal dialogs
