@@ -14,6 +14,8 @@ import {
     buildMinutesSystemPrompt,
     buildMinutesUserPrompt,
     parseMinutesResponse,
+    buildChunkExtractionPrompt,
+    buildConsolidationPrompt,
     MINUTES_JSON_DELIMITER,
     MeetingMetadata,
     Participant,
@@ -464,5 +466,101 @@ describe('Minutes Prompts - MINUTES_JSON_DELIMITER', () => {
     it('should not appear in normal text', () => {
         const normalText = 'This is a normal meeting transcript with various content.';
         expect(normalText.includes(MINUTES_JSON_DELIMITER)).toBe(false);
+    });
+});
+
+describe('Minutes Prompts - Chunk Extraction Invariants', () => {
+    describe('buildChunkExtractionPrompt', () => {
+        it('should include required task section', () => {
+            const prompt = buildChunkExtractionPrompt();
+            // Chunk extraction has task definition in prose
+            expect(prompt).toContain('extracting meeting items');
+            expect(prompt).toContain('Extract ONLY');
+        });
+
+        it('should include JSON output format specification', () => {
+            const prompt = buildChunkExtractionPrompt();
+            expect(prompt).toContain('JSON');
+            expect(prompt).toContain('decisions');
+            expect(prompt).toContain('actions');
+        });
+
+        it('should include accuracy rules for extraction', () => {
+            const prompt = buildChunkExtractionPrompt();
+            // Should instruct on conservative extraction, confidence levels
+            expect(prompt.toLowerCase()).toContain('confidence');
+        });
+
+        it('should be a valid string with reasonable length', () => {
+            const prompt = buildChunkExtractionPrompt();
+            expect(typeof prompt).toBe('string');
+            expect(prompt.length).toBeGreaterThan(300);
+        });
+
+        it('should include structure for handling incomplete information', () => {
+            const prompt = buildChunkExtractionPrompt();
+            // Should handle chunks that don't have complete meeting info
+            expect(prompt.toLowerCase()).toContain('temporary');
+        });
+    });
+});
+
+describe('Minutes Prompts - Consolidation Invariants', () => {
+    describe('buildConsolidationPrompt', () => {
+        it('should include required task section', () => {
+            const prompt = buildConsolidationPrompt('English', 'Be professional');
+            // Task defined in prose, not XML
+            expect(prompt).toContain('consolidating meeting items');
+            expect(prompt).toContain('Deduplicate');
+        });
+
+        it('should include output language in consolidation rules', () => {
+            const engPrompt = buildConsolidationPrompt('English', '');
+            expect(engPrompt).toContain('English');
+
+            const frPrompt = buildConsolidationPrompt('French', '');
+            expect(frPrompt).toContain('French');
+        });
+
+        it('should include persona instructions in output', () => {
+            const persona = 'Focus on action items and risks';
+            const prompt = buildConsolidationPrompt('English', persona);
+            expect(prompt).toContain(persona);
+        });
+
+        it('should include deduplication guidance for combining chunks', () => {
+            const prompt = buildConsolidationPrompt('English', '');
+            // Should mention merging, combining, or deduplication
+            expect(prompt.toLowerCase()).toMatch(/merge|combine|dedup|duplicate/);
+        });
+
+        it('should specify expected JSON structure for output', () => {
+            const prompt = buildConsolidationPrompt('English', '');
+            // Should reference MinutesJSON structure
+            expect(prompt).toContain('participants');
+            expect(prompt).toContain('decisions');
+            expect(prompt).toContain('actions');
+        });
+
+        it('should handle empty persona gracefully', () => {
+            const prompt = buildConsolidationPrompt('English', '');
+            expect(typeof prompt).toBe('string');
+            expect(prompt.length).toBeGreaterThan(500);
+        });
+
+        it('should handle multiline persona instructions', () => {
+            const persona = `Line 1
+Line 2
+Line 3`;
+            const prompt = buildConsolidationPrompt('English', persona);
+            expect(prompt).toContain('Line 1');
+            expect(prompt).toContain('Line 3');
+        });
+
+        it('should be a valid string with reasonable length', () => {
+            const prompt = buildConsolidationPrompt('English', 'Be concise');
+            expect(typeof prompt).toBe('string');
+            expect(prompt.length).toBeGreaterThan(500);
+        });
     });
 });

@@ -71,3 +71,30 @@ None.
   - [x] Verified controller tests cover modal's business logic
   - [ ] Future: If modal bugs arise, add targeted modal tests with Obsidian mocks
 - Closed: 2026-01-25
+### D6: RAG/embeddings testing scope (UPDATED)
+- Question: Should RAGService be tested with mocked vector store, or deferred indefinitely?
+- **Decision: IN SCOPE - Test with mocked vector store** (implements Gap 3)
+- Rationale:
+  - RAGService behavior is deterministic and testable without real embeddings
+  - Core user-facing behavior can be verified: maxChunks, minSimilarity, metadata inclusion, source deduplication
+  - Vector similarity math is implementation detail; test vector store provides controlled results
+  - Embedding provider APIs remain out of scope (network-dependent, external)
+  - This enables sign-off on testing strategy without blocking on embedding infrastructure
+- In scope for this milestone:
+  - [x] RAGService.retrieveContext() behavior with test vector store
+  - [x] maxChunks and minSimilarity filtering
+  - [x] Current file exclusion
+  - [x] Metadata inclusion/exclusion
+  - [x] Source deduplication
+  - [x] Empty context handling
+  - [x] RAGPrompt building with context
+- Out of scope (deferred to dedicated embedding initiative):
+  - [ ] Real embedding API calls
+  - [ ] Full indexing pipelines with actual vault crawling
+  - [ ] Embedding provider integrations (OpenAI, Gemini, Voyage, etc.)
+  - [ ] Performance testing with large vector stores
+- Actions taken:
+  - [x] Created TestVectorStore implementing IVectorStore
+  - [x] Created tests/ragService.test.ts with 17 tests covering core behavior
+  - [x] Verified all tests pass with deterministic mock data
+- Closed: 2026-01-25

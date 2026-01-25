@@ -1,8 +1,22 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 24, 2026
+**Last Updated:** January 25, 2026
 **Status:** Feature Complete
+
+---
+
+## Recent Updates
+
+### Testing Gap Closure - Gap 1 Complete (2026-01-25)
+
+✅ **MinutesService Production Tests**
+- Created comprehensive test suite: `tests/minutesService.test.ts` (23 tests)
+- Coverage achieved: **100% statements, 80.7% branches** (exceeded targets of ≥70%, ≥60%)
+- Test categories: Non-chunked path (10), Chunked path (9), Failure paths (4)
+- All production paths covered: language fallback, chunking, deduplication, error handling
+- Test suite: 519 → 542 tests (+23), no coverage regression
+- See [testing-gap-closure-plan.md](testing-gap-closure-plan.md) for details
 
 ---
 
