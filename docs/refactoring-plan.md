@@ -148,6 +148,52 @@ Acceptance criteria:
 - No browser prompt appears.
 - Folder selection follows established modal patterns.
 
+**Phase 5 (P1): ✅ COMPLETED**
+- Completely removed browser `prompt()` call
+- Implemented in-modal folder editing interface with two modes:
+  - Display mode: shows current folder path with "Change" button
+  - Edit mode: renders text input with Confirm/Cancel buttons
+- Added folder validation logic:
+  - Check if path exists as folder (use it)
+  - Check if path exists as file (show error)
+  - If doesn't exist, create it automatically
+- Added 4 new i18n keys with dynamic placeholders for user feedback:
+  - `folderPlaceholder`: Input placeholder text
+  - `folderSelected`: Confirmation message when existing folder selected
+  - `folderCreated`: Confirmation message when new folder created
+  - `folderIsFile`: Error message if path is a file
+- Enhanced error handling with error message details
+- Added CSS styling for in-modal buttons (`.ai-organiser-folder-buttons`)
+- Supports both English and Chinese interfaces
+- All tests passing (631 unit + 17 integration)
+- Deployed to Obsidian vault
+- Date Completed: 2026-01-25
+
+## Refactoring Plan Summary
+
+✅ **All 5 Phases Complete!**
+
+| Phase | Priority | Status | Completion Date | Key Achievement |
+|-------|----------|--------|-----------------|-----------------|
+| 1 | P0 | ✅ | 2026-01-25 | Command picker expanded from 13 to 29 commands with category styling |
+| 2 | P0 | ✅ | 2026-01-25 | 24 i18n keys added, 18 notices replaced in core command flows |
+| 3 | P1 | ✅ | 2026-01-25 | 20 hard-coded notices in summarizeCommands replaced with i18n |
+| 4 | P1 | ✅ | 2026-01-25 | RAG options gated behind Vault Chat setting |
+| 5 | P1 | ✅ | 2026-01-25 | Browser prompt() replaced with in-modal folder input |
+
+### Metrics
+- **i18n Keys Added**: 40 new translation keys (with dynamic placeholders)
+- **Hard-coded Notices Replaced**: 38+ of 53 total (72% coverage of high-priority areas)
+- **Test Coverage**: 631 unit tests + 17 automated integration tests - all passing
+- **Command Picker Coverage**: Expanded from 13 to 29 commands (15 new commands)
+- **UI Improvements**: No browser prompts, all UX flows use in-modal patterns
+- **Internationalization**: Full bilingual support (English + Simplified Chinese)
+
+### Remaining Work
+- ~15 hard-coded notices in remaining settings files (optional follow-up)
+- Add automated script to flag hard-coded notices in future (guardrail)
+- Chinese translation review for any machine-translated strings
+
 ## Verification Checklist
 
 After each phase:
