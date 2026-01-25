@@ -828,11 +828,13 @@ onOpen() {
 
 ### Testing
 
+**Service tests**: `tests/minutesService.test.ts`, `tests/ragService.test.ts`
 **Controller tests**: `tests/documentHandlingController.test.ts`, `tests/dictionaryController.test.ts`, `tests/audioController.test.ts`
 **Component tests**: `tests/components/truncationControls.test.ts`
-**Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`, `tests/minutesPrompts.test.ts`
+**Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
+**Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 623 unit tests + 22 automated integration tests
+Total: 631 unit tests + 22 automated integration tests
 
 ## Documentation
 

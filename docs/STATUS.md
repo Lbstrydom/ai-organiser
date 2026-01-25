@@ -8,15 +8,24 @@
 
 ## Recent Updates
 
-### Testing Gap Closure - Gap 1 Complete (2026-01-25)
+### Testing Strategy Complete (2026-01-25)
 
-✅ **MinutesService Production Tests**
-- Created comprehensive test suite: `tests/minutesService.test.ts` (23 tests)
-- Coverage achieved: **100% statements, 80.7% branches** (exceeded targets of ≥70%, ≥60%)
-- Test categories: Non-chunked path (10), Chunked path (9), Failure paths (4)
-- All production paths covered: language fallback, chunking, deduplication, error handling
-- Test suite: 519 → 542 tests (+23), no coverage regression
-- See [testing-gap-closure-plan.md](testing-gap-closure-plan.md) for details
+✅ **All Three Testing Gaps Closed**
+
+| Gap | Tests | Coverage | Status |
+|-----|-------|----------|--------|
+| MinutesService | 23 | 100% statements, 80.7% branches | ✅ Complete |
+| Prompt Modules | 72 | 80.57% module coverage | ✅ Complete |
+| RAG/Embeddings | 19 | ~75% RAGService coverage | ✅ Complete |
+
+**Final Test Suite**: 631 tests across 23 test files (~48% overall coverage)
+
+**Key Achievements**:
+- MinutesService: Full coverage of chunked/non-chunked paths, language fallback, deduplication
+- Prompt Modules: Invariant-based tests (no brittle snapshots) for all 8 prompt builders
+- RAGService: Deterministic tests with TestVectorStore mock (no network calls)
+
+See [testing-gap-closure-plan.md](testing-gap-closure-plan.md) and [test-refactor-metrics.md](test-refactor-metrics.md) for details
 
 ---
 
@@ -179,7 +188,7 @@ AI-Organiser/
   - Added `MinutesModalDependencies` interface for dependency injection
   - Modal services now support optional DI for testability
   - **No-stubs policy**: All public methods fully implemented with call sites (modal or tests)
-  - **623 total tests** (165 new utility/integration tests)
+  - **631 total tests** (including controller, utility, and prompt invariant tests)
 - **Utility Testing Expansion** (238 new tests):
   - `responseParser.test.ts` (40 tests): 4-tier JSON extraction, summary hook sanitization, content type validation
   - `textChunker.test.ts` (30 tests): Transcript chunking, overlap handling, segment-based chunking
@@ -292,7 +301,7 @@ AI-Organiser/
 ```bash
 npm run dev      # Development (watch mode)
 npm run build    # Production build
-npm test         # Run 623 unit tests
+npm test         # Run 631 unit tests
 npm run test:auto # Run 22 automated integration tests
 ```
 

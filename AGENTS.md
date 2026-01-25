@@ -722,11 +722,19 @@ onOpen() {
 
 ### Testing
 
+**Service Tests**:
+- `tests/minutesService.test.ts` (23 tests): Chunked/non-chunked generation, language fallback
+- `tests/ragService.test.ts` (19 tests): Context retrieval, RAG prompt building
+
 **Controller Tests**:
 - `tests/documentHandlingController.test.ts` (23 tests)
 - `tests/dictionaryController.test.ts` (56 tests)
 - `tests/audioController.test.ts` (35 tests)
 - `tests/components/truncationControls.test.ts` (8 tests)
+
+**Prompt Tests**:
+- `tests/promptInvariants.test.ts` (56 tests): Invariant tests for 8 prompt modules
+- `tests/minutesPrompts.test.ts` (36 tests): Prompt generation, chunk extraction
 
 **Utility Tests**:
 - `tests/responseParser.test.ts` (40 tests): 4-tier JSON extraction, sanitization
@@ -734,9 +742,8 @@ onOpen() {
 - `tests/sourceDetection.test.ts` (58 tests): URL/YouTube/PDF/audio detection
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
-- `tests/minutesPrompts.test.ts` (42 tests): Prompt generation, response parsing
 
-Total: 623 unit tests + 22 automated integration tests
+Total: 631 unit tests + 22 automated integration tests
 
 ## Documentation
 
