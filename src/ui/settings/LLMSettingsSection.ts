@@ -347,10 +347,10 @@ export class LLMSettingsSection extends BaseSettingSection {
         // For providers with known models, show a dropdown
         // For providers with known models, show a dropdown
         const modelLists: Record<string, { models: Record<string, string>; defaultModel: string }> = {
-            'claude': { models: this.CLAUDE_MODELS, defaultModel: 'claude-sonnet-4-5-20250929' },
-            'openai': { models: this.OPENAI_MODELS, defaultModel: 'gpt-5.2' },
-            'gemini': { models: this.GEMINI_MODELS, defaultModel: 'gemini-2.5-flash' },
-            'openrouter': { models: this.OPENROUTER_MODELS, defaultModel: 'anthropic/claude-sonnet-4.5' }
+            'claude': { models: this.CLAUDE_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['claude'] },
+            'openai': { models: this.OPENAI_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['openai'] },
+            'gemini': { models: this.GEMINI_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['gemini'] },
+            'openrouter': { models: this.OPENROUTER_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['openrouter'] }
         };
 
         if (modelLists[serviceType]) {

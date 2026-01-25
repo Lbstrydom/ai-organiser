@@ -3,7 +3,6 @@
  * Verifies adapter list, defaults, and option building
  */
 
-import { describe, it, expect } from 'vitest';
 import { ALL_ADAPTERS, PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT, buildProviderOptions } from '../src/services/adapters/providerRegistry';
 
 const EXPECTED_ADAPTERS = [

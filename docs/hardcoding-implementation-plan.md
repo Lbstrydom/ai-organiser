@@ -217,8 +217,17 @@ Phase 2 tests (required):
 - Introduced `src/services/adapters/providerRegistry.ts` with `ALL_ADAPTERS`, `PROVIDER_DEFAULT_MODEL`, `PROVIDER_ENDPOINT`, and `buildProviderOptions()`
 - Refactored `LLMSettingsSection` to source provider options, endpoints, and default models from the registry (including endpoint/model placeholders)
 - Refactored `MobileSettingsSection` to use registry for provider options and fallback model placeholder
+- **Fixed**: Model dropdown defaults in `LLMSettingsSection` now use `PROVIDER_DEFAULT_MODEL` for consistency (gemini: gemini-3-flash, openrouter: openai/gpt-5.2)
+- **Fixed**: Removed vitest globals import from `tests/providerRegistry.test.ts` to follow vitest 4.x pattern
 - Added `tests/providerRegistry.test.ts` covering adapters, defaults, endpoints, and option building
 - `npm test` passing (26 suites, 643 tests)
+
+**Quality Assurance**:
+- ✅ All 14 AdapterTypes covered in registry
+- ✅ Model dropdown defaults aligned with registry (no drift)
+- ✅ Vitest pattern compliant (globals: true, no explicit imports)
+- ✅ Both settings sections use identical provider sources
+- ✅ 643 tests passing
 
 Create a provider registry that drives:
 
@@ -240,21 +249,103 @@ Apply it to:
 - `src/ui/settings/MobileSettingsSection.ts:118`
 - Maps and switches in `LLMSettingsSection.ts`
 
+Clarification:
+
+- Keep curated UI model lists (for example, `CLAUDE_MODELS`, `OPENAI_MODELS`) as intentional UX guidance.
+- Only centralize provider identity, endpoints, and default models; do not explode the scope into maintaining exhaustive model catalogs.
+
 Phase 3 acceptance criteria:
 
-- Provider additions require changes in one place.
-- Both settings sections reflect identical provider sets automatically.
+- ✅ Provider additions require changes in one place.
+- ✅ Both settings sections reflect identical provider sets automatically.
+- ✅ No model default drift between UI and registry.
+- ✅ Vitest pattern compliance (no globals imports).
 
 Phase 3 tests (required):
 
-- Add registry-focused tests in `tests/providerRegistry.test.ts` (new file):
+- ✅ Add registry-focused tests in `tests/providerRegistry.test.ts` (new file):
   - All providers in `AdapterType` appear in the registry
   - Provider defaults (model and endpoint) come from the registry
   - Provider options derived from the registry are identical for LLM and Mobile settings
-- Avoid heavy Obsidian UI coupling in tests:
+- ✅ Avoid heavy Obsidian UI coupling in tests:
   - Prefer testing pure registry helpers and option builders
   - Only add UI-level tests if a pure helper cannot cover the behavior
-- Run `npm test` and `npm run test:auto`.
+- ✅ Run `npm test` and `npm run test:auto`.
+
+## Phase 4 - Provider Defaults Beyond UI (P1/P2)
+
+These items extend the registry approach into service layers where hard-coded fallbacks still exist.
+
+### 4A) CloudService Fallback Models Use the Provider Registry
+
+Problem:
+
+- `CloudService` still hard-codes fallback models like `gpt-4` and `claude-sonnet-4-5-20250929`:
+  - `src/services/cloudService.ts:322`
+  - `src/services/cloudService.ts:345`
+  - `src/services/cloudService.ts:394`
+  - `src/services/cloudService.ts:498`
+  - `src/services/cloudService.ts:632`
+
+Plan:
+
+- Import `PROVIDER_DEFAULT_MODEL` from `src/services/adapters/providerRegistry.ts`.
+- Replace hard-coded fallbacks with:
+  - `this.adapter['config']?.modelName`
+  - else `PROVIDER_DEFAULT_MODEL[this.adapterType]`
+  - else a safe final fallback (for example, `PROVIDER_DEFAULT_MODEL.openai`)
+- Keep behavior provider-aware (for example, only apply newer OpenAI token fields when `adapterType === 'openai'`).
+
+### 4B) Centralize Embedding Provider Defaults (Separate Registry)
+
+Problem:
+
+- Embedding defaults and model lists are duplicated between the factory and the settings UI:
+  - `src/services/embeddings/embeddingServiceFactory.ts:139`
+  - `src/services/embeddings/embeddingServiceFactory.ts:161`
+  - `src/ui/settings/SemanticSearchSettingsSection.ts:351`
+  - `src/ui/settings/SemanticSearchSettingsSection.ts:363`
+
+Plan:
+
+- Add `src/services/embeddings/embeddingRegistry.ts`:
+  - `EMBEDDING_DEFAULT_MODEL: Record<EmbeddingProvider, string>`
+  - `EMBEDDING_MODELS: Record<EmbeddingProvider, string[]>`
+  - Optional: labeled models for UI (`value` + `label`) generated from a single source
+- Update both:
+  - `embeddingServiceFactory.ts` to use the registry
+  - `SemanticSearchSettingsSection.ts` to derive defaults and model lists from the registry
+
+Note:
+
+- This is intentionally separate from the main adapter registry. Embeddings are a different provider domain with different models and constraints.
+
+### 4C) Audio Transcription Provider Defaults (Optional Cleanup)
+
+Observation:
+
+- Audio transcription has small, provider-specific mappings:
+  - `src/services/audioTranscriptionService.ts:255`
+  - `src/services/audioTranscriptionService.ts:268`
+
+Plan (optional):
+
+- If touched, move these mappings into a tiny local registry within the transcription module.
+- Do not expand scope unless you are already changing transcription behavior.
+
+Phase 4 tests (required for 4A/4B, optional for 4C):
+
+- Add `tests/cloudService.defaults.test.ts` (new file):
+  - Fallback model comes from `PROVIDER_DEFAULT_MODEL` for each adapter type under test
+  - No fallback uses `gpt-4` unless explicitly configured
+- Add `tests/embeddingRegistry.test.ts` (new file):
+  - Defaults and available models come from a single registry
+  - Registry default model is always present in that provider's model list
+- If 4C is implemented, add focused mapping tests in `tests/audioTranscriptionService.test.ts`:
+  - Provider -> endpoint
+  - Provider -> default model
+
+Run `npm test` and `npm run test:auto` after Phase 4 changes.
 
 ## Testing Approach (Integrated per Phase)
 
@@ -277,6 +368,9 @@ Use these files to keep tests focused and discoverable:
 | 2A | `tests/responseParser.test.ts` (update) | Replace hard-coded `280` with `SUMMARY_HOOK_MAX_LENGTH` |
 | 2B | `tests/textChunker.test.ts` (update) | Replace hard-coded `6000` with shared chunk token limit constant |
 | 3 | `tests/providerRegistry.test.ts` (new) | Registry completeness and default consistency |
+| 4A | `tests/cloudService.defaults.test.ts` (new) | Ensure service fallbacks use registry defaults |
+| 4B | `tests/embeddingRegistry.test.ts` (new) | Eliminate duplication between embeddings factory and settings |
+| 4C (optional) | `tests/audioTranscriptionService.test.ts` (new/update) | Provider mapping sanity checks |
 
 ## Rollout Strategy
 
@@ -284,9 +378,12 @@ Recommended order:
 
 1. Phase 1 (P0 path issues)
 2. Phase 2 (constants centralization)
-3. Phase 3 (provider registry DRY-up)
+3. Phase 4A (cloud service fallbacks -> registry defaults)
+4. Phase 3 (provider registry DRY-up)
+5. Phase 4B (embedding registry)
+6. Phase 4C (audio transcription mapping cleanup, optional)
 
-Phase 3 should be deferred if Phase 1 reveals migration edge cases that need additional decisions.
+Phase 3 and Phase 4B should be deferred if Phase 1 reveals migration edge cases that need additional decisions.
 
 ## Open Decisions for Review
 
