@@ -184,6 +184,7 @@ export const zhCN: Translations = {
                 name: "启用与库聊天",
                 description: "使用您的库内容作为 AI 响应的上下文。"
             },
+            enableVaultChatForRag: "启用'与库聊天'以配置 RAG 选项。",
             ragContextChunks: {
                 name: "上下文块数",
                 description: "在 RAG 上下文中包含的相关块数。（默认：5）"

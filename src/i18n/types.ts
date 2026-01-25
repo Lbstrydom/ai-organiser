@@ -190,6 +190,7 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            enableVaultChatForRag: string;
             ragContextChunks: {
                 name: string;
                 description: string;

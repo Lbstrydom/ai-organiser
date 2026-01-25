@@ -308,7 +308,18 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 .onChange(async (value) => {
                     plugin.settings.enableVaultChat = value;
                     await plugin.saveSettings();
+                    // Refresh to show/hide RAG options
+                    this.display();
                 }));
+
+        // Only show RAG options if Vault Chat is enabled
+        if (!plugin.settings.enableVaultChat) {
+            sectionEl.createEl('p', {
+                text: t.settings.semanticSearch.enableVaultChatForRag,
+                cls: 'setting-item-description mod-warning'
+            });
+            return;
+        }
 
         // RAG context chunks
         new Setting(sectionEl)

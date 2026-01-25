@@ -203,6 +203,7 @@ export const en: Translations = {
                 name: "Chat with Vault",
                 description: "Use vault content in AI responses"
             },
+            enableVaultChatForRag: "Enable 'Chat with Vault' to configure RAG options.",
             ragContextChunks: {
                 name: "Context Chunks",
                 description: "Chunks to include (default: 5)"

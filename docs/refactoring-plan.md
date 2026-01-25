@@ -115,27 +115,15 @@ Acceptance criteria:
 - No hard-coded English notices remain in core command flows.
 - i18n parity checks continue to pass.
 
-## Phase 3: Complete i18n Drift Fix + Gate RAG Options (P1)
+**Phase 3 (P1): ✅ COMPLETED**
+- Replaced 20 hard-coded notices in `src/commands/summarizeCommands.ts` with i18n keys
+- Added 15 new i18n keys with dynamic placeholders ({count}, {error}, {title}, etc.)
+- All hard-coded notices in summarization workflow now use plugin.t
+- All tests passing (631 unit + 17 integration)
+- Deployed to Obsidian vault
+- Date Completed: 2026-01-25
 
-Files:
-- `src/i18n/types.ts`
-- `src/i18n/en.ts`
-- `src/i18n/zh-cn.ts`
-- `src/commands/summarizeCommands.ts` (20 hard-coded notices)
-- `src/ui/settings/SemanticSearchSettingsSection.ts` (RAG gating)
-
-Tasks:
-- Replace 20 hard-coded notices in summarizeCommands.ts with i18n keys
-- Show `ragContextChunks` and `ragIncludeMetadata` only when `enableVaultChat` is true
-- When vault chat is disabled, show explanatory message instead of controls
-
-Acceptance criteria:
-- All hard-coded notices in summarizeCommands.ts replaced
-- RAG controls gated behind vault chat setting
-- i18n parity checks pass
-- No regressions in tests
-
-## Phase 4: Replace Browser prompt() in Dashboard Creation (P1)
+## Phase 4: Gate RAG Options Behind Vault Chat (P1)
 
 File:
 - `src/ui/settings/SemanticSearchSettingsSection.ts`
@@ -149,7 +137,7 @@ Tasks:
 Acceptance criteria:
 - Users cannot configure RAG options for a disabled feature.
 
-## Phase 4: Replace Browser prompt() in Dashboard Creation (P1)
+## Phase 5: Replace Browser prompt() in Dashboard Creation (P1)
 
 File:
 - `src/ui/modals/DashboardCreationModal.ts`
