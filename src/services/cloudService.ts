@@ -1,6 +1,7 @@
 import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError } from './types';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
+import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { TaggingMode } from './prompts/types';
 import { LanguageCode } from './types';
 import { App, requestUrl } from 'obsidian';
@@ -319,7 +320,7 @@ export class CloudLLMService extends BaseLLMService {
         // Use the stored adapter type for reliable detection
         if (this.adapterType === 'claude') {
             return {
-                model: this.adapter['config']?.modelName || 'claude-sonnet-4-5-20250929',
+                    model: (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType],
                 max_tokens: 4096,
                 system: summarizeSystemPrompt,
                 messages: [
@@ -342,7 +343,7 @@ export class CloudLLMService extends BaseLLMService {
             };
         } else {
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
-            const modelName = this.adapter['config']?.modelName || 'gpt-4';
+                const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType] || PROVIDER_DEFAULT_MODEL.openai;
 
             // Newer OpenAI models (gpt-4o, gpt-5, o1, o3, etc.) use max_completion_tokens
             // Older models and other providers use max_tokens
@@ -391,7 +392,7 @@ export class CloudLLMService extends BaseLLMService {
             if (this.adapterType === 'claude') {
                 // Claude Messages API with document type
                 requestBody = {
-                    model: this.adapter['config']?.modelName || 'claude-sonnet-4-5-20250929',
+                        model: (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType],
                     max_tokens: 4096,
                     messages: [
                         {
@@ -495,7 +496,7 @@ export class CloudLLMService extends BaseLLMService {
             if (this.adapterType === 'claude') {
                 // Claude Messages API with image type
                 requestBody = {
-                    model: this.adapter['config']?.modelName || 'claude-sonnet-4-5-20250929',
+                        model: (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType],
                     max_tokens: 4096,
                     messages: [
                         {
@@ -629,7 +630,7 @@ export class CloudLLMService extends BaseLLMService {
                 });
 
                 requestBody = {
-                    model: this.adapter['config']?.modelName || 'claude-sonnet-4-5-20250929',
+                    model: (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType],
                     max_tokens: 8192,
                     messages: [
                         {

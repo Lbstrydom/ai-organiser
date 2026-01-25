@@ -274,9 +274,22 @@ Phase 3 tests (required):
 
 ## Phase 4 - Provider Defaults Beyond UI (P1/P2)
 
+**Status**: ✅ COMPLETE
+
+**Results**:
+- Phase 4A: CloudService uses `PROVIDER_DEFAULT_MODEL[adapterType]` for all 5 fallback locations
+- Phase 4A: OpenAI adapter uses registry default ('gpt-5.2') instead of 'gpt-4-turbo-preview'
+- Phase 4B: Created `embeddingRegistry.ts` with complete defaults, models, and UI helper
+- Phase 4B: Refactored factory and settings to eliminate duplicate switch statements
+- Phase 4C: Audio transcription uses local `WHISPER_ENDPOINT` and `WHISPER_MODEL` registries
+- Added 3 test files: `cloudService.defaults.test.ts` (7), `embeddingRegistry.test.ts` (17), `audioTranscriptionService.test.ts` (12)
+- `npm test` passing (29 suites, 679 tests)
+
 These items extend the registry approach into service layers where hard-coded fallbacks still exist.
 
 ### 4A) CloudService Fallback Models Use the Provider Registry
+
+**Status**: ✅ COMPLETE
 
 Problem:
 
@@ -297,6 +310,8 @@ Plan:
 - Keep behavior provider-aware (for example, only apply newer OpenAI token fields when `adapterType === 'openai'`).
 
 ### 4B) Centralize Embedding Provider Defaults (Separate Registry)
+
+**Status**: ✅ COMPLETE
 
 Problem:
 
@@ -321,6 +336,8 @@ Note:
 - This is intentionally separate from the main adapter registry. Embeddings are a different provider domain with different models and constraints.
 
 ### 4C) Audio Transcription Provider Defaults (Optional Cleanup)
+
+**Status**: ✅ COMPLETE
 
 Observation:
 

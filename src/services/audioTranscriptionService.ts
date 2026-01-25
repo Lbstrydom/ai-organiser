@@ -7,6 +7,20 @@ import { App, TFile, requestUrl } from 'obsidian';
 
 export type TranscriptionProvider = 'openai' | 'groq';
 
+/**
+ * Audio Transcription Provider Registry
+ * Single source of truth for Whisper API endpoints and models
+ */
+const WHISPER_ENDPOINT: Record<TranscriptionProvider, string> = {
+    openai: 'https://api.openai.com/v1/audio/transcriptions',
+    groq: 'https://api.groq.com/openai/v1/audio/transcriptions'
+};
+
+const WHISPER_MODEL: Record<TranscriptionProvider, string> = {
+    openai: 'whisper-1',
+    groq: 'whisper-large-v3'
+};
+
 export interface TranscriptionResult {
     success: boolean;
     transcript?: string;
@@ -253,26 +267,14 @@ export async function transcribeAudioFromData(
  * Get the Whisper API endpoint for the provider
  */
 function getWhisperEndpoint(provider: TranscriptionProvider): string {
-    switch (provider) {
-        case 'groq':
-            return 'https://api.groq.com/openai/v1/audio/transcriptions';
-        case 'openai':
-        default:
-            return 'https://api.openai.com/v1/audio/transcriptions';
-    }
+    return WHISPER_ENDPOINT[provider] || WHISPER_ENDPOINT.openai;
 }
 
 /**
  * Get the model name for the provider
  */
 function getWhisperModel(provider: TranscriptionProvider): string {
-    switch (provider) {
-        case 'groq':
-            return 'whisper-large-v3';
-        case 'openai':
-        default:
-            return 'whisper-1';
-    }
+    return WHISPER_MODEL[provider] || WHISPER_MODEL.openai;
 }
 
 /**

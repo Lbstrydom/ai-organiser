@@ -1,6 +1,7 @@
 import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
+import { EMBEDDING_DEFAULT_MODEL, getEmbeddingModelOptions, EmbeddingProvider } from '../../services/embeddings/embeddingRegistry';
 
 export class SemanticSearchSettingsSection extends BaseSettingSection {
     private sectionEl: HTMLElement | null = null;
@@ -349,52 +350,11 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
     }
 
     private getDefaultEmbeddingModel(provider: string): string {
-        const defaults: Record<string, string> = {
-            'openai': 'text-embedding-3-small',
-            'gemini': 'text-embedding-004',
-            'ollama': 'nomic-embed-text',
-            'openrouter': 'openai/text-embedding-3-small',
-            'cohere': 'embed-english-v3.0',
-            'voyage': 'voyage-3'
-        };
-        return defaults[provider] || 'text-embedding-3-small';
+        return EMBEDDING_DEFAULT_MODEL[provider as EmbeddingProvider] || EMBEDDING_DEFAULT_MODEL.openai;
     }
 
     private getEmbeddingModelsForProvider(provider: string): Array<{ value: string; label: string }> {
-        const models: Record<string, Array<{ value: string; label: string }>> = {
-            'openai': [
-                { value: 'text-embedding-3-small', label: 'text-embedding-3-small (recommended)' },
-                { value: 'text-embedding-3-large', label: 'text-embedding-3-large (higher quality)' },
-                { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002 (legacy)' }
-            ],
-            'gemini': [
-                { value: 'text-embedding-004', label: 'text-embedding-004 (recommended)' },
-                { value: 'embedding-001', label: 'embedding-001 (legacy)' }
-            ],
-            'ollama': [
-                { value: 'nomic-embed-text', label: 'nomic-embed-text (recommended)' },
-                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (higher quality)' },
-                { value: 'all-minilm', label: 'all-minilm (lightweight)' },
-                { value: 'snowflake-arctic-embed', label: 'snowflake-arctic-embed' }
-            ],
-            'openrouter': [
-                { value: 'openai/text-embedding-3-small', label: 'OpenAI text-embedding-3-small' },
-                { value: 'openai/text-embedding-3-large', label: 'OpenAI text-embedding-3-large' },
-                { value: 'cohere/embed-english-v3.0', label: 'Cohere embed-english-v3.0' }
-            ],
-            'cohere': [
-                { value: 'embed-english-v3.0', label: 'embed-english-v3.0 (recommended)' },
-                { value: 'embed-multilingual-v3.0', label: 'embed-multilingual-v3.0' },
-                { value: 'embed-english-light-v3.0', label: 'embed-english-light-v3.0 (faster)' }
-            ],
-            'voyage': [
-                { value: 'voyage-3', label: 'voyage-3 (recommended)' },
-                { value: 'voyage-3-lite', label: 'voyage-3-lite (faster, cheaper)' },
-                { value: 'voyage-code-3', label: 'voyage-code-3 (code-optimised)' },
-                { value: 'voyage-large-2', label: 'voyage-large-2 (legacy)' }
-            ]
-        };
-        return models[provider] || [{ value: 'text-embedding-3-small', label: 'text-embedding-3-small' }];
+        return getEmbeddingModelOptions(provider as EmbeddingProvider);
     }
 
     private getDefaultEmbeddingApiKey(provider: string, plugin: AIOrganiserPlugin): string {

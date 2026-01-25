@@ -1,13 +1,14 @@
 import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
+import { PROVIDER_DEFAULT_MODEL } from './providerRegistry';
 
 export class OpenAIAdapter extends BaseAdapter {
     constructor(config: AdapterConfig) {
         super({
             ...config,
             endpoint: config.endpoint || endpoints.openai,
-            modelName: config.modelName || 'gpt-4-turbo-preview'
+            modelName: config.modelName || PROVIDER_DEFAULT_MODEL.openai
         });
         this.provider = {
             name: 'openai',

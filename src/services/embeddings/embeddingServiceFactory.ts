@@ -5,6 +5,7 @@
 
 import { AIOrganiserSettings } from '../../core/settings';
 import { IEmbeddingService, EmbeddingServiceConfig } from './types';
+import { EMBEDDING_DEFAULT_MODEL, EMBEDDING_MODELS, EmbeddingProvider } from './embeddingRegistry';
 import { OpenAIEmbeddingService } from './openaiEmbeddingService';
 import { OllamaEmbeddingService } from './ollamaEmbeddingService';
 import { GeminiEmbeddingService } from './geminiEmbeddingService';
@@ -89,40 +90,18 @@ export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings
         return null;
     }
 
-    const provider = settings.embeddingProvider;
-
-    // Get API key with inheritance chain:
-    // 1. Dedicated embedding API key
-    // 2. Provider-specific settings
-    // 3. Cloud API key (if same provider)
-    let apiKey = settings.embeddingApiKey;
-
-    if (!apiKey && provider !== 'ollama') {
-        // Try provider settings
-        const providerKey = settings.providerSettings?.[provider as keyof typeof settings.providerSettings];
-        if (providerKey?.apiKey) {
-            apiKey = providerKey.apiKey;
-        }
-
-        // Try cloud API key if embedding provider matches cloud provider
-        if (!apiKey && provider === settings.cloudServiceType) {
-            apiKey = settings.cloudApiKey;
-        }
-    }
-
-    // For cloud providers, API key is required
-    if (!apiKey && provider !== 'ollama') {
-        console.warn(`No API key found for embedding provider: ${provider}`);
-        return null;
-    }
-
     try {
-        // Only pass custom endpoint for providers that support it (Ollama)
-        // Other providers use their default endpoints unless explicitly configured
-        const endpoint = provider === 'ollama' ? settings.embeddingEndpoint : undefined;
+        const provider = settings.embeddingProvider;
+        
+        // API key inheritance chain: embeddingApiKey → providerSettings[provider].apiKey → cloudApiKey
+        const providerKey = settings.providerSettings?.[provider]?.apiKey;
+        const apiKey = settings.embeddingApiKey || providerKey || settings.cloudApiKey || '';
+        
+        // Endpoint for Ollama only (other providers use defaults)
+        const endpoint = provider === 'ollama' ? settings.ollamaEndpoint : undefined;
 
         return createEmbeddingService({
-            provider: provider as any,
+            provider,
             model: settings.embeddingModel,
             apiKey,
             endpoint
@@ -137,72 +116,14 @@ export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings
  * Get default model for a provider
  */
 export function getDefaultEmbeddingModel(provider: EmbeddingProvider): string {
-    switch (provider) {
-        case 'openai':
-            return 'text-embedding-3-small';
-        case 'ollama':
-            return 'nomic-embed-text';
-        case 'gemini':
-            return 'text-embedding-004';
-        case 'cohere':
-            return 'embed-english-v3.0';
-        case 'voyage':
-            return 'voyage-3';
-        case 'openrouter':
-            return 'openai/text-embedding-3-small';
-        default:
-            return 'text-embedding-3-small';
-    }
+    return EMBEDDING_DEFAULT_MODEL[provider] || EMBEDDING_DEFAULT_MODEL.openai;
 }
 
 /**
  * Get available models for a provider
  */
 export function getAvailableEmbeddingModels(provider: EmbeddingProvider): string[] {
-    switch (provider) {
-        case 'openai':
-            return [
-                'text-embedding-3-small',
-                'text-embedding-3-large',
-                'text-embedding-ada-002'
-            ];
-        case 'ollama':
-            return [
-                'nomic-embed-text',
-                'all-minilm',
-                'mxbai-embed-large',
-                'bge-small',
-                'bge-base',
-                'bge-large'
-            ];
-        case 'gemini':
-            return [
-                'text-embedding-004',
-                'embedding-001'
-            ];
-        case 'cohere':
-            return [
-                'embed-english-v3.0',
-                'embed-multilingual-v3.0',
-                'embed-english-light-v3.0',
-                'embed-multilingual-light-v3.0'
-            ];
-        case 'voyage':
-            return [
-                'voyage-3',
-                'voyage-3-lite',
-                'voyage-code-3',
-                'voyage-large-2'
-            ];
-        case 'openrouter':
-            return [
-                'openai/text-embedding-3-small',
-                'openai/text-embedding-3-large',
-                'cohere/embed-english-v3.0'
-            ];
-        default:
-            return [];
-    }
+    return EMBEDDING_MODELS[provider] || EMBEDDING_MODELS.openai;
 }
 
 /**
