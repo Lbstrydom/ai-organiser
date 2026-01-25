@@ -842,5 +842,4 @@ See `docs/` folder for additional documentation:
 - [docs/STATUS.md](docs/STATUS.md): Development status and recent updates
 - [docs/bases_user_guide.md](docs/bases_user_guide.md): Obsidian Bases integration guide
 - [docs/usertest.md](docs/usertest.md): Manual testing checklist
-- [docs/refactoring-plan.md](docs/refactoring-plan.md): Controller extraction completion report
 

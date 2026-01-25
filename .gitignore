@@ -30,3 +30,11 @@ NESTED_TAGS_IMPLEMENTATION_PLAN_CN.md
 TEST_INSTRUCTIONS.md
 coverage/
 
+# Test output files (manual test runs)
+*-output.txt
+test-*.txt
+test*.txt
+
+# Archived documentation (reference only)
+docs/completed/
+

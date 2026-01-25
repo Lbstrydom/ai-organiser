@@ -27,6 +27,24 @@
 
 See [usertest.md](usertest.md) for manual testing checklist.
 
+### UX/UI Refactoring Complete (2026-01-25)
+
+✅ **All 5 Phases Delivered**
+
+| Phase | Priority | Achievement |
+|-------|----------|-------------|
+| 1. Command Picker | P0 | Expanded from 13 to 29 commands with category styling |
+| 2. i18n Core | P0 | 24 keys added, chatCommands/integrationCommands converted |
+| 3. i18n Summarize | P1 | 20 hard-coded notices replaced with plugin.t |
+| 4. RAG Options Gating | P1 | RAG settings hidden when vault chat disabled |
+| 5. Browser Prompt | P1 | Replaced prompt() with in-modal folder input |
+
+**Metrics**:
+- 40 new i18n keys added (with dynamic placeholders)
+- 38+ hard-coded notices converted (72% of high-priority areas)
+- Command picker coverage: 13 → 29 commands (123% increase)
+- All tests passing (631 unit + 17 integration)
+
 ---
 
 ## Overview
