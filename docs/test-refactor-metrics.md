@@ -69,8 +69,39 @@ Date: 2026-01-24
 - `noteStructure.ts` - Obsidian integration heavy
 - `tagOperations.ts` - Requires vault mocking
 
+## Post-Cleanup Snapshot (2026-01-25)
+- npm test: **604 tests passing** (20 test files)
+- Removed 35 low-value tests that didn't exercise production code
+
+### Tests Removed (by category)
+
+| File | Tests Removed | Reason |
+|------|---------------|--------|
+| `minutes.test.ts` | 3 (file deleted) | Tested mocks only; redundant with configurationService.test.ts |
+| `multiSource.test.ts` | 15 | Duplicated sourceDetection.test.ts coverage |
+| `multiSource.test.ts` | 11 | Pure stub tests (Output Formatting, ProcessedSource tracking with '???') |
+| `minutes.test.ts` | 6 | Helper-only tests (local functions, not production code) |
+| **Total** | **35** | All removed tests had zero production regression value |
+
+### Remaining Test Distribution
+
+| File | Tests | Coverage Focus |
+|------|-------|----------------|
+| `sourceDetection.test.ts` | 58 | Canonical source detection (URL, YouTube, PDF, audio, document patterns) |
+| `dictionaryController.test.ts` | 56 | Dictionary CRUD, term extraction, merging |
+| `frontmatterUtils.test.ts` | 45 | Frontmatter parsing, metadata operations |
+| `tagUtils.test.ts` | 43 | Tag formatting, sanitization |
+| `responseParser.test.ts` | 40 | JSON parsing, structured response handling |
+| `audioController.test.ts` | 38 | Audio state management, transcription |
+| `textChunker.test.ts` | 30 | Text chunking, token estimation |
+| `documentHandlingController.test.ts` | 29 | Document extraction, truncation |
+| `configurationService.test.ts` | 27 | Config file parsing, persona loading |
+| `minutesPrompts.test.ts` | 20 | Prompt building, XML structure |
+| Other files | 218 | Various utilities and services |
+
 ## Notes
 - Acceptable line coverage delta: ≤ 2%.
 - Any branch coverage drop requires justification in `docs/test-refactor-decisions.md`.
 - Low overall coverage (29.78%) is expected since many modules are UI/integration code not unit tested.
 - Focus on high-coverage for utility and service modules that CAN be unit tested.
+- Test cleanup prioritized quality over quantity: 604 effective tests > 639 tests with 35 testing mocks/stubs.

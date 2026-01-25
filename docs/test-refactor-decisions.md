@@ -52,3 +52,22 @@ None.
   - [x] Document as out of scope
   - [ ] Future: Create dedicated RAG testing initiative when time permits
 - Closed: 2026-01-24
+
+### D5: MinutesCreationModal UI tests
+- Question: Should we add integration tests for MinutesCreationModal?
+- **Decision: DEFER** (controller coverage is sufficient for now)
+- Rationale:
+  - **minutes.test.ts was removed** - it only tested mocks (createMockPlugin with mocked getMinutesPersonas), providing zero production coverage
+  - **configurationService.test.ts already tests persona loading** - 6 production tests for getMinutesPersonas
+  - **Controller tests exist** - AudioController (38 tests), DictionaryController (56 tests), DocumentHandlingController (29 tests) cover the modal's business logic
+  - **MinutesCreationModal UI testing requires**:
+    - Complex Obsidian Modal mocking (onOpen, contentEl, close lifecycle)
+    - DOM manipulation testing (Setting, DropdownComponent, TextComponent)
+    - Event simulation (button clicks, form submission)
+    - Multiple service coordination (minutes, dictionary, document, audio)
+  - The controller architecture specifically enables testing business logic without UI complexity
+- Actions taken:
+  - [x] Removed minutes.test.ts (tested mocks, redundant)
+  - [x] Verified controller tests cover modal's business logic
+  - [ ] Future: If modal bugs arise, add targeted modal tests with Obsidian mocks
+- Closed: 2026-01-25
