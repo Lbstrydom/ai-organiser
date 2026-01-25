@@ -974,6 +974,10 @@ export interface Translations {
             changeFolder: string;
             folderPrompt: string;
             folderError: string;
+            folderPlaceholder: string;
+            folderSelected: string;
+            folderCreated: string;
+            folderIsFile: string;
             templateTitle: string;
             defaultTemplates: string;
             personaTemplates: string;

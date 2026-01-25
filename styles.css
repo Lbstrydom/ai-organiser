@@ -2407,6 +2407,38 @@
     padding: var(--size-2-2) var(--size-4-3);
     font-size: var(--font-ui-smaller);
 }
+
+.ai-organiser-folder-buttons {
+    display: flex;
+    gap: var(--size-2-2);
+    margin-top: var(--size-2-2);
+}
+
+.ai-organiser-folder-buttons button {
+    padding: var(--size-2-2) var(--size-4-3);
+    font-size: var(--font-ui-smaller);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ai-organiser-folder-buttons button:hover {
+    background: var(--background-tertiary);
+}
+
+.ai-organiser-folder-buttons button.mod-cta {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+}
+
+.ai-organiser-folder-buttons button.mod-cta:hover {
+    background: var(--interactive-accent-hover, var(--interactive-accent));
+}
+
 /* Bases Settings Styles */
 .ai-organiser-info-box {
     background: var(--background-secondary);

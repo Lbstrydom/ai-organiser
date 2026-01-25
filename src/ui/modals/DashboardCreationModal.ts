@@ -14,12 +14,15 @@ export class DashboardCreationModal extends Modal {
     private plugin: AIOrganiserPlugin;
     private dashboardService: DashboardService;
     private targetFolder: TFolder;
+    private isEditingFolder: boolean = false;
+    private folderInputValue: string = '';
 
     constructor(app: App, plugin: AIOrganiserPlugin, targetFolder?: TFolder) {
         super(app);
         this.plugin = plugin;
         this.dashboardService = new DashboardService(app, plugin);
         this.targetFolder = targetFolder || this.dashboardService.getRecommendedDashboardFolder();
+        this.folderInputValue = this.targetFolder.path || '/';
     }
 
     onOpen() {
@@ -43,41 +46,56 @@ export class DashboardCreationModal extends Modal {
             cls: 'ai-organiser-dashboard-description'
         });
 
-        // Folder display
-        new Setting(container)
-            .setName(this.plugin.t.modals.dashboardCreation.folderLabel)
-            .setDesc(this.targetFolder.path || '/')
-            .addButton(button => {
-                button
-                    .setButtonText(this.plugin.t.modals.dashboardCreation.changeFolder)
-                    .onClick(async () => {
-                        const newPath = prompt(
-                            this.plugin.t.modals.dashboardCreation.folderPrompt,
-                            this.targetFolder.path || '/'
-                        );
+        // Folder section
+        if (this.isEditingFolder) {
+            // Edit mode - show input field
+            const folderSetting = new Setting(container)
+                .setName(this.plugin.t.modals.dashboardCreation.folderLabel)
+                .addText(text => {
+                    text
+                        .setPlaceholder(this.plugin.t.modals.dashboardCreation.folderPlaceholder || '/')
+                        .setValue(this.folderInputValue)
+                        .onChange((value) => {
+                            this.folderInputValue = value;
+                        });
+                });
 
-                        if (newPath) {
-                            const folder = this.app.vault.getAbstractFileByPath(newPath);
-                            if (folder && folder instanceof TFolder) {
-                                this.targetFolder = folder;
-                                this.contentEl.empty();
-                                await this.renderContent();
-                            } else {
-                                try {
-                                    await this.app.vault.createFolder(newPath);
-                                    const newFolder = this.app.vault.getAbstractFileByPath(newPath);
-                                    if (newFolder && newFolder instanceof TFolder) {
-                                        this.targetFolder = newFolder;
-                                        this.contentEl.empty();
-                                        await this.renderContent();
-                                    }
-                                } catch {
-                                    new Notice(this.plugin.t.modals.dashboardCreation.folderError);
-                                }
-                            }
-                        }
-                    });
+            // Action buttons for folder input
+            const buttonContainer = folderSetting.controlEl.createDiv({ cls: 'ai-organiser-folder-buttons' });
+            
+            const confirmBtn = buttonContainer.createEl('button', {
+                text: this.plugin.t.modals.confirm,
+                cls: 'mod-cta'
             });
+            confirmBtn.style.marginRight = '8px';
+            confirmBtn.addEventListener('click', async () => {
+                await this.setFolderPath(this.folderInputValue);
+            });
+
+            const cancelBtn = buttonContainer.createEl('button', {
+                text: this.plugin.t.modals.cancel
+            });
+            cancelBtn.addEventListener('click', () => {
+                this.isEditingFolder = false;
+                this.contentEl.empty();
+                this.renderContent();
+            });
+        } else {
+            // Display mode - show folder path with change button
+            new Setting(container)
+                .setName(this.plugin.t.modals.dashboardCreation.folderLabel)
+                .setDesc(this.targetFolder.path || '/')
+                .addButton(button => {
+                    button
+                        .setButtonText(this.plugin.t.modals.dashboardCreation.changeFolder)
+                        .onClick(() => {
+                            this.isEditingFolder = true;
+                            this.folderInputValue = this.targetFolder.path || '/';
+                            this.contentEl.empty();
+                            this.renderContent();
+                        });
+                });
+        }
 
         // Info about what will be created
         const infoEl = container.createEl('p', { cls: 'setting-item-description' });
@@ -86,17 +104,57 @@ export class DashboardCreationModal extends Modal {
             'This will create a dashboard showing all AI-processed notes in this folder and subfolders.'
         );
 
-        // Footer
-        const footer = container.createDiv({ cls: 'ai-organiser-modal-footer' });
+        // Footer (only show in non-edit mode)
+        if (!this.isEditingFolder) {
+            const footer = container.createDiv({ cls: 'ai-organiser-modal-footer' });
 
-        const cancelBtn = footer.createEl('button', { text: this.plugin.t.modals.cancel });
-        cancelBtn.addEventListener('click', () => this.close());
+            const cancelBtn = footer.createEl('button', { text: this.plugin.t.modals.cancel });
+            cancelBtn.addEventListener('click', () => this.close());
 
-        const createBtn = footer.createEl('button', {
-            text: this.plugin.t.modals.dashboardCreation.createButton,
-            cls: 'mod-cta'
-        });
-        createBtn.addEventListener('click', () => this.createDashboard());
+            const createBtn = footer.createEl('button', {
+                text: this.plugin.t.modals.dashboardCreation.createButton,
+                cls: 'mod-cta'
+            });
+            createBtn.addEventListener('click', () => this.createDashboard());
+        }
+    }
+
+    /**
+     * Set the folder path and validate/create if needed
+     */
+    private async setFolderPath(path: string) {
+        const trimmedPath = path.trim() || '/';
+
+        // Try to get existing folder
+        let folder = this.app.vault.getAbstractFileByPath(trimmedPath);
+        
+        if (folder && folder instanceof TFolder) {
+            // Folder exists
+            this.targetFolder = folder;
+            this.isEditingFolder = false;
+            this.contentEl.empty();
+            await this.renderContent();
+            new Notice(this.plugin.t.modals.dashboardCreation.folderSelected.replace('{folder}', trimmedPath));
+        } else if (folder) {
+            // Path exists but is a file, not a folder
+            new Notice(this.plugin.t.modals.dashboardCreation.folderIsFile.replace('{path}', trimmedPath));
+        } else {
+            // Folder doesn't exist - try to create it
+            try {
+                await this.app.vault.createFolder(trimmedPath);
+                const newFolder = this.app.vault.getAbstractFileByPath(trimmedPath);
+                if (newFolder && newFolder instanceof TFolder) {
+                    this.targetFolder = newFolder;
+                    this.isEditingFolder = false;
+                    this.contentEl.empty();
+                    await this.renderContent();
+                    new Notice(this.plugin.t.modals.dashboardCreation.folderCreated.replace('{folder}', trimmedPath));
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                new Notice(this.plugin.t.modals.dashboardCreation.folderError.replace('{error}', errorMsg));
+            }
+        }
     }
 
     /**

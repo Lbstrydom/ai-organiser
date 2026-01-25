@@ -123,19 +123,15 @@ Acceptance criteria:
 - Deployed to Obsidian vault
 - Date Completed: 2026-01-25
 
-## Phase 4: Gate RAG Options Behind Vault Chat (P1)
-
-File:
-- `src/ui/settings/SemanticSearchSettingsSection.ts`
-
-Tasks:
-- Show `ragContextChunks` and `ragIncludeMetadata` only when
-  `enableVaultChat` is true.
-- When vault chat is disabled, show a short explanatory message instead of the
-  controls.
-
-Acceptance criteria:
-- Users cannot configure RAG options for a disabled feature.
+**Phase 4 (P1): ✅ COMPLETED**
+- Gated RAG options (`ragContextChunks`, `ragIncludeMetadata`) behind `enableVaultChat` toggle
+- When vault chat is disabled, shows explanatory message instead of controls
+- Controls only render when `enableVaultChat` is true
+- Added refresh on toggle change to show/hide options dynamically
+- Added i18n key `enableVaultChatForRag` in English and Chinese
+- All tests passing (631 unit + 17 integration)
+- Deployed to Obsidian vault
+- Date Completed: 2026-01-25
 
 ## Phase 5: Replace Browser prompt() in Dashboard Creation (P1)
 
