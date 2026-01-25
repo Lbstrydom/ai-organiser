@@ -25,7 +25,7 @@
 - Prompt Modules: Invariant-based tests (no brittle snapshots) for all 8 prompt builders
 - RAGService: Deterministic tests with TestVectorStore mock (no network calls)
 
-See [testing-gap-closure-plan.md](testing-gap-closure-plan.md) and [test-refactor-metrics.md](test-refactor-metrics.md) for details
+See [usertest.md](usertest.md) for manual testing checklist.
 
 ---
 
