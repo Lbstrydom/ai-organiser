@@ -282,12 +282,15 @@ export class LLMSettingsSection extends BaseSettingSection {
     };
 
     private displayCloudSettings(): void {
+        const serviceType = this.plugin.settings.cloudServiceType;
+        const { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } = await import('../../services/adapters/providerRegistry');
+
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.apiEndpoint)
             .setDesc(this.plugin.t.settings.llm.apiEndpointDesc)
             .addText(text => {
-                const placeholder = this.plugin.settings.cloudEndpoint ||
-                    (this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'http://your-api-endpoint/v1/chat/completions' : '');
+                const placeholder = this.plugin.settings.cloudEndpoint || PROVIDER_ENDPOINT[serviceType] ||
+                    (serviceType === 'openai-compatible' ? 'http://your-api-endpoint/v1/chat/completions' : '');
 
                 text.setPlaceholder(placeholder)
                     .setValue(this.plugin.settings.cloudEndpoint);
@@ -342,7 +345,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             });
 
         // For providers with known models, show a dropdown
-        const serviceType = this.plugin.settings.cloudServiceType;
+        // For providers with known models, show a dropdown
         const modelLists: Record<string, { models: Record<string, string>; defaultModel: string }> = {
             'claude': { models: this.CLAUDE_MODELS, defaultModel: 'claude-sonnet-4-5-20250929' },
             'openai': { models: this.OPENAI_MODELS, defaultModel: 'gpt-5.2' },
@@ -376,23 +379,13 @@ export class LLMSettingsSection extends BaseSettingSection {
                 });
         } else {
             // For other providers, use text input with placeholder hints
-            const placeholders: Record<string, string> = {
-                'deepseek': 'deepseek-chat',
-                'aliyun': 'qwen-max',
-                'groq': 'llama-3.3-70b-versatile',
-                'bedrock': 'us.anthropic.claude-sonnet-4-5-v1:0',
-                'requesty': 'gpt-4.1',
-                'cohere': 'command-r-plus',
-                'grok': 'grok-3',
-                'mistral': 'mistral-large-latest',
-                'openai-compatible': 'your-model'
-            };
+            // Use centralized default model placeholders
 
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.modelName)
                 .setDesc(this.plugin.t.settings.llm.modelNameDesc)
                 .addText(text => text
-                    .setPlaceholder(placeholders[serviceType] || 'model-name')
+                    .setPlaceholder(PROVIDER_DEFAULT_MODEL[serviceType] || 'model-name')
                     .setValue(this.plugin.settings.cloudModel)
                     .onChange(async (value) => {
                         this.plugin.settings.cloudModel = value;

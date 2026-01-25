@@ -52,11 +52,13 @@ export class MobileSettingsSection extends BaseSettingSection {
                         })
                 );
 
+            const { PROVIDER_DEFAULT_MODEL } = await import('../../services/adapters/providerRegistry');
+
             new Setting(containerEl)
                 .setName(t.settings.mobile.fallbackModel)
                 .setDesc(t.settings.mobile.fallbackModelDesc)
                 .addText(text => text
-                    .setPlaceholder(plugin.settings.cloudModel || '')
+                    .setPlaceholder(PROVIDER_DEFAULT_MODEL[plugin.settings.mobileFallbackProvider] || '')
                     .setValue(plugin.settings.mobileFallbackModel)
                     .onChange(async (value) => {
                         plugin.settings.mobileFallbackModel = value.trim();

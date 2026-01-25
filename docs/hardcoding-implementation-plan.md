@@ -211,6 +211,15 @@ Phase 2 tests (required):
 
 ## Phase 3 - Provider Registry DRY-Up (P1/P2)
 
+**Status**: ✅ COMPLETE
+
+**Results**:
+- Introduced `src/services/adapters/providerRegistry.ts` with `ALL_ADAPTERS`, `PROVIDER_DEFAULT_MODEL`, `PROVIDER_ENDPOINT`, and `buildProviderOptions()`
+- Refactored `LLMSettingsSection` to source provider options, endpoints, and default models from the registry (including endpoint/model placeholders)
+- Refactored `MobileSettingsSection` to use registry for provider options and fallback model placeholder
+- Added `tests/providerRegistry.test.ts` covering adapters, defaults, endpoints, and option building
+- `npm test` passing (26 suites, 643 tests)
+
 Create a provider registry that drives:
 
 - Dropdown options
