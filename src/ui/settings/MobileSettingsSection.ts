@@ -1,6 +1,7 @@
 import { Platform, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { AdapterType } from '../../services/adapters';
+import { buildProviderOptions } from '../../services/adapters/providerRegistry';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class MobileSettingsSection extends BaseSettingSection {
@@ -43,7 +44,7 @@ export class MobileSettingsSection extends BaseSettingSection {
                 .setDesc(t.settings.mobile.fallbackProviderDesc)
                 .addDropdown(dropdown =>
                     dropdown
-                        .addOptions(this.getProviderOptions(t))
+                        .addOptions(buildProviderOptions(t.dropdowns))
                         .setValue(plugin.settings.mobileFallbackProvider)
                         .onChange(async (value) => {
                             plugin.settings.mobileFallbackProvider = value as AdapterType;
@@ -115,22 +116,5 @@ export class MobileSettingsSection extends BaseSettingSection {
                 }));
     }
 
-    private getProviderOptions(t: AIOrganiserPlugin['t']): Record<string, string> {
-        return {
-            openai: t.dropdowns.openai,
-            gemini: t.dropdowns.gemini,
-            deepseek: t.dropdowns.deepseek,
-            aliyun: t.dropdowns.aliyun,
-            claude: t.dropdowns.claude,
-            groq: t.dropdowns.groq,
-            vertex: t.dropdowns.vertex,
-            openrouter: t.dropdowns.openrouter,
-            bedrock: t.dropdowns.bedrock,
-            requesty: t.dropdowns.requesty,
-            cohere: t.dropdowns.cohere,
-            grok: t.dropdowns.grok,
-            mistral: t.dropdowns.mistral,
-            'openai-compatible': t.dropdowns.openaiCompatible
-        };
-    }
+    // Provider options now sourced from providerRegistry
 }

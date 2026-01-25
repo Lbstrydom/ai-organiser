@@ -61,26 +61,11 @@ export class LLMSettingsSection extends BaseSettingSection {
                 .setDesc(this.plugin.t.settings.llm.cloudProviderDesc)
                 .addDropdown(dropdown =>
                     dropdown
-                        .addOptions({
-                            'openai': this.plugin.t.dropdowns.openai,
-                            'gemini': this.plugin.t.dropdowns.gemini,
-                            'deepseek': this.plugin.t.dropdowns.deepseek,
-                            'aliyun': this.plugin.t.dropdowns.aliyun,
-                            'claude': this.plugin.t.dropdowns.claude,
-                            'groq': this.plugin.t.dropdowns.groq,
-                            'vertex': this.plugin.t.dropdowns.vertex,
-                            'openrouter': this.plugin.t.dropdowns.openrouter,
-                            'bedrock': this.plugin.t.dropdowns.bedrock,
-                            'requesty': this.plugin.t.dropdowns.requesty,
-                            'cohere': this.plugin.t.dropdowns.cohere,
-                            'grok': this.plugin.t.dropdowns.grok,
-                            'mistral': this.plugin.t.dropdowns.mistral,
-                            'openai-compatible': this.plugin.t.dropdowns.openaiCompatible
-                        })
+                        .addOptions(this.getProviderOptions())
                         .setValue(this.plugin.settings.cloudServiceType)
                         .onChange(async (value) => {
                             const oldType = this.plugin.settings.cloudServiceType;
-                            const newType = value as 'openai' | 'gemini' | 'deepseek' | 'aliyun' | 'claude' | 'groq' | 'vertex' | 'openrouter' | 'bedrock' | 'requesty' | 'cohere' | 'grok' | 'mistral' | 'openai-compatible';
+                            const newType = value as typeof this.plugin.settings.cloudServiceType;
 
                             // Initialize providerSettings if needed
                             if (!this.plugin.settings.providerSettings) {
@@ -108,88 +93,28 @@ export class LLMSettingsSection extends BaseSettingSection {
                                 this.plugin.settings.cloudApiKey = '';
                             }
 
-                            try {
-                                const endpoints = await import('../../services/adapters/cloudEndpoints.json');
+                            // Use centralized registry for endpoints and default models
+                            const { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } = await import('../../services/adapters/providerRegistry');
 
-                                // Default models for each provider (used only if no saved model)
-                                const defaultModels: Record<string, string> = {
-                                    'openai': 'gpt-5.2',
-                                    'gemini': 'gemini-3-flash',
-                                    'deepseek': 'deepseek-chat',
-                                    'aliyun': 'qwen-max',
-                                    'claude': 'claude-sonnet-4-5-20250929',
-                                    'groq': 'llama-3.3-70b-versatile',
-                                    'vertex': 'gemini-3-flash',
-                                    'openrouter': 'openai/gpt-5.2',
-                                    'bedrock': 'us.anthropic.claude-sonnet-4-5-v1:0',
-                                    'requesty': 'gpt-5.2',
-                                    'cohere': 'command-r-plus',
-                                    'grok': 'grok-3',
-                                    'mistral': 'mistral-large-latest',
-                                    'openai-compatible': 'your-model'
-                                };
+                            this.plugin.settings.cloudEndpoint = PROVIDER_ENDPOINT[newType];
 
-                                // Set endpoint based on provider
-                                switch (newType) {
-                                    case 'openai':
-                                        this.plugin.settings.cloudEndpoint = endpoints.openai;
-                                        break;
-                                    case 'gemini':
-                                        this.plugin.settings.cloudEndpoint = endpoints.gemini;
-                                        break;
-                                    case 'deepseek':
-                                        this.plugin.settings.cloudEndpoint = endpoints.deepseek;
-                                        break;
-                                    case 'aliyun':
-                                        this.plugin.settings.cloudEndpoint = endpoints.aliyun;
-                                        break;
-                                    case 'claude':
-                                        this.plugin.settings.cloudEndpoint = endpoints.claude;
-                                        break;
-                                    case 'groq':
-                                        this.plugin.settings.cloudEndpoint = endpoints.groq;
-                                        break;
-                                    case 'vertex':
-                                        this.plugin.settings.cloudEndpoint = endpoints.vertex;
-                                        break;
-                                    case 'openrouter':
-                                        this.plugin.settings.cloudEndpoint = endpoints.openrouter;
-                                        break;
-                                    case 'bedrock':
-                                        this.plugin.settings.cloudEndpoint = endpoints.bedrock;
-                                        break;
-                                    case 'requesty':
-                                        this.plugin.settings.cloudEndpoint = endpoints.requesty;
-                                        break;
-                                    case 'cohere':
-                                        this.plugin.settings.cloudEndpoint = endpoints.cohere;
-                                        break;
-                                    case 'grok':
-                                        this.plugin.settings.cloudEndpoint = endpoints.grok;
-                                        break;
-                                    case 'mistral':
-                                        this.plugin.settings.cloudEndpoint = endpoints.mistral;
-                                        break;
-                                    case 'openai-compatible':
-                                        this.plugin.settings.cloudEndpoint = 'http://your-api-endpoint/v1/chat/completions';
-                                        break;
-                                }
-
-                                // Restore saved model or use default
-                                if (savedSettings?.model) {
-                                    this.plugin.settings.cloudModel = savedSettings.model;
-                                } else {
-                                    this.plugin.settings.cloudModel = defaultModels[newType] || 'gpt-4.1';
-                                }
-
-                                await this.plugin.saveSettings();
-                                this.settingTab.display();
-                            } catch (error) {
-                                new Notice(this.plugin.t.messages.failedToLoadEndpoints);
+                            // Restore saved model or use default
+                            if (savedSettings?.model) {
+                                this.plugin.settings.cloudModel = savedSettings.model;
+                            } else {
+                                this.plugin.settings.cloudModel = PROVIDER_DEFAULT_MODEL[newType] || 'gpt-4.1';
                             }
+
+                            await this.plugin.saveSettings();
+                            this.settingTab.display();
                         })
                 );
         }
+    }
+
+    private getProviderOptions(): Record<string, string> {
+        const { buildProviderOptions } = require('../../services/adapters/providerRegistry');
+        return buildProviderOptions(this.plugin.t.dropdowns);
     }
 
     private displayLocalSettings(): void {
