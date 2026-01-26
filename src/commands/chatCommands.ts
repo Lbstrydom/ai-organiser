@@ -45,7 +45,7 @@ class ChatWithVaultModal extends Modal {
             plugin.settings,
             plugin.embeddingService
         );
-        this.titleEl.setText('Chat with Vault');
+        this.titleEl.setText(plugin.t.modals?.chatWithVault?.title || 'Chat with Vault');
     }
 
     async onOpen(): Promise<void> {
@@ -55,7 +55,7 @@ class ChatWithVaultModal extends Modal {
 
         // Add intro message
         this.addSystemMessage(
-            'Ask me anything about your vault! I\'ll search for relevant notes and provide answers based on your content.'
+            this.plugin.t.modals?.chatWithVault?.intro || 'Ask me anything about your vault! I\'ll search for relevant notes and provide answers based on your content.'
         );
 
         // Chat container (scrollable)
@@ -75,7 +75,7 @@ class ChatWithVaultModal extends Modal {
         
         this.inputArea = new TextAreaComponent(inputSetting.controlEl);
         this.inputArea
-            .setPlaceholder('Ask a question about your vault...')
+            .setPlaceholder(this.plugin.t.modals?.chatWithVault?.placeholder || 'Ask a question about your vault...')
             .then(text => {
                 text.inputEl.rows = 3;
                 text.inputEl.addEventListener('keydown', (e) => {
@@ -92,11 +92,11 @@ class ChatWithVaultModal extends Modal {
         });
         
         this.sendButton = new ButtonComponent(buttonContainer)
-            .setButtonText('Send')
+            .setButtonText(this.plugin.t.modals?.chatWithVault?.sendButton || 'Send')
             .onClick(() => this.handleSend());
 
         new ButtonComponent(buttonContainer)
-            .setButtonText('Clear')
+            .setButtonText(this.plugin.t.modals?.chatWithVault?.clearButton || 'Clear')
             .onClick(() => this.handleClear());
     }
 
@@ -109,7 +109,7 @@ class ChatWithVaultModal extends Modal {
         // Clear input
         this.inputArea.setValue('');
         this.isProcessing = true;
-        this.sendButton.setButtonText('Thinking...');
+        this.sendButton.setButtonText(this.plugin.t.modals?.chatWithVault?.thinkingButton || 'Thinking...');
         this.sendButton.setDisabled(true);
 
         // Add user message
@@ -151,12 +151,12 @@ class ChatWithVaultModal extends Modal {
             }
         } catch (error) {
             console.error('Chat error:', error);
-            this.addMessage('assistant',
-                'Sorry, an error occurred: ' + (error as any).message
-            );
+            const errorMsg = (this.plugin.t.modals?.chatWithVault?.errorOccurred || 'Sorry, an error occurred: {error}')
+                .replace('{error}', (error as any).message);
+            this.addMessage('assistant', errorMsg);
         } finally {
             this.isProcessing = false;
-            this.sendButton.setButtonText('Send');
+            this.sendButton.setButtonText(this.plugin.t.modals?.chatWithVault?.sendButton || 'Send');
             this.sendButton.setDisabled(false);
         }
     }
@@ -164,7 +164,7 @@ class ChatWithVaultModal extends Modal {
     private handleClear(): void {
         this.messages = [];
         this.addSystemMessage(
-            'Chat cleared. Ask me anything about your vault!'
+            this.plugin.t.modals?.chatWithVault?.chatCleared || 'Chat cleared. Ask me anything about your vault!'
         );
         this.renderMessages();
     }
@@ -404,14 +404,14 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
 async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | null> {
     return new Promise((resolve) => {
         const modal = new Modal(plugin.app);
-        modal.titleEl.setText('Ask a Question');
+        modal.titleEl.setText(plugin.t.modals?.chatWithVault?.askQuestion || 'Ask a Question');
         
         let question = '';
         
         new Setting(modal.contentEl)
-            .setName('Your Question')
+            .setName(plugin.t.modals?.chatWithVault?.yourQuestion || 'Your Question')
             .addText(text => {
-                text.setPlaceholder('What would you like to know?')
+                text.setPlaceholder(plugin.t.modals?.chatWithVault?.placeholder || 'What would you like to know?')
                     .onChange(value => {
                         question = value;
                     });
@@ -421,7 +421,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
         
         new Setting(modal.contentEl)
             .addButton(btn => {
-                btn.setButtonText('Ask')
+                btn.setButtonText(plugin.t.modals?.chatWithVault?.sendButton || 'Ask')
                     .setCta()
                     .onClick(() => {
                         modal.close();
@@ -429,7 +429,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
                     });
             })
             .addButton(btn => {
-                btn.setButtonText('Cancel')
+                btn.setButtonText(plugin.t.modals?.cancel || 'Cancel')
                     .onClick(() => {
                         modal.close();
                         resolve(null);

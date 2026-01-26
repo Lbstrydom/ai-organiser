@@ -1034,6 +1034,33 @@ export const zhCN: Translations = {
             showNotes: "显示",
             hideNotes: "隐藏",
             exportButton: "导出"
+        },
+        addContent: {
+            title: "添加内容到待处理集成",
+            sourceType: "来源类型",
+            sourceTitle: "来源标题",
+            sourceLink: "链接（可选）",
+            content: "内容",
+            types: {
+                manual: "我的笔记",
+                web: "网络文章",
+                youtube: "YouTube 视频"
+            },
+            add: "添加"
+        },
+        chatWithVault: {
+            title: "与保险库聊天",
+            intro: "问我任何关于你的保险库的问题！我会搜索相关笔记并根据你的内容提供答案。",
+            placeholder: "问一个关于你的保险库的问题...",
+            sendButton: "发送",
+            clearButton: "清除",
+            thinkingButton: "思考中...",
+            askQuestion: "提出问题",
+            yourQuestion: "你的问题",
+            errorOccurred: "抱歉，发生了错误：{error}",
+            chatCleared: "聊天已清除。问我任何关于你的保险库的问题！",
+            searchingContext: "搜索保险库上下文...",
+            retrievingInformation: "检索相关信息..."
         }
     },
 

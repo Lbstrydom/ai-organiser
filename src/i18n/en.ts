@@ -1034,6 +1034,33 @@ export const en: Translations = {
             showNotes: "Show",
             hideNotes: "Hide",
             exportButton: "Export"
+        },
+        addContent: {
+            title: "Add Content to Pending Integration",
+            sourceType: "Source Type",
+            sourceTitle: "Source Title",
+            sourceLink: "Link (optional)",
+            content: "Content",
+            types: {
+                manual: "My Notes",
+                web: "Web Article",
+                youtube: "YouTube Video"
+            },
+            add: "Add"
+        },
+        chatWithVault: {
+            title: "Chat with Vault",
+            intro: "Ask me anything about your vault! I'll search for relevant notes and provide answers based on your content.",
+            placeholder: "Ask a question about your vault...",
+            sendButton: "Send",
+            clearButton: "Clear",
+            thinkingButton: "Thinking...",
+            askQuestion: "Ask a Question",
+            yourQuestion: "Your Question",
+            errorOccurred: "Sorry, an error occurred: {error}",
+            chatCleared: "Chat cleared. Ask me anything about your vault!",
+            searchingContext: "Searching vault context...",
+            retrievingInformation: "Retrieving relevant information..."
         }
     },
 

@@ -85,6 +85,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 plugin.app,
                 personas,
                 defaultPersona,
+                plugin.t,
                 async (selectedPersona) => {
                     new Notice(plugin.t.messages.integratingContent);
 
@@ -172,7 +173,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         name: 'Quick add: URL to Pending Integration',
         icon: 'link',
         editorCallback: async (editor: Editor) => {
-            const modal = new QuickUrlModal(plugin.app, (url) => {
+            const modal = new QuickUrlModal(plugin.app, plugin.t, (url) => {
                 if (url) {
                     const source: PendingSource = {
                         type: 'web',
@@ -446,16 +447,19 @@ class IntegrationConfirmModal extends Modal {
     private selectedPersona: Persona;
     private onConfirm: (persona: Persona) => void;
     private personaButtonEl: HTMLElement | null = null;
+    private t: any;
 
     constructor(
         app: App,
         personas: Persona[],
         defaultPersona: Persona,
+        t: any,
         onConfirm: (persona: Persona) => void
     ) {
         super(app);
         this.personas = personas;
         this.selectedPersona = defaultPersona;
+        this.t = t;
         this.onConfirm = onConfirm;
     }
 
@@ -487,10 +491,10 @@ class IntegrationConfirmModal extends Modal {
         // Buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Cancel')
+                .setButtonText(this.t?.modals?.cancel || 'Cancel')
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText('Integrate')
+                .setButtonText(this.t?.modals?.addContent?.add || 'Integrate')
                 .setCta()
                 .onClick(() => {
                     this.close();
@@ -689,10 +693,10 @@ class QuickTextModal extends Modal {
 
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Cancel')
+                .setButtonText(this.t?.modals?.cancel || 'Cancel')
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText('Add')
+                .setButtonText(this.t?.modals?.add || 'Add')
                 .setCta()
                 .onClick(() => {
                     if (text.trim()) {
@@ -712,9 +716,11 @@ class QuickTextModal extends Modal {
  */
 class QuickUrlModal extends Modal {
     private onSubmit: (url: string) => void;
+    private t: any;
 
-    constructor(app: App, onSubmit: (url: string) => void) {
+    constructor(app: App, t: any, onSubmit: (url: string) => void) {
         super(app);
+        this.t = t;
         this.onSubmit = onSubmit;
     }
 
@@ -741,10 +747,10 @@ class QuickUrlModal extends Modal {
 
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Cancel')
+                .setButtonText(this.t?.modals?.cancel || 'Cancel')
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText('Add')
+                .setButtonText(this.t?.modals?.add || 'Add')
                 .setCta()
                 .onClick(() => {
                     if (url.trim()) {

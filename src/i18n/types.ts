@@ -1033,6 +1033,33 @@ export interface Translations {
             hideNotes: string;
             exportButton: string;
         };
+        addContent: {
+            title: string;
+            sourceType: string;
+            sourceTitle: string;
+            sourceLink: string;
+            content: string;
+            types: {
+                manual: string;
+                web: string;
+                youtube: string;
+            };
+            add: string;
+        };
+        chatWithVault: {
+            title: string;
+            intro: string;
+            placeholder: string;
+            sendButton: string;
+            clearButton: string;
+            thinkingButton: string;
+            askQuestion: string;
+            yourQuestion: string;
+            errorOccurred: string;
+            chatCleared: string;
+            searchingContext: string;
+            retrievingInformation: string;
+        };
     };
 
     // File menu items
