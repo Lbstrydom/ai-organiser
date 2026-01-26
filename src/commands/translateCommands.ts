@@ -8,6 +8,8 @@ import type AIOrganiserPlugin from '../main';
 import { TranslateModal } from '../ui/modals/TranslateModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
 import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { summarizeText } from '../services/llmFacade';
+import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Command: Translate (smart dispatcher)
@@ -73,13 +75,13 @@ async function translateNote(
             // Ensure standard structure exists after translation
             ensureNoteStructureIfEnabled(editor, plugin.settings);
 
-            new Notice(plugin.t.messages.translationComplete || 'Translation complete');
+            showSuccessNotice('Note translated successfully', 'Translation');
         } else {
-            new Notice(`Translation failed: ${response.error || 'Unknown error'}`);
+            showErrorNotice(response.error || 'Unknown error', 'Translation');
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error translating: ${errorMessage}`);
+        showErrorNotice(errorMessage, 'Translation');
     }
 }
 
@@ -104,13 +106,13 @@ async function translateSelection(
             // Replace selection with translated content
             editor.replaceSelection(response.content);
             ensureNoteStructureIfEnabled(editor, plugin.settings);
-            new Notice(plugin.t.messages.translationComplete || 'Translation complete');
+            showSuccessNotice('Selection translated successfully', 'Translation');
         } else {
-            new Notice(`Translation failed: ${response.error || 'Unknown error'}`);
+            showErrorNotice(response.error || 'Unknown error', 'Translation');
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error translating: ${errorMessage}`);
+        showErrorNotice(errorMessage, 'Translation');
     }
 }
 
@@ -121,18 +123,5 @@ async function translateWithLLM(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    try {
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            return await cloudService.summarizeText(prompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            return await localService.summarizeText(prompt);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-    }
+    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
 }

@@ -7,6 +7,7 @@ import { Notice, Modal, App, Setting, TextAreaComponent, ButtonComponent } from 
 import AIOrganiserPlugin from '../main';
 import { RAGService, RAGContext } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { summarizeText } from '../services/llmFacade';
 
 /**
  * Chat message interface
@@ -137,10 +138,8 @@ class ChatWithVaultModal extends Modal {
                 'You are a helpful assistant that answers questions based on the user\'s personal knowledge vault.'
             );
 
-            // Get response from LLM
-            // Use summarizeText which exists on concrete implementations
-            const llmService = this.plugin.llmService as any;
-            const response = await llmService.summarizeText(ragPrompt);
+            // Get response from LLM via centralized facade
+            const response = await summarizeText({ llmService: this.plugin.llmService, settings: this.plugin.settings }, ragPrompt);
 
             if (response.success && response.content) {
                 // Add assistant response with sources
@@ -329,10 +328,8 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     `You are answering a question about a specific note. The user has selected this content:\n\n${content.substring(0, 1000)}`
                 );
 
-                // Get response
-                // Use summarizeText which exists on concrete implementations
-                const llmService = plugin.llmService as any;
-                const response = await llmService.summarizeText(ragPrompt);
+                // Get response via centralized LLM facade
+                const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, ragPrompt);
 
                 if (response.success && response.content) {
                     // Insert response at cursor

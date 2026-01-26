@@ -13,14 +13,13 @@ import { parseStructuredResponse } from '../utils/responseParser';
 import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils';
 import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
-import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider, resetPrivacyNotice } from '../services/privacyNotice';
+import { ensurePrivacyConsent, resetPrivacyNotice } from '../services/privacyNotice';
 import { isPdfUrl, extractFilenameFromUrl } from '../utils/urlValidator';
 import { UrlInputModal } from '../ui/modals/UrlInputModal';
 import { PdfSelectModal } from '../ui/modals/PdfSelectModal';
 import { YouTubeInputModal } from '../ui/modals/YouTubeInputModal';
 import { AudioSelectModal, AudioSelectResult } from '../ui/modals/AudioSelectModal';
 import { ContentSizeModal, ContentSizeChoice } from '../ui/modals/ContentSizeModal';
-import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 import { getLanguageNameForPrompt } from '../services/languages';
 import {
     isYouTubeUrl,
@@ -46,6 +45,7 @@ import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSour
 import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
 import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
+import { summarizeText } from '../services/llmFacade';
 
 /**
  * Update note with structured metadata after summarization
@@ -1140,19 +1140,7 @@ async function callSummarizeService(
             finalPrompt = insertContentIntoPrompt(prompt, content);
         }
 
-        // Use the same approach as summarizeTextWithLLM
-        let response: { success: boolean; content?: string; error?: string };
-
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            response = await cloudService.summarizeText(finalPrompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            response = await localService.summarizeText(finalPrompt);
-        }
-
+        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, finalPrompt);
         return response.success ? response.content || null : null;
     } catch (e) {
         console.error('Failed to summarize content:', e);
@@ -1610,13 +1598,10 @@ async function handleUrlSummarization(
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     // Check if URL is a direct PDF link
@@ -1718,12 +1703,10 @@ async function handleTextSummarization(
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     const maxChars = getMaxContentChars(serviceType);
@@ -1761,13 +1744,10 @@ async function handlePdfSummarization(
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     new Notice(plugin.t.messages.readingPdf);
@@ -1824,12 +1804,10 @@ async function handleExternalPdfSummarization(
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     new Notice(plugin.t.messages.readingPdf);
@@ -1978,13 +1956,10 @@ async function handleAudioSummarization(
         : 'local';
     const mobileWarningThresholdMb = 10;
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     let transcriptionResult;
@@ -2353,13 +2328,10 @@ async function handleYouTubeSummarization(
         return;
     }
 
-    // Show privacy notice for Gemini (cloud provider)
-    if (shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, 'gemini');
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice for Gemini (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, 'gemini');
+        if (!proceed) return;
     }
 
     new Notice('Processing YouTube video with Gemini...', 5000);
@@ -2649,17 +2621,7 @@ function insertYouTubeSummary(
     ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
-/**
- * Show privacy notice modal and wait for response
- */
-async function showPrivacyNotice(plugin: AIOrganiserPlugin, provider: string): Promise<boolean> {
-    return new Promise((resolve) => {
-        const modal = new PrivacyNoticeModal(plugin.app, plugin.t, provider, (proceed) => {
-            resolve(proceed);
-        });
-        modal.open();
-    });
-}
+// Privacy notice gating is centralized via ensurePrivacyConsent()
 
 /**
  * Show content size modal and wait for choice
@@ -3049,27 +3011,7 @@ async function summarizeTextWithLLM(
             }
         }
 
-        // Use the formatRequest method to build the request
-        const request = plugin.llmService.formatRequest(finalPrompt);
-
-        // Access the cloud service directly for summarization
-        // This is a workaround until we add a proper summarize method to LLMService
-        let response: { success: boolean; content?: string; error?: string };
-        
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-
-            // Use the internal makeRequest method via adapter
-            response = await cloudService.summarizeText(finalPrompt);
-        } else {
-            // Local service - use the analyzeTags method as a workaround
-            // The prompt already contains the content and instructions
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-
-            response = await localService.summarizeText(finalPrompt);
-        }
+        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, finalPrompt);
 
         // Append sources if RAG was used
         if (useRAG && ragSources.length > 0 && response.success && response.content) {

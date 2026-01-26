@@ -23,6 +23,7 @@ import {
     getAvailableFilePath,
     sanitizeFileName
 } from '../utils/minutesUtils';
+import { summarizeText } from './llmFacade';
 
 export interface MinutesGenerationInput {
     metadata: MeetingMetadata;
@@ -286,7 +287,7 @@ export class MinutesService {
     }
 
     private async callLLM(prompt: string): Promise<string> {
-        const response = await this.plugin.llmService.summarizeText(prompt);
+        const response = await summarizeText({ llmService: this.plugin.llmService, settings: this.plugin.settings }, prompt);
         if (response.success && response.content) {
             return response.content;
         }

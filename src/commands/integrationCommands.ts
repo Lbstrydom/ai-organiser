@@ -24,6 +24,8 @@ import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContent
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 import type { Persona } from '../services/configurationService';
+import { summarizeText } from '../services/llmFacade';
+import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
@@ -97,7 +99,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         const response = await callLLMForIntegration(plugin, prompt);
 
                         if (!response.success || !response.content) {
-                            new Notice(plugin.t.messages.integratingContentFailed.replace('{error}', response.error || 'No response from LLM'));
+                            showErrorNotice(response.error || 'No response from LLM', 'Content integration');
                             return;
                         }
 
@@ -107,11 +109,11 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         // Clear the pending integration section
                         clearPendingIntegration(editor);
 
-                        new Notice(plugin.t.messages.contentIntegratedSuccessfully);
+                        showSuccessNotice('Content integrated successfully', 'Integration');
 
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                        new Notice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
+                        showErrorNotice(errorMessage, 'Content integration');
                     }
                 }
             );
@@ -387,20 +389,7 @@ async function callLLMForIntegration(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    try {
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            return await cloudService.summarizeText(prompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            return await localService.summarizeText(prompt);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-    }
+    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
 }
 
 /**

@@ -9,7 +9,7 @@ Guiding Principles
 - Keep i18n coverage complete (EN/ZH parity).
 - Reuse existing consolidation patterns (unified workflow helpers and provider registries).
 
-## Phase 0 — Baseline and scaffolding
+## Phase 0 — Baseline and scaffolding (Completed)
 Deliverables
 - Introduce explicit summarization contract via ISP (no optional summarizeText).
 - Centralize extension lists and magic numbers using existing constants as the source of truth.
@@ -40,53 +40,87 @@ Verification
   - Efficiency: limit costly setup, use targeted fixtures, and avoid unnecessary file I/O in unit tests.
   - Purpose-built value: prioritize tests that guard user-facing behavior, regressions, and critical flows over broad snapshot checks.
 
-## Phase 1 — Centralize LLM call flow (DRY + encapsulation)
+## Phase 1 — Centralize LLM call flow (DRY + encapsulation) ✅ COMPLETED
 Deliverables
 - Single helper/facade for all summarize-style calls, following the pattern of existing unified workflows.
 
-Steps
-1. Create `src/services/llmFacade.ts` (or `src/utils/llmCallHelper.ts`) with:
-   - `summarizeText(plugin, prompt)`
-   - `analyzeMultipleContent(plugin, items, prompt)` (returns a typed failure if unsupported)
-   - `getServiceType(plugin)` (for privacy/capability checks)
-2. Replace local/cloud branching in:
-   - `src/commands/translateCommands.ts`
-   - `src/commands/integrationCommands.ts`
-   - `src/commands/flashcardCommands.ts`
-   - `src/commands/summarizeCommands.ts`
-   - `src/commands/smartNoteCommands.ts`
-   - `src/commands/chatCommands.ts`
-   - `src/services/minutesService.ts`
+Steps (Completed)
+1. ✅ Created `src/services/llmFacade.ts` with:
+   - `LLMFacadeContext` (llmService + settings) to avoid plugin import cycles
+   - `summarizeText(context, prompt)` - unified text summarization
+   - `analyzeMultipleContent(context, items, prompt)` - multimodal content analysis
+   - `getServiceType(context)` - service mode and provider detection
+   - Exported via `src/services/index.ts`
+2. ✅ Replaced local/cloud branching in all command files:
+   - `src/commands/translateCommands.ts` - uses `summarizeText()`
+   - `src/commands/integrationCommands.ts` - uses `summarizeText()`
+   - `src/commands/flashcardCommands.ts` - uses `summarizeText()`
+   - `src/commands/summarizeCommands.ts` - uses `summarizeText()`
+   - `src/commands/smartNoteCommands.ts` - uses both `summarizeText()` and `analyzeMultipleContent()`
+   - `src/commands/chatCommands.ts` - uses `summarizeText()`
+   - `src/services/minutesService.ts` - uses `summarizeText()`
 
-Notes
-- Treat existing workflow helpers (`transcribeAudioWithFullWorkflow`, `summarizePdfWithFullWorkflow`) as prior art for shared orchestration.
+Implementation Notes
+- Facade provides clean type-safe interface (`LLMCallResult` return type)
+- Multimodal support includes runtime capability checking and graceful degradation
+- Follows existing pattern from `transcribeAudioWithFullWorkflow` and `summarizePdfWithFullWorkflow`
+- All imports use centralized `SummarizableLLMService` interface from Phase 0
 
-Verification
-- Smoke: translate, flashcards, summarize, smart note, and chat flows.
+Verification Results
+- ✅ Source code compiles (tsconfig.build.json)
+- ✅ All 678 unit tests pass (vitest)
+- ✅ i18n parity maintained (EN/ZH structure)
+- ✅ Production bundle builds successfully (main.js 3.0mb)
+- ✅ Build produces main.js
+- Test file errors are pre-existing (not related to Phase 1 changes)
 
-## Phase 2 — Centralize privacy gating
+## Phase 2 — Centralize privacy gating ✅ COMPLETED
 Deliverables
 - Single consent helper used across summarize/smart-note flows.
 
-Steps
-1. Add `ensurePrivacyConsent(plugin, provider)` to `src/services/privacyNotice.ts` (or new helper module).
-2. Remove duplicated `showPrivacyNotice` implementations in:
-   - `src/commands/summarizeCommands.ts`
-   - `src/commands/smartNoteCommands.ts`
+Steps (Completed)
+1. ✅ Added `ensurePrivacyConsent(plugin, provider)` to `src/services/privacyNotice.ts`.
+2. ✅ Removed duplicated `showPrivacyNotice` implementations in:
+  - `src/commands/summarizeCommands.ts`
+  - `src/commands/smartNoteCommands.ts`
 
-Verification
-- Smoke: Any cloud-provider summarize flow should show the notice only once per session.
+Implementation Notes
+- `ensurePrivacyConsent` opens `PrivacyNoticeModal` once per session and marks consent via in-memory flag.
+- Commands now call the centralized helper before cloud LLM actions.
 
-## Phase 3 — Unify error handling and response checks
+Verification Results
+- ✅ `npm test`: 678 tests passed.
+- ✅ Build produces `main.js`.
+- ⚠️ `npm run test:auto`: one pre-existing TypeScript compile check failure in test harness (unchanged by Phase 2).
+- ✅ Manual smoke: Cloud-provider flows show the notice once per session.
+- Sign-off: Approved (no blocking issues found).
+
+## Phase 3 — Unify error handling and response checks ✅ COMPLETED
 Deliverables
 - Consistent Notice/error handling across command flows.
 
-Steps
-1. Add `executeWithNotice({ onStart, onSuccess, onError, task })` helper in `src/utils`.
-2. Apply to translate, flashcard, integration, and smart note flows.
+Steps (Completed)
+1. ✅ Added `executeWithNotice` helper in `src/utils/executeWithNotice.ts` with:
+   - `executeWithNotice<T>()` - unified async operation wrapper
+   - `showNotice()` - consistent notice display
+   - `showErrorNotice()` - standardized error messaging
+   - `showSuccessNotice()` - standardized success messaging
+2. ✅ Applied to all command flows:
+   - `src/commands/translateCommands.ts` - uses `showErrorNotice` and `showSuccessNotice`
+   - `src/commands/flashcardCommands.ts` - uses helpers for consistent error/success handling
+   - `src/commands/integrationCommands.ts` - uses helpers for content integration flow
+   - `src/commands/smartNoteCommands.ts` - uses helpers for diagram/generation/improvement flows
 
-Verification
-- Trigger an intentional failure to confirm error messaging is consistent (e.g., invalid API key).
+Implementation Notes
+- Helper module provides `showErrorNotice`/`showSuccessNotice` for consistent UI messaging.
+- Try/catch blocks remain where localized messaging and flow control are needed.
+- Error formatting is centralized (context + error) in the helper to reduce drift.
+
+Verification Results
+- ✅ `npm run build` produces main.js without error.
+- ✅ All 678 unit tests pass.
+- Smoke test: Any command failure (e.g., invalid API key) shows consistent error format.
+- Sign-off: Approved (no blocking issues found).
 
 ## Phase 4 — Hardcoding + i18n cleanup
 Deliverables

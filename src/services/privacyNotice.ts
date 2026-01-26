@@ -3,6 +3,10 @@
  * Shows a one-time warning per session when using cloud LLM providers
  */
 
+import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
+import type { App } from 'obsidian';
+import type { Translations } from '../i18n/types';
+
 let privacyNoticeShownThisSession = false;
 
 /**
@@ -35,6 +39,7 @@ export function isCloudProvider(serviceType: string): boolean {
     const cloudProviders = [
         'cloud',
         'openai',
+        'openai-compatible',
         'claude',
         'gemini',
         'groq',
@@ -43,4 +48,26 @@ export function isCloudProvider(serviceType: string): boolean {
         'aliyun',
     ];
     return cloudProviders.includes(serviceType.toLowerCase());
+}
+
+/**
+ * Ensure privacy consent is obtained if needed for cloud providers.
+ * Returns true if it's safe to proceed, false if user declined.
+ */
+export async function ensurePrivacyConsent(
+    plugin: { app: App; t: Translations },
+    provider: string
+): Promise<boolean> {
+    if (!isCloudProvider(provider)) return true;
+    if (!shouldShowPrivacyNotice(true)) return true;
+
+    return new Promise((resolve) => {
+        const modal = new PrivacyNoticeModal(plugin.app, plugin.t, provider, (proceed) => {
+            if (proceed) {
+                markPrivacyNoticeShown();
+            }
+            resolve(proceed);
+        });
+        modal.open();
+    });
 }

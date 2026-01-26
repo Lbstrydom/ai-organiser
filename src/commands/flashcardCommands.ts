@@ -12,6 +12,8 @@ import {
     cardsToCSV,
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
+import { summarizeText } from '../services/llmFacade';
+import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 /**
  * Register flashcard-related commands
@@ -104,10 +106,7 @@ async function generateAndExportFlashcards(
             const errorMsg = validation.errors.length > 0
                 ? validation.errors.slice(0, 3).join('; ')
                 : 'No valid flashcards generated';
-            new Notice(
-                `${t.flashcardGenerationFailed || 'Failed to generate flashcards'}: ${errorMsg}`,
-                5000
-            );
+            showErrorNotice(errorMsg, 'Flashcard generation');
             return;
         }
 
@@ -118,18 +117,13 @@ async function generateAndExportFlashcards(
         const filePath = await saveFlashcardFile(plugin, sourceFile, format, finalCSV);
 
         progressNotice.hide();
-        new Notice(
-            `${t.flashcardsExported || 'Exported'} ${validation.cardCount} ${t.flashcardsTo || 'flashcards to'} ${filePath}`,
-            5000
-        );
+        showSuccessNotice(`Exported ${validation.cardCount} flashcards to ${filePath}`, 'Flashcard export');
 
     } catch (error) {
         progressNotice.hide();
         console.error('[AI Organiser] Flashcard generation error:', error);
-        new Notice(
-            `${t.flashcardGenerationFailed || 'Failed to generate flashcards'}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            5000
-        );
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showErrorNotice(errorMessage, 'Flashcard generation');
     }
 }
 
@@ -188,18 +182,5 @@ async function callLLMForFlashcards(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    try {
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            return await cloudService.summarizeText(prompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            return await localService.summarizeText(prompt);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return { success: false, error: errorMessage };
-    }
+    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
 }

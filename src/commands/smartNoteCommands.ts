@@ -10,8 +10,7 @@ import { ContentSelectionModal, ContentSelectionResult } from '../ui/modals/Cont
 import { ContentExtractionService, serviceSupportsMultimodal, ExtractedContent } from '../services/contentExtractionService';
 import { SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { getLanguageNameForPrompt } from '../services/languages';
-import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider } from '../services/privacyNotice';
-import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
+import { ensurePrivacyConsent } from '../services/privacyNotice';
 // BUILTIN_PERSONAS no longer imported - using configurationService for summary personas
 import { ImproveNoteModal } from '../ui/modals/ImproveNoteModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
@@ -22,6 +21,8 @@ import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../serv
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
+import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
+import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 /**
  * Get Gemini API key for YouTube processing
@@ -250,17 +251,12 @@ async function generateMermaidDiagram(
     noteContent: string,
     options: MermaidDiagramResult
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
+    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     new Notice(plugin.t.messages.generatingDiagram || 'Generating diagram...');
@@ -273,17 +269,7 @@ async function generateMermaidDiagram(
     });
 
     try {
-        let response: { success: boolean; content?: string; error?: string };
-
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            response = await cloudService.summarizeText(prompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            response = await localService.summarizeText(prompt);
-        }
+        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
 
         if (response.success && response.content) {
             // Clean and wrap the output
@@ -297,11 +283,11 @@ async function generateMermaidDiagram(
 
             new Notice(plugin.t.messages.diagramGenerated || 'Diagram generated successfully');
         } else {
-            new Notice(`${plugin.t.messages.diagramGenerationFailed || 'Diagram generation failed'}: ${response.error || 'Unknown error'}`);
+            showErrorNotice(response.error || 'Unknown error', 'Diagram generation');
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`${plugin.t.messages.diagramGenerationFailed || 'Error'}: ${errorMessage}`);
+        showErrorNotice(errorMessage, 'Diagram generation');
     }
 }
 
@@ -335,17 +321,12 @@ async function processSelectedContent(
     selectedItems: DetectedContent[],
     existingNoteText: string | null
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
+    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     // Check if service supports multimodal (for images/PDFs)
@@ -415,36 +396,19 @@ async function processSelectedContent(
     new Notice(plugin.t.messages.generatingNote || 'Generating note...');
 
     try {
-        let response: { success: boolean; content?: string; error?: string };
-
-        if (binaryItems.length > 0 && serviceSupportsMultimodal(serviceType)) {
-            // Use multimodal API for binary content
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-
-            response = await cloudService.analyzeMultipleContent(binaryItems, textPrompt);
-        } else {
-            // Text-only processing
-            if (plugin.settings.serviceType === 'cloud') {
-                const { CloudLLMService } = await import('../services/cloudService');
-                const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-                response = await cloudService.summarizeText(textPrompt);
-            } else {
-                const { LocalLLMService } = await import('../services/localService');
-                const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-                response = await localService.summarizeText(textPrompt);
-            }
-        }
+        const response = binaryItems.length > 0 && serviceSupportsMultimodal(serviceType)
+            ? await analyzeMultipleContent({ llmService: plugin.llmService, settings: plugin.settings }, binaryItems, textPrompt)
+            : await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, textPrompt);
 
         if (response.success && response.content) {
             insertGeneratedNote(editor, response.content, successfulItems, plugin);
-            new Notice(plugin.t.messages.noteGenerated || 'Note generated successfully');
+            showSuccessNotice('Note generated successfully', 'Generation');
         } else {
-            new Notice(`${plugin.t.messages.generationFailed || 'Generation failed'}: ${response.error || 'Unknown error'}`);
+            showErrorNotice(response.error || 'Unknown error', 'Note generation');
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`${plugin.t.messages.generationFailed || 'Error'}: ${errorMessage}`);
+        showErrorNotice(errorMessage, 'Note generation');
     }
 }
 
@@ -458,17 +422,12 @@ async function improveNoteWithQuery(
     query: string,
     personaPrompt?: string
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
+    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     new Notice(plugin.t.messages.improvingNote || 'Improving note...');
@@ -481,17 +440,7 @@ async function improveNoteWithQuery(
     const prompt = buildImprovePrompt(bodyContent, query, plugin.settings.summaryLanguage, personaPrompt);
 
     try {
-        let response: { success: boolean; content?: string; error?: string };
-
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            response = await cloudService.summarizeText(prompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            response = await localService.summarizeText(prompt);
-        }
+        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
 
         if (response.success && response.content) {
             // Replace main content while preserving References and Pending Integration sections
@@ -558,17 +507,12 @@ async function findAndShowResources(
     noteContent: string,
     query: string
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
+    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
 
-    // Show privacy notice for cloud providers
-    if (isCloudProvider(serviceType) && shouldShowPrivacyNotice(true)) {
-        const proceed = await showPrivacyNotice(plugin, serviceType);
-        if (!proceed) {
-            return;
-        }
-        markPrivacyNoticeShown();
+    // Privacy notice gating (centralized)
+    {
+        const proceed = await ensurePrivacyConsent(plugin, serviceType);
+        if (!proceed) return;
     }
 
     new Notice(plugin.t.messages.searchingResources || 'Searching for resources...');
@@ -577,17 +521,7 @@ async function findAndShowResources(
         // First, ask AI to generate search terms based on the note and query
         const searchTermsPrompt = buildSearchTermsPrompt(noteContent, query);
 
-        let searchTermsResponse: { success: boolean; content?: string; error?: string };
-
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
-            searchTermsResponse = await cloudService.summarizeText(searchTermsPrompt);
-        } else {
-            const { LocalLLMService } = await import('../services/localService');
-            const localService = plugin.llmService as InstanceType<typeof LocalLLMService>;
-            searchTermsResponse = await localService.summarizeText(searchTermsPrompt);
-        }
+        const searchTermsResponse = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, searchTermsPrompt);
 
         if (!searchTermsResponse.success || !searchTermsResponse.content) {
             new Notice(plugin.t.messages.searchFailed || 'Failed to generate search terms');
@@ -664,17 +598,7 @@ function parseSearchTerms(response: string): string[] {
         .slice(0, 5);
 }
 
-/**
- * Show privacy notice modal
- */
-async function showPrivacyNotice(plugin: AIOrganiserPlugin, provider: string): Promise<boolean> {
-    return new Promise((resolve) => {
-        const modal = new PrivacyNoticeModal(plugin.app, plugin.t, provider, (proceed) => {
-            resolve(proceed);
-        });
-        modal.open();
-    });
-}
+// Privacy notice gating is centralized via ensurePrivacyConsent()
 
 /**
  * Insert generated note into editor
