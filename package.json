@@ -6,12 +6,12 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "npm run test:all && node esbuild.config.mjs production",
-    "build:quick": "npx tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "build:quick": "npx tsc -p tsconfig.build.json -noEmit && node esbuild.config.mjs production",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:auto": "node scripts/automated-tests.js",
-    "test:all": "npx tsc -noEmit -skipLibCheck && vitest run && node scripts/automated-tests.js",
+    "test:all": "npx tsc -p tsconfig.build.json -noEmit && vitest run && node scripts/automated-tests.js",
     "precommit": "npm run test:all",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "install-ffmpeg": "node scripts/install-ffmpeg.js"

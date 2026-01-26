@@ -2,6 +2,7 @@ import { Setting, ButtonComponent, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
+import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
 
 export class LLMSettingsSection extends BaseSettingSection {
     private statusContainer: HTMLElement = null!;
@@ -283,7 +284,6 @@ export class LLMSettingsSection extends BaseSettingSection {
 
     private displayCloudSettings(): void {
         const serviceType = this.plugin.settings.cloudServiceType;
-        const { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } = await import('../../services/adapters/providerRegistry');
 
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.apiEndpoint)

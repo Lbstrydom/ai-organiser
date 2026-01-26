@@ -12,10 +12,8 @@ import { GeminiEmbeddingService } from './geminiEmbeddingService';
 import { CohereEmbeddingService } from './cohereEmbeddingService';
 import { VoyageEmbeddingService } from './voyageEmbeddingService';
 
-/**
- * Supported embedding providers
- */
-export type EmbeddingProvider = 'openai' | 'ollama' | 'gemini' | 'cohere' | 'voyage' | 'openrouter';
+// EmbeddingProvider type is imported from embeddingRegistry.ts
+export type { EmbeddingProvider } from './embeddingRegistry';
 
 /**
  * Create an embedding service from configuration
@@ -92,13 +90,16 @@ export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings
 
     try {
         const provider = settings.embeddingProvider;
-        
+
         // API key inheritance chain: embeddingApiKey → providerSettings[provider].apiKey → cloudApiKey
-        const providerKey = settings.providerSettings?.[provider]?.apiKey;
+        // Only some embedding providers have matching LLM provider settings
+        const providerKey = (provider in (settings.providerSettings || {}))
+            ? settings.providerSettings?.[provider as keyof typeof settings.providerSettings]?.apiKey
+            : undefined;
         const apiKey = settings.embeddingApiKey || providerKey || settings.cloudApiKey || '';
         
         // Endpoint for Ollama only (other providers use defaults)
-        const endpoint = provider === 'ollama' ? settings.ollamaEndpoint : undefined;
+        const endpoint = provider === 'ollama' ? settings.localEndpoint : undefined;
 
         return createEmbeddingService({
             provider,

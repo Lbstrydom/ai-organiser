@@ -1,7 +1,7 @@
 import { Platform, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { AdapterType } from '../../services/adapters';
-import { buildProviderOptions } from '../../services/adapters/providerRegistry';
+import { buildProviderOptions, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class MobileSettingsSection extends BaseSettingSection {
@@ -51,8 +51,6 @@ export class MobileSettingsSection extends BaseSettingSection {
                             await plugin.saveSettings();
                         })
                 );
-
-            const { PROVIDER_DEFAULT_MODEL } = await import('../../services/adapters/providerRegistry');
 
             new Setting(containerEl)
                 .setName(t.settings.mobile.fallbackModel)
