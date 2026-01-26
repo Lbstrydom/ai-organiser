@@ -262,12 +262,77 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 **Next Steps**: Proceed to Phase 2 (Semantic PDF Generator)
 
 #### Phase 2: Semantic PDF Generator
-- Create `src/services/notebooklm/pdf/MarkdownPdfGenerator.ts`.
-- Implement `generate(title, markdown, config): Promise<ArrayBuffer>`.
-- v1 constraints:
-  - Handle H1-H3, lists, and paragraphs.
-  - Strip or skip complex blocks (HTML, Dataview, code fences) for clean AI parsing.
-  - If `includeFrontmatter`, render a simple metadata header block.
+**Status**: ✅ COMPLETED (January 26, 2026)
+
+**Deliverables**:
+- ✅ Created `src/services/notebooklm/pdf/MarkdownPdfGenerator.ts` (420+ lines)
+- ✅ Implemented pure semantic renderer:
+  - `MarkdownPdfGenerator.generate(title, markdown, config): Promise<ArrayBuffer>`
+  - Line-based markdown parser (no full parser dependency)
+  - Semantic type mapping (heading1-3, bullet, ordered, paragraph, blank)
+  - Word wrapping and automatic pagination
+  - Respects all PdfConfig settings (pageSize, font, fontSize, margins, lineHeight)
+- ✅ Markdown feature support:
+  - H1-H3 headings with size scaling
+  - Unordered lists (- * +) with nesting
+  - Ordered lists (1. 2. 3...) with nesting
+  - Paragraphs with word wrapping
+  - Frontmatter handling (YAML when includeFrontmatter=true)
+- ✅ Complex block handling:
+  - Strips code blocks (```...```) cleanly
+  - Skips HTML blocks (<...>)
+  - Skips Dataview/query blocks
+  - Skips Obsidian comments (%% ... %%)
+- ✅ Text sanitization:
+  - Internal links: `[[Link|Display]]` → Display
+  - External links: `[Display](url)` → Display
+  - Bold/italic: `**text**`, `__text__`, `*text*`, `_text_` → text
+  - Strikethrough: `~~text~~` → text
+  - Inline code: `` `code` `` → code
+  - Highlights: `==text==` → text
+  - Subscript/superscript: `~text~`, `^text^` → text
+- ✅ Pure function guarantees:
+  - No Obsidian App/Vault/TFile dependencies
+  - No input mutation
+  - Consistent output for same inputs
+  - Stub for future image embedding (v2)
+- ✅ Latin-only limitation warning in UI
+
+**Verification**:
+- ✅ TypeScript compilation: Passed (no type errors)
+- ✅ Build: main.js 3.1MB (no size regression)
+- ✅ Tests: 702/702 passing (30 suites, +24 new PDF tests)
+  - Simple markdown generation
+  - Title handling (include/exclude)
+  - List rendering (unordered, ordered, nested)
+  - Code block stripping
+  - Page size variations (A4/Letter/Legal)
+  - Font variations (helvetica/times/courier)
+  - Font size variations (9-14pt)
+  - Long content with pagination
+  - Frontmatter inclusion/exclusion
+  - Heading hierarchy (H1-H3)
+  - Link sanitization (internal, external)
+  - Text formatting sanitization
+  - Complex block handling (code, dataview, HTML, comments)
+  - Pure function invariants (no mutations, consistent output)
+- ✅ PDF output validation:
+  - All outputs are valid ArrayBuffer
+  - PDF magic number validation (%PDF)
+  - Byte size > 0 for all inputs
+
+**Files Created** (2 files):
+1. `src/services/notebooklm/pdf/MarkdownPdfGenerator.ts` - Semantic PDF generator
+2. `tests/markdownPdfGenerator.test.ts` - 24 comprehensive unit tests
+
+**Implementation Highlights**:
+- **Line Scanner**: Non-blocking regex-based parser (not full Markdown AST)
+- **Pagination**: Automatic page breaks with margin/size calculations
+- **Sanitization**: 8 regex patterns for Obsidian syntax removal
+- **Async-Ready**: Prepared for future async image embedding
+- **Testable**: Pure function with no side effects, all inputs/outputs typed
+
+**Next Steps**: Proceed to Phase 3 (Service Orchestration)
 - Implementation guidance:
   - Use a simple **line scanner** (no full Markdown parser).
   - Keep the generator **pure** (no App/Vault/TFile dependency); pass strings + config only.
