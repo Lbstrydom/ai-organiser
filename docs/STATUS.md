@@ -1,12 +1,30 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 25, 2026
+**Last Updated:** January 26, 2026
 **Status:** Feature Complete
 
 ---
 
 ## Recent Updates
+
+### Hardcoding Remediation Complete (2026-01-26)
+
+✅ **All 4 Phases Delivered**
+
+| Phase | Scope | Outcome |
+|-------|-------|---------|
+| 1. Path Resolution | P0 | Centralized folder helpers with legacy path tolerance |
+| 2. Constants | P1 | `SUMMARY_HOOK_MAX_LENGTH`, `CHUNK_TOKEN_LIMIT` unified |
+| 3. Provider Registry | P1 | 14 LLM adapters with single-source defaults/endpoints |
+| 4. Service Defaults | P1 | Embedding registry, audio transcription registry |
+
+**Key Achievements**:
+- **Path drift eliminated**: All folder-sensitive flows honor `pluginFolder` with legacy full-path tolerance
+- **Provider registry**: `providerRegistry.ts` drives dropdowns, defaults, endpoints for all 14 adapters
+- **Embedding registry**: `embeddingRegistry.ts` with 6 providers, model lists, UI-friendly labels
+- **Build separation**: `tsconfig.build.json` for source-only type checking (test types isolated)
+- **Test coverage**: 679 tests across 29 suites (48 new tests added during remediation)
 
 ### Testing Strategy Complete (2026-01-25)
 
@@ -317,10 +335,11 @@ AI-Organiser/
 ## Build & Test
 
 ```bash
-npm run dev      # Development (watch mode)
-npm run build    # Production build
-npm test         # Run 631 unit tests
-npm run test:auto # Run 22 automated integration tests
+npm run dev        # Development (watch mode)
+npm run build      # Production build (includes tests)
+npm run build:quick # Production build (source type-check only)
+npm test           # Run 679 unit tests (29 suites)
+npm run test:auto  # Run 22 automated integration tests
 ```
 
 **Deploy:** Copy `main.js`, `manifest.json`, `styles.css` to Obsidian plugins folder.

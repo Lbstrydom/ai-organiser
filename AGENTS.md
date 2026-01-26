@@ -10,12 +10,19 @@ This file provides guidance to AI coding agents when working with code in this r
 # Development build with watch mode and inline sourcemaps
 npm run dev
 
-# Production build (type-checks, then bundles)
+# Production build (source type-check + tests + bundle)
 npm run build
+
+# Quick production build (source type-check + bundle, skips test types)
+npm run build:quick
 
 # Version bump (updates manifest.json and versions.json)
 npm run version
 ```
+
+**Build Configuration**:
+- `tsconfig.json` - Full config including tests (for IDE)
+- `tsconfig.build.json` - Source-only config (for production builds)
 
 The build process uses esbuild to bundle `src/main.ts` into `main.js`. Production builds disable sourcemaps; dev builds enable inline sourcemaps.
 
@@ -44,6 +51,19 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 2. Service builds prompt via `buildTagPrompt()` with mode-specific instructions
 3. For cloud: Adapter formats request → calls API → parses response
 4. Returns `LLMResponse` with `suggestedTags` and `matchedExistingTags`
+
+### Provider Registries
+
+**LLM Provider Registry** (`src/services/adapters/providerRegistry.ts`):
+- `ALL_ADAPTERS`: List of all 14 supported adapter types
+- `PROVIDER_DEFAULT_MODEL`: Default model per provider
+- `PROVIDER_ENDPOINT`: Default API endpoint per provider
+- `buildProviderOptions(t)`: Generate dropdown options from translations
+
+**Embedding Provider Registry** (`src/services/embeddings/embeddingRegistry.ts`):
+- `EMBEDDING_DEFAULT_MODEL`: Default model per embedding provider (6 providers)
+- `EMBEDDING_MODELS`: Available models per provider
+- `getEmbeddingModelOptions(provider)`: UI-friendly labeled options
 
 ### Settings & Configuration
 
@@ -743,7 +763,7 @@ onOpen() {
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
 
-Total: 631 unit tests + 22 automated integration tests
+Total: 679 unit tests (29 suites) + 22 automated integration tests
 
 ## Documentation
 

@@ -45,6 +45,26 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 3. For cloud: Adapter formats request → calls API → parses response
 4. Returns `LLMResponse` with `suggestedTags` and `matchedExistingTags`
 
+### Provider Registries
+
+**LLM Provider Registry** (`src/services/adapters/providerRegistry.ts`):
+- `ALL_ADAPTERS`: List of all 14 supported adapter types
+- `PROVIDER_DEFAULT_MODEL`: Default model per provider (e.g., `openai: 'gpt-5.2'`)
+- `PROVIDER_ENDPOINT`: Default API endpoint per provider
+- `buildProviderOptions(t)`: Generate dropdown options from translations
+
+**Embedding Provider Registry** (`src/services/embeddings/embeddingRegistry.ts`):
+- `EMBEDDING_DEFAULT_MODEL`: Default model per embedding provider (6 providers)
+- `EMBEDDING_MODELS`: Available models per provider
+- `getEmbeddingModelOptions(provider)`: UI-friendly labeled options with recommendations
+
+**Usage pattern**:
+```typescript
+import { PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT } from './providerRegistry';
+const defaultModel = PROVIDER_DEFAULT_MODEL[adapterType];
+const endpoint = PROVIDER_ENDPOINT[adapterType];
+```
+
 ### Tagging Modes
 
 Four distinct modes in `TaggingMode` enum:
@@ -242,11 +262,17 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests
+npm test              # Run Vitest unit tests (679 tests, 29 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
+npm run build         # Full build (source type-check + tests + bundle)
+npm run build:quick   # Quick build (source type-check + bundle, skips test types)
 ```
+
+**Build Configuration**:
+- `tsconfig.json` - Full config including tests (for IDE)
+- `tsconfig.build.json` - Source-only config (for production builds)
 
 **Automated Integration Tests** (`tests/automated-tests.js`):
 - TypeScript compilation verification
@@ -834,7 +860,7 @@ onOpen() {
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 631 unit tests + 22 automated integration tests
+Total: 679 unit tests (29 suites) + 22 automated integration tests
 
 ## Documentation
 
