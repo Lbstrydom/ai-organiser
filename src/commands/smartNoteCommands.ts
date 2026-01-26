@@ -22,8 +22,33 @@ import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../serv
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 
+/**
+ * Get Gemini API key for YouTube processing
+ * Checks dedicated YouTube key first, then falls back to main Gemini key
+ */
+function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
+    if (plugin.settings.youtubeGeminiApiKey) {
+        return plugin.settings.youtubeGeminiApiKey;
+    }
+    if (plugin.settings.cloudServiceType === 'gemini' && plugin.settings.cloudApiKey) {
+        return plugin.settings.cloudApiKey;
+    }
+    if (plugin.settings.providerSettings?.gemini?.apiKey) {
+        return plugin.settings.providerSettings.gemini.apiKey;
+    }
+    return null;
+}
+
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
-    const extractionService = new ContentExtractionService(plugin.app);
+    // Get Gemini config for YouTube transcription if available
+    const geminiApiKey = getYouTubeGeminiApiKey(plugin);
+    const youtubeGeminiConfig = geminiApiKey ? {
+        apiKey: geminiApiKey,
+        model: plugin.settings.youtubeGeminiModel,
+        timeoutMs: plugin.settings.summarizeTimeoutSeconds * 1000
+    } : undefined;
+
+    const extractionService = new ContentExtractionService(plugin.app, youtubeGeminiConfig);
 
     // Command: Generate note from embedded content (merged single command)
     plugin.addCommand({

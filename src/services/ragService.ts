@@ -193,9 +193,15 @@ export class RAGService {
         maxResults: number = 5
     ): Promise<SearchResult[]> {
         try {
-            // Use the file content as the query
+            // Truncate content for similarity query - we don't need the full document,
+            // the first ~7500 tokens capture the main topics well enough for similarity
+            const MAX_QUERY_CHARS = 30000;
+            const queryContent = content.length > MAX_QUERY_CHARS
+                ? content.substring(0, MAX_QUERY_CHARS)
+                : content;
+
             const results = await this.vectorStore.searchByContent(
-                content,
+                queryContent,
                 this.embeddingService,
                 maxResults + 1 // Get one extra to exclude self
             );

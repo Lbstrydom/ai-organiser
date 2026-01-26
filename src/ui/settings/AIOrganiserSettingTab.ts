@@ -11,6 +11,7 @@ import { MobileSettingsSection } from './MobileSettingsSection';
 import { BasesSettingsSection } from './BasesSettingsSection';
 import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
 import { YouTubeSettingsSection } from './YouTubeSettingsSection';
+import { PDFSettingsSection } from './PDFSettingsSection';
 import { AudioTranscriptionSettingsSection } from './AudioTranscriptionSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
@@ -26,6 +27,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private basesSection?: BasesSettingsSection;
     private notebookLMSection?: NotebookLMSettingsSection;
     private youtubeSection?: YouTubeSettingsSection;
+    private pdfSection?: PDFSettingsSection;
     private audioTranscriptionSection?: AudioTranscriptionSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
@@ -56,7 +58,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.youtubeSection = new YouTubeSettingsSection(this.plugin, containerEl, this);
         this.youtubeSection.display();
 
-        // 3b. Audio Transcription (input source for summarization)
+        // 3b. PDF Processing (requires multimodal models)
+        this.pdfSection = new PDFSettingsSection(this.plugin, containerEl, this);
+        this.pdfSection.display();
+
+        // 3c. Audio Transcription (input source for summarization)
         this.audioTranscriptionSection = new AudioTranscriptionSettingsSection(this.plugin, containerEl, this);
         this.audioTranscriptionSection.display();
 

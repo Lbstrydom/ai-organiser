@@ -30,6 +30,9 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     private model: string;
     private endpoint: string;
     private dimensions: number;
+    // OpenAI embedding models support 8191 tokens max
+    // Using ~4 chars/token as conservative estimate, with safety margin
+    private static readonly MAX_CHARS = 30000; // ~7500 tokens
 
     constructor(config: OpenAIEmbeddingConfig) {
         this.apiKey = config.apiKey;
@@ -38,11 +41,31 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         this.dimensions = getEmbeddingDimensions(this.model);
     }
 
+    /**
+     * Truncate text to fit within token limits
+     * Uses character-based approximation (~4 chars per token)
+     */
+    private truncateText(text: string): string {
+        if (text.length <= OpenAIEmbeddingService.MAX_CHARS) {
+            return text;
+        }
+        // Truncate at word boundary if possible
+        const truncated = text.substring(0, OpenAIEmbeddingService.MAX_CHARS);
+        const lastSpace = truncated.lastIndexOf(' ');
+        if (lastSpace > OpenAIEmbeddingService.MAX_CHARS * 0.8) {
+            return truncated.substring(0, lastSpace);
+        }
+        return truncated;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {
                 return { success: false, error: 'Empty text provided' };
             }
+
+            // Truncate text to prevent 400 errors from exceeding token limits
+            const processedText = this.truncateText(text.trim());
 
             const requestParams: RequestUrlParam = {
                 url: this.endpoint,
@@ -53,7 +76,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                 },
                 body: JSON.stringify({
                     model: this.model,
-                    input: text,
+                    input: processedText,
                     encoding_format: 'float'
                 })
             };
@@ -84,8 +107,10 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
 
     async batchGenerateEmbeddings(texts: string[]): Promise<BatchEmbeddingResult> {
         try {
-            // Filter out empty texts
-            const validTexts = texts.filter(t => t.trim());
+            // Filter out empty texts and truncate to prevent 400 errors
+            const validTexts = texts
+                .filter(t => t.trim())
+                .map(t => this.truncateText(t.trim()));
             if (validTexts.length === 0) {
                 return { success: false, error: 'No valid texts provided' };
             }

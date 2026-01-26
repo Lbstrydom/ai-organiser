@@ -182,7 +182,7 @@ export function buildCommandCategories(
                 {
                     id: 'notebooklm-export',
                     name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
-                    icon: 'package-export',
+                    icon: 'file-output',
                     aliases: ['notebooklm', 'export', 'pdf', 'pack'],
                     callback: () => executeCommand('ai-organiser:notebooklm-export')
                 }
@@ -262,7 +262,7 @@ export function buildCommandCategories(
                 {
                     id: 'clear-tags',
                     name: t.commands.clearTags || t.commands.clearTagsForCurrentNote,
-                    icon: 'tag-x',
+                    icon: 'eraser',
                     aliases: [
                         t.commands.clearTagsForCurrentNote,
                         t.commands.clearTagsForCurrentFolder,
@@ -403,7 +403,7 @@ export function buildCommandCategories(
                 {
                     id: 'notebooklm-toggle',
                     name: t.commands?.notebookLMToggle || 'NotebookLM: Toggle Selection',
-                    icon: 'tag-toggle',
+                    icon: 'bookmark-plus',
                     aliases: ['notebooklm', 'toggle', 'select'],
                     callback: () => executeCommand('ai-organiser:notebooklm-toggle-selection')
                 },

@@ -22,12 +22,14 @@ export const BUILTIN_PERSONAS: SummaryPersona[] = [
         name: 'Student',
         description: 'Academic study notes with hierarchical structure, analogies, and synthesis',
         icon: 'graduation-cap',
-        prompt: `**Role:** Act as an expert academic analyst and master note-taker. Your goal is to convert raw information into a "Study-Ready" Executive Summary that prioritises rapid comprehension and retention.
+        prompt: `**Role:** Act as an expert academic analyst and master note-taker. Your goal is to convert raw information into a structured summary that prioritises rapid comprehension and retention.
 
 **Core Philosophy:** Apply the Pyramid Principle. Place the conclusion and core truths at the very top (Bottom Line Up Front). Do not transcribe chronologically; synthesise hierarchically.
 
+**CRITICAL OUTPUT RULE:** Start your response DIRECTLY with "### 1. The 30-Second Read" - no preamble, no introduction, no "Here's your summary" text.
+
 **Formatting Rules:**
-1. **No Fluff:** Use active voice. Remove preamble. Keep sentences incisive.
+1. **No Fluff:** Use active voice. No preamble whatsoever. Keep sentences incisive.
 2. **Scannability:** Use bolding for key terms. Use bullet points over paragraphs.
 3. **Visuals:** Always use Tables for comparisons and Analogies for complex logic.
 4. **Structure:** Strictly follow the four-part template below.

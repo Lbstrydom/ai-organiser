@@ -6,11 +6,11 @@
 import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
-import { PdfService, serviceCanSummarizePdf, PdfContent } from '../services/pdfService';
+import { PdfService, PdfContent } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
-import { updateAIOMetadata } from '../utils/frontmatterUtils';
+import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils';
 import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
 import { shouldShowPrivacyNotice, markPrivacyNoticeShown, isCloudProvider, resetPrivacyNotice } from '../services/privacyNotice';
@@ -22,8 +22,13 @@ import { AudioSelectModal, AudioSelectResult } from '../ui/modals/AudioSelectMod
 import { ContentSizeModal, ContentSizeChoice } from '../ui/modals/ContentSizeModal';
 import { PrivacyNoticeModal } from '../ui/modals/PrivacyNoticeModal';
 import { getLanguageNameForPrompt } from '../services/languages';
-import { SUMMARY_HOOK_MAX_LENGTH } from '../core/constants';
-import { fetchYouTubeTranscript, isYouTubeUrl, getYouTubeUrl, YouTubeVideoInfo, summarizeYouTubeWithGemini } from '../services/youtubeService';
+import {
+    isYouTubeUrl,
+    getYouTubeUrl,
+    YouTubeVideoInfo,
+    summarizeYouTubeWithGemini,
+    transcribeYouTubeWithGemini
+} from '../services/youtubeService';
 import {
     transcribeAudio,
     transcribeAudioFromData,
@@ -237,6 +242,85 @@ function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): { key: string; 
     }
 
     return null;
+}
+
+/**
+ * Get the PDF provider configuration
+ * Returns the provider and API key to use for PDF processing
+ * Priority: 1) main provider if PDF-capable, 2) dedicated PDF provider, 3) auto-detect from available keys
+ */
+function getPdfProviderConfig(plugin: AIOrganiserPlugin): { provider: 'claude' | 'gemini'; apiKey: string; model: string } | null {
+    const mainProvider = plugin.settings.cloudServiceType;
+    const mainApiKey = plugin.settings.cloudApiKey;
+
+    // If main provider supports PDFs and has a key, use it
+    if ((mainProvider === 'claude' || mainProvider === 'gemini') && mainApiKey) {
+        return {
+            provider: mainProvider,
+            apiKey: mainApiKey,
+            model: plugin.settings.cloudModel || ''
+        };
+    }
+
+    // Check if dedicated PDF provider is configured
+    const pdfProvider = plugin.settings.pdfProvider;
+    const pdfApiKey = plugin.settings.pdfApiKey;
+
+    // If specific PDF provider is selected (not auto)
+    if (pdfProvider !== 'auto') {
+        // First try dedicated PDF API key
+        if (pdfApiKey) {
+            return {
+                provider: pdfProvider,
+                apiKey: pdfApiKey,
+                model: plugin.settings.pdfModel || ''
+            };
+        }
+        // Then try provider settings for that provider
+        const providerKey = plugin.settings.providerSettings?.[pdfProvider]?.apiKey;
+        if (providerKey) {
+            return {
+                provider: pdfProvider,
+                apiKey: providerKey,
+                model: plugin.settings.pdfModel || plugin.settings.providerSettings?.[pdfProvider]?.model || ''
+            };
+        }
+        // If provider matches main provider, use main key
+        if (mainProvider === pdfProvider && mainApiKey) {
+            return {
+                provider: pdfProvider,
+                apiKey: mainApiKey,
+                model: plugin.settings.pdfModel || plugin.settings.cloudModel || ''
+            };
+        }
+    }
+
+    // Auto mode: try to find any available PDF-capable provider
+    // Check Claude provider settings
+    if (plugin.settings.providerSettings?.claude?.apiKey) {
+        return {
+            provider: 'claude',
+            apiKey: plugin.settings.providerSettings.claude.apiKey,
+            model: plugin.settings.providerSettings.claude.model || ''
+        };
+    }
+    // Check Gemini provider settings
+    if (plugin.settings.providerSettings?.gemini?.apiKey) {
+        return {
+            provider: 'gemini',
+            apiKey: plugin.settings.providerSettings.gemini.apiKey,
+            model: plugin.settings.providerSettings.gemini.model || ''
+        };
+    }
+
+    return null;
+}
+
+/**
+ * Check if PDF summarization is available (either main provider or dedicated PDF provider)
+ */
+function canSummarizePdf(plugin: AIOrganiserPlugin): boolean {
+    return getPdfProviderConfig(plugin) !== null;
 }
 
 type SmartSummarizeTarget =
@@ -791,16 +875,115 @@ async function handleMultiSourceResult(
         processedCount++;
     }
 
-    // Audio files - track as not supported in multi-source mode
+    // Process Audio files - transcribe and summarize
+    const audioTranscriptionConfig = getAudioTranscriptionApiKey(plugin);
     for (const audio of result.sources.audio) {
-        allSources.push({
-            type: 'audio',
-            url: audio.path,
-            title: audio.path.split('/').pop() || audio.path,
-            date: today,
-            success: false,
-            error: 'Audio files must be summarized individually'
-        });
+        showProgress();
+        const audioTitle = audio.path.split('/').pop() || audio.path;
+
+        // Check if we have transcription API key
+        if (!audioTranscriptionConfig) {
+            allSources.push({
+                type: 'audio',
+                url: audio.path,
+                title: audioTitle,
+                date: today,
+                success: false,
+                error: 'Audio transcription requires OpenAI or Groq API key. Configure in Settings > Audio Transcription.'
+            });
+            processedCount++;
+            continue;
+        }
+
+        try {
+            // Only vault files are supported in multi-source mode
+            if (!audio.isVaultFile) {
+                allSources.push({
+                    type: 'audio',
+                    url: audio.path,
+                    title: audioTitle,
+                    date: today,
+                    success: false,
+                    error: 'External audio files not supported in multi-source mode'
+                });
+                processedCount++;
+                continue;
+            }
+
+            // Find the audio file in the vault
+            const audioFile = plugin.app.vault.getAbstractFileByPath(audio.path);
+            if (!(audioFile instanceof TFile)) {
+                allSources.push({
+                    type: 'audio',
+                    url: audio.path,
+                    title: audioTitle,
+                    date: today,
+                    success: false,
+                    error: 'Could not find audio file in vault'
+                });
+                processedCount++;
+                continue;
+            }
+
+            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...', 3000);
+
+            // Transcribe the audio
+            const transcriptionResult = await transcribeAudio(plugin.app, audioFile, {
+                provider: audioTranscriptionConfig.provider,
+                apiKey: audioTranscriptionConfig.key,
+                language: plugin.settings.summaryLanguage || undefined
+            });
+
+            if (!transcriptionResult.success || !transcriptionResult.transcript) {
+                allSources.push({
+                    type: 'audio',
+                    url: audio.path,
+                    title: audioTitle,
+                    date: today,
+                    success: false,
+                    error: transcriptionResult.error || 'Failed to transcribe audio'
+                });
+                processedCount++;
+                continue;
+            }
+
+            // Summarize the transcript
+            new Notice(plugin.t.messages.summarizingTitle.replace('{title}', audioTitle.substring(0, 40)), 5000);
+            const summary = await callSummarizeService(plugin, transcriptionResult.transcript, personaPrompt, result.focusContext);
+
+            if (summary) {
+                summaries.push(summary);
+                sourceLabels.push(`Audio: ${audioTitle}`);
+                allSources.push({
+                    type: 'audio',
+                    url: audio.path,
+                    title: audioTitle,
+                    date: today,
+                    success: true
+                });
+            } else {
+                allSources.push({
+                    type: 'audio',
+                    url: audio.path,
+                    title: audioTitle,
+                    date: today,
+                    success: false,
+                    error: 'Failed to generate summary from transcript'
+                });
+            }
+        } catch (e) {
+            console.error('Error processing audio:', e);
+            allSources.push({
+                type: 'audio',
+                url: audio.path,
+                title: audioTitle,
+                date: today,
+                success: false,
+                error: e instanceof Error ? e.message : 'Unknown error'
+            });
+        }
+
+        processedCount++;
     }
 
     // If no summaries but we have sources, show the status checklist
@@ -1063,8 +1246,8 @@ async function handleSmartTarget(
     }
 
     if (target.type === 'internal-pdf') {
-        if (!serviceCanSummarizePdf(serviceType)) {
-            new Notice(plugin.t.messages.pdfNotSupported);
+        if (!canSummarizePdf(plugin)) {
+            new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         }
         await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt, undefined, personaId);
@@ -1076,8 +1259,8 @@ async function handleSmartTarget(
             new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
             return;
         }
-        if (!serviceCanSummarizePdf(serviceType)) {
-            new Notice(plugin.t.messages.pdfNotSupported);
+        if (!canSummarizePdf(plugin)) {
+            new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         }
         await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt, undefined, personaId);
@@ -1164,12 +1347,8 @@ async function openPdfSummarizeModal(
     editor: Editor,
     view: MarkdownView
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
-
-    if (!serviceCanSummarizePdf(serviceType)) {
-        new Notice(plugin.t.messages.pdfNotSupported);
+    if (!canSummarizePdf(plugin)) {
+        new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
         return;
     }
 
@@ -1470,11 +1649,11 @@ async function handleUrlSummarization(
         const fileName = extractFilenameFromUrl(url) || `downloaded-${Date.now()}.pdf`;
         const pdfFile = await pdfService.downloadPdfToVault(url, fileName);
 
-        if (pdfFile && serviceCanSummarizePdf(serviceType)) {
+        if (pdfFile && canSummarizePdf(plugin)) {
             await handlePdfSummarization(plugin, pdfService, editor, pdfFile, personaPrompt);
             return;
-        } else if (!serviceCanSummarizePdf(serviceType)) {
-            new Notice(plugin.t.messages.pdfNotSupported);
+        } else if (!canSummarizePdf(plugin)) {
+            new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         } else {
             new Notice('Failed to download PDF');
@@ -2258,8 +2437,44 @@ async function handleYouTubeSummarization(
         const videoInfo = result.videoInfo;
         const summary = result.content;
 
-        // Insert summary into editor (no transcript file with Gemini-native processing)
-        insertYouTubeSummary(editor, summary, videoInfo, plugin, null);
+        // Generate and save transcript using Gemini (more reliable than caption scraping)
+        let transcriptPath: string | null = null;
+        if (plugin.settings.saveTranscripts !== 'none') {
+            try {
+                console.log('[AI Organiser] Generating YouTube transcript with Gemini for:', url);
+                const transcriptResult = await transcribeYouTubeWithGemini(
+                    url,
+                    geminiKey,
+                    plugin.settings.youtubeGeminiModel,
+                    plugin.settings.summarizeTimeoutSeconds * 1000
+                );
+                if (transcriptResult.success && transcriptResult.transcript) {
+                    transcriptPath = await saveTranscriptToFile(
+                        plugin,
+                        transcriptResult.transcript,
+                        videoInfo?.title || 'YouTube Video',
+                        'youtube',
+                        {
+                            sourceUrl: url,
+                            channelName: videoInfo?.channelName
+                        }
+                    );
+                    if (transcriptPath) {
+                        console.log('[AI Organiser] YouTube transcript saved to:', transcriptPath);
+                    } else {
+                        console.warn('[AI Organiser] saveTranscriptToFile returned null - check folder permissions');
+                    }
+                } else {
+                    console.warn('[AI Organiser] YouTube transcript generation failed:', transcriptResult.error || 'Unknown reason');
+                }
+            } catch (transcriptError) {
+                console.warn('[AI Organiser] Could not generate YouTube transcript:', transcriptError);
+                // Continue without transcript - Gemini's summary is still valid
+            }
+        }
+
+        // Insert summary into editor with transcript link if available
+        insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath);
 
         // Update metadata with persona if structured metadata is enabled
         if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
@@ -2268,7 +2483,7 @@ async function handleYouTubeSummarization(
                         await updateNoteMetadataAfterSummary(
                     plugin,
                     view,
-                            summary.substring(0, SUMMARY_HOOK_MAX_LENGTH),
+                            createSummaryHook(summary),
                     [],
                     'research',
                     'youtube',
@@ -2323,7 +2538,7 @@ async function summarizeYouTubeAndInsert(
                         await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH),
+                            createSummaryHook(response.content),
                         [],
                         'research',
                         'youtube',
@@ -2419,7 +2634,7 @@ async function summarizeYouTubeInChunks(
                         await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH),
+                            createSummaryHook(response.content),
                         [],
                         'research',
                         'youtube',
@@ -2566,9 +2781,13 @@ async function summarizeAndInsert(
                     insertWebSummary(editor, structured.body_content, webContent, plugin);
                     new Notice(plugin.t.messages.summaryInserted);
 
-                    // Update metadata
+                    // Update metadata - must save editor first to prevent race condition
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                    if (view) {
+                    if (view && view.file) {
+                        // Force save editor changes to disk before updating frontmatter
+                        // This prevents processFrontMatter from reading stale file content
+                        await plugin.app.vault.modify(view.file, editor.getValue());
+
                         await updateNoteMetadataAfterSummary(
                             plugin,
                             view,
@@ -2927,15 +3146,40 @@ async function summarizePdfWithLLM(
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
     try {
-        if (plugin.settings.serviceType === 'cloud') {
-            const { CloudLLMService } = await import('../services/cloudService');
-            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
+        // Get PDF provider config (may be different from main provider)
+        const pdfConfig = getPdfProviderConfig(plugin);
 
+        if (!pdfConfig) {
+            return {
+                success: false,
+                error: plugin.t.settings.pdf?.noProviderConfigured ||
+                    'PDF summarization requires Claude or Gemini. Configure a PDF provider in Settings.'
+            };
+        }
+
+        // Create a cloud service with the PDF provider config
+        const { CloudLLMService } = await import('../services/cloudService');
+
+        // If main provider matches PDF provider, use existing service
+        if (plugin.settings.serviceType === 'cloud' &&
+            plugin.settings.cloudServiceType === pdfConfig.provider) {
+            const cloudService = plugin.llmService as InstanceType<typeof CloudLLMService>;
             const response = await cloudService.summarizePdf(pdfContent.base64Data, prompt);
             return response;
-        } else {
-            return { success: false, error: 'PDF summarization requires a cloud LLM provider' };
         }
+
+        // Create temporary service with PDF provider config
+        const pdfCloudService = new CloudLLMService({
+            type: pdfConfig.provider,
+            endpoint: pdfConfig.provider === 'claude'
+                ? 'https://api.anthropic.com/v1/messages'
+                : 'https://generativelanguage.googleapis.com/v1beta/openai',
+            apiKey: pdfConfig.apiKey,
+            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'claude-sonnet-4-5-20250929' : 'gemini-3-flash-preview')
+        }, plugin.app);
+
+        const response = await pdfCloudService.summarizePdf(pdfContent.base64Data, prompt);
+        return response;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
@@ -2977,7 +3221,7 @@ async function summarizePdfContent(
                         await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                            response.content.substring(0, SUMMARY_HOOK_MAX_LENGTH), // Summary hook
+                            createSummaryHook(response.content),
                         [],
                         'reference',
                         'pdf',

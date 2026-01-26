@@ -3019,15 +3019,13 @@
     line-height: 1.5;
 }
 
-/* Status indicator - success state */
+/* Status indicator - success state (subtle inline indicator) */
 .ai-organiser-settings-status {
-    background: var(--background-modifier-success);
-    border-radius: 6px;
-    padding: 10px 14px;
-    margin-bottom: 16px;
+    padding: 4px 0;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .ai-organiser-status-success {

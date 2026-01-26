@@ -334,6 +334,22 @@ export const en: Translations = {
             modelDesc: "Model to use for YouTube video analysis",
             noKeyWarning: "Configure a Gemini API key to enable YouTube summarization"
         },
+        pdf: {
+            title: "PDF Processing",
+            description: "PDF summarization requires multimodal AI models (Claude or Gemini). If your main provider does not support PDFs, configure a dedicated provider here.",
+            usingMainProvider: "Using your main {provider} provider",
+            provider: "PDF Provider",
+            providerDesc: "Choose which multimodal provider to use for PDF processing",
+            providerAuto: "Auto (prompt when needed)",
+            apiKey: "{provider} API Key",
+            apiKeyDesc: "API key for {provider} PDF processing",
+            showKey: "Show/hide key",
+            getClaudeKey: "Get a Claude API key from Anthropic Console",
+            getGeminiKey: "Get a free Gemini API key from Google AI Studio",
+            model: "Model",
+            modelDesc: "Model to use for PDF analysis",
+            noProviderConfigured: "Configure a PDF provider (Claude or Gemini) in settings to enable PDF summarization"
+        },
         audioTranscription: {
             title: "Audio Transcription",
             description: "Audio files are transcribed using Whisper API (OpenAI or Groq). Requires an API key from either provider.",

@@ -71,10 +71,8 @@ export class YouTubeSettingsSection extends BaseSettingSection {
             .setDesc(t?.modelDesc || 'Model to use for YouTube video analysis')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('gemini-2.0-flash', 'Gemini 2.0 Flash (Recommended)')
-                    .addOption('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite (Faster)')
-                    .addOption('gemini-1.5-flash', 'Gemini 1.5 Flash')
-                    .addOption('gemini-1.5-pro', 'Gemini 1.5 Pro (Higher quality)')
+                    .addOption('gemini-3-flash-preview', 'Gemini 3 Flash (Recommended)')
+                    .addOption('gemini-3-pro-preview', 'Gemini 3 Pro (Higher quality)')
                     .setValue(this.plugin.settings.youtubeGeminiModel)
                     .onChange(async (value) => {
                         this.plugin.settings.youtubeGeminiModel = value;

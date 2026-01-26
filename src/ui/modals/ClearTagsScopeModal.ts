@@ -72,19 +72,12 @@ export class ClearTagsScopeModal extends Modal {
             this.renderOptionCard(optionsContainer, option);
         }
 
-        // Buttons
+        // Cancel button only (options execute directly on click)
         const buttonContainer = contentEl.createDiv({ cls: 'ai-organiser-scope-buttons' });
         new Setting(buttonContainer)
             .addButton(btn => btn
                 .setButtonText(this.plugin.t.modals.cancel)
-                .onClick(() => this.close()))
-            .addButton(btn => btn
-                .setButtonText(this.plugin.t.modals.clearTagsScope.clearButton)
-                .setWarning()
-                .onClick(() => {
-                    this.close();
-                    this.onConfirm(this.selectedScope);
-                }));
+                .onClick(() => this.close()));
     }
 
     private renderOptionCard(container: HTMLElement, option: ScopeOption): void {
@@ -102,24 +95,10 @@ export class ClearTagsScopeModal extends Modal {
         contentEl.createDiv({ cls: 'ai-organiser-scope-card-label', text: option.label });
         contentEl.createDiv({ cls: 'ai-organiser-scope-card-desc', text: option.description });
 
-        // Hidden radio for accessibility
-        const radio = card.createEl('input', {
-            type: 'radio',
-            cls: 'ai-organiser-scope-radio-hidden',
-            attr: { name: 'clear-tags-scope', value: option.value }
-        });
-        radio.checked = option.value === this.selectedScope;
-
-        // Click handler
+        // Click handler - execute immediately (direct manipulation UX)
         card.addEventListener('click', () => {
-            this.selectedScope = option.value;
-            // Update visual selection
-            container.querySelectorAll('.ai-organiser-scope-card').forEach(c => {
-                c.removeClass('selected');
-                (c.querySelector('input') as HTMLInputElement).checked = false;
-            });
-            card.addClass('selected');
-            radio.checked = true;
+            this.close();
+            this.onConfirm(option.value);
         });
     }
 

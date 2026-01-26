@@ -321,6 +321,22 @@ export interface Translations {
             modelDesc: string;
             noKeyWarning: string;
         };
+        pdf: {
+            title: string;
+            description: string;
+            usingMainProvider: string;
+            provider: string;
+            providerDesc: string;
+            providerAuto: string;
+            apiKey: string;
+            apiKeyDesc: string;
+            showKey: string;
+            getClaudeKey: string;
+            getGeminiKey: string;
+            model: string;
+            modelDesc: string;
+            noProviderConfigured: string;
+        };
         audioTranscription: {
             title: string;
             description: string;

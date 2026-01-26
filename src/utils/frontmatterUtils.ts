@@ -4,7 +4,6 @@
  */
 
 import { App, TFile } from 'obsidian';
-import * as yaml from 'js-yaml';
 import { AIO_META, SUMMARY_HOOK_MAX_LENGTH, ContentType, StatusValue, SourceType } from '../core/constants';
 
 /**
@@ -25,7 +24,8 @@ export interface AIOMetadata {
 
 /**
  * Update AI Organiser metadata in a note's frontmatter
- * Preserves all existing frontmatter properties
+ * Uses Obsidian's processFrontMatter API to properly sync with editor state
+ * This prevents race conditions where manual vault.read() might miss unsaved editor changes
  */
 export async function updateAIOMetadata(
     app: App,
@@ -33,51 +33,16 @@ export async function updateAIOMetadata(
     metadata: Partial<AIOMetadata>
 ): Promise<boolean> {
     try {
-        const content = await app.vault.read(file);
-        const cache = app.metadataCache.getFileCache(file);
-        const frontmatterPosition = cache?.frontmatterPosition;
-        
-        let frontmatter: any = {};
-        let contentAfterFrontmatter = content;
-        
-        // Extract existing frontmatter if present
-        if (frontmatterPosition) {
-            const frontmatterText = content.substring(
-                frontmatterPosition.start.offset + 4, // Skip '---\n'
-                frontmatterPosition.end.offset - 4    // Skip '\n---'
-            );
-            
-            try {
-                frontmatter = yaml.load(frontmatterText) || {};
-            } catch (yamlError) {
-                console.error('[AI Organiser] YAML parse error:', yamlError);
-                return false;
+        // Use Obsidian's processFrontMatter API which properly syncs with editor
+        // This avoids race conditions with vault.read() missing unsaved editor changes
+        await app.fileManager.processFrontMatter(file, (frontmatter) => {
+            // Merge new AIO metadata with existing frontmatter
+            for (const [key, value] of Object.entries(metadata)) {
+                if (value !== undefined && value !== null) {
+                    frontmatter[key] = value;
+                }
             }
-            
-            contentAfterFrontmatter = content.substring(frontmatterPosition.end.offset);
-        }
-        
-        // Merge new AIO metadata with existing frontmatter
-        const updatedFrontmatter = {
-            ...frontmatter,
-            ...metadata
-        };
-        
-        // Generate new frontmatter YAML
-        const newFrontmatterYAML = yaml.dump(updatedFrontmatter, {
-            lineWidth: -1, // No line wrapping
-            noRefs: true   // No YAML references
-        }).trim();
-        
-        // Build new content - ensure newline after closing ---
-        // If contentAfterFrontmatter doesn't start with newline, add one
-        const contentPart = contentAfterFrontmatter.startsWith('\n')
-            ? contentAfterFrontmatter
-            : '\n' + contentAfterFrontmatter;
-        const newContent = `---\n${newFrontmatterYAML}\n---${contentPart}`;
-        
-        // Write back to file
-        await app.vault.modify(file, newContent);
+        });
         return true;
     } catch (error) {
         console.error('[AI Organiser] Error updating AIO metadata:', error);
@@ -117,14 +82,31 @@ export function createSummaryHook(fullSummary: string): string {
     if (!fullSummary || fullSummary.length === 0) {
         return '';
     }
-    
-    // Remove markdown formatting for cleaner preview
+
+    // Remove common LLM preamble patterns first
     let cleaned = fullSummary
+        // Remove "Here's your..." style preambles
+        .replace(/^Here['']s (your|the|a).*?:\s*/i, '')
+        .replace(/^Below is.*?:\s*/i, '')
+        .replace(/^This is.*?:\s*/i, '')
+        // Remove "Executive Summary" style headers at start
+        .replace(/^["']?.*Executive Summary.*?["']?\s*:?\s*/i, '')
+        .replace(/^["']?.*Summary.*?["']?\s+of\s+(the\s+)?(provided\s+)?content.*?:\s*/i, '')
+        // Remove bullet markers at start
+        .replace(/^\*\s*/, '')
+        .replace(/^-\s*/, '')
+        // Remove section number markers at start
+        .replace(/^(\d+\.\s*)?(#{1,6}\s*)?(The\s+)?/i, '');
+
+    // Remove markdown formatting for cleaner preview
+    cleaned = cleaned
         .replace(/#{1,6}\s/g, '') // Remove headers
         .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold
         .replace(/\*([^*]+)\*/g, '$1') // Remove italic
         .replace(/`([^`]+)`/g, '$1') // Remove inline code
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert links to text
+        .replace(/\n+/g, ' ') // Replace newlines with spaces
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
         .trim();
     
     if (cleaned.length <= SUMMARY_HOOK_MAX_LENGTH) {

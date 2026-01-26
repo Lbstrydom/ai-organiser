@@ -7,7 +7,12 @@ import { App, TFile } from 'obsidian';
 import { DetectedContent } from '../utils/embeddedContentDetector';
 import { fetchArticle } from './webContentService';
 import { PdfService, PdfServiceResult } from './pdfService';
-import { fetchYouTubeTranscript, YouTubeTranscriptResult } from './youtubeService';
+import {
+    fetchYouTubeTranscript,
+    transcribeYouTubeWithGemini,
+    YouTubeGeminiConfig,
+    YouTubeGeminiResult
+} from './youtubeService';
 import { DocumentExtractionService } from './documentExtractionService';
 
 export interface ExtractedContent {
@@ -30,11 +35,20 @@ export class ContentExtractionService {
     private app: App;
     private pdfService: PdfService;
     private documentService: DocumentExtractionService;
+    private youtubeGeminiConfig?: Omit<YouTubeGeminiConfig, 'url'>;
 
-    constructor(app: App) {
+    constructor(app: App, youtubeGeminiConfig?: Omit<YouTubeGeminiConfig, 'url'>) {
         this.app = app;
         this.pdfService = new PdfService(app);
         this.documentService = new DocumentExtractionService(app);
+        this.youtubeGeminiConfig = youtubeGeminiConfig;
+    }
+
+    /**
+     * Set YouTube Gemini config for better transcription
+     */
+    setYouTubeGeminiConfig(config: Omit<YouTubeGeminiConfig, 'url'> | undefined): void {
+        this.youtubeGeminiConfig = config;
     }
 
     /**
@@ -152,10 +166,26 @@ export class ContentExtractionService {
 
     /**
      * Extract content from YouTube video
+     * Uses Gemini transcription if config is available, otherwise falls back to caption scraping
      */
     private async extractYouTubeContent(item: DetectedContent): Promise<ExtractedContent> {
         try {
-            const result: YouTubeTranscriptResult = await fetchYouTubeTranscript(item.url);
+            let result: YouTubeGeminiResult;
+
+            // Use Gemini transcription if API key is available (more reliable)
+            if (this.youtubeGeminiConfig?.apiKey) {
+                console.log('[AI Organiser] Using Gemini for YouTube transcription');
+                result = await transcribeYouTubeWithGemini(
+                    item.url,
+                    this.youtubeGeminiConfig.apiKey,
+                    this.youtubeGeminiConfig.model,
+                    this.youtubeGeminiConfig.timeoutMs
+                );
+            } else {
+                // Fall back to legacy caption scraping (deprecated but works without API key)
+                console.log('[AI Organiser] Using legacy caption scraping for YouTube');
+                result = await fetchYouTubeTranscript(item.url);
+            }
 
             if (!result.success || !result.transcript) {
                 return {

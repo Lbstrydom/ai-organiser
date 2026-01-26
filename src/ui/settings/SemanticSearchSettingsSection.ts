@@ -16,8 +16,8 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         const sectionEl = this.sectionEl;
         sectionEl.empty();
 
-        // Section header
-        this.createSectionHeader(t.settings.semanticSearch.title, 'brain', 2, sectionEl);
+        // Section header (main h1 section)
+        this.createSectionHeader(t.settings.semanticSearch.title, 'brain', 1, sectionEl);
         sectionEl.createEl('p', { 
             text: t.settings.semanticSearch.description,
             cls: 'setting-item-description'

@@ -218,19 +218,11 @@ export class LLMSettingsSection extends BaseSettingSection {
 
     // Predefined model lists for providers with known models
     // Use actual API model IDs - these must match what the provider accepts
+    // Only Claude 4.5 models - older versions removed per Anthropic recommendations
     private readonly CLAUDE_MODELS: Record<string, string> = {
-        // Claude 4.5 (Latest)
         'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (Recommended)',
         'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (Fastest)',
-        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Most Capable)',
-        // Claude 4 (Legacy)
-        'claude-opus-4-1-20250805': 'Claude Opus 4.1',
-        'claude-sonnet-4-20250514': 'Claude Sonnet 4',
-        'claude-opus-4-20250514': 'Claude Opus 4',
-        // Claude 3.7
-        'claude-3-7-sonnet-20250219': 'Claude 3.7 Sonnet',
-        // Claude 3 (Legacy)
-        'claude-3-haiku-20240307': 'Claude 3 Haiku (Cheapest)'
+        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Most Capable)'
     };
 
     private readonly OPENAI_MODELS: Record<string, string> = {

@@ -137,7 +137,13 @@ export interface AIOrganiserSettings {
     // === YOUTUBE SETTINGS ===
     // Gemini-native YouTube processing (more reliable than transcript scraping)
     youtubeGeminiApiKey: string;         // Dedicated Gemini key for YouTube (uses main key if provider is Gemini)
-    youtubeGeminiModel: string;          // Gemini model for YouTube (default: gemini-2.0-flash)
+    youtubeGeminiModel: string;          // Gemini model for YouTube (default: gemini-3-flash-preview)
+
+    // === PDF SETTINGS ===
+    // PDF processing requires multimodal models (Claude or Gemini only)
+    pdfProvider: 'claude' | 'gemini' | 'auto';  // Which provider to use for PDFs
+    pdfApiKey: string;                   // Dedicated API key for PDF provider (empty = use main key if compatible)
+    pdfModel: string;                    // Model to use for PDF processing
 
     // === AUDIO TRANSCRIPTION SETTINGS ===
     // Whisper API for audio transcription (OpenAI or Groq)
@@ -228,7 +234,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // YouTube Defaults (Gemini-native processing)
     youtubeGeminiApiKey: '',                            // Empty = use main Gemini key if available
-    youtubeGeminiModel: 'gemini-2.0-flash',             // Fast and capable model
+    youtubeGeminiModel: 'gemini-3-flash-preview',       // Gemini 3 Flash (successor to 2.0, deprecated March 2026)
+
+    // PDF Defaults (requires multimodal: Claude or Gemini)
+    pdfProvider: 'auto',                                // Auto = use main provider if compatible, else prompt
+    pdfApiKey: '',                                      // Empty = use main key if provider compatible
+    pdfModel: '',                                       // Empty = use provider default
 
     // Audio Transcription Defaults (Whisper API)
     audioTranscriptionApiKey: '',                       // Empty = use main OpenAI/Groq key if available

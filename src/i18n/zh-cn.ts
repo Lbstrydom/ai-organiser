@@ -315,6 +315,22 @@ export const zhCN: Translations = {
             modelDesc: "用于 YouTube 视频分析的模型",
             noKeyWarning: "配置 Gemini API 密钥以启用 YouTube 摘要"
         },
+        pdf: {
+            title: "PDF 处理",
+            description: "PDF 摘要需要多模态 AI 模型（Claude 或 Gemini）。如果您的主提供商不支持 PDF，请在此配置专用提供商。",
+            usingMainProvider: "使用您的主 {provider} 提供商",
+            provider: "PDF 提供商",
+            providerDesc: "选择用于 PDF 处理的多模态提供商",
+            providerAuto: "自动（需要时提示）",
+            apiKey: "{provider} API 密钥",
+            apiKeyDesc: "用于 {provider} PDF 处理的 API 密钥",
+            showKey: "显示/隐藏密钥",
+            getClaudeKey: "从 Anthropic Console 获取 Claude API 密钥",
+            getGeminiKey: "从 Google AI Studio 获取免费 Gemini API 密钥",
+            model: "模型",
+            modelDesc: "用于 PDF 分析的模型",
+            noProviderConfigured: "在设置中配置 PDF 提供商（Claude 或 Gemini）以启用 PDF 摘要"
+        },
         audioTranscription: {
             title: "音频转录",
             description: "使用 Whisper API（OpenAI 或 Groq）转录音频文件。需要任一提供商的 API 密钥。",

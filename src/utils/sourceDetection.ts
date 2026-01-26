@@ -27,7 +27,8 @@ export interface DetectedSources {
 
 // URL patterns
 const URL_PATTERN = /https?:\/\/[^\s\])"'<>]+/gi;
-const YOUTUBE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
+// YouTube URL pattern - supports standard, shorts, live, mobile, and embed formats
+const YOUTUBE_PATTERN = /(?:https?:\/\/)?(?:(?:www|m)\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
 const PDF_URL_PATTERN = /https?:\/\/[^\s\])"'<>]+\.pdf(?:\?[^\s\])"'<>]*)?/gi;
 const DOCUMENT_URL_PATTERN = new RegExp(
     `https?:\\/\\/[^\\s\\])"'<>]+\\.(${EXTRACTABLE_DOCUMENT_EXTENSIONS.join('|')})(?:\\?[^\\s\\])"'<>]*)?`,
@@ -223,10 +224,10 @@ export function detectSourcesFromContent(content: string, app?: App): DetectedSo
 }
 
 /**
- * Check if URL is a YouTube URL
+ * Check if URL is a YouTube URL (standard, shorts, live, mobile, embed)
  */
 export function isYouTubeUrl(url: string): boolean {
-    return /(?:youtube\.com|youtu\.be)/i.test(url);
+    return /(?:(?:www|m)\.)?(?:youtube\.com|youtu\.be)/i.test(url);
 }
 
 /**

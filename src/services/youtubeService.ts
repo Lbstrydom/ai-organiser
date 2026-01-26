@@ -1,9 +1,14 @@
 /**
- * YouTube Transcript Service
- * Fetches captions/transcripts from YouTube videos
+ * YouTube Service
+ * Unified service for YouTube video processing with Gemini
+ * Supports transcription and summarization with consistent interface
  */
 
 import { requestUrl } from 'obsidian';
+
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
 
 export interface YouTubeVideoInfo {
     videoId: string;
@@ -12,18 +17,90 @@ export interface YouTubeVideoInfo {
     duration?: string;
 }
 
-export interface YouTubeTranscriptResult {
-    success: boolean;
-    transcript?: string;
-    videoInfo?: YouTubeVideoInfo;
-    error?: string;
-}
-
-interface TranscriptSegment {
+export interface TranscriptSegment {
     text: string;
     start: number;
     duration: number;
 }
+
+export interface YouTubeTranscriptResult {
+    success: boolean;
+    transcript?: string;
+    segments?: TranscriptSegment[];
+    videoInfo?: YouTubeVideoInfo;
+    error?: string;
+}
+
+export interface YouTubeSummaryResult {
+    success: boolean;
+    content?: string;
+    videoInfo?: YouTubeVideoInfo;
+    error?: string;
+}
+
+/**
+ * Unified result type for all YouTube+Gemini operations
+ */
+export interface YouTubeGeminiResult {
+    success: boolean;
+    content?: string;           // Summary content (for summarize mode)
+    transcript?: string;        // Formatted transcript text
+    segments?: TranscriptSegment[];  // Raw transcript segments with timestamps
+    videoInfo?: YouTubeVideoInfo;
+    error?: string;
+}
+
+/**
+ * Configuration for YouTube+Gemini operations
+ * Use this interface throughout the codebase for consistency
+ */
+export interface YouTubeGeminiConfig {
+    url: string;
+    apiKey: string;
+    model?: string;
+    timeoutMs?: number;
+}
+
+/**
+ * Mode-specific options for YouTube processing
+ */
+export interface YouTubeProcessOptions {
+    mode: 'transcribe' | 'summarize';
+    prompt?: string;  // Required for summarize mode, ignored for transcribe
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const DEFAULT_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_TIMEOUT_MS = 180000;  // 3 minutes
+const TRANSCRIBE_MAX_TOKENS = 16384;  // High for full transcripts
+const SUMMARIZE_MAX_TOKENS = 8192;    // Moderate for summaries
+
+const TRANSCRIPTION_PROMPT = `You are a professional transcription assistant. Watch this YouTube video carefully and generate a complete, accurate transcript.
+
+IMPORTANT INSTRUCTIONS:
+1. Transcribe ALL spoken content from the video
+2. Include timestamps for each segment (approximate times are fine)
+3. Output ONLY valid JSON - no markdown, no explanation, no extra text
+4. Use this exact JSON format:
+
+[
+  {"text": "First spoken segment here", "start": 0, "duration": 5},
+  {"text": "Second spoken segment here", "start": 5, "duration": 4}
+]
+
+Where:
+- "text" is the transcribed speech (clean, readable text)
+- "start" is the approximate start time in seconds
+- "duration" is the approximate duration in seconds
+
+Transcribe the complete video now. Output ONLY the JSON array, nothing else.`;
+
+// ============================================================================
+// URL Utilities
+// ============================================================================
 
 /**
  * Extract video ID from various YouTube URL formats
@@ -40,12 +117,14 @@ export function extractYouTubeVideoId(url: string): string | null {
         /(?:m\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
         // Shorts URL: https://www.youtube.com/shorts/VIDEO_ID
         /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+        // Live URL: https://www.youtube.com/live/VIDEO_ID
+        /(?:youtube\.com\/live\/)([a-zA-Z0-9_-]{11})/,
     ];
 
     for (const pattern of patterns) {
-        const match = url.match(pattern);
-        if (match && match[1]) {
-            return match[1];
+        const result = pattern.exec(url);
+        if (result?.[1]) {
+            return result[1];
         }
     }
 
@@ -60,7 +139,18 @@ export function isYouTubeUrl(url: string): boolean {
 }
 
 /**
- * Fetch video info from YouTube page
+ * Get YouTube video URL from video ID
+ */
+export function getYouTubeUrl(videoId: string): string {
+    return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+// ============================================================================
+// Video Info Fetching
+// ============================================================================
+
+/**
+ * Fetch video info from YouTube page (title, channel name)
  */
 async function fetchVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
     try {
@@ -73,175 +163,103 @@ async function fetchVideoInfo(videoId: string): Promise<YouTubeVideoInfo> {
 
         // Extract title from meta tag or title element
         let title = 'Unknown Title';
-        const titleMatch = html.match(/<meta name="title" content="([^"]+)"/) ||
-                          html.match(/<title>([^<]+)<\/title>/);
+        const titlePattern = /<meta name="title" content="([^"]+)"|<title>([^<]+)<\/title>/;
+        const titleMatch = titlePattern.exec(html);
         if (titleMatch) {
-            title = titleMatch[1]
+            title = (titleMatch[1] || titleMatch[2])
                 .replace(' - YouTube', '')
-                .replace(/&amp;/g, '&')
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'");
+                .replaceAll('&amp;', '&')
+                .replaceAll('&quot;', '"')
+                .replaceAll('&#39;', "'");
         }
 
         // Extract channel name
         let channelName = 'Unknown Channel';
-        const channelMatch = html.match(/"ownerChannelName":"([^"]+)"/) ||
-                            html.match(/<link itemprop="name" content="([^"]+)">/);
+        const channelPattern = /"ownerChannelName":"([^"]+)"|<link itemprop="name" content="([^"]+)">/;
+        const channelMatch = channelPattern.exec(html);
         if (channelMatch) {
-            channelName = channelMatch[1];
+            channelName = channelMatch[1] || channelMatch[2];
         }
 
-        return {
-            videoId,
-            title,
-            channelName,
-        };
-    } catch (error) {
-        return {
-            videoId,
-            title: 'Unknown Title',
-            channelName: 'Unknown Channel',
-        };
+        return { videoId, title, channelName };
+    } catch {
+        return { videoId, title: 'Unknown Title', channelName: 'Unknown Channel' };
     }
 }
 
+// ============================================================================
+// Transcript Parsing
+// ============================================================================
+
 /**
- * Fetch transcript from YouTube
- * Uses the innertube API to get captions
+ * Parse Gemini's JSON transcript response
  */
-export async function fetchYouTubeTranscript(url: string): Promise<YouTubeTranscriptResult> {
-    const videoId = extractYouTubeVideoId(url);
-
-    if (!videoId) {
-        return {
-            success: false,
-            error: 'Invalid YouTube URL. Could not extract video ID.',
-        };
-    }
-
+function parseGeminiTranscriptResponse(content: string): TranscriptSegment[] {
     try {
-        // Fetch the video page to get caption track info
-        const response = await requestUrl({
-            url: `https://www.youtube.com/watch?v=${videoId}`,
-            method: 'GET',
-        });
+        let jsonStr = content.trim();
 
-        const html = response.text;
-
-        // Look for captions in the page data
-        const captionTracksMatch = html.match(/"captionTracks":\s*(\[.*?\])/);
-
-        if (!captionTracksMatch) {
-            return {
-                success: false,
-                error: 'No captions available for this video. YouTube captions must be enabled.',
-            };
+        // Remove markdown code fences if present
+        if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
         }
 
-        let captionTracks: any[];
-        try {
-            captionTracks = JSON.parse(captionTracksMatch[1]);
-        } catch {
-            return {
-                success: false,
-                error: 'Failed to parse caption data.',
-            };
+        // Find JSON array in the content
+        const jsonPattern = /\[[\s\S]*\]/;
+        const jsonMatch = jsonPattern.exec(jsonStr);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[0];
         }
 
-        if (!captionTracks || captionTracks.length === 0) {
-            return {
-                success: false,
-                error: 'No captions available for this video.',
-            };
+        const parsed = JSON.parse(jsonStr);
+
+        if (!Array.isArray(parsed)) {
+            console.log('[AI Organiser] Gemini response is not an array');
+            return [];
         }
 
-        // Prefer English captions, fall back to first available
-        let captionTrack = captionTracks.find((t: any) =>
-            t.languageCode === 'en' || t.languageCode?.startsWith('en')
-        );
-
-        if (!captionTrack) {
-            // Try to find auto-generated captions
-            captionTrack = captionTracks.find((t: any) =>
-                t.kind === 'asr' || t.name?.simpleText?.includes('auto')
-            );
+        // Validate and convert to TranscriptSegment format
+        const segments: TranscriptSegment[] = [];
+        for (const item of parsed) {
+            if (item.text && typeof item.text === 'string') {
+                segments.push({
+                    text: item.text.trim(),
+                    start: typeof item.start === 'number' ? item.start : 0,
+                    duration: typeof item.duration === 'number' ? item.duration : 5
+                });
+            }
         }
 
-        if (!captionTrack) {
-            captionTrack = captionTracks[0];
-        }
-
-        const captionUrl = captionTrack.baseUrl;
-
-        if (!captionUrl) {
-            return {
-                success: false,
-                error: 'Caption URL not found.',
-            };
-        }
-
-        // Fetch the actual transcript
-        const transcriptResponse = await requestUrl({
-            url: captionUrl,
-            method: 'GET',
-        });
-
-        const transcriptXml = transcriptResponse.text;
-
-        // Parse XML transcript
-        const segments = parseTranscriptXml(transcriptXml);
-
-        if (segments.length === 0) {
-            return {
-                success: false,
-                error: 'Failed to parse transcript.',
-            };
-        }
-
-        // Convert segments to readable text
-        const transcript = formatTranscript(segments);
-
-        // Get video info
-        const videoInfo = await fetchVideoInfo(videoId);
-
-        return {
-            success: true,
-            transcript,
-            videoInfo,
-        };
+        return segments;
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return {
-            success: false,
-            error: `Failed to fetch transcript: ${errorMessage}`,
-        };
+        console.error('[AI Organiser] Failed to parse Gemini transcript JSON:', error);
+        return [];
     }
 }
 
 /**
- * Parse YouTube transcript XML format
+ * Parse YouTube transcript XML format (legacy, for caption scraping fallback)
  */
 function parseTranscriptXml(xml: string): TranscriptSegment[] {
     const segments: TranscriptSegment[] = [];
-
-    // Match <text> elements with start and dur attributes
     const textRegex = /<text start="([^"]+)" dur="([^"]+)"[^>]*>([^<]*)<\/text>/g;
     let match;
 
     while ((match = textRegex.exec(xml)) !== null) {
-        const start = parseFloat(match[1]);
-        const duration = parseFloat(match[2]);
+        const start = Number.parseFloat(match[1]);
+        const duration = Number.parseFloat(match[2]);
         let text = match[3];
 
         // Decode HTML entities
         text = text
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&apos;/g, "'")
-            .replace(/\n/g, ' ')
+            .replaceAll('&amp;', '&')
+            .replaceAll('&lt;', '<')
+            .replaceAll('&gt;', '>')
+            .replaceAll('&quot;', '"')
+            .replaceAll('&#39;', "'")
+            .replaceAll('&apos;', "'")
+            .replaceAll('\n', ' ')
             .trim();
 
         if (text) {
@@ -253,10 +271,9 @@ function parseTranscriptXml(xml: string): TranscriptSegment[] {
 }
 
 /**
- * Format transcript segments into readable text
+ * Format transcript segments into readable paragraphed text
  */
 function formatTranscript(segments: TranscriptSegment[]): string {
-    // Group segments into paragraphs (roughly every 30 seconds or on natural breaks)
     const paragraphs: string[] = [];
     let currentParagraph: string[] = [];
     let lastEnd = 0;
@@ -282,26 +299,113 @@ function formatTranscript(segments: TranscriptSegment[]): string {
     return paragraphs.join('\n\n');
 }
 
+// ============================================================================
+// Core Gemini API
+// ============================================================================
+
 /**
- * Get YouTube video URL from video ID
+ * Make a request to Gemini API with video content
+ * Internal function - use processYouTubeWithGemini for public API
  */
-export function getYouTubeUrl(videoId: string): string {
-    return `https://www.youtube.com/watch?v=${videoId}`;
+async function callGeminiWithVideo(
+    videoUrl: string,
+    prompt: string,
+    apiKey: string,
+    model: string,
+    maxOutputTokens: number,
+    timeoutMs: number
+): Promise<{ success: boolean; content?: string; error?: string }> {
+    const requestBody = {
+        contents: [
+            {
+                parts: [
+                    {
+                        fileData: {
+                            mimeType: 'video/mp4',
+                            fileUri: videoUrl
+                        }
+                    },
+                    {
+                        text: prompt
+                    }
+                ]
+            }
+        ],
+        generationConfig: {
+            maxOutputTokens
+        }
+    };
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+    });
+
+    const responsePromise = requestUrl({
+        url: endpoint,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        throw: false
+    });
+
+    const response = await Promise.race([responsePromise, timeoutPromise]);
+
+    if (response.status < 200 || response.status >= 300) {
+        const errorText = response.text;
+        try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(errorJson.error?.message || `API error: ${response.status}`);
+        } catch {
+            throw new Error(`Gemini API error: ${response.status}`);
+        }
+    }
+
+    const data = JSON.parse(response.text);
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!content) {
+        throw new Error('No content in Gemini response');
+    }
+
+    return { success: true, content };
 }
 
-/**
- * Summarize YouTube video using Gemini's native YouTube understanding
- * This is more reliable than transcript scraping as Gemini can process videos directly
- */
-export async function summarizeYouTubeWithGemini(
-    url: string,
-    apiKey: string,
-    prompt: string,
-    model: string = 'gemini-2.0-flash',
-    timeoutMs: number = 120000
-): Promise<{ success: boolean; content?: string; videoInfo?: YouTubeVideoInfo; error?: string }> {
-    const videoId = extractYouTubeVideoId(url);
+// ============================================================================
+// Public API - Unified Processing
+// ============================================================================
 
+/**
+ * Process YouTube video with Gemini - unified function for transcription and summarization
+ *
+ * Use this function throughout the codebase for consistent YouTube+Gemini operations.
+ *
+ * @example
+ * // Transcription
+ * const result = await processYouTubeWithGemini(
+ *   { url, apiKey, model },
+ *   { mode: 'transcribe' }
+ * );
+ *
+ * @example
+ * // Summarization
+ * const result = await processYouTubeWithGemini(
+ *   { url, apiKey, model },
+ *   { mode: 'summarize', prompt: 'Summarize this video...' }
+ * );
+ */
+export async function processYouTubeWithGemini(
+    config: YouTubeGeminiConfig,
+    options: YouTubeProcessOptions
+): Promise<YouTubeGeminiResult> {
+    const { url, apiKey, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS } = config;
+    const { mode, prompt } = options;
+
+    // Validate inputs
+    const videoId = extractYouTubeVideoId(url);
     if (!videoId) {
         return {
             success: false,
@@ -312,86 +416,261 @@ export async function summarizeYouTubeWithGemini(
     if (!apiKey) {
         return {
             success: false,
-            error: 'Gemini API key required for YouTube processing. Configure in settings.',
+            error: `Gemini API key required for YouTube ${mode}. Configure in settings.`,
+        };
+    }
+
+    if (mode === 'summarize' && !prompt) {
+        return {
+            success: false,
+            error: 'Prompt is required for summarization mode.',
         };
     }
 
     try {
+        console.log(`[AI Organiser] ${mode === 'transcribe' ? 'Transcribing' : 'Summarizing'} YouTube video with Gemini, videoId:`, videoId);
+
         // Fetch video info for metadata
         const videoInfo = await fetchVideoInfo(videoId);
 
-        // Build Gemini request with YouTube URL
-        // Gemini can process YouTube URLs directly via its File API or inline
-        const requestBody = {
-            contents: [
-                {
-                    parts: [
-                        {
-                            fileData: {
-                                mimeType: 'video/youtube',
-                                fileUri: url
-                            }
-                        },
-                        {
-                            text: prompt
-                        }
-                    ]
-                }
-            ],
-            generationConfig: {
-                maxOutputTokens: 4096
+        // Determine prompt and token limit based on mode
+        const effectivePrompt = mode === 'transcribe' ? TRANSCRIPTION_PROMPT : prompt!;
+        const maxTokens = mode === 'transcribe' ? TRANSCRIBE_MAX_TOKENS : SUMMARIZE_MAX_TOKENS;
+
+        // Call Gemini API
+        const geminiResult = await callGeminiWithVideo(
+            url,
+            effectivePrompt,
+            apiKey,
+            model,
+            maxTokens,
+            timeoutMs
+        );
+
+        if (!geminiResult.success || !geminiResult.content) {
+            return {
+                success: false,
+                error: geminiResult.error || 'No content from Gemini',
+            };
+        }
+
+        // Process result based on mode
+        if (mode === 'transcribe') {
+            const segments = parseGeminiTranscriptResponse(geminiResult.content);
+
+            if (segments.length === 0) {
+                console.log('[AI Organiser] Failed to parse transcript segments from Gemini response');
+                return {
+                    success: false,
+                    error: 'Failed to parse transcript from Gemini response',
+                };
             }
+
+            console.log('[AI Organiser] Parsed', segments.length, 'transcript segments from Gemini');
+
+            return {
+                success: true,
+                transcript: formatTranscript(segments),
+                segments,
+                videoInfo,
+            };
+        } else {
+            // Summarize mode
+            return {
+                success: true,
+                content: geminiResult.content,
+                videoInfo,
+            };
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[AI Organiser] processYouTubeWithGemini (${mode}) error:`, errorMessage);
+        return {
+            success: false,
+            error: `Gemini YouTube ${mode} failed: ${errorMessage}`,
         };
+    }
+}
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+// ============================================================================
+// Public API - Convenience Functions
+// ============================================================================
 
-        // Create timeout promise
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
-        });
+/**
+ * Transcribe YouTube video using Gemini
+ * Convenience wrapper around processYouTubeWithGemini
+ */
+export async function transcribeYouTubeWithGemini(
+    url: string,
+    apiKey: string,
+    model: string = DEFAULT_MODEL,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<YouTubeGeminiResult> {
+    return processYouTubeWithGemini(
+        { url, apiKey, model, timeoutMs },
+        { mode: 'transcribe' }
+    );
+}
 
-        // Make request with timeout
-        const responsePromise = requestUrl({
-            url: endpoint,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-            throw: false
-        });
+/**
+ * Summarize YouTube video using Gemini
+ * Convenience wrapper around processYouTubeWithGemini
+ */
+export async function summarizeYouTubeWithGemini(
+    url: string,
+    apiKey: string,
+    prompt: string,
+    model: string = DEFAULT_MODEL,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS
+): Promise<YouTubeSummaryResult> {
+    const result = await processYouTubeWithGemini(
+        { url, apiKey, model, timeoutMs },
+        { mode: 'summarize', prompt }
+    );
 
-        const response = await Promise.race([responsePromise, timeoutPromise]);
+    // Map to legacy return type for backwards compatibility
+    return {
+        success: result.success,
+        content: result.content,
+        videoInfo: result.videoInfo,
+        error: result.error,
+    };
+}
 
-        if (response.status < 200 || response.status >= 300) {
-            const errorText = response.text;
-            try {
-                const errorJson = JSON.parse(errorText);
-                throw new Error(errorJson.error?.message || `API error: ${response.status}`);
-            } catch {
-                throw new Error(`Gemini API error: ${response.status}`);
+// ============================================================================
+// Legacy API - YouTube Caption Scraping (Fallback)
+// ============================================================================
+
+/**
+ * Extract caption tracks from YouTube page HTML using multiple patterns
+ */
+function extractCaptionTracksFromHtml(html: string): any[] | null {
+    // Pattern 1: Standard captionTracks in ytInitialPlayerResponse
+    const pattern1 = /"captionTracks"\s*:\s*(\[[\s\S]*?\])(?=\s*[,}])/;
+    const match1 = pattern1.exec(html);
+    if (match1) {
+        try {
+            const tracks = JSON.parse(match1[1]);
+            console.log('[AI Organiser] Found captions via pattern 1');
+            return tracks;
+        } catch {
+            console.log('[AI Organiser] Pattern 1 matched but failed to parse');
+        }
+    }
+
+    // Pattern 2: Look for playerCaptionsTracklistRenderer
+    const pattern2 = /"playerCaptionsTracklistRenderer"\s*:\s*\{[^}]*"captionTracks"\s*:\s*(\[[^\]]+\])/;
+    const match2 = pattern2.exec(html);
+    if (match2) {
+        try {
+            const tracks = JSON.parse(match2[1]);
+            console.log('[AI Organiser] Found captions via pattern 2');
+            return tracks;
+        } catch {
+            console.log('[AI Organiser] Pattern 2 matched but failed to parse');
+        }
+    }
+
+    // Pattern 3: Extract from ytInitialPlayerResponse JSON blob
+    const pattern3 = /ytInitialPlayerResponse\s*=\s*(\{[\s\S]*?\});/;
+    const match3 = pattern3.exec(html);
+    if (match3) {
+        try {
+            const playerResponse = JSON.parse(match3[1]);
+            const tracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+            if (tracks) {
+                console.log('[AI Organiser] Found captions via ytInitialPlayerResponse');
+                return tracks;
             }
+        } catch {
+            console.log('[AI Organiser] ytInitialPlayerResponse parse failed');
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Select the best caption track from available tracks
+ * Prefers English, then auto-generated, then first available
+ */
+function selectBestCaptionTrack(captionTracks: any[]): any {
+    // Prefer English captions
+    let track = captionTracks.find((t: any) =>
+        t.languageCode === 'en' || t.languageCode?.startsWith('en')
+    );
+
+    // Fall back to auto-generated captions
+    if (!track) {
+        track = captionTracks.find((t: any) =>
+            t.kind === 'asr' || t.name?.simpleText?.includes('auto')
+        );
+    }
+
+    // Fall back to first available
+    return track || captionTracks[0];
+}
+
+/**
+ * Fetch transcript from YouTube by scraping captions
+ * This is a fallback method - prefer using transcribeYouTubeWithGemini
+ *
+ * @deprecated Use transcribeYouTubeWithGemini for more reliable results
+ */
+export async function fetchYouTubeTranscript(url: string): Promise<YouTubeTranscriptResult> {
+    const videoId = extractYouTubeVideoId(url);
+
+    if (!videoId) {
+        return { success: false, error: 'Invalid YouTube URL. Could not extract video ID.' };
+    }
+
+    try {
+        console.log('[AI Organiser] Fetching YouTube page for transcript extraction, videoId:', videoId);
+
+        const response = await requestUrl({
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+            method: 'GET',
+        });
+
+        const captionTracks = extractCaptionTracksFromHtml(response.text);
+
+        if (!captionTracks || captionTracks.length === 0) {
+            console.log('[AI Organiser] No caption tracks found in page');
+            return { success: false, error: 'No captions available for this video. YouTube captions must be enabled.' };
         }
 
-        const data = JSON.parse(response.text);
+        console.log('[AI Organiser] Found', captionTracks.length, 'caption tracks');
 
-        // Extract content from Gemini response
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const captionTrack = selectBestCaptionTrack(captionTracks);
+        const captionUrl = captionTrack?.baseUrl;
 
-        if (!content) {
-            throw new Error('No content in Gemini response');
+        if (!captionUrl) {
+            console.log('[AI Organiser] Caption track found but no baseUrl:', captionTrack);
+            return { success: false, error: 'Caption URL not found.' };
         }
+
+        console.log('[AI Organiser] Fetching transcript from:', captionUrl.substring(0, 80) + '...');
+
+        const transcriptResponse = await requestUrl({ url: captionUrl, method: 'GET' });
+        const segments = parseTranscriptXml(transcriptResponse.text);
+
+        if (segments.length === 0) {
+            console.log('[AI Organiser] Transcript XML parsed but no segments found');
+            return { success: false, error: 'Failed to parse transcript.' };
+        }
+
+        console.log('[AI Organiser] Parsed', segments.length, 'transcript segments');
+        const videoInfo = await fetchVideoInfo(videoId);
 
         return {
             success: true,
-            content,
+            transcript: formatTranscript(segments),
+            segments,
             videoInfo,
         };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return {
-            success: false,
-            error: `Gemini YouTube processing failed: ${errorMessage}`,
-        };
+        console.error('[AI Organiser] fetchYouTubeTranscript error:', errorMessage);
+        return { success: false, error: `Failed to fetch transcript: ${errorMessage}` };
     }
 }
