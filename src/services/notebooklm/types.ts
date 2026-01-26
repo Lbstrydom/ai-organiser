@@ -21,6 +21,63 @@ export interface SourcePackConfig {
 }
 
 /**
+ * PDF generation configuration
+ */
+export interface PdfConfig {
+    /** Page size (A4, Letter, Legal) */
+    pageSize: 'A4' | 'Letter' | 'Legal';
+
+    /** Font name (must be supported by jsPDF) */
+    fontName: string;
+
+    /** Base font size in points */
+    fontSize: number;
+
+    /** Include frontmatter in PDF */
+    includeFrontmatter: boolean;
+
+    /** Include note title as H1 at top */
+    includeTitle: boolean;
+
+    /** Left/right page margin in mm */
+    marginX: number;
+
+    /** Top/bottom page margin in mm */
+    marginY: number;
+
+    /** Line height multiplier */
+    lineHeight: number;
+}
+
+/**
+ * Default PDF configuration
+ */
+export const DEFAULT_PDF_CONFIG: PdfConfig = {
+    pageSize: 'A4',
+    fontName: 'helvetica',
+    fontSize: 11,
+    includeFrontmatter: false,
+    includeTitle: true,
+    marginX: 20,
+    marginY: 20,
+    lineHeight: 1.5
+};
+
+/**
+ * PDF generator interface
+ */
+export interface IPdfGenerator {
+    /**
+     * Generate a PDF from markdown content
+     * @param title - Note title
+     * @param markdown - Markdown content
+     * @param config - PDF configuration
+     * @returns PDF as ArrayBuffer
+     */
+    generate(title: string, markdown: string, config: PdfConfig): Promise<ArrayBuffer>;
+}
+
+/**
  * Manifest sidecar file - metadata about the pack (not for NotebookLM upload)
  */
 export interface PackManifest {
@@ -58,6 +115,9 @@ export interface PackStats {
  * Metadata for a single note in the pack
  */
 export interface PackEntry {
+    /** Entry type: note-pdf (generated from note) or attachment (linked doc) */
+    type: 'note-pdf' | 'attachment';
+
     /** Vault-relative file path */
     filePath: string;
 

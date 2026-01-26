@@ -106,6 +106,95 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
             <br>
             <em>Use Ctrl+P → "NotebookLM: Export Source Pack" to export tagged notes as PDFs.</em>
         `;
+
+        // === PDF GENERATION SETTINGS ===
+        containerEl.createEl('h4', { text: t?.pdfSettingsTitle || 'PDF Generation Settings' });
+
+        // Page size
+        new Setting(containerEl)
+            .setName(t?.pdfPageSize || 'Page Size')
+            .setDesc(t?.pdfPageSizeDesc || 'PDF page dimensions')
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('A4', 'A4 (210 × 297 mm)')
+                    .addOption('Letter', 'Letter (8.5 × 11 in)')
+                    .addOption('Legal', 'Legal (8.5 × 14 in)')
+                    .setValue(plugin.settings.notebooklmPdfPageSize)
+                    .onChange(async value => {
+                        plugin.settings.notebooklmPdfPageSize = value as 'A4' | 'Letter' | 'Legal';
+                        await plugin.saveSettings();
+                    })
+            );
+
+        // Font name
+        new Setting(containerEl)
+            .setName(t?.pdfFontName || 'Font Name')
+            .setDesc(t?.pdfFontNameDesc || 'Font family for PDF text. Supported: helvetica, times, courier')
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('helvetica', 'Helvetica (sans-serif)')
+                    .addOption('times', 'Times (serif)')
+                    .addOption('courier', 'Courier (monospace)')
+                    .setValue(plugin.settings.notebooklmPdfFontName)
+                    .onChange(async value => {
+                        plugin.settings.notebooklmPdfFontName = value;
+                        await plugin.saveSettings();
+                    })
+            );
+
+        // Font size
+        new Setting(containerEl)
+            .setName(t?.pdfFontSize || 'Font Size')
+            .setDesc(t?.pdfFontSizeDesc || 'Base font size in points (9-14 recommended)')
+            .addSlider(slider =>
+                slider
+                    .setLimits(9, 14, 1)
+                    .setValue(plugin.settings.notebooklmPdfFontSize)
+                    .setDynamicTooltip()
+                    .onChange(async value => {
+                        plugin.settings.notebooklmPdfFontSize = value;
+                        await plugin.saveSettings();
+                    })
+            );
+
+        // Include frontmatter
+        new Setting(containerEl)
+            .setName(t?.pdfIncludeFrontmatter || 'Include Frontmatter')
+            .setDesc(t?.pdfIncludeFrontmatterDesc || 'Show YAML frontmatter as metadata block in PDF')
+            .addToggle(toggle =>
+                toggle
+                    .setValue(plugin.settings.notebooklmPdfIncludeFrontmatter)
+                    .onChange(async value => {
+                        plugin.settings.notebooklmPdfIncludeFrontmatter = value;
+                        await plugin.saveSettings();
+                    })
+            );
+
+        // Include title
+        new Setting(containerEl)
+            .setName(t?.pdfIncludeTitle || 'Include Title')
+            .setDesc(t?.pdfIncludeTitleDesc || 'Add note title as H1 heading at top of PDF')
+            .addToggle(toggle =>
+                toggle
+                    .setValue(plugin.settings.notebooklmPdfIncludeTitle)
+                    .onChange(async value => {
+                        plugin.settings.notebooklmPdfIncludeTitle = value;
+                        await plugin.saveSettings();
+                    })
+            );
+
+        // PDF warning for v1
+        const pdfWarningBox = containerEl.createDiv({ cls: 'setting-item-description' });
+        pdfWarningBox.style.marginTop = '12px';
+        pdfWarningBox.style.padding = '12px';
+        pdfWarningBox.style.backgroundColor = 'var(--background-modifier-warning)';
+        pdfWarningBox.style.borderRadius = '6px';
+        pdfWarningBox.innerHTML = `
+            <strong>⚠️ v1 Limitations:</strong><br>
+            • Latin alphabet only (CJK/RTL not yet supported)<br>
+            • Basic formatting: headings, paragraphs, lists<br>
+            • Complex blocks (code, HTML, Dataview) are stripped for clean AI parsing
+        `;
     }
 
     /**

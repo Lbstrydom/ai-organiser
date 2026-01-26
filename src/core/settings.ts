@@ -134,6 +134,13 @@ export interface AIOrganiserSettings {
     notebooklmExportFolder: string;      // Root folder for pack exports (under pluginFolder)
     notebooklmPostExportTagAction: 'clear' | 'archive';  // No 'keep' - tags should be cleared after PDF export
 
+    // PDF Generation Settings
+    notebooklmPdfPageSize: 'A4' | 'Letter' | 'Legal';
+    notebooklmPdfFontName: string;
+    notebooklmPdfFontSize: number;
+    notebooklmPdfIncludeFrontmatter: boolean;
+    notebooklmPdfIncludeTitle: boolean;
+
     // === YOUTUBE SETTINGS ===
     // Gemini-native YouTube processing (more reliable than transcript scraping)
     youtubeGeminiApiKey: string;         // Dedicated Gemini key for YouTube (uses main key if provider is Gemini)
@@ -231,6 +238,13 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     notebooklmSelectionTag: 'notebooklm',
     notebooklmExportFolder: 'NotebookLM',               // Under AI-Organiser/NotebookLM/
     notebooklmPostExportTagAction: 'clear',             // Clear tags after export (no reason to keep for PDF)
+
+    // PDF Generation Defaults
+    notebooklmPdfPageSize: 'A4',
+    notebooklmPdfFontName: 'helvetica',
+    notebooklmPdfFontSize: 11,
+    notebooklmPdfIncludeFrontmatter: false,
+    notebooklmPdfIncludeTitle: true,
 
     // YouTube Defaults (Gemini-native processing)
     youtubeGeminiApiKey: '',                            // Empty = use main Gemini key if available

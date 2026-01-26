@@ -279,6 +279,17 @@ export interface Translations {
             actionKeep: string;
             actionClear: string;
             actionArchive: string;
+            pdfSettingsTitle: string;
+            pdfPageSize: string;
+            pdfPageSizeDesc: string;
+            pdfFontName: string;
+            pdfFontNameDesc: string;
+            pdfFontSize: string;
+            pdfFontSizeDesc: string;
+            pdfIncludeFrontmatter: string;
+            pdfIncludeFrontmatterDesc: string;
+            pdfIncludeTitle: string;
+            pdfIncludeTitleDesc: string;
             sanitisationTitle: string;
             removeFrontmatter: string;
             removeFrontmatterDesc: string;

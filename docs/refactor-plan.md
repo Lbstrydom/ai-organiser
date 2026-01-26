@@ -217,12 +217,48 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 ### Implementation Phases
 
 #### Phase 1: Infrastructure & Dependencies
-- Add `jspdf` dependency (only add `@types/jspdf` if TS requires it).
-- Extend `src/services/notebooklm/types.ts`:
-  - Add `PdfConfig`, `IPdfGenerator`, `DEFAULT_PDF_CONFIG`.
-  - Extend `PackEntry` with `type: 'note-pdf' | 'attachment'`.
-- Update `src/core/settings.ts` and `NotebookLMSettingsSection.ts` to include PDF settings:
-  - page size, font name, font size, include frontmatter, include title.
+**Status**: ✅ COMPLETED (January 26, 2026)
+
+**Deliverables**:
+- ✅ Installed `jspdf` dependency (22 packages)
+- ✅ Extended `src/services/notebooklm/types.ts`:
+  - Added `PdfConfig` interface with page size, font settings, margins, line height
+  - Added `IPdfGenerator` interface for PDF generation contract
+  - Added `DEFAULT_PDF_CONFIG` constant (A4, helvetica, 11pt)
+  - Extended `PackEntry` with `type: 'note-pdf' | 'attachment'` field
+- ✅ Updated `src/core/settings.ts`:
+  - Added 5 PDF settings fields to `AIOrganiserSettings` interface
+  - Added defaults to `DEFAULT_SETTINGS` (A4, helvetica, 11pt, no frontmatter, include title)
+- ✅ Updated `src/ui/settings/NotebookLMSettingsSection.ts`:
+  - Added "PDF Generation Settings" subsection with 5 controls
+  - Page size dropdown (A4/Letter/Legal)
+  - Font name dropdown (helvetica/times/courier)
+  - Font size slider (9-14pt)
+  - Include frontmatter toggle
+  - Include title toggle
+  - Added v1 limitations warning box (Latin-only, basic formatting)
+- ✅ Updated i18n files:
+  - Added 12 new strings to `src/i18n/types.ts` (pdfSettingsTitle, pdfPageSize, etc.)
+  - Added English translations to `src/i18n/en.ts`
+  - Added Chinese translations to `src/i18n/zh-cn.ts`
+
+**Verification**:
+- ✅ TypeScript compilation: Passed (tsconfig.build.json)
+- ✅ Build: main.js 3.1MB (production bundle)
+- ✅ Tests: 678/678 passing (29 suites)
+- ✅ No breaking changes to existing code
+
+**Files Modified** (8 files):
+1. `package.json` - Added jspdf dependency
+2. `src/services/notebooklm/types.ts` - PDF types and interfaces
+3. `src/core/settings.ts` - PDF settings fields and defaults
+4. `src/ui/settings/NotebookLMSettingsSection.ts` - PDF settings UI
+5. `src/i18n/types.ts` - PDF settings type definitions
+6. `src/i18n/en.ts` - English PDF strings
+7. `src/i18n/zh-cn.ts` - Chinese PDF strings
+8. `package-lock.json` - Dependency lockfile
+
+**Next Steps**: Proceed to Phase 2 (Semantic PDF Generator)
 
 #### Phase 2: Semantic PDF Generator
 - Create `src/services/notebooklm/pdf/MarkdownPdfGenerator.ts`.
