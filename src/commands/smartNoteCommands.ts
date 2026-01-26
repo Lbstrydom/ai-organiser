@@ -21,6 +21,7 @@ import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidD
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
+import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 
 /**
  * Get Gemini API key for YouTube processing
@@ -320,7 +321,7 @@ function hasTextContent(content: string): boolean {
     // Remove whitespace and check if anything remains
     textContent = textContent.replace(/\s+/g, '').trim();
 
-    return textContent.length > 50; // At least 50 chars of actual content
+    return textContent.length > MIN_TEXT_CONTENT_CHARS; // At least some actual content
 }
 
 /**
@@ -629,7 +630,7 @@ Based on the note content and user's request, generate 3-5 specific search terms
 </task>
 
 <note_content>
-${noteContent.substring(0, 2000)}
+${noteContent.substring(0, SEARCH_TERM_SNIPPET_CHARS)}
 </note_content>
 
 <user_request>

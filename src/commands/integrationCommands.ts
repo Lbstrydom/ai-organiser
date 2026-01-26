@@ -19,6 +19,7 @@ import {
     addToReferencesSection,
     SourceReference
 } from '../utils/noteStructure';
+import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from '../core/constants';
 import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
@@ -358,18 +359,19 @@ function detectContentType(text: string): {
     if (embedMatch) {
         const filename = embedMatch[1];
         const ext = filename.split('.').pop()?.toLowerCase();
+        const extWithDot = ext ? `.${ext}` : '';
 
-        if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext || '')) {
+        if (IMAGE_EXTENSIONS.includes(extWithDot)) {
             return { type: 'image', title: filename, link: filename, isInternal: true };
         }
-        if (ext === 'pdf') {
+        if (extWithDot === '.pdf') {
             return { type: 'pdf', title: filename, link: filename, isInternal: true };
         }
-        if (['mp3', 'wav', 'm4a', 'ogg', 'webm'].includes(ext || '')) {
-            return { type: 'audio', title: filename, link: filename, isInternal: true };
-        }
-        if (['mp4', 'mov', 'avi'].includes(ext || '')) {
+        if (VIDEO_EXTENSIONS.includes(extWithDot)) {
             return { type: 'video', title: filename, link: filename, isInternal: true };
+        }
+        if (AUDIO_EXTENSIONS.includes(extWithDot)) {
+            return { type: 'audio', title: filename, link: filename, isInternal: true };
         }
         return { type: 'note', title: filename, link: filename, isInternal: true };
     }

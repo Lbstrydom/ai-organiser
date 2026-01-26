@@ -2,7 +2,7 @@ import { App, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, WorkspaceL
 import {
     ConnectionTestError,
     ConnectionTestResult,
-    LLMService,
+    SummarizableLLMService,
     LocalLLMService,
     CloudLLMService,
     LLMResponse
@@ -33,7 +33,7 @@ import { buildFolderContext, FolderContext } from './utils/folderContextUtils';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
-    public llmService: LLMService;
+    public llmService: SummarizableLLMService;
     public configService: ConfigurationService;
     public embeddingService: IEmbeddingService | null = null;
     public vectorStore: IVectorStore | null = null;

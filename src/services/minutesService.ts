@@ -286,16 +286,10 @@ export class MinutesService {
     }
 
     private async callLLM(prompt: string): Promise<string> {
-        const service: any = this.plugin.llmService as any;
-
-        if (typeof service.summarizeText === 'function') {
-            const response = await service.summarizeText(prompt);
-            if (response.success && response.content) {
-                return response.content;
-            }
-            throw new Error(response.error || 'Failed to generate minutes');
+        const response = await this.plugin.llmService.summarizeText(prompt);
+        if (response.success && response.content) {
+            return response.content;
         }
-
-        throw new Error('LLM service does not support summarization');
+        throw new Error(response.error || 'Failed to generate minutes');
     }
 }

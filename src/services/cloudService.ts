@@ -1,4 +1,4 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService } from './types';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
@@ -6,7 +6,7 @@ import { TaggingMode } from './prompts/types';
 import { LanguageCode } from './types';
 import { App, requestUrl } from 'obsidian';
 
-export class CloudLLMService extends BaseLLMService {
+export class CloudLLMService extends BaseLLMService implements SummarizableLLMService {
     private adapter: BaseAdapter;
     private readonly adapterType: AdapterType;
     private readonly MAX_CONTENT_LENGTH = 4000; // Reasonable limit for most APIs

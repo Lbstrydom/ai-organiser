@@ -5,7 +5,12 @@
 
 import { App, TFile } from 'obsidian';
 import { isYouTubeUrl } from '../services/youtubeService';
-import { DOCUMENT_EXTENSIONS_WITH_DOTS, EXTRACTABLE_DOCUMENT_EXTENSIONS } from '../core/constants';
+import {
+    DOCUMENT_EXTENSIONS_WITH_DOTS,
+    EXTRACTABLE_DOCUMENT_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    AUDIO_EXTENSIONS
+} from '../core/constants';
 
 export type ContentType = 'image' | 'pdf' | 'youtube' | 'web-link' | 'internal-link' | 'document' | 'audio';
 
@@ -31,12 +36,6 @@ export interface DetectionResult {
     hasAudio: boolean;
     hasDocuments: boolean;
 }
-
-// Image file extensions
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-
-// Audio file extensions (matches audioTranscriptionService.ts)
-const AUDIO_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.webm', '.ogg', '.mp4', '.mpeg', '.mpga', '.oga'];
 
 // PDF extension specifically
 const PDF_EXTENSION = '.pdf';

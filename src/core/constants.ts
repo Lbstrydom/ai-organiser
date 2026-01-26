@@ -75,9 +75,18 @@ export const ALL_DOCUMENT_EXTENSIONS = ['pdf', ...EXTRACTABLE_DOCUMENT_EXTENSION
 export const DOCUMENT_EXTENSIONS_WITH_DOTS = ALL_DOCUMENT_EXTENSIONS.map(ext => `.${ext}`);
 export type ExtractableDocumentExtension = typeof EXTRACTABLE_DOCUMENT_EXTENSIONS[number];
 
+// Media extension constants (single source of truth)
+export const IMAGE_EXTENSIONS: ReadonlyArray<string> = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+export const AUDIO_EXTENSIONS: ReadonlyArray<string> = ['.mp3', '.m4a', '.wav', '.webm', '.ogg', '.mp4', '.mpeg', '.mpga', '.oga'];
+export const VIDEO_EXTENSIONS: ReadonlyArray<string> = ['.mp4', '.mov', '.avi'];
+
 // Document extraction defaults
 export const DEFAULT_MAX_DOCUMENT_CHARS = 50000;
 export const DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS = 100000;
+
+// Content detection thresholds
+export const MIN_TEXT_CONTENT_CHARS = 50;
+export const SEARCH_TERM_SNIPPET_CHARS = 2000;
 
 // Truncation choice types
 export type TruncationChoice = 'truncate' | 'full' | 'skip';

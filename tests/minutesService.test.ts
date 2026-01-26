@@ -605,14 +605,6 @@ This was a kickoff meeting.
             await expect(service.generateMinutes(baseInput)).rejects.toThrow('Failed to generate minutes');
         });
 
-        it('handles missing summarizeText function with clear error', async () => {
-            mockPlugin.llmService = {}; // No summarizeText method
-
-            await expect(service.generateMinutes(baseInput)).rejects.toThrow(
-                'LLM service does not support summarization'
-            );
-        });
-
         it('fails fast on unrecoverable chunk JSON parsing errors', async () => {
             const textChunker = await import('../src/utils/textChunker');
             vi.spyOn(textChunker, 'chunkPlainTextAsync')

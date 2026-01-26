@@ -1451,12 +1451,7 @@ export class MinutesCreationModal extends Modal {
             const fullPrompt = `${extractionPrompt}\n\n--- DOCUMENT CONTENT ---\n\n${docContent}`;
 
             // Call LLM
-            const service = this.plugin.llmService as any;
-            if (typeof service.summarizeText !== 'function') {
-                throw new Error('LLM service not available');
-            }
-
-            const response = await service.summarizeText(fullPrompt);
+            const response = await this.plugin.llmService.summarizeText(fullPrompt);
             if (!response.success || !response.content) {
                 throw new Error(response.error || 'Extraction failed');
             }

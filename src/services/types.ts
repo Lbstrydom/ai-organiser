@@ -91,6 +91,17 @@ export interface LLMService {
     getModelName?(): string;
 }
 
+export interface SummarizableLLMService extends LLMService {
+    summarizeText(prompt: string): Promise<{ success: boolean; content?: string; error?: string }>;
+}
+
+export interface MultimodalLLMService extends SummarizableLLMService {
+    analyzeMultipleContent(
+        items: Array<{ base64: string; mimeType: string }>,
+        prompt: string
+    ): Promise<{ success: boolean; content?: string; error?: string }>;
+}
+
 export interface ConnectionTestError {
     type: "auth" | "network" | "timeout" | "unknown";
     message: string;

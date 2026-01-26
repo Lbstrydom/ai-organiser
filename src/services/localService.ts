@@ -1,4 +1,4 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService } from './types';
 import { SYSTEM_PROMPT } from '../utils/constants';
 import { BaseLLMService } from './baseService';
 import { TaggingMode } from './prompts/types';
@@ -6,7 +6,7 @@ import { LanguageCode } from './types';
 import { App, requestUrl } from 'obsidian';
 import { extractAuthFromUrl } from './localModelFetcher';
 
-export class LocalLLMService extends BaseLLMService {
+export class LocalLLMService extends BaseLLMService implements SummarizableLLMService {
     private readonly MAX_CONTENT_LENGTH = 4000;
     private readonly MAX_RETRIES = 3;
     private readonly RETRY_DELAY = 1000; // 1 second
