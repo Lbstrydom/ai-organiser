@@ -20,7 +20,7 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
         const providerOpenAIKey = this.plugin.settings.providerSettings?.openai?.apiKey;
         const providerGroqKey = this.plugin.settings.providerSettings?.groq?.apiKey;
 
-        this.containerEl.createEl('h2', { text: t?.title || 'Audio Transcription' });
+        this.createSectionHeader(t?.title || 'Audio Transcription', 'mic', 2);
 
         // Info about how transcription works
         const infoEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });

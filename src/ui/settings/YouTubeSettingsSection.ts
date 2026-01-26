@@ -11,7 +11,7 @@ export class YouTubeSettingsSection extends BaseSettingSection {
         const t = this.plugin.t.settings.youtube;
         const isGeminiMainProvider = this.plugin.settings.cloudServiceType === 'gemini';
 
-        this.containerEl.createEl('h2', { text: t?.title || 'YouTube' });
+        this.createSectionHeader(t?.title || 'YouTube', 'youtube', 2);
 
         // Info about how YouTube processing works
         const infoEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });

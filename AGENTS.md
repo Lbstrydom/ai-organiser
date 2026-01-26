@@ -415,6 +415,53 @@ Mobile settings section in plugin settings provides:
 - Index size limits and read-only mode
 - Custom endpoint for home servers
 
+## Settings Layout & UX Design Principles
+
+### Gestalt Principles
+
+Apply Gestalt psychology to settings UI:
+- **Proximity**: Group related settings (e.g., YouTube and Audio under Summarization - they're input sources)
+- **Similarity**: Consistent header styles - h1 with icons for main sections, h2 with icons for subsections
+- **Common Region**: Subsections visually nested under parents through header levels
+
+### User Task-Based Organization
+
+Organize by user mental model, not technical implementation:
+```
+AI Provider          ← Setup (do once)
+Tagging              ← Core feature
+Summarization (h1)   ← Core feature
+  ├── YouTube (h2)   ← Input source for summarization
+  └── Audio (h2)     ← Input source for summarization
+Meeting Minutes      ← Separate workflow (not a summarization subsection)
+Semantic Search      ← Advanced feature
+Integrations         ← External tools
+Language/Mobile      ← Preferences
+Configuration        ← Advanced config
+```
+
+### Visual Hierarchy
+
+**Header levels:**
+- `h1` with icon: Main feature sections (`createSectionHeader(title, icon, 1)`)
+- `h2` with icon: Subsections of parent feature (`createSectionHeader(title, icon, 2)`)
+- `h4` plain: Settings group labels within section (`createEl('h4')`)
+
+**Icons for scanability:**
+- Every section/subsection needs an icon
+- Use contextual Lucide icons (e.g., `youtube`, `mic`, `file-text`)
+
+### Async Rendering Pitfall
+
+When `display()` is async, it MUST be awaited or sections render out of order:
+```typescript
+// WRONG - renders at end of page
+this.summarizationSection.display();
+
+// CORRECT - maintains visual order
+await this.summarizationSection.display();
+```
+
 ## Obsidian Bases Integration
 
 **Status**: ✅ Fully Implemented (January 2025)

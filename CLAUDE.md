@@ -444,6 +444,48 @@ Embedding models are provider-specific dropdowns (not free text):
 - Each provider has curated model options with recommended defaults
 - Custom models can still be used (shown as "custom" if not in list)
 
+### Settings Layout & Visual Hierarchy
+
+**Gestalt Principles Applied:**
+- **Proximity**: Group related settings together (e.g., YouTube and Audio under Summarization since they're input sources)
+- **Similarity**: Use consistent header styles - h1 with icons for main sections, h2 with icons for subsections
+- **Common Region**: Subsections visually nested under parent sections through header levels
+
+**User Task-Based Organization:**
+Organize settings by user mental model, not technical implementation:
+```
+AI Provider          ← Setup (do once)
+Tagging              ← Core feature
+Summarization (h1)   ← Core feature
+  ├── YouTube (h2)   ← Input source for summarization
+  └── Audio (h2)     ← Input source for summarization
+Meeting Minutes      ← Separate workflow (not a summarization subsection)
+Semantic Search      ← Advanced feature
+Integrations         ← External tools
+Language/Mobile      ← Preferences
+Configuration        ← Advanced config
+```
+
+**Header Hierarchy:**
+- `h1` with icon: Main feature sections (use `createSectionHeader(title, icon, 1)`)
+- `h2` with icon: Subsections belonging to parent feature (use `createSectionHeader(title, icon, 2)`)
+- `h4` (plain): Settings group labels within a section (use `createEl('h4')`)
+
+**Async Rendering Order:**
+When a section's `display()` method is async (e.g., loads config), it MUST be awaited:
+```typescript
+// Wrong - section renders out of order
+this.summarizationSection.display();  // async but not awaited
+
+// Correct - maintains visual order
+await this.summarizationSection.display();
+```
+
+**Icons for Visual Distinction:**
+Every main and subsection should have an icon for scanability:
+- Main sections: Lucide icons matching feature (e.g., `file-text` for Summarization)
+- Subsections: Contextual icons (e.g., `youtube` for YouTube, `mic` for Audio)
+
 ## Semantic Search & RAG Implementation Status ✅ COMPLETE
 
 ### Embedding Service Infrastructure

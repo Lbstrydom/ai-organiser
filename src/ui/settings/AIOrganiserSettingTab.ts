@@ -33,7 +33,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
-    display(): void {
+    async display(): Promise<void> {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('ai-organiser-settings');
@@ -48,27 +48,27 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.taggingSection = new TaggingSettingsSection(this.plugin, containerEl, this);
         this.taggingSection.display();
 
-        // 3. Summarization (core feature)
+        // 3. Summarization (core feature) - async, must await
         this.summarizationSection = new SummarizationSettingsSection(this.plugin, containerEl, this);
-        this.summarizationSection.display();
+        await this.summarizationSection.display();
 
-        // 3b. Meeting Minutes (corporate workflow)
-        this.minutesSection = new MinutesSettingsSection(this.plugin, containerEl, this);
-        this.minutesSection.display();
-
-        // 3c. YouTube (Gemini-native processing for YouTube videos)
+        // 3a. YouTube (input source for summarization)
         this.youtubeSection = new YouTubeSettingsSection(this.plugin, containerEl, this);
         this.youtubeSection.display();
 
-        // 3d. Audio Transcription (Whisper API for audio files)
+        // 3b. Audio Transcription (input source for summarization)
         this.audioTranscriptionSection = new AudioTranscriptionSettingsSection(this.plugin, containerEl, this);
         this.audioTranscriptionSection.display();
 
-        // 4. Vault Context / RAG (advanced feature - enhances core features)
+        // 4. Meeting Minutes (separate workflow)
+        this.minutesSection = new MinutesSettingsSection(this.plugin, containerEl, this);
+        this.minutesSection.display();
+
+        // 5. Vault Context / RAG (advanced feature - enhances core features)
         this.semanticSearchSection = new SemanticSearchSettingsSection(this.plugin, containerEl, this);
         this.semanticSearchSection.display();
 
-        // 5. Integrations (external tools - Bases + NotebookLM)
+        // 6. Integrations (external tools - Bases + NotebookLM)
         const integrationsHeader = containerEl.createEl('h1', { cls: 'ai-organiser-settings-header' });
         const integrationsIcon = integrationsHeader.createSpan({ cls: 'ai-organiser-settings-header-icon' });
         setIcon(integrationsIcon, 'puzzle');
@@ -84,15 +84,15 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.notebookLMSection = new NotebookLMSettingsSection(this.plugin, containerEl, this);
         this.notebookLMSection.display();
 
-        // 6. Interface (preferences - language settings)
+        // 7. Interface (preferences - language settings)
         this.interfaceSection = new InterfaceSettingsSection(this.plugin, containerEl, this);
         this.interfaceSection.display();
 
-        // 7. Mobile (platform-specific preferences)
+        // 8. Mobile (platform-specific preferences)
         this.mobileSection = new MobileSettingsSection(this.plugin, containerEl, this);
         this.mobileSection.display();
 
-        // 8. Configuration (advanced - config files)
+        // 9. Configuration (advanced - config files)
         this.configurationSection = new ConfigurationSettingsSection(this.plugin, containerEl, this);
         this.configurationSection.display();
     }

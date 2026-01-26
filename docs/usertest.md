@@ -16,7 +16,7 @@
 ## 1. Settings Sanity (2 min)
 
 - [ ] Open Settings → AI Organiser
-- [ ] Sections visible in order: AI Provider → Language → Tagging → Summarization → YouTube → Audio → Semantic Search → Bases → NotebookLM → Mobile → Configuration
+- [ ] Sections visible in order: AI Provider → Tagging → Summarization (with YouTube, Audio subsections) → Meeting Minutes → Semantic Search → Integrations (Bases + NotebookLM) → Language → Mobile → Configuration
 - [ ] Toggle Semantic Search ON/OFF 3× → no duplicate UI elements
 - [ ] API key shows masked format: `sk-abc•••••••`
 
