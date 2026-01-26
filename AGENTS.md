@@ -415,52 +415,60 @@ Mobile settings section in plugin settings provides:
 - Index size limits and read-only mode
 - Custom endpoint for home servers
 
-## Settings Layout & UX Design Principles
+## UI/UX Design Principles
+
+Apply consistently across all UI: settings, modals, sidebars, command palettes.
 
 ### Gestalt Principles
 
-Apply Gestalt psychology to settings UI:
-- **Proximity**: Group related settings (e.g., YouTube and Audio under Summarization - they're input sources)
-- **Similarity**: Consistent header styles - h1 with icons for main sections, h2 with icons for subsections
-- **Common Region**: Subsections visually nested under parents through header levels
+- **Proximity**: Group related items (settings under parent features, commands by workflow)
+- **Similarity**: Consistent styling (icons, headers, spacing) for similar elements
+- **Common Region**: Visual containers (header levels, borders) to group related items
+- **Continuity**: Logical flow - setup → core → advanced → preferences
 
 ### User Task-Based Organization
 
-Organize by user mental model, not technical implementation:
+Organize by **user mental model**, not technical implementation:
+
+**Settings:** Setup → Core Features → Advanced → Preferences → Config
 ```
-AI Provider          ← Setup (do once)
-Tagging              ← Core feature
-Summarization (h1)   ← Core feature
-  ├── YouTube (h2)   ← Input source for summarization
-  └── Audio (h2)     ← Input source for summarization
-Meeting Minutes      ← Separate workflow (not a summarization subsection)
-Semantic Search      ← Advanced feature
-Integrations         ← External tools
-Language/Mobile      ← Preferences
-Configuration        ← Advanced config
+AI Provider → Tagging → Summarization (with YouTube/Audio subsections) → Meeting Minutes → Semantic Search → Integrations → Language/Mobile → Configuration
 ```
+
+**Command Picker Categories** (`CommandPickerModal.ts`):
+```
+Create   ← Capture (summarize URL, YouTube, audio)
+Enhance  ← Improve (rewrite, translate, diagram)
+Organize ← Structure (tag, clear tags)
+Search   ← Discover (related notes)
+Analyze  ← Insights (tag network)
+```
+
+**Modal Sections:** Inputs first → Options → Actions last
 
 ### Visual Hierarchy
 
-**Header levels:**
-- `h1` with icon: Main feature sections (`createSectionHeader(title, icon, 1)`)
-- `h2` with icon: Subsections of parent feature (`createSectionHeader(title, icon, 2)`)
-- `h4` plain: Settings group labels within section (`createEl('h4')`)
+**Settings headers:**
+- `h1` + icon: Main sections (`createSectionHeader(title, icon, 1)`)
+- `h2` + icon: Subsections (`createSectionHeader(title, icon, 2)`)
+- `h4` plain: Group labels (`createEl('h4')`)
 
-**Icons for scanability:**
-- Every section/subsection needs an icon
-- Use contextual Lucide icons (e.g., `youtube`, `mic`, `file-text`)
+**Icons:** Every section/command needs contextual Lucide icon. Use `sparkles` for AI actions.
 
-### Async Rendering Pitfall
+**Buttons:** Primary = `mod-cta`, destructive = `mod-warning`
 
-When `display()` is async, it MUST be awaited or sections render out of order:
+### Async Rendering
+
+Await async `display()` methods to maintain order:
 ```typescript
-// WRONG - renders at end of page
-this.summarizationSection.display();
-
-// CORRECT - maintains visual order
-await this.summarizationSection.display();
+await this.summarizationSection.display();  // Correct
 ```
+
+### Modal UX
+
+- **Dependency-first:** Documents → Dictionary → Audio (extract terms before transcription)
+- **Inline controls:** Place actions next to affected items (Gestalt proximity)
+- **Progressive disclosure:** Collapse advanced options
 
 ## Obsidian Bases Integration
 

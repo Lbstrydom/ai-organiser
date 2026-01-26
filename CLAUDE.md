@@ -444,47 +444,91 @@ Embedding models are provider-specific dropdowns (not free text):
 - Each provider has curated model options with recommended defaults
 - Custom models can still be used (shown as "custom" if not in list)
 
-### Settings Layout & Visual Hierarchy
+## UI/UX Design Principles
 
-**Gestalt Principles Applied:**
-- **Proximity**: Group related settings together (e.g., YouTube and Audio under Summarization since they're input sources)
-- **Similarity**: Use consistent header styles - h1 with icons for main sections, h2 with icons for subsections
-- **Common Region**: Subsections visually nested under parent sections through header levels
+Apply these principles consistently across all UI: settings, modals, sidebars, and command palettes.
 
-**User Task-Based Organization:**
-Organize settings by user mental model, not technical implementation:
+### Gestalt Principles
+
+**Always apply:**
+- **Proximity**: Group related items together (settings under parent features, commands by workflow)
+- **Similarity**: Use consistent visual styling (icons, headers, spacing) for similar elements
+- **Common Region**: Use visual containers (header levels, borders, backgrounds) to group related items
+- **Continuity**: Maintain logical flow - setup → core features → advanced → preferences
+
+### User Task-Based Organization
+
+Organize by **user mental model**, not technical implementation:
+
+**Settings layout:**
 ```
 AI Provider          ← Setup (do once)
 Tagging              ← Core feature
 Summarization (h1)   ← Core feature
   ├── YouTube (h2)   ← Input source for summarization
   └── Audio (h2)     ← Input source for summarization
-Meeting Minutes      ← Separate workflow (not a summarization subsection)
+Meeting Minutes      ← Separate workflow
 Semantic Search      ← Advanced feature
 Integrations         ← External tools
-Language/Mobile      ← Preferences
+Preferences          ← Language, Mobile
 Configuration        ← Advanced config
 ```
 
-**Header Hierarchy:**
-- `h1` with icon: Main feature sections (use `createSectionHeader(title, icon, 1)`)
-- `h2` with icon: Subsections belonging to parent feature (use `createSectionHeader(title, icon, 2)`)
-- `h4` (plain): Settings group labels within a section (use `createEl('h4')`)
+**Command picker categories** (`CommandPickerModal.ts`):
+```
+Create    ← Capture content (summarize URL, YouTube, audio)
+Enhance   ← Improve existing (rewrite, translate, diagram)
+Organize  ← Structure content (tag, clear tags)
+Search    ← Discover (related notes, semantic search)
+Analyze   ← Insights (tag network, vault stats)
+```
 
-**Async Rendering Order:**
-When a section's `display()` method is async (e.g., loads config), it MUST be awaited:
+**Modal sections:**
+```
+Input fields         ← Required data first
+Context/Options      ← Supporting configuration
+Actions              ← Primary action buttons last
+```
+
+### Visual Hierarchy
+
+**Header levels (settings):**
+- `h1` with icon: Main sections (`createSectionHeader(title, icon, 1)`)
+- `h2` with icon: Subsections (`createSectionHeader(title, icon, 2)`)
+- `h4` plain: Group labels within sections (`createEl('h4')`)
+
+**Icons for scanability:**
+- Every section/command needs a contextual Lucide icon
+- Use `sparkles` for AI-powered actions
+- Use feature-specific icons (`youtube`, `mic`, `file-text`, `tag`)
+
+**Buttons:**
+- Primary action: `mod-cta` class (highlighted)
+- Secondary actions: Default button style
+- Destructive actions: `mod-warning` class
+
+### Async Rendering
+
+When `display()` is async, await it to maintain visual order:
 ```typescript
-// Wrong - section renders out of order
-this.summarizationSection.display();  // async but not awaited
+// WRONG - renders out of order
+this.summarizationSection.display();
 
-// Correct - maintains visual order
+// CORRECT - maintains order
 await this.summarizationSection.display();
 ```
 
-**Icons for Visual Distinction:**
-Every main and subsection should have an icon for scanability:
-- Main sections: Lucide icons matching feature (e.g., `file-text` for Summarization)
-- Subsections: Contextual icons (e.g., `youtube` for YouTube, `mic` for Audio)
+### Modal UX Patterns
+
+**Dependency-first ordering:**
+In MinutesCreationModal: Documents → Dictionary → Audio
+(Extract terms from docs before using them for transcription)
+
+**Inline controls (Gestalt proximity):**
+Place truncation/action controls directly next to affected items, not in a separate panel.
+
+**Progressive disclosure:**
+Show advanced options collapsed or in subsections, not mixed with primary inputs.
 
 ## Semantic Search & RAG Implementation Status ✅ COMPLETE
 
