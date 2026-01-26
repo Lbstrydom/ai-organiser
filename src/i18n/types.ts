@@ -395,6 +395,8 @@ export interface Translations {
         showRelatedNotes: string;
         searchSemanticVault: string;
         chatWithVault: string;
+        askAboutCurrentNote: string;
+        insertRelatedNotes: string;
         upgradeToBases: string;
         upgradeFolderToBases: string;
         createBasesDashboard: string;
@@ -404,6 +406,13 @@ export interface Translations {
         notebookLMClear: string;
         notebookLMOpenFolder: string;
         createMeetingMinutes: string;
+        addToPendingIntegration: string;
+        integratePendingContent: string;
+        resolvePendingEmbeds: string;
+        ensureNoteStructure: string;
+        quickAddTextPending: string;
+        quickAddUrlPending: string;
+        dropSelectionPending: string;
     };
 
     // Messages and notifications
@@ -588,6 +597,9 @@ export interface Translations {
         urlAddedToPending: string;
         selectTextFirst: string;
         selectionAddedToPending: string;
+        contentRequired: string;
+        noResponseFromLlm: string;
+        addedTimestamp: string;
         // Related notes view messages
         relatedNotesCopiedToClipboard: string;
         cacheClearedSuccessfully: string;
@@ -1037,14 +1049,44 @@ export interface Translations {
             title: string;
             sourceType: string;
             sourceTitle: string;
+            sourceTitleDesc: string;
+            sourceTitlePlaceholder: string;
             sourceLink: string;
+            sourceLinkDesc: string;
+            sourceLinkPlaceholder: string;
             content: string;
+            contentDesc: string;
+            contentPlaceholder: string;
+            defaultTitle: string;
             types: {
                 manual: string;
                 web: string;
                 youtube: string;
+                audio: string;
+                pdf: string;
+                image: string;
+                note: string;
+                video: string;
+                transcript: string;
             };
             add: string;
+        };
+        integrationConfirm: {
+            title: string;
+            description: string;
+            personaLabel: string;
+            confirmButton: string;
+        };
+        quickAddText: {
+            title: string;
+            description: string;
+            placeholder: string;
+        };
+        quickAddUrl: {
+            title: string;
+            description: string;
+            urlLabel: string;
+            urlPlaceholder: string;
         };
         chatWithVault: {
             title: string;
@@ -1055,8 +1097,13 @@ export interface Translations {
             thinkingButton: string;
             askQuestion: string;
             yourQuestion: string;
+            questionPlaceholder: string;
+            askButton: string;
             errorOccurred: string;
             chatCleared: string;
+            sourcesLabel: string;
+            noRelevantInfo: string;
+            responseFailed: string;
             searchingContext: string;
             retrievingInformation: string;
         };

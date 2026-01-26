@@ -128,30 +128,33 @@ Deliverables
 
 Steps (Completed)
 1. ✅ Added i18n keys to `src/i18n/types.ts`:
-   - `modals.addContent`: title, sourceType, sourceTitle, sourceLink, content, types (manual/web/youtube), add
-   - `modals.chatWithVault`: title, intro, placeholder, sendButton, clearButton, thinkingButton, askQuestion, yourQuestion, errorOccurred, chatCleared, searchingContext, retrievingInformation
+   - `modals.addContent`: title, sourceType, sourceTitle (+desc/placeholder), sourceLink (+desc/placeholder), content (+desc/placeholder), defaultTitle, extended types (audio/pdf/image/note/video/transcript)
+   - `modals.integrationConfirm`, `modals.quickAddText`, `modals.quickAddUrl` for new modal UI strings
+   - `modals.chatWithVault`: added sourcesLabel, noRelevantInfo, responseFailed, questionPlaceholder, askButton
+   - `commands`: integration + chat subcommands (askAboutCurrentNote, insertRelatedNotes, quick-add, etc.)
+   - `messages`: contentRequired, noResponseFromLlm, addedTimestamp
 2. ✅ Added English translations in `src/i18n/en.ts` with human-friendly UI strings
 3. ✅ Added Chinese translations in `src/i18n/zh-cn.ts` with bilingual parity
 4. ✅ Replaced hardcoded strings in `src/commands/integrationCommands.ts`:
-   - IntegrationConfirmModal: buttons now use i18n keys (cancel, add/integrate)
-   - QuickTextModal: buttons now use i18n keys
-   - QuickUrlModal: buttons now use i18n keys
+   - Command names migrated to `plugin.t.commands.*`
+   - IntegrationConfirmModal copy, QuickAdd modals, AddContent modal labels/placeholders now i18n
+   - Default source titles centralized via `getDefaultSourceTitle()`
 5. ✅ Replaced hardcoded strings in `src/commands/chatCommands.ts`:
-   - ChatWithVaultModal: title, intro, placeholder, send/clear buttons
-   - promptForQuestion helper: title, field name, placeholder, ask button, cancel button
-   - Error messages: formatted with i18n key replacement
+   - ChatWithVaultModal: title, intro, placeholder, buttons, sources label, empty/failed states
+   - promptForQuestion helper: title, field name, placeholder, ask/cancel buttons
+   - Command names migrated to `plugin.t.commands.*`
 
 Implementation Notes
-- All modal button texts now use `plugin.t.modals.*` with sensible fallback strings
-- IntegrationConfirmModal and QuickUrlModal now accept `t` parameter for translations
+- All modal button texts now use `plugin.t.modals.*` (no fallback literals)
+- IntegrationConfirmModal and QuickAdd modals now accept typed `Translations`
 - Error messages format placeholders using i18n key replacement (e.g., `{error}`)
 - EN/ZH translation parity maintained across all new keys
 
 Verification Results
-- ✅ Build succeeds: main.js produced (3.1MB)
-- ✅ All 678 unit tests pass
-- ✅ No new regressions from hardcoding elimination
-- Sign-off: Approved (Phase 4 complete, all hardcoded strings in integration/chat commands migrated to i18n)
+- ✅ `npm test` (678 tests passed)
+- ✅ `npm run test:auto`
+- ✅ `npm run build:quick`
+- Sign-off: Approved (review complete; no blocking i18n issues found in Phase 4 scope)
 
 ## Phase 5 — Optional: Minutes modal extraction
 Deliverables

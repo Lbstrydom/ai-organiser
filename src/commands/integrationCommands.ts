@@ -5,6 +5,7 @@
 
 import { Editor, Notice, Modal, App, Setting, TextAreaComponent, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import type { Translations } from '../i18n';
 import {
     addToPendingIntegration,
     getPendingIntegrationContent,
@@ -31,7 +32,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
     plugin.addCommand({
         id: 'add-to-pending-integration',
-        name: 'Add content to Pending Integration',
+        name: plugin.t.commands.addToPendingIntegration,
         icon: 'plus-circle',
         editorCallback: async (editor: Editor) => {
             const modal = new AddContentModal(plugin.app, plugin.t, async (result) => {
@@ -60,7 +61,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Integrate pending content
     plugin.addCommand({
         id: 'integrate-pending-content',
-        name: 'Integrate pending content into note',
+        name: plugin.t.commands.integratePendingContent,
         icon: 'git-merge',
         editorCallback: async (editor: Editor) => {
             const pendingContent = getPendingIntegrationContent(editor);
@@ -100,7 +101,8 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         const response = await callLLMForIntegration(plugin, prompt);
 
                         if (!response.success || !response.content) {
-                            showErrorNotice(response.error || 'No response from LLM', 'Content integration');
+                            const errorMessage = response.error || plugin.t.messages.noResponseFromLlm;
+                            showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
                             return;
                         }
 
@@ -110,11 +112,11 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         // Clear the pending integration section
                         clearPendingIntegration(editor);
 
-                        showSuccessNotice('Content integrated successfully', 'Integration');
+                        showSuccessNotice(plugin.t.messages.contentIntegratedSuccessfully);
 
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                        showErrorNotice(errorMessage, 'Content integration');
+                        showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
                     }
                 }
             );
@@ -125,7 +127,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Resolve pending embeds
     plugin.addCommand({
         id: 'resolve-pending-embeds',
-        name: plugin.t.integration?.resolveEmbeds || 'Resolve pending embeds',
+        name: plugin.t.commands.resolvePendingEmbeds,
         icon: 'scan-text',
         editorCallback: async (editor: Editor) => {
             await resolvePendingEmbeds(plugin, editor);
@@ -135,7 +137,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Ensure standard note structure
     plugin.addCommand({
         id: 'ensure-note-structure',
-        name: 'Add References and Pending Integration sections',
+        name: plugin.t.commands.ensureNoteStructure,
         icon: 'layout-template',
         editorCallback: (editor: Editor) => {
             ensureStandardStructure(editor);
@@ -146,7 +148,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Quick add text to pending
     plugin.addCommand({
         id: 'quick-add-text-pending',
-        name: 'Quick add: Text to Pending Integration',
+        name: plugin.t.commands.quickAddTextPending,
         icon: 'text',
         editorCallback: async (editor: Editor) => {
             const modal = new QuickTextModal(plugin.app, plugin.t, (text) => {
@@ -155,7 +157,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const source: PendingSource = {
                         type: 'manual',
-                        title: `Added ${timestamp}`,
+                        title: plugin.t.messages.addedTimestamp.replace('{time}', timestamp),
                         date: getTodayDate(),
                         content: text
                     };
@@ -170,14 +172,15 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Quick add URL to pending
     plugin.addCommand({
         id: 'quick-add-url-pending',
-        name: 'Quick add: URL to Pending Integration',
+        name: plugin.t.commands.quickAddUrlPending,
         icon: 'link',
         editorCallback: async (editor: Editor) => {
             const modal = new QuickUrlModal(plugin.app, plugin.t, (url) => {
                 if (url) {
+                    const defaultTitle = getDefaultSourceTitle(plugin.t, 'web');
                     const source: PendingSource = {
                         type: 'web',
-                        title: 'Web Link',
+                        title: defaultTitle,
                         date: getTodayDate(),
                         content: url,  // Just the URL - AI will handle during integration
                         link: url
@@ -187,7 +190,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                     // Also add to references
                     const sourceRef: SourceReference = {
                         type: 'web',
-                        title: 'Web Link',
+                        title: defaultTitle,
                         link: url,
                         date: getTodayDate(),
                         isInternal: false
@@ -204,7 +207,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Drop selection to pending (no modal, instant)
     plugin.addCommand({
         id: 'drop-selection-pending',
-        name: 'Drop selection to Pending Integration',
+        name: plugin.t.commands.dropSelectionPending,
         icon: 'arrow-down-to-line',
         editorCallback: (editor: Editor) => {
             const selection = editor.getSelection();
@@ -215,12 +218,15 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             }
 
             // Detect content type from selection
-            const contentType = detectContentType(selection.trim());
+            const contentType = detectContentType(selection.trim(), plugin.t);
             const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const defaultTitle = contentType.type === 'manual'
+                ? plugin.t.messages.addedTimestamp.replace('{time}', timestamp)
+                : getDefaultSourceTitle(plugin.t, contentType.type);
 
             const source: PendingSource = {
                 type: contentType.type,
-                title: contentType.title || `Added ${timestamp}`,
+                title: contentType.title || defaultTitle,
                 date: getTodayDate(),
                 content: selection.trim(),
                 link: contentType.link
@@ -232,7 +238,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             if (contentType.link) {
                 const sourceRef: SourceReference = {
                     type: contentType.type,
-                    title: contentType.title || 'Link',
+                    title: contentType.title || defaultTitle,
                     link: contentType.link,
                     date: getTodayDate(),
                     isInternal: contentType.isInternal || false
@@ -245,12 +251,17 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     });
 }
 
+function getDefaultSourceTitle(t: Translations, type: SourceType): string {
+    const typeLabels = t.modals.addContent.types as Record<SourceType, string>;
+    return typeLabels[type] || t.modals.addContent.defaultTitle;
+}
+
 async function resolvePendingEmbeds(plugin: AIOrganiserPlugin, editor: Editor): Promise<void> {
     const t = plugin.t.integration;
     const pendingContent = getPendingIntegrationContent(editor);
 
     if (!pendingContent) {
-        new Notice(t?.noEmbedsToResolve || 'No embeds to resolve in Pending Integration');
+        new Notice(t.noEmbedsToResolve);
         return;
     }
 
@@ -259,7 +270,7 @@ async function resolvePendingEmbeds(plugin: AIOrganiserPlugin, editor: Editor): 
     const extractable = detected.items.filter(item => item.type === 'document' || item.type === 'pdf');
 
     if (extractable.length === 0) {
-        new Notice(t?.noEmbedsToResolve || 'No embeds to resolve in Pending Integration');
+        new Notice(t.noEmbedsToResolve);
         return;
     }
 
@@ -271,10 +282,10 @@ async function resolvePendingEmbeds(plugin: AIOrganiserPlugin, editor: Editor): 
         .map(([type, count]) => `${count} ${type}`)
         .join(', ');
 
-    const foundMessage = (t?.embedsFound || '{count} embed(s) found ({types})')
+    const foundMessage = t.embedsFound
         .replace('{count}', String(extractable.length))
         .replace('{types}', typesSummary);
-    const confirmMessage = t?.resolveConfirm || 'Extract text from embeds?';
+    const confirmMessage = t.resolveConfirm;
 
     const proceed = await plugin.showConfirmationDialog(`${foundMessage}\n\n${confirmMessage}`);
     if (!proceed) {
@@ -299,7 +310,7 @@ async function resolvePendingEmbeds(plugin: AIOrganiserPlugin, editor: Editor): 
     }
 
     new Notice(
-        (t?.resolveSuccess || 'Resolved {count} embed(s)').replace('{count}', String(resolvedCount))
+        t.resolveSuccess.replace('{count}', String(resolvedCount))
     );
 }
 
@@ -333,7 +344,7 @@ async function extractPendingEmbedText(
 /**
  * Detect content type from text
  */
-function detectContentType(text: string): {
+function detectContentType(text: string, t: Translations): {
     type: SourceType;
     title?: string;
     link?: string;
@@ -346,9 +357,9 @@ function detectContentType(text: string): {
     if (urlMatch) {
         // Check if it's YouTube
         if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
-            return { type: 'youtube', title: 'YouTube Video', link: trimmed, isInternal: false };
+            return { type: 'youtube', title: getDefaultSourceTitle(t, 'youtube'), link: trimmed, isInternal: false };
         }
-        return { type: 'web', title: 'Web Link', link: trimmed, isInternal: false };
+        return { type: 'web', title: getDefaultSourceTitle(t, 'web'), link: trimmed, isInternal: false };
     }
 
     // Check for wikilink [[...]]
@@ -447,13 +458,13 @@ class IntegrationConfirmModal extends Modal {
     private selectedPersona: Persona;
     private onConfirm: (persona: Persona) => void;
     private personaButtonEl: HTMLElement | null = null;
-    private t: any;
+    private t: Translations;
 
     constructor(
         app: App,
         personas: Persona[],
         defaultPersona: Persona,
-        t: any,
+        t: Translations,
         onConfirm: (persona: Persona) => void
     ) {
         super(app);
@@ -467,9 +478,9 @@ class IntegrationConfirmModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: 'Integrate Pending Content' });
+        contentEl.createEl('h2', { text: this.t.modals.integrationConfirm.title });
         contentEl.createEl('p', {
-            text: 'The AI will merge your pending content into the main note by topic.',
+            text: this.t.modals.integrationConfirm.description,
             cls: 'setting-item-description'
         });
 
@@ -477,7 +488,7 @@ class IntegrationConfirmModal extends Modal {
         if (this.personas.length > 1) {
             const personaRow = contentEl.createEl('div', { cls: 'persona-selector-row' });
             personaRow.createEl('span', {
-                text: 'Writing style:',
+                text: this.t.modals.integrationConfirm.personaLabel,
                 cls: 'persona-selector-label'
             });
 
@@ -491,10 +502,10 @@ class IntegrationConfirmModal extends Modal {
         // Buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.cancel || 'Cancel')
+                .setButtonText(this.t.modals.cancel)
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.addContent?.add || 'Integrate')
+                .setButtonText(this.t.modals.integrationConfirm.confirmButton)
                 .setCta()
                 .onClick(() => {
                     this.close();
@@ -535,9 +546,9 @@ class IntegrationConfirmModal extends Modal {
 class AddContentModal extends Modal {
     private result: PendingSource | null = null;
     private onSubmit: (result: PendingSource | null) => void;
-    private t: any;
+    private t: Translations;
 
-    constructor(app: App, t: any, onSubmit: (result: PendingSource | null) => void) {
+    constructor(app: App, t: Translations, onSubmit: (result: PendingSource | null) => void) {
         super(app);
         this.t = t;
         this.onSubmit = onSubmit;
@@ -547,7 +558,7 @@ class AddContentModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: this.t.modals?.addContent?.title || 'Add Content to Pending Integration' });
+        contentEl.createEl('h2', { text: this.t.modals.addContent.title });
 
         let selectedType: SourceType = 'manual';
         let title = '';
@@ -556,16 +567,16 @@ class AddContentModal extends Modal {
 
         // Source type dropdown
         new Setting(contentEl)
-            .setName(this.t.modals?.addContent?.sourceType || 'Source Type')
+            .setName(this.t.modals.addContent.sourceType)
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('manual', this.t.modals?.addContent?.types?.manual || 'My Notes')
-                    .addOption('web', this.t.modals?.addContent?.types?.web || 'Web Article')
-                    .addOption('youtube', this.t.modals?.addContent?.types?.youtube || 'YouTube Video')
-                    .addOption('audio', this.t.modals?.addContent?.types?.audio || 'Audio Recording')
-                    .addOption('pdf', this.t.modals?.addContent?.types?.pdf || 'PDF Document')
-                    .addOption('image', this.t.modals?.addContent?.types?.image || 'Image/Screenshot')
-                    .addOption('note', this.t.modals?.addContent?.types?.note || 'Obsidian Note')
+                    .addOption('manual', this.t.modals.addContent.types.manual)
+                    .addOption('web', this.t.modals.addContent.types.web)
+                    .addOption('youtube', this.t.modals.addContent.types.youtube)
+                    .addOption('audio', this.t.modals.addContent.types.audio)
+                    .addOption('pdf', this.t.modals.addContent.types.pdf)
+                    .addOption('image', this.t.modals.addContent.types.image)
+                    .addOption('note', this.t.modals.addContent.types.note)
                     .setValue('manual')
                     .onChange(value => {
                         selectedType = value as SourceType;
@@ -574,11 +585,11 @@ class AddContentModal extends Modal {
 
         // Title
         new Setting(contentEl)
-            .setName(this.t.modals?.addContent?.sourceTitle || 'Source Title')
-            .setDesc(this.t.modals?.addContent?.sourceTitleDesc || 'A name for this source')
+            .setName(this.t.modals.addContent.sourceTitle)
+            .setDesc(this.t.modals.addContent.sourceTitleDesc)
             .addText(text => {
                 text
-                    .setPlaceholder(this.t.modals?.addContent?.sourceTitlePlaceholder || 'e.g., Lecture Notes, Article Name')
+                    .setPlaceholder(this.t.modals.addContent.sourceTitlePlaceholder)
                     .onChange(value => {
                         title = value;
                     });
@@ -586,11 +597,11 @@ class AddContentModal extends Modal {
 
         // Link (optional)
         new Setting(contentEl)
-            .setName(this.t.modals?.addContent?.sourceLink || 'Link (optional)')
-            .setDesc(this.t.modals?.addContent?.sourceLinkDesc || 'URL or [[wikilink]] to the source')
+            .setName(this.t.modals.addContent.sourceLink)
+            .setDesc(this.t.modals.addContent.sourceLinkDesc)
             .addText(text => {
                 text
-                    .setPlaceholder(this.t.modals?.addContent?.sourceLinkPlaceholder || 'https://... or [[Note Name]]')
+                    .setPlaceholder(this.t.modals.addContent.sourceLinkPlaceholder)
                     .onChange(value => {
                         link = value;
                     });
@@ -598,12 +609,12 @@ class AddContentModal extends Modal {
 
         // Content
         const contentSetting = new Setting(contentEl)
-            .setName(this.t.modals?.addContent?.content || 'Content')
-            .setDesc(this.t.modals?.addContent?.contentDesc || 'Paste or type the content to integrate');
+            .setName(this.t.modals.addContent.content)
+            .setDesc(this.t.modals.addContent.contentDesc);
 
         const textArea = new TextAreaComponent(contentSetting.controlEl);
         textArea
-            .setPlaceholder(this.t.modals?.addContent?.contentPlaceholder || 'Paste content here...')
+            .setPlaceholder(this.t.modals.addContent.contentPlaceholder)
             .onChange(value => {
                 content = value;
             });
@@ -613,43 +624,28 @@ class AddContentModal extends Modal {
         // Buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(this.t.modals?.cancel || 'Cancel')
+                .setButtonText(this.t.modals.cancel)
                 .onClick(() => {
                     this.close();
                 }))
             .addButton(btn => btn
-                .setButtonText(this.t.modals?.add || 'Add')
+                .setButtonText(this.t.modals.addContent.add)
                 .setCta()
                 .onClick(() => {
                     if (!content.trim()) {
-                        new Notice(this.t.messages?.contentRequired || 'Please enter some content');
+                        new Notice(this.t.messages.contentRequired);
                         return;
                     }
 
                     this.result = {
                         type: selectedType,
-                        title: title || this.getDefaultTitle(selectedType),
+                        title: title || getDefaultSourceTitle(this.t, selectedType),
                         date: getTodayDate(),
                         content: content.trim(),
                         link: link || undefined
                     };
                     this.close();
                 }));
-    }
-
-    private getDefaultTitle(type: SourceType): string {
-        const defaults: Record<SourceType, string> = {
-            manual: 'My Notes',
-            web: 'Web Article',
-            youtube: 'YouTube Video',
-            audio: 'Audio Recording',
-            pdf: 'PDF Document',
-            image: 'Image/Screenshot',
-            note: 'Obsidian Note',
-            video: 'Video',
-            transcript: 'Transcript'
-        };
-        return defaults[type] || 'Source';
     }
 
     onClose() {
@@ -663,9 +659,9 @@ class AddContentModal extends Modal {
  */
 class QuickTextModal extends Modal {
     private onSubmit: (text: string) => void;
-    private t: any;
+    private t: Translations;
 
-    constructor(app: App, t: any, onSubmit: (text: string) => void) {
+    constructor(app: App, t: Translations, onSubmit: (text: string) => void) {
         super(app);
         this.t = t;
         this.onSubmit = onSubmit;
@@ -675,9 +671,9 @@ class QuickTextModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: 'Quick Add to Pending' });
+        contentEl.createEl('h2', { text: this.t.modals.quickAddText.title });
         contentEl.createEl('p', {
-            text: 'Just paste or type anything - text, URLs, notes. The AI will organize it during integration.',
+            text: this.t.modals.quickAddText.description,
             cls: 'setting-item-description'
         });
 
@@ -685,7 +681,7 @@ class QuickTextModal extends Modal {
 
         const textArea = new TextAreaComponent(contentEl);
         textArea
-            .setPlaceholder('Paste anything here:\n- Text notes\n- URLs (https://...)\n- File links ([[filename]])\n- Screenshots (![[image.png]])\n- Any content to integrate later...')
+            .setPlaceholder(this.t.modals.quickAddText.placeholder)
             .onChange(value => { text = value; });
         textArea.inputEl.rows = 10;
         textArea.inputEl.style.width = '100%';
@@ -693,10 +689,10 @@ class QuickTextModal extends Modal {
 
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.cancel || 'Cancel')
+                .setButtonText(this.t.modals.cancel)
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.add || 'Add')
+                .setButtonText(this.t.modals.addContent.add)
                 .setCta()
                 .onClick(() => {
                     if (text.trim()) {
@@ -716,9 +712,9 @@ class QuickTextModal extends Modal {
  */
 class QuickUrlModal extends Modal {
     private onSubmit: (url: string) => void;
-    private t: any;
+    private t: Translations;
 
-    constructor(app: App, t: any, onSubmit: (url: string) => void) {
+    constructor(app: App, t: Translations, onSubmit: (url: string) => void) {
         super(app);
         this.t = t;
         this.onSubmit = onSubmit;
@@ -728,29 +724,29 @@ class QuickUrlModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: 'Add URL to Pending' });
+        contentEl.createEl('h2', { text: this.t.modals.quickAddUrl.title });
         contentEl.createEl('p', {
-            text: 'Paste a URL. Use "Summarize URL" command first if you want to fetch and summarize the content.',
+            text: this.t.modals.quickAddUrl.description,
             cls: 'setting-item-description'
         });
 
         let url = '';
 
         new Setting(contentEl)
-            .setName('URL')
+            .setName(this.t.modals.quickAddUrl.urlLabel)
             .addText(input => {
                 input
-                    .setPlaceholder('https://...')
+                    .setPlaceholder(this.t.modals.quickAddUrl.urlPlaceholder)
                     .onChange(value => { url = value; });
                 input.inputEl.style.width = '100%';
             });
 
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.cancel || 'Cancel')
+                .setButtonText(this.t.modals.cancel)
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText(this.t?.modals?.add || 'Add')
+                .setButtonText(this.t.modals.addContent.add)
                 .setCta()
                 .onClick(() => {
                     if (url.trim()) {

@@ -408,6 +408,8 @@ export const en: Translations = {
         showRelatedNotes: "Related notes",
         searchSemanticVault: "Semantic search",
         chatWithVault: "Chat with vault",
+        askAboutCurrentNote: "Ask Question About Current Note",
+        insertRelatedNotes: "Insert Related Notes",
         upgradeToBases: "Upgrade to Bases metadata",
         upgradeFolderToBases: "Upgrade folder to Bases metadata",
         createBasesDashboard: "Create Bases dashboard",
@@ -416,7 +418,14 @@ export const en: Translations = {
         notebookLMToggle: "NotebookLM: Toggle Selection",
         notebookLMClear: "NotebookLM: Clear Selection",
         notebookLMOpenFolder: "NotebookLM: Open Export Folder",
-        createMeetingMinutes: "Create Meeting Minutes"
+        createMeetingMinutes: "Create Meeting Minutes",
+        addToPendingIntegration: "Add content to Pending Integration",
+        integratePendingContent: "Integrate pending content into note",
+        resolvePendingEmbeds: "Resolve pending embeds",
+        ensureNoteStructure: "Add References and Pending Integration sections",
+        quickAddTextPending: "Quick add: Text to Pending Integration",
+        quickAddUrlPending: "Quick add: URL to Pending Integration",
+        dropSelectionPending: "Drop selection to Pending Integration"
     },
 
     // Messages and notifications
@@ -601,6 +610,9 @@ export const en: Translations = {
         urlAddedToPending: "URL added to Pending Integration",
         selectTextFirst: "Select some text first",
         selectionAddedToPending: "Selection added to Pending Integration",
+        contentRequired: "Please enter some content",
+        noResponseFromLlm: "No response from the AI",
+        addedTimestamp: "Added {time}",
         // Related notes view messages
         relatedNotesCopiedToClipboard: "Related notes copied to clipboard",
         cacheClearedSuccessfully: "Cache cleared",
@@ -1039,14 +1051,44 @@ export const en: Translations = {
             title: "Add Content to Pending Integration",
             sourceType: "Source Type",
             sourceTitle: "Source Title",
+            sourceTitleDesc: "A name for this source",
+            sourceTitlePlaceholder: "e.g., Lecture Notes, Article Name",
             sourceLink: "Link (optional)",
+            sourceLinkDesc: "URL or [[wikilink]] to the source",
+            sourceLinkPlaceholder: "https://... or [[Note Name]]",
             content: "Content",
+            contentDesc: "Paste or type the content to integrate",
+            contentPlaceholder: "Paste content here...",
+            defaultTitle: "Source",
             types: {
                 manual: "My Notes",
                 web: "Web Article",
-                youtube: "YouTube Video"
+                youtube: "YouTube Video",
+                audio: "Audio Recording",
+                pdf: "PDF Document",
+                image: "Image/Screenshot",
+                note: "Obsidian Note",
+                video: "Video",
+                transcript: "Transcript"
             },
             add: "Add"
+        },
+        integrationConfirm: {
+            title: "Integrate Pending Content",
+            description: "The AI will merge your pending content into the main note by topic.",
+            personaLabel: "Writing style:",
+            confirmButton: "Integrate"
+        },
+        quickAddText: {
+            title: "Quick Add to Pending",
+            description: "Just paste or type anything - text, URLs, notes. The AI will organize it during integration.",
+            placeholder: "Paste anything here:\n- Text notes\n- URLs (https://...)\n- File links ([[filename]])\n- Screenshots (![[image.png]])\n- Any content to integrate later..."
+        },
+        quickAddUrl: {
+            title: "Add URL to Pending",
+            description: "Paste a URL. Use \"Summarize URL\" command first if you want to fetch and summarize the content.",
+            urlLabel: "URL",
+            urlPlaceholder: "https://..."
         },
         chatWithVault: {
             title: "Chat with Vault",
@@ -1057,8 +1099,13 @@ export const en: Translations = {
             thinkingButton: "Thinking...",
             askQuestion: "Ask a Question",
             yourQuestion: "Your Question",
+            questionPlaceholder: "What would you like to know?",
+            askButton: "Ask",
             errorOccurred: "Sorry, an error occurred: {error}",
             chatCleared: "Chat cleared. Ask me anything about your vault!",
+            sourcesLabel: "Sources:",
+            noRelevantInfo: "I couldn't find relevant information in your vault to answer this question. Try asking something else or make sure your vault is indexed.",
+            responseFailed: "Sorry, I encountered an error generating a response. Please try again.",
             searchingContext: "Searching vault context...",
             retrievingInformation: "Retrieving relevant information..."
         }

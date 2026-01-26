@@ -64,7 +64,7 @@ describe('DictionaryController', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         controller = new DictionaryController(
-            mockDictionaryService as DictionaryService
+            mockDictionaryService as unknown as DictionaryService
         );
     });
 
@@ -313,7 +313,7 @@ describe('DictionaryController', () => {
                     documents: [
                         { name: 'doc1.txt', content: 'John Smith is the CEO' }
                     ],
-                    language: 'English'
+                    language: 'en'
                 },
                 mockLLMService as any
             );
@@ -335,7 +335,7 @@ describe('DictionaryController', () => {
             const result = await controller.extractTermsFromContent(
                 {
                     documents: [{ name: 'doc1.txt', content: 'Project Phoenix database' }],
-                    language: 'English'
+                    language: 'en'
                 },
                 mockLLMService as any
             );
@@ -353,7 +353,7 @@ describe('DictionaryController', () => {
             const result = await controller.extractTermsFromContent(
                 {
                     documents: [{ name: 'doc1.txt', content: 'John Smith API' }],
-                    language: 'English'
+                    language: 'en'
                 },
                 mockLLMService as any
             );
@@ -364,7 +364,7 @@ describe('DictionaryController', () => {
 
         it('should return error when no documents provided', async () => {
             const result = await controller.extractTermsFromContent(
-                { documents: [], language: 'English' },
+                { documents: [], language: 'en' },
                 mockLLMService as any
             );
 
@@ -381,7 +381,7 @@ describe('DictionaryController', () => {
             const result = await controller.extractTermsFromContent(
                 {
                     documents: [{ name: 'doc1.txt', content: 'Some content' }],
-                    language: 'English'
+                    language: 'en'
                 },
                 mockLLMService as any
             );
@@ -397,7 +397,7 @@ describe('DictionaryController', () => {
             const result = await controller.extractTermsFromContent(
                 {
                     documents: [{ name: 'doc1.txt', content: 'Some content' }],
-                    language: 'English'
+                    language: 'en'
                 },
                 mockLLMService as any
             );

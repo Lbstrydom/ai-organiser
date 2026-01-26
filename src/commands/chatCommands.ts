@@ -45,7 +45,7 @@ class ChatWithVaultModal extends Modal {
             plugin.settings,
             plugin.embeddingService
         );
-        this.titleEl.setText(plugin.t.modals?.chatWithVault?.title || 'Chat with Vault');
+        this.titleEl.setText(plugin.t.modals.chatWithVault.title);
     }
 
     async onOpen(): Promise<void> {
@@ -54,9 +54,7 @@ class ChatWithVaultModal extends Modal {
         contentEl.addClass('chat-with-vault-modal');
 
         // Add intro message
-        this.addSystemMessage(
-            this.plugin.t.modals?.chatWithVault?.intro || 'Ask me anything about your vault! I\'ll search for relevant notes and provide answers based on your content.'
-        );
+        this.addSystemMessage(this.plugin.t.modals.chatWithVault.intro);
 
         // Chat container (scrollable)
         this.chatContainer = contentEl.createEl('div', {
@@ -75,7 +73,7 @@ class ChatWithVaultModal extends Modal {
         
         this.inputArea = new TextAreaComponent(inputSetting.controlEl);
         this.inputArea
-            .setPlaceholder(this.plugin.t.modals?.chatWithVault?.placeholder || 'Ask a question about your vault...')
+            .setPlaceholder(this.plugin.t.modals.chatWithVault.placeholder)
             .then(text => {
                 text.inputEl.rows = 3;
                 text.inputEl.addEventListener('keydown', (e) => {
@@ -92,11 +90,11 @@ class ChatWithVaultModal extends Modal {
         });
         
         this.sendButton = new ButtonComponent(buttonContainer)
-            .setButtonText(this.plugin.t.modals?.chatWithVault?.sendButton || 'Send')
+            .setButtonText(this.plugin.t.modals.chatWithVault.sendButton)
             .onClick(() => this.handleSend());
 
         new ButtonComponent(buttonContainer)
-            .setButtonText(this.plugin.t.modals?.chatWithVault?.clearButton || 'Clear')
+            .setButtonText(this.plugin.t.modals.chatWithVault.clearButton)
             .onClick(() => this.handleClear());
     }
 
@@ -109,7 +107,7 @@ class ChatWithVaultModal extends Modal {
         // Clear input
         this.inputArea.setValue('');
         this.isProcessing = true;
-        this.sendButton.setButtonText(this.plugin.t.modals?.chatWithVault?.thinkingButton || 'Thinking...');
+        this.sendButton.setButtonText(this.plugin.t.modals.chatWithVault.thinkingButton);
         this.sendButton.setDisabled(true);
 
         // Add user message
@@ -122,9 +120,7 @@ class ChatWithVaultModal extends Modal {
             statusNotice.hide();
 
             if (context.totalChunks === 0) {
-                this.addMessage('assistant', 
-                    'I couldn\'t find relevant information in your vault to answer this question. Try asking something else or make sure your vault is indexed.'
-                );
+                this.addMessage('assistant', this.plugin.t.modals.chatWithVault.noRelevantInfo);
                 return;
             }
 
@@ -145,27 +141,23 @@ class ChatWithVaultModal extends Modal {
                 // Add assistant response with sources
                 this.addMessage('assistant', response.content, context.sources);
             } else {
-                this.addMessage('assistant', 
-                    'Sorry, I encountered an error generating a response. Please try again.'
-                );
+                this.addMessage('assistant', this.plugin.t.modals.chatWithVault.responseFailed);
             }
         } catch (error) {
             console.error('Chat error:', error);
-            const errorMsg = (this.plugin.t.modals?.chatWithVault?.errorOccurred || 'Sorry, an error occurred: {error}')
+            const errorMsg = this.plugin.t.modals.chatWithVault.errorOccurred
                 .replace('{error}', (error as any).message);
             this.addMessage('assistant', errorMsg);
         } finally {
             this.isProcessing = false;
-            this.sendButton.setButtonText(this.plugin.t.modals?.chatWithVault?.sendButton || 'Send');
+            this.sendButton.setButtonText(this.plugin.t.modals.chatWithVault.sendButton);
             this.sendButton.setDisabled(false);
         }
     }
 
     private handleClear(): void {
         this.messages = [];
-        this.addSystemMessage(
-            this.plugin.t.modals?.chatWithVault?.chatCleared || 'Chat cleared. Ask me anything about your vault!'
-        );
+        this.addSystemMessage(this.plugin.t.modals.chatWithVault.chatCleared);
         this.renderMessages();
     }
 
@@ -206,7 +198,7 @@ class ChatWithVaultModal extends Modal {
                 const sourcesEl = messageEl.createEl('div', {
                     cls: 'chat-message-sources'
                 });
-                sourcesEl.createEl('strong', { text: 'Sources:' });
+                sourcesEl.createEl('strong', { text: this.plugin.t.modals.chatWithVault.sourcesLabel });
                 
                 const sourcesList = sourcesEl.createEl('ul');
                 for (const source of message.sources) {
@@ -276,7 +268,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     // Ask about current note
     plugin.addCommand({
         id: 'ask-about-current-note',
-        name: 'Ask Question About Current Note',
+        name: plugin.t.commands.askAboutCurrentNote,
         editorCallback: async (editor, view) => {
             if (!plugin.vectorStore || !plugin.settings.enableSemanticSearch) {
                 new Notice(plugin.t.messages.semanticSearchNotEnabledDetailed);
@@ -349,10 +341,10 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     // Find and insert related notes
     plugin.addCommand({
         id: 'insert-related-notes',
-        name: 'Insert Related Notes',
+        name: plugin.t.commands.insertRelatedNotes,
         editorCallback: async (editor, view) => {
             if (!plugin.vectorStore || !plugin.settings.enableSemanticSearch) {
-                new Notice('Semantic search is not enabled.');
+                new Notice(plugin.t.messages.semanticSearchNotEnabledDetailed);
                 return;
             }
 
@@ -404,14 +396,14 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
 async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | null> {
     return new Promise((resolve) => {
         const modal = new Modal(plugin.app);
-        modal.titleEl.setText(plugin.t.modals?.chatWithVault?.askQuestion || 'Ask a Question');
+        modal.titleEl.setText(plugin.t.modals.chatWithVault.askQuestion);
         
         let question = '';
         
         new Setting(modal.contentEl)
-            .setName(plugin.t.modals?.chatWithVault?.yourQuestion || 'Your Question')
+            .setName(plugin.t.modals.chatWithVault.yourQuestion)
             .addText(text => {
-                text.setPlaceholder(plugin.t.modals?.chatWithVault?.placeholder || 'What would you like to know?')
+                text.setPlaceholder(plugin.t.modals.chatWithVault.questionPlaceholder)
                     .onChange(value => {
                         question = value;
                     });
@@ -421,7 +413,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
         
         new Setting(modal.contentEl)
             .addButton(btn => {
-                btn.setButtonText(plugin.t.modals?.chatWithVault?.sendButton || 'Ask')
+                btn.setButtonText(plugin.t.modals.chatWithVault.askButton)
                     .setCta()
                     .onClick(() => {
                         modal.close();
@@ -429,7 +421,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
                     });
             })
             .addButton(btn => {
-                btn.setButtonText(plugin.t.modals?.cancel || 'Cancel')
+                btn.setButtonText(plugin.t.modals.cancel)
                     .onClick(() => {
                         modal.close();
                         resolve(null);

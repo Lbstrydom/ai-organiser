@@ -408,6 +408,8 @@ export const zhCN: Translations = {
         showRelatedNotes: "显示相关笔记",
         searchSemanticVault: "语义搜索库",
         chatWithVault: "与库聊天（RAG）",
+        askAboutCurrentNote: "询问当前笔记",
+        insertRelatedNotes: "插入相关笔记",
         upgradeToBases: "升级到 Bases 元数据",
         upgradeFolderToBases: "升级文件夹到 Bases 元数据",
         createBasesDashboard: "创建 Bases 仪表板",
@@ -416,7 +418,14 @@ export const zhCN: Translations = {
         notebookLMToggle: "NotebookLM: 切换选择",
         notebookLMClear: "NotebookLM: 清除选择",
         notebookLMOpenFolder: "NotebookLM: 打开导出文件夹",
-        createMeetingMinutes: "创建会议纪要"
+        createMeetingMinutes: "创建会议纪要",
+        addToPendingIntegration: "添加内容到待处理集成",
+        integratePendingContent: "将待处理内容整合到笔记",
+        resolvePendingEmbeds: "解析待处理嵌入",
+        ensureNoteStructure: "添加 References 和 Pending Integration 章节",
+        quickAddTextPending: "快速添加：文本到待处理集成",
+        quickAddUrlPending: "快速添加：URL 到待处理集成",
+        dropSelectionPending: "将选中内容放入待处理集成"
     },
 
     // 消息和通知
@@ -601,6 +610,9 @@ export const zhCN: Translations = {
         urlAddedToPending: "URL 已添加到待处理集成",
         selectTextFirst: "请先选择文本",
         selectionAddedToPending: "选择的内容已添加到待处理集成",
+        contentRequired: "请输入一些内容",
+        noResponseFromLlm: "AI 没有返回响应",
+        addedTimestamp: "添加于 {time}",
         // Related notes view messages
         relatedNotesCopiedToClipboard: "相关笔记已复制到剪贴板",
         cacheClearedSuccessfully: "缓存已清除",
@@ -1039,14 +1051,44 @@ export const zhCN: Translations = {
             title: "添加内容到待处理集成",
             sourceType: "来源类型",
             sourceTitle: "来源标题",
+            sourceTitleDesc: "为该来源起一个名称",
+            sourceTitlePlaceholder: "例如：课堂笔记、文章标题",
             sourceLink: "链接（可选）",
+            sourceLinkDesc: "来源的 URL 或 [[维基链接]]",
+            sourceLinkPlaceholder: "https://... 或 [[笔记名称]]",
             content: "内容",
+            contentDesc: "粘贴或输入要整合的内容",
+            contentPlaceholder: "在此粘贴内容...",
+            defaultTitle: "来源",
             types: {
                 manual: "我的笔记",
                 web: "网络文章",
-                youtube: "YouTube 视频"
+                youtube: "YouTube 视频",
+                audio: "音频录音",
+                pdf: "PDF 文档",
+                image: "图片/截图",
+                note: "Obsidian 笔记",
+                video: "视频",
+                transcript: "转录稿"
             },
             add: "添加"
+        },
+        integrationConfirm: {
+            title: "整合待处理内容",
+            description: "AI 将按主题把待处理内容合并到主笔记中。",
+            personaLabel: "写作风格：",
+            confirmButton: "整合"
+        },
+        quickAddText: {
+            title: "快速添加到待处理",
+            description: "直接粘贴或输入任何内容（文本、URL、笔记等）。AI 会在整合时自动整理。",
+            placeholder: "在此粘贴任何内容：\n- 文本笔记\n- URL（https://...）\n- 文件链接（[[filename]]）\n- 截图（![[image.png]]）\n- 之后需要整合的任何内容..."
+        },
+        quickAddUrl: {
+            title: "添加 URL 到待处理",
+            description: "粘贴一个 URL。如果需要抓取并总结内容，请先使用“Summarize URL”命令。",
+            urlLabel: "URL",
+            urlPlaceholder: "https://..."
         },
         chatWithVault: {
             title: "与保险库聊天",
@@ -1057,8 +1099,13 @@ export const zhCN: Translations = {
             thinkingButton: "思考中...",
             askQuestion: "提出问题",
             yourQuestion: "你的问题",
+            questionPlaceholder: "你想了解什么？",
+            askButton: "提问",
             errorOccurred: "抱歉，发生了错误：{error}",
             chatCleared: "聊天已清除。问我任何关于你的保险库的问题！",
+            sourcesLabel: "来源：",
+            noRelevantInfo: "在你的库中没有找到足够信息来回答此问题。请尝试换个问题，或确保已建立索引。",
+            responseFailed: "抱歉，生成回复时出错。请再试一次。",
             searchingContext: "搜索保险库上下文...",
             retrievingInformation: "检索相关信息..."
         }

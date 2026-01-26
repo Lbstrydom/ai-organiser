@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { App, TFile } from './mocks/obsidian';
+import { App, TFile } from '../mocks/obsidian';
 
 // Constants matching the actual service
 const EXTRACTABLE_EXTENSIONS = ['docx', 'xlsx', 'pptx'];

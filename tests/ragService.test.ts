@@ -12,17 +12,55 @@
  */
 
 import { RAGService, RAGContext, RAGOptions } from '../src/services/ragService';
-import { IVectorStore, SearchResult, VectorDocument } from '../src/services/vector/types';
+import { IVectorStore, SearchResult, VectorDocument, type FileChangeTracker } from '../src/services/vector/types';
 import { AIOrganiserSettings } from '../src/core/settings';
+import type { IEmbeddingService, EmbeddingResult, BatchEmbeddingResult, EmbeddingModelInfo } from '../src/services/embeddings/types';
 
 /**
  * Mock embedding service for testing
  */
-class MockEmbeddingService {
-    async generateEmbedding(text: string): Promise<number[]> {
-        // Simple mock: return array based on text length
-        return Array(1536).fill(0).map((_, i) => Math.sin(text.length + i) * 0.5);
+class MockEmbeddingService implements IEmbeddingService {
+    async generateEmbedding(text: string): Promise<EmbeddingResult> {
+        return {
+            success: true,
+            embedding: Array(1536).fill(0).map((_, i) => Math.sin(text.length + i) * 0.5),
+            tokenCount: Math.min(text.length, 1000)
+        };
     }
+
+    async batchGenerateEmbeddings(texts: string[]): Promise<BatchEmbeddingResult> {
+        const embeddings = texts.map(text =>
+            Array(1536).fill(0).map((_, i) => Math.sin(text.length + i) * 0.5)
+        );
+        return {
+            success: true,
+            embeddings,
+            totalTokens: texts.reduce((sum, t) => sum + Math.min(t.length, 1000), 0)
+        };
+    }
+
+    getModelDimensions(): number {
+        return 1536;
+    }
+
+    getModelName(): string {
+        return 'test-model';
+    }
+
+    getModelInfo(): EmbeddingModelInfo {
+        return {
+            provider: 'test',
+            model: 'test-model',
+            dimensions: 1536,
+            maxTokens: 8192
+        };
+    }
+
+    async testConnection(): Promise<{ success: boolean; error?: string }> {
+        return { success: true };
+    }
+
+    async dispose(): Promise<void> {}
 }
 
 /**
@@ -32,6 +70,13 @@ class MockEmbeddingService {
 class TestVectorStore implements IVectorStore {
     private documents: Map<string, VectorDocument> = new Map();
     private embeddings: Map<string, number[]> = new Map();
+    private tracker: FileChangeTracker = {
+        hasChanged: () => true,
+        updateHash: () => {},
+        removeHash: () => {},
+        getTrackedFiles: () => new Map(),
+        clear: () => {}
+    };
 
     constructor() {
         this.setupMockData();
@@ -247,6 +292,22 @@ class TestVectorStore implements IVectorStore {
         this.documents.clear();
         this.embeddings.clear();
     }
+
+    getFileChangeTracker(): FileChangeTracker {
+        return this.tracker;
+    }
+
+    async rebuild(documents: VectorDocument[]): Promise<void> {
+        this.documents.clear();
+        this.embeddings.clear();
+        await this.upsert(documents);
+    }
+
+    async save(): Promise<void> {}
+
+    async load(): Promise<void> {}
+
+    async dispose(): Promise<void> {}
 }
 
 /**
@@ -359,7 +420,18 @@ describe('RAGService', () => {
                 removeFile: async () => {},
                 renameFile: async () => {},
                 getMetadata: async () => ({} as any),
-                clear: async () => {}
+                clear: async () => {},
+                getFileChangeTracker: () => ({
+                    hasChanged: () => false,
+                    updateHash: () => {},
+                    removeHash: () => {},
+                    getTrackedFiles: () => new Map(),
+                    clear: () => {}
+                }),
+                rebuild: async () => {},
+                save: async () => {},
+                load: async () => {},
+                dispose: async () => {}
             };
             
             const service = new RAGService(errorStore, settings, embeddingService);

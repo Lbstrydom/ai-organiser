@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { App, TFile, TFolder } from './mocks/obsidian';
+import { App, TFile, TFolder } from '../mocks/obsidian';
 
 // Import the actual detection logic patterns (replicated for testing)
 // These patterns match the actual implementation

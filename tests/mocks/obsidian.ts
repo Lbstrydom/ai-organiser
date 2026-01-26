@@ -11,12 +11,19 @@ export class TFile {
     basename: string;
     extension: string;
     stat: { mtime: number; ctime: number; size: number };
+    name: string;
+    parent: TFolder | null;
+    vault: any;
 
-    constructor(path: string) {
+    constructor(path: string = '') {
         this.path = path;
-        this.basename = path.split('/').pop()?.replace(/\.[^.]+$/, '') || '';
-        this.extension = path.split('.').pop() || '';
+        const fileName = path.split('/').pop() || '';
+        this.name = fileName;
+        this.basename = fileName.replace(/\.[^.]+$/, '');
+        this.extension = fileName.includes('.') ? fileName.split('.').pop() || '' : '';
         this.stat = { mtime: Date.now(), ctime: Date.now(), size: 100 };
+        this.parent = null;
+        this.vault = null;
     }
 }
 
@@ -24,11 +31,19 @@ export class TFolder {
     path: string;
     name: string;
     children: (TFile | TFolder)[];
+    parent: TFolder | null;
+    vault: any;
 
     constructor(path: string) {
         this.path = path;
         this.name = path.split('/').pop() || '';
         this.children = [];
+        this.parent = null;
+        this.vault = null;
+    }
+
+    isRoot(): boolean {
+        return this.path === '/' || !this.parent;
     }
 }
 
@@ -51,12 +66,23 @@ export function clearMockNotices() {
 }
 
 export class App {
-    vault = {
+    keymap = {} as any;
+    scope = {} as any;
+    fileManager = {} as any;
+    lastEvent = null as any;
+    renderContext = {} as any;
+    secretStorage = {} as any;
+    isDarkMode(): boolean { return false; }
+    loadLocalStorage(_key: string): any | null { return null; }
+    saveLocalStorage(_key: string, _data: unknown | null): void {}
+
+    vault: any = {
         read: async (file: TFile) => '',
         readBinary: async (file: TFile) => new ArrayBuffer(0),
         modify: async (file: TFile, content: string) => {},
         create: async (path: string, content: string) => new TFile(path),
         createFolder: async (path: string) => {},
+        delete: async (file: TFile) => {},
         getAbstractFileByPath: (path: string) => null as TFile | TFolder | null,
         getMarkdownFiles: () => [] as TFile[],
         getFiles: () => [] as TFile[],
@@ -64,7 +90,7 @@ export class App {
         getRoot: () => new TFolder('/'),
     };
 
-    metadataCache = {
+    metadataCache: any = {
         getFileCache: (file: TFile) => null as any,
         getFirstLinkpathDest: (link: string, sourcePath: string) => null as TFile | null,
         on: (event: string, callback: Function) => ({ unload: () => {} }),
@@ -72,7 +98,7 @@ export class App {
         trigger: (event: string, ...args: any[]) => {},
     };
 
-    workspace = {
+    workspace: any = {
         openLinkText: async (link: string, source: string, newLeaf: boolean) => {},
         getActiveFile: () => null as TFile | null,
         on: (event: string, callback: Function) => ({ unload: () => {} }),

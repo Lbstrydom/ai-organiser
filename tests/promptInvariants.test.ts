@@ -257,6 +257,7 @@ describe('Flashcard Prompts - Invariants', () => {
         it('should include flashcard generation instruction', () => {
             const format = getFlashcardFormat('anki');
             expect(format).toBeDefined();
+            if (!format) throw new Error('Missing flashcard format');
             const prompt = buildFlashcardPrompt('Test content', format, undefined, 'English', 'standard');
             expect(typeof prompt).toBe('string');
             expect(prompt.toLowerCase()).toContain('flashcard');
@@ -266,6 +267,7 @@ describe('Flashcard Prompts - Invariants', () => {
             const content = 'Test content for flashcards';
             const format = getFlashcardFormat('anki');
             expect(format).toBeDefined();
+            if (!format) throw new Error('Missing flashcard format');
             const prompt = buildFlashcardPrompt(content, format, undefined, 'English', 'standard');
             expect(prompt).toContain(content);
         });
@@ -273,6 +275,7 @@ describe('Flashcard Prompts - Invariants', () => {
         it('should vary output for different styles', () => {
             const format = getFlashcardFormat('anki');
             expect(format).toBeDefined();
+            if (!format) throw new Error('Missing flashcard format');
             const standardPrompt = buildFlashcardPrompt('Test', format, undefined, 'English', 'standard');
             const mcPrompt = buildFlashcardPrompt('Test', format, undefined, 'English', 'multiple-choice');
             
@@ -484,20 +487,20 @@ describe('Summary Personas - Invariants', () => {
 describe('Summary Prompts - Invariants', () => {
     describe('buildSummaryPrompt', () => {
         it('should include task guidance', () => {
-            const prompt = buildSummaryPrompt({ content: 'Test content' });
+            const prompt = buildSummaryPrompt({ length: 'brief' });
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(100);
         });
 
         it('should include task and critical instructions sections', () => {
-            const prompt = buildSummaryPrompt({ content: 'Test' });
+            const prompt = buildSummaryPrompt({ length: 'brief' });
             expect(prompt).toContain('<task>');
             expect(prompt.toLowerCase()).toContain('summarize');
         });
 
         it('should support different length options', () => {
-            const briefPrompt = buildSummaryPrompt({ content: 'Test', length: 'brief' });
-            const detailedPrompt = buildSummaryPrompt({ content: 'Test', length: 'detailed' });
+            const briefPrompt = buildSummaryPrompt({ length: 'brief' });
+            const detailedPrompt = buildSummaryPrompt({ length: 'detailed' });
             
             expect(typeof briefPrompt).toBe('string');
             expect(typeof detailedPrompt).toBe('string');
@@ -508,19 +511,19 @@ describe('Summary Prompts - Invariants', () => {
 
     describe('buildChunkCombinePrompt', () => {
         it('should return valid prompt string', () => {
-            const prompt = buildChunkCombinePrompt({ content: 'Test' });
+            const prompt = buildChunkCombinePrompt({ length: 'brief' });
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(100);
         });
 
         it('should include merge/combine task', () => {
-            const prompt = buildChunkCombinePrompt({ content: 'Test' });
+            const prompt = buildChunkCombinePrompt({ length: 'brief' });
             expect(prompt).toContain('<task>');
             expect(prompt.toLowerCase()).toContain('combine');
         });
 
         it('should support language parameter', () => {
-            const prompt = buildChunkCombinePrompt({ content: 'Test', language: 'Spanish' });
+            const prompt = buildChunkCombinePrompt({ length: 'brief', language: 'Spanish' });
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(100);
         });
@@ -528,7 +531,7 @@ describe('Summary Prompts - Invariants', () => {
 
     describe('insertContentIntoPrompt', () => {
         it('should insert content into prompt', () => {
-            const basePrompt = buildSummaryPrompt({ content: 'placeholder' });
+            const basePrompt = buildSummaryPrompt({ length: 'brief' });
             const content = 'Actual content';
             const result = insertContentIntoPrompt(basePrompt, content);
             
