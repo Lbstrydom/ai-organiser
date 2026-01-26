@@ -678,6 +678,16 @@ The Bases integration enables structured metadata and dashboard generation for s
     - Update metadata with `updateNoteMetadataAfterSummary()`
   - **Else**: Use traditional `buildSummaryPrompt()` (backward compatibility)
 
+**Unified Workflow Functions** (DRY/SOLID pattern):
+- `transcribeAudioWithFullWorkflow()` in `src/services/audioTranscriptionService.ts`:
+  - Handles all audio paths: chunked (>20 min), compressed (>25MB), direct
+  - Used by both multi-source and standalone audio handlers
+  - Progress callback for UI updates
+- `summarizePdfWithFullWorkflow()` in `src/commands/summarizeCommands.ts`:
+  - Handles both vault and external PDFs
+  - Uses `getFirstLinkpathDest()` for wiki-link resolution
+  - Used by both multi-source and standalone PDF handlers
+
 ### Key Implementation Patterns
 
 **Simple Property Names**: Metadata uses clean, user-friendly names (`summary`, `source_url`) for better readability

@@ -6,7 +6,7 @@
 import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
-import { PdfService, PdfContent } from '../services/pdfService';
+import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
@@ -30,19 +30,10 @@ import {
     transcribeYouTubeWithGemini
 } from '../services/youtubeService';
 import {
-    transcribeAudio,
-    transcribeAudioFromData,
     transcribeExternalAudio,
-    transcribeChunkedAudioWithCleanup,
-    ChunkedTranscriptionProgress
+    transcribeAudioWithFullWorkflow,
+    AudioWorkflowProgress
 } from '../services/audioTranscriptionService';
-import {
-    compressAudio,
-    CompressionProgress,
-    needsChunking,
-    compressAndChunkAudio,
-    ChunkProgress
-} from '../services/audioCompressionService';
 import {
     addToReferencesSection,
     SourceReference,
@@ -727,74 +718,37 @@ async function handleMultiSourceResult(
         }
     }
 
-    // Process PDFs
+    // Process PDFs using unified workflow (handles both vault and external PDFs)
     for (const pdf of result.sources.pdfs) {
         showProgress();
         const pdfTitle = pdf.path.split('/').pop() || pdf.path;
 
         try {
-            let file: TFile | null = null;
+            new Notice(plugin.t.messages.readingPdf.replace('{title}', pdfTitle), 3000);
 
-            if (pdf.isVaultFile) {
-                // Use Obsidian's link resolution
-                const currentFile = view.file;
-                file = plugin.app.metadataCache.getFirstLinkpathDest(pdf.path, currentFile?.path || '');
-
-                // Fallback to direct path lookup
-                if (!file) {
-                    const directFile = plugin.app.vault.getAbstractFileByPath(pdf.path);
-                    if (directFile instanceof TFile) {
-                        file = directFile;
-                    }
+            // Use unified PDF workflow that handles vault/external and file resolution
+            const pdfResult = await summarizePdfWithFullWorkflow(
+                plugin,
+                pdfService,
+                pdf.path,
+                pdf.isVaultFile,
+                {
+                    personaPrompt,
+                    userContext: result.focusContext,
+                    currentFilePath: view.file?.path
                 }
-            }
+            );
 
-            if (file) {
-                new Notice(plugin.t.messages.readingPdf.replace('{title}', pdfTitle), 3000);
-                const pdfResult = await pdfService.readPdfAsBase64(file);
-
-                if (pdfResult.success && pdfResult.content) {
-                    // Build prompt for PDF summarization
-                    const promptOptions: SummaryPromptOptions = {
-                        length: plugin.settings.summaryLength,
-                        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-                        personaPrompt: personaPrompt,
-                        userContext: result.focusContext,
-                    };
-                    const prompt = buildSummaryPrompt(promptOptions);
-
-                    // Use PDF-specific summarization
-                    const summaryResult = await summarizePdfWithLLM(plugin, pdfResult.content, prompt);
-                    if (summaryResult.success && summaryResult.content) {
-                        summaries.push(summaryResult.content);
-                        sourceLabels.push(`PDF: ${pdfTitle}`);
-                        allSources.push({
-                            type: 'pdf',
-                            url: pdf.path,
-                            title: pdfTitle,
-                            date: today,
-                            success: true
-                        });
-                    } else {
-                        allSources.push({
-                            type: 'pdf',
-                            url: pdf.path,
-                            title: pdfTitle,
-                            date: today,
-                            success: false,
-                            error: summaryResult.error || 'Failed to generate summary'
-                        });
-                    }
-                } else {
-                    allSources.push({
-                        type: 'pdf',
-                        url: pdf.path,
-                        title: pdfTitle,
-                        date: today,
-                        success: false,
-                        error: pdfResult.error || 'Failed to read PDF'
-                    });
-                }
+            if (pdfResult.success && pdfResult.summary) {
+                summaries.push(pdfResult.summary);
+                sourceLabels.push(`PDF: ${pdfTitle}`);
+                allSources.push({
+                    type: 'pdf',
+                    url: pdf.path,
+                    title: pdfTitle,
+                    date: today,
+                    success: true
+                });
             } else {
                 allSources.push({
                     type: 'pdf',
@@ -802,7 +756,7 @@ async function handleMultiSourceResult(
                     title: pdfTitle,
                     date: today,
                     success: false,
-                    error: 'Could not find PDF file in vault'
+                    error: pdfResult.error || 'Failed to summarize PDF'
                 });
             }
         } catch (e) {
@@ -910,8 +864,18 @@ async function handleMultiSourceResult(
                 continue;
             }
 
-            // Find the audio file in the vault
-            const audioFile = plugin.app.vault.getAbstractFileByPath(audio.path);
+            // Use Obsidian's link resolution (handles short links like [[filename.wav]])
+            const currentFile = view.file;
+            let audioFile = plugin.app.metadataCache.getFirstLinkpathDest(audio.path, currentFile?.path || '');
+
+            // Fallback to direct path lookup if link resolution fails
+            if (!audioFile) {
+                const directFile = plugin.app.vault.getAbstractFileByPath(audio.path);
+                if (directFile instanceof TFile) {
+                    audioFile = directFile;
+                }
+            }
+
             if (!(audioFile instanceof TFile)) {
                 allSources.push({
                     type: 'audio',
@@ -925,14 +889,28 @@ async function handleMultiSourceResult(
                 continue;
             }
 
-            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...', 3000);
-
-            // Transcribe the audio
-            const transcriptionResult = await transcribeAudio(plugin.app, audioFile, {
-                provider: audioTranscriptionConfig.provider,
-                apiKey: audioTranscriptionConfig.key,
-                language: plugin.settings.summaryLanguage || undefined
-            });
+            // Use unified workflow that handles compression/chunking automatically
+            const transcriptionResult = await transcribeAudioWithFullWorkflow(
+                plugin.app,
+                audioFile,
+                {
+                    provider: audioTranscriptionConfig.provider,
+                    apiKey: audioTranscriptionConfig.key,
+                    language: plugin.settings.summaryLanguage || undefined
+                },
+                (progress: AudioWorkflowProgress) => {
+                    // Show progress notices for key stages
+                    if (progress.stage === 'compressing') {
+                        new Notice(plugin.t.messages.compressingAudio || 'Compressing audio...', 2000);
+                    } else if (progress.stage === 'transcribing') {
+                        if (progress.totalChunks && progress.totalChunks > 1) {
+                            new Notice(`Transcribing chunk ${progress.currentChunk}/${progress.totalChunks}...`, 2000);
+                        } else {
+                            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...', 2000);
+                        }
+                    }
+                }
+            );
 
             if (!transcriptionResult.success || !transcriptionResult.transcript) {
                 allSources.push({
@@ -1794,14 +1772,40 @@ async function handlePdfSummarization(
 
     new Notice(plugin.t.messages.readingPdf);
 
-    const pdfResult = await pdfService.readPdfAsBase64(file);
+    // Use unified PDF workflow
+    const result = await summarizePdfWithFullWorkflow(
+        plugin,
+        pdfService,
+        file.path,
+        true, // isVaultFile
+        { personaPrompt, userContext }
+    );
 
-    if (!pdfResult.success || !pdfResult.content) {
-        new Notice(pdfResult.error || 'Failed to read PDF');
+    if (!result.success || !result.summary || !result.pdfContent) {
+        new Notice(result.error || 'Failed to summarize PDF');
         return;
     }
 
-    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, true, personaId);
+    // Insert summary into editor
+    insertPdfSummary(editor, result.summary, result.pdfContent, plugin, true);
+    new Notice(plugin.t.messages.summaryInserted);
+
+    // Update metadata if structured metadata is enabled
+    if (plugin.settings.enableStructuredMetadata && personaId) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view) {
+            await updateNoteMetadataAfterSummary(
+                plugin,
+                view,
+                createSummaryHook(result.summary),
+                [],
+                'reference',
+                'pdf',
+                result.pdfContent.filePath,
+                personaId
+            );
+        }
+    }
 }
 
 /**
@@ -1830,13 +1834,40 @@ async function handleExternalPdfSummarization(
 
     new Notice(plugin.t.messages.readingPdf);
 
-    const pdfResult = await pdfService.readExternalPdfAsBase64(filePath);
-    if (!pdfResult.success || !pdfResult.content) {
-        new Notice(pdfResult.error || 'Failed to read PDF');
+    // Use unified PDF workflow
+    const result = await summarizePdfWithFullWorkflow(
+        plugin,
+        pdfService,
+        filePath,
+        false, // isVaultFile (external)
+        { personaPrompt, userContext }
+    );
+
+    if (!result.success || !result.summary || !result.pdfContent) {
+        new Notice(result.error || 'Failed to summarize PDF');
         return;
     }
 
-    await summarizePdfContent(plugin, editor, pdfResult.content, personaPrompt, userContext, false, personaId);
+    // Insert summary into editor
+    insertPdfSummary(editor, result.summary, result.pdfContent, plugin, false);
+    new Notice(plugin.t.messages.summaryInserted);
+
+    // Update metadata if structured metadata is enabled
+    if (plugin.settings.enableStructuredMetadata && personaId) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view) {
+            await updateNoteMetadataAfterSummary(
+                plugin,
+                view,
+                createSummaryHook(result.summary),
+                [],
+                'reference',
+                'pdf',
+                result.pdfContent.filePath,
+                personaId
+            );
+        }
+    }
 }
 
 /**
@@ -1986,6 +2017,7 @@ async function handleAudioSummarization(
             prompt: context || undefined
         });
     } else if (file) {
+        // Mobile data warning for large files
         if (Platform.isMobile && file.stat?.size) {
             const sizeMb = Math.ceil(file.stat.size / (1024 * 1024));
             if (sizeMb >= mobileWarningThresholdMb) {
@@ -1997,137 +2029,58 @@ async function handleAudioSummarization(
                 }
             }
         }
+
         // Handle vault file
         audioName = file.basename;
         audioPath = file.path;
 
-        // Check if file needs chunking (long audio > 20 minutes)
-        // This supports files up to 6+ hours by splitting into 5-minute chunks
-        const chunkingCheck = await needsChunking(plugin.app, file);
-
-        if (chunkingCheck.needsChunking) {
-            // CHUNKED PATH: For long audio files (20+ minutes)
-            const durationMinutes = chunkingCheck.estimatedDuration
-                ? Math.round(chunkingCheck.estimatedDuration / 60)
-                : 'unknown';
-
-            new Notice(
-                `Processing ${durationMinutes} minute audio file. This may take a while...`
-            );
-
-            if (plugin.settings.debugMode) {
-                console.log('[AI Organiser] Using chunked transcription:', chunkingCheck.reason);
-            }
-
-            // Step 1: Compress and split into chunks
-            const chunkResult = await compressAndChunkAudio(
-                plugin.app,
-                file,
-                (progress: ChunkProgress) => {
-                    if (plugin.settings.debugMode) {
-                        console.log('[AI Organiser] Chunk progress:', progress);
-                    }
-                    // Show progress notices for key stages
-                    if (progress.stage === 'preparing') {
-                        new Notice(progress.message);
-                    } else if (progress.stage === 'compressing' && progress.progress % 25 === 0) {
-                        new Notice(`Compressing: ${progress.progress}%`);
-                    } else if (progress.stage === 'done') {
-                        new Notice(progress.message);
-                    } else if (progress.stage === 'error') {
-                        new Notice(progress.message);
-                    }
-                }
-            );
-
-            if (!chunkResult.success || !chunkResult.chunks || !chunkResult.outputDir) {
-                new Notice(
-                    (plugin.t.messages.compressionFailed || 'Audio processing failed') +
-                    `: ${chunkResult.error || 'Unknown error'}`
-                );
-                return;
-            }
-
-            new Notice(`Transcribing ${chunkResult.chunks.length} chunks...`);
-
-            // Step 2: Transcribe all chunks with context chaining
-            transcriptionResult = await transcribeChunkedAudioWithCleanup(
-                chunkResult.chunks,
-                chunkResult.outputDir,
-                {
-                    provider,
-                    apiKey,
-                    language: language || plugin.settings.summaryLanguage || undefined,
-                    prompt: context || undefined
-                },
-                (progress: ChunkedTranscriptionProgress) => {
-                    if (plugin.settings.debugMode) {
-                        console.log('[AI Organiser] Transcription progress:', progress);
-                    }
-                    // Show progress every few chunks or on completion
-                    if (progress.currentChunk === 1 ||
-                        progress.currentChunk === progress.totalChunks ||
-                        progress.currentChunk % 3 === 0) {
-                        new Notice(`Transcribing chunk ${progress.currentChunk}/${progress.totalChunks} (${progress.globalPercent}%)`);
-                    }
-                }
-            );
-
-            // Set duration from chunk result
-            if (chunkResult.totalDuration && transcriptionResult.success) {
-                transcriptionResult.duration = chunkResult.totalDuration;
-            }
-
-        } else if (needsCompression) {
-            // COMPRESSION PATH: For files > 25MB but < 20 minutes
-            new Notice(plugin.t.messages.compressingAudio || 'Compressing audio file...');
-
-            const compressionResult = await compressAudio(
-                plugin.app,
-                file,
-                (progress: CompressionProgress) => {
-                    if (plugin.settings.debugMode) {
-                        console.log('[AI Organiser] Compression progress:', progress);
-                    }
-                    // Show progress notices for key stages
-                    if (progress.stage === 'loading' || progress.stage === 'done' || progress.stage === 'error') {
-                        new Notice(progress.message);
-                    }
-                }
-            );
-
-            if (!compressionResult.success || !compressionResult.data) {
-                new Notice(
-                    (plugin.t.messages.compressionFailed || 'Compression failed') +
-                    `: ${compressionResult.error || 'Unknown error'}`
-                );
-                return;
-            }
-
-            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
-
-            // Transcribe the compressed audio
-            transcriptionResult = await transcribeAudioFromData(
-                compressionResult.data,
-                file.basename + '_compressed.mp3',
-                {
-                    provider,
-                    apiKey,
-                    language: language || plugin.settings.summaryLanguage || undefined,
-                    prompt: context || undefined
-                }
-            );
-        } else {
-            // DIRECT PATH: For small files (< 25MB and < 20 minutes)
-            new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
-
-            // Transcribe the audio directly
-            transcriptionResult = await transcribeAudio(plugin.app, file, {
+        // Use unified workflow that handles compression/chunking automatically
+        transcriptionResult = await transcribeAudioWithFullWorkflow(
+            plugin.app,
+            file,
+            {
                 provider,
                 apiKey,
                 language: language || plugin.settings.summaryLanguage || undefined,
                 prompt: context || undefined
-            });
+            },
+            (progress: AudioWorkflowProgress) => {
+                if (plugin.settings.debugMode) {
+                    console.log('[AI Organiser] Audio workflow progress:', progress);
+                }
+                // Show progress notices for key stages
+                if (progress.stage === 'checking') {
+                    // Silent - no notice needed
+                } else if (progress.stage === 'compressing') {
+                    if (progress.progress % 25 === 0 || progress.progress === 5) {
+                        new Notice(`Compressing: ${progress.progress}%`);
+                    }
+                } else if (progress.stage === 'chunking') {
+                    new Notice(progress.message);
+                } else if (progress.stage === 'transcribing') {
+                    if (progress.totalChunks && progress.totalChunks > 1) {
+                        // Only show every 3rd chunk or first/last
+                        if (progress.currentChunk === 1 ||
+                            progress.currentChunk === progress.totalChunks ||
+                            (progress.currentChunk && progress.currentChunk % 3 === 0)) {
+                            new Notice(`Transcribing chunk ${progress.currentChunk}/${progress.totalChunks} (${progress.progress}%)`);
+                        }
+                    } else {
+                        new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...');
+                    }
+                } else if (progress.stage === 'error') {
+                    new Notice(progress.message);
+                }
+            }
+        );
+
+        // Handle transcription failure
+        if (!transcriptionResult.success) {
+            new Notice(
+                (plugin.t.messages.transcriptionFailed || 'Transcription failed') +
+                `: ${transcriptionResult.error || 'Unknown error'}`
+            );
+            return;
         }
     } else {
         new Notice('No audio file selected');
@@ -3186,57 +3139,118 @@ async function summarizePdfWithLLM(
     }
 }
 
+// ============================================================================
+// UNIFIED PDF SUMMARIZATION WORKFLOW
+// ============================================================================
+
 /**
- * Summarize PDF content and insert into editor
+ * Result from unified PDF summarization
  */
-async function summarizePdfContent(
+export interface PdfSummarizationResult {
+    success: boolean;
+    summary?: string;
+    pdfContent?: PdfContent;
+    error?: string;
+}
+
+/**
+ * Options for PDF summarization
+ */
+export interface PdfSummarizationOptions {
+    personaPrompt: string;
+    userContext?: string;
+    /** Current file for resolving vault links */
+    currentFilePath?: string;
+}
+
+/**
+ * Unified PDF summarization workflow that handles both vault and external PDFs.
+ *
+ * This function encapsulates the complete PDF summarization workflow:
+ * 1. Resolves vault file paths using Obsidian's link resolution
+ * 2. Reads the PDF (vault or external)
+ * 3. Builds the summary prompt
+ * 4. Calls the LLM service
+ * 5. Returns the summary text
+ *
+ * Use this function for any PDF summarization to ensure consistent handling.
+ *
+ * @param plugin Plugin instance
+ * @param pdfService PDF service for reading files
+ * @param pdfPath Path to the PDF (vault path or external file path)
+ * @param isVaultFile Whether the PDF is in the vault
+ * @param options Summarization options
+ * @returns Summarization result with summary text
+ */
+export async function summarizePdfWithFullWorkflow(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
-    pdfContent: PdfContent,
-    personaPrompt: string,
-    userContext: string | undefined,
-    isInternal: boolean,
-    personaId?: string
-): Promise<void> {
+    pdfService: PdfService,
+    pdfPath: string,
+    isVaultFile: boolean,
+    options: PdfSummarizationOptions
+): Promise<PdfSummarizationResult> {
+    // Step 1: Resolve and read the PDF
+    let pdfResult: PdfServiceResult;
+
+    if (isVaultFile) {
+        // Use Obsidian's link resolution for vault files
+        let file = plugin.app.metadataCache.getFirstLinkpathDest(
+            pdfPath,
+            options.currentFilePath || ''
+        );
+
+        // Fallback to direct path lookup
+        if (!file) {
+            const directFile = plugin.app.vault.getAbstractFileByPath(pdfPath);
+            if (directFile instanceof TFile) {
+                file = directFile;
+            }
+        }
+
+        if (!file || !(file instanceof TFile)) {
+            return {
+                success: false,
+                error: 'Could not find PDF file in vault'
+            };
+        }
+
+        pdfResult = await pdfService.readPdfAsBase64(file);
+    } else {
+        // External PDF
+        pdfResult = await pdfService.readExternalPdfAsBase64(pdfPath);
+    }
+
+    if (!pdfResult.success || !pdfResult.content) {
+        return {
+            success: false,
+            error: pdfResult.error || 'Failed to read PDF'
+        };
+    }
+
+    // Step 2: Build the prompt
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
+        personaPrompt: options.personaPrompt,
+        userContext: options.userContext,
     };
-
     const prompt = buildSummaryPrompt(promptOptions);
 
-    try {
-        const response = await summarizePdfWithLLM(plugin, pdfContent, prompt);
+    // Step 3: Call LLM to summarize
+    const response = await summarizePdfWithLLM(plugin, pdfResult.content, prompt);
 
-        if (response.success && response.content) {
-            insertPdfSummary(editor, response.content, pdfContent, plugin, isInternal);
-            new Notice(plugin.t.messages.summaryInserted);
-
-            // Update metadata with persona if structured metadata is enabled
-            if (plugin.settings.enableStructuredMetadata && personaId) {
-                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                if (view) {
-                        await updateNoteMetadataAfterSummary(
-                        plugin,
-                        view,
-                            createSummaryHook(response.content),
-                        [],
-                        'reference',
-                        'pdf',
-                        pdfContent.filePath,
-                        personaId
-                    );
-                }
-            }
-        } else {
-            new Notice(`PDF summarization failed: ${response.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error summarizing PDF: ${errorMessage}`);
+    if (!response.success || !response.content) {
+        return {
+            success: false,
+            error: response.error || 'Failed to generate summary'
+        };
     }
+
+    return {
+        success: true,
+        summary: response.content,
+        pdfContent: pdfResult.content
+    };
 }
 
 /**

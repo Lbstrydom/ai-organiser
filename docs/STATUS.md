@@ -8,6 +8,21 @@
 
 ## Recent Updates
 
+### Summarization Testing Complete (2026-01-26)
+
+✅ **Section 4: Summarization - All Tests Passed**
+- URL Summarization: Source detection, summary insertion, metadata
+- YouTube Summarization: Gemini-native video processing, transcript saving
+- PDF Summarization: Vault and external PDF handling
+- Audio Summarization: Transcription via Whisper, transcript saving
+- Multi-Source Summarization: Combined sources with oversized handling
+
+**DRY/SOLID Refactoring Applied**:
+- `transcribeAudioWithFullWorkflow()`: Unified audio function (chunked >20min, compressed >25MB, direct)
+- `summarizePdfWithFullWorkflow()`: Unified PDF function (vault + external handling)
+- Both multi-source and standalone handlers now use same encapsulated functions
+- Removed ~150 lines of duplicate code
+
 ### Manual Testing Started (2026-01-26)
 
 ✅ **Pre-Test Checklist Complete**
@@ -15,7 +30,14 @@
 - Deployment: Files deployed to Obsidian plugin folder
 - Status: Plugin ready for manual smoke test
 
-**Next Steps**: Testing Settings UI → Command Picker → Tagging features
+**Sections Completed**:
+- ✅ Pre-Test
+- ✅ Settings UI
+- ✅ Command Picker
+- ✅ Tagging
+- ✅ Summarization
+
+**Next Steps**: Testing Translation → Smart Notes → Meeting Minutes
 
 ---
 

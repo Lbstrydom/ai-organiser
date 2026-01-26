@@ -504,7 +504,12 @@ import * as fs from 'fs';
 import {
     ChunkInfo,
     getChunkPromptContext,
-    cleanupChunks
+    cleanupChunks,
+    needsChunking,
+    compressAudio,
+    compressAndChunkAudio,
+    CompressionProgress,
+    ChunkProgress
 } from './audioCompressionService';
 
 export interface ChunkedTranscriptionProgress {
@@ -639,5 +644,203 @@ export async function transcribeChunkedAudioWithCleanup(
     } finally {
         // Always clean up temp files
         cleanupChunks(outputDir);
+    }
+}
+
+// ============================================================================
+// UNIFIED AUDIO TRANSCRIPTION WORKFLOW
+// ============================================================================
+
+/**
+ * Progress callback for the full workflow
+ */
+export interface AudioWorkflowProgress {
+    stage: 'checking' | 'compressing' | 'chunking' | 'transcribing' | 'done' | 'error';
+    progress: number;  // 0-100
+    message: string;
+    currentChunk?: number;
+    totalChunks?: number;
+}
+
+export type AudioWorkflowProgressCallback = (progress: AudioWorkflowProgress) => void;
+
+/**
+ * Unified audio transcription workflow that handles all file sizes and durations.
+ *
+ * This function encapsulates the complete audio transcription workflow:
+ * 1. CHUNKED PATH: For long audio (>20 minutes) - compresses and splits into chunks
+ * 2. COMPRESSION PATH: For large files (>25MB but <20 minutes) - compresses first
+ * 3. DIRECT PATH: For small files (<25MB and <20 minutes) - transcribes directly
+ *
+ * Use this function for any audio transcription to ensure consistent handling
+ * across all file sizes and durations.
+ *
+ * @param app Obsidian App instance
+ * @param file Audio file to transcribe
+ * @param options Transcription options (provider, API key, language, prompt)
+ * @param onProgress Optional progress callback for UI updates
+ * @returns Transcription result with transcript text
+ */
+export async function transcribeAudioWithFullWorkflow(
+    app: App,
+    file: TFile,
+    options: TranscriptionOptions,
+    onProgress?: AudioWorkflowProgressCallback
+): Promise<TranscriptionResult> {
+    const fileSizeBytes = file.stat.size;
+    const fileSizeMB = fileSizeBytes / (1024 * 1024);
+
+    onProgress?.({
+        stage: 'checking',
+        progress: 0,
+        message: 'Checking audio file...'
+    });
+
+    // Check if file needs chunking (long audio > 20 minutes)
+    const chunkingCheck = await needsChunking(app, file);
+
+    if (chunkingCheck.needsChunking) {
+        // CHUNKED PATH: For long audio files (20+ minutes)
+        const durationMinutes = chunkingCheck.estimatedDuration
+            ? Math.round(chunkingCheck.estimatedDuration / 60)
+            : 'unknown';
+
+        onProgress?.({
+            stage: 'chunking',
+            progress: 5,
+            message: `Processing ${durationMinutes} minute audio file...`
+        });
+
+        // Step 1: Compress and split into chunks
+        const chunkResult = await compressAndChunkAudio(
+            app,
+            file,
+            (progress: ChunkProgress) => {
+                if (progress.stage === 'compressing') {
+                    onProgress?.({
+                        stage: 'compressing',
+                        progress: Math.round(5 + progress.progress * 0.3),
+                        message: progress.message
+                    });
+                } else if (progress.stage === 'done') {
+                    onProgress?.({
+                        stage: 'chunking',
+                        progress: 35,
+                        message: progress.message
+                    });
+                }
+            }
+        );
+
+        if (!chunkResult.success || !chunkResult.chunks || !chunkResult.outputDir) {
+            return {
+                success: false,
+                error: `Audio processing failed: ${chunkResult.error || 'Unknown error'}`
+            };
+        }
+
+        onProgress?.({
+            stage: 'transcribing',
+            progress: 40,
+            message: `Transcribing ${chunkResult.chunks.length} chunks...`,
+            totalChunks: chunkResult.chunks.length
+        });
+
+        // Step 2: Transcribe all chunks with context chaining
+        const transcriptionResult = await transcribeChunkedAudioWithCleanup(
+            chunkResult.chunks,
+            chunkResult.outputDir,
+            options,
+            (progress: ChunkedTranscriptionProgress) => {
+                onProgress?.({
+                    stage: 'transcribing',
+                    progress: Math.round(40 + progress.globalPercent * 0.55),
+                    message: progress.message,
+                    currentChunk: progress.currentChunk,
+                    totalChunks: progress.totalChunks
+                });
+            }
+        );
+
+        // Set duration from chunk result
+        if (chunkResult.totalDuration && transcriptionResult.success) {
+            transcriptionResult.duration = chunkResult.totalDuration;
+        }
+
+        onProgress?.({
+            stage: 'done',
+            progress: 100,
+            message: 'Transcription complete'
+        });
+
+        return transcriptionResult;
+
+    } else if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
+        // COMPRESSION PATH: For files > 25MB but < 20 minutes
+        onProgress?.({
+            stage: 'compressing',
+            progress: 5,
+            message: `Compressing ${fileSizeMB.toFixed(1)}MB audio file...`
+        });
+
+        const compressionResult = await compressAudio(
+            app,
+            file,
+            (progress: CompressionProgress) => {
+                if (progress.stage === 'compressing') {
+                    onProgress?.({
+                        stage: 'compressing',
+                        progress: Math.round(5 + progress.progress * 0.4),
+                        message: progress.message
+                    });
+                }
+            }
+        );
+
+        if (!compressionResult.success || !compressionResult.data) {
+            return {
+                success: false,
+                error: `Compression failed: ${compressionResult.error || 'Unknown error'}`
+            };
+        }
+
+        onProgress?.({
+            stage: 'transcribing',
+            progress: 50,
+            message: 'Transcribing compressed audio...'
+        });
+
+        // Transcribe the compressed audio
+        const transcriptionResult = await transcribeAudioFromData(
+            compressionResult.data,
+            file.basename + '_compressed.mp3',
+            options
+        );
+
+        onProgress?.({
+            stage: 'done',
+            progress: 100,
+            message: 'Transcription complete'
+        });
+
+        return transcriptionResult;
+
+    } else {
+        // DIRECT PATH: For small files (< 25MB and < 20 minutes)
+        onProgress?.({
+            stage: 'transcribing',
+            progress: 10,
+            message: 'Transcribing audio...'
+        });
+
+        const transcriptionResult = await transcribeAudio(app, file, options);
+
+        onProgress?.({
+            stage: 'done',
+            progress: 100,
+            message: 'Transcription complete'
+        });
+
+        return transcriptionResult;
     }
 }

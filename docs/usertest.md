@@ -81,23 +81,23 @@ Pick at least ONE source type:
 - [x] Summary follows selected persona style
 
 ### YouTube Summarization
-- [ ] Note with YouTube link → "Summarize"
-- [ ] Video processed via Gemini (requires Gemini key)
-- [ ] Transcript saved (if enabled in settings)
+- [x] Note with YouTube link → "Summarize"
+- [x] Video processed via Gemini (requires Gemini key)
+- [x] Transcript saved (if enabled in settings)
 
 ### PDF Summarization
-- [ ] Open note with embedded PDF → "Summarize"
-- [ ] PDF content extracted and summarized (requires Claude/Gemini)
+- [x] Open note with embedded PDF → "Summarize"
+- [x] PDF content extracted and summarized (requires Claude/Gemini)
 
 ### Audio Summarization
-- [ ] Note with embedded audio file → "Summarize"
-- [ ] Audio transcribed via Whisper → summary generated
-- [ ] Transcript saved (if enabled)
+- [x] Note with embedded audio file → "Summarize"
+- [x] Audio transcribed via Whisper → summary generated
+- [x] Transcript saved (if enabled)
 
 ### Multi-Source Summarization
-- [ ] Note with multiple URLs/PDFs → "Summarize"
-- [ ] Modal shows detected sources with checkboxes
-- [ ] Oversized document handling works (truncate/full/skip)
+- [x] Note with multiple URLs/PDFs → "Summarize"
+- [x] Modal shows detected sources with checkboxes
+- [x] Oversized document handling works (truncate/full/skip)
 
 ---
 
