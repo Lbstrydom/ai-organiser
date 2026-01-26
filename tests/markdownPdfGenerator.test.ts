@@ -2,7 +2,7 @@
  * Tests for MarkdownPdfGenerator
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { MarkdownPdfGenerator } from '../src/services/notebooklm/pdf/MarkdownPdfGenerator';
 import type { PdfConfig } from '../src/services/notebooklm/types';
 
@@ -17,6 +17,13 @@ const DEFAULT_CONFIG: PdfConfig = {
     lineHeight: 1.5,
 };
 
+const generator = new MarkdownPdfGenerator();
+
+const parseMarkdown = (generator as any).parseMarkdown.bind(generator) as (
+    markdown: string,
+    includeFrontmatter: boolean
+) => Array<{ type: string; content: string }>;
+
 describe('MarkdownPdfGenerator', () => {
     describe('generate', () => {
         it('should generate a valid PDF from simple markdown', async () => {
@@ -28,7 +35,7 @@ This is a paragraph with some text.
 
 Another paragraph here.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Test Note',
                 markdown,
                 DEFAULT_CONFIG
@@ -41,7 +48,7 @@ Another paragraph here.`;
         it('should include title when includeTitle is true', async () => {
             const markdown = '# Content Heading\n\nParagraph text.';
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'My Note Title',
                 markdown,
                 { ...DEFAULT_CONFIG, includeTitle: true }
@@ -54,7 +61,7 @@ Another paragraph here.`;
         it('should skip title when includeTitle is false', async () => {
             const markdown = '# Content Heading\n\nParagraph text.';
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'My Note Title',
                 markdown,
                 { ...DEFAULT_CONFIG, includeTitle: false }
@@ -79,7 +86,7 @@ Another paragraph here.`;
 2. Second item
 3. Third item`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Lists',
                 markdown,
                 DEFAULT_CONFIG
@@ -101,7 +108,7 @@ def hello():
 
 And here is more text.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Code',
                 markdown,
                 DEFAULT_CONFIG
@@ -115,7 +122,7 @@ And here is more text.`;
             const markdown = '# Title\n\nContent';
 
             for (const pageSize of ['A4', 'Letter', 'Legal'] as const) {
-                const pdf = await MarkdownPdfGenerator.generate(
+                const pdf = await generator.generate(
                     'Test',
                     markdown,
                     { ...DEFAULT_CONFIG, pageSize }
@@ -130,7 +137,7 @@ And here is more text.`;
             const markdown = '# Title\n\nContent';
 
             for (const fontName of ['helvetica', 'times', 'courier']) {
-                const pdf = await MarkdownPdfGenerator.generate(
+                const pdf = await generator.generate(
                     'Test',
                     markdown,
                     { ...DEFAULT_CONFIG, fontName }
@@ -149,7 +156,7 @@ And here is more text.`;
 
             const markdown = `# Long Document\n\n${longContent}`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Long',
                 markdown,
                 DEFAULT_CONFIG
@@ -169,7 +176,7 @@ tags: [a, b, c]
 
 This is the content.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Test',
                 markdown,
                 { ...DEFAULT_CONFIG, includeFrontmatter: true }
@@ -189,13 +196,13 @@ tags: [a, b, c]
 
 This is the content.`;
 
-            const pdfWithFrontmatter = await MarkdownPdfGenerator.generate(
+            const pdfWithFrontmatter = await generator.generate(
                 'Test',
                 markdown,
                 { ...DEFAULT_CONFIG, includeFrontmatter: true }
             );
 
-            const pdfWithoutFrontmatter = await MarkdownPdfGenerator.generate(
+            const pdfWithoutFrontmatter = await generator.generate(
                 'Test',
                 markdown,
                 { ...DEFAULT_CONFIG, includeFrontmatter: false }
@@ -214,7 +221,7 @@ This is the content.`;
             const markdown = '# Title\n\nContent';
 
             for (const fontSize of [9, 11, 13]) {
-                const pdf = await MarkdownPdfGenerator.generate(
+                const pdf = await generator.generate(
                     'Test',
                     markdown,
                     { ...DEFAULT_CONFIG, fontSize }
@@ -226,7 +233,7 @@ This is the content.`;
         });
 
         it('should handle empty content gracefully', async () => {
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Empty',
                 '',
                 DEFAULT_CONFIG
@@ -238,7 +245,7 @@ This is the content.`;
 
         it('should return PDF as ArrayBuffer format', async () => {
             const markdown = 'Simple content';
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Test',
                 markdown,
                 DEFAULT_CONFIG
@@ -263,7 +270,7 @@ More content.
 
 Even more content.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Headings',
                 markdown,
                 DEFAULT_CONFIG
@@ -280,7 +287,7 @@ Even more content.`;
 
 This is a [[internal link]] and [[link|display text]].`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Links',
                 markdown,
                 DEFAULT_CONFIG
@@ -295,7 +302,7 @@ This is a [[internal link]] and [[link|display text]].`;
 
 Check out [this link](https://example.com) for more info.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Links',
                 markdown,
                 DEFAULT_CONFIG
@@ -310,7 +317,7 @@ Check out [this link](https://example.com) for more info.`;
 
 This is **bold text**, __also bold__, *italic text*, and _also italic_.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Formatting',
                 markdown,
                 DEFAULT_CONFIG
@@ -325,7 +332,7 @@ This is **bold text**, __also bold__, *italic text*, and _also italic_.`;
 
 This is ~~strikethrough~~ text.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Formatting',
                 markdown,
                 DEFAULT_CONFIG
@@ -340,7 +347,7 @@ This is ~~strikethrough~~ text.`;
 
 Use \`const x = 5\` for variable declaration.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Code',
                 markdown,
                 DEFAULT_CONFIG
@@ -369,7 +376,7 @@ SELECT * FROM table
 
 Final paragraph.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Complex',
                 markdown,
                 DEFAULT_CONFIG
@@ -390,7 +397,7 @@ Regular paragraph.
 
 Another paragraph.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'HTML',
                 markdown,
                 DEFAULT_CONFIG
@@ -409,7 +416,7 @@ Regular paragraph.
 
 Another paragraph.`;
 
-            const pdf = await MarkdownPdfGenerator.generate(
+            const pdf = await generator.generate(
                 'Comments',
                 markdown,
                 DEFAULT_CONFIG
@@ -417,6 +424,49 @@ Another paragraph.`;
 
             expect(pdf).toBeInstanceOf(ArrayBuffer);
             expect(pdf.byteLength).toBeGreaterThan(0);
+        });
+
+        it('should strip inline and multi-line comments from parsed output', () => {
+            const markdown = `Visible line.
+%% Hidden inline %%
+%% Multi
+line
+comment %%
+Still visible.`;
+
+            const lines = parseMarkdown(markdown, false);
+            const content = lines.map(line => line.content).join(' ');
+
+            expect(content).toContain('Visible line.');
+            expect(content).toContain('Still visible.');
+            expect(content).not.toContain('Hidden inline');
+            expect(content).not.toContain('Multi');
+            expect(content).not.toContain('comment');
+        });
+
+        it('should strip image embeds from parsed output', () => {
+            const markdown = 'Start ![[image.png]] middle ![alt](https://example.com/image.jpg) end';
+
+            const lines = parseMarkdown(markdown, false);
+            const content = lines.map(line => line.content).join(' ');
+
+            expect(content).toContain('Start');
+            expect(content).toContain('middle');
+            expect(content).toContain('end');
+            expect(content).not.toContain('image.png');
+            expect(content).not.toContain('https://');
+        });
+
+        it('should preserve ordered list numbering in parsed output', () => {
+            const markdown = `1. First item
+2. Second item`;
+
+            const lines = parseMarkdown(markdown, false);
+            const ordered = lines.filter(line => line.type === 'ordered');
+
+            expect(ordered.length).toBe(2);
+            expect(ordered[0].content.startsWith('1.')).toBe(true);
+            expect(ordered[1].content.startsWith('2.')).toBe(true);
         });
     });
 
@@ -427,7 +477,7 @@ Another paragraph.`;
 
             const markdown = '# Test\n\nContent';
 
-            await MarkdownPdfGenerator.generate('Test', markdown, config);
+            await generator.generate('Test', markdown, config);
 
             expect(JSON.stringify(config)).toBe(originalConfig);
         });
@@ -435,13 +485,13 @@ Another paragraph.`;
         it('should produce consistent output for same input', async () => {
             const markdown = '# Title\n\nSame content.';
 
-            const pdf1 = await MarkdownPdfGenerator.generate(
+            const pdf1 = await generator.generate(
                 'Test',
                 markdown,
                 DEFAULT_CONFIG
             );
 
-            const pdf2 = await MarkdownPdfGenerator.generate(
+            const pdf2 = await generator.generate(
                 'Test',
                 markdown,
                 DEFAULT_CONFIG

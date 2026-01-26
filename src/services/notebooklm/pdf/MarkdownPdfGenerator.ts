@@ -11,7 +11,7 @@
  */
 
 import jsPDF from 'jspdf';
-import type { PdfConfig } from '../types';
+import type { IPdfGenerator, PdfConfig } from '../types';
 
 /**
  * Semantic markdown line type
@@ -26,7 +26,7 @@ interface MarkdownLine {
  * Markdown PDF Generator
  * Pure function-based generator (no side effects, no Obsidian dependencies)
  */
-export class MarkdownPdfGenerator {
+export class MarkdownPdfGenerator implements IPdfGenerator {
     /**
      * Generate a PDF from markdown content
      *
@@ -35,7 +35,7 @@ export class MarkdownPdfGenerator {
      * @param config - PDF configuration
      * @returns PDF as ArrayBuffer
      */
-    static async generate(
+    async generate(
         title: string,
         markdownContent: string,
         config: PdfConfig
@@ -120,7 +120,7 @@ export class MarkdownPdfGenerator {
 
                         // First line gets bullet point
                         if (i === 0) {
-                            doc.text('• ', indentX, yPosition);
+                            doc.text('- ', indentX, yPosition);
                             doc.text(bulletLines[i], indentX + 5, yPosition);
                         } else {
                             // Continuation lines are indented
@@ -138,7 +138,7 @@ export class MarkdownPdfGenerator {
                     const numWidth = contentWidth - (line.depth || 0) * 5;
                     // Extract number from content (e.g., "1. text" -> "1.")
                     const match = line.content.match(/^(\d+\.\s*)/);
-                    const prefix = match ? match[1] : '• ';
+                    const prefix = match ? match[1] : '- ';
                     const contentText = line.content.replace(/^\d+\.\s*/, '');
                     const orderedLines = doc.splitTextToSize(contentText, numWidth - 10);
 
@@ -182,12 +182,13 @@ export class MarkdownPdfGenerator {
      * Parse markdown content into semantic lines
      * Strips complex blocks and Obsidian-specific syntax
      */
-    private static parseMarkdown(
+    private parseMarkdown(
         markdown: string,
         includeFrontmatter: boolean
     ): MarkdownLine[] {
         const lines: MarkdownLine[] = [];
-        const rawLines = markdown.split('\n');
+        const cleanedMarkdown = this.preprocessMarkdown(markdown);
+        const rawLines = cleanedMarkdown.split('\n');
 
         let inFrontmatter = false;
         let inCodeBlock = false;
@@ -286,7 +287,7 @@ export class MarkdownPdfGenerator {
             const orderedMatch = trimmed.match(/^(\s*)(\d+)\.\s+(.+)$/);
             if (orderedMatch) {
                 const depth = orderedMatch[1].length / 2;
-                const content = this.sanitizeText(orderedMatch[3]);
+                const content = `${orderedMatch[2]}. ${this.sanitizeText(orderedMatch[3])}`;
                 lines.push({
                     type: 'ordered',
                     content,
@@ -316,7 +317,7 @@ export class MarkdownPdfGenerator {
      * - Remove strikethrough markers
      * - Strip inline code backticks but keep text
      */
-    private static sanitizeText(text: string): string {
+    private sanitizeText(text: string): string {
         let result = text;
 
         // Internal links: [[Link|Display]] or [[Link]]
@@ -351,10 +352,25 @@ export class MarkdownPdfGenerator {
     }
 
     /**
+     * Preprocess markdown to remove blocks that should never reach the parser.
+     * - Strips Obsidian comments (inline and multi-line)
+     * - Removes image embeds (wiki-style and markdown-style)
+     */
+    private preprocessMarkdown(markdown: string): string {
+        return markdown
+            // Obsidian comments: %% ... %% (supports multi-line)
+            .replace(/%%[\s\S]*?%%/g, '')
+            // Obsidian wiki image embeds: ![[image.png]]
+            .replace(/!\[\[.*?\]\]/g, '')
+            // Markdown image embeds: ![alt](url)
+            .replace(/!\[[^\]]*]\([^)]*\)/g, '');
+    }
+
+    /**
      * Stub for future image embedding (v2+)
      * v1: images are silently skipped in markdown parsing
      */
-    private static embedImage(doc: jsPDF, imagePath: string): void {
+    private embedImage(doc: jsPDF, imagePath: string): void {
         // TODO: v2 - implement image embedding with base64 encoding
         // For now, this is a no-op; images are stripped by markdown parser
     }
