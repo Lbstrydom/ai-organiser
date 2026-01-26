@@ -28,6 +28,7 @@ import { IEmbeddingService, createEmbeddingServiceFromSettings } from './service
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
+import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
 import { buildFolderContext, FolderContext } from './utils/folderContextUtils';
 
@@ -114,10 +115,20 @@ export default class AIOrganiserPlugin extends Plugin {
      * Initialize or reinitialize the NotebookLM source pack service
      */
     private initializeSourcePackService(): void {
+        const pdfConfig = {
+            ...DEFAULT_PDF_CONFIG,
+            pageSize: this.settings.notebooklmPdfPageSize,
+            fontName: this.settings.notebooklmPdfFontName,
+            fontSize: this.settings.notebooklmPdfFontSize,
+            includeFrontmatter: this.settings.notebooklmPdfIncludeFrontmatter,
+            includeTitle: this.settings.notebooklmPdfIncludeTitle
+        };
+
         const config: SourcePackConfig = {
             selectionTag: this.settings.notebooklmSelectionTag,
             exportFolder: getNotebookLMExportFullPath(this.settings),
-            postExportTagAction: this.settings.notebooklmPostExportTagAction
+            postExportTagAction: this.settings.notebooklmPostExportTagAction,
+            pdf: pdfConfig
         };
 
         this.sourcePackService = new SourcePackService(this.app, config);

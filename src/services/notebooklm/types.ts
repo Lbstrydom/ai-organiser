@@ -18,6 +18,9 @@ export interface SourcePackConfig {
 
     /** What to do with selection tags after export */
     postExportTagAction: 'clear' | 'archive';
+
+    /** PDF generation configuration */
+    pdf: PdfConfig;
 }
 
 /**

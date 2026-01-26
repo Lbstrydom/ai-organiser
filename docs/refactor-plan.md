@@ -225,6 +225,7 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
   - Added `PdfConfig` interface with page size, font settings, margins, line height
   - Added `IPdfGenerator` interface for PDF generation contract
   - Added `DEFAULT_PDF_CONFIG` constant (A4, helvetica, 11pt)
+  - Added `pdf: PdfConfig` to `SourcePackConfig` (export config now carries PDF settings)
   - Extended `PackEntry` with `type: 'note-pdf' | 'attachment'` field
 - ✅ Updated `src/core/settings.ts`:
   - Added 5 PDF settings fields to `AIOrganiserSettings` interface
@@ -267,7 +268,16 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
   - Handle H1-H3, lists, and paragraphs.
   - Strip or skip complex blocks (HTML, Dataview, code fences) for clean AI parsing.
   - If `includeFrontmatter`, render a simple metadata header block.
+- Implementation guidance:
+  - Use a simple **line scanner** (no full Markdown parser).
+  - Keep the generator **pure** (no App/Vault/TFile dependency); pass strings + config only.
+  - Stub image handling initially (`embedImage` no-op) and add later.
 - Add a v1 warning in UI: Latin-only fonts (CJK/RTL not supported yet).
+
+**Critical Watch Outs (Phase 2)**
+- **Pure inputs only**: `generate(title: string, markdownContent: string, config: PdfConfig)` — do **not** accept `TFile` or Obsidian types.
+- **Latin-only limitation**: PDFs will not render CJK/RTL in v1. Ensure `NotebookLMExportModal.ts` shows a warning: “Note: PDF generation currently supports Latin characters only. Chinese/Asian characters may not render correctly.”
+- **Sanitization in line scanner**: strip Obsidian-specific syntax (e.g., `[[Internal Link]] → Internal Link`, remove `%% comments %%`).
 
 #### Phase 3: Service Orchestration
 - Update `src/services/notebooklm/sourcePackService.ts`:
