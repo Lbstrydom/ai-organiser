@@ -2,11 +2,50 @@
 
 **Version:** 1.0.15
 **Last Updated:** January 27, 2026
-**Status:** Feature Complete - SecretStorage Phase 1 Complete
+**Status:** Feature Complete - SecretStorage Phase 1 & 2 Complete
 
 ---
 
 ## Recent Updates
+
+### SettingGroup Phase 2 Complete (2026-01-27)
+
+✅ **Obsidian 1.11+ SettingGroup Native Integration**
+- **Updated File** (40 lines):
+  - `src/ui/settings/BaseSettingSection.ts`: Added SettingGroup wrapper with fallback
+
+- **Key Features**:
+  - Detects SettingGroup API availability (Obsidian 1.11+)
+  - Uses native SettingGroup for h1 headers when available
+  - Falls back to custom headers for h2 or older Obsidian versions
+  - Zero breaking changes - all existing sections work unchanged
+  - Progressive enhancement - native API auto-used when available
+
+- **Test Results**: 798 tests pass ✅ (no new tests added, verified backward compatibility)
+
+**Implementation Details**:
+- `isSettingGroupAvailable()`: Safely detects SettingGroup in Obsidian module
+- `createNativeSettingGroup()`: Wraps SettingGroup with icon and title
+- `createCustomHeader()`: Existing fallback implementation preserved
+- `createSectionHeader()`: Router logic selects native vs fallback
+- Non-breaking: All existing section classes work without modification
+
+**Gestalt UI Principles Preserved**:
+- Proximity: Same grouped settings structure
+- Similarity: Same h1/h2 visual hierarchy (native SettingGroup maintains this)
+- Common Region: Same section containers
+- Continuity: Same logical flow through settings
+
+### Phase 6 Implementation Verified (2026-01-27)
+
+✅ **All 5 Settings Sections Now Using renderApiKeyField()**
+- `LLMSettingsSection.ts`: Uses renderApiKeyField() for cloud API key
+- `SemanticSearchSettingsSection.ts`: Uses renderApiKeyField() with fallback
+- `YouTubeSettingsSection.ts`: Uses renderApiKeyField() for Gemini key
+- `PDFSettingsSection.ts`: Uses renderApiKeyField() with provider selection
+- `AudioTranscriptionSettingsSection.ts`: Uses renderApiKeyField() for audio keys
+
+**Phase 6 Complete**: All API key fields now unified through renderApiKeyField() helper
 
 ### SecretStorage Phase 1 Complete (2026-01-27)
 

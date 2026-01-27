@@ -26,7 +26,53 @@ export abstract class BaseSettingSection {
     }
 
     /**
+     * Checks if native SettingGroup API is available (Obsidian 1.11+)
+     */
+    private isSettingGroupAvailable(): boolean {
+        try {
+            const obsidianModule = require('obsidian');
+            return typeof obsidianModule.SettingGroup !== 'undefined';
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Creates a native SettingGroup for level 1 headers when available
+     */
+    private createNativeSettingGroup(container: HTMLElement, title: string, icon: string): HTMLElement {
+        try {
+            const obsidianModule = require('obsidian');
+            const SettingGroup = obsidianModule.SettingGroup;
+            if (SettingGroup) {
+                const group = new SettingGroup(container);
+                group.setHeading(title);
+                if (icon) {
+                    group.setIcon(icon);
+                }
+                // Return the group container for further settings
+                return (group as any).settingEl || container;
+            }
+        } catch {
+            // Fall through to custom header
+        }
+        return this.createCustomHeader(container, title, icon, 1);
+    }
+
+    /**
+     * Creates a custom header element (fallback)
+     */
+    private createCustomHeader(container: HTMLElement, title: string, icon: string, level: 1 | 2): HTMLElement {
+        const headerEl = container.createEl(level === 1 ? 'h1' : 'h2', { cls: 'ai-organiser-settings-header' });
+        const iconEl = headerEl.createSpan({ cls: 'ai-organiser-settings-header-icon' });
+        setIcon(iconEl, icon);
+        headerEl.createSpan({ text: title });
+        return headerEl;
+    }
+
+    /**
      * Creates a section header with an icon
+     * Uses native SettingGroup on Obsidian 1.11+ for level 1 headers
      * @param title - The header text
      * @param icon - Lucide icon name (e.g., 'bot', 'tag', 'search')
      * @param level - Header level (1 or 2), defaults to 1
@@ -34,14 +80,14 @@ export abstract class BaseSettingSection {
      */
     protected createSectionHeader(title: string, icon: string, level: 1 | 2 = 1, container?: HTMLElement): HTMLElement {
         const targetEl = container || this.containerEl;
-        const headerEl = targetEl.createEl(level === 1 ? 'h1' : 'h2', { cls: 'ai-organiser-settings-header' });
 
-        const iconEl = headerEl.createSpan({ cls: 'ai-organiser-settings-header-icon' });
-        setIcon(iconEl, icon);
+        // Use native SettingGroup for level 1 headers when available
+        if (level === 1 && this.isSettingGroupAvailable()) {
+            return this.createNativeSettingGroup(targetEl, title, icon);
+        }
 
-        headerEl.createSpan({ text: title });
-
-        return headerEl;
+        // Fall back to custom header for level 2 or when SettingGroup unavailable
+        return this.createCustomHeader(targetEl, title, icon, level);
     }
 
     /**
