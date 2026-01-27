@@ -361,6 +361,35 @@ export interface Translations {
             showKey: string;
             getApiKey: string;
         };
+        secretStorage: {
+            deviceOnly: string;
+            keyConfigured: string;
+            noKeySet: string;
+            migrationTitle: string;
+            migrationDesc: string;
+            benefitsTitle: string;
+            benefit1: string;
+            benefit2: string;
+            benefit3: string;
+            importantTitle: string;
+            warning1: string;
+            warning2: string;
+            warning3: string;
+            migrationComplete: string;
+            migrationDeclined: string;
+            fallbackWarning: string;
+            fallbackConsent: string;
+            sharedKeyInfo: string;
+            testKey: string;
+            apiKeyPlaceholder: string;
+            testing: string;
+            valid: string;
+            invalid: string;
+            error: string;
+            clearFromKeychain: string;
+            migrateNow: string;
+            cancel: string;
+        };
     };
 
     // Commands

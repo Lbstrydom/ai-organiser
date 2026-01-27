@@ -16,6 +16,79 @@
     height: 24px;
 }
 
+/* SecretStorage API Key Status Indicators */
+.ai-organiser-key-status-set {
+    color: var(--text-success);
+    font-weight: 500;
+}
+
+.ai-organiser-key-status-empty {
+    color: var(--text-muted);
+}
+
+.ai-organiser-device-badge {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+
+.ai-organiser-fallback-warning {
+    color: var(--text-warning);
+    font-size: 0.9em;
+    margin-top: 4px;
+}
+
+/* Migration Modal Styles */
+.ai-organiser-migration-desc {
+    margin-bottom: var(--size-4-4);
+    color: var(--text-normal);
+    line-height: 1.5;
+}
+
+.ai-organiser-migration-benefits {
+    background-color: var(--background-secondary);
+    padding: var(--size-4-3);
+    border-radius: var(--radius-m);
+    margin-bottom: var(--size-4-4);
+}
+
+.ai-organiser-migration-benefits h4 {
+    margin-top: 0;
+    margin-bottom: var(--size-4-2);
+    color: var(--text-success);
+}
+
+.ai-organiser-migration-benefits ul {
+    margin: 0;
+    padding-left: var(--size-4-6);
+}
+
+.ai-organiser-migration-warning {
+    background-color: var(--background-modifier-error-hover);
+    padding: var(--size-4-3);
+    border-radius: var(--radius-m);
+    margin-bottom: var(--size-4-4);
+    border-left: 4px solid var(--text-warning);
+}
+
+.ai-organiser-migration-warning h4 {
+    margin-top: 0;
+    margin-bottom: var(--size-4-2);
+    color: var(--text-warning);
+}
+
+.ai-organiser-migration-warning ul {
+    margin: 0;
+    padding-left: var(--size-4-6);
+}
+
+.ai-organiser-migration-buttons {
+    display: flex;
+    gap: var(--size-4-2);
+    justify-content: flex-end;
+    margin-top: var(--size-4-4);
+}
+
 /* Connection Test Styles */
 .connection-test-container {
     display: flex;

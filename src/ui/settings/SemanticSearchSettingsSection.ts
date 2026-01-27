@@ -2,6 +2,7 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { EMBEDDING_DEFAULT_MODEL, getEmbeddingModelOptions, EmbeddingProvider } from '../../services/embeddings/embeddingRegistry';
+import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 
 export class SemanticSearchSettingsSection extends BaseSettingSection {
     private sectionEl: HTMLElement | null = null;
@@ -9,6 +10,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
     display(): void {
         const { containerEl, plugin } = this;
         const t = plugin.t;
+        const hasSecretStorage = plugin.secretStorageService.isAvailable();
         if (!this.sectionEl) {
             this.sectionEl = containerEl.createDiv({ cls: 'semantic-search-settings-section' });
         }
@@ -77,7 +79,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     }
 
                     // Auto-fill embedding API key if blank, using provider-specific or cloud key
-                    if (!plugin.settings.embeddingApiKey) {
+                    if (!hasSecretStorage && !plugin.settings.embeddingApiKey) {
                         const fallbackKey = this.getDefaultEmbeddingApiKey(value, plugin);
                         if (fallbackKey) {
                             plugin.settings.embeddingApiKey = fallbackKey;
@@ -116,48 +118,62 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
         // Embedding API Key (if not using Ollama)
         if (plugin.settings.embeddingProvider !== 'ollama') {
-            const inferredKey = this.getDefaultEmbeddingApiKey(plugin.settings.embeddingProvider, plugin);
-            const hasInferredKey = inferredKey && !plugin.settings.embeddingApiKey;
-
-            // Build description - note if using main API key
-            let keyDesc = t.settings.semanticSearch.embeddingApiKey.description;
-            if (hasInferredKey && plugin.settings.embeddingProvider === plugin.settings.cloudServiceType) {
-                keyDesc += ' (Using main LLM API key)';
-            }
-
-            const settingEl = new Setting(sectionEl)
-                .setName(t.settings.semanticSearch.embeddingApiKey.name)
-                .setDesc(keyDesc);
-
-            // If we can infer from main API key and same provider, show indicator
-            if (hasInferredKey) {
-                settingEl.addButton(btn => btn
-                    .setButtonText('Use main API key')
-                    .setTooltip('Copy from main LLM settings')
-                    .onClick(async () => {
-                        plugin.settings.embeddingApiKey = inferredKey;
+            if (hasSecretStorage) {
+                this.renderApiKeyField({
+                    name: t.settings.semanticSearch.embeddingApiKey.name,
+                    desc: t.settings.semanticSearch.embeddingApiKey.description,
+                    secretId: PLUGIN_SECRET_IDS.EMBEDDING,
+                    currentValue: plugin.settings.embeddingApiKey,
+                    placeholder: 'sk-...',
+                    onChange: async (value) => {
+                        plugin.settings.embeddingApiKey = value;
                         await plugin.saveSettings();
-                        this.display(); // Refresh
-                    }));
-            }
+                    }
+                });
+            } else {
+                const inferredKey = this.getDefaultEmbeddingApiKey(plugin.settings.embeddingProvider, plugin);
+                const hasInferredKey = inferredKey && !plugin.settings.embeddingApiKey;
 
-            settingEl.addText(text => {
-                const displayKey = plugin.settings.embeddingApiKey || '';
-                const maskedKey = displayKey && displayKey.length > 6
-                    ? displayKey.substring(0, 6) + '•'.repeat(Math.min(20, displayKey.length - 6))
-                    : displayKey;
+                // Build description - note if using main API key
+                let keyDesc = t.settings.semanticSearch.embeddingApiKey.description;
+                if (hasInferredKey && plugin.settings.embeddingProvider === plugin.settings.cloudServiceType) {
+                    keyDesc += ' (Using main LLM API key)';
+                }
 
-                text.setPlaceholder(hasInferredKey ? '(using main API key)' : 'sk-...')
-                    .setValue(maskedKey)
-                    .onChange(async (value) => {
-                        // Only update if user actually typed something (not just the masked version)
-                        if (value !== maskedKey) {
-                            plugin.settings.embeddingApiKey = value;
+                const settingEl = new Setting(sectionEl)
+                    .setName(t.settings.semanticSearch.embeddingApiKey.name)
+                    .setDesc(keyDesc);
+
+                // If we can infer from main API key and same provider, show indicator
+                if (hasInferredKey) {
+                    settingEl.addButton(btn => btn
+                        .setButtonText('Use main API key')
+                        .setTooltip('Copy from main LLM settings')
+                        .onClick(async () => {
+                            plugin.settings.embeddingApiKey = inferredKey;
                             await plugin.saveSettings();
-                        }
-                    });
-                text.inputEl.type = 'password';
-            });
+                            this.display(); // Refresh
+                        }));
+                }
+
+                settingEl.addText(text => {
+                    const displayKey = plugin.settings.embeddingApiKey || '';
+                    const maskedKey = displayKey && displayKey.length > 6
+                        ? displayKey.substring(0, 6) + '*'.repeat(Math.min(20, displayKey.length - 6))
+                        : displayKey;
+
+                    text.setPlaceholder(hasInferredKey ? '(using main API key)' : 'sk-...')
+                        .setValue(maskedKey)
+                        .onChange(async (value) => {
+                            // Only update if user actually typed something (not just the masked version)
+                            if (value !== maskedKey) {
+                                plugin.settings.embeddingApiKey = value;
+                                await plugin.saveSettings();
+                            }
+                        });
+                    text.inputEl.type = 'password';
+                });
+            }
         }
 
         // Embedding Endpoint (for Ollama or custom endpoints)

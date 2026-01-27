@@ -156,6 +156,10 @@ export interface AIOrganiserSettings {
     // Whisper API for audio transcription (OpenAI or Groq)
     audioTranscriptionApiKey: string;    // Dedicated key for transcription (uses main key if provider supports Whisper)
     audioTranscriptionProvider: 'openai' | 'groq';  // Which Whisper provider to use
+
+    // === SECRET STORAGE ===
+    // SecretStorage API integration (Obsidian 1.11+)
+    secretStorageMigrated: boolean;      // Whether keys have been migrated to SecretStorage
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -258,6 +262,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // Audio Transcription Defaults (Whisper API)
     audioTranscriptionApiKey: '',                       // Empty = use main OpenAI/Groq key if available
     audioTranscriptionProvider: 'openai',              // OpenAI Whisper by default
+
+    // Secret Storage Defaults
+    secretStorageMigrated: false,                       // Not migrated yet
 };
 
 /**

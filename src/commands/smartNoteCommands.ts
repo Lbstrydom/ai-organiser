@@ -22,16 +22,33 @@ import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
+import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 
 /**
  * Get Gemini API key for YouTube processing
  * Checks dedicated YouTube key first, then falls back to main Gemini key
  */
-function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
+async function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    const useMainGeminiKey = plugin.settings.cloudServiceType === 'gemini';
+
+    if (secretStorage.isAvailable()) {
+        return await secretStorage.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.YOUTUBE,
+            providerFallback: 'gemini',
+            useMainKeyFallback: useMainGeminiKey,
+            plainTextFallback: {
+                primaryKey: plugin.settings.youtubeGeminiApiKey,
+                providerKey: plugin.settings.providerSettings?.gemini?.apiKey,
+                mainCloudKey: plugin.settings.cloudApiKey
+            }
+        });
+    }
+
     if (plugin.settings.youtubeGeminiApiKey) {
         return plugin.settings.youtubeGeminiApiKey;
     }
-    if (plugin.settings.cloudServiceType === 'gemini' && plugin.settings.cloudApiKey) {
+    if (useMainGeminiKey && plugin.settings.cloudApiKey) {
         return plugin.settings.cloudApiKey;
     }
     if (plugin.settings.providerSettings?.gemini?.apiKey) {
@@ -41,15 +58,7 @@ function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
 }
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
-    // Get Gemini config for YouTube transcription if available
-    const geminiApiKey = getYouTubeGeminiApiKey(plugin);
-    const youtubeGeminiConfig = geminiApiKey ? {
-        apiKey: geminiApiKey,
-        model: plugin.settings.youtubeGeminiModel,
-        timeoutMs: plugin.settings.summarizeTimeoutSeconds * 1000
-    } : undefined;
-
-    const extractionService = new ContentExtractionService(plugin.app, youtubeGeminiConfig);
+    const extractionService = new ContentExtractionService(plugin.app);
 
     // Command: Generate note from embedded content (merged single command)
     plugin.addCommand({
@@ -62,6 +71,13 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
                 new Notice(plugin.t.messages.openNote);
                 return;
             }
+
+            const geminiApiKey = await getYouTubeGeminiApiKey(plugin);
+            extractionService.setYouTubeGeminiConfig(geminiApiKey ? {
+                apiKey: geminiApiKey,
+                model: plugin.settings.youtubeGeminiModel,
+                timeoutMs: plugin.settings.summarizeTimeoutSeconds * 1000
+            } : undefined);
 
             const content = await plugin.app.vault.read(view.file);
 

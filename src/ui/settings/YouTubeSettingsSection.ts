@@ -5,11 +5,14 @@
 
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class YouTubeSettingsSection extends BaseSettingSection {
     display(): void {
         const t = this.plugin.t.settings.youtube;
         const isGeminiMainProvider = this.plugin.settings.cloudServiceType === 'gemini';
+        const secretStorage = this.plugin.secretStorageService;
+        const hasSecretStorage = secretStorage.isAvailable();
 
         this.createSectionHeader(t?.title || 'YouTube', 'youtube', 2);
 
@@ -21,41 +24,43 @@ export class YouTubeSettingsSection extends BaseSettingSection {
         });
 
         // Show status of Gemini key
-        if (isGeminiMainProvider && this.plugin.settings.cloudApiKey) {
+        if (isGeminiMainProvider) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            statusEl.createEl('span', {
-                text: t?.usingMainKey || 'Using your main Gemini API key',
-                cls: 'ai-organiser-status-success'
-            });
+            const statusText = t?.usingMainKey || 'Using your main Gemini API key';
+
+            if (hasSecretStorage) {
+                const geminiSecretId = PROVIDER_TO_SECRET_ID.gemini;
+                if (geminiSecretId) {
+                    secretStorage.hasSecret(geminiSecretId).then((hasKey) => {
+                        if (hasKey) {
+                            statusEl.createEl('span', {
+                                text: statusText,
+                                cls: 'ai-organiser-status-success'
+                            });
+                        }
+                    });
+                }
+            } else if (this.plugin.settings.cloudApiKey) {
+                statusEl.createEl('span', {
+                    text: statusText,
+                    cls: 'ai-organiser-status-success'
+                });
+            }
         }
 
         // Gemini API Key (only show if main provider is NOT Gemini)
         if (!isGeminiMainProvider) {
-            new Setting(this.containerEl)
-                .setName(t?.apiKey || 'Gemini API Key')
-                .setDesc(t?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.')
-                .addText(text => {
-                    text
-                        .setPlaceholder('AIza...')
-                        .setValue(this.plugin.settings.youtubeGeminiApiKey)
-                        .onChange(async (value) => {
-                            this.plugin.settings.youtubeGeminiApiKey = value;
-                            await this.plugin.saveSettings();
-                        });
-                    // Mask the API key display
-                    text.inputEl.type = 'password';
-                })
-                .addExtraButton(button => {
-                    button
-                        .setIcon('eye')
-                        .setTooltip(t?.showKey || 'Show/hide key')
-                        .onClick(() => {
-                            const input = button.extraSettingsEl.parentElement?.querySelector('input');
-                            if (input) {
-                                input.type = input.type === 'password' ? 'text' : 'password';
-                            }
-                        });
-                });
+            this.renderApiKeyField({
+                name: t?.apiKey || 'Gemini API Key',
+                desc: t?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.',
+                secretId: PLUGIN_SECRET_IDS.YOUTUBE,
+                currentValue: this.plugin.settings.youtubeGeminiApiKey,
+                placeholder: 'AIza...',
+                onChange: async (value) => {
+                    this.plugin.settings.youtubeGeminiApiKey = value;
+                    await this.plugin.saveSettings();
+                }
+            });
 
             // Link to get API key
             const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });

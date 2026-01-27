@@ -46,6 +46,7 @@ import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
 import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { summarizeText } from '../services/llmFacade';
+import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 
 /**
  * Update note with structured metadata after summarization
@@ -178,18 +179,31 @@ async function saveTranscriptToFile(
  * Get the Gemini API key for YouTube processing
  * Priority: 1) dedicated YouTube key, 2) main Gemini key if provider is Gemini, 3) provider settings
  */
-function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
-    // First, check for dedicated YouTube Gemini key
+async function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    const useMainGeminiKey = plugin.settings.cloudServiceType === 'gemini';
+
+    if (secretStorage.isAvailable()) {
+        return await secretStorage.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.YOUTUBE,
+            providerFallback: 'gemini',
+            useMainKeyFallback: useMainGeminiKey,
+            plainTextFallback: {
+                primaryKey: plugin.settings.youtubeGeminiApiKey,
+                providerKey: plugin.settings.providerSettings?.gemini?.apiKey,
+                mainCloudKey: plugin.settings.cloudApiKey
+            }
+        });
+    }
+
     if (plugin.settings.youtubeGeminiApiKey) {
         return plugin.settings.youtubeGeminiApiKey;
     }
 
-    // If main provider is Gemini, use that key
-    if (plugin.settings.cloudServiceType === 'gemini' && plugin.settings.cloudApiKey) {
+    if (useMainGeminiKey && plugin.settings.cloudApiKey) {
         return plugin.settings.cloudApiKey;
     }
 
-    // Check provider settings for Gemini
     if (plugin.settings.providerSettings?.gemini?.apiKey) {
         return plugin.settings.providerSettings.gemini.apiKey;
     }
@@ -201,35 +215,45 @@ function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): string | null {
  * Get the API key for audio transcription (Whisper)
  * Priority: 1) dedicated transcription key, 2) main key if provider matches, 3) provider settings
  */
-function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): { key: string; provider: 'openai' | 'groq' } | null {
+async function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): Promise<{ key: string; provider: 'openai' | 'groq' } | null> {
     const selectedProvider = plugin.settings.audioTranscriptionProvider || 'openai';
+    const secretStorage = plugin.secretStorageService;
 
-    // First, check for dedicated transcription key
-    if (plugin.settings.audioTranscriptionApiKey) {
-        return { key: plugin.settings.audioTranscriptionApiKey, provider: selectedProvider };
+    const resolveKey = async (provider: 'openai' | 'groq'): Promise<string | null> => {
+        if (secretStorage.isAvailable()) {
+            return await secretStorage.resolveApiKey({
+                primaryId: PLUGIN_SECRET_IDS.AUDIO,
+                providerFallback: provider,
+                useMainKeyFallback: plugin.settings.cloudServiceType === provider,
+                plainTextFallback: {
+                    primaryKey: plugin.settings.audioTranscriptionApiKey,
+                    providerKey: plugin.settings.providerSettings?.[provider]?.apiKey,
+                    mainCloudKey: plugin.settings.cloudApiKey
+                }
+            });
+        }
+
+        if (plugin.settings.audioTranscriptionApiKey) {
+            return plugin.settings.audioTranscriptionApiKey;
+        }
+
+        if (plugin.settings.cloudServiceType === provider && plugin.settings.cloudApiKey) {
+            return plugin.settings.cloudApiKey;
+        }
+
+        const providerKey = plugin.settings.providerSettings?.[provider]?.apiKey;
+        return providerKey || null;
+    };
+
+    const selectedKey = await resolveKey(selectedProvider);
+    if (selectedKey) {
+        return { key: selectedKey, provider: selectedProvider };
     }
 
-    // Check if main provider matches and has a key
-    if (plugin.settings.cloudServiceType === selectedProvider && plugin.settings.cloudApiKey) {
-        return { key: plugin.settings.cloudApiKey, provider: selectedProvider };
-    }
-
-    // Check provider settings for the selected provider
-    const providerKey = plugin.settings.providerSettings?.[selectedProvider]?.apiKey;
-    if (providerKey) {
-        return { key: providerKey, provider: selectedProvider };
-    }
-
-    // Fallback: try the other provider if available
     const otherProvider = selectedProvider === 'openai' ? 'groq' : 'openai';
-
-    if (plugin.settings.cloudServiceType === otherProvider && plugin.settings.cloudApiKey) {
-        return { key: plugin.settings.cloudApiKey, provider: otherProvider as 'openai' | 'groq' };
-    }
-
-    const otherProviderKey = plugin.settings.providerSettings?.[otherProvider]?.apiKey;
-    if (otherProviderKey) {
-        return { key: otherProviderKey, provider: otherProvider as 'openai' | 'groq' };
+    const otherKey = await resolveKey(otherProvider);
+    if (otherKey) {
+        return { key: otherKey, provider: otherProvider as 'openai' | 'groq' };
     }
 
     return null;
@@ -240,17 +264,48 @@ function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): { key: string; 
  * Returns the provider and API key to use for PDF processing
  * Priority: 1) main provider if PDF-capable, 2) dedicated PDF provider, 3) auto-detect from available keys
  */
-function getPdfProviderConfig(plugin: AIOrganiserPlugin): { provider: 'claude' | 'gemini'; apiKey: string; model: string } | null {
+async function getPdfProviderConfig(plugin: AIOrganiserPlugin): Promise<{ provider: 'claude' | 'gemini'; apiKey: string; model: string } | null> {
     const mainProvider = plugin.settings.cloudServiceType;
-    const mainApiKey = plugin.settings.cloudApiKey;
+    const secretStorage = plugin.secretStorageService;
+
+    const resolveProviderKey = async (
+        provider: 'claude' | 'gemini',
+        options: { primaryId?: string; primaryPlain?: string; useMainKeyFallback?: boolean } = {}
+    ): Promise<string | null> => {
+        const { primaryId, primaryPlain, useMainKeyFallback = false } = options;
+        if (secretStorage.isAvailable()) {
+            return await secretStorage.resolveApiKey({
+                primaryId,
+                providerFallback: provider,
+                useMainKeyFallback,
+                plainTextFallback: {
+                    primaryKey: primaryPlain,
+                    providerKey: plugin.settings.providerSettings?.[provider]?.apiKey,
+                    mainCloudKey: useMainKeyFallback ? plugin.settings.cloudApiKey : undefined
+                }
+            });
+        }
+
+        if (primaryPlain) return primaryPlain;
+        if (plugin.settings.providerSettings?.[provider]?.apiKey) {
+            return plugin.settings.providerSettings[provider]?.apiKey || null;
+        }
+        if (useMainKeyFallback && plugin.settings.cloudServiceType === provider && plugin.settings.cloudApiKey) {
+            return plugin.settings.cloudApiKey;
+        }
+        return null;
+    };
 
     // If main provider supports PDFs and has a key, use it
-    if ((mainProvider === 'claude' || mainProvider === 'gemini') && mainApiKey) {
-        return {
-            provider: mainProvider,
-            apiKey: mainApiKey,
-            model: plugin.settings.cloudModel || ''
-        };
+    if (mainProvider === 'claude' || mainProvider === 'gemini') {
+        const mainKey = await resolveProviderKey(mainProvider, { useMainKeyFallback: true });
+        if (mainKey) {
+            return {
+                provider: mainProvider,
+                apiKey: mainKey,
+                model: plugin.settings.cloudModel || ''
+            };
+        }
     }
 
     // Check if dedicated PDF provider is configured
@@ -260,47 +315,37 @@ function getPdfProviderConfig(plugin: AIOrganiserPlugin): { provider: 'claude' |
     // If specific PDF provider is selected (not auto)
     if (pdfProvider !== 'auto') {
         // First try dedicated PDF API key
-        if (pdfApiKey) {
+        const dedicatedKey = await resolveProviderKey(pdfProvider, {
+            primaryId: PLUGIN_SECRET_IDS.PDF,
+            primaryPlain: pdfApiKey,
+            useMainKeyFallback: mainProvider === pdfProvider
+        });
+        if (dedicatedKey) {
             return {
                 provider: pdfProvider,
-                apiKey: pdfApiKey,
-                model: plugin.settings.pdfModel || ''
-            };
-        }
-        // Then try provider settings for that provider
-        const providerKey = plugin.settings.providerSettings?.[pdfProvider]?.apiKey;
-        if (providerKey) {
-            return {
-                provider: pdfProvider,
-                apiKey: providerKey,
+                apiKey: dedicatedKey,
                 model: plugin.settings.pdfModel || plugin.settings.providerSettings?.[pdfProvider]?.model || ''
-            };
-        }
-        // If provider matches main provider, use main key
-        if (mainProvider === pdfProvider && mainApiKey) {
-            return {
-                provider: pdfProvider,
-                apiKey: mainApiKey,
-                model: plugin.settings.pdfModel || plugin.settings.cloudModel || ''
             };
         }
     }
 
     // Auto mode: try to find any available PDF-capable provider
     // Check Claude provider settings
-    if (plugin.settings.providerSettings?.claude?.apiKey) {
+    const claudeKey = await resolveProviderKey('claude');
+    if (claudeKey) {
         return {
             provider: 'claude',
-            apiKey: plugin.settings.providerSettings.claude.apiKey,
-            model: plugin.settings.providerSettings.claude.model || ''
+            apiKey: claudeKey,
+            model: plugin.settings.providerSettings?.claude?.model || ''
         };
     }
-    // Check Gemini provider settings
-    if (plugin.settings.providerSettings?.gemini?.apiKey) {
+
+    const geminiKey = await resolveProviderKey('gemini');
+    if (geminiKey) {
         return {
             provider: 'gemini',
-            apiKey: plugin.settings.providerSettings.gemini.apiKey,
-            model: plugin.settings.providerSettings.gemini.model || ''
+            apiKey: geminiKey,
+            model: plugin.settings.providerSettings?.gemini?.model || ''
         };
     }
 
@@ -310,8 +355,8 @@ function getPdfProviderConfig(plugin: AIOrganiserPlugin): { provider: 'claude' |
 /**
  * Check if PDF summarization is available (either main provider or dedicated PDF provider)
  */
-function canSummarizePdf(plugin: AIOrganiserPlugin): boolean {
-    return getPdfProviderConfig(plugin) !== null;
+async function canSummarizePdf(plugin: AIOrganiserPlugin): Promise<boolean> {
+    return (await getPdfProviderConfig(plugin)) !== null;
 }
 
 type SmartSummarizeTarget =
@@ -643,7 +688,7 @@ async function handleMultiSourceResult(
     }
 
     // Process YouTube videos using Gemini-native processing
-    const youtubeGeminiKey = getYouTubeGeminiApiKey(plugin);
+    const youtubeGeminiKey = await getYouTubeGeminiApiKey(plugin);
     for (const url of result.sources.youtube) {
         showProgress();
         try {
@@ -830,7 +875,7 @@ async function handleMultiSourceResult(
     }
 
     // Process Audio files - transcribe and summarize
-    const audioTranscriptionConfig = getAudioTranscriptionApiKey(plugin);
+    const audioTranscriptionConfig = await getAudioTranscriptionApiKey(plugin);
     for (const audio of result.sources.audio) {
         showProgress();
         const audioTitle = audio.path.split('/').pop() || audio.path;
@@ -1401,7 +1446,7 @@ async function openAudioSummarizeModal(
     editor: Editor
 ): Promise<void> {
     // Use the new helper that checks dedicated key, main provider, and provider settings
-    const transcriptionConfig = getAudioTranscriptionApiKey(plugin);
+    const transcriptionConfig = await getAudioTranscriptionApiKey(plugin);
 
     if (!transcriptionConfig) {
         new Notice(
@@ -1612,10 +1657,10 @@ async function handleUrlSummarization(
         const fileName = extractFilenameFromUrl(url) || `downloaded-${Date.now()}.pdf`;
         const pdfFile = await pdfService.downloadPdfToVault(url, fileName);
 
-        if (pdfFile && canSummarizePdf(plugin)) {
+        if (pdfFile && await canSummarizePdf(plugin)) {
             await handlePdfSummarization(plugin, pdfService, editor, pdfFile, personaPrompt);
             return;
-        } else if (!canSummarizePdf(plugin)) {
+        } else if (!await canSummarizePdf(plugin)) {
             new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         } else {
@@ -2322,7 +2367,7 @@ async function handleYouTubeSummarization(
     }
 
     // Check for Gemini API key
-    const geminiKey = getYouTubeGeminiApiKey(plugin);
+    const geminiKey = await getYouTubeGeminiApiKey(plugin);
     if (!geminiKey) {
         new Notice(plugin.t.settings.youtube?.noKeyWarning || 'Configure Gemini API key in Settings > YouTube to enable video processing');
         return;
@@ -3042,7 +3087,7 @@ async function summarizePdfWithLLM(
 ): Promise<{ success: boolean; content?: string; error?: string }> {
     try {
         // Get PDF provider config (may be different from main provider)
-        const pdfConfig = getPdfProviderConfig(plugin);
+        const pdfConfig = await getPdfProviderConfig(plugin);
 
         if (!pdfConfig) {
             return {

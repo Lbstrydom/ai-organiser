@@ -3,6 +3,8 @@ import type AIOrganiserPlugin from '../../main';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
+import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
+import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 
 export class LLMSettingsSection extends BaseSettingSection {
     private statusContainer: HTMLElement = null!;
@@ -19,6 +21,8 @@ export class LLMSettingsSection extends BaseSettingSection {
         if (this.plugin.settings.serviceType === 'local') {
             this.checkLocalService(this.plugin.settings.localEndpoint);
         }
+
+        this.renderSecretStorageMigrationNotice();
 
         // Debug mode toggle
         new Setting(this.containerEl)
@@ -77,7 +81,11 @@ export class LLMSettingsSection extends BaseSettingSection {
                             if (!this.plugin.settings.providerSettings[oldType]) {
                                 this.plugin.settings.providerSettings[oldType] = {};
                             }
-                            if (this.plugin.settings.cloudApiKey) {
+                            const secretStorage = this.plugin.secretStorageService;
+                            const oldSecretId = PROVIDER_TO_SECRET_ID[oldType];
+                            const shouldPersistPlainKey = !secretStorage.isAvailable() || !oldSecretId;
+
+                            if (this.plugin.settings.cloudApiKey && shouldPersistPlainKey) {
                                 this.plugin.settings.providerSettings[oldType]!.apiKey = this.plugin.settings.cloudApiKey;
                             }
                             if (this.plugin.settings.cloudModel) {
@@ -88,8 +96,13 @@ export class LLMSettingsSection extends BaseSettingSection {
 
                             // Restore API key and model for the new provider (if previously saved)
                             const savedSettings = this.plugin.settings.providerSettings[newType];
-                            if (savedSettings?.apiKey) {
-                                this.plugin.settings.cloudApiKey = savedSettings.apiKey;
+                            const newSecretId = PROVIDER_TO_SECRET_ID[newType];
+                            if (!secretStorage.isAvailable() || !newSecretId) {
+                                if (savedSettings?.apiKey) {
+                                    this.plugin.settings.cloudApiKey = savedSettings.apiKey;
+                                } else {
+                                    this.plugin.settings.cloudApiKey = '';
+                                }
                             } else {
                                 this.plugin.settings.cloudApiKey = '';
                             }
@@ -295,48 +308,62 @@ export class LLMSettingsSection extends BaseSettingSection {
                 return text;
             });
 
-        new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.llm.apiKey)
-            .setDesc(this.plugin.t.settings.llm.apiKeyDesc)
-            .addText(text => {
-                const placeholder =
-                    this.plugin.settings.cloudServiceType === 'openai' ? 'sk-...' :
-                    this.plugin.settings.cloudServiceType === 'gemini' ? 'AIza...' :
-                    this.plugin.settings.cloudServiceType === 'deepseek' ? 'deepseek-...' :
-                    this.plugin.settings.cloudServiceType === 'aliyun' ? 'sk-...' :
-                    this.plugin.settings.cloudServiceType === 'claude' ? 'sk-ant-...' :
-                    this.plugin.settings.cloudServiceType === 'groq' ? 'gsk_...' :
-                    this.plugin.settings.cloudServiceType === 'openrouter' ? 'sk-or-...' :
-                    this.plugin.settings.cloudServiceType === 'bedrock' ? 'aws-credentials' :
-                    this.plugin.settings.cloudServiceType === 'requesty' ? 'rq-...' :
-                    this.plugin.settings.cloudServiceType === 'cohere' ? 'co-...' :
-                    this.plugin.settings.cloudServiceType === 'grok' ? 'grok-...' :
-                    this.plugin.settings.cloudServiceType === 'mistral' ? 'mist-...' :
-                    this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'your-api-key' :
-                    'Bearer oauth2-token';
+        const apiKeyPlaceholder =
+            this.plugin.settings.cloudServiceType === 'openai' ? 'sk-...' :
+            this.plugin.settings.cloudServiceType === 'gemini' ? 'AIza...' :
+            this.plugin.settings.cloudServiceType === 'deepseek' ? 'deepseek-...' :
+            this.plugin.settings.cloudServiceType === 'aliyun' ? 'sk-...' :
+            this.plugin.settings.cloudServiceType === 'claude' ? 'sk-ant-...' :
+            this.plugin.settings.cloudServiceType === 'groq' ? 'gsk_...' :
+            this.plugin.settings.cloudServiceType === 'openrouter' ? 'sk-or-...' :
+            this.plugin.settings.cloudServiceType === 'bedrock' ? 'aws-credentials' :
+            this.plugin.settings.cloudServiceType === 'requesty' ? 'rq-...' :
+            this.plugin.settings.cloudServiceType === 'cohere' ? 'co-...' :
+            this.plugin.settings.cloudServiceType === 'grok' ? 'grok-...' :
+            this.plugin.settings.cloudServiceType === 'mistral' ? 'mist-...' :
+            this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'your-api-key' :
+            'Bearer oauth2-token';
 
-                // Display masked API key
-                const currentKey = this.plugin.settings.cloudApiKey || '';
-                const maskedKey = currentKey && currentKey.length > 6
-                    ? currentKey.substring(0, 6) + '•'.repeat(Math.min(20, currentKey.length - 6))
-                    : currentKey;
+        const secretId = PROVIDER_TO_SECRET_ID[serviceType as keyof typeof PROVIDER_TO_SECRET_ID];
+        const secretStorageAvailable = this.plugin.secretStorageService.isAvailable();
 
-                text.setPlaceholder(placeholder)
-                    .setValue(maskedKey)
-                    .onChange(async (value) => {
-                        // Only update if user typed something different (not the masked version)
-                        if (value !== maskedKey) {
-                            this.plugin.settings.cloudApiKey = value;
-                            await this.plugin.saveSettings();
-                        }
-                    });
-
-                // Make it a password field for security
-                text.inputEl.type = 'password';
-                return text;
+        if (secretId && secretStorageAvailable) {
+            this.renderApiKeyField({
+                name: this.plugin.t.settings.llm.apiKey,
+                desc: this.plugin.t.settings.llm.apiKeyDesc,
+                secretId,
+                currentValue: this.plugin.settings.cloudApiKey,
+                placeholder: apiKeyPlaceholder,
+                onChange: async (value) => {
+                    this.plugin.settings.cloudApiKey = value;
+                    await this.plugin.saveSettings();
+                }
             });
+        } else {
+            new Setting(this.containerEl)
+                .setName(this.plugin.t.settings.llm.apiKey)
+                .setDesc(this.plugin.t.settings.llm.apiKeyDesc)
+                .addText(text => {
+                    const currentKey = this.plugin.settings.cloudApiKey || '';
+                    const maskedKey = currentKey && currentKey.length > 6
+                        ? currentKey.substring(0, 6) + '*'.repeat(Math.min(20, currentKey.length - 6))
+                        : currentKey;
 
-        // For providers with known models, show a dropdown
+                    text.setPlaceholder(apiKeyPlaceholder)
+                        .setValue(maskedKey)
+                        .onChange(async (value) => {
+                            if (value !== maskedKey) {
+                                this.plugin.settings.cloudApiKey = value;
+                                await this.plugin.saveSettings();
+                            }
+                        });
+
+                    text.inputEl.type = 'password';
+                    return text;
+                });
+        }
+
+// For providers with known models, show a dropdown
         // For providers with known models, show a dropdown
         const modelLists: Record<string, { models: Record<string, string>; defaultModel: string }> = {
             'claude': { models: this.CLAUDE_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['claude'] },
@@ -412,5 +439,58 @@ export class LLMSettingsSection extends BaseSettingSection {
         } catch (error) {
             new Notice(this.plugin.t.messages.localServiceNotAvailable, 10000);
         }
+    }
+
+    private hasPlainTextKeys(): boolean {
+        const settings = this.plugin.settings;
+        if (settings.cloudApiKey ||
+            settings.embeddingApiKey ||
+            settings.youtubeGeminiApiKey ||
+            settings.pdfApiKey ||
+            settings.audioTranscriptionApiKey) {
+            return true;
+        }
+
+        if (settings.providerSettings) {
+            return Object.values(settings.providerSettings)
+                .some((config) => !!config?.apiKey);
+        }
+
+        return false;
+    }
+
+    private renderSecretStorageMigrationNotice(): void {
+        const secretStorage = this.plugin.secretStorageService;
+        const t = this.plugin.t.settings.secretStorage;
+
+        if (!secretStorage.isAvailable() || this.plugin.settings.secretStorageMigrated || !this.hasPlainTextKeys()) {
+            return;
+        }
+
+        new Setting(this.containerEl)
+            .setName(t.migrationTitle)
+            .setDesc(t.migrationDesc)
+            .addButton(btn => btn
+                .setButtonText(t.migrateNow)
+                .setCta()
+                .onClick(async () => {
+                    const confirmed = await new Promise<boolean>((resolve) => {
+                        const modal = new MigrationConfirmModal(this.plugin.app, this.plugin, resolve);
+                        modal.open();
+                    });
+
+                    if (!confirmed) {
+                        new Notice(t.migrationDeclined);
+                        return;
+                    }
+
+                    const result = await secretStorage.migrateFromPlainText();
+                    if (result.migrated) {
+                        new Notice(t.migrationComplete);
+                        this.settingTab.display();
+                    } else {
+                        new Notice(result.reason || this.plugin.t.messages.unknownError || 'Migration failed');
+                    }
+                }));
     }
 }

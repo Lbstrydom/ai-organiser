@@ -5,6 +5,7 @@
 
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class AudioTranscriptionSettingsSection extends BaseSettingSection {
     display(): void {
@@ -19,6 +20,8 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
         // Also check provider-specific keys
         const providerOpenAIKey = this.plugin.settings.providerSettings?.openai?.apiKey;
         const providerGroqKey = this.plugin.settings.providerSettings?.groq?.apiKey;
+        const secretStorage = this.plugin.secretStorageService;
+        const hasSecretStorage = secretStorage.isAvailable();
 
         this.createSectionHeader(t?.title || 'Audio Transcription', 'mic', 2);
 
@@ -30,7 +33,38 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
         });
 
         // Show status of available key
-        if (hasMainOpenAIKey || providerOpenAIKey) {
+        if (hasSecretStorage) {
+            const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
+            const openaiSecretId = PROVIDER_TO_SECRET_ID.openai;
+            const groqSecretId = PROVIDER_TO_SECRET_ID.groq;
+            Promise.all([
+                secretStorage.hasSecret(PLUGIN_SECRET_IDS.AUDIO),
+                openaiSecretId ? secretStorage.hasSecret(openaiSecretId) : Promise.resolve(false),
+                groqSecretId ? secretStorage.hasSecret(groqSecretId) : Promise.resolve(false)
+            ]).then(([hasAudioKey, hasOpenAISecret, hasGroqSecret]) => {
+                const selectedProvider = this.plugin.settings.audioTranscriptionProvider || 'openai';
+                const showOpenAI = hasAudioKey ? selectedProvider === 'openai' : hasOpenAISecret;
+                const showGroq = hasAudioKey ? selectedProvider === 'groq' : hasGroqSecret;
+
+                if (showOpenAI) {
+                    statusEl.createEl('span', {
+                        text: t?.usingOpenAIKey || 'Using your OpenAI API key',
+                        cls: 'ai-organiser-status-success'
+                    });
+                } else if (showGroq) {
+                    statusEl.createEl('span', {
+                        text: t?.usingGroqKey || 'Using your Groq API key',
+                        cls: 'ai-organiser-status-success'
+                    });
+                } else {
+                    const warningEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-warning' });
+                    warningEl.createEl('span', {
+                        text: t?.noKeyWarning || 'No transcription API key configured. Add an OpenAI or Groq key to enable audio transcription.',
+                        cls: 'ai-organiser-status-warning'
+                    });
+                }
+            });
+        } else if (hasMainOpenAIKey || providerOpenAIKey) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
             statusEl.createEl('span', {
                 text: t?.usingOpenAIKey || 'Using your OpenAI API key',
@@ -70,36 +104,23 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
 
         // Show dedicated API key input only if main provider doesn't support transcription
         const selectedProvider = this.plugin.settings.audioTranscriptionProvider;
-        const hasKeyForSelectedProvider =
-            (selectedProvider === 'openai' && (hasMainOpenAIKey || providerOpenAIKey)) ||
-            (selectedProvider === 'groq' && (hasMainGroqKey || providerGroqKey));
+        const hasKeyForSelectedProvider = hasSecretStorage
+            ? false
+            : (selectedProvider === 'openai' && (hasMainOpenAIKey || providerOpenAIKey)) ||
+              (selectedProvider === 'groq' && (hasMainGroqKey || providerGroqKey));
 
         if (!hasKeyForSelectedProvider) {
-            new Setting(this.containerEl)
-                .setName(t?.apiKey || `${selectedProvider === 'openai' ? 'OpenAI' : 'Groq'} API Key`)
-                .setDesc(t?.apiKeyDesc || `Required for audio transcription. Your key is used only for Whisper API calls.`)
-                .addText(text => {
-                    text
-                        .setPlaceholder(selectedProvider === 'openai' ? 'sk-...' : 'gsk_...')
-                        .setValue(this.plugin.settings.audioTranscriptionApiKey)
-                        .onChange(async (value) => {
-                            this.plugin.settings.audioTranscriptionApiKey = value;
-                            await this.plugin.saveSettings();
-                        });
-                    // Mask the API key display
-                    text.inputEl.type = 'password';
-                })
-                .addExtraButton(button => {
-                    button
-                        .setIcon('eye')
-                        .setTooltip(t?.showKey || 'Show/hide key')
-                        .onClick(() => {
-                            const input = button.extraSettingsEl.parentElement?.querySelector('input');
-                            if (input) {
-                                input.type = input.type === 'password' ? 'text' : 'password';
-                            }
-                        });
-                });
+            this.renderApiKeyField({
+                name: t?.apiKey || `${selectedProvider === 'openai' ? 'OpenAI' : 'Groq'} API Key`,
+                desc: t?.apiKeyDesc || 'Required for audio transcription. Your key is used only for Whisper API calls.',
+                secretId: PLUGIN_SECRET_IDS.AUDIO,
+                currentValue: this.plugin.settings.audioTranscriptionApiKey,
+                placeholder: selectedProvider === 'openai' ? 'sk-...' : 'gsk_...',
+                onChange: async (value) => {
+                    this.plugin.settings.audioTranscriptionApiKey = value;
+                    await this.plugin.saveSettings();
+                }
+            });
 
             // Link to get API key
             const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });

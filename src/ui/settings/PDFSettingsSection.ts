@@ -5,12 +5,15 @@
 
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class PDFSettingsSection extends BaseSettingSection {
     display(): void {
         const t = this.plugin.t.settings.pdf;
         const mainProvider = this.plugin.settings.cloudServiceType;
         const isPdfCapableMainProvider = mainProvider === 'claude' || mainProvider === 'gemini';
+        const secretStorage = this.plugin.secretStorageService;
+        const hasSecretStorage = secretStorage.isAvailable();
 
         this.createSectionHeader(t?.title || 'PDF Processing', 'file-text', 2);
 
@@ -22,13 +25,31 @@ export class PDFSettingsSection extends BaseSettingSection {
         });
 
         // Show status if main provider supports PDFs
-        if (isPdfCapableMainProvider && this.plugin.settings.cloudApiKey) {
+        if (isPdfCapableMainProvider) {
+            const providerLabel = mainProvider.charAt(0).toUpperCase() + mainProvider.slice(1);
+            const statusText = t?.usingMainProvider?.replace('{provider}', providerLabel)
+                || `Using your main ${providerLabel} provider`;
+
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            statusEl.createEl('span', {
-                text: t?.usingMainProvider?.replace('{provider}', mainProvider.charAt(0).toUpperCase() + mainProvider.slice(1))
-                    || `Using your main ${mainProvider.charAt(0).toUpperCase() + mainProvider.slice(1)} provider`,
-                cls: 'ai-organiser-status-success'
-            });
+
+            if (hasSecretStorage) {
+                const providerSecretId = PROVIDER_TO_SECRET_ID[mainProvider];
+                if (providerSecretId) {
+                    secretStorage.hasSecret(providerSecretId).then((hasKey) => {
+                        if (hasKey) {
+                            statusEl.createEl('span', {
+                                text: statusText,
+                                cls: 'ai-organiser-status-success'
+                            });
+                        }
+                    });
+                }
+            } else if (this.plugin.settings.cloudApiKey) {
+                statusEl.createEl('span', {
+                    text: statusText,
+                    cls: 'ai-organiser-status-success'
+                });
+            }
         }
 
         // PDF Provider selection (only show if main provider doesn't support PDFs)
@@ -54,31 +75,17 @@ export class PDFSettingsSection extends BaseSettingSection {
             if (this.plugin.settings.pdfProvider !== 'auto') {
                 const providerName = this.plugin.settings.pdfProvider === 'claude' ? 'Claude' : 'Gemini';
 
-                new Setting(this.containerEl)
-                    .setName(t?.apiKey?.replace('{provider}', providerName) || `${providerName} API Key`)
-                    .setDesc(t?.apiKeyDesc?.replace('{provider}', providerName) || `API key for ${providerName} PDF processing`)
-                    .addText(text => {
-                        text
-                            .setPlaceholder(this.plugin.settings.pdfProvider === 'claude' ? 'sk-ant-...' : 'AIza...')
-                            .setValue(this.plugin.settings.pdfApiKey)
-                            .onChange(async (value) => {
-                                this.plugin.settings.pdfApiKey = value;
-                                await this.plugin.saveSettings();
-                            });
-                        // Mask the API key display
-                        text.inputEl.type = 'password';
-                    })
-                    .addExtraButton(button => {
-                        button
-                            .setIcon('eye')
-                            .setTooltip(t?.showKey || 'Show/hide key')
-                            .onClick(() => {
-                                const input = button.extraSettingsEl.parentElement?.querySelector('input');
-                                if (input) {
-                                    input.type = input.type === 'password' ? 'text' : 'password';
-                                }
-                            });
-                    });
+                this.renderApiKeyField({
+                    name: t?.apiKey?.replace('{provider}', providerName) || `${providerName} API Key`,
+                    desc: t?.apiKeyDesc?.replace('{provider}', providerName) || `API key for ${providerName} PDF processing`,
+                    secretId: PLUGIN_SECRET_IDS.PDF,
+                    currentValue: this.plugin.settings.pdfApiKey,
+                    placeholder: this.plugin.settings.pdfProvider === 'claude' ? 'sk-ant-...' : 'AIza...',
+                    onChange: async (value) => {
+                        this.plugin.settings.pdfApiKey = value;
+                        await this.plugin.saveSettings();
+                    }
+                });
 
                 // Link to get API key
                 const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });
