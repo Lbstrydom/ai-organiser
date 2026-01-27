@@ -34,6 +34,12 @@ export class DashboardService {
      * Create a dashboard from a template
      */
     public async createDashboard(options: DashboardCreationOptions): Promise<boolean> {
+        // Check if Bases is recommended/needed
+        if (!this.plugin.basesService.isBasesEnabled()) {
+             // We don't block creation, but we log a recommendation
+             console.log('[Dashboard] Bases plugin not enabled, creating file anyway (metadata-only mode)');
+        }
+
         try {
             // Get template from config service
             const template = await this.plugin.configService.getBasesTemplateByName(options.template);

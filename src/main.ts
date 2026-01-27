@@ -6,8 +6,7 @@ import {
     LocalLLMService,
     CloudLLMService,
     LLMResponse,
-    SecretStorageService
-} from './services';
+    SecretStorageService    BasesService,} from './services';
 import { setSettings, buildTaxonomyTagPrompt } from './services/prompts/tagPrompts';
 import { ConfirmationModal } from './ui/modals/ConfirmationModal';
 import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
@@ -38,6 +37,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public llmService: SummarizableLLMService;
     public configService: ConfigurationService;
     public secretStorageService: SecretStorageService;
+    public basesService: BasesService;
     public embeddingService: IEmbeddingService | null = null;
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
@@ -56,6 +56,7 @@ export default class AIOrganiserPlugin extends Plugin {
         }, app);
         this.configService = new ConfigurationService(app, getConfigFolderFullPath(DEFAULT_SETTINGS));
         this.secretStorageService = new SecretStorageService(app, this);
+        this.basesService = new BasesService(app, this);
         this.eventHandlers = new EventHandlers(this);
         this.tagNetworkManager = new TagNetworkManager(app);
         this.tagOperations = new TagOperations(app);

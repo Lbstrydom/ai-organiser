@@ -42,8 +42,12 @@ export function registerDashboardCommands(plugin: AIOrganiserPlugin) {
             }
 
             menu.addItem((item) => {
+                const title = plugin.basesService.isBasesEnabled() 
+                    ? (plugin.t.commands.createBasesDashboardHere || 'Create Bases Dashboard')
+                    : 'Create Dashboard (Bases Recommended)';
+                    
                 item
-                    .setTitle(plugin.t.commands.createBasesDashboardHere || 'Create Bases Dashboard')
+                    .setTitle(title)
                     .setIcon('layout-dashboard')
                     .onClick(() => {
                         const modal = new DashboardCreationModal(plugin.app, plugin, file);
