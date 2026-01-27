@@ -1,16 +1,17 @@
 # AI Organiser - Manual Test Checklist
 
-**Version:** 1.0.15
-**Full Test Time:** ~30 minutes
+**Version:** 1.0.16
+**Full Test Time:** ~35 minutes
 **Quick Smoke Test:** ~10 minutes (sections marked with *)
+**SecretStorage Tests:** Require Obsidian 1.11+
 
 ---
 
 ## Pre-Test *
 
-- [x] `npm run build:quick` passes
-- [x] Files deployed: `main.js`, `manifest.json`, `styles.css`
-- [x] Obsidian restarted, plugin enabled
+- [ ] `npm run build:quick` passes
+- [ ] Files deployed: `main.js`, `manifest.json`, `styles.css`
+- [ ] Obsidian restarted, plugin enabled
 
 ---
 
@@ -45,6 +46,45 @@
 - [ ] Switch Language to 简体中文 → restart → UI shows Chinese
 - [ ] Command Picker shows Chinese category names (创建, 增强, 整理, 搜索, 分析, 集成)
 - [ ] Switch back to English → restart → UI restored
+
+---
+
+## 1b. SecretStorage (5 min) - Requires Obsidian 1.11+
+
+### Availability Check
+- [ ] Open Settings → AI Provider section
+- [ ] If Obsidian 1.11+: API key field shows "🔒 Stored on this device only" badge
+- [ ] If older Obsidian: Shows "⚠️ Secure storage unavailable" warning
+
+### Fresh Key Entry (1.11+)
+- [ ] Clear any existing API key
+- [ ] Enter new API key → key stored in OS keychain
+- [ ] Reload Obsidian → key still accessible (retrieved from SecretStorage)
+- [ ] Check `data.json` → cloudApiKey should NOT contain plain text key
+
+### Migration Flow (1.11+)
+- [ ] If migration available: "Migrate to Secure Storage" button visible
+- [ ] Click migrate → MigrationConfirmModal opens
+- [ ] Modal shows warning: "Keys are device-specific. You'll need to re-enter on other devices."
+- [ ] Accept migration → keys moved to OS keychain
+- [ ] Check `data.json` → keys cleared from settings
+- [ ] Decline migration → keys remain in settings file
+
+### Key Status Indicators
+- [ ] API key configured → shows "✓ Key configured" badge
+- [ ] No API key → shows "○ No key set" badge
+- [ ] "Test Key" button validates without showing actual key value
+
+### Inheritance Chain (Advanced)
+- [ ] Set OpenAI key in AI Provider section
+- [ ] Go to Embedding settings → select OpenAI provider
+- [ ] Embedding key should auto-inherit from main provider key
+- [ ] Test "Use main API key" button functionality
+
+### Cross-Device Behavior
+- [ ] Understand: Keys are device-local (standard security practice)
+- [ ] New device: Must re-enter API keys
+- [ ] Multi-device sync: Keys NOT synced via Obsidian Sync (expected)
 
 ---
 
@@ -308,5 +348,19 @@ For rapid verification, test only sections marked with *:
 4. [ ] Tagging (generate + clear on one note)
 5. [ ] Summarization (one source type)
 6. [ ] Provider Test (connection + one operation)
+7. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
 
-**Smoke Test Pass:** All 6 items checked = Ready for release
+**Smoke Test Pass:** All 6 items (+ #7 if 1.11+) checked = Ready for release
+
+---
+
+## SecretStorage Quick Verification (Obsidian 1.11+)
+
+If testing on Obsidian 1.11.0 or later, verify these critical items:
+
+| Check | Pass |
+|-------|------|
+| "🔒 Stored on this device only" badge visible | [ ] |
+| API key persists after Obsidian restart | [ ] |
+| data.json does NOT contain plain-text keys | [ ] |
+| Migration modal shows device-specific warning | [ ] |

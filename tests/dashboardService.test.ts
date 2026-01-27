@@ -49,6 +49,9 @@ describe('DashboardService', () => {
         const plugin = {
             configService: {
                 getBasesTemplateByName: vi.fn().mockResolvedValue(template)
+            },
+            basesService: {
+                isBasesEnabled: vi.fn().mockReturnValue(false)
             }
         } as any;
 

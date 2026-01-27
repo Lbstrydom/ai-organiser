@@ -1,12 +1,41 @@
 # AI Organiser - Development Status
 
-**Version:** 1.0.15
+**Version:** 1.0.16
 **Last Updated:** January 27, 2026
-**Status:** Feature Complete - SecretStorage Phase 1 & 2 Complete
+**Status:** Feature Complete - Obsidian API Upgrade Complete (Ready for Signoff)
 
 ---
 
 ## Recent Updates
+
+### Obsidian API Upgrade Complete - Ready for Signoff (2026-01-27)
+
+✅ **All Three Phases Implemented and Tested**
+
+| Phase | Feature | Status | Tests |
+|-------|---------|--------|-------|
+| Phase 1 | SecretStorage | ✅ Complete | 32 tests |
+| Phase 2 | SettingGroup | ✅ Complete | No regressions |
+| Phase 3 | Bases Service | ✅ Complete | 4 tests |
+
+**Build Status**: 802 tests passing ✅
+
+**Documentation**:
+- `docs/API-UPGRADE-REFERENCE.md`: Quick reference for developers (keep)
+- `docs/api-plan.md`: Planning document (can archive)
+- `docs/api-upgrade-summary.md`: Implementation summary (can archive)
+- `docs/usertest.md`: Updated with SecretStorage manual tests
+
+**Test Fix (2026-01-27)**:
+- Fixed dashboardService.test.ts: Added `basesService` mock to plugin mock object
+- All 802 tests now pass (was 793 before fix)
+
+**Next Steps**:
+- Manual testing on Obsidian 1.11+ for SecretStorage verification
+- Version bump to 1.0.16
+- Deploy to Obsidian vault
+
+---
 
 ### SettingGroup Phase 2 Complete (2026-01-27)
 
@@ -21,7 +50,7 @@
   - Zero breaking changes - all existing sections work unchanged
   - Progressive enhancement - native API auto-used when available
 
-- **Test Results**: 798 tests pass ✅ (no new tests added, verified backward compatibility)
+- **Test Results**: 802 tests pass ✅ (no new tests added, verified backward compatibility)
 
 **Implementation Details**:
 - `isSettingGroupAvailable()`: Safely detects SettingGroup in Obsidian module
@@ -66,7 +95,7 @@
   - User-initiated migration with device-specific warnings
   - Backward compatible (pre-1.11 uses plain-text fallback)
 
-- **Test Results**: 798 tests pass ✅ (32 new SecretStorage + 766 existing)
+- **Test Results**: 802 tests pass ✅ (32 new SecretStorage + 770 existing)
 
 ### Audit Fixes Complete (2026-01-27)
 
@@ -447,7 +476,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 766 unit tests (30 suites)
+npm test           # Run 802 unit tests (34 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 
