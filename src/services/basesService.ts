@@ -5,7 +5,7 @@
  * Future-proofs the integration by centralizing API detection and version checking.
  */
 
-import { App, Plugin, Platform } from 'obsidian';
+import { App, Plugin, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 
 export interface BasesPlugin extends Plugin {

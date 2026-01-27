@@ -6,7 +6,9 @@ import {
     LocalLLMService,
     CloudLLMService,
     LLMResponse,
-    SecretStorageService    BasesService,} from './services';
+    SecretStorageService,
+    BasesService
+} from './services';
 import { setSettings, buildTaxonomyTagPrompt } from './services/prompts/tagPrompts';
 import { ConfirmationModal } from './ui/modals/ConfirmationModal';
 import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
