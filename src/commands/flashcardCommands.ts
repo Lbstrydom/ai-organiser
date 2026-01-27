@@ -13,7 +13,6 @@ import {
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
 import { summarizeText } from '../services/llmFacade';
-import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 /**
  * Register flashcard-related commands
@@ -105,8 +104,8 @@ async function generateAndExportFlashcards(
             progressNotice.hide();
             const errorMsg = validation.errors.length > 0
                 ? validation.errors.slice(0, 3).join('; ')
-                : 'No valid flashcards generated';
-            showErrorNotice(errorMsg, 'Flashcard generation');
+                : (plugin.t.messages.noValidFlashcards || 'No valid flashcards generated');
+            new Notice(`${plugin.t.messages.flashcardGenerationFailed}: ${errorMsg}`, 5000);
             return;
         }
 
@@ -117,13 +116,16 @@ async function generateAndExportFlashcards(
         const filePath = await saveFlashcardFile(plugin, sourceFile, format, finalCSV);
 
         progressNotice.hide();
-        showSuccessNotice(`Exported ${validation.cardCount} flashcards to ${filePath}`, 'Flashcard export');
+        const successMsg = (plugin.t.messages.flashcardsExported || 'Exported {count} flashcards to {path}')
+            .replace('{count}', String(validation.cardCount))
+            .replace('{path}', filePath);
+        new Notice(successMsg, 3000);
 
     } catch (error) {
         progressNotice.hide();
         console.error('[AI Organiser] Flashcard generation error:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showErrorNotice(errorMessage, 'Flashcard generation');
+        const errorMessage = error instanceof Error ? error.message : (plugin.t.messages.unknownError || 'Unknown error');
+        new Notice(`${plugin.t.messages.flashcardGenerationFailed}: ${errorMessage}`, 5000);
     }
 }
 

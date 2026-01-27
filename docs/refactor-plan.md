@@ -266,7 +266,7 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 
 **Deliverables**:
 - ✅ Created `src/services/notebooklm/pdf/MarkdownPdfGenerator.ts` (420+ lines)
-- ✅ Implemented pure semantic renderer:
+- ✅ Implemented pure semantic renderer (instance-based `IPdfGenerator`):
   - `MarkdownPdfGenerator.generate(title, markdown, config): Promise<ArrayBuffer>`
   - Line-based markdown parser (no full parser dependency)
   - Semantic type mapping (heading1-3, bullet, ordered, paragraph, blank)
@@ -283,7 +283,7 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
   - Skips HTML blocks (<...>)
   - Skips Dataview/query blocks
   - Skips Obsidian comments (%% ... %%)
-- ✅ Text sanitization:
+- ✅ Text sanitization + preprocessing (comments/images stripped before parsing):
   - Internal links: `[[Link|Display]]` → Display
   - External links: `[Display](url)` → Display
   - Bold/italic: `**text**`, `__text__`, `*text*`, `_text_` → text
@@ -291,7 +291,7 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
   - Inline code: `` `code` `` → code
   - Highlights: `==text==` → text
   - Subscript/superscript: `~text~`, `^text^` → text
-- ✅ Pure function guarantees:
+- ✅ Pure function guarantees (no Obsidian dependencies, instance-based API):
   - No Obsidian App/Vault/TFile dependencies
   - No input mutation
   - Consistent output for same inputs
@@ -301,10 +301,10 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 **Verification**:
 - ✅ TypeScript compilation: Passed (no type errors)
 - ✅ Build: main.js 3.1MB (no size regression)
-- ✅ Tests: 702/702 passing (30 suites, +24 new PDF tests)
+- ✅ Tests: 705/705 passing (30 suites, +27 PDF tests)
   - Simple markdown generation
   - Title handling (include/exclude)
-  - List rendering (unordered, ordered, nested)
+  - List rendering (unordered, ordered, nested) with numeric prefixes preserved
   - Code block stripping
   - Page size variations (A4/Letter/Legal)
   - Font variations (helvetica/times/courier)
@@ -315,6 +315,7 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
   - Link sanitization (internal, external)
   - Text formatting sanitization
   - Complex block handling (code, dataview, HTML, comments)
+  - Comment/image stripping in parser
   - Pure function invariants (no mutations, consistent output)
 - ✅ PDF output validation:
   - All outputs are valid ArrayBuffer
@@ -332,6 +333,8 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 - **Async-Ready**: Prepared for future async image embedding
 - **Testable**: Pure function with no side effects, all inputs/outputs typed
 
+Sign-off: Approved (Phase 2 complete; no blocking issues found).
+
 **Next Steps**: Proceed to Phase 3 (Service Orchestration)
 - Implementation guidance:
   - Use a simple **line scanner** (no full Markdown parser).
@@ -345,35 +348,131 @@ Implement PDF export functionality allowing users to convert Obsidian notes into
 - **Sanitization in line scanner**: strip Obsidian-specific syntax (e.g., `[[Internal Link]] → Internal Link`, remove `%% comments %%`).
 
 #### Phase 3: Service Orchestration
-- Update `src/services/notebooklm/sourcePackService.ts`:
-  - Implement `executeExport(selection)`.
-  - Instantiate `MarkdownPdfGenerator`.
-  - Create pack folder via `WriterService.ensureFolder`.
-  - For each note:
-    - read markdown, generate PDF, write via `vault.createBinary`.
-    - append `PackEntry` with `type: 'note-pdf'`.
-  - Linked documents:
-    - Detect with `detectEmbeddedContent`.
-    - Copy linked PDFs/images as sidecar files (no PDF merging).
-    - Append `PackEntry` with `type: 'attachment'`.
-    - Update UI copy: “linked documents will be included as separate files”.
-  - Hashing:
-    - Use existing `computeSHA256` for markdown.
-    - Add a helper for binary hashes (ArrayBuffer/Uint8Array) for attachments.
-  - Async yielding: after every 5 items, `await sleep(20)` to keep UI responsive.
-  - Write manifest/README via `WriterService`, update `RegistryService`, then apply post-export tag action.
-- Update `getExportPreview`:
-  - Count attachments toward 50-source warning.
-  - Adjust size estimate/warnings to mention attached files.
+**Status**: ✅ COMPLETED (January 27, 2026)
+
+**Deliverables**:
+- ✅ Implemented `executeExport(selection, onProgress?)` in `src/services/notebooklm/sourcePackService.ts`
+- ✅ Full PDF generation workflow with `MarkdownPdfGenerator`
+- ✅ Linked document detection and sidecar file copying
+- ✅ Binary hashing support via `computeBinarySHA256()`
+- ✅ Async yielding (every 5 items, 20ms) for UI responsiveness
+- ✅ Export preview with attachment counting toward 50-source limit
+
+**Implementation Details**:
+
+1. **executeExport() Implementation** (400+ lines):
+   - Creates timestamped pack folder under configured export path
+   - For each note: reads markdown, generates PDF via `MarkdownPdfGenerator`, writes via `vault.createBinary`
+   - For linked documents: detects with `detectEmbeddedContent`, copies as sidecar files
+   - Progress callback for UI updates: `onProgress(current, total, message)`
+   - Builds `PackManifest` with entries, stats, and config
+   - Updates `RegistryService` for revision tracking
+   - Writes manifest.json and README.md via `WriterService`
+   - Applies post-export tag action (clear or archive)
+
+2. **Hashing Enhancements** (`src/services/notebooklm/hashing.ts`):
+   - Added `computeBinarySHA256(data: ArrayBuffer | Uint8Array)` for attachment hashing
+   - Content hashes stored in `PackEntry.sha256` for change detection
+
+3. **getExportPreview() Enhancements**:
+   - Deduplicates linked documents by path (case-insensitive)
+   - Total source count = notes + unique linked documents
+   - Size estimation includes actual attachment sizes
+   - Warnings updated to show both note and attachment counts:
+     - `>50`: "55 sources selected (45 notes + 10 linked documents). NotebookLM limit is 50 sources."
+     - `>45`: "48 sources approaching NotebookLM limit of 50 sources."
+
+4. **Utility Methods**:
+   - `sanitizeFilename()`: Replaces invalid chars, spaces to underscores, limits to 200 chars
+   - `deduplicateLinkedDocuments()`: Case-insensitive path deduplication
+   - `estimateAttachmentsSize()`: Actual file sizes via `TFile.stat.size`
+   - `generatePackId()`: Unique pack identifier (timestamp + random)
+   - `extractTags()`: Reads tags from metadata cache
+
+**Verification Results**:
+- ✅ TypeScript compilation: Passed (tsconfig.build.json)
+- ✅ Build: main.js 4.5MB (production bundle)
+- ✅ Tests: 749/749 passing (31 suites, +44 Phase 3 tests)
+  - Hashing utilities (computeBinarySHA256, packHash, shortId)
+  - Filename sanitization edge cases
+  - Linked document deduplication
+  - Source count warnings (notes + attachments)
+  - Size warnings (180MB, 200MB thresholds)
+  - Pack ID generation
+- ✅ No breaking changes to existing code
+
+**Files Modified** (2 files):
+1. `src/services/notebooklm/sourcePackService.ts` - Full executeExport implementation
+2. `src/services/notebooklm/hashing.ts` - Added computeBinarySHA256
+
+**Files Created** (1 file):
+1. `tests/sourcePackService.test.ts` - 44 comprehensive unit tests
+
+**Next Steps**: Proceed to Phase 4 (UI & i18n)
 
 #### Phase 4: UI & i18n
-- Update `src/ui/modals/NotebookLMExportModal.ts`:
-  - Remove “coming soon”.
-  - Wire export button to `executeExport`.
-  - Show progress and completion messages.
-  - Add Latin-only limitation warning.
-  - Update linked-document copy to “included as separate files”.
-- Add i18n keys to `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts`.
+**Status**: ✅ COMPLETED (January 27, 2026)
+
+**Deliverables**:
+- ✅ Updated `src/ui/modals/NotebookLMExportModal.ts`:
+  - Removed "coming soon" notice
+  - Added Export button wired to `executeExport` via callback
+  - Added progress bar with `ProgressBarComponent` (shows current/total and message)
+  - Added Latin-only limitation warning with styled alert box
+  - Updated linked document text to "included as separate files"
+  - Added `updateProgress(current, total, message)` method for live progress updates
+  - Added `showComplete(success, message?)` method for completion state
+  - Added Cancel/Close button state management during export
+- ✅ Updated `src/commands/notebookLMCommands.ts`:
+  - Import and use `NotebookLMExportModal`
+  - Wire modal callback to `sourcePackService.executeExport()`
+  - Pass progress callback to update modal UI in real-time
+  - Handle success/error states with i18n messages
+- ✅ Updated `src/services/notebooklm/types.ts`:
+  - Extended `postExportTagAction` to include 'keep' option (keep | clear | archive)
+- ✅ Added i18n keys to all three files:
+  - `latinOnlyWarning`: Warning about Latin-only font support
+  - `exportProgress`: "{current} of {total}" progress text
+  - `generatingPdf`: "Generating PDF: {note}"
+  - `copyingDocument`: "Copying: {document}"
+  - `writingManifest`: "Writing manifest..."
+  - `exportComplete`: "Export complete!"
+  - `cancelButton`: "Cancel"
+  - Updated `documentExportNotice` to "included as separate files"
+
+**Implementation Details**:
+1. **Export Modal Flow**:
+   - User clicks Export → `startExport()` shows progress UI, disables buttons
+   - Callback triggers `executeExport()` with progress handler
+   - Progress updates flow through `updateProgress()` to ProgressBarComponent
+   - On completion, `showComplete()` updates UI and re-enables Close button
+
+2. **Post-Export Tag Actions**:
+   - Keep: Tags remain unchanged (no action taken)
+   - Clear: Selection tags removed from exported notes
+   - Archive: Selection tags renamed to 'notebooklm/exported' with metadata
+
+**Verification Results**:
+- ✅ TypeScript compilation: Passed (tsconfig.build.json)
+- ✅ Build: main.js 4.5MB (production bundle)
+- ✅ Tests: 749/749 passing (31 suites)
+- ✅ i18n parity: EN/ZH translations complete
+- ✅ No breaking changes to existing code
+
+**Files Modified** (6 files):
+1. `src/ui/modals/NotebookLMExportModal.ts` - Full export UI with progress
+2. `src/commands/notebookLMCommands.ts` - Wired modal to executeExport
+3. `src/services/notebooklm/types.ts` - Added 'keep' to tag action type
+4. `src/i18n/types.ts` - Added 7 new i18n keys
+5. `src/i18n/en.ts` - English translations
+6. `src/i18n/zh-cn.ts` - Chinese translations
+
+**NotebookLM Integration Complete**: All 4 phases implemented. Users can now:
+1. Tag notes with 'notebooklm' for selection
+2. Run "NotebookLM: Export Source Pack" command
+3. Review selection summary and configure post-export tag action
+4. Click Export and watch real-time progress
+5. Upload generated PDFs and linked documents to NotebookLM
 
 ### Risk Register
 - UI freeze: mitigated by async yielding inside export loop.

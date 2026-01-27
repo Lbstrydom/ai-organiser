@@ -518,6 +518,10 @@ export const zhCN: Translations = {
         translating: "正在翻译...",
         translatingFullNote: "正在翻译整个笔记...",
         translationComplete: "翻译完成",
+        noteTranslatedSuccess: "笔记翻译成功",
+        selectionTranslatedSuccess: "选中文本翻译成功",
+        translationFailed: "翻译失败",
+        unknownError: "未知错误",
         invalidYouTubeUrl: "无效的 YouTube URL",
         fetchingTranscript: "正在获取字幕...",
         noCaptionsAvailable: "此视频没有可用的字幕",
@@ -556,8 +560,9 @@ export const zhCN: Translations = {
         diagramGenerationFailed: "图表生成失败",
         generatingFlashcards: "正在生成闪卡...",
         flashcardGenerationFailed: "闪卡生成失败",
-        flashcardsExported: "已导出",
+        flashcardsExported: "已导出 {count} 张闪卡到 {path}",
         flashcardsTo: "张闪卡到",
+        noValidFlashcards: "未生成有效闪卡",
         buildingIndex: "正在构建语义索引...",
         indexBuildComplete: "已索引 {indexed} 个笔记，失败 {failed}",
         indexBuildFailed: "索引构建失败",
@@ -1119,6 +1124,18 @@ export const zhCN: Translations = {
             responseFailed: "抱歉，生成回复时出错。请再试一次。",
             searchingContext: "搜索保险库上下文...",
             retrievingInformation: "检索相关信息..."
+        },
+        commandPicker: {
+            placeholder: "搜索命令...",
+            navigateHint: "导航",
+            selectHint: "选择",
+            closeHint: "关闭",
+            categoryCreate: "创建",
+            categoryEnhance: "增强",
+            categoryOrganize: "整理",
+            categorySearch: "搜索",
+            categoryAnalyze: "分析",
+            categoryIntegrate: "集成"
         }
     },
 
@@ -1282,6 +1299,13 @@ export const zhCN: Translations = {
     },
     notebooklm: {
         linkedDocumentsDetected: "将包含 {count} 个链接文档",
-        documentExportNotice: "文档将与笔记一起导出"
+        documentExportNotice: "链接文档将作为单独文件包含",
+        latinOnlyWarning: "注意：PDF 导出目前仅支持拉丁字符。非拉丁文本（中日韩、阿拉伯语、西里尔文等）可能无法正确显示。",
+        exportProgress: "{current} / {total}",
+        generatingPdf: "正在生成 PDF：{note}",
+        copyingDocument: "正在复制：{document}",
+        writingManifest: "正在写入清单...",
+        exportComplete: "导出完成！",
+        cancelButton: "取消"
     }
 };

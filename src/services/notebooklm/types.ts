@@ -17,7 +17,7 @@ export interface SourcePackConfig {
     exportFolder: string;
 
     /** What to do with selection tags after export */
-    postExportTagAction: 'clear' | 'archive';
+    postExportTagAction: 'keep' | 'clear' | 'archive';
 
     /** PDF generation configuration */
     pdf: PdfConfig;

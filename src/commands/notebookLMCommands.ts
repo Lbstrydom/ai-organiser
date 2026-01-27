@@ -2,17 +2,16 @@
  * NotebookLM Commands
  *
  * Command registration for NotebookLM source pack features:
- * - Export source pack (with preview modal)
+ * - Export source pack (with preview modal and PDF generation)
  * - Toggle selection on current note
  * - Clear selection tags
  * - Open export folder
- *
- * NOTE: PDF export not yet implemented - commands show placeholder messages.
  */
 
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { getNotebookLMExportFullPath } from '../core/settings';
+import { NotebookLMExportModal } from '../ui/modals/NotebookLMExportModal';
 
 export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
@@ -37,16 +36,63 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     return;
                 }
 
-                // Show info about PDF export (not yet implemented)
-                const count = preview.selection.files.length;
-                new Notice(`PDF export coming soon! ${count} notes selected for export.`, 5000);
+                // Create modal reference for progress updates
+                let exportModal: NotebookLMExportModal | null = null;
 
-                if (preview.linkedDocuments && preview.linkedDocuments.length > 0) {
-                    const linkedText = t.notebooklm?.linkedDocumentsDetected
-                        ? t.notebooklm.linkedDocumentsDetected.replace('{count}', String(preview.linkedDocuments.length))
-                        : `Linked documents: ${preview.linkedDocuments.length}`;
-                    new Notice(linkedText, 5000);
-                }
+                // Show export modal
+                exportModal = new NotebookLMExportModal(
+                    plugin.app,
+                    t,
+                    preview,
+                    async (result) => {
+                        if (!result.proceed) {
+                            // User cancelled
+                            return;
+                        }
+
+                        // Update service config with user's choice
+                        plugin.sourcePackService!.updateConfig(result.config);
+
+                        try {
+                            // Execute export with progress callback
+                            const exportResult = await plugin.sourcePackService!.executeExport(
+                                preview.selection,
+                                (current, total, message) => {
+                                    // Update modal progress
+                                    exportModal?.updateProgress(current, total, message);
+                                }
+                            );
+
+                            if (exportResult.success) {
+                                // Show success
+                                exportModal?.showComplete(true);
+
+                                // Also show notice with summary
+                                const noteCount = exportResult.stats?.noteCount || 0;
+                                const successMessage = (t.messages?.notebookLMExportComplete || 'Source pack exported: {notes} notes, {modules} modules')
+                                    .replace('{notes}', String(noteCount))
+                                    .replace('{modules}', String(noteCount));
+                                new Notice(successMessage, 5000);
+                            } else {
+                                // Show failure
+                                const errorMessage = (t.messages?.notebookLMExportFailed || 'Export failed: {error}')
+                                    .replace('{error}', exportResult.errorMessage || 'Unknown error');
+                                exportModal?.showComplete(false, errorMessage);
+                                new Notice(errorMessage, 5000);
+                            }
+                        } catch (error) {
+                            // Handle unexpected errors
+                            const errorMessage = error instanceof Error ? error.message : String(error);
+                            const failMessage = (t.messages?.notebookLMExportFailed || 'Export failed: {error}')
+                                .replace('{error}', errorMessage);
+                            exportModal?.showComplete(false, failMessage);
+                            new Notice(failMessage, 5000);
+                            console.error('NotebookLM export error:', error);
+                        }
+                    }
+                );
+
+                exportModal.open();
 
             } catch (error) {
                 console.error('Failed to start NotebookLM export:', error);

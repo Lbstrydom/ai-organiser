@@ -8,6 +8,20 @@
 
 ## Recent Updates
 
+### Audit Fixes Complete (2026-01-27)
+
+✅ **Command Picker i18n Audit**
+- Replaced all hardcoded UI strings with i18n keys
+- Added 10 new translation keys (`modals.commandPicker.*`)
+- Category names now localized: Create, Enhance, Organize, Search, Analyze, Integrate
+- Command names use existing `t.commands.*` keys
+- Arrow characters (↑↓, ↵) confirmed as valid Unicode
+
+✅ **New Test Coverage**
+- `tests/commandPicker.test.ts`: 12 integration tests for categories and commands
+- `tests/sourcePackService.test.ts`: 5 settings-to-SourcePackConfig wiring tests
+- **Total: 766 tests across 30 suites** (17 new tests added)
+
 ### Summarization Testing Complete (2026-01-26)
 
 ✅ **Section 4: Summarization - All Tests Passed**
@@ -59,7 +73,7 @@
 - **Provider registry**: `providerRegistry.ts` drives dropdowns, defaults, endpoints for all 14 adapters
 - **Embedding registry**: `embeddingRegistry.ts` with 6 providers, model lists, UI-friendly labels
 - **Build separation**: `tsconfig.build.json` for source-only type checking (test types isolated)
-- **Test coverage**: 679 tests across 29 suites (48 new tests added during remediation)
+- **Test coverage**: 766 tests across 30 suites (87 new tests added during remediation)
 
 ### Testing Strategy Complete (2026-01-25)
 
@@ -373,7 +387,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 679 unit tests (29 suites)
+npm test           # Run 766 unit tests (30 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

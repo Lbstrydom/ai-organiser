@@ -41,11 +41,11 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
         this.categories = categories;
         this.items = this.buildItems();
 
-        this.setPlaceholder('Search commands...');
+        this.setPlaceholder(t.modals.commandPicker?.placeholder || 'Search commands...');
         this.setInstructions([
-            { command: '↑↓', purpose: 'to navigate' },
-            { command: '↵', purpose: 'to select' },
-            { command: 'esc', purpose: 'to close' }
+            { command: '↑↓', purpose: t.modals.commandPicker?.navigateHint || 'to navigate' },
+            { command: '↵', purpose: t.modals.commandPicker?.selectHint || 'to select' },
+            { command: 'esc', purpose: t.modals.commandPicker?.closeHint || 'to close' }
         ]);
 
         // Add custom class for styling
@@ -143,7 +143,7 @@ export function buildCommandCategories(
         // === CREATE: Capture content from external sources ===
         {
             id: 'create',
-            name: 'Create',
+            name: t.modals.commandPicker?.categoryCreate || 'Create',
             icon: 'file-plus',
             commands: [
                 {
@@ -191,7 +191,7 @@ export function buildCommandCategories(
         // === ENHANCE: Improve existing notes ===
         {
             id: 'enhance',
-            name: 'Enhance',
+            name: t.modals.commandPicker?.categoryEnhance || 'Enhance',
             icon: 'sparkles',
             commands: [
                 {
@@ -243,7 +243,7 @@ export function buildCommandCategories(
         // === ORGANIZE: Structure and categorize ===
         {
             id: 'organize',
-            name: 'Organize',
+            name: t.modals.commandPicker?.categoryOrganize || 'Organize',
             icon: 'folder-tree',
             commands: [
                 {
@@ -298,7 +298,7 @@ export function buildCommandCategories(
         // === SEARCH: Discover and explore ===
         {
             id: 'search',
-            name: 'Search',
+            name: t.modals.commandPicker?.categorySearch || 'Search',
             icon: 'search',
             commands: [
                 {
@@ -324,14 +324,14 @@ export function buildCommandCategories(
                 },
                 {
                     id: 'ask-about-current-note',
-                    name: 'Ask Question About Current Note',
+                    name: t.commands.askAboutCurrentNote,
                     icon: 'message-square-text',
                     aliases: ['ask', 'current note', 'analyze'],
                     callback: () => executeCommand('ai-organiser:ask-about-current-note')
                 },
                 {
                     id: 'insert-related-notes',
-                    name: 'Insert Related Notes',
+                    name: t.commands.insertRelatedNotes,
                     icon: 'copy-plus',
                     aliases: ['insert', 'embed', 'related'],
                     callback: () => executeCommand('ai-organiser:insert-related-notes')
@@ -354,7 +354,7 @@ export function buildCommandCategories(
         // === ANALYZE: Insights and visualizations ===
         {
             id: 'analyze',
-            name: 'Analyze',
+            name: t.modals.commandPicker?.categoryAnalyze || 'Analyze',
             icon: 'bar-chart-2',
             commands: [
                 {
@@ -376,26 +376,26 @@ export function buildCommandCategories(
         // === INTEGRATE: Combine and manage content ===
         {
             id: 'integrate',
-            name: 'Integrate',
+            name: t.modals.commandPicker?.categoryIntegrate || 'Integrate',
             icon: 'git-merge',
             commands: [
                 {
                     id: 'add-to-pending',
-                    name: 'Add content to Pending Integration',
+                    name: t.commands.addToPendingIntegration,
                     icon: 'plus-circle',
                     aliases: ['pending', 'add', 'integration'],
                     callback: () => executeCommand('ai-organiser:add-to-pending-integration')
                 },
                 {
                     id: 'integrate-pending',
-                    name: 'Integrate pending content into note',
+                    name: t.commands.integratePendingContent,
                     icon: 'git-merge',
                     aliases: ['integrate', 'merge', 'pending'],
                     callback: () => executeCommand('ai-organiser:integrate-pending-content')
                 },
                 {
                     id: 'resolve-embeds',
-                    name: 'Resolve pending embeds',
+                    name: t.commands.resolvePendingEmbeds,
                     icon: 'scan-text',
                     aliases: ['embeds', 'resolve', 'extract'],
                     callback: () => executeCommand('ai-organiser:resolve-pending-embeds')

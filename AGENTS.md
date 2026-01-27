@@ -828,7 +828,7 @@ onOpen() {
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
 
-Total: 679 unit tests (29 suites) + 22 automated integration tests
+Total: 766 unit tests (30 suites) + 22 automated integration tests
 
 ## Documentation
 

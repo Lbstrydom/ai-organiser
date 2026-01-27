@@ -262,7 +262,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (679 tests, 29 suites)
+npm test              # Run Vitest unit tests (766 tests, 30 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -956,7 +956,7 @@ onOpen() {
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 679 unit tests (29 suites) + 22 automated integration tests
+Total: 766 unit tests (30 suites) + 22 automated integration tests
 
 ## Documentation
 

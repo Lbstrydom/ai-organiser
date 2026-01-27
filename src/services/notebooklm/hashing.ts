@@ -77,3 +77,13 @@ export function hashesMatch(hash1: string, hash2: string): boolean {
 export function isValidSHA256(hash: string): boolean {
     return /^[a-f0-9]{64}$/i.test(hash);
 }
+
+/**
+ * Compute SHA256 hash of binary data (ArrayBuffer or Uint8Array)
+ * @param data Binary data to hash
+ * @returns Hex-encoded SHA256 hash
+ */
+export function computeBinarySHA256(data: ArrayBuffer | Uint8Array): string {
+    const buffer = data instanceof ArrayBuffer ? Buffer.from(data) : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+    return createHash('sha256').update(buffer).digest('hex');
+}

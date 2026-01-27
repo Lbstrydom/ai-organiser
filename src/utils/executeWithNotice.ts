@@ -4,7 +4,6 @@
  */
 
 import { Notice } from 'obsidian';
-import type { Translations } from '../i18n/types';
 
 export interface ExecuteWithNoticeOptions {
     /**
@@ -26,14 +25,8 @@ export interface ExecuteWithNoticeOptions {
     /**
      * Called on error with error details
      * @param error Error object or message
-     * @param fallbackMessage i18n fallback message if error is a string
      */
-    onError?: (error: Error | string, fallbackMessage?: string) => void;
-
-    /**
-     * Optional custom notice instance to use instead of showing new ones
-     */
-    customNotice?: Notice;
+    onError?: (error: Error | string) => void;
 
     /**
      * Whether to show a notice on success (default: true)
@@ -58,7 +51,6 @@ export interface ExecuteResult<T> {
  *
  * @param operation The async function to execute
  * @param options Configuration for notice handling
- * @param translations i18n translations for default messages
  * @returns Promise resolving to ExecuteResult with data or error
  *
  * @example
@@ -73,14 +65,12 @@ export interface ExecuteResult<T> {
  *     onSuccess: (result) => new Notice(`Translation complete: ${result.length} chars`),
  *     onError: (error) => new Notice(`Translation failed: ${error instanceof Error ? error.message : error}`),
  *     debugLog: plugin.settings.debugMode
- *   },
- *   plugin.t
+ *   }
  * );
  */
 export async function executeWithNotice<T>(
     operation: () => Promise<T>,
-    options: ExecuteWithNoticeOptions,
-    translations?: Translations
+    options: ExecuteWithNoticeOptions
 ): Promise<ExecuteResult<T>> {
     const {
         task,

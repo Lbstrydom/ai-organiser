@@ -22,7 +22,6 @@ import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
-import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 /**
  * Get Gemini API key for YouTube processing
@@ -281,13 +280,13 @@ async function generateMermaidDiagram(
             editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
             ensureNoteStructureIfEnabled(editor, plugin.settings);
 
-            new Notice(plugin.t.messages.diagramGenerated || 'Diagram generated successfully');
+            new Notice(plugin.t.messages.diagramGenerated, 3000);
         } else {
-            showErrorNotice(response.error || 'Unknown error', 'Diagram generation');
+            new Notice(`${plugin.t.messages.diagramGenerationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showErrorNotice(errorMessage, 'Diagram generation');
+        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+        new Notice(`${plugin.t.messages.diagramGenerationFailed}: ${errorMessage}`, 5000);
     }
 }
 
@@ -364,7 +363,9 @@ async function processSelectedContent(
     // Report errors
     if (extractionResult.errors.length > 0) {
         console.warn('[AI Organiser] Extraction errors:', extractionResult.errors);
-        new Notice(`${extractionResult.errors.length} item(s) failed to extract`, 3000);
+        const errorMsg = (plugin.t.minutes?.extractionErrors || '{count} item(s) failed to extract')
+            .replace('{count}', String(extractionResult.errors.length));
+        new Notice(errorMsg, 3000);
     }
 
     const successfulItems = extractionResult.items.filter(i => i.success);
@@ -393,7 +394,7 @@ async function processSelectedContent(
         persona.prompt
     );
 
-    new Notice(plugin.t.messages.generatingNote || 'Generating note...');
+    new Notice(plugin.t.messages.generatingNote);
 
     try {
         const response = binaryItems.length > 0 && serviceSupportsMultimodal(serviceType)
@@ -402,13 +403,13 @@ async function processSelectedContent(
 
         if (response.success && response.content) {
             insertGeneratedNote(editor, response.content, successfulItems, plugin);
-            showSuccessNotice('Note generated successfully', 'Generation');
+            new Notice(plugin.t.messages.noteGenerated, 3000);
         } else {
-            showErrorNotice(response.error || 'Unknown error', 'Note generation');
+            new Notice(`${plugin.t.messages.generationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showErrorNotice(errorMessage, 'Note generation');
+        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+        new Notice(`${plugin.t.messages.generationFailed}: ${errorMessage}`, 5000);
     }
 }
 
@@ -430,7 +431,7 @@ async function improveNoteWithQuery(
         if (!proceed) return;
     }
 
-    new Notice(plugin.t.messages.improvingNote || 'Improving note...');
+    new Notice(plugin.t.messages.improvingNote);
 
     // Extract frontmatter if present
     const frontmatterMatch = noteContent.match(/^(---\n[\s\S]*?\n---\n?)/);
@@ -450,13 +451,13 @@ async function improveNoteWithQuery(
             // Ensure standard structure exists after improvement
             ensureNoteStructureIfEnabled(editor, plugin.settings);
 
-            new Notice(plugin.t.messages.noteImproved || 'Note improved successfully');
+            new Notice(plugin.t.messages.noteImproved, 3000);
         } else {
-            new Notice(`${plugin.t.messages.improvementFailed || 'Improvement failed'}: ${response.error || 'Unknown error'}`);
+            new Notice(`${plugin.t.messages.improvementFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`${plugin.t.messages.improvementFailed || 'Error'}: ${errorMessage}`);
+        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+        new Notice(`${plugin.t.messages.improvementFailed}: ${errorMessage}`, 5000);
     }
 }
 

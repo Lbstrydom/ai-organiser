@@ -505,6 +505,10 @@ export interface Translations {
         translating: string;
         translatingFullNote: string;
         translationComplete: string;
+        noteTranslatedSuccess: string;
+        selectionTranslatedSuccess: string;
+        translationFailed: string;
+        unknownError: string;
         invalidYouTubeUrl: string;
         fetchingTranscript: string;
         noCaptionsAvailable: string;
@@ -545,6 +549,7 @@ export interface Translations {
         flashcardGenerationFailed: string;
         flashcardsExported: string;
         flashcardsTo: string;
+        noValidFlashcards: string;
         buildingIndex: string;
         indexBuildComplete: string;
         indexBuildFailed: string;
@@ -1118,6 +1123,18 @@ export interface Translations {
             searchingContext: string;
             retrievingInformation: string;
         };
+        commandPicker: {
+            placeholder: string;
+            navigateHint: string;
+            selectHint: string;
+            closeHint: string;
+            categoryCreate: string;
+            categoryEnhance: string;
+            categoryOrganize: string;
+            categorySearch: string;
+            categoryAnalyze: string;
+            categoryIntegrate: string;
+        };
     };
 
     // File menu items
@@ -1279,5 +1296,12 @@ export interface Translations {
     notebooklm: {
         linkedDocumentsDetected: string;
         documentExportNotice: string;
+        latinOnlyWarning: string;
+        exportProgress: string;
+        generatingPdf: string;
+        copyingDocument: string;
+        writingManifest: string;
+        exportComplete: string;
+        cancelButton: string;
     };
 }

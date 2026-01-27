@@ -518,6 +518,10 @@ export const en: Translations = {
         translating: "Translating...",
         translatingFullNote: "Translating full note...",
         translationComplete: "Translated",
+        noteTranslatedSuccess: "Note translated successfully",
+        selectionTranslatedSuccess: "Selection translated successfully",
+        translationFailed: "Translation failed",
+        unknownError: "Unknown error",
         invalidYouTubeUrl: "Invalid YouTube URL",
         fetchingTranscript: "Getting transcript...",
         noCaptionsAvailable: "No captions available",
@@ -555,9 +559,10 @@ export const en: Translations = {
         diagramGenerated: "Diagram created",
         diagramGenerationFailed: "Diagram failed",
         generatingFlashcards: "Creating flashcards...",
-        flashcardGenerationFailed: "Flashcard failed",
-        flashcardsExported: "Exported",
+        flashcardGenerationFailed: "Flashcard generation failed",
+        flashcardsExported: "Exported {count} flashcards to {path}",
         flashcardsTo: "flashcards to",
+        noValidFlashcards: "No valid flashcards generated",
         buildingIndex: "Building index...",
         indexBuildComplete: "Indexed {indexed} notes. Failed: {failed}",
         indexBuildFailed: "Index failed",
@@ -1119,6 +1124,18 @@ export const en: Translations = {
             responseFailed: "Sorry, I encountered an error generating a response. Please try again.",
             searchingContext: "Searching vault context...",
             retrievingInformation: "Retrieving relevant information..."
+        },
+        commandPicker: {
+            placeholder: "Search commands...",
+            navigateHint: "to navigate",
+            selectHint: "to select",
+            closeHint: "to close",
+            categoryCreate: "Create",
+            categoryEnhance: "Enhance",
+            categoryOrganize: "Organize",
+            categorySearch: "Search",
+            categoryAnalyze: "Analyze",
+            categoryIntegrate: "Integrate"
         }
     },
 
@@ -1282,6 +1299,13 @@ export const en: Translations = {
     },
     notebooklm: {
         linkedDocumentsDetected: "{count} linked document(s) will be included",
-        documentExportNotice: "Documents will be exported alongside notes"
+        documentExportNotice: "Linked documents will be included as separate files",
+        latinOnlyWarning: "Note: PDF export currently supports Latin characters only. Non-Latin text (CJK, Arabic, Cyrillic, etc.) may not render correctly.",
+        exportProgress: "{current} of {total}",
+        generatingPdf: "Generating PDF: {note}",
+        copyingDocument: "Copying: {document}",
+        writingManifest: "Writing manifest...",
+        exportComplete: "Export complete!",
+        cancelButton: "Cancel"
     }
 };

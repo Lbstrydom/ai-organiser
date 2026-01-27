@@ -9,7 +9,6 @@ import { TranslateModal } from '../ui/modals/TranslateModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
 import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { summarizeText } from '../services/llmFacade';
-import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Command: Translate (smart dispatcher)
@@ -60,7 +59,7 @@ async function translateNote(
     targetLanguage: string,
     noticeMessage?: string
 ): Promise<void> {
-    new Notice(noticeMessage || plugin.t.messages.translating || 'Translating...');
+    new Notice(noticeMessage || plugin.t.messages.translating);
 
     const promptTemplate = buildTranslatePrompt({ targetLanguage });
     const prompt = insertContentIntoTranslatePrompt(promptTemplate, content);
@@ -75,13 +74,13 @@ async function translateNote(
             // Ensure standard structure exists after translation
             ensureNoteStructureIfEnabled(editor, plugin.settings);
 
-            showSuccessNotice('Note translated successfully', 'Translation');
+            new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
         } else {
-            showErrorNotice(response.error || 'Unknown error', 'Translation');
+            new Notice(`${plugin.t.messages.translationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showErrorNotice(errorMessage, 'Translation');
+        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+        new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
     }
 }
 
@@ -94,7 +93,7 @@ async function translateSelection(
     selection: string,
     targetLanguage: string
 ): Promise<void> {
-    new Notice(plugin.t.messages.translating || 'Translating...');
+    new Notice(plugin.t.messages.translating);
 
     const promptTemplate = buildTranslatePrompt({ targetLanguage });
     const prompt = insertContentIntoTranslatePrompt(promptTemplate, selection);
@@ -106,13 +105,13 @@ async function translateSelection(
             // Replace selection with translated content
             editor.replaceSelection(response.content);
             ensureNoteStructureIfEnabled(editor, plugin.settings);
-            showSuccessNotice('Selection translated successfully', 'Translation');
+            new Notice(plugin.t.messages.selectionTranslatedSuccess, 3000);
         } else {
-            showErrorNotice(response.error || 'Unknown error', 'Translation');
+            new Notice(`${plugin.t.messages.translationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showErrorNotice(errorMessage, 'Translation');
+        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+        new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
     }
 }
 
