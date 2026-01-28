@@ -365,6 +365,7 @@ export interface Translations {
             deviceOnly: string;
             keyConfigured: string;
             noKeySet: string;
+            keySaved: string;
             migrationTitle: string;
             migrationDesc: string;
             benefitsTitle: string;

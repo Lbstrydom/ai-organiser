@@ -8,11 +8,28 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class YouTubeSettingsSection extends BaseSettingSection {
-    display(): void {
+    async display(): Promise<void> {
         const t = this.plugin.t.settings.youtube;
         const isGeminiMainProvider = this.plugin.settings.cloudServiceType === 'gemini';
         const secretStorage = this.plugin.secretStorageService;
         const hasSecretStorage = secretStorage.isAvailable();
+
+        // Check all possible Gemini key sources
+        let hasGeminiSecret = false;
+        let hasDedicatedYouTubeKey = false;
+
+        if (hasSecretStorage) {
+            const geminiSecretId = PROVIDER_TO_SECRET_ID.gemini;
+            [hasDedicatedYouTubeKey, hasGeminiSecret] = await Promise.all([
+                secretStorage.hasSecret(PLUGIN_SECRET_IDS.YOUTUBE),
+                geminiSecretId ? secretStorage.hasSecret(geminiSecretId) : Promise.resolve(false)
+            ]);
+        }
+
+        // Check plain-text fallbacks
+        const hasGeminiPlainKey = (isGeminiMainProvider && this.plugin.settings.cloudApiKey) ||
+                                  this.plugin.settings.providerSettings?.gemini?.apiKey;
+        const hasGeminiKey = hasGeminiSecret || hasGeminiPlainKey || hasDedicatedYouTubeKey;
 
         this.createSectionHeader(t?.title || 'YouTube', 'youtube', 2);
 
@@ -23,33 +40,18 @@ export class YouTubeSettingsSection extends BaseSettingSection {
             cls: 'setting-item-description'
         });
 
-        // Show status of Gemini key
-        if (isGeminiMainProvider) {
+        // Show status if we have a Gemini key from any source
+        if (hasGeminiKey) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            const statusText = t?.usingMainKey || 'Using your main Gemini API key';
-
-            if (hasSecretStorage) {
-                const geminiSecretId = PROVIDER_TO_SECRET_ID.gemini;
-                if (geminiSecretId) {
-                    secretStorage.hasSecret(geminiSecretId).then((hasKey) => {
-                        if (hasKey) {
-                            statusEl.createEl('span', {
-                                text: statusText,
-                                cls: 'ai-organiser-status-success'
-                            });
-                        }
-                    });
-                }
-            } else if (this.plugin.settings.cloudApiKey) {
-                statusEl.createEl('span', {
-                    text: statusText,
-                    cls: 'ai-organiser-status-success'
-                });
-            }
+            const statusText = t?.usingMainKey || 'Using your Gemini API key';
+            statusEl.createEl('span', {
+                text: statusText,
+                cls: 'ai-organiser-status-success'
+            });
         }
 
-        // Gemini API Key (only show if main provider is NOT Gemini)
-        if (!isGeminiMainProvider) {
+        // Only show API key field if no Gemini key is available from any source
+        if (!hasGeminiKey) {
             this.renderApiKeyField({
                 name: t?.apiKey || 'Gemini API Key',
                 desc: t?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.',

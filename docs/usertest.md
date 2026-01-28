@@ -9,9 +9,9 @@
 
 ## Pre-Test *
 
-- [ ] `npm run build:quick` passes
-- [ ] Files deployed: `main.js`, `manifest.json`, `styles.css`
-- [ ] Obsidian restarted, plugin enabled
+- [x] `npm run build:quick` passes
+- [x] Files deployed: `main.js`, `manifest.json`, `styles.css`
+- [x] Obsidian restarted, plugin enabled
 
 ---
 
@@ -52,34 +52,34 @@
 ## 1b. SecretStorage (5 min) - Requires Obsidian 1.11+
 
 ### Availability Check
-- [ ] Open Settings → AI Provider section
-- [ ] If Obsidian 1.11+: API key field shows "🔒 Stored on this device only" badge
-- [ ] If older Obsidian: Shows "⚠️ Secure storage unavailable" warning
+- [x] Open Settings → AI Provider section
+- [x] If Obsidian 1.11+: API key field shows "🔒 Stored on this device only" badge
+- [x] If older Obsidian: Shows "⚠️ Secure storage unavailable" warning
 
 ### Fresh Key Entry (1.11+)
-- [ ] Clear any existing API key
-- [ ] Enter new API key → key stored in OS keychain
-- [ ] Reload Obsidian → key still accessible (retrieved from SecretStorage)
-- [ ] Check `data.json` → cloudApiKey should NOT contain plain text key
+- [x] Clear any existing API key
+- [x] Enter new API key → key stored in OS keychain
+- [x] Reload Obsidian → key still accessible (retrieved from SecretStorage)
+- [x] Check `data.json` → cloudApiKey should NOT contain plain text key
 
 ### Migration Flow (1.11+)
-- [ ] If migration available: "Migrate to Secure Storage" button visible
-- [ ] Click migrate → MigrationConfirmModal opens
-- [ ] Modal shows warning: "Keys are device-specific. You'll need to re-enter on other devices."
-- [ ] Accept migration → keys moved to OS keychain
-- [ ] Check `data.json` → keys cleared from settings
-- [ ] Decline migration → keys remain in settings file
+- [x] If migration available: "Migrate to Secure Storage" button visible
+- [x] Click migrate → MigrationConfirmModal opens
+- [x] Modal shows warning: "Keys are device-specific. You'll need to re-enter on other devices."
+- [x] Accept migration → keys moved to OS keychain
+- [x] Check `data.json` → keys cleared from settings
+- [x] Decline migration → keys remain in settings file
 
 ### Key Status Indicators
-- [ ] API key configured → shows "✓ Key configured" badge
-- [ ] No API key → shows "○ No key set" badge
-- [ ] "Test Key" button validates without showing actual key value
+- [x] API key configured → shows "✓ Key configured" badge
+- [x] No API key → shows "○ No key set" badge
+- [x] "Test Key" button validates without showing actual key value
 
 ### Inheritance Chain (Advanced)
-- [ ] Set OpenAI key in AI Provider section
-- [ ] Go to Embedding settings → select OpenAI provider
-- [ ] Embedding key should auto-inherit from main provider key
-- [ ] Test "Use main API key" button functionality
+- [x] Set OpenAI key in AI Provider section
+- [x] Go to Embedding settings → select OpenAI provider
+- [x] Embedding key should auto-inherit from main provider key
+- [x] Test "Use main API key" button functionality
 
 ### Cross-Device Behavior
 - [ ] Understand: Keys are device-local (standard security practice)
@@ -360,7 +360,7 @@ If testing on Obsidian 1.11.0 or later, verify these critical items:
 
 | Check | Pass |
 |-------|------|
-| "🔒 Stored on this device only" badge visible | [ ] |
-| API key persists after Obsidian restart | [ ] |
-| data.json does NOT contain plain-text keys | [ ] |
-| Migration modal shows device-specific warning | [ ] |
+| "🔒 Stored on this device only" badge visible | [x] |
+| API key persists after Obsidian restart | [x] |
+| data.json does NOT contain plain-text keys | [x] |
+| Migration modal shows device-specific warning | [x] |

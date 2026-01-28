@@ -63,7 +63,7 @@ export class SecretStorageService implements ISecretStorageService {
      * Check if SecretStorage API is available (Obsidian 1.11+)
      */
     isAvailable(): boolean {
-        return 'secretStorage' in this.app.vault;
+        return 'secretStorage' in this.app;
     }
 
     /**
@@ -75,7 +75,7 @@ export class SecretStorageService implements ISecretStorageService {
         }
 
         try {
-            const value = await (this.app.vault as any).secretStorage.get(id);
+            const value = await (this.app as any).secretStorage.getSecret(id);
             return value || null;
         } catch (error) {
             console.error(`SecretStorage: Failed to get secret ${id}:`, error);
@@ -92,7 +92,7 @@ export class SecretStorageService implements ISecretStorageService {
         }
 
         try {
-            await (this.app.vault as any).secretStorage.set(id, value);
+            await (this.app as any).secretStorage.setSecret(id, value);
         } catch (error) {
             console.error(`SecretStorage: Failed to set secret ${id}:`, error);
             throw error;
@@ -108,7 +108,8 @@ export class SecretStorageService implements ISecretStorageService {
         }
 
         try {
-            await (this.app.vault as any).secretStorage.delete(id);
+            // SecretStorage has no delete method - set to empty string to clear
+            (this.app as any).secretStorage.setSecret(id, '');
         } catch (error) {
             console.error(`SecretStorage: Failed to remove secret ${id}:`, error);
         }

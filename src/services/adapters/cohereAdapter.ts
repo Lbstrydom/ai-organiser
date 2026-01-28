@@ -1,11 +1,11 @@
 import { BaseAdapter } from './baseAdapter';
 import { BaseResponse, RequestBody, AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
+import { SYSTEM_PROMPT } from '../../utils/constants';
 
 export class CohereAdapter extends BaseAdapter {
     private readonly defaultConfig = {
         temperature: 0.7,
-        chat_history: [],
         stream: false
     };
 
@@ -17,35 +17,39 @@ export class CohereAdapter extends BaseAdapter {
         this.provider = {
             name: 'cohere',
             requestFormat: {
-                url: '/v1/chat',
+                url: '',
                 headers: {},
                 body: {
                     model: config.modelName,
-                    message: '',
+                    messages: [],
                     ...this.defaultConfig
                 }
             },
             responseFormat: {
-                path: ['text'],
+                // Cohere v2 response: message.content[0].text
+                path: ['message', 'content', '0', 'text'],
+                contentPath: ['message', 'content', '0', 'text'],
                 errorPath: ['message']
             }
         };
     }
 
     public formatRequest(prompt: string): RequestBody {
-        const baseRequest = super.formatRequest(prompt);
-        
+        // Cohere v2 uses OpenAI-compatible messages format (industry standard)
         return {
-            ...baseRequest,
-            message: prompt,
-            ...this.defaultConfig,
-            connectors: []
+            model: this.config.modelName,
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                { role: 'user', content: prompt }
+            ],
+            ...this.defaultConfig
         };
     }
 
     public parseResponse(response: any): BaseResponse {
         try {
-            const content = response.text;
+            // Cohere v2 response: message.content[0].text
+            const content = response.message?.content?.[0]?.text;
             if (!content) {
                 throw new Error('Invalid response format: missing content');
             }

@@ -23,17 +23,17 @@ export const ALL_ADAPTERS: AdapterType[] = [
 export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   openai: 'gpt-5.2',
   gemini: 'gemini-3-flash',
-  deepseek: 'deepseek-chat',
+  deepseek: 'deepseek-v3.2',
   aliyun: 'qwen-max',
   claude: 'claude-sonnet-4-5-20250929',
-  groq: 'llama-3.3-70b-versatile',
+  groq: 'meta-llama/llama-4-scout-17b-16e-instruct',
   vertex: 'gemini-3-flash',
   openrouter: 'openai/gpt-5.2',
   bedrock: 'us.anthropic.claude-sonnet-4-5-v1:0',
   requesty: 'gpt-5.2',
-  cohere: 'command-r-plus',
-  grok: 'grok-3',
-  mistral: 'mistral-large-latest',
+  cohere: 'command-r7-plus-04-2025',
+  grok: 'grok-4',
+  mistral: 'mistral-large-3',
   'openai-compatible': 'your-model',
 };
 

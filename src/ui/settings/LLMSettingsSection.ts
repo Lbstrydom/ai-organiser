@@ -3,6 +3,7 @@ import type AIOrganiserPlugin from '../../main';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
+import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 
@@ -230,62 +231,8 @@ export class LLMSettingsSection extends BaseSettingSection {
     }
 
     // Predefined model lists for providers with known models
-    // Use actual API model IDs - these must match what the provider accepts
-    // Only Claude 4.5 models - older versions removed per Anthropic recommendations
-    private readonly CLAUDE_MODELS: Record<string, string> = {
-        'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (Recommended)',
-        'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (Fastest)',
-        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Most Capable)'
-    };
-
-    private readonly OPENAI_MODELS: Record<string, string> = {
-        // GPT-5.2 (Latest)
-        'gpt-5.2': 'GPT-5.2 (Best Reasoning)',
-        'gpt-5.2-pro': 'GPT-5.2 Pro (Hardest Problems)',
-        'gpt-5.2-codex': 'GPT-5.2 Codex (Coding)',
-        'gpt-5-mini': 'GPT-5 Mini (Balanced)',
-        'gpt-5-nano': 'GPT-5 Nano (Cheapest)',
-        // GPT-4.1 (Previous)
-        'gpt-4.1': 'GPT-4.1',
-        'gpt-4.1-mini': 'GPT-4.1 Mini',
-        'gpt-4.1-nano': 'GPT-4.1 Nano',
-        // Legacy
-        'gpt-4o': 'GPT-4o (Legacy)',
-        'gpt-4o-mini': 'GPT-4o Mini (Legacy)'
-    };
-
-    private readonly GEMINI_MODELS: Record<string, string> = {
-        // Gemini 3 (Latest)
-        'gemini-3-pro-preview': 'Gemini 3 Pro (Most Capable)',
-        'gemini-3-flash-preview': 'Gemini 3 Flash (Fast)',
-        // Gemini 2.5
-        'gemini-2.5-pro': 'Gemini 2.5 Pro',
-        'gemini-2.5-flash': 'Gemini 2.5 Flash (Recommended)',
-        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (Cheapest)',
-        // Gemini 2.0
-        'gemini-2.0-flash': 'Gemini 2.0 Flash',
-        'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite'
-    };
-
-    private readonly OPENROUTER_MODELS: Record<string, string> = {
-        // Claude (Anthropic)
-        'anthropic/claude-sonnet-4.5': 'Claude Sonnet 4.5 (Anthropic)',
-        'anthropic/claude-haiku-4.5': 'Claude Haiku 4.5 (Fast)',
-        'anthropic/claude-opus-4.5': 'Claude Opus 4.5 (Best)',
-        // OpenAI
-        'openai/gpt-5.2': 'GPT-5.2 (OpenAI)',
-        'openai/gpt-5-mini': 'GPT-5 Mini (OpenAI)',
-        'openai/gpt-5-nano': 'GPT-5 Nano (Cheapest)',
-        // Google
-        'google/gemini-3-pro': 'Gemini 3 Pro (Google)',
-        'google/gemini-3-flash': 'Gemini 3 Flash (Google)',
-        'google/gemini-2.5-flash': 'Gemini 2.5 Flash (Google)',
-        // Others
-        'deepseek/deepseek-chat': 'DeepSeek Chat (Best Value)',
-        'deepseek/deepseek-r1': 'DeepSeek R1 (Reasoning)',
-        'meta-llama/llama-3.3-70b-instruct': 'Llama 3.3 70B (Meta)',
-        'qwen/qwen-2.5-72b-instruct': 'Qwen 2.5 72B (Alibaba)'
-    };
+    // Model lists are now centralized in modelRegistry.ts (DRY/SOLID)
+    // See: src/services/adapters/modelRegistry.ts
 
     private displayCloudSettings(): void {
         const serviceType = this.plugin.settings.cloudServiceType;
@@ -363,17 +310,13 @@ export class LLMSettingsSection extends BaseSettingSection {
                 });
         }
 
-// For providers with known models, show a dropdown
-        // For providers with known models, show a dropdown
-        const modelLists: Record<string, { models: Record<string, string>; defaultModel: string }> = {
-            'claude': { models: this.CLAUDE_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['claude'] },
-            'openai': { models: this.OPENAI_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['openai'] },
-            'gemini': { models: this.GEMINI_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['gemini'] },
-            'openrouter': { models: this.OPENROUTER_MODELS, defaultModel: PROVIDER_DEFAULT_MODEL['openrouter'] }
-        };
+// For providers with known models (from centralized registry), show a dropdown
+        const providerModels = getProviderModels(serviceType);
+        const hasModels = hasModelList(serviceType);
 
-        if (modelLists[serviceType]) {
-            const { models, defaultModel } = modelLists[serviceType];
+        if (hasModels) {
+            const models = providerModels;
+            const defaultModel = PROVIDER_DEFAULT_MODEL[serviceType];
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.modelName)
                 .setDesc(this.plugin.t.settings.llm.modelNameDesc)

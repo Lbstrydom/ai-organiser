@@ -113,7 +113,10 @@ export default class AIOrganiserPlugin extends Plugin {
         }
     }
 
-    private getProviderApiKey(type: AdapterType): string {
+    private async getProviderApiKey(type: AdapterType): Promise<string> {
+        // First check SecretStorage, then fallback to settings
+        const secretKey = await this.secretStorageService.getProviderKey(type);
+        if (secretKey) return secretKey;
         return this.settings.providerSettings?.[type]?.apiKey || this.settings.cloudApiKey;
     }
 
@@ -177,7 +180,10 @@ export default class AIOrganiserPlugin extends Plugin {
         let cloudType = this.settings.cloudServiceType;
         let cloudEndpoint = this.settings.cloudEndpoint;
         let cloudModel = this.settings.cloudModel;
-        let cloudApiKey = this.settings.cloudApiKey;
+
+        // Get API key from SecretStorage first, fallback to settings
+        let cloudApiKey = await this.secretStorageService.getProviderKey(cloudType) ||
+                          this.settings.cloudApiKey;
 
         if (Platform.isMobile) {
             const fallbackProvider = this.settings.mobileFallbackProvider || this.settings.cloudServiceType;
@@ -188,7 +194,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 cloudType = fallbackProvider;
                 cloudModel = fallbackModel;
                 cloudEndpoint = this.getProviderEndpoint(fallbackProvider);
-                cloudApiKey = this.getProviderApiKey(fallbackProvider);
+                cloudApiKey = await this.getProviderApiKey(fallbackProvider);
             } else if (this.settings.mobileProviderMode === 'custom') {
                 serviceType = 'local';
                 localEndpoint = this.settings.mobileCustomEndpoint || this.settings.localEndpoint;
@@ -198,7 +204,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 cloudType = fallbackProvider;
                 cloudModel = fallbackModel;
                 cloudEndpoint = this.getProviderEndpoint(fallbackProvider);
-                cloudApiKey = this.getProviderApiKey(fallbackProvider);
+                cloudApiKey = await this.getProviderApiKey(fallbackProvider);
             }
         }
 

@@ -72,7 +72,7 @@ export abstract class BaseSettingSection {
 
     /**
      * Creates a section header with an icon
-     * Uses native SettingGroup on Obsidian 1.11+ for level 1 headers
+     * Note: Native SettingGroup disabled due to duplicate header issue
      * @param title - The header text
      * @param icon - Lucide icon name (e.g., 'bot', 'tag', 'search')
      * @param level - Header level (1 or 2), defaults to 1
@@ -81,12 +81,8 @@ export abstract class BaseSettingSection {
     protected createSectionHeader(title: string, icon: string, level: 1 | 2 = 1, container?: HTMLElement): HTMLElement {
         const targetEl = container || this.containerEl;
 
-        // Use native SettingGroup for level 1 headers when available
-        if (level === 1 && this.isSettingGroupAvailable()) {
-            return this.createNativeSettingGroup(targetEl, title, icon);
-        }
-
-        // Fall back to custom header for level 2 or when SettingGroup unavailable
+        // Always use custom header for consistent rendering
+        // Native SettingGroup caused duplicate headers when settings were added to containerEl
         return this.createCustomHeader(targetEl, title, icon, level);
     }
 
@@ -105,7 +101,6 @@ export abstract class BaseSettingSection {
 
         const useSecretStorage = secretStorage.isAvailable();
         const placeholderText = placeholder || t.secretStorage.apiKeyPlaceholder;
-        const supportsSecretComponent = useSecretStorage && typeof (setting as any).addSecret === 'function';
 
         if (useSecretStorage) {
             // Check key status asynchronously
@@ -129,32 +124,63 @@ export abstract class BaseSettingSection {
             deviceBadge.style.marginLeft = '8px';
         }
 
-        if (supportsSecretComponent) {
-            // Use native SecretComponent on Obsidian 1.11+
-            (setting as any).addSecret((secret: any) => {
-                secret.setSecretId(secretId);
-                secret.setPlaceholder(placeholderText);
-            });
-        } else {
-            // Use password field (works for all Obsidian versions)
-            setting.addText((text) => {
-                text
-                    .setPlaceholder(placeholderText)
-                    .setValue(useSecretStorage ? '' : (currentValue || ''))
-                    .onChange(async (value) => {
-                        if (useSecretStorage) {
-                            if (value) {
-                                await secretStorage.setSecret(secretId, value);
-                                onChange('');
-                                text.setValue('');
-                            }
-                            return;
+        // Use password text field with manual SecretStorage save
+        // Note: Native SecretComponent (addSecret) has input issues in some environments,
+        // so we use a standard password field that manually saves to SecretStorage
+        setting.addText((text) => {
+            text
+                .setPlaceholder(placeholderText)
+                .setValue(useSecretStorage ? '' : (currentValue || ''));
+
+            text.inputEl.type = 'password';
+
+            // Handle Enter key to save immediately
+            text.inputEl.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = text.getValue();
+                    if (value && useSecretStorage) {
+                        await secretStorage.setSecret(secretId, value);
+                        onChange('');
+                        text.setValue('');
+
+                        // Update status indicator
+                        const existingStatus = setting.nameEl.querySelector('.ai-organiser-key-status-set, .ai-organiser-key-status-empty');
+                        if (existingStatus) {
+                            existingStatus.className = 'ai-organiser-key-status-set';
+                            existingStatus.textContent = t.secretStorage.keyConfigured;
                         }
+
+                        // Show confirmation
+                        const { Notice } = require('obsidian');
+                        new Notice(t.secretStorage.keySaved || 'API key saved securely');
+                    } else if (value && !useSecretStorage) {
                         onChange(value);
-                    });
-                text.inputEl.type = 'password';
+                    }
+                }
             });
-        }
+
+            // Also save on blur (when clicking away)
+            text.inputEl.addEventListener('blur', async () => {
+                const value = text.getValue();
+                if (value && useSecretStorage) {
+                    await secretStorage.setSecret(secretId, value);
+                    onChange('');
+                    text.setValue('');
+
+                    // Update status indicator
+                    const existingStatus = setting.nameEl.querySelector('.ai-organiser-key-status-set, .ai-organiser-key-status-empty');
+                    if (existingStatus) {
+                        existingStatus.className = 'ai-organiser-key-status-set';
+                        existingStatus.textContent = t.secretStorage.keyConfigured;
+                    }
+
+                    // Show confirmation
+                    const { Notice } = require('obsidian');
+                    new Notice(t.secretStorage.keySaved || 'API key saved securely');
+                }
+            });
+        });
 
         // Add "Test Key" button if callback provided
         if (testCallback) {

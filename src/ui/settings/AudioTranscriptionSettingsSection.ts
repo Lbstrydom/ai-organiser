@@ -8,20 +8,38 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class AudioTranscriptionSettingsSection extends BaseSettingSection {
-    display(): void {
+    async display(): Promise<void> {
         const t = this.plugin.t.settings.audioTranscription;
-
-        // Check if main provider supports transcription
-        const mainProvider = this.plugin.settings.cloudServiceType;
-        const mainKey = this.plugin.settings.cloudApiKey;
-        const hasMainOpenAIKey = mainProvider === 'openai' && mainKey;
-        const hasMainGroqKey = mainProvider === 'groq' && mainKey;
-
-        // Also check provider-specific keys
-        const providerOpenAIKey = this.plugin.settings.providerSettings?.openai?.apiKey;
-        const providerGroqKey = this.plugin.settings.providerSettings?.groq?.apiKey;
         const secretStorage = this.plugin.secretStorageService;
         const hasSecretStorage = secretStorage.isAvailable();
+        const selectedProvider = this.plugin.settings.audioTranscriptionProvider || 'openai';
+
+        // Check all possible key sources
+        const mainProvider = this.plugin.settings.cloudServiceType;
+        const mainKey = this.plugin.settings.cloudApiKey;
+        const providerOpenAIKey = this.plugin.settings.providerSettings?.openai?.apiKey;
+        const providerGroqKey = this.plugin.settings.providerSettings?.groq?.apiKey;
+
+        // Check SecretStorage for keys (async)
+        let hasOpenAISecret = false;
+        let hasGroqSecret = false;
+        let hasDedicatedAudioKey = false;
+
+        if (hasSecretStorage) {
+            const openaiSecretId = PROVIDER_TO_SECRET_ID.openai;
+            const groqSecretId = PROVIDER_TO_SECRET_ID.groq;
+            [hasDedicatedAudioKey, hasOpenAISecret, hasGroqSecret] = await Promise.all([
+                secretStorage.hasSecret(PLUGIN_SECRET_IDS.AUDIO),
+                openaiSecretId ? secretStorage.hasSecret(openaiSecretId) : Promise.resolve(false),
+                groqSecretId ? secretStorage.hasSecret(groqSecretId) : Promise.resolve(false)
+            ]);
+        }
+
+        // Determine if we have a usable key for the selected provider
+        const hasOpenAIKey = hasOpenAISecret || (mainProvider === 'openai' && mainKey) || providerOpenAIKey;
+        const hasGroqKey = hasGroqSecret || (mainProvider === 'groq' && mainKey) || providerGroqKey;
+        const hasInheritedKey = (selectedProvider === 'openai' && hasOpenAIKey) ||
+                               (selectedProvider === 'groq' && hasGroqKey);
 
         this.createSectionHeader(t?.title || 'Audio Transcription', 'mic', 2);
 
@@ -33,56 +51,19 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
         });
 
         // Show status of available key
-        if (hasSecretStorage) {
+        if (hasInheritedKey || hasDedicatedAudioKey) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            const openaiSecretId = PROVIDER_TO_SECRET_ID.openai;
-            const groqSecretId = PROVIDER_TO_SECRET_ID.groq;
-            Promise.all([
-                secretStorage.hasSecret(PLUGIN_SECRET_IDS.AUDIO),
-                openaiSecretId ? secretStorage.hasSecret(openaiSecretId) : Promise.resolve(false),
-                groqSecretId ? secretStorage.hasSecret(groqSecretId) : Promise.resolve(false)
-            ]).then(([hasAudioKey, hasOpenAISecret, hasGroqSecret]) => {
-                const selectedProvider = this.plugin.settings.audioTranscriptionProvider || 'openai';
-                const showOpenAI = hasAudioKey ? selectedProvider === 'openai' : hasOpenAISecret;
-                const showGroq = hasAudioKey ? selectedProvider === 'groq' : hasGroqSecret;
-
-                if (showOpenAI) {
-                    statusEl.createEl('span', {
-                        text: t?.usingOpenAIKey || 'Using your OpenAI API key',
-                        cls: 'ai-organiser-status-success'
-                    });
-                } else if (showGroq) {
-                    statusEl.createEl('span', {
-                        text: t?.usingGroqKey || 'Using your Groq API key',
-                        cls: 'ai-organiser-status-success'
-                    });
-                } else {
-                    const warningEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-warning' });
-                    warningEl.createEl('span', {
-                        text: t?.noKeyWarning || 'No transcription API key configured. Add an OpenAI or Groq key to enable audio transcription.',
-                        cls: 'ai-organiser-status-warning'
-                    });
-                }
-            });
-        } else if (hasMainOpenAIKey || providerOpenAIKey) {
-            const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            statusEl.createEl('span', {
-                text: t?.usingOpenAIKey || 'Using your OpenAI API key',
-                cls: 'ai-organiser-status-success'
-            });
-        } else if (hasMainGroqKey || providerGroqKey) {
-            const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            statusEl.createEl('span', {
-                text: t?.usingGroqKey || 'Using your Groq API key',
-                cls: 'ai-organiser-status-success'
-            });
-        } else if (!this.plugin.settings.audioTranscriptionApiKey) {
-            // No key available - show warning
-            const warningEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-warning' });
-            warningEl.createEl('span', {
-                text: t?.noKeyWarning || 'No transcription API key configured. Add an OpenAI or Groq key to enable audio transcription.',
-                cls: 'ai-organiser-status-warning'
-            });
+            if (selectedProvider === 'openai') {
+                statusEl.createEl('span', {
+                    text: t?.usingOpenAIKey || 'Using your OpenAI API key',
+                    cls: 'ai-organiser-status-success'
+                });
+            } else {
+                statusEl.createEl('span', {
+                    text: t?.usingGroqKey || 'Using your Groq API key',
+                    cls: 'ai-organiser-status-success'
+                });
+            }
         }
 
         // Provider selection
@@ -93,7 +74,7 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
                 dropdown
                     .addOption('openai', 'OpenAI Whisper')
                     .addOption('groq', 'Groq Whisper')
-                    .setValue(this.plugin.settings.audioTranscriptionProvider)
+                    .setValue(selectedProvider)
                     .onChange(async (value) => {
                         this.plugin.settings.audioTranscriptionProvider = value as 'openai' | 'groq';
                         await this.plugin.saveSettings();
@@ -102,17 +83,15 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
                     });
             });
 
-        // Show dedicated API key input only if main provider doesn't support transcription
-        const selectedProvider = this.plugin.settings.audioTranscriptionProvider;
-        const hasKeyForSelectedProvider = hasSecretStorage
-            ? false
-            : (selectedProvider === 'openai' && (hasMainOpenAIKey || providerOpenAIKey)) ||
-              (selectedProvider === 'groq' && (hasMainGroqKey || providerGroqKey));
+        // Only show dedicated API key input if no inherited key is available
+        if (!hasInheritedKey && !hasDedicatedAudioKey) {
+            const mainProviderName = mainProvider.charAt(0).toUpperCase() + mainProvider.slice(1);
+            const whisperProviderName = selectedProvider === 'openai' ? 'OpenAI' : 'Groq';
+            const descText = `Separate from your ${mainProviderName} key. Enter an ${whisperProviderName} key to enable Whisper transcription.`;
 
-        if (!hasKeyForSelectedProvider) {
             this.renderApiKeyField({
-                name: t?.apiKey || `${selectedProvider === 'openai' ? 'OpenAI' : 'Groq'} API Key`,
-                desc: t?.apiKeyDesc || 'Required for audio transcription. Your key is used only for Whisper API calls.',
+                name: t?.apiKey || `${whisperProviderName} API Key`,
+                desc: descText,
                 secretId: PLUGIN_SECRET_IDS.AUDIO,
                 currentValue: this.plugin.settings.audioTranscriptionApiKey,
                 placeholder: selectedProvider === 'openai' ? 'sk-...' : 'gsk_...',
