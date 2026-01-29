@@ -43,6 +43,15 @@ Extended `readExternalPdfAsBase64()` to detect HTTP(S) URLs and download PDFs vi
 
 **Build:** 0 TypeScript errors, 825/825 tests passing.
 
+### Review Round 2 Fixes — ✅ COMPLETE
+Fixed 3 findings from second code review.
+
+**Files modified:**
+- `src/commands/translateCommands.ts` — (1) Pass raw path as `link` instead of pre-wrapping with `[[]]`, fixing double-wrapped `[[[[path]]]]` references; (2) Map `source.type === 'document'` to new `'document'` SourceType; (3) Use `transcriptResult.videoInfo?.title || url` for YouTube title
+- `src/utils/noteStructure.ts` — Added `'document'` to `SourceType` union and `'Document'` label in `formatSourceReference()`
+
+**Build:** 0 TypeScript errors, 825/825 tests passing.
+
 ### Review Decisions (documented)
 
 | Finding | Decision | Rationale |
@@ -51,6 +60,9 @@ Extended `readExternalPdfAsBase64()` to detect HTTP(S) URLs and download PDFs vi
 | External audio blocked on all platforms | **Accepted** | Summarize does the same. "External audio" means files outside vault, not in-note recordings. Vault audio works. |
 | External PDF URLs fail | **Phase 3 ✅** | `readExternalPdfAsBase64()` now detects HTTP(S) URLs and downloads via `requestUrl`. |
 | Wikilink cleanup missing | **Phase 2 ✅** | Cross-cutting fix for both summarize and translate. Implemented. |
+| Internal refs double-wrapped | **Fixed ✅** | Pass raw path as `link`; `formatSourceReference()` adds `[[]]`. |
+| Documents labeled as "Note" | **Fixed ✅** | Added `'document'` SourceType with `'Document'` label. |
+| YouTube title uses URL | **Fixed ✅** | Use `videoInfo?.title` from transcript result. |
 
 ## Overview
 Enhance the translate command to detect embedded multi-source content (URLs, YouTube, PDFs, documents, audio) in the note and let the user select which sources to translate, similar to multi-source summarization.
