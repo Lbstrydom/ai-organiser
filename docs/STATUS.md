@@ -1,12 +1,55 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.16
-**Last Updated:** January 27, 2026
-**Status:** Feature Complete - Obsidian API Upgrade Complete (Ready for Signoff)
+**Last Updated:** January 29, 2026
+**Status:** Feature Complete - Multi-Source Translation Complete
 
 ---
 
 ## Recent Updates
+
+### Multi-Source Translation Feature Complete (2026-01-29)
+
+✅ **All 3 Phases + 2 Review Rounds Complete**
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Phase 1 | Multi-Source Translation | ✅ Complete |
+| Phase 2 | Wikilink Source Cleanup | ✅ Complete |
+| Phase 3 | External PDF URL Download | ✅ Complete |
+| Review Round 2 | 3 code fixes (double-wrap, document type, YouTube title) | ✅ Complete |
+| Review Round 3 | 4 doc fixes (plan consistency) | ✅ Complete |
+
+**Build Status**: 825 tests passing (35 suites) ✅
+
+**New Files Created:**
+- `src/services/apiKeyHelpers.ts` — shared API key resolution (YouTube Gemini, audio transcription)
+- `src/services/pdfTranslationService.ts` — shared PDF provider config + multimodal translation
+- `tests/pdfService.test.ts` — 11 tests for external PDF URL download
+
+**Key Files Modified:**
+- `src/commands/translateCommands.ts` — smart dispatch, multi-source orchestrator, sequential processing
+- `src/ui/modals/MultiSourceModal.ts` — parameterized for translate mode (language selector, CTA)
+- `src/services/pdfService.ts` — URL download support for external PDFs (HTTPS, 20MB limit)
+- `src/utils/sourceDetection.ts` — wikilink cleanup in `removeProcessedSources()`
+- `src/utils/noteStructure.ts` — added `'document'` SourceType
+- `src/services/prompts/translatePrompts.ts` — source context (type, title) for better translations
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — translate modal + message keys
+
+**Feature Summary:**
+- Smart dispatch: selection → translate selection; no selection + sources → multi-source modal; no selection + no sources → translate note
+- Multi-source modal reuse: parameterized existing `MultiSourceModal` with translate mode config
+- Source types: URLs, YouTube, PDFs (vault + external), documents, audio
+- Sequential processing with per-source progress notices
+- Error isolation: failed sources don't block others
+- Privacy consent gating before external fetch
+- Content chunking for large sources via `chunkContent()` + `getMaxContentChars()`
+- Wikilink cleanup after processing (cross-cutting fix for summarize + translate)
+- External PDF download via Obsidian `requestUrl` (cross-cutting fix)
+
+**Documentation**: `docs/completed/translate-plan.md`
+
+---
 
 ### Obsidian API Upgrade Complete - Ready for Signoff (2026-01-27)
 
@@ -256,7 +299,7 @@ main.ts (Plugin)
 | **Summarization** | URL, PDF, YouTube, Audio | 5 personas, RAG-enhanced, Gemini-native YouTube, 6hr+ audio chunking |
 | **Meeting Minutes** | Create meeting minutes | Persona-based, transcript chunking, Obsidian Tasks |
 | **Smart Notes** | Improve, Find resources, Diagrams | AI personas, Mermaid support |
-| **Translation** | Note, Selection | 20+ languages |
+| **Translation** | Note, Selection, Multi-Source | 20+ languages, URL/YouTube/PDF/audio/document sources |
 | **Semantic Search** | Search, Index, Related notes | Voy WASM, 5 embedding providers |
 | **NotebookLM** | Export, Toggle, Clear, Open folder | Sanitized source packs, modular export |
 | **Utilities** | Tag network, Export flashcards | D3.js visualization, Anki/Brainscape |
@@ -476,7 +519,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 802 unit tests (34 suites)
+npm test           # Run 825 unit tests (35 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

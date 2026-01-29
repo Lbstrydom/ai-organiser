@@ -179,7 +179,7 @@ Commands registered in `src/commands/`:
 - `predefinedTagsCommands.ts`: Assign predefined tags
 - `utilityCommands.ts`: Collect tags, show network visualization
 - `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
-- `translateCommands.ts`: Note and selection translation
+- `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
 - `minutesCommands.ts`: Meeting minutes generation
 
@@ -262,7 +262,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (766 tests, 30 suites)
+npm test              # Run Vitest unit tests (825 tests, 35 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -956,7 +956,39 @@ onOpen() {
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 766 unit tests (30 suites) + 22 automated integration tests
+Total: 825 unit tests (35 suites) + 22 automated integration tests
+
+## Multi-Source Translation
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+Translate note content and external sources (URLs, YouTube, PDFs, documents, audio) into 20+ languages. Uses smart dispatch to detect embedded sources and show multi-source modal when sources are present.
+
+### Smart Dispatch
+
+- **Selection present** → `TranslateModal` → `translateSelection()` (unchanged)
+- **No selection + sources detected** → `MultiSourceModal` (translate mode) → `handleMultiSourceTranslate()`
+- **No selection + no sources** → `TranslateModal` → `translateNote()` (unchanged)
+
+### Key Components
+
+- **`src/commands/translateCommands.ts`**: Smart dispatch, multi-source orchestrator, per-source extraction + translation
+- **`src/services/apiKeyHelpers.ts`**: Shared API key resolution (YouTube Gemini, audio transcription) — extracted from summarize/smartNote for DRY
+- **`src/services/pdfTranslationService.ts`**: Shared PDF provider config + multimodal translation — extracted from summarize for DRY
+- **`src/ui/modals/MultiSourceModal.ts`**: Parameterized for both summarize and translate modes via `MultiSourceModalConfig`
+- **`src/services/prompts/translatePrompts.ts`**: Source context (type, title) for better translations
+
+### Key Patterns
+
+- **Modal reuse**: `MultiSourceModal` parameterized with `mode: 'translate'` — hides persona/focus, shows language selector
+- **Sequential processing**: Sources translated one at a time with progress notices
+- **Error isolation**: Failed sources don't block others; partial results reported
+- **Content chunking**: Large text split via `chunkContent()` + `getMaxContentChars()`
+- **Privacy consent**: `ensurePrivacyConsent()` called once at orchestrator level
+- **Source cleanup**: `removeProcessedSources()` handles URLs, markdown links, and wikilinks
+- **External PDF download**: `pdfService.readExternalPdfAsBase64()` supports HTTP(S) URLs via Obsidian `requestUrl`
 
 ## Documentation
 

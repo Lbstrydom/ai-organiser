@@ -200,7 +200,7 @@ Commands registered in `src/commands/`:
 - `generateCommands.ts`: Tag generation for notes/folders/vault
 - `clearCommands.ts`: Clear tags from notes/folders/vault
 - `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
-- `translateCommands.ts`: Translation commands
+- `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
 - `minutesCommands.ts`: Meeting minutes generation
 - `flashcardCommands.ts`: Flashcard export (Anki/Brainscape)
@@ -828,7 +828,23 @@ onOpen() {
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
 
-Total: 766 unit tests (30 suites) + 22 automated integration tests
+Total: 825 unit tests (35 suites) + 22 automated integration tests
+
+## Multi-Source Translation
+
+**Status**: ✅ Implemented (January 2026)
+
+Translate note content and external sources (URLs, YouTube, PDFs, documents, audio) into 20+ languages.
+
+**Smart Dispatch**: Selection → translate selection; no selection + sources → multi-source modal; no selection + no sources → translate note.
+
+**Key Files**:
+- `src/commands/translateCommands.ts`: Smart dispatch + multi-source orchestrator
+- `src/services/apiKeyHelpers.ts`: Shared YouTube/audio API key resolution (DRY extraction)
+- `src/services/pdfTranslationService.ts`: Shared PDF provider config (DRY extraction)
+- `src/ui/modals/MultiSourceModal.ts`: Parameterized for both summarize and translate modes
+
+**Patterns**: Modal reuse via config, sequential processing with error isolation, content chunking, privacy consent gating, wikilink + URL source cleanup after processing.
 
 ## Documentation
 
