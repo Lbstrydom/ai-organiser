@@ -574,7 +574,7 @@ async function extractAndTranslateYouTube(
     }
 
     // Got transcript - translate it
-    const title = url; // transcribeYouTubeWithGemini doesn't return title info
+    const title = transcriptResult.videoInfo?.title || url;
     const translated = await translateSourceContent(
         plugin, transcriptResult.transcript, targetLanguage, serviceType, 'YouTube transcript', title
     );
@@ -1009,10 +1009,11 @@ function assembleTranslatedOutput(
                 source.type === 'youtube' ? 'youtube' :
                 source.type === 'pdf' ? 'pdf' :
                 source.type === 'audio' ? 'audio' :
-                'note'; // 'document' has no SourceType equivalent
+                source.type === 'document' ? 'document' :
+                'note';
 
             const isInternal = vaultFilePaths.has(source.url);
-            const link = isInternal ? `[[${source.url}]]` : source.url;
+            const link = source.url; // Raw path — formatSourceReference() adds [[]] for internal
 
             const sourceRef: SourceReference = {
                 type: refType,

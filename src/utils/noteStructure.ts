@@ -173,6 +173,7 @@ export type SourceType =
     | 'youtube'
     | 'web'
     | 'pdf'
+    | 'document'
     | 'transcript'
     | 'image'
     | 'note'
@@ -202,6 +203,7 @@ export function formatSourceReference(source: SourceReference): string {
         youtube: 'YouTube',
         web: 'Web',
         pdf: 'PDF',
+        document: 'Document',
         transcript: 'Transcript',
         image: 'Image',
         note: 'Note',
