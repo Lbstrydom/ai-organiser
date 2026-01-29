@@ -3,12 +3,8 @@
  * Commands for generating and improving notes from embedded multimedia content
  */
 
-import { Editor, MarkdownView, Notice, TFile } from 'obsidian';
+import { Editor, MarkdownView, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
-import { detectEmbeddedContent, getExtractableContent, DetectedContent } from '../utils/embeddedContentDetector';
-import { ContentSelectionModal, ContentSelectionResult } from '../ui/modals/ContentSelectionModal';
-import { ContentExtractionService, serviceSupportsMultimodal, ExtractedContent } from '../services/contentExtractionService';
-import { SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { getLanguageNameForPrompt } from '../services/languages';
 import { ensurePrivacyConsent } from '../services/privacyNotice';
 // BUILTIN_PERSONAS no longer imported - using configurationService for summary personas
@@ -20,78 +16,12 @@ import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidD
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
-import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
-import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
-
-import { getYouTubeGeminiApiKey } from '../services/apiKeyHelpers';
+import { SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
+import { getServiceType, summarizeText } from '../services/llmFacade';
 
 
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
-    const extractionService = new ContentExtractionService(plugin.app);
-
-    // Command: Generate note from embedded content (merged single command)
-    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
-    plugin.addCommand({
-        id: 'generate-from-embedded',
-        name: plugin.t.commands.generateFromEmbedded || 'Generate note from embedded content',
-        icon: 'sparkles',
-        callback: async () => {
-            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            if (!view?.file) {
-                new Notice(plugin.t.messages.openNote);
-                return;
-            }
-            const editor = view.editor;
-
-            const geminiApiKey = await getYouTubeGeminiApiKey(plugin);
-            extractionService.setYouTubeGeminiConfig(geminiApiKey ? {
-                apiKey: geminiApiKey,
-                model: plugin.settings.youtubeGeminiModel,
-                timeoutMs: plugin.settings.summarizeTimeoutSeconds * 1000
-            } : undefined);
-
-            const content = await plugin.app.vault.read(view.file);
-
-            // Detect embedded content
-            const detected = detectEmbeddedContent(plugin.app, content, view.file);
-            const extractable = getExtractableContent(detected);
-
-            if (extractable.length === 0) {
-                new Notice(plugin.t.messages.noEmbeddedContent || 'No extractable content found in this note');
-                return;
-            }
-
-            // Check if note has text content (excluding frontmatter and embedded syntax)
-            const noteHasText = hasTextContent(content);
-
-            // Show selection modal
-            const modal = new ContentSelectionModal(
-                plugin.app,
-                plugin.t,
-                extractable,
-                noteHasText,
-                async (result: ContentSelectionResult) => {
-                    if (result.cancelled || result.selectedItems.length === 0) {
-                        if (!result.cancelled) {
-                            new Notice(plugin.t.messages.noItemsSelected || 'No items selected');
-                        }
-                        return;
-                    }
-
-                    await processSelectedContent(
-                        plugin,
-                        extractionService,
-                        editor,
-                        view.file!,
-                        result.selectedItems,
-                        result.includeNoteText ? content : null
-                    );
-                }
-            );
-            modal.open();
-        }
-    });
 
     // Command: Enhance note (action menu)
     plugin.addCommand({
@@ -275,129 +205,6 @@ async function generateMermaidDiagram(
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
         new Notice(`${plugin.t.messages.diagramGenerationFailed}: ${errorMessage}`, 5000);
-    }
-}
-
-/**
- * Check if content has meaningful text beyond frontmatter and embedded syntax
- */
-function hasTextContent(content: string): boolean {
-    // Remove frontmatter
-    let textContent = content.replace(/^---[\s\S]*?---\n?/, '');
-
-    // Remove embedded syntax
-    textContent = textContent.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
-    textContent = textContent.replace(/!\[\[([^\]]+)\]\]/g, '');
-    textContent = textContent.replace(/\[([^\]]+)\]\([^)]+\)/g, '');
-    textContent = textContent.replace(/\[\[([^\]]+)\]\]/g, '');
-
-    // Remove whitespace and check if anything remains
-    textContent = textContent.replace(/\s+/g, '').trim();
-
-    return textContent.length > MIN_TEXT_CONTENT_CHARS; // At least some actual content
-}
-
-/**
- * Process selected content items
- */
-async function processSelectedContent(
-    plugin: AIOrganiserPlugin,
-    extractionService: ContentExtractionService,
-    editor: Editor,
-    file: TFile,
-    selectedItems: DetectedContent[],
-    existingNoteText: string | null
-): Promise<void> {
-    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
-
-    // Privacy notice gating (centralized)
-    {
-        const proceed = await ensurePrivacyConsent(plugin, serviceType);
-        if (!proceed) return;
-    }
-
-    // Check if service supports multimodal (for images/PDFs)
-    const hasBinaryContent = selectedItems.some(item =>
-        item.type === 'image' || item.type === 'pdf'
-    );
-
-    if (hasBinaryContent && !serviceSupportsMultimodal(serviceType)) {
-        new Notice(
-            plugin.t.messages.multimodalNotSupported ||
-            'Images and PDFs require Claude or Gemini. Text content will still be processed.'
-        );
-
-        // Filter out binary content
-        selectedItems = selectedItems.filter(item =>
-            item.type !== 'image' && item.type !== 'pdf'
-        );
-
-        if (selectedItems.length === 0) {
-            new Notice(plugin.t.messages.noTextContent || 'No text-based content to process');
-            return;
-        }
-    }
-
-    // Extract content from selected items
-    new Notice(plugin.t.messages.extractingContent || 'Extracting content...');
-
-    const extractionResult = await extractionService.extractContent(
-        selectedItems,
-        (current, total, item) => {
-            new Notice(`${plugin.t.messages.extracting || 'Extracting'} ${current}/${total}: ${item}`);
-        }
-    );
-
-    // Report errors
-    if (extractionResult.errors.length > 0) {
-        console.warn('[AI Organiser] Extraction errors:', extractionResult.errors);
-        const errorMsg = (plugin.t.minutes?.extractionErrors || '{count} item(s) failed to extract')
-            .replace('{count}', String(extractionResult.errors.length));
-        new Notice(errorMsg, 3000);
-    }
-
-    const successfulItems = extractionResult.items.filter(i => i.success);
-    if (successfulItems.length === 0) {
-        new Notice(plugin.t.messages.extractionFailed || 'Failed to extract any content');
-        return;
-    }
-
-    // Build prompt - get persona from configuration service
-    const configService = plugin.configService;
-    const personaPrompt = await configService.getSummaryPersonaPrompt(plugin.settings.defaultSummaryPersona);
-    const persona = await configService.getSummaryPersonaById(plugin.settings.defaultSummaryPersona)
-        || await configService.getDefaultSummaryPersona();
-
-    const promptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-    };
-
-    // Check if we have binary content to send
-    const binaryItems = extractionService.getBinaryItems(successfulItems);
-    const textPrompt = extractionService.buildCombinedPrompt(
-        successfulItems,
-        existingNoteText,
-        persona.prompt
-    );
-
-    new Notice(plugin.t.messages.generatingNote);
-
-    try {
-        const response = binaryItems.length > 0 && serviceSupportsMultimodal(serviceType)
-            ? await analyzeMultipleContent({ llmService: plugin.llmService, settings: plugin.settings }, binaryItems, textPrompt)
-            : await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, textPrompt);
-
-        if (response.success && response.content) {
-            insertGeneratedNote(editor, response.content, successfulItems, plugin);
-            new Notice(plugin.t.messages.noteGenerated, 3000);
-        } else {
-            new Notice(`${plugin.t.messages.generationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
-        new Notice(`${plugin.t.messages.generationFailed}: ${errorMessage}`, 5000);
     }
 }
 
@@ -587,35 +394,3 @@ function parseSearchTerms(response: string): string[] {
         .slice(0, 5);
 }
 
-// Privacy notice gating is centralized via ensurePrivacyConsent()
-
-/**
- * Insert generated note into editor
- */
-function insertGeneratedNote(
-    editor: Editor,
-    content: string,
-    sources: ExtractedContent[],
-    plugin: AIOrganiserPlugin
-): void {
-    const cursor = editor.getCursor();
-    let output = '';
-
-    // Add sources section if metadata is enabled
-    if (plugin.settings.includeSummaryMetadata && sources.length > 0) {
-        output += '\n\n---\n\n### Sources\n\n';
-        for (const source of sources) {
-            const item = source.source;
-            if (item.isExternal) {
-                output += `- [${item.displayName}](${item.url})\n`;
-            } else {
-                output += `- [[${item.url}|${item.displayName}]]\n`;
-            }
-        }
-    }
-
-    // Insert content first, then sources
-    const finalOutput = content + output;
-    editor.replaceRange(finalOutput, cursor);
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
-}

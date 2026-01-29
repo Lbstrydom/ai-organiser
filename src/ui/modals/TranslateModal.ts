@@ -10,10 +10,12 @@ import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languag
 export interface TranslateResult {
     targetLanguage: string;
     targetLanguageName: string;
+    insertAtCursor: boolean;
 }
 
 export class TranslateModal extends Modal {
     private targetLanguage: string = 'en';
+    private insertAtCursorEnabled = false;
     private readonly onSubmit: (result: TranslateResult) => void;
     private readonly t: Translations;
 
@@ -52,6 +54,14 @@ export class TranslateModal extends Modal {
                 dropdown.onChange(value => this.targetLanguage = value);
             });
 
+        // Insert at cursor toggle
+        new Setting(contentEl)
+            .setName(this.t.modals.translate?.insertAtCursor || 'Insert at cursor')
+            .setDesc(this.t.modals.translate?.insertAtCursorDesc || 'Add translation at cursor instead of replacing note')
+            .addToggle(toggle => toggle
+                .setValue(this.insertAtCursorEnabled)
+                .onChange(value => this.insertAtCursorEnabled = value));
+
         new Setting(contentEl)
             .addButton(btn => btn
                 .setButtonText(this.t.modals.translate?.translateButton || 'Translate')
@@ -69,7 +79,8 @@ export class TranslateModal extends Modal {
         this.close();
         this.onSubmit({
             targetLanguage: this.targetLanguage,
-            targetLanguageName: lang?.name || this.targetLanguage
+            targetLanguageName: lang?.name || this.targetLanguage,
+            insertAtCursor: this.insertAtCursorEnabled
         });
     }
 

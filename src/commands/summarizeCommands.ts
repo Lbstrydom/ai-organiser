@@ -48,6 +48,7 @@ import { DocumentExtractionService } from '../services/documentExtractionService
 import { summarizeText } from '../services/llmFacade';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
+import { SummaryResultModal } from '../ui/modals/SummaryResultModal';
 
 /**
  * Update note with structured metadata after summarization
@@ -2051,18 +2052,17 @@ async function summarizeAudioAndInsert(
         }
 
         if (response.success && response.content) {
-            insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath, true);
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
             // Still insert metadata with error message
-            insertAudioSummary(editor, `[Summarization failed: ${response.error || 'No content returned'}]`, file, duration, plugin, transcriptPath);
+            await insertAudioSummary(editor, `[Summarization failed: ${response.error || 'No content returned'}]`, file, duration, plugin, transcriptPath);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         new Notice(`Error summarizing: ${errorMessage}`);
         // Still insert metadata with error message
-        insertAudioSummary(editor, `[Error: ${errorMessage}]`, file, duration, plugin, transcriptPath);
+        await insertAudioSummary(editor, `[Error: ${errorMessage}]`, file, duration, plugin, transcriptPath);
     }
 }
 
@@ -2133,15 +2133,12 @@ async function summarizeAudioInChunks(
         const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
         if (response.success && response.content) {
-            insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath, true);
         } else {
-            insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+            await insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath, true);
         }
     } catch (error) {
-        insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath);
-        new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+        await insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath, true);
     }
 }
 
@@ -2149,15 +2146,15 @@ async function summarizeAudioInChunks(
  * Insert audio summary into editor with metadata
  * Adds source to References section
  */
-function insertAudioSummary(
+async function insertAudioSummary(
     editor: Editor,
     summary: string,
     file: AudioFileInfo,
     duration: number | undefined,
     plugin: AIOrganiserPlugin,
-    transcriptPath?: string | null
-): void {
-    const cursor = editor.getCursor();
+    transcriptPath?: string | null,
+    showPreview = false
+): Promise<void> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -2171,20 +2168,38 @@ function insertAudioSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    // Insert summary at cursor
-    editor.replaceRange(output, cursor);
+    const doInsert = () => {
+        const cursor = editor.getCursor();
+        editor.replaceRange(output, cursor);
 
-    // Add source to References section
-    const sourceRef: SourceReference = {
-        type: 'audio',
-        title: file.basename,
-        link: file.path,
-        date: getTodayDate(),
-        duration: duration ? formatDuration(duration) : undefined,
-        isInternal: true
+        const sourceRef: SourceReference = {
+            type: 'audio',
+            title: file.basename,
+            link: file.path,
+            date: getTodayDate(),
+            duration: duration ? formatDuration(duration) : undefined,
+            isInternal: true
+        };
+        addToReferencesSection(editor, sourceRef);
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
-    addToReferencesSection(editor, sourceRef);
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
+
+    if (showPreview) {
+        return new Promise<void>((resolve) => {
+            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+                if (action === 'cursor') {
+                    doInsert();
+                    new Notice(plugin.t.messages.summaryInserted);
+                } else if (action === 'copy') {
+                    navigator.clipboard.writeText(output);
+                    new Notice('Copied to clipboard');
+                }
+                resolve();
+            }).open();
+        });
+    } else {
+        doInsert();
+    }
 }
 
 /**
@@ -2282,7 +2297,7 @@ async function handleYouTubeSummarization(
         }
 
         // Insert summary into editor with transcript link if available
-        insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath);
+        await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
 
         // Update metadata with persona if structured metadata is enabled
         if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
@@ -2336,8 +2351,7 @@ async function summarizeYouTubeAndInsert(
         const response = await summarizeTextWithLLM(plugin, prompt);
 
         if (response.success && response.content) {
-            insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
 
             // Update metadata with persona if structured metadata is enabled
             if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -2432,8 +2446,7 @@ async function summarizeYouTubeInChunks(
         const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
         if (response.success && response.content) {
-            insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
 
             // Update metadata with persona if structured metadata is enabled
             if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -2452,12 +2465,10 @@ async function summarizeYouTubeInChunks(
                 }
             }
         } else {
-            insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath);
-            new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+            await insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath, true);
         }
     } catch (error) {
-        insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath);
-        new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+        await insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath, true);
     }
 }
 
@@ -2465,14 +2476,14 @@ async function summarizeYouTubeInChunks(
  * Insert YouTube summary into editor with metadata
  * Adds source to References section
  */
-function insertYouTubeSummary(
+async function insertYouTubeSummary(
     editor: Editor,
     summary: string,
     videoInfo: YouTubeVideoInfo | undefined,
     plugin: AIOrganiserPlugin,
-    transcriptPath?: string | null
-): void {
-    const cursor = editor.getCursor();
+    transcriptPath?: string | null,
+    showPreview = false
+): Promise<void> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata && videoInfo) {
@@ -2486,22 +2497,40 @@ function insertYouTubeSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    // Insert summary at cursor
-    editor.replaceRange(output, cursor);
+    const doInsert = () => {
+        const cursor = editor.getCursor();
+        editor.replaceRange(output, cursor);
 
-    // Add source to References section
-    if (videoInfo) {
-        const sourceRef: SourceReference = {
-            type: 'youtube',
-            title: videoInfo.title,
-            link: getYouTubeUrl(videoInfo.videoId),
-            author: videoInfo.channelName,
-            date: getTodayDate(),
-            isInternal: false
-        };
-        addToReferencesSection(editor, sourceRef);
+        if (videoInfo) {
+            const sourceRef: SourceReference = {
+                type: 'youtube',
+                title: videoInfo.title,
+                link: getYouTubeUrl(videoInfo.videoId),
+                author: videoInfo.channelName,
+                date: getTodayDate(),
+                isInternal: false
+            };
+            addToReferencesSection(editor, sourceRef);
+        }
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    };
+
+    if (showPreview) {
+        return new Promise<void>((resolve) => {
+            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+                if (action === 'cursor') {
+                    doInsert();
+                    new Notice(plugin.t.messages.summaryInserted);
+                } else if (action === 'copy') {
+                    navigator.clipboard.writeText(output);
+                    new Notice('Copied to clipboard');
+                }
+                resolve();
+            }).open();
+        });
+    } else {
+        doInsert();
     }
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
 }
 
 // Privacy notice gating is centralized via ensurePrivacyConsent()
@@ -2576,8 +2605,7 @@ async function summarizeAndInsert(
 
                 if (structured) {
                     // Insert body content
-                    insertWebSummary(editor, structured.body_content, webContent, plugin);
-                    new Notice(plugin.t.messages.summaryInserted);
+                    await insertWebSummary(editor, structured.body_content, webContent, plugin, true);
 
                     // Update metadata - must save editor first to prevent race condition
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -2623,8 +2651,7 @@ async function summarizeAndInsert(
             const response = await summarizeTextWithLLM(plugin, prompt);
 
             if (response.success && response.content) {
-                insertWebSummary(editor, response.content, webContent, plugin);
-                new Notice(plugin.t.messages.summaryInserted);
+                await insertWebSummary(editor, response.content, webContent, plugin, true);
             } else {
                 new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
             }
@@ -2702,17 +2729,14 @@ async function summarizeInChunks(
         const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
         if (response.success && response.content) {
-            insertWebSummary(editor, response.content, webContent, plugin);
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertWebSummary(editor, response.content, webContent, plugin, true);
         } else {
             // Fall back to concatenated summaries
-            insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin);
-            new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+            await insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin, true);
         }
     } catch (error) {
         // Fall back to concatenated summaries
-        insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin);
-        new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
+        await insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin, true);
     }
 }
 
@@ -3082,14 +3106,13 @@ export async function summarizePdfWithFullWorkflow(
  * Insert web summary into editor
  * Adds source to References section
  */
-function insertWebSummary(
+async function insertWebSummary(
     editor: Editor,
     summary: string,
     webContent: WebContent,
-    plugin: AIOrganiserPlugin
-): void {
-    const cursor = editor.getCursor();
-
+    plugin: AIOrganiserPlugin,
+    showPreview = false
+): Promise<void> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3110,31 +3133,45 @@ function insertWebSummary(
         }
     }
 
-    // Insert summary at cursor
-    editor.replaceRange(output, cursor);
+    const doInsert = () => {
+        const cursor = editor.getCursor();
+        editor.replaceRange(output, cursor);
 
-    // Add primary source to References section
-    let sourceName = webContent.siteName || 'Source';
-    try {
-        sourceName = webContent.siteName || new URL(webContent.url).hostname;
-    } catch {
-        // Keep default
-    }
+        let sourceName = webContent.siteName || 'Source';
+        try {
+            sourceName = webContent.siteName || new URL(webContent.url).hostname;
+        } catch {
+            // Keep default
+        }
 
-    const sourceRef: SourceReference = {
-        type: 'web',
-        title: webContent.title || sourceName,
-        link: webContent.url,
-        author: webContent.byline || undefined,
-        date: webContent.fetchedAt.toISOString().split('T')[0],
-        isInternal: false
+        const sourceRef: SourceReference = {
+            type: 'web',
+            title: webContent.title || sourceName,
+            link: webContent.url,
+            author: webContent.byline || undefined,
+            date: webContent.fetchedAt.toISOString().split('T')[0],
+            isInternal: false
+        };
+        addToReferencesSection(editor, sourceRef);
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
-    addToReferencesSection(editor, sourceRef);
 
-    // Note: We don't add to Pending Integration because the URL has been processed
-    // Pending Integration is for raw content that hasn't been summarized yet
-
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
+    if (showPreview) {
+        return new Promise<void>((resolve) => {
+            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+                if (action === 'cursor') {
+                    doInsert();
+                    new Notice(plugin.t.messages.summaryInserted);
+                } else if (action === 'copy') {
+                    navigator.clipboard.writeText(output);
+                    new Notice('Copied to clipboard');
+                }
+                resolve();
+            }).open();
+        });
+    } else {
+        doInsert();
+    }
 }
 
 /**

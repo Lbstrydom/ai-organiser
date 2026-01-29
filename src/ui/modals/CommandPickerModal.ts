@@ -173,13 +173,6 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:create-meeting-minutes')
                 },
                 {
-                    id: 'generate-from-embedded',
-                    name: t.commands.generateFromEmbedded,
-                    icon: 'file-symlink',
-                    aliases: ['embedded', 'linked', 'generate'],
-                    callback: () => executeCommand('ai-organiser:generate-from-embedded')
-                },
-                {
                     id: 'notebooklm-export',
                     name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
                     icon: 'file-output',

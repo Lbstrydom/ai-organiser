@@ -8,6 +8,7 @@ import type AIOrganiserPlugin from '../main';
 import { TranslateModal } from '../ui/modals/TranslateModal';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
+import { insertAtCursor } from '../utils/editorUtils';
 import {
     replaceMainContent,
     ensureNoteStructureIfEnabled,
@@ -125,7 +126,8 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                             editor,
                             content,
                             result.targetLanguageName,
-                            plugin.t.messages.translatingFullNote
+                            plugin.t.messages.translatingFullNote,
+                            result.insertAtCursor
                         );
                     }
                 );
@@ -143,7 +145,8 @@ async function translateNote(
     editor: Editor,
     content: string,
     targetLanguage: string,
-    noticeMessage?: string
+    noticeMessage?: string,
+    useInsertAtCursor = false
 ): Promise<void> {
     new Notice(noticeMessage || plugin.t.messages.translating);
 
@@ -154,8 +157,12 @@ async function translateNote(
         const response = await translateWithLLM(plugin, prompt);
 
         if (response.success && response.content) {
-            // Replace main content while preserving References and Pending Integration sections
-            replaceMainContent(editor, response.content);
+            if (useInsertAtCursor) {
+                insertAtCursor(editor, response.content);
+            } else {
+                // Replace main content while preserving References and Pending Integration sections
+                replaceMainContent(editor, response.content);
+            }
 
             // Ensure standard structure exists after translation
             ensureNoteStructureIfEnabled(editor, plugin.settings);

@@ -22,7 +22,6 @@ function createMockTranslations(): Translations {
             summarizeFromYouTube: 'Summarize from YouTube',
             summarizeFromAudio: 'Summarize from Audio',
             createMeetingMinutes: 'Create Meeting Minutes',
-            generateFromEmbedded: 'Generate from Embedded',
             notebookLMExport: 'NotebookLM: Export Source Pack',
             enhance: 'Enhance',
             improveNote: 'Improve Note',
@@ -124,7 +123,6 @@ describe('Command Picker', () => {
                 const commandIds = createCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('smart-summarize');
                 expect(commandIds).toContain('create-meeting-minutes');
-                expect(commandIds).toContain('generate-from-embedded');
                 expect(commandIds).toContain('notebooklm-export');
             });
         });

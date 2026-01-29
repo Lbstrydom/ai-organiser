@@ -433,7 +433,6 @@ export const en: Translations = {
         tag: "Tag",
         clearTags: "Clear tags",
         enhance: "Enhance",
-        generateFromEmbedded: "Generate from embedded",
         improveNote: "Improve with AI",
         findResources: "Find resources",
         openCommandPicker: "Commands",
@@ -765,7 +764,9 @@ export const en: Translations = {
             description: "Select the target language for translation. The entire note content will be translated.",
             languageLabel: "Target Language",
             languageDesc: "The language to translate the note into",
-            translateButton: "Translate"
+            translateButton: "Translate",
+            insertAtCursor: "Insert at cursor",
+            insertAtCursorDesc: "Add translation at cursor instead of replacing note"
         },
         summarizeSource: {
             title: "Summarize",
@@ -886,18 +887,6 @@ export const en: Translations = {
             applyButton: "Apply Selected",
             skipButton: "Skip",
             noSuggestions: "No title or folder suggestions for this note."
-        },
-        contentSelection: {
-            title: "Select Content to Extract",
-            description: "Choose which embedded and linked content to include in the generated note.",
-            includeNoteText: "Include existing note text",
-            includeNoteTextDesc: "Include the current text content of the note as context",
-            selectAll: "Select All",
-            deselectAll: "Deselect All",
-            generateButton: "Generate Note",
-            embedded: "Embedded",
-            external: "External",
-            notFound: "Not Found"
         },
         improveNote: {
             title: "Improve Note",
@@ -1140,7 +1129,27 @@ export const en: Translations = {
             title: "Integrate Pending Content",
             description: "The AI will merge your pending content into the main note by topic.",
             personaLabel: "Writing style:",
-            confirmButton: "Integrate"
+            confirmButton: "Integrate",
+            placementLabel: "Placement",
+            placementDesc: "Where to put the integrated content",
+            placementCursor: "Insert at cursor",
+            placementAppend: "Add as new section(s)",
+            placementCallout: "Add as inline callouts",
+            placementMerge: "Merge into existing sections",
+            placementMergeWarn: "Rewrites note body — use with care",
+            formatLabel: "Format",
+            formatDesc: "How the output should be structured",
+            formatProse: "Prose",
+            formatBullets: "Bullet points",
+            formatTasks: "Action items",
+            formatTable: "Table",
+            detailLabel: "Detail level",
+            detailDesc: "How much detail to include from pending content",
+            detailFull: "Full detail",
+            detailConcise: "Concise",
+            detailSummary: "Summary only",
+            autoTagLabel: "Re-tag note after integration",
+            autoTagDesc: "Run AI tagging on the updated note"
         },
         quickAddText: {
             title: "Quick Add to Pending",
@@ -1152,6 +1161,12 @@ export const en: Translations = {
             description: "Paste a URL. Use \"Summarize URL\" command first if you want to fetch and summarize the content.",
             urlLabel: "URL",
             urlPlaceholder: "https://..."
+        },
+        summaryResult: {
+            title: "Summary Result",
+            insertAtCursor: "Insert at cursor",
+            copyToClipboard: "Copy to clipboard",
+            discard: "Discard"
         },
         chatWithVault: {
             title: "Chat with Vault",

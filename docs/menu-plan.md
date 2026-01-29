@@ -439,12 +439,12 @@ summaryResult: {
 
 ## Implementation Sequence
 
-1. Remove `generate-from-embedded` (Part 1) — clean deletion
-2. Create `src/utils/editorUtils.ts` — shared insertion utility (Part 4)
-3. Create `src/services/prompts/integrationPrompts.ts` — prompt helpers
-4. Add constants — types + defaults in `constants.ts`
-5. Add i18n keys — `types.ts`, `en.ts`, `zh-cn.ts` (integration + translate + summary result)
-6. Update `IntegrationConfirmModal` — 3 dropdowns + toggle
+1. ~~Remove `generate-from-embedded` (Part 1) — clean deletion~~ **DONE**
+2. ~~Create `src/utils/editorUtils.ts` — shared insertion utility (Part 4)~~ **DONE**
+3. ~~Create `src/services/prompts/integrationPrompts.ts` — prompt helpers~~ **DONE**
+4. ~~Add constants — types + defaults in `constants.ts`~~ **DONE**
+5. ~~Add i18n keys — `types.ts`, `en.ts`, `zh-cn.ts` (integration + translate + summary result)~~ **DONE** (integration + translate; summary result pending)
+6. Update `IntegrationConfirmModal` — 3 dropdowns + toggle — **NEXT**
 7. Update `buildIntegrationPrompt()` — import prompt helpers, add strategy params
 8. Update command handler — branch on placement using `editorUtils`
 9. Update `TranslateModal` + `translateNote()` — insert-at-cursor toggle using `editorUtils`

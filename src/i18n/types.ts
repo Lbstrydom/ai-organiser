@@ -420,7 +420,6 @@ export interface Translations {
         tag: string;
         clearTags: string;
         enhance: string;
-        generateFromEmbedded: string;
         improveNote: string;
         findResources: string;
         openCommandPicker: string;
@@ -764,6 +763,8 @@ export interface Translations {
             languageLabel: string;
             languageDesc: string;
             translateButton: string;
+            insertAtCursor: string;
+            insertAtCursorDesc: string;
         };
         summarizeSource: {
             title: string;
@@ -884,18 +885,6 @@ export interface Translations {
             applyButton: string;
             skipButton: string;
             noSuggestions: string;
-        };
-        contentSelection: {
-            title: string;
-            description: string;
-            includeNoteText: string;
-            includeNoteTextDesc: string;
-            selectAll: string;
-            deselectAll: string;
-            generateButton: string;
-            embedded: string;
-            external: string;
-            notFound: string;
         };
         improveNote: {
             title: string;
@@ -1139,6 +1128,26 @@ export interface Translations {
             description: string;
             personaLabel: string;
             confirmButton: string;
+            placementLabel: string;
+            placementDesc: string;
+            placementCursor: string;
+            placementAppend: string;
+            placementCallout: string;
+            placementMerge: string;
+            placementMergeWarn: string;
+            formatLabel: string;
+            formatDesc: string;
+            formatProse: string;
+            formatBullets: string;
+            formatTasks: string;
+            formatTable: string;
+            detailLabel: string;
+            detailDesc: string;
+            detailFull: string;
+            detailConcise: string;
+            detailSummary: string;
+            autoTagLabel: string;
+            autoTagDesc: string;
         };
         quickAddText: {
             title: string;
@@ -1150,6 +1159,12 @@ export interface Translations {
             description: string;
             urlLabel: string;
             urlPlaceholder: string;
+        };
+        summaryResult: {
+            title: string;
+            insertAtCursor: string;
+            copyToClipboard: string;
+            discard: string;
         };
         chatWithVault: {
             title: string;

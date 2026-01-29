@@ -91,3 +91,11 @@ export const SEARCH_TERM_SNIPPET_CHARS = 2000;
 // Truncation choice types
 export type TruncationChoice = 'truncate' | 'full' | 'skip';
 export type OversizedBehavior = 'ask' | 'truncate' | 'full';
+
+// Integration strategy types
+export type PlacementStrategy = 'cursor' | 'append' | 'callout' | 'merge';
+export type FormatStrategy = 'prose' | 'bullets' | 'tasks' | 'table';
+export type DetailStrategy = 'full' | 'concise' | 'summary';
+export const DEFAULT_PLACEMENT_STRATEGY: PlacementStrategy = 'cursor';
+export const DEFAULT_FORMAT_STRATEGY: FormatStrategy = 'prose';
+export const DEFAULT_DETAIL_STRATEGY: DetailStrategy = 'full';

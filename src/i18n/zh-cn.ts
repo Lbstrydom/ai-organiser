@@ -433,7 +433,6 @@ export const zhCN: Translations = {
         summarizeSmart: "\u667a\u80fd\u603b\u7ed3",
         translateNote: "翻译笔记",
         translateSelection: "翻译选中内容",
-        generateFromEmbedded: "从嵌入内容生成笔记",
         improveNote: "AI 改进笔记",
         findResources: "查找相关资源",
         openCommandPicker: "打开命令选择器",
@@ -765,7 +764,9 @@ export const zhCN: Translations = {
             description: "选择目标语言进行翻译。整个笔记内容将被翻译。",
             languageLabel: "目标语言",
             languageDesc: "笔记将被翻译成的语言",
-            translateButton: "翻译"
+            translateButton: "翻译",
+            insertAtCursor: "插入到光标处",
+            insertAtCursorDesc: "在光标处添加翻译而不是替换笔记"
         },
         summarizeSource: {
             title: "总结",
@@ -886,18 +887,6 @@ export const zhCN: Translations = {
             applyButton: "应用选中",
             skipButton: "跳过",
             noSuggestions: "此笔记没有标题或文件夹建议。"
-        },
-        contentSelection: {
-            title: "选择要提取的内容",
-            description: "选择要包含在生成的笔记中的嵌入和链接内容。",
-            includeNoteText: "包含现有笔记文本",
-            includeNoteTextDesc: "将笔记的当前文本内容作为上下文包含",
-            selectAll: "全选",
-            deselectAll: "取消全选",
-            generateButton: "生成笔记",
-            embedded: "嵌入",
-            external: "外部",
-            notFound: "未找到"
         },
         improveNote: {
             title: "改进笔记",
@@ -1140,7 +1129,27 @@ export const zhCN: Translations = {
             title: "整合待处理内容",
             description: "AI 将按主题把待处理内容合并到主笔记中。",
             personaLabel: "写作风格：",
-            confirmButton: "整合"
+            confirmButton: "整合",
+            placementLabel: "放置方式",
+            placementDesc: "将整合内容放在哪里",
+            placementCursor: "插入到光标处",
+            placementAppend: "添加为新章节",
+            placementCallout: "添加为行内标注",
+            placementMerge: "融入现有章节",
+            placementMergeWarn: "会重写笔记正文——请谨慎使用",
+            formatLabel: "格式",
+            formatDesc: "输出内容的结构方式",
+            formatProse: "散文",
+            formatBullets: "要点列表",
+            formatTasks: "待办事项",
+            formatTable: "表格",
+            detailLabel: "详细程度",
+            detailDesc: "从待处理内容中包含多少细节",
+            detailFull: "完整详情",
+            detailConcise: "简洁",
+            detailSummary: "仅摘要",
+            autoTagLabel: "整合后重新标记",
+            autoTagDesc: "对更新的笔记运行 AI 标记"
         },
         quickAddText: {
             title: "快速添加到待处理",
@@ -1149,9 +1158,15 @@ export const zhCN: Translations = {
         },
         quickAddUrl: {
             title: "添加 URL 到待处理",
-            description: "粘贴一个 URL。如果需要抓取并总结内容，请先使用“Summarize URL”命令。",
+            description: "粘贴一个 URL。如果需要抓取并总结内容，请先使用「Summarize URL」命令。",
             urlLabel: "URL",
             urlPlaceholder: "https://..."
+        },
+        summaryResult: {
+            title: "摘要结果",
+            insertAtCursor: "插入到光标处",
+            copyToClipboard: "复制到剪贴板",
+            discard: "丢弃"
         },
         chatWithVault: {
             title: "与保险库聊天",

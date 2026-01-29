@@ -3,7 +3,7 @@
  * Commands for adding content to Pending Integration and integrating it into notes
  */
 
-import { Editor, Notice, Modal, App, Setting, TextAreaComponent, TFile } from 'obsidian';
+import { Editor, MarkdownView, Notice, Modal, App, Setting, TextAreaComponent, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import type { Translations } from '../i18n';
 import {
@@ -20,7 +20,9 @@ import {
     addToReferencesSection,
     SourceReference
 } from '../utils/noteStructure';
-import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from '../core/constants';
+import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PlacementStrategy, FormatStrategy, DetailStrategy, DEFAULT_PLACEMENT_STRATEGY, DEFAULT_FORMAT_STRATEGY, DEFAULT_DETAIL_STRATEGY } from '../core/constants';
+import { getPlacementInstructions, getFormatInstructions, getDetailInstructions } from '../services/prompts/integrationPrompts';
+import { insertAtCursor, appendAsNewSections } from '../utils/editorUtils';
 import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
@@ -73,11 +75,6 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
 
             const mainContent = getMainContent(editor);
 
-            if (!mainContent.trim()) {
-                new Notice(plugin.t.messages.noMainContentToIntegrateInto);
-                return;
-            }
-
             // Load personas and show confirmation modal with persona selection
             const personas = await plugin.configService.getPersonas();
             const defaultPersona = await plugin.configService.getDefaultPersona();
@@ -87,17 +84,23 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 personas,
                 defaultPersona,
                 plugin.t,
-                async (selectedPersona) => {
+                async (selectedPersona, placement, format, detail, autoTag) => {
+                    // Guard: callout/merge require main content
+                    if ((placement === 'callout' || placement === 'merge') && !mainContent.trim()) {
+                        new Notice(plugin.t.messages.noMainContentToIntegrateInto);
+                        return;
+                    }
+
                     new Notice(plugin.t.messages.integratingContent);
 
                     try {
                         // Get persona prompt
                         const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
 
-                        // Build the integration prompt with persona
-                        const prompt = buildIntegrationPrompt(mainContent, pendingContent, plugin, personaPrompt);
+                        // Build the integration prompt with strategy params
+                        const prompt = buildIntegrationPrompt(mainContent, pendingContent, plugin, personaPrompt, placement, format, detail);
 
-                        // Call the LLM service using the same pattern as summarization
+                        // Call the LLM service
                         const response = await callLLMForIntegration(plugin, prompt);
 
                         if (!response.success || !response.content) {
@@ -106,11 +109,27 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                             return;
                         }
 
-                        // Replace main content while preserving References and Pending sections
-                        replaceMainContent(editor, response.content);
+                        // Apply content based on placement strategy
+                        if (placement === 'cursor') {
+                            insertAtCursor(editor, response.content);
+                        } else if (placement === 'append') {
+                            appendAsNewSections(editor, response.content);
+                        } else {
+                            // callout or merge — rewrite main content
+                            replaceMainContent(editor, response.content);
+                        }
 
                         // Clear the pending integration section
                         clearPendingIntegration(editor);
+
+                        // Auto-tag if requested
+                        if (autoTag) {
+                            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                            if (view?.file) {
+                                const noteContent = await plugin.app.vault.read(view.file);
+                                await plugin.analyzeAndTagNote(view.file, noteContent);
+                            }
+                        }
 
                         showSuccessNotice(plugin.t.messages.contentIntegratedSuccessfully);
 
@@ -411,33 +430,40 @@ function buildIntegrationPrompt(
     mainContent: string,
     pendingContent: string,
     plugin: AIOrganiserPlugin,
-    personaPrompt?: string
+    personaPrompt?: string,
+    placement: PlacementStrategy = DEFAULT_PLACEMENT_STRATEGY,
+    format: FormatStrategy = DEFAULT_FORMAT_STRATEGY,
+    detail: DetailStrategy = DEFAULT_DETAIL_STRATEGY
 ): string {
     const language = plugin.settings.summaryLanguage || 'English';
     const personaSection = personaPrompt ? `\n${personaPrompt}\n` : '';
+    const placementInstructions = getPlacementInstructions(placement);
+    const formatInstructions = getFormatInstructions(format);
+    const detailInstructions = getDetailInstructions(detail);
 
-    return `<task>
-You are helping to integrate new content into an existing note. Merge the pending content with the main content in a way that:
-1. Preserves the existing structure and organization of the main content
-2. Integrates new information into relevant existing sections by topic
-3. Creates new sections only when the new content covers entirely different topics
-4. Maintains a coherent narrative and logical flow
-5. Removes redundancy - don't repeat information that's already in the main content
-6. Preserves important details and nuances from both sources
-</task>
-${personaSection}
-<requirements>
-- Output ONLY the merged content - no explanations or meta-commentary
-- Keep the same writing style as the main content
-- Integrate by topic, not by source
-- If there are conflicting facts, include both with appropriate context
-- Output in ${language}
-</requirements>
+    const needsMainContent = placement === 'callout' || placement === 'merge';
 
+    const mainContentSection = needsMainContent ? `
 <main_content>
 ${mainContent}
 </main_content>
+` : '';
 
+    return `<task>
+You are helping to integrate new content into an existing note.
+
+${placementInstructions}
+</task>
+${personaSection}
+<requirements>
+- Output ONLY the content - no explanations or meta-commentary
+- Keep the same writing style as the main content
+- ${formatInstructions}
+- ${detailInstructions}
+- If there are conflicting facts, include both with appropriate context
+- Output in ${language}
+</requirements>
+${mainContentSection}
 <pending_content_to_integrate>
 ${pendingContent}
 </pending_content_to_integrate>
@@ -456,16 +482,20 @@ Return ONLY the integrated note content. Do not include:
 class IntegrationConfirmModal extends Modal {
     private personas: Persona[];
     private selectedPersona: Persona;
-    private onConfirm: (persona: Persona) => void;
+    private onConfirm: (persona: Persona, placement: PlacementStrategy, format: FormatStrategy, detail: DetailStrategy, autoTag: boolean) => void;
     private personaButtonEl: HTMLElement | null = null;
     private t: Translations;
+    private selectedPlacement: PlacementStrategy = DEFAULT_PLACEMENT_STRATEGY;
+    private selectedFormat: FormatStrategy = DEFAULT_FORMAT_STRATEGY;
+    private selectedDetail: DetailStrategy = DEFAULT_DETAIL_STRATEGY;
+    private autoTag = false;
 
     constructor(
         app: App,
         personas: Persona[],
         defaultPersona: Persona,
         t: Translations,
-        onConfirm: (persona: Persona) => void
+        onConfirm: (persona: Persona, placement: PlacementStrategy, format: FormatStrategy, detail: DetailStrategy, autoTag: boolean) => void
     ) {
         super(app);
         this.personas = personas;
@@ -476,11 +506,12 @@ class IntegrationConfirmModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
+        const ic = this.t.modals.integrationConfirm;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: this.t.modals.integrationConfirm.title });
+        contentEl.createEl('h2', { text: ic.title });
         contentEl.createEl('p', {
-            text: this.t.modals.integrationConfirm.description,
+            text: ic.description,
             cls: 'setting-item-description'
         });
 
@@ -488,7 +519,7 @@ class IntegrationConfirmModal extends Modal {
         if (this.personas.length > 1) {
             const personaRow = contentEl.createEl('div', { cls: 'persona-selector-row' });
             personaRow.createEl('span', {
-                text: this.t.modals.integrationConfirm.personaLabel,
+                text: ic.personaLabel,
                 cls: 'persona-selector-label'
             });
 
@@ -499,17 +530,74 @@ class IntegrationConfirmModal extends Modal {
             );
         }
 
+        // Placement dropdown
+        const placementSetting = new Setting(contentEl)
+            .setName(ic.placementLabel)
+            .setDesc(ic.placementDesc)
+            .addDropdown(dd => dd
+                .addOption('cursor', ic.placementCursor)
+                .addOption('append', ic.placementAppend)
+                .addOption('callout', ic.placementCallout)
+                .addOption('merge', ic.placementMerge)
+                .setValue(this.selectedPlacement)
+                .onChange((value: string) => {
+                    this.selectedPlacement = value as PlacementStrategy;
+                    // Show merge warning dynamically
+                    if (value === 'merge') {
+                        placementSetting.setDesc(ic.placementMergeWarn);
+                    } else {
+                        placementSetting.setDesc(ic.placementDesc);
+                    }
+                }));
+
+        // Format dropdown
+        new Setting(contentEl)
+            .setName(ic.formatLabel)
+            .setDesc(ic.formatDesc)
+            .addDropdown(dd => dd
+                .addOption('prose', ic.formatProse)
+                .addOption('bullets', ic.formatBullets)
+                .addOption('tasks', ic.formatTasks)
+                .addOption('table', ic.formatTable)
+                .setValue(this.selectedFormat)
+                .onChange((value: string) => {
+                    this.selectedFormat = value as FormatStrategy;
+                }));
+
+        // Detail level dropdown
+        new Setting(contentEl)
+            .setName(ic.detailLabel)
+            .setDesc(ic.detailDesc)
+            .addDropdown(dd => dd
+                .addOption('full', ic.detailFull)
+                .addOption('concise', ic.detailConcise)
+                .addOption('summary', ic.detailSummary)
+                .setValue(this.selectedDetail)
+                .onChange((value: string) => {
+                    this.selectedDetail = value as DetailStrategy;
+                }));
+
+        // Auto-tag toggle
+        new Setting(contentEl)
+            .setName(ic.autoTagLabel)
+            .setDesc(ic.autoTagDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.autoTag)
+                .onChange(value => {
+                    this.autoTag = value;
+                }));
+
         // Buttons
         new Setting(contentEl)
             .addButton(btn => btn
                 .setButtonText(this.t.modals.cancel)
                 .onClick(() => this.close()))
             .addButton(btn => btn
-                .setButtonText(this.t.modals.integrationConfirm.confirmButton)
+                .setButtonText(ic.confirmButton)
                 .setCta()
                 .onClick(() => {
                     this.close();
-                    this.onConfirm(this.selectedPersona);
+                    this.onConfirm(this.selectedPersona, this.selectedPlacement, this.selectedFormat, this.selectedDetail, this.autoTag);
                 }));
     }
 

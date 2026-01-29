@@ -1,0 +1,77 @@
+/**
+ * Summary Result Modal
+ * Shows a preview of generated summary content with insert/copy/discard options
+ */
+
+import { App, Modal, Setting, MarkdownRenderer, Component } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
+
+export type SummaryResultAction = 'cursor' | 'copy' | 'discard';
+
+export class SummaryResultModal extends Modal {
+    private plugin: AIOrganiserPlugin;
+    private content: string;
+    private onAction: (action: SummaryResultAction) => void;
+    private component: Component;
+
+    constructor(
+        app: App,
+        plugin: AIOrganiserPlugin,
+        content: string,
+        onAction: (action: SummaryResultAction) => void
+    ) {
+        super(app);
+        this.plugin = plugin;
+        this.content = content;
+        this.onAction = onAction;
+        this.component = new Component();
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        const sr = this.plugin.t.modals.summaryResult;
+        contentEl.empty();
+        contentEl.addClass('ai-organiser-modal-content');
+        contentEl.addClass('ai-organiser-summary-result-modal');
+
+        contentEl.createEl('h2', { text: sr?.title || 'Summary Result' });
+
+        // Scrollable preview area
+        const previewEl = contentEl.createDiv({ cls: 'ai-organiser-summary-preview' });
+        this.component.load();
+        MarkdownRenderer.render(
+            this.app,
+            this.content,
+            previewEl,
+            '',
+            this.component
+        );
+
+        // Action buttons
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText(sr?.discard || 'Discard')
+                .onClick(() => {
+                    this.close();
+                    this.onAction('discard');
+                }))
+            .addButton(btn => btn
+                .setButtonText(sr?.copyToClipboard || 'Copy to clipboard')
+                .onClick(() => {
+                    this.close();
+                    this.onAction('copy');
+                }))
+            .addButton(btn => btn
+                .setButtonText(sr?.insertAtCursor || 'Insert at cursor')
+                .setCta()
+                .onClick(() => {
+                    this.close();
+                    this.onAction('cursor');
+                }));
+    }
+
+    onClose(): void {
+        this.component.unload();
+        this.contentEl.empty();
+    }
+}
