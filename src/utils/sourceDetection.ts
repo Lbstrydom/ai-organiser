@@ -317,18 +317,20 @@ export function hasAnySources(sources: DetectedSources): boolean {
  *
  * @param content - The note content
  * @param urls - URLs to remove
- * @returns Updated content with URLs removed
+ * @param vaultFiles - Optional vault file paths to remove (e.g., ['meeting.pdf', 'recording.mp3'])
+ * @returns Updated content with URLs and vault file references removed
  */
 export function removeProcessedSources(
     content: string,
-    urls: string[]
+    urls: string[],
+    vaultFiles?: string[]
 ): string {
-    if (urls.length === 0) return content;
+    if (urls.length === 0 && (!vaultFiles || vaultFiles.length === 0)) return content;
 
     const lines = content.split('\n');
     const result: string[] = [];
 
-    // Only track References section - URLs are kept there, removed everywhere else
+    // Only track References section - URLs/wikilinks are kept there, removed everywhere else
     let inReferencesSection = false;
 
     for (const line of lines) {
@@ -346,14 +348,14 @@ export function removeProcessedSources(
             inReferencesSection = false;
         }
 
-        // In References section: keep everything (URLs belong here after processing)
+        // In References section: keep everything (URLs/wikilinks belong here after processing)
         if (inReferencesSection) {
             result.push(line);
             continue;
         }
 
-        // In main content or Pending Integration: remove URL lines
-        const shouldRemove = shouldRemoveLine(line, urls);
+        // In main content or Pending Integration: remove URL and wikilink lines
+        const shouldRemove = shouldRemoveLine(line, urls, vaultFiles);
         if (!shouldRemove) {
             result.push(line);
         }
@@ -364,9 +366,10 @@ export function removeProcessedSources(
 }
 
 /**
- * Check if a line should be removed because it contains primarily a URL
+ * Check if a line should be removed because it contains primarily a URL or wikilink
  */
-function shouldRemoveLine(line: string, urls: string[]): boolean {
+function shouldRemoveLine(line: string, urls: string[], vaultFiles?: string[]): boolean {
+    // Check URL patterns
     for (const url of urls) {
         const escaped = escapeRegex(url);
 
@@ -380,6 +383,18 @@ function shouldRemoveLine(line: string, urls: string[]): boolean {
             return true;
         }
     }
+
+    // Check vault file wikilink patterns
+    if (vaultFiles) {
+        for (const filePath of vaultFiles) {
+            const escaped = escapeRegex(filePath);
+            // Combined: optional list marker, optional embed !, [[path optionally |display text]]
+            if (new RegExp(String.raw`^\s*[-*]?\s*!?\[\[` + escaped + String.raw`(?:\|[^\]]*)?]]\s*$`).test(line)) {
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 

@@ -476,6 +476,93 @@ More text`;
 
             expect(result).toBe(content);
         });
+
+        it('should return unchanged content when no URLs and no vaultFiles provided', () => {
+            const content = 'Some content with ![[file.pdf]]';
+            const result = removeProcessedSources(content, [], []);
+
+            expect(result).toBe(content);
+        });
+    });
+
+    describe('Vault Wikilink Removal', () => {
+        it('should remove wikilink on its own line', () => {
+            const content = `Some text\n[[meeting.pdf]]\nMore text`;
+            const result = removeProcessedSources(content, [], ['meeting.pdf']);
+            expect(result).not.toContain('[[meeting.pdf]]');
+            expect(result).toContain('Some text');
+            expect(result).toContain('More text');
+        });
+
+        it('should remove embed wikilink on its own line', () => {
+            const content = `Some text\n![[recording.mp3]]\nMore text`;
+            const result = removeProcessedSources(content, [], ['recording.mp3']);
+            expect(result).not.toContain('![[recording.mp3]]');
+            expect(result).toContain('Some text');
+            expect(result).toContain('More text');
+        });
+
+        it('should remove wikilink with display text', () => {
+            const content = `- [[report.pdf|Q4 Report]]\nNotes`;
+            const result = removeProcessedSources(content, [], ['report.pdf']);
+            expect(result).not.toContain('[[report.pdf|Q4 Report]]');
+            expect(result).toContain('Notes');
+        });
+
+        it('should remove embed wikilink with display text', () => {
+            const content = `![[report.pdf|Q4 Report]]`;
+            const result = removeProcessedSources(content, [], ['report.pdf']);
+            expect(result).not.toContain('![[report.pdf|Q4 Report]]');
+        });
+
+        it('should remove wikilink with list marker', () => {
+            const content = `- [[file.docx]]\n* ![[audio.wav]]`;
+            const result = removeProcessedSources(content, [], ['file.docx', 'audio.wav']);
+            expect(result).not.toContain('[[file.docx]]');
+            expect(result).not.toContain('![[audio.wav]]');
+        });
+
+        it('should NOT remove wikilink inside sentence', () => {
+            const content = 'See the report [[meeting.pdf]] for details.';
+            const result = removeProcessedSources(content, [], ['meeting.pdf']);
+            expect(result).toContain('[[meeting.pdf]]');
+        });
+
+        it('should keep wikilinks in References section', () => {
+            const content = `![[file.pdf]]\n## References\n- [[file.pdf]]\n## Notes`;
+            const result = removeProcessedSources(content, [], ['file.pdf']);
+            expect(result).toContain('## References');
+            expect(result).toContain('- [[file.pdf]]');
+            // The one outside References should be removed
+            expect(result).not.toContain('![[file.pdf]]');
+        });
+
+        it('should handle mixed URLs and wikilinks', () => {
+            const content = `https://example.com\n![[meeting.pdf]]\nNotes`;
+            const result = removeProcessedSources(content, ['https://example.com'], ['meeting.pdf']);
+            expect(result).not.toContain('https://example.com');
+            expect(result).not.toContain('![[meeting.pdf]]');
+            expect(result).toContain('Notes');
+        });
+
+        it('should handle path with subdirectory', () => {
+            const content = `![[Attachments/report.pdf]]`;
+            const result = removeProcessedSources(content, [], ['Attachments/report.pdf']);
+            expect(result).not.toContain('![[Attachments/report.pdf]]');
+        });
+
+        it('should handle path with spaces', () => {
+            const content = `![[My Documents/report.pdf]]`;
+            const result = removeProcessedSources(content, [], ['My Documents/report.pdf']);
+            expect(result).not.toContain('![[My Documents/report.pdf]]');
+        });
+
+        it('should not remove wikilink when multiple on same line', () => {
+            const content = '[[a.pdf]] [[b.pdf]]';
+            const result = removeProcessedSources(content, [], ['a.pdf']);
+            // Line has more than just the wikilink, should be kept
+            expect(result).toContain('[[a.pdf]]');
+        });
     });
 });
 

@@ -22,7 +22,16 @@ All implementation, review fixes, and tests passing. Deployed.
 
 **Build:** 0 TypeScript errors, 678/678 tests passing.
 
-### Phase 2: Wikilink Source Cleanup — PENDING
+### Phase 2: Wikilink Source Cleanup — ✅ COMPLETE
+Extended `removeProcessedSources()` to clean up vault file wikilinks after processing.
+
+**Files modified:**
+- `src/utils/sourceDetection.ts` — added optional `vaultFiles` param to `removeProcessedSources()` and `shouldRemoveLine()`
+- `src/commands/summarizeCommands.ts` — 2 call sites updated to pass vault file paths
+- `src/commands/translateCommands.ts` — 1 call site updated to pass vault file paths
+- `tests/sourceDetection.test.ts` — 11 new wikilink removal tests
+
+**Build:** 0 TypeScript errors, 690/690 tests passing.
 ### Phase 3: External PDF URL Download — PLANNED
 
 ### Review Decisions (documented)

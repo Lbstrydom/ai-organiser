@@ -856,9 +856,15 @@ async function handleMultiSourceResult(
                 .filter((s: ProcessedSource) => s.url && s.type !== 'note')
                 .map((s: ProcessedSource) => s.url as string);
 
+            const vaultFilePaths = [
+                ...result.sources.pdfs.filter(p => p.isVaultFile).map(p => p.path),
+                ...result.sources.audio.filter(a => a.isVaultFile).map(a => a.path),
+                ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
+            ];
+
             let fullContent = editor.getValue();
-            if (urlsToRemove.length > 0) {
-                fullContent = removeProcessedSources(fullContent, urlsToRemove);
+            if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
+                fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
             }
 
             // Insert the failure report
@@ -924,15 +930,21 @@ async function handleMultiSourceResult(
         }
     }
 
-    // Remove successfully processed source URLs FIRST (before inserting summary)
+    // Remove successfully processed source URLs and vault wikilinks FIRST (before inserting summary)
     // Failed sources remain so user can try again or handle manually
     const urlsToRemove = allSources
         .filter((s: ProcessedSource) => s.url && s.type !== 'note' && s.success)
         .map((s: ProcessedSource) => s.url as string);
 
+    const vaultFilePaths = [
+        ...result.sources.pdfs.filter(p => p.isVaultFile).map(p => p.path),
+        ...result.sources.audio.filter(a => a.isVaultFile).map(a => a.path),
+        ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
+    ];
+
     let fullContent = editor.getValue();
-    if (urlsToRemove.length > 0) {
-        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove);
+    if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
+        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
         if (cleanedContent !== fullContent) {
             fullContent = cleanedContent;
             editor.setValue(fullContent);

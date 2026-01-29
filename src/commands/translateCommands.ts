@@ -978,26 +978,28 @@ function assembleTranslatedOutput(
         editor.setValue(newContent);
     }
 
-    // Step 3: Remove processed source URLs from note body
+    // Step 3: Remove processed source URLs and vault wikilinks from note body
+    // Build vault file paths list (reused for cleanup and references)
+    const vaultFilePathsList = [
+        ...result.sources.pdfs.filter(p => p.isVaultFile).map(p => p.path),
+        ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
+        ...result.sources.audio.filter(a => a.isVaultFile).map(a => a.path),
+    ];
+    const vaultFilePaths = new Set<string>(vaultFilePathsList);
+
     const urlsToRemove = allSources
         .filter(s => s.url && s.type !== 'note' && s.success)
         .map(s => s.url as string);
 
-    if (urlsToRemove.length > 0) {
+    if (urlsToRemove.length > 0 || vaultFilePathsList.length > 0) {
         const currentContent = editor.getValue();
-        const cleanedContent = removeProcessedSources(currentContent, urlsToRemove);
+        const cleanedContent = removeProcessedSources(currentContent, urlsToRemove, vaultFilePathsList);
         if (cleanedContent !== currentContent) {
             editor.setValue(cleanedContent);
         }
     }
 
     // Step 4: Add references for each successful source
-    // Build a set of vault file paths for isInternal determination
-    const vaultFilePaths = new Set<string>([
-        ...result.sources.pdfs.filter(p => p.isVaultFile).map(p => p.path),
-        ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
-        ...result.sources.audio.filter(a => a.isVaultFile).map(a => a.path),
-    ]);
 
     for (const source of allSources) {
         if (source.url && source.success && source.type !== 'note') {
