@@ -49,8 +49,8 @@ Extended `readExternalPdfAsBase64()` to detect HTTP(S) URLs and download PDFs vi
 |---------|----------|-----------|
 | YouTube no-key fails | **Accepted** | Summarize multi-source has identical behavior (no caption fallback in multi-source path). Clear error message shown. |
 | External audio blocked on all platforms | **Accepted** | Summarize does the same. "External audio" means files outside vault, not in-note recordings. Vault audio works. |
-| External PDF URLs fail | **Phase 3** | `readExternalPdfAsBase64()` uses `fs.stat` — same gap in summarize. Needs URL download support. |
-| Wikilink cleanup missing | **Phase 2** | Cross-cutting fix for both summarize and translate. Separate phase. |
+| External PDF URLs fail | **Phase 3 ✅** | `readExternalPdfAsBase64()` now detects HTTP(S) URLs and downloads via `requestUrl`. |
+| Wikilink cleanup missing | **Phase 2 ✅** | Cross-cutting fix for both summarize and translate. Implemented. |
 
 ## Overview
 Enhance the translate command to detect embedded multi-source content (URLs, YouTube, PDFs, documents, audio) in the note and let the user select which sources to translate, similar to multi-source summarization.
