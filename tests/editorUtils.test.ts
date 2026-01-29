@@ -92,5 +92,15 @@ describe('Editor Utils', () => {
             const refOffset = content.indexOf('\n## References');
             expect(editor.offsetToPos).toHaveBeenCalledWith(refOffset);
         });
+
+        it('should match ## References at the very start of the file', () => {
+            const content = '## References\n- Source 1';
+            const editor = createMockEditor(content);
+
+            appendAsNewSections(editor, 'New section');
+
+            expect(editor.replaceRange).toHaveBeenCalled();
+            expect(editor.offsetToPos).toHaveBeenCalledWith(0);
+        });
     });
 });

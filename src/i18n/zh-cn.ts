@@ -536,6 +536,7 @@ export const zhCN: Translations = {
         noPdfsFound: "附件文件夹中未找到 PDF",
         readingPdf: "正在读取 PDF 内容...",
         summaryInserted: "总结已插入笔记",
+        copiedToClipboard: "已复制到剪贴板",
         summarizingChunk: "正在总结第 {current}/{total} 部分...",
         combiningChunks: "正在合并总结...",
         urlValidationError: "无效的 URL 格式",

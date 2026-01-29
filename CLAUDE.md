@@ -181,6 +181,7 @@ Commands registered in `src/commands/`:
 - `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
 - `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
+- `integrationCommands.ts`: Pending content integration with placement/format/detail strategies
 - `minutesCommands.ts`: Meeting minutes generation
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
@@ -262,7 +263,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (825 tests, 35 suites)
+npm test              # Run Vitest unit tests (848 tests, 37 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -364,6 +365,8 @@ plugin.addCommand({
 - **UI modifications**: `src/ui/settings/AITaggerSettingTab.ts` and section files
 - **New LLM providers**: `src/services/adapters/` and update `cloudService.ts`
 - **Tag processing logic**: `src/utils/tagUtils.ts`
+- **Editor insertion**: `src/utils/editorUtils.ts` (insertAtCursor, appendAsNewSections)
+- **Integration prompts**: `src/services/prompts/integrationPrompts.ts`
 - **RAG features**: `src/services/ragService.ts`, `src/services/vector/vectorStoreService.ts`
 - **Semantic views**: `src/ui/views/RelatedNotesView.ts`
 - **Translations**: `src/i18n/en.ts` and `src/i18n/zh-cn.ts`
@@ -582,6 +585,7 @@ The Bases integration enables structured metadata and dashboard generation for s
 - Additional properties available: `status`, `type`, `processed`, `model`, `source`, `word_count`, `language`, `persona`
 - Type definitions: `ContentType`, `StatusValue`, `SourceType` enums
 - `SUMMARY_HOOK_MAX_LENGTH = 280` (optimized for Bases preview pane)
+- Integration strategy types: `PlacementStrategy`, `FormatStrategy`, `DetailStrategy` with defaults
 
 **Frontmatter Utilities** ([src/utils/frontmatterUtils.ts](src/utils/frontmatterUtils.ts))
 - `updateAIOMetadata(app, file, metadata)`: CRUD operations preserving existing frontmatter
@@ -956,7 +960,7 @@ onOpen() {
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 825 unit tests (35 suites) + 22 automated integration tests
+Total: 848 unit tests (37 suites) + 22 automated integration tests
 
 ## Multi-Source Translation
 
@@ -989,6 +993,59 @@ Translate note content and external sources (URLs, YouTube, PDFs, documents, aud
 - **Privacy consent**: `ensurePrivacyConsent()` called once at orchestrator level
 - **Source cleanup**: `removeProcessedSources()` handles URLs, markdown links, and wikilinks
 - **External PDF download**: `pdfService.readExternalPdfAsBase64()` supports HTTP(S) URLs via Obsidian `requestUrl`
+
+## Enhanced Pending Integration
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+The integration command (`integrate-pending-content`) provides 3 strategy dropdowns and an auto-tag toggle for resolving pending content into notes.
+
+### Strategy Dimensions
+
+**Placement** (`PlacementStrategy` in `src/core/constants.ts`):
+- `cursor` (default): Insert at cursor — safest, no rewrite
+- `append`: Add as new section(s) before References/Pending
+- `callout`: Rewrite note inserting `> [!info]` callout blocks
+- `merge`: Rewrite note integrating content by topic
+
+**Format** (`FormatStrategy`): `prose` | `bullets` | `tasks` | `table`
+
+**Detail** (`DetailStrategy`): `full` | `concise` | `summary`
+
+### Key Files
+
+- **`src/commands/integrationCommands.ts`**: Command handler, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
+- **`src/services/prompts/integrationPrompts.ts`**: `getPlacementInstructions()`, `getFormatInstructions()`, `getDetailInstructions()`
+- **`src/utils/editorUtils.ts`**: `insertAtCursor()`, `appendAsNewSections()` (shared DRY utility)
+- **`src/core/constants.ts`**: Strategy types and defaults
+
+### Key Patterns
+
+- **Guard branching**: `cursor`/`append` only need pending content; `callout`/`merge` need both main+pending
+- **Editor buffer for auto-tag**: Uses `editor.getValue()` not disk read for fresh content
+- **Prompt helpers in `src/services/prompts/`**: Per codebase convention, not inline
+
+## Summary Result Preview Modal
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+All summary insert functions (`insertWebSummary`, `insertAudioSummary`, `insertYouTubeSummary`) show a preview modal before inserting content.
+
+### Key Files
+
+- **`src/ui/modals/SummaryResultModal.ts`**: Modal with MarkdownRenderer preview, insert/copy/discard buttons
+- **`src/commands/summarizeCommands.ts`**: `showSummaryPreviewOrInsert()` DRY helper
+
+### Key Patterns
+
+- **Action-based return**: Insert functions return `SummaryResultAction` when previewing, `undefined` when direct-inserting
+- **ESC safety**: `onClose()` fires `'discard'` if no button was clicked (prevents hanging Promise)
+- **Metadata gating**: Structured web summary metadata only written when user chooses `'cursor'` action
+- **Scrollable CSS**: `.ai-organiser-summary-preview` with `max-height: 50vh; overflow-y: auto`
 
 ## Documentation
 

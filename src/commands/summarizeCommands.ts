@@ -48,7 +48,35 @@ import { DocumentExtractionService } from '../services/documentExtractionService
 import { summarizeText } from '../services/llmFacade';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
-import { SummaryResultModal } from '../ui/modals/SummaryResultModal';
+import { SummaryResultModal, type SummaryResultAction } from '../ui/modals/SummaryResultModal';
+
+/**
+ * Show summary preview modal or insert directly.
+ * Returns the user's action when previewing, undefined when inserting directly.
+ */
+function showSummaryPreviewOrInsert(
+    plugin: AIOrganiserPlugin,
+    output: string,
+    doInsert: () => void,
+    showPreview: boolean
+): Promise<SummaryResultAction> | undefined {
+    if (showPreview) {
+        return new Promise<SummaryResultAction>((resolve) => {
+            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+                if (action === 'cursor') {
+                    doInsert();
+                    new Notice(plugin.t.messages.summaryInserted);
+                } else if (action === 'copy') {
+                    navigator.clipboard.writeText(output);
+                    new Notice(plugin.t.messages.copiedToClipboard);
+                }
+                resolve(action);
+            }).open();
+        });
+    }
+    doInsert();
+    return undefined;
+}
 
 /**
  * Update note with structured metadata after summarization
@@ -2153,8 +2181,8 @@ async function insertAudioSummary(
     duration: number | undefined,
     plugin: AIOrganiserPlugin,
     transcriptPath?: string | null,
-    showPreview = false
-): Promise<void> {
+    showPreview: boolean = false
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -2184,22 +2212,7 @@ async function insertAudioSummary(
         ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
 
-    if (showPreview) {
-        return new Promise<void>((resolve) => {
-            new SummaryResultModal(plugin.app, plugin, output, (action) => {
-                if (action === 'cursor') {
-                    doInsert();
-                    new Notice(plugin.t.messages.summaryInserted);
-                } else if (action === 'copy') {
-                    navigator.clipboard.writeText(output);
-                    new Notice('Copied to clipboard');
-                }
-                resolve();
-            }).open();
-        });
-    } else {
-        doInsert();
-    }
+    return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
 }
 
 /**
@@ -2483,7 +2496,7 @@ async function insertYouTubeSummary(
     plugin: AIOrganiserPlugin,
     transcriptPath?: string | null,
     showPreview = false
-): Promise<void> {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata && videoInfo) {
@@ -2515,22 +2528,7 @@ async function insertYouTubeSummary(
         ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
 
-    if (showPreview) {
-        return new Promise<void>((resolve) => {
-            new SummaryResultModal(plugin.app, plugin, output, (action) => {
-                if (action === 'cursor') {
-                    doInsert();
-                    new Notice(plugin.t.messages.summaryInserted);
-                } else if (action === 'copy') {
-                    navigator.clipboard.writeText(output);
-                    new Notice('Copied to clipboard');
-                }
-                resolve();
-            }).open();
-        });
-    } else {
-        doInsert();
-    }
+    return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
 }
 
 // Privacy notice gating is centralized via ensurePrivacyConsent()
@@ -2604,8 +2602,10 @@ async function summarizeAndInsert(
                 const structured = parseStructuredResponse(response.content);
 
                 if (structured) {
-                    // Insert body content
-                    await insertWebSummary(editor, structured.body_content, webContent, plugin, true);
+                    // Insert body content — only update metadata if user chose to insert
+                    const action = await insertWebSummary(editor, structured.body_content, webContent, plugin, true);
+
+                    if (action !== 'cursor') return;
 
                     // Update metadata - must save editor first to prevent race condition
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -3112,7 +3112,7 @@ async function insertWebSummary(
     webContent: WebContent,
     plugin: AIOrganiserPlugin,
     showPreview = false
-): Promise<void> {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3156,22 +3156,7 @@ async function insertWebSummary(
         ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
 
-    if (showPreview) {
-        return new Promise<void>((resolve) => {
-            new SummaryResultModal(plugin.app, plugin, output, (action) => {
-                if (action === 'cursor') {
-                    doInsert();
-                    new Notice(plugin.t.messages.summaryInserted);
-                } else if (action === 'copy') {
-                    navigator.clipboard.writeText(output);
-                    new Notice('Copied to clipboard');
-                }
-                resolve();
-            }).open();
-        });
-    } else {
-        doInsert();
-    }
+    return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
 }
 
 /**

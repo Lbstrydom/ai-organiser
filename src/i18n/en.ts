@@ -536,6 +536,7 @@ export const en: Translations = {
         noPdfsFound: "No PDFs found",
         readingPdf: "Reading PDF...",
         summaryInserted: "Summary added",
+        copiedToClipboard: "Copied to clipboard",
         summarizingChunk: "Section {current}/{total}...",
         combiningChunks: "Combining...",
         urlValidationError: "Invalid URL",

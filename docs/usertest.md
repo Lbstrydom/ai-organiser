@@ -96,6 +96,7 @@
 - [x] Each command has icon and category badge
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
 - [ ] No "undefined" or raw i18n keys visible in command names/categories
+- [ ] "Generate from embedded" does NOT appear in picker (removed)
 
 ---
 
@@ -140,6 +141,14 @@ Pick at least ONE source type:
 - [x] Audio transcribed via Whisper → summary generated
 - [x] Transcript saved (if enabled)
 
+### Summary Preview Modal
+- [ ] After any summarization (URL/YouTube/PDF/Audio) → preview modal appears
+- [ ] Modal shows rendered markdown preview (scrollable for long content)
+- [ ] **Insert at cursor** button (CTA) → content inserted at cursor position
+- [ ] **Copy to clipboard** button → content copied, notice shown
+- [ ] **Discard** button → nothing inserted
+- [ ] ESC / X close → treated as discard (no hanging)
+
 ### Multi-Source Summarization
 - [x] Note with multiple URLs/PDFs → "Summarize"
 - [x] Modal shows detected sources with checkboxes
@@ -152,6 +161,7 @@ Pick at least ONE source type:
 ### Note Translation
 - [x] Open note → "Translate" → language picker
 - [x] Full note translated, formatting preserved
+- [ ] **Insert at cursor toggle** — enable toggle → translation inserted at cursor instead of replacing note
 
 ### Selection Translation
 - [x] Select text → "Translate selection"
@@ -168,10 +178,6 @@ Pick at least ONE source type:
   - [ ] **Diagram**: Inserts Mermaid diagram
   - [ ] **Resources**: Suggests related resources
   - [ ] **Flashcards**: Exports to Anki format
-
-### Generate from Embedded
-- [ ] Note with `![[embedded-note]]` → "Generate from embedded"
-- [ ] Content generated based on embedded context
 
 ---
 
@@ -244,9 +250,17 @@ Pick at least ONE source type:
 - [ ] "NotebookLM: Clear Selection" → removes all selections
 - [ ] "NotebookLM: Open Export Folder" → opens folder in file explorer
 
-### Pending Integration
+### Pending Integration (Enhanced)
 - [ ] "Add to Pending Integration" → adds selection/content to pending
-- [ ] "Integrate pending content" → merges pending into current note
+- [ ] "Integrate pending content" → modal opens with 3 dropdowns + toggle:
+  - [ ] **Placement dropdown**: Insert at cursor / Add as new section(s) / Add as callouts / Merge into sections
+  - [ ] **Format dropdown**: Prose / Bullet points / Action items / Table
+  - [ ] **Detail dropdown**: Full detail / Concise / Summary only
+  - [ ] **Auto-tag toggle**: Re-tag note after integration
+- [ ] **Placement: cursor** — content appears at cursor, note body untouched
+- [ ] **Placement: append** — new section at bottom of main content (before References)
+- [ ] **Placement: merge** — warning text appears in dropdown description
+- [ ] **Format: tasks** — output uses `- [ ]` checkbox syntax
 - [ ] "Resolve pending embeds" → extracts text from embedded documents
 
 ---

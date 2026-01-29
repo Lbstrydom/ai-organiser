@@ -15,8 +15,8 @@ export function insertAtCursor(editor: Editor, content: string): void {
  */
 export function appendAsNewSections(editor: Editor, content: string): void {
     const fullText = editor.getValue();
-    const refMatch = fullText.match(/\n## References\b/);
-    const pendMatch = fullText.match(/\n## Pending Integration\b/);
+    const refMatch = fullText.match(/(?:^|\n)## References\b/);
+    const pendMatch = fullText.match(/(?:^|\n)## Pending Integration\b/);
     const positions = [refMatch?.index, pendMatch?.index].filter((i): i is number => i != null);
     const insertPos = positions.length > 0 ? Math.min(...positions) : fullText.length;
     const padded = `\n\n${content}\n`;

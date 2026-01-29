@@ -13,6 +13,7 @@ export class SummaryResultModal extends Modal {
     private content: string;
     private onAction: (action: SummaryResultAction) => void;
     private component: Component;
+    private actionFired = false;
 
     constructor(
         app: App,
@@ -34,7 +35,7 @@ export class SummaryResultModal extends Modal {
         contentEl.addClass('ai-organiser-modal-content');
         contentEl.addClass('ai-organiser-summary-result-modal');
 
-        contentEl.createEl('h2', { text: sr?.title || 'Summary Result' });
+        contentEl.createEl('h2', { text: sr.title });
 
         // Scrollable preview area
         const previewEl = contentEl.createDiv({ cls: 'ai-organiser-summary-preview' });
@@ -50,28 +51,36 @@ export class SummaryResultModal extends Modal {
         // Action buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(sr?.discard || 'Discard')
+                .setButtonText(sr.discard)
                 .onClick(() => {
-                    this.close();
-                    this.onAction('discard');
+                    this.fireAction('discard');
                 }))
             .addButton(btn => btn
-                .setButtonText(sr?.copyToClipboard || 'Copy to clipboard')
+                .setButtonText(sr.copyToClipboard)
                 .onClick(() => {
-                    this.close();
-                    this.onAction('copy');
+                    this.fireAction('copy');
                 }))
             .addButton(btn => btn
-                .setButtonText(sr?.insertAtCursor || 'Insert at cursor')
+                .setButtonText(sr.insertAtCursor)
                 .setCta()
                 .onClick(() => {
-                    this.close();
-                    this.onAction('cursor');
+                    this.fireAction('cursor');
                 }));
+    }
+
+    private fireAction(action: SummaryResultAction): void {
+        this.actionFired = true;
+        this.close();
+        this.onAction(action);
     }
 
     onClose(): void {
         this.component.unload();
         this.contentEl.empty();
+        // ESC / X dismissal — treat as discard so the wrapping Promise resolves
+        if (!this.actionFired) {
+            this.actionFired = true;
+            this.onAction('discard');
+        }
     }
 }

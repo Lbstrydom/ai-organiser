@@ -202,6 +202,7 @@ Commands registered in `src/commands/`:
 - `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
 - `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
+- `integrationCommands.ts`: Pending content integration with placement/format/detail strategies
 - `minutesCommands.ts`: Meeting minutes generation
 - `flashcardCommands.ts`: Flashcard export (Anki/Brainscape)
 - `utilityCommands.ts`: Collect tags, tag network
@@ -359,6 +360,8 @@ plugin.addCommand({
 - **UI modifications**: `src/ui/settings/AIOrganiserSettingTab.ts` and section files
 - **New LLM providers**: `src/services/adapters/` and update `cloudService.ts`
 - **Tag processing logic**: `src/utils/tagUtils.ts`
+- **Editor insertion**: `src/utils/editorUtils.ts` (insertAtCursor, appendAsNewSections)
+- **Integration prompts**: `src/services/prompts/integrationPrompts.ts`
 - **RAG features**: `src/services/ragService.ts`, `src/services/vector/vectorStoreService.ts`
 - **Semantic views**: `src/ui/views/RelatedNotesView.ts`
 - **Bases integration**: `src/utils/frontmatterUtils.ts`, `src/services/migrationService.ts`, `src/services/dashboardService.ts`
@@ -828,7 +831,7 @@ onOpen() {
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
 
-Total: 825 unit tests (35 suites) + 22 automated integration tests
+Total: 848 unit tests (37 suites) + 22 automated integration tests
 
 ## Multi-Source Translation
 
@@ -845,6 +848,32 @@ Translate note content and external sources (URLs, YouTube, PDFs, documents, aud
 - `src/ui/modals/MultiSourceModal.ts`: Parameterized for both summarize and translate modes
 
 **Patterns**: Modal reuse via config, sequential processing with error isolation, content chunking, privacy consent gating, wikilink + URL source cleanup after processing.
+
+## Enhanced Pending Integration
+
+**Status**: ✅ Implemented (January 2026)
+
+3 strategy dropdowns (placement/format/detail) + auto-tag toggle for resolving pending content.
+
+**Key Files**:
+- `src/commands/integrationCommands.ts`: Command handler, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
+- `src/services/prompts/integrationPrompts.ts`: Strategy-specific prompt helpers
+- `src/utils/editorUtils.ts`: `insertAtCursor()`, `appendAsNewSections()` (shared DRY utility)
+- `src/core/constants.ts`: `PlacementStrategy`, `FormatStrategy`, `DetailStrategy` types + defaults
+
+**Patterns**: Guard branching (cursor/append need only pending; callout/merge need both), editor buffer for auto-tag, prompt helpers in `src/services/prompts/`.
+
+## Summary Result Preview Modal
+
+**Status**: ✅ Implemented (January 2026)
+
+Preview modal for all summary insert functions with insert/copy/discard actions.
+
+**Key Files**:
+- `src/ui/modals/SummaryResultModal.ts`: Modal with MarkdownRenderer preview
+- `src/commands/summarizeCommands.ts`: `showSummaryPreviewOrInsert()` DRY helper
+
+**Patterns**: Action-based return type, ESC-safe `onClose()` fires discard, metadata gated on cursor action only, scrollable `.ai-organiser-summary-preview` CSS.
 
 ## Documentation
 

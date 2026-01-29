@@ -523,6 +523,7 @@ export interface Translations {
         noPdfsFound: string;
         readingPdf: string;
         summaryInserted: string;
+        copiedToClipboard: string;
         summarizingChunk: string;
         combiningChunks: string;
         urlValidationError: string;

@@ -8,6 +8,53 @@
 
 ## Recent Updates
 
+### Menu Cleanup & Integration Enhancement (2026-01-29)
+
+✅ **All 5 Parts + Review Fixes Complete**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Part 1 | Remove redundant `generate-from-embedded` command | ✅ Complete |
+| Part 2 | Enhanced integration: placement/format/detail dropdowns + auto-tag | ✅ Complete |
+| Part 3 | Translate note: insert-at-cursor toggle | ✅ Complete |
+| Part 4 | Shared `editorUtils.ts` (DRY insertion utility) | ✅ Complete |
+| Part 5 | Summary result preview modal (insert/copy/discard) | ✅ Complete |
+| Review | 8 findings fixed (modal Promise leak, metadata gating, stale buffer, CSS, i18n, regex, DRY extraction, tests) | ✅ Complete |
+
+**Build Status**: 848 tests passing (37 suites) ✅
+
+**New Files Created:**
+- `src/utils/editorUtils.ts` — `insertAtCursor()`, `appendAsNewSections()`
+- `src/services/prompts/integrationPrompts.ts` — placement/format/detail prompt helpers
+- `src/ui/modals/SummaryResultModal.ts` — markdown preview with insert/copy/discard
+- `tests/integrationPrompts.test.ts` — 16 tests (helpers + buildIntegrationPrompt)
+- `tests/editorUtils.test.ts` — 7 tests (cursor insert, section append, edge cases)
+
+**Files Deleted:**
+- `src/ui/modals/ContentSelectionModal.ts` — orphaned by Part 1 removal
+
+**Key Files Modified:**
+- `src/commands/integrationCommands.ts` — modal dropdowns, prompt builder, placement branching
+- `src/commands/summarizeCommands.ts` — async insert functions with preview modal, DRY `showSummaryPreviewOrInsert()` helper
+- `src/commands/translateCommands.ts` — insert-at-cursor support
+- `src/ui/modals/TranslateModal.ts` — toggle UI
+- `src/core/constants.ts` — `PlacementStrategy`, `FormatStrategy`, `DetailStrategy` types + defaults
+- `styles.css` — scrollable `.ai-organiser-summary-preview` (max-height 50vh)
+- i18n files — 20+ new keys (integration dropdowns, translate toggle, summary modal, copiedToClipboard)
+
+**Review Fixes Applied:**
+- Modal ESC/X now fires `'discard'` action (no hanging Promise)
+- Structured web summary metadata gated on `action === 'cursor'` only
+- Auto-tag uses `editor.getValue()` instead of disk read (fresh buffer)
+- Preview modal scrollable via CSS (`.ai-organiser-summary-preview`)
+- `copiedToClipboard` i18n key replaces hardcoded notice
+- `appendAsNewSections` regex matches `## References` at file start
+- 3× duplicated preview block extracted to `showSummaryPreviewOrInsert()`
+
+**Documentation**: `docs/completed/menu-plan.md`
+
+---
+
 ### Multi-Source Translation Feature Complete (2026-01-29)
 
 ✅ **All 3 Phases + 2 Review Rounds Complete**
@@ -519,7 +566,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 825 unit tests (35 suites)
+npm test           # Run 848 unit tests (37 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

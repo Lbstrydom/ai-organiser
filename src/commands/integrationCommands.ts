@@ -122,11 +122,11 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         // Clear the pending integration section
                         clearPendingIntegration(editor);
 
-                        // Auto-tag if requested
+                        // Auto-tag if requested — use editor buffer (not disk) for fresh content
                         if (autoTag) {
                             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                             if (view?.file) {
-                                const noteContent = await plugin.app.vault.read(view.file);
+                                const noteContent = editor.getValue();
                                 await plugin.analyzeAndTagNote(view.file, noteContent);
                             }
                         }
@@ -426,7 +426,7 @@ async function callLLMForIntegration(
 /**
  * Build the prompt for integrating pending content
  */
-function buildIntegrationPrompt(
+export function buildIntegrationPrompt(
     mainContent: string,
     pendingContent: string,
     plugin: AIOrganiserPlugin,
