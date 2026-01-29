@@ -207,38 +207,37 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     resetPrivacyNotice();
 
     // Command: Summarize (smart dispatcher)
+    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
     plugin.addCommand({
         id: 'smart-summarize',
         name: plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summarize',
         icon: 'file-text',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            await executeSmartSummarize(plugin, pdfService, editor, ctx);
+        callback: async () => {
+            await executeSmartSummarize(plugin, pdfService);
         }
     });
 }
 
 async function executeSmartSummarize(
     plugin: AIOrganiserPlugin,
-    pdfService: PdfService,
-    editor: Editor,
-    ctx: MarkdownView | MarkdownFileInfo
+    pdfService: PdfService
 ): Promise<void> {
     if (!plugin.settings.enableWebSummarization) {
         new Notice(plugin.t.messages.webSummarizationDisabled);
         return;
     }
 
-    const view = ctx instanceof MarkdownView ? ctx : null;
+    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view?.file) {
         new Notice(plugin.t.messages.openNote);
         return;
     }
 
     // Get current note content for source detection
-    const noteContent = editor.getValue();
+    const noteContent = view.editor.getValue();
 
     // Open multi-source modal with auto-detected sources
-    openMultiSourceModal(plugin, pdfService, editor, view, noteContent);
+    openMultiSourceModal(plugin, pdfService, view.editor, view, noteContent);
 }
 
 /**

@@ -150,12 +150,12 @@ Pick at least ONE source type:
 ## 5. Translation (2 min)
 
 ### Note Translation
-- [ ] Open note → "Translate" → language picker
-- [ ] Full note translated, formatting preserved
+- [x] Open note → "Translate" → language picker
+- [x] Full note translated, formatting preserved
 
 ### Selection Translation
-- [ ] Select text → "Translate selection"
-- [ ] Only selection translated, rest unchanged
+- [x] Select text → "Translate selection"
+- [x] Only selection translated, rest unchanged
 
 ---
 

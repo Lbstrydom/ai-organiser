@@ -49,11 +49,18 @@ interface TranslatedSource {
 
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Command: Translate (smart dispatcher)
+    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
     plugin.addCommand({
         id: 'smart-translate',
         name: plugin.t.commands.translate || plugin.t.commands.translateNote || 'Translate',
         icon: 'languages',
-        editorCallback: async (editor: Editor) => {
+        callback: async () => {
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view?.file) {
+                new Notice(plugin.t.messages.openNote);
+                return;
+            }
+            const editor = view.editor;
             const selection = editor.getSelection();
             const hasSelection = !!selection.trim();
             const content = editor.getValue();
@@ -87,12 +94,12 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                     content,
                     async (result: MultiSourceModalResult) => {
                         try {
-                            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                            if (!view) {
+                            const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                            if (!activeView) {
                                 new Notice(plugin.t.messages.openNote);
                                 return;
                             }
-                            await handleMultiSourceTranslate(plugin, editor, view, result);
+                            await handleMultiSourceTranslate(plugin, editor, activeView, result);
                         } catch (e) {
                             console.error('Error in handleMultiSourceTranslate:', e);
                             new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));

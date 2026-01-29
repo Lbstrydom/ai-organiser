@@ -3,7 +3,7 @@
  * Commands for generating and improving notes from embedded multimedia content
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Notice, TFile } from 'obsidian';
+import { Editor, MarkdownView, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { detectEmbeddedContent, getExtractableContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { ContentSelectionModal, ContentSelectionResult } from '../ui/modals/ContentSelectionModal';
@@ -22,7 +22,7 @@ import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
-import { PLUGIN_SECRET_IDS } from '../core/secretIds';
+
 import { getYouTubeGeminiApiKey } from '../services/apiKeyHelpers';
 
 
@@ -31,16 +31,18 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     const extractionService = new ContentExtractionService(plugin.app);
 
     // Command: Generate note from embedded content (merged single command)
+    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
     plugin.addCommand({
         id: 'generate-from-embedded',
         name: plugin.t.commands.generateFromEmbedded || 'Generate note from embedded content',
         icon: 'sparkles',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
-            const view = ctx instanceof MarkdownView ? ctx : null;
+        callback: async () => {
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
             if (!view?.file) {
                 new Notice(plugin.t.messages.openNote);
                 return;
             }
+            const editor = view.editor;
 
             const geminiApiKey = await getYouTubeGeminiApiKey(plugin);
             extractionService.setYouTubeGeminiConfig(geminiApiKey ? {
