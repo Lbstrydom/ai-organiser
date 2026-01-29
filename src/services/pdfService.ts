@@ -63,11 +63,18 @@ export class PdfService {
     }
 
     /**
-     * Read external PDF file (outside vault) and convert to base64
+     * Read external PDF file (outside vault) or download from URL and convert to base64
+     * Supports both local file paths and HTTP(S) URLs
      */
-    async readExternalPdfAsBase64(filePath: string): Promise<PdfServiceResult> {
+    async readExternalPdfAsBase64(filePathOrUrl: string): Promise<PdfServiceResult> {
+        // If it's a URL, download and convert to base64
+        if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+            return this.downloadPdfAsBase64(filePathOrUrl);
+        }
+
+        // Local file path
         try {
-            const normalizedPath = this.normalizeExternalPath(filePath);
+            const normalizedPath = this.normalizeExternalPath(filePathOrUrl);
             const stats = await fs.stat(normalizedPath);
 
             if (!stats.isFile()) {
@@ -100,6 +107,63 @@ export class PdfService {
                 return { success: false, error: 'File not found locally. Please ensure it is synced to your device.' };
             }
             return { success: false, error: `Failed to read PDF: ${message}` };
+        }
+    }
+
+    /**
+     * Download PDF from URL and convert to base64 (without saving to vault)
+     * Enforces HTTPS and size limits
+     */
+    private async downloadPdfAsBase64(url: string): Promise<PdfServiceResult> {
+        try {
+            // Enforce HTTPS
+            if (!url.startsWith('https://')) {
+                return { success: false, error: 'PDF download requires HTTPS. Insecure HTTP URLs are not supported.' };
+            }
+
+            const { requestUrl } = await import('obsidian');
+            const response = await requestUrl({ url, method: 'GET' });
+
+            if (!response.arrayBuffer) {
+                return { success: false, error: 'Failed to download PDF: empty response.' };
+            }
+
+            const sizeBytes = response.arrayBuffer.byteLength;
+            if (sizeBytes > MAX_PDF_SIZE_BYTES) {
+                return {
+                    success: false,
+                    error: `Downloaded PDF is too large (${Math.round(sizeBytes / 1024 / 1024)}MB). Maximum size is 20MB.`,
+                };
+            }
+
+            // Extract filename from URL
+            let fileName = 'downloaded.pdf';
+            try {
+                const parsed = new URL(url);
+                const pathParts = parsed.pathname.split('/');
+                const lastPart = pathParts.at(-1);
+                if (lastPart?.toLowerCase().endsWith('.pdf')) {
+                    fileName = decodeURIComponent(lastPart);
+                }
+            } catch {
+                // Use default filename
+            }
+
+            const base64 = this.arrayBufferToBase64(response.arrayBuffer);
+
+            return {
+                success: true,
+                content: {
+                    fileName,
+                    filePath: url,
+                    base64Data: base64,
+                    mimeType: 'application/pdf',
+                    sizeBytes,
+                },
+            };
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            return { success: false, error: `Failed to download PDF from URL: ${message}` };
         }
     }
 

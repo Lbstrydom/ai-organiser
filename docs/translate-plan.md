@@ -32,7 +32,16 @@ Extended `removeProcessedSources()` to clean up vault file wikilinks after proce
 - `tests/sourceDetection.test.ts` — 11 new wikilink removal tests
 
 **Build:** 0 TypeScript errors, 690/690 tests passing.
-### Phase 3: External PDF URL Download — PLANNED
+### Phase 3: External PDF URL Download — ✅ COMPLETE
+Extended `readExternalPdfAsBase64()` to detect HTTP(S) URLs and download PDFs via Obsidian's `requestUrl` API. Fixes external PDF URLs for both summarize and translate multi-source flows.
+
+**Files modified:**
+- `src/services/pdfService.ts` — Added URL detection at top of `readExternalPdfAsBase64()`, new private `downloadPdfAsBase64()` method with HTTPS enforcement and 20MB size limit
+
+**Files created:**
+- `tests/pdfService.test.ts` — 11 tests covering HTTPS download, HTTP rejection, size limit, empty response, network errors, filename extraction, URL-encoded names, query parameters, and local file backward compatibility
+
+**Build:** 0 TypeScript errors, 825/825 tests passing.
 
 ### Review Decisions (documented)
 
