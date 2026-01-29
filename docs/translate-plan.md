@@ -20,7 +20,7 @@ All implementation, review fixes, and tests passing. Deployed.
 - `src/i18n/en.ts` — English translations
 - `src/i18n/zh-cn.ts` — Chinese translations
 
-**Build:** 0 TypeScript errors, 678/678 tests passing.
+**Build:** 0 TypeScript errors, 678/678 tests passing (at time of phase completion).
 
 ### Phase 2: Wikilink Source Cleanup — ✅ COMPLETE
 Extended `removeProcessedSources()` to clean up vault file wikilinks after processing.
@@ -31,7 +31,8 @@ Extended `removeProcessedSources()` to clean up vault file wikilinks after proce
 - `src/commands/translateCommands.ts` — 1 call site updated to pass vault file paths
 - `tests/sourceDetection.test.ts` — 11 new wikilink removal tests
 
-**Build:** 0 TypeScript errors, 690/690 tests passing.
+**Build:** 0 TypeScript errors, 690/690 tests passing (at time of phase completion).
+
 ### Phase 3: External PDF URL Download — ✅ COMPLETE
 Extended `readExternalPdfAsBase64()` to detect HTTP(S) URLs and download PDFs via Obsidian's `requestUrl` API. Fixes external PDF URLs for both summarize and translate multi-source flows.
 
@@ -63,6 +64,10 @@ Fixed 3 findings from second code review.
 | Internal refs double-wrapped | **Fixed ✅** | Pass raw path as `link`; `formatSourceReference()` adds `[[]]`. |
 | Documents labeled as "Note" | **Fixed ✅** | Added `'document'` SourceType with `'Document'` label. |
 | YouTube title uses URL | **Fixed ✅** | Use `videoInfo?.title` from transcript result. |
+| Plan: wikilink limitation note stale | **Fixed ✅** | Updated Output Strategy to reflect Phase 2 fix. |
+| Plan: caption-scrape fallback claim | **Fixed ✅** | Updated to "no-key fails gracefully" — matches implementation and multi-source summarize behavior. |
+| Plan: serviceSupportsMultimodal() claim | **Fixed ✅** | Replaced with `getPdfProviderConfig()` — the actual abstraction used in translateCommands.ts. |
+| Plan: stale test counts | **Fixed ✅** | Added "(at time of phase completion)" annotation; updated verification to 825+. |
 
 ## Overview
 Enhance the translate command to detect embedded multi-source content (URLs, YouTube, PDFs, documents, audio) in the note and let the user select which sources to translate, similar to multi-source summarization.
@@ -83,7 +88,7 @@ New:
 - **External sources**: Each translated source appended as `## Translated: [title]` section before References
 - **References**: Add citation link for each translated source to `## References` via `addToReferencesSection()`
 - **Source cleanup**: Remove processed URLs/links from note body via `removeProcessedSources()`, move to References
-  - **Known limitation**: `removeProcessedSources()` handles bare URLs and markdown links `[text](url)` but NOT wikilinks `![[file.pdf]]`. This is a pre-existing limitation shared with multi-source summarization. Filed as separate enhancement.
+  - Handles bare URLs, markdown links `[text](url)`, and vault wikilinks `![[file.pdf]]` (wikilink support added in Phase 2)
 - **Single-source optimization**: If only 1 source selected, route to simpler handler
 
 ## Critical Design Decisions (from review)
@@ -131,7 +136,7 @@ Reuse existing `chunkContent()` from `webContentService.ts` and `getMaxContentCh
 
 ### 5. YouTube Key Resolution
 - Reuse `getYouTubeGeminiApiKey()` from shared `apiKeyHelpers.ts` (see DRY Prerequisites)
-- Handle missing key gracefully: fall back to caption scraping (same as summarize)
+- Handle missing key gracefully: transcription fails with clear error message (no caption-scrape fallback in multi-source path — consistent with multi-source summarize behavior)
 - Configure Gemini model from `settings.youtubeGeminiModel`
 
 ### 6. Audio Key Resolution
@@ -282,7 +287,7 @@ else →
 
 **Extraction reuse** from shared modules:
 - URLs: `fetchArticle()` from `webContentService.ts`
-- YouTube: `getYouTubeGeminiApiKey()` from `apiKeyHelpers.ts` + Gemini transcription / caption scraping fallback
+- YouTube: `getYouTubeGeminiApiKey()` from `apiKeyHelpers.ts` + Gemini transcription (no-key fails gracefully with error message)
 - PDFs (text): `DocumentExtractionService` for text extraction
 - PDFs (image): `PdfService.readPdfAsBase64()` + `translatePdfWithLLM()` from `pdfTranslationService.ts` (creates temp `CloudLLMService` when needed)
 - Documents: `DocumentExtractionService`
@@ -397,10 +402,10 @@ If the note was NOT selected for translation (only external sources), the origin
 - **OCP**: `MultiSourceModal` extended via config object, not modified internally for translate
 - **LSP**: N/A (no inheritance hierarchy)
 - **ISP**: Translate orchestrator only imports the interfaces it needs
-- **DIP**: Uses `serviceSupportsMultimodal()` abstraction instead of hardcoding provider names; uses `getPdfProviderConfig()` instead of inline provider logic
+- **DIP**: Uses `getPdfProviderConfig()` abstraction instead of inline provider logic for multimodal PDF handling
 
 ### No Hardcoding
-- Provider names checked via `serviceSupportsMultimodal()` (encapsulates `['claude', 'gemini']`)
+- PDF provider resolved via `getPdfProviderConfig()` (encapsulates provider selection, API key, and model resolution)
 - Token limits via `getMaxContentChars(provider)` (reads from `PROVIDER_LIMITS` registry)
 - PDF provider via `settings.pdfProvider` + `getPdfProviderConfig()` (not hardcoded to any provider)
 - Secret IDs via `PLUGIN_SECRET_IDS` and `STANDARD_SECRET_IDS` constants
@@ -432,7 +437,7 @@ If the note was NOT selected for translation (only external sources), the origin
 ## Verification
 
 1. `npm run build:quick` - Verify compilation
-2. `npm test` - Verify no regressions (801+ tests pass)
+2. `npm test` - Verify no regressions (825+ tests pass)
 3. Deploy to Obsidian vault
 4. Manual tests:
    - Note with no sources → shows simple TranslateModal (backward compat)
