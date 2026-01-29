@@ -17,11 +17,10 @@ describe('SecretStorageService', () => {
 
     beforeEach(() => {
         mockSecretStorage = new MockSecretStorage(true);
-        
+
+        // SecretStorage is directly on app, not app.vault (Obsidian 1.11+ API)
         mockApp = {
-            vault: {
-                secretStorage: mockSecretStorage
-            }
+            secretStorage: mockSecretStorage
         };
 
         mockPlugin = {
@@ -47,7 +46,7 @@ describe('SecretStorageService', () => {
         });
 
         it('should return false when SecretStorage does not exist', () => {
-            delete mockApp.vault.secretStorage;
+            delete mockApp.secretStorage;
             const unavailableService = new SecretStorageService(mockApp, mockPlugin);
             expect(unavailableService.isAvailable()).toBe(false);
         });
@@ -302,7 +301,7 @@ describe('SecretStorageService', () => {
 
         it('should return error when SecretStorage unavailable at check time', async () => {
             // Create service with no secret storage
-            delete mockApp.vault.secretStorage;
+            delete mockApp.secretStorage;
             const service2 = new SecretStorageService(mockApp, mockPlugin);
             
             mockPlugin.settings.cloudApiKey = 'main-key';
@@ -313,7 +312,7 @@ describe('SecretStorageService', () => {
             expect(result.entries).toBeUndefined();
             
             // Restore for other tests
-            mockApp.vault.secretStorage = mockSecretStorage;
+            mockApp.secretStorage = mockSecretStorage;
         });
     });
 
@@ -366,7 +365,7 @@ describe('SecretStorageService', () => {
 
     describe('Backward Compatibility', () => {
         it('should work when SecretStorage not available', async () => {
-            delete mockApp.vault.secretStorage;
+            delete mockApp.secretStorage;
             const legacyService = new SecretStorageService(mockApp, mockPlugin);
             
             const result = await legacyService.resolveApiKey({

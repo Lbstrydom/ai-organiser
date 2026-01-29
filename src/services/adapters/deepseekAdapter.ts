@@ -7,7 +7,7 @@ export class DeepseekAdapter extends BaseAdapter {
     super({
       ...config,
       endpoint: config.endpoint || endpoints.deepseek,
-      modelName: config.modelName || 'deepseek-chat'
+      modelName: config.modelName || 'deepseek-v3.2'
     });
     this.provider = {
       name: 'deepseek',
@@ -31,7 +31,7 @@ export class DeepseekAdapter extends BaseAdapter {
   }
 
   private readonly defaultConfig = {
-    defaultModel: 'deepseek-chat'
+    defaultModel: 'deepseek-v3.2'
   };
 
   public validateConfig(): string | null {

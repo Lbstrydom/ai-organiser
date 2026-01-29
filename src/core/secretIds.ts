@@ -59,6 +59,25 @@ export const PROVIDER_TO_SECRET_ID: Partial<Record<AdapterType, string>> = {
 };
 
 /**
+ * Embedding provider type (subset of providers that offer embeddings)
+ */
+export type EmbeddingProviderType = 'openai' | 'gemini' | 'ollama' | 'openrouter' | 'cohere' | 'voyage';
+
+/**
+ * Embedding provider to SecretID mapping
+ * Maps embedding providers to their standard secret IDs
+ * Note: Voyage is embedding-only (not an LLM adapter) so needs separate mapping
+ */
+export const EMBEDDING_PROVIDER_TO_SECRET_ID: Partial<Record<EmbeddingProviderType, string>> = {
+    openai: STANDARD_SECRET_IDS.OPENAI,
+    gemini: STANDARD_SECRET_IDS.GOOGLE_AI,
+    openrouter: STANDARD_SECRET_IDS.OPENROUTER,
+    cohere: STANDARD_SECRET_IDS.COHERE,
+    voyage: STANDARD_SECRET_IDS.VOYAGE,
+    // ollama doesn't need API key
+};
+
+/**
  * Key resolution options for inheritance chain
  */
 export interface KeyResolutionOptions {

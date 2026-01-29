@@ -558,6 +558,14 @@ export interface Translations {
         generationFailed: string;
         improvingNote: string;
         noteImproved: string;
+        translatingMultipleSources: string;
+        translatingSourceProgress: string;
+        extractingForTranslation: string;
+        transcribingForTranslation: string;
+        multiSourceTranslateComplete: string;
+        multiSourceTranslatePartial: string;
+        pdfNotTextExtractable: string;
+        audioTranscriptionKeyMissing: string;
         improvementFailed: string;
         searchingResources: string;
         searchFailed: string;
@@ -796,6 +804,15 @@ export interface Translations {
             summarizeButton: string;
             summarizeOne: string;
             summarizeMultiple: string;
+            translateButton: string;
+            translateOne: string;
+            translateMultiple: string;
+            translateTitle: string;
+            translateDescription: string;
+            translateNoteLabel: string;
+            translateNoteDesc: string;
+            languageLabel: string;
+            languageDesc: string;
         };
         enhance: {
             title: string;

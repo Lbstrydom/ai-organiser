@@ -82,8 +82,14 @@ export function createEmbeddingService(config: EmbeddingServiceConfig): IEmbeddi
 /**
  * Create an embedding service from plugin settings
  * Handles API key inheritance and defaults
+ *
+ * @param settings - Plugin settings
+ * @param apiKeyOverride - Optional API key from SecretStorage (takes precedence over settings)
  */
-export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings): IEmbeddingService | null {
+export function createEmbeddingServiceFromSettings(
+    settings: AIOrganiserSettings,
+    apiKeyOverride?: string
+): IEmbeddingService | null {
     if (!settings.enableSemanticSearch) {
         return null;
     }
@@ -91,13 +97,16 @@ export function createEmbeddingServiceFromSettings(settings: AIOrganiserSettings
     try {
         const provider = settings.embeddingProvider;
 
-        // API key inheritance chain: embeddingApiKey → providerSettings[provider].apiKey → cloudApiKey
-        // Only some embedding providers have matching LLM provider settings
+        // API key inheritance chain:
+        // 1. apiKeyOverride (from SecretStorage, resolved by caller)
+        // 2. settings.embeddingApiKey (dedicated embedding key in settings)
+        // 3. providerSettings[provider].apiKey (provider-specific key in settings)
+        // 4. cloudApiKey (main LLM key - last resort)
         const providerKey = (provider in (settings.providerSettings || {}))
             ? settings.providerSettings?.[provider as keyof typeof settings.providerSettings]?.apiKey
             : undefined;
-        const apiKey = settings.embeddingApiKey || providerKey || settings.cloudApiKey || '';
-        
+        const apiKey = apiKeyOverride || settings.embeddingApiKey || providerKey || settings.cloudApiKey || '';
+
         // Endpoint for Ollama only (other providers use defaults)
         const endpoint = provider === 'ollama' ? settings.localEndpoint : undefined;
 

@@ -11,18 +11,28 @@ export class MockSecretStorage {
         this.available = available;
     }
 
-    async get(secretId: string): Promise<string | null> {
+    // Obsidian 1.11+ SecretStorage API methods
+    async getSecret(secretId: string): Promise<string | null> {
         if (!this.available) {
             throw new Error('SecretStorage not available');
         }
         return this.store.get(secretId) || null;
     }
 
-    async set(secretId: string, value: string): Promise<void> {
+    async setSecret(secretId: string, value: string): Promise<void> {
         if (!this.available) {
             throw new Error('SecretStorage not available');
         }
         this.store.set(secretId, value);
+    }
+
+    // Alias methods for compatibility
+    async get(secretId: string): Promise<string | null> {
+        return this.getSecret(secretId);
+    }
+
+    async set(secretId: string, value: string): Promise<void> {
+        return this.setSecret(secretId, value);
     }
 
     async remove(secretId: string): Promise<void> {
@@ -33,7 +43,6 @@ export class MockSecretStorage {
     }
 
     async delete(secretId: string): Promise<void> {
-        // Alias for remove - Obsidian uses 'delete'
         return this.remove(secretId);
     }
 

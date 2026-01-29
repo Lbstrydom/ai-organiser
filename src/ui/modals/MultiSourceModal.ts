@@ -12,6 +12,7 @@
 import { App, Modal, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { Persona } from '../../services/configurationService';
+import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import {
     DetectedSource,
     DetectedSources,
@@ -28,11 +29,21 @@ export interface SelectedSources {
     audio: Array<{ path: string; isVaultFile: boolean }>;
 }
 
+export interface MultiSourceModalConfig {
+    mode: 'summarize' | 'translate';
+    hidePersona?: boolean;
+    hideFocusContext?: boolean;
+    showLanguageSelector?: boolean;
+    ctaLabel?: string;
+}
+
 export interface MultiSourceModalResult {
     sources: SelectedSources;
     summarizeNote: boolean;
     focusContext?: string;
     personaId?: string;
+    targetLanguage?: string;
+    targetLanguageName?: string;
 }
 
 interface SourceSection {
@@ -49,6 +60,7 @@ export class MultiSourceModal extends Modal {
     private noteContent: string;
     private detectedSources: DetectedSources;
     private onConfirm: (result: MultiSourceModalResult) => void;
+    private config: MultiSourceModalConfig;
 
     // Selection state
     private selectedUrls = new Set<string>();
@@ -59,6 +71,7 @@ export class MultiSourceModal extends Modal {
     private summarizeNote: boolean;
     private focusContext = '';
     private selectedPersonaId: string;
+    private selectedTargetLanguage: string;
 
     // Manual input state
     private manualUrls: string[] = [];
@@ -78,13 +91,23 @@ export class MultiSourceModal extends Modal {
         app: App,
         plugin: AIOrganiserPlugin,
         noteContent: string,
-        onConfirm: (result: MultiSourceModalResult) => void
+        onConfirm: (result: MultiSourceModalResult) => void,
+        config: Partial<MultiSourceModalConfig> = {}
     ) {
         super(app);
         this.plugin = plugin;
         this.noteContent = noteContent;
         this.onConfirm = onConfirm;
         this.detectedSources = detectSourcesFromContent(noteContent, app);
+
+        // Set config defaults
+        this.config = {
+            mode: config.mode || 'summarize',
+            hidePersona: config.hidePersona ?? (config.mode === 'translate'),
+            hideFocusContext: config.hideFocusContext ?? (config.mode === 'translate'),
+            showLanguageSelector: config.showLanguageSelector ?? (config.mode === 'translate'),
+            ctaLabel: config.ctaLabel
+        };
 
         // Pre-select all detected sources
         this.detectedSources.urls.forEach(s => this.selectedUrls.add(s.value));
@@ -107,6 +130,9 @@ export class MultiSourceModal extends Modal {
 
         // Initialize persona to default
         this.selectedPersonaId = plugin.settings.defaultSummaryPersona || 'student';
+
+        // Initialize target language
+        this.selectedTargetLanguage = 'en';
     }
 
     /**
@@ -137,26 +163,32 @@ export class MultiSourceModal extends Modal {
 
         const t = this.plugin.t.modals.multiSource;
 
-        // Load personas asynchronously, then re-render settings section
-        this.plugin.configService.getSummaryPersonas().then(personas => {
-            this.personas = personas;
-            // Re-render settings section to include persona dropdown
-            const settingsSection = this.sectionsContainer?.querySelector('.ai-organiser-multi-source-settings');
-            if (settingsSection) {
-                settingsSection.remove();
-                this.renderSettingsSection();
-            }
-        });
+        // Load personas asynchronously if needed, then re-render settings section
+        if (!this.config.hidePersona) {
+            this.plugin.configService.getSummaryPersonas().then(personas => {
+                this.personas = personas;
+                // Re-render settings section to include persona dropdown
+                const settingsSection = this.sectionsContainer?.querySelector('.ai-organiser-multi-source-settings');
+                if (settingsSection) {
+                    settingsSection.remove();
+                    this.renderSettingsSection();
+                }
+            });
+        }
 
         // Title
         contentEl.createEl('h2', {
-            text: t?.title || 'Summarize Sources',
+            text: this.config.mode === 'translate'
+                ? (t?.translateTitle || 'Translate Sources')
+                : (t?.title || 'Summarize Sources'),
             cls: 'ai-organiser-multi-source-title'
         });
 
         // Description
-        const descEl = contentEl.createEl('p', {
-            text: t?.description || 'Select sources to summarize. The AI will synthesize content from all selected sources.',
+        contentEl.createEl('p', {
+            text: this.config.mode === 'translate'
+                ? (t?.translateDescription || 'Select sources to translate. Content will be translated to the target language.')
+                : (t?.description || 'Select sources to summarize. The AI will synthesize content from all selected sources.'),
             cls: 'ai-organiser-multi-source-desc'
         });
 
@@ -259,11 +291,15 @@ export class MultiSourceModal extends Modal {
 
         const label = itemEl.createDiv({ cls: 'ai-organiser-multi-source-item-content' });
         label.createDiv({
-            text: t?.includeNoteContent || 'Include note content',
+            text: this.config.mode === 'translate'
+                ? (t?.translateNoteLabel || 'Translate note content')
+                : (t?.includeNoteContent || 'Include note content'),
             cls: 'ai-organiser-multi-source-item-label'
         });
         label.createDiv({
-            text: t?.noteContentDesc || 'Analyze the current note alongside external sources',
+            text: this.config.mode === 'translate'
+                ? (t?.translateNoteDesc || 'Translate text in the current note')
+                : (t?.noteContentDesc || 'Analyze the current note alongside external sources'),
             cls: 'ai-organiser-multi-source-item-desc'
         });
 
@@ -434,8 +470,26 @@ export class MultiSourceModal extends Modal {
             cls: 'ai-organiser-multi-source-settings'
         });
 
-        // Persona selection dropdown
-        if (this.personas.length > 0) {
+        // Language Selector (Translate Mode)
+        if (this.config.showLanguageSelector) {
+            new Setting(settingsSection)
+                .setName(t?.languageLabel || 'Target Language')
+                .setDesc(t?.languageDesc || 'Language to translate all content into')
+                .addDropdown(dropdown => {
+                     COMMON_LANGUAGES.forEach(lang => {
+                          if (lang.code !== 'auto') {
+                               dropdown.addOption(lang.code, getLanguageDisplayName(lang));
+                          }
+                     });
+                     dropdown.setValue(this.selectedTargetLanguage);
+                     dropdown.onChange(value => {
+                          this.selectedTargetLanguage = value;
+                     });
+                });
+        }
+
+        // Persona selection dropdown (Summarize Mode)
+        if (!this.config.hidePersona && this.personas.length > 0) {
             new Setting(settingsSection)
                 .setName(t?.persona || 'Summary Style')
                 .setDesc(t?.personaDesc || 'Choose how the summary should be written')
@@ -450,16 +504,18 @@ export class MultiSourceModal extends Modal {
                 });
         }
 
-        // Focus context input
-        new Setting(settingsSection)
-            .setName(t?.focusContext || 'Focus Context')
-            .setDesc(t?.focusContextDesc || 'Optional: Specify what aspects to focus on')
-            .addText(text => text
-                .setPlaceholder(t?.focusPlaceholder || 'e.g., "key findings" or "action items"')
-                .setValue(this.focusContext)
-                .onChange(value => {
-                    this.focusContext = value;
-                }));
+        // Focus context input (Summarize Mode)
+        if (!this.config.hideFocusContext) {
+            new Setting(settingsSection)
+                .setName(t?.focusContext || 'Focus Context')
+                .setDesc(t?.focusContextDesc || 'Optional: Specify what aspects to focus on')
+                .addText(text => text
+                    .setPlaceholder(t?.focusPlaceholder || 'e.g., "key findings" or "action items"')
+                    .setValue(this.focusContext)
+                    .onChange(value => {
+                        this.focusContext = value;
+                    }));
+        }
     }
 
     private rerenderSection(config: Partial<SourceSection>): void {
@@ -682,15 +738,17 @@ export class MultiSourceModal extends Modal {
 
         const t = this.plugin.t.modals.multiSource;
         const count = this.getTotalSelectedCount();
+        const isTranslate = this.config.mode === 'translate';
 
         if (count === 0) {
-            this.ctaButton.textContent = t?.summarizeButton || 'Summarize';
+            this.ctaButton.textContent = isTranslate ? (t?.translateButton || 'Translate Sources') : (t?.summarizeButton || 'Summarize');
             this.ctaButton.disabled = true;
         } else if (count === 1) {
-            this.ctaButton.textContent = t?.summarizeOne || 'Summarize 1 source';
+            this.ctaButton.textContent = isTranslate ? (t?.translateOne || 'Translate 1 Source') : (t?.summarizeOne || 'Summarize 1 source');
             this.ctaButton.disabled = false;
         } else {
-            this.ctaButton.textContent = (t?.summarizeMultiple || 'Summarize {count} sources').replace('{count}', String(count));
+            const template = isTranslate ? (t?.translateMultiple || 'Translate {count} Sources') : (t?.summarizeMultiple || 'Summarize {count} sources');
+            this.ctaButton.textContent = template.replace('{count}', String(count));
             this.ctaButton.disabled = false;
         }
     }
@@ -727,6 +785,14 @@ export class MultiSourceModal extends Modal {
             focusContext: this.focusContext.trim() || undefined,
             personaId: this.selectedPersonaId
         };
+
+        if (this.config.mode === 'translate') {
+             result.targetLanguage = this.selectedTargetLanguage;
+             const lang = COMMON_LANGUAGES.find(l => l.code === this.selectedTargetLanguage);
+             result.targetLanguageName = lang ? lang.name : this.selectedTargetLanguage;
+             delete result.personaId;
+             delete result.focusContext;
+        }
 
         this.close();
         this.onConfirm(result);

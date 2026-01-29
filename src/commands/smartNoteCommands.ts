@@ -23,39 +23,9 @@ import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { MIN_TEXT_CONTENT_CHARS, SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { analyzeMultipleContent, getServiceType, summarizeText } from '../services/llmFacade';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
+import { getYouTubeGeminiApiKey } from '../services/apiKeyHelpers';
 
-/**
- * Get Gemini API key for YouTube processing
- * Checks dedicated YouTube key first, then falls back to main Gemini key
- */
-async function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
-    const secretStorage = plugin.secretStorageService;
-    const useMainGeminiKey = plugin.settings.cloudServiceType === 'gemini';
 
-    if (secretStorage.isAvailable()) {
-        return await secretStorage.resolveApiKey({
-            primaryId: PLUGIN_SECRET_IDS.YOUTUBE,
-            providerFallback: 'gemini',
-            useMainKeyFallback: useMainGeminiKey,
-            plainTextFallback: {
-                primaryKey: plugin.settings.youtubeGeminiApiKey,
-                providerKey: plugin.settings.providerSettings?.gemini?.apiKey,
-                mainCloudKey: plugin.settings.cloudApiKey
-            }
-        });
-    }
-
-    if (plugin.settings.youtubeGeminiApiKey) {
-        return plugin.settings.youtubeGeminiApiKey;
-    }
-    if (useMainGeminiKey && plugin.settings.cloudApiKey) {
-        return plugin.settings.cloudApiKey;
-    }
-    if (plugin.settings.providerSettings?.gemini?.apiKey) {
-        return plugin.settings.providerSettings.gemini.apiKey;
-    }
-    return null;
-}
 
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     const extractionService = new ContentExtractionService(plugin.app);

@@ -29,6 +29,7 @@ import { VectorStoreService, IVectorStore } from './services/vector';
 import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
+import { EMBEDDING_PROVIDER_TO_SECRET_ID, PLUGIN_SECRET_IDS } from './core/secretIds';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -104,13 +105,34 @@ export default class AIOrganiserPlugin extends Plugin {
 
         // Only create if semantic search is enabled
         if (this.settings.enableSemanticSearch) {
-            this.embeddingService = createEmbeddingServiceFromSettings(this.settings);
+            // Resolve API key from SecretStorage with inheritance chain
+            const apiKey = await this.resolveEmbeddingApiKey();
+            this.embeddingService = createEmbeddingServiceFromSettings(this.settings, apiKey || undefined);
 
             // Update vector store service with new embedding service
             if (this.vectorStoreService) {
                 await this.vectorStoreService.updateEmbeddingService(this.embeddingService);
             }
         }
+    }
+
+    /**
+     * Resolve embedding API key via SecretStorage inheritance chain
+     */
+    private async resolveEmbeddingApiKey(): Promise<string | null> {
+        const provider = this.settings.embeddingProvider;
+        const secretId = EMBEDDING_PROVIDER_TO_SECRET_ID[provider];
+
+        return await this.secretStorageService.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.EMBEDDING,
+            providerFallback: secretId ? provider as AdapterType : undefined,
+            useMainKeyFallback: true,
+            plainTextFallback: {
+                primaryKey: this.settings.embeddingApiKey,
+                providerKey: this.settings.providerSettings?.[provider as keyof typeof this.settings.providerSettings]?.apiKey,
+                mainCloudKey: this.settings.cloudApiKey
+            }
+        });
     }
 
     private async getProviderApiKey(type: AdapterType): Promise<string> {
@@ -246,8 +268,9 @@ export default class AIOrganiserPlugin extends Plugin {
         // Initialize vector store for semantic search
         if (this.settings.enableSemanticSearch) {
             try {
-                // Create embedding service from settings
-                this.embeddingService = createEmbeddingServiceFromSettings(this.settings);
+                // Resolve API key from SecretStorage with inheritance chain
+                const embeddingApiKey = await this.resolveEmbeddingApiKey();
+                this.embeddingService = createEmbeddingServiceFromSettings(this.settings, embeddingApiKey || undefined);
 
                 // Create vector store service
                 this.vectorStoreService = new VectorStoreService(
