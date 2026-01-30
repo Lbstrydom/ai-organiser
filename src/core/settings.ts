@@ -325,6 +325,22 @@ export function getDictionariesFolderFullPath(settings: AIOrganiserSettings): st
     return `${getConfigFolderFullPath(settings)}/dictionaries`;
 }
 
+export function getMinutesOutputFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.minutesOutputFolder, 'Meetings');
+}
+
+export function getExportOutputFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.exportOutputFolder, 'Exports');
+}
+
+export function getFlashcardFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.flashcardFolder, 'Flashcards');
+}
+
+export function getTranscriptFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.transcriptFolder, 'Transcripts');
+}
+
 /**
  * Get all plugin-managed folders that should be auto-excluded from tagging
  */

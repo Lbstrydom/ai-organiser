@@ -6,7 +6,7 @@ import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../serv
 import { detectEmbeddedAudio, DetectedContent } from '../../utils/embeddedContentDetector';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
-import { getConfigFolderFullPath } from '../../core/settings';
+import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
     DEFAULT_MAX_DOCUMENT_CHARS,
@@ -515,7 +515,7 @@ export class MinutesCreationModal extends Modal {
                 participantsRaw: this.state.participants,
                 transcript: this.state.transcript,
                 personaId: this.state.personaId,
-                outputFolder: this.plugin.settings.minutesOutputFolder,
+                outputFolder: getMinutesOutputFullPath(this.plugin.settings),
                 customInstructions: this.state.customInstructions,
                 languageOverride: this.state.languageOverride,
                 contextDocuments: contextDocuments || undefined,
@@ -600,7 +600,7 @@ export class MinutesCreationModal extends Modal {
             return;
         }
 
-        const transcriptFolder = `${this.plugin.settings.pluginFolder}/${this.plugin.settings.transcriptFolder}`;
+        const transcriptFolder = getTranscriptFullPath(this.plugin.settings);
         if (!activeFile.path.startsWith(transcriptFolder)) {
             return;
         }
@@ -625,9 +625,7 @@ export class MinutesCreationModal extends Modal {
         if (this.state.transcript.trim()) return; // Already has content
         if (this.state.detectedAudioFiles.length === 0) return;
 
-        const pluginFolder = this.plugin.settings.pluginFolder || 'AI-Organiser';
-        const transcriptSubfolder = this.plugin.settings.transcriptFolder || 'Transcripts';
-        const folder = normalizePath(`${pluginFolder}/${transcriptSubfolder}`);
+        const folder = normalizePath(getTranscriptFullPath(this.plugin.settings));
 
         const folderAbstract = this.app.vault.getAbstractFileByPath(folder);
         if (!folderAbstract) return;
@@ -1398,6 +1396,7 @@ export class MinutesCreationModal extends Modal {
             if (existing) {
                 existing.entries = entries;
                 await this.participantListService.save(existing);
+                this.refreshParticipantListDropdown();
                 new Notice(
                     (t?.participantListSaved || 'Participant list saved: {name}')
                         .replace('{name}', existing.name)

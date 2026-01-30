@@ -2,6 +2,7 @@ import { App, Modal, Notice, Setting, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { ExportService } from '../../services/export/exportService';
 import type { ExportFormat } from '../../services/export/exportService';
+import { getExportOutputFullPath } from '../../core/settings';
 
 export class ExportModal extends Modal {
     private plugin: AIOrganiserPlugin;
@@ -15,7 +16,7 @@ export class ExportModal extends Modal {
         super(app);
         this.plugin = plugin;
         this.notes = initialNotes;
-        this.outputFolder = plugin.settings.exportOutputFolder || 'Exports';
+        this.outputFolder = getExportOutputFullPath(plugin.settings);
     }
 
     onOpen(): void {

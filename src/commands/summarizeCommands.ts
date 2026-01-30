@@ -12,6 +12,8 @@ import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from 
 import { parseStructuredResponse } from '../utils/responseParser';
 import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils';
 import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
+import { getTranscriptFullPath } from '../core/settings';
+import { ensureFolderExists } from '../utils/minutesUtils';
 import { isContentTooLarge, getMaxContentChars, truncateContent, getProviderLimits } from '../services/tokenLimits';
 import { ensurePrivacyConsent, resetPrivacyNotice } from '../services/privacyNotice';
 import { isPdfUrl, extractFilenameFromUrl } from '../utils/urlValidator';
@@ -136,23 +138,11 @@ async function saveTranscriptToFile(
         return null;
     }
 
-    // Build full path: pluginFolder/transcriptFolder
-    const pluginFolder = plugin.settings.pluginFolder || 'AI-Organiser';
-    const transcriptSubfolder = plugin.settings.transcriptFolder || 'Transcripts';
-    const folder = `${pluginFolder}/${transcriptSubfolder}`;
+    // Resolve full path via settings helper
+    const folder = getTranscriptFullPath(plugin.settings);
 
-    // Ensure plugin folder exists first, then transcript subfolder
-    const pluginFolderPath = normalizePath(pluginFolder);
-    if (!plugin.app.vault.getAbstractFileByPath(pluginFolderPath)) {
-        await plugin.app.vault.createFolder(pluginFolderPath);
-    }
-
-    // Ensure transcript folder exists
-    const folderPath = normalizePath(folder);
-    const folderExists = plugin.app.vault.getAbstractFileByPath(folderPath);
-    if (!folderExists) {
-        await plugin.app.vault.createFolder(folderPath);
-    }
+    // Ensure folder hierarchy exists
+    await ensureFolderExists(plugin.app.vault, folder);
 
     // Generate filename - sanitize the title for use as filename
     const sanitizedTitle = sourceTitle

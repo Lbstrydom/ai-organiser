@@ -13,6 +13,8 @@ import {
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
 import { summarizeText, pluginContext } from '../services/llmFacade';
+import { getFlashcardFullPath } from '../core/settings';
+import { ensureFolderExists } from '../utils/minutesUtils';
 import { withBusyIndicator } from '../utils/busyIndicator';
 
 /**
@@ -146,22 +148,11 @@ async function saveFlashcardFile(
     format: FlashcardFormat,
     csvContent: string
 ): Promise<string> {
-    // Build full path: pluginFolder/flashcardFolder
-    const pluginFolder = plugin.settings.pluginFolder || 'AI-Organiser';
-    const flashcardSubfolder = plugin.settings.flashcardFolder || 'Flashcards';
-    const folder = `${pluginFolder}/${flashcardSubfolder}`;
+    // Resolve full path via settings helper
+    const folder = getFlashcardFullPath(plugin.settings);
 
-    // Ensure plugin folder exists first
-    const pluginFolderPath = normalizePath(pluginFolder);
-    if (!plugin.app.vault.getAbstractFileByPath(pluginFolderPath)) {
-        await plugin.app.vault.createFolder(pluginFolderPath);
-    }
-
-    // Ensure flashcard folder exists
-    const folderPath = normalizePath(folder);
-    if (!plugin.app.vault.getAbstractFileByPath(folderPath)) {
-        await plugin.app.vault.createFolder(folderPath);
-    }
+    // Ensure folder hierarchy exists
+    await ensureFolderExists(plugin.app.vault, folder);
 
     // Generate filename from source note
     const baseName = sourceFile.basename;

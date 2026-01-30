@@ -95,7 +95,10 @@ export class MinutesService {
             parsed = parseMinutesResponse(responseText);
         }
 
-        if (this.plugin.settings.debugMode) console.log('[AI Organiser] Minutes parsed — json keys:', Object.keys(parsed.json), 'markdown length:', parsed.markdown.length);
+        if (this.plugin.settings.debugMode) {
+            console.log('[AI Organiser] Minutes input — contextDocuments:', input.contextDocuments ? `${input.contextDocuments.length} chars` : 'none', '| dictionary:', input.dictionaryContent ? `${input.dictionaryContent.length} chars` : 'none');
+            console.log('[AI Organiser] Minutes parsed — json keys:', Object.keys(parsed.json), 'markdown length:', parsed.markdown.length);
+        }
 
         const detailLevel = input.detailLevel || this.plugin.settings.minutesDetailLevel || 'standard';
 
