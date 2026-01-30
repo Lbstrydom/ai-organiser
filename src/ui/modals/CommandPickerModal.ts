@@ -224,15 +224,20 @@ export function buildCommandCategories(
                         t.commands.improveNote,
                         t.commands.generateMermaidDiagram,
                         t.commands.findResources,
-                        t.commands.exportFlashcards,
                         'improve',
                         'rewrite',
                         'diagram',
                         'mermaid',
-                        'resources',
-                        'flashcards'
+                        'resources'
                     ],
                     callback: () => executeCommand('ai-organiser:enhance-note')
+                },
+                {
+                    id: 'export-flashcards',
+                    name: t.commands.exportFlashcards,
+                    icon: 'layers',
+                    aliases: ['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
+                    callback: () => executeCommand('ai-organiser:export-flashcards')
                 },
                 {
                     id: 'smart-translate',

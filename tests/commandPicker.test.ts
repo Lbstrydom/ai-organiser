@@ -139,6 +139,7 @@ describe('Command Picker', () => {
                 expect(enhanceCategory).toBeDefined();
                 const commandIds = enhanceCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('enhance-note');
+                expect(commandIds).toContain('export-flashcards');
                 expect(commandIds).toContain('smart-translate');
                 expect(commandIds).toContain('highlight-group');
 
