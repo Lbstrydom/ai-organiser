@@ -65,29 +65,29 @@ export function buildMinutesFrontmatter(input: MinutesFrontmatterInput): string 
         (json.open_questions?.length ?? 0) > 0;
 
     const lines: string[] = [];
-    lines.push(`aio_type: meeting`);
-    lines.push(`aio_meeting_title: ${yamlEscape(title)}`);
-    lines.push(`aio_meeting_date: ${yamlEscape(date)}`);
-    lines.push(`aio_meeting_start_time: ${yamlEscape(json.metadata?.start_time || '')}`);
-    lines.push(`aio_meeting_end_time: ${yamlEscape(json.metadata?.end_time || '')}`);
-    lines.push(`aio_meeting_timezone: ${yamlEscape(json.metadata?.timezone || '')}`);
-    lines.push(`aio_context: ${yamlEscape(json.metadata?.meeting_context || '')}`);
-    lines.push(`aio_output_audience: ${yamlEscape(json.metadata?.output_audience || '')}`);
-    lines.push(`aio_confidentiality: ${yamlEscape(json.metadata?.confidentiality_level || '')}`);
-    lines.push(`aio_chair: ${yamlEscape(json.metadata?.chair || '')}`);
-    lines.push(`aio_location: ${yamlEscape(json.metadata?.location || '')}`);
-    lines.push(`aio_actions_count: ${json.actions?.length ?? 0}`);
-    lines.push(`aio_decisions_count: ${json.decisions?.length ?? 0}`);
-    lines.push(`aio_has_tbc: ${hasTbc ? 'true' : 'false'}`);
-    lines.push(`aio_quorum: ${json.metadata?.quorum_present ?? 'null'}`);
+    lines.push(`type: meeting`);
+    lines.push(`meeting_title: ${yamlEscape(title)}`);
+    lines.push(`meeting_date: ${yamlEscape(date)}`);
+    lines.push(`meeting_start_time: ${yamlEscape(json.metadata?.start_time || '')}`);
+    lines.push(`meeting_end_time: ${yamlEscape(json.metadata?.end_time || '')}`);
+    lines.push(`meeting_timezone: ${yamlEscape(json.metadata?.timezone || '')}`);
+    lines.push(`context: ${yamlEscape(json.metadata?.meeting_context || '')}`);
+    lines.push(`output_audience: ${yamlEscape(json.metadata?.output_audience || '')}`);
+    lines.push(`confidentiality: ${yamlEscape(json.metadata?.confidentiality_level || '')}`);
+    lines.push(`chair: ${yamlEscape(json.metadata?.chair || '')}`);
+    lines.push(`location: ${yamlEscape(json.metadata?.location || '')}`);
+    lines.push(`actions_count: ${json.actions?.length ?? 0}`);
+    lines.push(`decisions_count: ${json.decisions?.length ?? 0}`);
+    lines.push(`has_tbc: ${hasTbc ? 'true' : 'false'}`);
+    lines.push(`quorum: ${json.metadata?.quorum_present ?? 'null'}`);
 
     if (attendees.length > 0) {
-        lines.push(`aio_attendees:`);
+        lines.push(`attendees:`);
         attendees.forEach(a => lines.push(`  - ${yamlEscape(a)}`));
     }
 
     if (apologies.length > 0) {
-        lines.push(`aio_apologies:`);
+        lines.push(`apologies:`);
         apologies.forEach(a => lines.push(`  - ${yamlEscape(a)}`));
     }
 

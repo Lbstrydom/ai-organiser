@@ -214,7 +214,7 @@ This was a kickoff meeting.
 
             const content = createdFiles.get(result.filePath)!;
             expect(content).toContain('---'); // Frontmatter
-            expect(content).toContain('aio_meeting_title:'); // Uses aio_ prefix
+            expect(content).toContain('meeting_title:'); // Clean property name
             expect(content).toContain('Project Kickoff'); // Contains title in content
             expect(content).toContain('<!-- AIO_MINUTES_JSON:'); // JSON comment
         });
@@ -238,7 +238,7 @@ This was a kickoff meeting.
             const result = await service.generateMinutes(baseInput);
 
             const content = createdFiles.get(result.filePath)!;
-            expect(content).toContain('aio_meeting_title: "Project Kickoff"'); // Fallback from input
+            expect(content).toContain('meeting_title: "Project Kickoff"'); // Fallback from input
         });
 
         it('falls back to input date when model omits metadata.date', async () => {

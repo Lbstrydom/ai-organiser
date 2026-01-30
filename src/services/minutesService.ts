@@ -100,11 +100,11 @@ export class MinutesService {
         const detailLevel = input.detailLevel || this.plugin.settings.minutesDetailLevel || 'standard';
 
         // Always render from JSON for reliable output.
-        // LLM markdown is used only if substantial (>200 chars), otherwise the JSON
-        // consumed the output token budget and the markdown was truncated/empty.
+        // LLM markdown is used only if it looks like actual markdown (has headings),
+        // is substantial (>200 chars), and doesn't look like leftover JSON.
         const llmMarkdown = parsed.markdown.trim();
         const renderedMarkdown = renderMinutesFromJson(parsed.json, detailLevel);
-        const baseMarkdown = llmMarkdown.length > 200 ? llmMarkdown : renderedMarkdown;
+        const baseMarkdown = this.isUsableMarkdown(llmMarkdown) ? llmMarkdown : renderedMarkdown;
 
         const markdown = buildMinutesMarkdown(baseMarkdown, parsed.markdownExternal, {
             includeTasks: input.metadata.obsidianTasksFormat,
@@ -327,6 +327,19 @@ export class MinutesService {
                 }
                 return { name: cleaned };
             });
+    }
+
+    /**
+     * Check if text looks like usable markdown rather than JSON fragments or garbage.
+     * Must be >200 chars, contain at least one markdown heading, and not start with JSON.
+     */
+    private isUsableMarkdown(text: string): boolean {
+        if (text.length <= 200) return false;
+        // Reject if it looks like JSON (starts with { or [ after trimming)
+        if (text.startsWith('{') || text.startsWith('[')) return false;
+        // Require at least one markdown heading
+        if (!/^#{1,6}\s/m.test(text)) return false;
+        return true;
     }
 
     private async callLLM(prompt: string): Promise<string> {
