@@ -212,9 +212,63 @@ Hope this helps!`;
 
             const result = parseStructuredResponse(response);
 
-            // Should fallback since validation fails
+            // Should fallback since validation fails (no body_content)
             expect(result).not.toBeNull();
             expect(result?.content_type).toBe('note'); // Fallback default
+        });
+
+        it('should coerce unknown content_type to note instead of rejecting', () => {
+            const response = JSON.stringify({
+                summary_hook: 'A summary',
+                body_content: '## Real markdown content\n\nWith paragraphs.',
+                suggested_tags: ['ai'],
+                content_type: 'article' // Not in allowed list
+            });
+
+            const result = parseStructuredResponse(response);
+
+            // Should extract body_content, NOT insert raw JSON
+            expect(result).not.toBeNull();
+            expect(result?.body_content).toContain('## Real markdown content');
+            expect(result?.body_content).not.toContain('"summary_hook"');
+            expect(result?.content_type).toBe('note'); // Coerced to default
+        });
+
+        it('should coerce missing suggested_tags to empty array', () => {
+            const response = JSON.stringify({
+                summary_hook: 'A summary',
+                body_content: 'Content here',
+                content_type: 'research'
+                // No suggested_tags
+            });
+
+            const result = parseStructuredResponse(response);
+
+            expect(result).not.toBeNull();
+            expect(result?.body_content).toBe('Content here');
+            expect(result?.suggested_tags).toEqual([]);
+            expect(result?.content_type).toBe('research');
+        });
+
+        it('should never insert raw JSON as body_content when JSON has summary_hook and body_content', () => {
+            // Regression test: LLM returns valid JSON but with unexpected content_type
+            const response = JSON.stringify({
+                summary_hook: 'Master AI specs',
+                body_content: '## The Deep Dive\n\nDetailed analysis of spec writing.',
+                suggested_tags: 'not-an-array', // Wrong type
+                content_type: 'tutorial', // Not in allowed list
+                detected_language: 'en'
+            });
+
+            const result = parseStructuredResponse(response);
+
+            expect(result).not.toBeNull();
+            // Must extract markdown body, not insert raw JSON
+            expect(result?.body_content).toContain('## The Deep Dive');
+            expect(result?.body_content).not.toContain('"summary_hook"');
+            expect(result?.body_content).not.toContain('"body_content"');
+            expect(result?.suggested_tags).toEqual([]); // Coerced
+            expect(result?.content_type).toBe('note'); // Coerced
         });
     });
 });

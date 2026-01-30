@@ -62,23 +62,31 @@ export function parseStructuredResponse(
  * Also sanitizes body_content and summary_hook
  */
 function isValidStructuredResponse(obj: any): obj is StructuredSummaryResponse {
-    const isValid = (
+    const VALID_CONTENT_TYPES = ['note', 'research', 'meeting', 'project', 'reference'];
+
+    // Only require the two essential string fields
+    const hasRequiredFields = (
         obj &&
         typeof obj === 'object' &&
         typeof obj.summary_hook === 'string' &&
-        typeof obj.body_content === 'string' &&
-        Array.isArray(obj.suggested_tags) &&
-        typeof obj.content_type === 'string' &&
-        ['note', 'research', 'meeting', 'project', 'reference'].includes(obj.content_type)
+        typeof obj.body_content === 'string'
     );
 
-    // Sanitize content if valid
-    if (isValid) {
-        obj.summary_hook = sanitizeSummaryHookContent(obj.summary_hook);
-        obj.body_content = sanitizeBodyContent(obj.body_content);
+    if (!hasRequiredFields) return false;
+
+    // Coerce missing/invalid optional fields to safe defaults instead of rejecting
+    if (!Array.isArray(obj.suggested_tags)) {
+        obj.suggested_tags = [];
+    }
+    if (typeof obj.content_type !== 'string' || !VALID_CONTENT_TYPES.includes(obj.content_type)) {
+        obj.content_type = 'note';
     }
 
-    return isValid;
+    // Sanitize content
+    obj.summary_hook = sanitizeSummaryHookContent(obj.summary_hook);
+    obj.body_content = sanitizeBodyContent(obj.body_content);
+
+    return true;
 }
 
 /**
