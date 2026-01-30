@@ -128,21 +128,35 @@ export class DocumentExtractionService {
     }
 
     /**
-     * Extract text from PDF using simple text extraction
-     * Note: For full PDF understanding, use multimodal LLM instead
+     * Extract text from PDF
+     * Tries officeparser first (proper PDF parsing), falls back to basic byte extraction
      */
     private async extractPdfText(file: TFile): Promise<DocumentExtractionResult> {
         try {
-            // For PDFs, we can read the raw bytes and try basic text extraction
-            // This is a simple approach - for better results, use multimodal
             const arrayBuffer = await this.app.vault.readBinary(file);
+
+            // Try officeparser first — proper PDF text extraction
+            const officeParser = await this.loadOfficeParser();
+            if (officeParser) {
+                try {
+                    const result = await officeParser.parseOffice(arrayBuffer);
+                    const text = result.toText();
+                    if (text && text.trim().length > 0) {
+                        console.log('[AI Organiser] PDF extracted via officeparser:', text.length, 'chars');
+                        return { success: true, text };
+                    }
+                    console.log('[AI Organiser] officeparser returned empty text for PDF');
+                } catch (e) {
+                    console.warn('[AI Organiser] officeparser PDF extraction failed:', e instanceof Error ? e.message : e);
+                }
+            }
+
+            // Fallback: basic byte-level extraction (filters PDF structural terms)
             const text = this.extractTextFromPdfBytes(arrayBuffer);
 
             if (text && text.trim().length > 0) {
-                return {
-                    success: true,
-                    text
-                };
+                console.log('[AI Organiser] PDF extracted via byte fallback:', text.length, 'chars');
+                return { success: true, text };
             } else {
                 return {
                     success: false,
@@ -161,23 +175,35 @@ export class DocumentExtractionService {
      * Basic PDF text extraction from raw bytes
      * This is a simple approach that works for text-based PDFs
      */
+    /**
+     * PDF structural keywords to filter out from byte-level extraction.
+     * These are PDF operators/dictionary keys, not readable content.
+     */
+    private static readonly PDF_STRUCTURAL_TERMS = new Set([
+        'XObject', 'SMask', 'FlateDecode', 'DeviceRGB', 'DeviceGray', 'DeviceCMYK',
+        'ColorSpace', 'BitsPerComponent', 'Interpolate', 'PatternType', 'Shading',
+        'ShadingType', 'Coords', 'Extend', 'Function', 'FunctionType', 'Size',
+        'Decode', 'Range', 'BitsPerSample', 'Domain', 'Encode', 'Order',
+        'MediaBox', 'Contents', 'Group', 'Transparency', 'StructParents',
+        'ExtGState', 'Font', 'ProcSet', 'Identity', 'Resources', 'Tabs',
+        'Type', 'Subtype', 'Filter', 'Length', 'Width', 'Height',
+        'ICCBased', 'Catalog', 'Pages', 'Page', 'Outlines', 'Metadata',
+        'TrimBox', 'BleedBox', 'CropBox', 'ArtBox', 'Annots', 'MarkInfo',
+        'StructTreeRoot', 'ViewerPreferences', 'PageLayout', 'PageMode',
+        'DCTDecode', 'ASCIIHexDecode', 'ASCII85Decode', 'LZWDecode',
+        'RunLengthDecode', 'CCITTFaxDecode', 'JBIG2Decode', 'JPXDecode'
+    ]);
+
     private extractTextFromPdfBytes(buffer: ArrayBuffer): string {
         const bytes = new Uint8Array(buffer);
         const text: string[] = [];
 
-        // Simple PDF text extraction - looks for text between parentheses in stream
-        // This is a basic approach that works for many PDFs
-        let inStream = false;
-        let streamContent = '';
-
         const decoder = new TextDecoder('latin1');
         const content = decoder.decode(bytes);
 
-        // Find text objects in PDF
+        // Extract text from parenthesized strings (PDF text operators)
         const textRegex = /\(([^)]+)\)/g;
-        const tjRegex = /\[([^\]]+)\]\s*TJ/g;
 
-        // Extract from Tj operators
         let match;
         while ((match = textRegex.exec(content)) !== null) {
             const extracted = match[1]
@@ -188,7 +214,9 @@ export class DocumentExtractionService {
                 .replace(/\\\)/g, ')')
                 .replace(/\\\\/g, '\\');
 
-            if (extracted.trim()) {
+            const trimmed = extracted.trim();
+            // Filter out PDF structural terms and very short tokens
+            if (trimmed && trimmed.length > 1 && !DocumentExtractionService.PDF_STRUCTURAL_TERMS.has(trimmed)) {
                 text.push(extracted);
             }
         }

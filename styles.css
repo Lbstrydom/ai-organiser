@@ -914,6 +914,18 @@
     gap: var(--size-4-2);
 }
 
+.ai-organiser-shake {
+    animation: ai-organiser-shake 0.4s ease;
+}
+
+@keyframes ai-organiser-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+}
+
 /* Find Resources Modal Styles */
 .find-resources-modal {
     max-width: 550px;
@@ -3207,6 +3219,29 @@
 
 .minutes-textarea {
     width: 100%;
+}
+
+.minutes-participants-textarea {
+    width: 100%;
+    min-height: 100px;
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-small);
+    padding: 8px;
+    margin-top: 8px;
+}
+
+.minutes-participants-desc {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+.minutes-participants-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    align-items: center;
 }
 
 .minutes-warning {

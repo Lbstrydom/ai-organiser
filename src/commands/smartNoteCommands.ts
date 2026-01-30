@@ -95,10 +95,6 @@ async function executeImproveNote(plugin: AIOrganiserPlugin): Promise<void> {
         personas,
         defaultPersona,
         async (result) => {
-            if (!result.query.trim()) {
-                return;
-            }
-
             const personaPrompt = result.personaId
                 ? await configService.getPersonaPrompt(result.personaId)
                 : await configService.getPersonaPrompt();

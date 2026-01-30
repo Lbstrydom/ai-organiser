@@ -377,22 +377,35 @@ ${buildMinutesSystemPrompt(outputLanguage, personaInstructions)}`;
 }
 
 export function parseMinutesResponse(response: string): ParsedMinutes {
+    console.log('[AI Organiser] parseMinutesResponse — response length:', response.length, 'preview:', response.substring(0, 200));
+
+    // Strip code fences BEFORE any parsing (LLMs often wrap in ```json despite instructions)
+    // Remove opening ```json and its matching closing ``` (may be mid-response, not just at end)
+    let cleaned = response.trim();
+    if (/^```json?\s*\n/i.test(cleaned)) {
+        cleaned = cleaned.replace(/^```json?\s*\n/i, '');
+        // Remove the first standalone ``` (closing fence)
+        cleaned = cleaned.replace(/\n```\s*(?:\n|$)/, '\n');
+    }
+    cleaned = cleaned.trim();
+
     let jsonPart: string;
     let markdownPart: string;
 
-    const delimiterIndex = response.indexOf(MINUTES_JSON_DELIMITER);
+    const delimiterIndex = cleaned.indexOf(MINUTES_JSON_DELIMITER);
 
     if (delimiterIndex !== -1) {
-        jsonPart = response.substring(0, delimiterIndex).trim();
-        markdownPart = response.substring(delimiterIndex + MINUTES_JSON_DELIMITER.length).trim();
+        jsonPart = cleaned.substring(0, delimiterIndex).trim();
+        markdownPart = cleaned.substring(delimiterIndex + MINUTES_JSON_DELIMITER.length).trim();
+        console.log('[AI Organiser] parseMinutesResponse — found delimiter at', delimiterIndex);
     } else {
-        jsonPart = extractJsonByBraceMatching(response);
-        const jsonEndIndex = response.indexOf(jsonPart) + jsonPart.length;
-        markdownPart = response.substring(jsonEndIndex).trim();
+        console.log('[AI Organiser] parseMinutesResponse — no delimiter, using brace matching');
+        jsonPart = extractJsonByBraceMatching(cleaned);
+        const jsonEndIndex = cleaned.indexOf(jsonPart) + jsonPart.length;
+        markdownPart = cleaned.substring(jsonEndIndex).trim();
         markdownPart = markdownPart.replace(/^---+\s*/m, '').trim();
+        console.log('[AI Organiser] parseMinutesResponse — json length:', jsonPart.length, 'markdown length:', markdownPart.length);
     }
-
-    jsonPart = jsonPart.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
 
     const minutesJson = parseJsonWithRepair(jsonPart);
 
@@ -427,6 +440,7 @@ function extractJsonByBraceMatching(text: string): string {
     let depth = 0;
     let inString = false;
     let escape = false;
+    let lastBalancedEnd = -1;
 
     for (let i = start; i < text.length; i++) {
         const char = text[i];
@@ -448,12 +462,43 @@ function extractJsonByBraceMatching(text: string): string {
 
         if (!inString) {
             if (char === '{') depth++;
-            if (char === '}') depth--;
-
-            if (depth === 0) {
-                return text.substring(start, i + 1);
+            if (char === '}') {
+                depth--;
+                if (depth === 0) {
+                    return text.substring(start, i + 1);
+                }
+                // Track last point where we closed a nested object at depth 1
+                // (useful for repairing truncated responses)
+                if (depth === 1) {
+                    lastBalancedEnd = i;
+                }
             }
         }
+    }
+
+    // Truncated response — close at last balanced nested object
+    if (lastBalancedEnd > start) {
+        console.warn('[AI Organiser] extractJsonByBraceMatching — truncated JSON, repairing at position', lastBalancedEnd);
+        // Find the content up to the last complete nested object, then close the root
+        const partial = text.substring(start, lastBalancedEnd + 1);
+        // Remove any trailing comma after the last complete value
+        const trimmed = partial.replace(/,\s*$/, '');
+        // Count unclosed brackets [ in the partial (ignoring those inside strings)
+        let unclosedBrackets = 0;
+        let inStr = false;
+        let esc = false;
+        for (let j = 0; j < trimmed.length; j++) {
+            const c = trimmed[j];
+            if (esc) { esc = false; continue; }
+            if (c === '\\' && inStr) { esc = true; continue; }
+            if (c === '"') { inStr = !inStr; continue; }
+            if (!inStr) {
+                if (c === '[') unclosedBrackets++;
+                if (c === ']') unclosedBrackets--;
+            }
+        }
+        const closingBrackets = ']'.repeat(Math.max(0, unclosedBrackets));
+        return trimmed + closingBrackets + '}';
     }
 
     throw new Error('Unbalanced braces in JSON');

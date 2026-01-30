@@ -982,6 +982,10 @@ export interface Translations {
             styleDesc: string;
             formatLabel: string;
             formatDesc: string;
+            destinationLabel: string;
+            destinationDesc: string;
+            destinationFile: string;
+            destinationClipboard: string;
             contextLabel: string;
             contextDesc: string;
             contextPlaceholder: string;
@@ -1349,6 +1353,17 @@ export interface Translations {
         extractingDocuments: string;
         extractionErrors: string;
         extractionComplete: string;
+        transcriptAutoLoaded: string;
+        participantsSuggestedFromDictionary: string;
+        // Participant lists
+        participantListSelect: string;
+        participantListNone: string;
+        participantListCreateNew: string;
+        participantListSaveCurrent: string;
+        participantListNamePrompt: string;
+        participantListSaved: string;
+        participantListLoaded: string;
+        participantListCreated: string;
     };
     integration: {
         resolveEmbeds: string;

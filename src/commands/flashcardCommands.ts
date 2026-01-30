@@ -113,14 +113,21 @@ async function generateAndExportFlashcards(
         // Re-serialize to ensure proper CSV formatting
         const finalCSV = cardsToCSV(validation.cards);
 
-        // Save to file
-        const filePath = await saveFlashcardFile(plugin, sourceFile, format, finalCSV);
-
         progressNotice.hide();
-        const successMsg = (plugin.t.messages.flashcardsExported || 'Exported {count} flashcards to {path}')
-            .replace('{count}', String(validation.cardCount))
-            .replace('{path}', filePath);
-        new Notice(successMsg, 3000);
+
+        if (options.destination === 'clipboard') {
+            await navigator.clipboard.writeText(finalCSV);
+            new Notice(
+                `${validation.cardCount} ${t.flashcardsTo || 'flashcards to'} ${t.copiedToClipboard || 'clipboard'}`,
+                3000
+            );
+        } else {
+            const filePath = await saveFlashcardFile(plugin, sourceFile, format, finalCSV);
+            const successMsg = (t.flashcardsExported || 'Exported {count} flashcards to {path}')
+                .replace('{count}', String(validation.cardCount))
+                .replace('{path}', filePath);
+            new Notice(successMsg, 3000);
+        }
 
     } catch (error) {
         progressNotice.hide();

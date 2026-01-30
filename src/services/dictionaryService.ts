@@ -477,17 +477,33 @@ export class DictionaryService {
     /**
      * Build the prompt for extracting dictionary entries from documents
      */
-    buildExtractionPrompt(): string {
-        return `You are analyzing documents to extract a terminology dictionary for meeting transcription.
+    buildExtractionPrompt(documentContent: string): string {
+        return `<task>
+Analyze the provided documents and extract a terminology dictionary for meeting transcription accuracy.
+</task>
 
-Extract the following types of entries:
+<categories>
+1. person - Names of individuals. Definition format: "Title, Organisation" (e.g. "CEO, Hamina LNG")
+2. acronym - Abbreviations and their full forms
+3. project - Project names or codenames
+4. organization - Company names, departments, teams
+5. term - Technical terms, jargon, or domain-specific vocabulary
+</categories>
 
-1. **People**: Names of individuals mentioned (with roles/titles if available)
-2. **Acronyms**: Abbreviations and their full forms
-3. **Projects**: Project names or codenames
-4. **Organizations**: Company names, departments, teams
-5. **Terms**: Technical terms, jargon, or domain-specific vocabulary
+<document_content>
+${documentContent}
+</document_content>
 
+<instructions>
+- Extract ALL proper nouns, names, acronyms, technical terms, and domain-specific vocabulary from the documents
+- For acronyms, the definition should be the full form
+- For people, use full name as "term" and format definition as "Title, Organisation" (e.g. "CEO, Hamina LNG"). If only title or only organisation is available, include what you have
+- Include terms even if you are unsure of the category — use "term" as the default
+- Keep definitions brief (under 100 characters)
+- Extract generously — it is better to include a term that might not be needed than to miss one
+</instructions>
+
+<output_format>
 Return a valid JSON array with this structure:
 [
   {
@@ -498,15 +514,11 @@ Return a valid JSON array with this structure:
   }
 ]
 
-Rules:
-- Extract ONLY terms that appear in the document
-- For acronyms, the definition should be the full form
-- For people, include role/title in definition if mentioned
-- Do not invent or assume - only extract what is explicitly stated
-- Keep definitions brief (under 100 characters)
-- Return an empty array [] if no relevant terms found
+Example person entry:
+{"term": "Raul Kade", "category": "person", "definition": "CEO, Hamina LNG"}
 
-Return ONLY the JSON array, no other text.`;
+Return ONLY the JSON array, no other text or explanation.
+</output_format>`;
     }
 
     /**
@@ -520,15 +532,20 @@ Return ONLY the JSON array, no other text.`;
             // Remove markdown code fences if present
             jsonStr = jsonStr.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '');
 
-            // Find array brackets
+            // Find array start
             const start = jsonStr.indexOf('[');
-            const end = jsonStr.lastIndexOf(']');
-
-            if (start === -1 || end === -1 || end <= start) {
+            if (start === -1) {
                 return { success: false, error: 'No valid JSON array found in response' };
             }
 
-            jsonStr = jsonStr.substring(start, end + 1);
+            const end = jsonStr.lastIndexOf(']');
+            if (end > start) {
+                jsonStr = jsonStr.substring(start, end + 1);
+            } else {
+                // No closing bracket — response was truncated by token limit.
+                // Salvage by finding the last complete JSON object.
+                jsonStr = this.repairTruncatedJsonArray(jsonStr.substring(start));
+            }
 
             const parsed = JSON.parse(jsonStr);
 
@@ -536,36 +553,94 @@ Return ONLY the JSON array, no other text.`;
                 return { success: false, error: 'Response is not an array' };
             }
 
-            // Validate and normalize entries
-            const entries: DictionaryEntry[] = [];
-            const validCategories = ['person', 'acronym', 'project', 'organization', 'term'];
-
-            for (const item of parsed) {
-                if (!item.term || !item.category) {
-                    continue;
-                }
-
-                const category = item.category.toLowerCase();
-                if (!validCategories.includes(category)) {
-                    continue;
-                }
-
-                entries.push({
-                    term: String(item.term).trim(),
-                    category: category as DictionaryEntry['category'],
-                    definition: item.definition ? String(item.definition).trim() : undefined,
-                    aliases: Array.isArray(item.aliases)
-                        ? item.aliases.map((a: unknown) => String(a).trim()).filter((a: string) => a)
-                        : undefined
-                });
-            }
-
-            return { success: true, entries };
+            return { success: true, entries: this.normalizeEntries(parsed) };
         } catch (error) {
+            // JSON.parse failed — try salvaging truncated response
+            const salvaged = this.trySalvageTruncatedResponse(response);
+            if (salvaged.length > 0) {
+                return { success: true, entries: salvaged };
+            }
             return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Failed to parse extraction response'
             };
         }
+    }
+
+    /**
+     * Repair a truncated JSON array by finding the last complete object
+     */
+    private repairTruncatedJsonArray(partial: string): string {
+        // Find the last complete "}" that closes a JSON object
+        let depth = 0;
+        let lastCompleteObject = -1;
+
+        for (let i = 0; i < partial.length; i++) {
+            const ch = partial[i];
+            if (ch === '{') depth++;
+            else if (ch === '}') {
+                depth--;
+                if (depth === 0) lastCompleteObject = i;
+            }
+        }
+
+        if (lastCompleteObject > 0) {
+            return partial.substring(0, lastCompleteObject + 1) + ']';
+        }
+
+        return '[]';
+    }
+
+    /**
+     * Last-resort salvage: extract individual JSON objects from truncated response
+     * Uses the repair method to find complete objects, then parses individually.
+     */
+    private trySalvageTruncatedResponse(response: string): DictionaryEntry[] {
+        // Find the array start and try to repair
+        const start = response.indexOf('[');
+        if (start === -1) return [];
+
+        const repaired = this.repairTruncatedJsonArray(response.substring(start));
+        try {
+            const parsed = JSON.parse(repaired);
+            if (Array.isArray(parsed)) {
+                return this.normalizeEntries(parsed);
+            }
+        } catch {
+            // Could not salvage
+        }
+
+        return [];
+    }
+
+    private static readonly VALID_CATEGORIES = new Set([
+        'person', 'acronym', 'project', 'organization', 'term'
+    ]);
+
+    /**
+     * Validate and normalize parsed entries
+     */
+    private normalizeEntries(parsed: unknown[]): DictionaryEntry[] {
+        const entries: DictionaryEntry[] = [];
+
+        for (const item of parsed) {
+            if (!item || typeof item !== 'object') continue;
+            const obj = item as Record<string, unknown>;
+            if (typeof obj.term !== 'string' || typeof obj.category !== 'string') continue;
+
+            const category = obj.category.toLowerCase();
+            if (!DictionaryService.VALID_CATEGORIES.has(category)) continue;
+
+            entries.push({
+                term: obj.term.trim(),
+                category: category as DictionaryEntry['category'],
+                definition: typeof obj.definition === 'string' ? obj.definition.trim() : undefined,
+                aliases: Array.isArray(obj.aliases)
+                    ? obj.aliases.map((a: unknown) => String(a).trim()).filter(Boolean)
+                    : undefined
+            });
+        }
+
+        return entries;
     }
 }

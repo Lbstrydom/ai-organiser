@@ -135,17 +135,17 @@ export class ImproveNoteModal extends Modal {
     }
 
     private async submit() {
-        if (this.query.trim()) {
-            this.close();
-            try {
-                await this.onSubmit({
-                    query: this.query.trim(),
-                    personaId: this.selectedPersona.id
-                });
-            } catch (error) {
-                console.error('[AI Organiser] Improve note error:', error);
-                new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            }
+        // Fallback: read directly from textarea in case onChange didn't fire
+        const query = (this.textAreaComponent?.getValue() || this.query).trim();
+        this.close();
+        try {
+            await this.onSubmit({
+                query: query || 'Improve and enhance this note',
+                personaId: this.selectedPersona.id
+            });
+        } catch (error) {
+            console.error('[AI Organiser] Improve note error:', error);
+            new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

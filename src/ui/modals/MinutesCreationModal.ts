@@ -1,4 +1,4 @@
-import { App, FuzzySuggestModal, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
@@ -21,6 +21,8 @@ import {
     createBulkTruncationControls
 } from '../components/TruncationControls';
 import { withBusyIndicator } from '../../utils/busyIndicator';
+import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
+import { ParticipantListService, ParticipantList } from '../../services/participantListService';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
@@ -57,6 +59,9 @@ interface MinutesModalState {
     dictionaryAutoExtractOffered: boolean;
     // Bulk truncation
     bulkTruncationChoice: TruncationChoice;
+    // Participant lists
+    selectedParticipantListId: string;
+    availableParticipantLists: ParticipantList[];
 }
 
 /**
@@ -76,6 +81,7 @@ export class MinutesCreationModal extends Modal {
     private plugin: AIOrganiserPlugin;
     private minutesService: MinutesService;
     private dictionaryService: DictionaryService;
+    private participantListService: ParticipantListService;
     private documentService: DocumentExtractionService;
     private docController!: DocumentHandlingController;
     private audioController!: AudioController;
@@ -84,6 +90,9 @@ export class MinutesCreationModal extends Modal {
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private agendaTextArea: HTMLTextAreaElement | null = null;
     private participantsTextArea: HTMLTextAreaElement | null = null;
+    private titleInputEl: HTMLInputElement | null = null;
+    private startTimeInputEl: HTMLInputElement | null = null;
+    private endTimeInputEl: HTMLInputElement | null = null;
     private privacyWarningEl: HTMLElement | null = null;
     private audioSectionEl: HTMLElement | null = null;
     private documentsSectionEl: HTMLElement | null = null;
@@ -96,6 +105,7 @@ export class MinutesCreationModal extends Modal {
         // Support dependency injection for testing, with default implementations
         this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
         this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, getConfigFolderFullPath(plugin.settings));
+        this.participantListService = new ParticipantListService(app, getConfigFolderFullPath(plugin.settings));
         this.documentService = deps?.documentService ?? new DocumentExtractionService(app);
 
         this.state = {
@@ -103,7 +113,7 @@ export class MinutesCreationModal extends Modal {
             date: this.getTodayDate(),
             startTime: '',
             endTime: '',
-            location: '',
+            location: 'Microsoft Teams',
             meetingContext: 'internal',
             outputAudience: 'internal',
             confidentialityLevel: 'internal',
@@ -130,7 +140,10 @@ export class MinutesCreationModal extends Modal {
             dictionaryExtractionProgress: '',
             dictionaryAutoExtractOffered: false,
             // Bulk truncation
-            bulkTruncationChoice: 'truncate'
+            bulkTruncationChoice: 'truncate',
+            // Participant lists
+            selectedParticipantListId: '',
+            availableParticipantLists: []
         };
     }
 
@@ -159,7 +172,10 @@ export class MinutesCreationModal extends Modal {
         // Order matters for gestalt: extract docs first, then dictionary, then transcribe
         if (!Platform.isMobile) {
             await this.detectEmbeddedContent();
+            // Auto-extract detected documents so auto-fill can populate form fields
+            await this.autoExtractDetectedDocuments();
             await this.loadAvailableDictionaries();
+            await this.loadAvailableParticipantLists();
             this.renderContextDocumentsSection(contentEl);
             this.renderDictionarySection(contentEl);
             this.renderAudioTranscriptionSection(contentEl);
@@ -170,6 +186,16 @@ export class MinutesCreationModal extends Modal {
         this.renderFooter(contentEl);
 
         await this.autoFillTranscriptFromActiveFile();
+
+        // Check for existing transcript files matching detected audio
+        if (!Platform.isMobile) {
+            await this.autoLoadExistingTranscript();
+        }
+
+        // Auto-fill form fields from extracted documents (title, times, agenda, participants)
+        if (!Platform.isMobile) {
+            this.autoFillFromDocuments();
+        }
     }
 
     private renderTopSection(containerEl: HTMLElement): void {
@@ -178,10 +204,12 @@ export class MinutesCreationModal extends Modal {
 
         new Setting(topSection)
             .setName(t?.fieldTitle || 'Meeting title')
-            .addText(text => text
-                .setPlaceholder('Weekly sync')
-                .setValue(this.state.title)
-                .onChange(value => this.state.title = value.trim()));
+            .addText(text => {
+                text.setPlaceholder('Weekly sync')
+                    .setValue(this.state.title)
+                    .onChange(value => this.state.title = value.trim());
+                this.titleInputEl = text.inputEl;
+            });
 
         const row = topSection.createDiv({ cls: 'minutes-row' });
         const dateCol = row.createDiv({ cls: 'minutes-col' });
@@ -200,6 +228,7 @@ export class MinutesCreationModal extends Modal {
             .addText(text => {
                 text.inputEl.type = 'time';
                 text.setValue(this.state.startTime).onChange(value => this.state.startTime = value);
+                this.startTimeInputEl = text.inputEl;
             });
 
         new Setting(endCol)
@@ -207,6 +236,7 @@ export class MinutesCreationModal extends Modal {
             .addText(text => {
                 text.inputEl.type = 'time';
                 text.setValue(this.state.endTime).onChange(value => this.state.endTime = value);
+                this.endTimeInputEl = text.inputEl;
             });
 
         new Setting(topSection)
@@ -333,16 +363,61 @@ export class MinutesCreationModal extends Modal {
         const t = this.plugin.t.minutes;
         const section = this.createCollapsible(containerEl, t?.participantsSection || 'Participants');
 
-        new Setting(section)
-            .setName(t?.fieldParticipants || 'Participants')
-            .setDesc(t?.fieldParticipantsDesc || 'Paste list here. Format: "Name (Role) - Present/Apologies"')
-            .addTextArea(text => {
-                text.inputEl.rows = 5;
-                text.setValue(this.state.participants);
-                text.onChange(value => this.state.participants = value);
-                this.participantsTextArea = text.inputEl;
-                text.inputEl.addClass('minutes-textarea');
-            });
+        // Participant list dropdown
+        if (this.state.availableParticipantLists.length > 0 || !Platform.isMobile) {
+            new Setting(section)
+                .setName(t?.participantListSelect || 'Select participant list')
+                .addDropdown(dropdown => {
+                    dropdown.addOption('', t?.participantListNone || '(None)');
+                    dropdown.addOption('__new__', t?.participantListCreateNew || '+ Create new list');
+
+                    for (const list of this.state.availableParticipantLists) {
+                        dropdown.addOption(list.id, `${list.name} (${list.entries.length})`);
+                    }
+
+                    dropdown.setValue(this.state.selectedParticipantListId);
+                    dropdown.onChange(async (value) => {
+                        if (value === '__new__') {
+                            await this.handleCreateNewParticipantList();
+                            dropdown.setValue(this.state.selectedParticipantListId);
+                        } else {
+                            this.state.selectedParticipantListId = value;
+                            if (value) {
+                                await this.loadParticipantListIntoTextarea(value);
+                            }
+                        }
+                    });
+                });
+        }
+
+        // Save current button
+        const actionsEl = section.createDiv({ cls: 'minutes-participants-actions' });
+        const saveBtn = actionsEl.createEl('button', {
+            text: t?.participantListSaveCurrent || 'Save as list',
+            cls: 'mod-muted'
+        });
+        saveBtn.addEventListener('click', () => this.handleSaveCurrentParticipantList());
+
+        // Label + description
+        section.createEl('label', {
+            text: t?.fieldParticipants || 'Participants',
+            cls: 'setting-item-name'
+        });
+        section.createEl('p', {
+            text: t?.fieldParticipantsDesc || 'One per line. Format: Name | Title | Company',
+            cls: 'minutes-participants-desc'
+        });
+
+        // Full-width monospace textarea
+        const textarea = section.createEl('textarea', {
+            cls: 'minutes-participants-textarea'
+        });
+        textarea.rows = 6;
+        textarea.value = this.state.participants;
+        textarea.addEventListener('input', () => {
+            this.state.participants = textarea.value;
+        });
+        this.participantsTextArea = textarea;
     }
 
     private renderAdvancedSection(containerEl: HTMLElement): void {
@@ -392,7 +467,6 @@ export class MinutesCreationModal extends Modal {
 
     private async handleSubmit(): Promise<void> {
         if (!this.validateRequiredFields()) {
-            new Notice(this.plugin.t.minutes?.errorMissingFields || 'Please fill in all required fields');
             return;
         }
 
@@ -418,15 +492,16 @@ export class MinutesCreationModal extends Modal {
             minuteTaker: 'AI Organiser'
         };
 
+        // Get extracted context from documents before closing modal
+        const contextDocuments = this.getExtractedContextText();
+        const dictionaryContent = await this.getDictionaryContent();
+
+        // Close modal so status bar spinner is visible during LLM call
+        this.close();
+
         const notice = new Notice(this.plugin.t.minutes?.generating || 'Generating minutes...', 0);
 
         try {
-            // Get extracted context from documents
-            const contextDocuments = this.getExtractedContextText();
-
-            // Get dictionary content if selected
-            const dictionaryContent = await this.getDictionaryContent();
-
             const result = await this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
@@ -441,25 +516,29 @@ export class MinutesCreationModal extends Modal {
 
             notice.hide();
             new Notice(`${this.plugin.t.minutes?.saved || 'Minutes saved'}: ${result.filePath}`, 4000);
-            this.close();
         } catch (error) {
             notice.hide();
+            console.error('[AI Organiser] Minutes generation error:', error);
             const message = error instanceof Error ? error.message : 'Failed to generate minutes';
             new Notice(`${this.plugin.t.minutes?.errorParsing || 'Failed to parse minutes response'}: ${message}`, 5000);
         }
     }
 
     private validateRequiredFields(): boolean {
-        return !!(
-            this.state.title &&
-            this.state.date &&
-            this.state.startTime &&
-            this.state.endTime &&
-            this.state.location &&
-            this.state.chair &&
-            this.state.participants &&
-            this.state.transcript
-        );
+        const missing: string[] = [];
+        const t = this.plugin.t.minutes;
+
+        if (!this.state.title.trim()) missing.push(t?.fieldTitle || 'Title');
+        if (!this.state.transcript.trim()) missing.push(t?.fieldTranscript || 'Transcript');
+
+        if (missing.length > 0) {
+            new Notice(
+                `${t?.errorMissingFields || 'Required'}: ${missing.join(', ')}`,
+                4000
+            );
+            return false;
+        }
+        return true;
     }
 
     private async ensurePersonasLoaded(): Promise<boolean> {
@@ -515,6 +594,62 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
+    /**
+     * Check if an existing transcript file exists for any detected audio file.
+     * Looks in the configured transcript folder for files whose name starts with the audio basename.
+     * If found, loads the transcript content into the transcript field.
+     */
+    private async autoLoadExistingTranscript(): Promise<void> {
+        if (this.state.transcript.trim()) return; // Already has content
+        if (this.state.detectedAudioFiles.length === 0) return;
+
+        const pluginFolder = this.plugin.settings.pluginFolder || 'AI-Organiser';
+        const transcriptSubfolder = this.plugin.settings.transcriptFolder || 'Transcripts';
+        const folder = normalizePath(`${pluginFolder}/${transcriptSubfolder}`);
+
+        const folderAbstract = this.app.vault.getAbstractFileByPath(folder);
+        if (!folderAbstract) return;
+
+        // Get all files in the transcript folder
+        const allFiles = this.app.vault.getFiles().filter(f => f.path.startsWith(folder + '/'));
+        if (allFiles.length === 0) return;
+
+        // Try to match each detected audio file to a transcript
+        for (const audio of this.state.detectedAudioFiles) {
+            const audioBasename = audio.resolvedFile
+                ? audio.resolvedFile.basename
+                : audio.displayName.replace(/\.[^.]+$/, '');
+
+            // Sanitize the same way saveTranscriptToFile does
+            const sanitized = audioBasename
+                .replace(/[\\/:*?"<>|]/g, '-')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            if (!sanitized) continue;
+
+            // Find a transcript file whose name starts with the sanitized audio name
+            const match = allFiles.find(f => f.basename.startsWith(sanitized));
+            if (match) {
+                try {
+                    const content = await this.app.vault.read(match);
+                    this.state.transcript = content;
+                    if (this.transcriptTextArea) {
+                        this.transcriptTextArea.value = content;
+                    }
+                    const t = this.plugin.t.minutes;
+                    new Notice(
+                        (t?.transcriptAutoLoaded || 'Loaded existing transcript: {name}')
+                            .replace('{name}', match.basename)
+                    );
+                    return; // Stop after first match
+                } catch {
+                    // Ignore read errors
+                }
+            }
+        }
+    }
+
     private getTodayDate(): string {
         const now = new Date();
         const year = now.getFullYear();
@@ -542,6 +677,17 @@ export class MinutesCreationModal extends Modal {
         } catch {
             // Ignore detection errors
         }
+    }
+
+    /**
+     * Silently extract all detected documents so auto-fill can read their text.
+     * Runs before rendering so documents appear already extracted in the UI.
+     */
+    private async autoExtractDetectedDocuments(): Promise<void> {
+        const documents = this.docController.getDocuments();
+        if (documents.length === 0) return;
+
+        await this.docController.extractAll();
     }
 
     private renderAudioTranscriptionSection(containerEl: HTMLElement): void {
@@ -621,7 +767,7 @@ export class MinutesCreationModal extends Modal {
         }
 
         // Check for transcription provider
-        const provider = this.getTranscriptionProvider();
+        const provider = await this.getTranscriptionProvider();
         if (!provider) {
             new Notice(this.plugin.t.minutes?.noTranscriptionProvider ||
                 'Configure OpenAI or Groq API key for transcription');
@@ -712,37 +858,11 @@ export class MinutesCreationModal extends Modal {
         return this.state.transcriptionLanguage === 'auto' ? undefined : this.state.transcriptionLanguage;
     }
 
-    private getTranscriptionProvider(): { provider: 'openai' | 'groq'; apiKey: string } | null {
-        const settings = this.plugin.settings;
-
-        // Check dedicated transcription settings first
-        if (settings.audioTranscriptionProvider && settings.audioTranscriptionApiKey) {
-            return {
-                provider: settings.audioTranscriptionProvider as 'openai' | 'groq',
-                apiKey: settings.audioTranscriptionApiKey
-            };
+    private async getTranscriptionProvider(): Promise<{ provider: 'openai' | 'groq'; apiKey: string } | null> {
+        const result = await getAudioTranscriptionApiKey(this.plugin);
+        if (result) {
+            return { provider: result.provider, apiKey: result.key };
         }
-
-        // Fall back to main provider settings
-        if (settings.cloudServiceType === 'openai' && settings.cloudApiKey) {
-            return { provider: 'openai', apiKey: settings.cloudApiKey };
-        }
-
-        if (settings.cloudServiceType === 'groq' && settings.cloudApiKey) {
-            return { provider: 'groq', apiKey: settings.cloudApiKey };
-        }
-
-        // Check provider-specific settings
-        const openaiKey = settings.providerSettings?.openai?.apiKey;
-        if (openaiKey) {
-            return { provider: 'openai', apiKey: openaiKey };
-        }
-
-        const groqKey = settings.providerSettings?.groq?.apiKey;
-        if (groqKey) {
-            return { provider: 'groq', apiKey: groqKey };
-        }
-
         return null;
     }
 
@@ -952,12 +1072,33 @@ export class MinutesCreationModal extends Modal {
         for (const doc of documents) {
             if (!doc.extractedText) continue;
 
+            this.tryAutoFillTitle(doc);
+            this.tryAutoFillTimes(doc);
             this.tryAutoFillAgenda(doc);
             this.tryAutoFillParticipants(doc);
         }
 
+        // Suggest participants from existing dictionary person entries (before extraction)
+        this.suggestParticipantsFromExistingDictionary();
+
         // Offer dictionary extraction if dictionary is selected and we haven't offered yet
         this.tryOfferDictionaryExtraction();
+    }
+
+    /**
+     * Check the currently selected dictionary for existing person entries
+     * and suggest them as participants. Runs before extraction so participants
+     * are populated from dictionaries built in previous sessions.
+     */
+    private suggestParticipantsFromExistingDictionary(): void {
+        if (!this.state.selectedDictionaryId) return;
+
+        const selectedDict = this.state.availableDictionaries.find(
+            d => d.id === this.state.selectedDictionaryId
+        );
+        if (!selectedDict || selectedDict.entries.length === 0) return;
+
+        this.suggestParticipantsFromDictionary(selectedDict.entries);
     }
 
     /**
@@ -983,6 +1124,82 @@ export class MinutesCreationModal extends Modal {
         const t = this.plugin.t.minutes;
         new Notice(t?.dictionaryAutoExtracting || 'Extracting terminology from documents...');
         void this.handleExtractDictionaryFromDocs();
+    }
+
+    /** Regex for meeting title patterns in document text */
+    private static readonly TITLE_PATTERN = /^(?:meeting|subject|title|re|topic)\s*[:–—-]\s*(.+)/im;
+
+    private tryAutoFillTitle(doc: DocumentItem): void {
+        if (this.state.title.trim()) return; // Already has content
+
+        const text = doc.extractedText || '';
+        // Try explicit patterns first
+        const match = MinutesCreationModal.TITLE_PATTERN.exec(text);
+        if (match) {
+            const title = match[1].trim().substring(0, 120);
+            this.state.title = title;
+            if (this.titleInputEl) this.titleInputEl.value = title;
+            return;
+        }
+
+        // Fall back to first heading-like line (short, capitalized)
+        const firstLines = text.split('\n').slice(0, 10);
+        for (const line of firstLines) {
+            const trimmed = line.trim();
+            if (trimmed.length >= 5 && trimmed.length <= 120 && /^[A-Z]/.test(trimmed) && !trimmed.endsWith(':')) {
+                this.state.title = trimmed;
+                if (this.titleInputEl) this.titleInputEl.value = trimmed;
+                return;
+            }
+        }
+    }
+
+    /** Regex for labeled start/end times */
+    private static readonly START_TIME_PATTERN = /(?:start|begin|from)\s*[:–—-]?\s*(\d{1,2}:\d{2})\s*(?:am|pm|AM|PM)?/i;
+    private static readonly END_TIME_PATTERN = /(?:end|finish|to|until)\s*[:–—-]?\s*(\d{1,2}:\d{2})\s*(?:am|pm|AM|PM)?/i;
+    /** Regex for "HH:MM – HH:MM" range */
+    private static readonly TIME_RANGE_PATTERN = /(\d{1,2}:\d{2})\s*(?:am|pm|AM|PM)?\s*[-–—]\s*(\d{1,2}:\d{2})\s*(?:am|pm|AM|PM)?/;
+
+    private tryAutoFillTimes(doc: DocumentItem): void {
+        if (this.state.startTime && this.state.endTime) return; // Both already filled
+
+        const text = (doc.extractedText || '').substring(0, 2000); // Only check header area
+
+        this.tryFillStartTime(text);
+        this.tryFillEndTime(text);
+        this.tryFillTimesFromRange(text);
+    }
+
+    private tryFillStartTime(text: string): void {
+        if (this.state.startTime) return;
+        const match = MinutesCreationModal.START_TIME_PATTERN.exec(text);
+        if (match) {
+            this.state.startTime = match[1];
+            if (this.startTimeInputEl) this.startTimeInputEl.value = match[1];
+        }
+    }
+
+    private tryFillEndTime(text: string): void {
+        if (this.state.endTime) return;
+        const match = MinutesCreationModal.END_TIME_PATTERN.exec(text);
+        if (match) {
+            this.state.endTime = match[1];
+            if (this.endTimeInputEl) this.endTimeInputEl.value = match[1];
+        }
+    }
+
+    private tryFillTimesFromRange(text: string): void {
+        if (this.state.startTime && this.state.endTime) return;
+        const match = MinutesCreationModal.TIME_RANGE_PATTERN.exec(text);
+        if (!match) return;
+        if (!this.state.startTime) {
+            this.state.startTime = match[1];
+            if (this.startTimeInputEl) this.startTimeInputEl.value = match[1];
+        }
+        if (!this.state.endTime) {
+            this.state.endTime = match[2];
+            if (this.endTimeInputEl) this.endTimeInputEl.value = match[2];
+        }
     }
 
     private tryAutoFillAgenda(doc: DocumentItem): void {
@@ -1015,6 +1232,155 @@ export class MinutesCreationModal extends Modal {
         }
         const t = this.plugin.t.minutes;
         new Notice(t?.participantsAutoExtracted || `Found ${names.length} participant names`);
+    }
+
+    /**
+     * Suggest participants from dictionary person entries
+     * Appends to existing participants or fills empty field
+     */
+    private suggestParticipantsFromDictionary(entries: import('../../services/dictionaryService').DictionaryEntry[]): void {
+        const personEntries = entries.filter(e => e.category === 'person');
+        if (personEntries.length === 0) return;
+
+        // Extract existing names (first column before |) for dedup
+        const existingNames = new Set(
+            this.state.participants.split('\n')
+                .map(l => l.split('|')[0].trim().toLowerCase())
+                .filter(Boolean)
+        );
+
+        const newNames = personEntries
+            .map(e => {
+                // Parse definition for title and organisation
+                // Expected formats: "Title, Organisation" or "Title at Organisation" or just free text
+                const def = e.definition || '';
+                const { title, organisation } = this.parsePersonDefinition(def);
+                return `${e.term} | ${title} | ${organisation}`;
+            })
+            .filter(name => !existingNames.has(name.split('|')[0].trim().toLowerCase()));
+
+        if (newNames.length === 0) return;
+
+        const separator = this.state.participants.trim() ? '\n' : '';
+        this.state.participants = this.state.participants.trim() + separator + newNames.join('\n');
+        if (this.participantsTextArea) {
+            this.participantsTextArea.value = this.state.participants;
+        }
+
+        const t = this.plugin.t.minutes;
+        new Notice(
+            (t?.participantsSuggestedFromDictionary || 'Added {count} participants from dictionary')
+                .replace('{count}', String(newNames.length))
+        );
+    }
+
+    /**
+     * Parse a person definition into title and organisation components.
+     * Handles formats like "CEO, Hamina LNG" or "CEO at Hamina LNG" or free text.
+     */
+    private parsePersonDefinition(definition: string): { title: string; organisation: string } {
+        if (!definition) return { title: '', organisation: '' };
+
+        // Try "Title, Organisation" (most common in structured data)
+        const commaMatch = definition.match(/^([^,]+),\s*(.+)$/);
+        if (commaMatch) return { title: commaMatch[1].trim(), organisation: commaMatch[2].trim() };
+
+        // Try "Title at Organisation"
+        const atMatch = definition.match(/^(.+?)\s+at\s+(.+)$/i);
+        if (atMatch) return { title: atMatch[1].trim(), organisation: atMatch[2].trim() };
+
+        // Try "Title - Organisation"
+        const dashMatch = definition.match(/^([^-]+)\s*-\s*(.+)$/);
+        if (dashMatch) return { title: dashMatch[1].trim(), organisation: dashMatch[2].trim() };
+
+        // Fallback: put entire definition as title
+        return { title: definition.trim(), organisation: '' };
+    }
+
+    // --- Participant list management ---
+
+    private async loadAvailableParticipantLists(): Promise<void> {
+        try {
+            this.state.availableParticipantLists = await this.participantListService.listParticipantLists();
+        } catch {
+            console.warn('[AI Organiser] Failed to load participant lists');
+            this.state.availableParticipantLists = [];
+        }
+    }
+
+    private async loadParticipantListIntoTextarea(listId: string): Promise<void> {
+        const list = this.state.availableParticipantLists.find(l => l.id === listId);
+        if (!list) return;
+
+        this.state.participants = list.entries.join('\n');
+        if (this.participantsTextArea) {
+            this.participantsTextArea.value = this.state.participants;
+        }
+
+        const t = this.plugin.t.minutes;
+        new Notice(
+            (t?.participantListLoaded || 'Loaded {count} participants from list')
+                .replace('{count}', String(list.entries.length))
+        );
+    }
+
+    private async handleCreateNewParticipantList(): Promise<void> {
+        const t = this.plugin.t.minutes;
+        const name = await this.promptForText(
+            t?.participantListNamePrompt || 'Enter list name',
+            'e.g., Board Meeting Team'
+        );
+        if (!name) return;
+
+        const entries = this.state.participants
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+
+        try {
+            const list = await this.participantListService.createParticipantList(name, entries);
+            await this.loadAvailableParticipantLists();
+            this.state.selectedParticipantListId = list.id;
+            new Notice(
+                (t?.participantListCreated || 'Created participant list: {name}')
+                    .replace('{name}', name)
+            );
+        } catch (error) {
+            console.error('[AI Organiser] Failed to create participant list:', error);
+            new Notice('Failed to create participant list');
+        }
+    }
+
+    private async handleSaveCurrentParticipantList(): Promise<void> {
+        const t = this.plugin.t.minutes;
+        const entries = this.state.participants
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+
+        if (entries.length === 0) {
+            new Notice(t?.fieldParticipants || 'No participants to save');
+            return;
+        }
+
+        if (this.state.selectedParticipantListId) {
+            // Update existing list
+            const existing = this.state.availableParticipantLists.find(
+                l => l.id === this.state.selectedParticipantListId
+            );
+            if (existing) {
+                existing.entries = entries;
+                await this.participantListService.save(existing);
+                new Notice(
+                    (t?.participantListSaved || 'Participant list saved: {name}')
+                        .replace('{name}', existing.name)
+                );
+                return;
+            }
+        }
+
+        // No list selected — prompt for name and create new
+        await this.handleCreateNewParticipantList();
     }
 
     /**
@@ -1273,8 +1639,8 @@ export class MinutesCreationModal extends Modal {
                     } else {
                         this.state.selectedDictionaryId = value;
                         this.refreshDictionarySection();
-                        // Trigger dictionary extraction offer if documents are already extracted
-                        this.tryOfferDictionaryExtraction();
+                        // Suggest person entries from newly selected dictionary
+                        this.suggestParticipantsFromExistingDictionary();
                     }
                 });
             });
@@ -1424,10 +1790,15 @@ export class MinutesCreationModal extends Modal {
     private async handleExtractDictionaryFromDocs(): Promise<void> {
         const t = this.plugin.t.minutes;
 
-        // Check if we have extracted document content
+        // Combine context documents + transcript for extraction
         const docContent = this.getExtractedContextText();
-        if (!docContent) {
-            new Notice(t?.dictionaryNoDocsExtracted || 'Extract document content first');
+        const transcript = this.state.transcript.trim();
+        const combinedContent = [docContent, transcript].filter(Boolean).join('\n\n---\n\n');
+
+        console.log('[AI Organiser] Dictionary extraction - docContent:', docContent.length, 'transcript:', transcript.length, 'combined:', combinedContent.length);
+
+        if (!combinedContent) {
+            new Notice(t?.dictionaryNoDocsExtracted || 'Add documents or a transcript first');
             return;
         }
 
@@ -1447,9 +1818,12 @@ export class MinutesCreationModal extends Modal {
         this.refreshDictionarySection();
 
         try {
-            // Build prompt for extraction
-            const extractionPrompt = this.dictionaryService.buildExtractionPrompt();
-            const fullPrompt = `${extractionPrompt}\n\n--- DOCUMENT CONTENT ---\n\n${docContent}`;
+            // Truncate to avoid token limits — 50K chars is plenty for term extraction
+            const MAX_EXTRACTION_CHARS = 50000;
+            const truncatedContent = combinedContent.length > MAX_EXTRACTION_CHARS
+                ? combinedContent.substring(0, MAX_EXTRACTION_CHARS) + '\n\n[... content truncated for term extraction ...]'
+                : combinedContent;
+            const fullPrompt = this.dictionaryService.buildExtractionPrompt(truncatedContent);
 
             // Call LLM
             const response = await withBusyIndicator(this.plugin, () => this.plugin.llmService.summarizeText(fullPrompt));
@@ -1457,10 +1831,20 @@ export class MinutesCreationModal extends Modal {
                 throw new Error(response.error || 'Extraction failed');
             }
 
+            console.log('[AI Organiser] Dictionary extraction - input chars:', truncatedContent.length, 'response length:', response.content.length);
+            console.log('[AI Organiser] Dictionary extraction response preview:', response.content.substring(0, 1000));
+
             // Parse response
             const parseResult = this.dictionaryService.parseExtractionResponse(response.content);
+            console.log('[AI Organiser] Dictionary parse result:', parseResult.success, 'entries:', parseResult.entries?.length, 'error:', parseResult.error);
+
             if (!parseResult.success || !parseResult.entries) {
                 throw new Error(parseResult.error || 'Failed to parse extracted terms');
+            }
+
+            if (parseResult.entries.length === 0) {
+                new Notice('No terms found in the documents. Check the developer console for details.', 5000);
+                return;
             }
 
             // Add entries to dictionary (deduplication happens in addEntries)
@@ -1478,6 +1862,9 @@ export class MinutesCreationModal extends Modal {
                     (t?.dictionaryExtracted || 'Extracted {count} terms')
                         .replace('{count}', String(newCount))
                 );
+
+                // Suggest person entries as participants if field is empty
+                this.suggestParticipantsFromDictionary(parseResult.entries);
             }
 
         } catch (error) {

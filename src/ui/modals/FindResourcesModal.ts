@@ -106,14 +106,22 @@ export class FindResourcesModal extends Modal {
     }
 
     private async submit() {
-        if (this.query.trim()) {
-            this.close();
-            try {
-                await this.onSubmit(this.query.trim());
-            } catch (error) {
-                console.error('[AI Organiser] Find resources error:', error);
-                new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Fallback: read directly from textarea in case onChange didn't fire
+        const query = (this.textAreaComponent?.getValue() || this.query).trim();
+        if (!query) {
+            const el = this.textAreaComponent?.inputEl;
+            if (el) {
+                el.addClass('ai-organiser-shake');
+                setTimeout(() => el.removeClass('ai-organiser-shake'), 400);
             }
+            return;
+        }
+        this.close();
+        try {
+            await this.onSubmit(query);
+        } catch (error) {
+            console.error('[AI Organiser] Find resources error:', error);
+            new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

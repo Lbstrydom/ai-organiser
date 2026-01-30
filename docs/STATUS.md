@@ -22,11 +22,11 @@
 | UX Polish | Discard button warning signifier, pulse animation, keyframe DRY cleanup | Complete |
 | Review 4 | 6 findings: reasoning model gating, debug guard, em dash, failure Notice, version, tests | Complete |
 
-**Build Status**: 866 tests passing (39 suites)
+**Build Status**: 868 tests passing (39 suites)
 
 **New Files Created:**
-- `src/utils/busyIndicator.ts` — ref-counted show/hide/withBusyIndicator/reset
-- `tests/busyIndicator.test.ts` — 8 tests (ref counting, concurrent ops, null guard)
+- `src/utils/busyIndicator.ts` — ref-counted show/hide/withBusyIndicator/reset + 400ms minimum display
+- `tests/busyIndicator.test.ts` — 11 tests (ref counting, concurrent ops, null guard, minimum display, deferred hide)
 - `tests/llmFacade.test.ts` — 6 tests (pluginContext, summarizeText, getServiceType)
 
 **Key Files Modified:**
@@ -51,6 +51,7 @@
 - Ref counting handles concurrent LLM operations (show on first, hide when all complete)
 - Chunked flows wrapped at outer level to prevent flicker
 - Chat commands intentionally excluded (have own persistent Notice indicator)
+- Minimum 400ms display duration ensures spinner is visible even for fast LLM responses (e.g., tagging)
 - Namespaced CSS keyframes: `ai-organiser-spin`, `ai-organiser-pulse`, `related-notes-spin`
 - Reasoning model detection by model name prefix (gpt-5, o1, o3), not adapter type — works across OpenRouter/Groq/DeepSeek
 - Multi-source failure Notice fires on discard (not only on insert)
@@ -617,7 +618,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 866 unit tests (39 suites)
+npm test           # Run 868 unit tests (39 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

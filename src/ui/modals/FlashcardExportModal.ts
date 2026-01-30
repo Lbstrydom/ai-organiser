@@ -7,15 +7,19 @@ import { App, Modal, Notice, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { FLASHCARD_FORMATS, FLASHCARD_STYLES, type FlashcardFormat, type FlashcardStyle } from '../../services/prompts/flashcardPrompts';
 
+export type FlashcardDestination = 'file' | 'clipboard';
+
 export interface FlashcardExportResult {
     format: FlashcardFormat;
     style: FlashcardStyle;
     context: string;
+    destination: FlashcardDestination;
 }
 
 export class FlashcardExportModal extends Modal {
     private selectedFormatId: string = 'anki';
     private selectedStyle: FlashcardStyle = 'standard';
+    private destination: FlashcardDestination = 'file';
     private context: string = '';
     private onSubmit: (result: FlashcardExportResult) => void | Promise<void>;
     private t: Translations;
@@ -77,6 +81,19 @@ export class FlashcardExportModal extends Modal {
         const mathNoticeEl = contentEl.createDiv({ cls: 'ai-organiser-math-notice' });
         this.updateMathNotice(contentEl);
 
+        // Destination selection
+        new Setting(contentEl)
+            .setName(modalT?.destinationLabel || 'Save To')
+            .setDesc(modalT?.destinationDesc || 'Where to save the generated flashcards')
+            .addDropdown(dropdown => {
+                dropdown.addOption('file', modalT?.destinationFile || 'File (AI-Organiser/Flashcards/)');
+                dropdown.addOption('clipboard', modalT?.destinationClipboard || 'Clipboard');
+                dropdown.setValue(this.destination);
+                dropdown.onChange(value => {
+                    this.destination = value as FlashcardDestination;
+                });
+            });
+
         // Optional context textarea
         new Setting(contentEl)
             .setName(modalT?.contextLabel || 'Additional Context (Optional)')
@@ -132,7 +149,8 @@ export class FlashcardExportModal extends Modal {
                 await this.onSubmit({
                     format,
                     style: this.selectedStyle,
-                    context: this.context.trim()
+                    context: this.context.trim(),
+                    destination: this.destination
                 });
             } catch (error) {
                 console.error('[AI Organiser] Flashcard export error:', error);

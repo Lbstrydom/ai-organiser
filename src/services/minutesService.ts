@@ -92,10 +92,14 @@ export class MinutesService {
             parsed = parseMinutesResponse(responseText);
         }
 
+        console.log('[AI Organiser] Minutes parsed — json keys:', Object.keys(parsed.json), 'markdown length:', parsed.markdown.length);
+
         const markdown = buildMinutesMarkdown(parsed.markdown, parsed.markdownExternal, {
             includeTasks: input.metadata.obsidianTasksFormat,
             actions: parsed.json.actions || []
         });
+
+        console.log('[AI Organiser] Minutes markdown built:', markdown.length, 'chars');
 
         const frontmatter = buildMinutesFrontmatter({
             json: parsed.json,
@@ -109,6 +113,8 @@ export class MinutesService {
         const datePart = parsed.json.metadata?.date || input.metadata.date;
         const safeTitle = sanitizeFileName(parsed.json.metadata?.title || input.metadata.title || 'Meeting Minutes');
         const fileName = `${datePart} ${safeTitle}.md`;
+
+        console.log('[AI Organiser] Minutes saving to:', input.outputFolder, '/', fileName);
 
         await ensureFolderExists(this.plugin.app.vault, input.outputFolder);
         const targetPath = await getAvailableFilePath(this.plugin.app.vault, input.outputFolder, fileName);
@@ -277,14 +283,30 @@ export class MinutesService {
         return (text || '').toLowerCase().replace(/\s+/g, ' ').trim().substring(0, 120);
     }
 
-    private parseParticipants(raw: string): { name: string }[] {
+    private parseParticipants(raw: string): import('./prompts/minutesPrompts').Participant[] {
         return raw
             .split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 0)
-            .map(line => ({
-                name: line.replace(/^[-*]\s+/, '')
-            }));
+            .map(line => {
+                const cleaned = line.replace(/^[-*]\s+/, '');
+                // Parse pipe-separated format: Name | Title | Company
+                const parts = cleaned.split('|').map(p => p.trim());
+                if (parts.length >= 3) {
+                    return {
+                        name: parts[0],
+                        role: parts[1] || undefined,
+                        organisation: parts[2] || undefined
+                    };
+                }
+                if (parts.length === 2) {
+                    return {
+                        name: parts[0],
+                        role: parts[1] || undefined
+                    };
+                }
+                return { name: cleaned };
+            });
     }
 
     private async callLLM(prompt: string): Promise<string> {

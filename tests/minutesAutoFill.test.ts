@@ -25,6 +25,9 @@ function createPlugin(overrides: Partial<any> = {}) {
             providerSettings: {},
             ...overrides.settings
         },
+        secretStorageService: {
+            isAvailable: () => false
+        },
         t: {
             minutes: {
                 dictionaryAutoExtracting: 'Extracting terminology from documents...',
@@ -116,7 +119,7 @@ describe('MinutesCreationModal auto-fill logic', () => {
             expect((modal as any).getTranscriptionLanguageCode()).toBe('fi');
         });
 
-        it('prefers dedicated transcription provider settings', () => {
+        it('prefers dedicated transcription provider settings', async () => {
             const { modal } = createModal({
                 settings: {
                     audioTranscriptionProvider: 'openai',
@@ -124,11 +127,11 @@ describe('MinutesCreationModal auto-fill logic', () => {
                 }
             });
 
-            const provider = (modal as any).getTranscriptionProvider();
+            const provider = await (modal as any).getTranscriptionProvider();
             expect(provider).toEqual({ provider: 'openai', apiKey: 'sk-test' });
         });
 
-        it('falls back to cloud provider settings', () => {
+        it('falls back to cloud provider settings', async () => {
             const { modal } = createModal({
                 settings: {
                     cloudServiceType: 'groq',
@@ -136,11 +139,11 @@ describe('MinutesCreationModal auto-fill logic', () => {
                 }
             });
 
-            const provider = (modal as any).getTranscriptionProvider();
+            const provider = await (modal as any).getTranscriptionProvider();
             expect(provider).toEqual({ provider: 'groq', apiKey: 'gsk-test' });
         });
 
-        it('falls back to providerSettings api keys', () => {
+        it('falls back to providerSettings api keys', async () => {
             const { modal } = createModal({
                 settings: {
                     cloudServiceType: 'claude',
@@ -149,7 +152,7 @@ describe('MinutesCreationModal auto-fill logic', () => {
                 }
             });
 
-            const provider = (modal as any).getTranscriptionProvider();
+            const provider = await (modal as any).getTranscriptionProvider();
             expect(provider).toEqual({ provider: 'openai', apiKey: 'sk-provider' });
         });
     });

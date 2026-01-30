@@ -142,27 +142,27 @@ Pick at least ONE source type:
 - [x] Transcript saved (if enabled)
 
 ### Summary Preview Modal
-- [ ] After any summarization (URL/YouTube/PDF/Audio/Text) → preview modal appears
-- [ ] Modal shows rendered markdown preview (scrollable for long content)
-- [ ] **Insert at cursor** button (CTA styling) → content inserted at cursor position
-- [ ] **Copy to clipboard** button → content copied, notice shown
-- [ ] **Discard** button (red/warning styling) → nothing inserted, no metadata written
-- [ ] ESC / X close → treated as discard (no hanging Promise)
-- [ ] Chunked summary → preview shows, notice says "combined from sections"
+- [x] After any summarization (URL/YouTube/PDF/Audio/Text) → preview modal appears
+- [x] Modal shows rendered markdown preview (scrollable for long content)
+- [x] **Insert at cursor** button (CTA styling) → content inserted at cursor position
+- [x] **Copy to clipboard** button → content copied, notice shown
+- [x] **Discard** button (red/warning styling) → nothing inserted, no metadata written
+- [x] ESC / X close → treated as discard (no hanging Promise)
+- [x] Chunked summary → preview shows, notice says "combined from sections"
 
 ### LLM Busy Indicator *
-- [ ] Any LLM operation → status bar spinner appears at bottom of Obsidian
-- [ ] Spinner text shows "AI processing..." (or "AI 处理中..." in Chinese)
-- [ ] Spinner pulses in opacity while spinning (peripheral visibility)
-- [ ] Spinner disappears when LLM completes (before preview modal opens)
-- [ ] Spinner does NOT stay active while preview modal is open
-- [ ] Chunked summarization → spinner stays visible throughout (no flicker between chunks)
-- [ ] Tag generation → spinner shows during analysis
-- [ ] Translation → spinner shows during LLM call
-- [ ] Meeting Minutes dictionary extraction → spinner shows
-- [ ] Settings → Taxonomy suggestion buttons → spinner shows
-- [ ] Settings → Test Connection → spinner still works (namespaced keyframes)
-- [ ] Related Notes sidebar → refresh button spinner still works
+- [x] Any LLM operation → status bar spinner appears at bottom of Obsidian
+- [x] Spinner text shows "AI processing..." (or "AI 处理中..." in Chinese)
+- [x] Spinner pulses in opacity while spinning (peripheral visibility)
+- [x] Spinner disappears when LLM completes (before preview modal opens)
+- [x] Spinner does NOT stay active while preview modal is open
+- [x] Chunked summarization → spinner stays visible throughout (no flicker between chunks)
+- [x] Tag generation → spinner shows during analysis
+- [x] Translation → spinner shows during LLM call
+- [x] Meeting Minutes dictionary extraction → spinner shows
+- [x] Settings → Taxonomy suggestion buttons → spinner shows
+- [x] Settings → Test Connection → spinner still works (namespaced keyframes)
+- [x] Related Notes sidebar → refresh button spinner still works
 
 ### Multi-Source Summarization
 - [x] Note with multiple URLs/PDFs → "Summarize"
@@ -187,12 +187,12 @@ Pick at least ONE source type:
 ## 6. Smart Note Features (3 min)
 
 ### Enhance Note (Smart Picker)
-- [ ] "Enhance note" → shows options: Improve, Diagram, Resources, Flashcards
-- [ ] Each option works:
-  - [ ] **Improve**: Enhances writing quality
-  - [ ] **Diagram**: Inserts Mermaid diagram
-  - [ ] **Resources**: Suggests related resources
-  - [ ] **Flashcards**: Exports to Anki format
+- [x] "Enhance note" → shows options: Improve, Diagram, Resources, Flashcards
+- [x] Each option works:
+  - [x] **Improve**: Enhances writing quality
+  - [x] **Diagram**: Inserts Mermaid diagram
+  - [x] **Resources**: Suggests related resources
+  - [x] **Flashcards**: Exports to Anki format
 
 ---
 
@@ -360,7 +360,7 @@ Test with your configured provider:
 |----------|-------|
 | Obsidian Version | |
 | OS | |
-| Plugin Version | 1.0.16 |
+| Plugin Version | 1.0.15 |
 | AI Provider | |
 | Test Date | |
 | Tester | |
