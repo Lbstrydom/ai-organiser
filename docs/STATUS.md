@@ -1,8 +1,8 @@
 # AI Organiser - Development Status
 
-**Version:** 1.0.16
+**Version:** 1.0.15
 **Last Updated:** January 30, 2026
-**Status:** Feature Complete - Preview Modal + Busy Indicator + UX Polish
+**Status:** Feature Complete - Preview Modal + Busy Indicator + UX Polish + Review Fixes
 
 ---
 
@@ -20,8 +20,9 @@
 | Review 2 | YouTube chunks + traditional web path coverage gaps | Complete |
 | Review 3 | Coverage audit: all 27 LLM call sites verified wrapped | Complete |
 | UX Polish | Discard button warning signifier, pulse animation, keyframe DRY cleanup | Complete |
+| Review 4 | 6 findings: reasoning model gating, debug guard, em dash, failure Notice, version, tests | Complete |
 
-**Build Status**: 863 tests passing (39 suites)
+**Build Status**: 866 tests passing (39 suites)
 
 **New Files Created:**
 - `src/utils/busyIndicator.ts` — ref-counted show/hide/withBusyIndicator/reset
@@ -42,6 +43,8 @@
 - `src/ui/modals/SummaryResultModal.ts` — Discard button .setWarning()
 - `styles.css` — busy indicator CSS with pulse animation, namespaced @keyframes (DRY)
 - `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — aiProcessing, summaryCombinedFromSections
+- `src/services/cloudService.ts` — reasoning model gating by model name (not adapter type), debug logging guard, em dash fix
+- `tests/cloudService.defaults.test.ts` — 3 new tests for reasoning model request body
 
 **Key Design Decisions:**
 - Spinner scoped to LLM calls only — preview modal (user action) does not hold spinner
@@ -49,6 +52,8 @@
 - Chunked flows wrapped at outer level to prevent flicker
 - Chat commands intentionally excluded (have own persistent Notice indicator)
 - Namespaced CSS keyframes: `ai-organiser-spin`, `ai-organiser-pulse`, `related-notes-spin`
+- Reasoning model detection by model name prefix (gpt-5, o1, o3), not adapter type — works across OpenRouter/Groq/DeepSeek
+- Multi-source failure Notice fires on discard (not only on insert)
 
 **Documentation**: `docs/completed/wirr-plan.md`
 
@@ -612,7 +617,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 863 unit tests (39 suites)
+npm test           # Run 866 unit tests (39 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

@@ -869,7 +869,7 @@ async function handleMultiSourceResult(
     // If no summaries but we have sources, show the status checklist
     if (summaries.length === 0) {
         if (allSources.length > 1) {
-            // Build and show the status checklist even for complete failure
+            // Build the failure status checklist
             let failureOutput = '\n\n## Summary\n\n*No content could be summarized.*\n\n### Sources Processed\n\n';
             for (const source of allSources) {
                 const icon = source.success ? '✓' : '✗';
@@ -881,7 +881,6 @@ async function handleMultiSourceResult(
             }
             failureOutput += '\n*0 of ' + allSources.length + ' sources processed successfully. Please try again or process sources individually.*\n';
 
-            // Remove processed URLs first
             const urlsToRemove = allSources
                 .filter((s: ProcessedSource) => s.url && s.type !== 'note')
                 .map((s: ProcessedSource) => s.url as string);
@@ -892,20 +891,23 @@ async function handleMultiSourceResult(
                 ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
             ];
 
-            let fullContent = editor.getValue();
-            if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
-                fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
+            // Show preview modal — editor mutations deferred to doInsert callback
+            const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, () => {
+                let fullContent = editor.getValue();
+                if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
+                    fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
+                }
+
+                const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
+                const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
+                const frontmatter = fullContent.substring(0, frontmatterEnd);
+                editor.setValue(frontmatter + failureOutput.trimStart());
+            }, true, plugin.t.messages.noContentCouldBeSummarized);
+            if (failureAction === 'discard') {
+                new Notice(plugin.t.messages.noContentCouldBeSummarized);
             }
-
-            // Insert the failure report
-            const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
-            const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
-            const frontmatter = fullContent.substring(0, frontmatterEnd);
-            editor.setValue(frontmatter + failureOutput.trimStart());
-
-            new Notice(plugin.t.messages.noContentCouldBeSummarized, 5000);
         } else {
-            // Single source failure
+            // Single source failure — just show error notice
             const error = allSources[0]?.error || 'Unknown error';
             new Notice(plugin.t.messages.errorGeneric.replace('{error}', error), 8000);
         }
@@ -960,8 +962,7 @@ async function handleMultiSourceResult(
         }
     }
 
-    // Remove successfully processed source URLs and vault wikilinks FIRST (before inserting summary)
-    // Failed sources remain so user can try again or handle manually
+    // Compute source removal data before showing preview
     const urlsToRemove = allSources
         .filter((s: ProcessedSource) => s.url && s.type !== 'note' && s.success)
         .map((s: ProcessedSource) => s.url as string);
@@ -972,44 +973,37 @@ async function handleMultiSourceResult(
         ...result.sources.documents.filter(d => d.isVaultFile).map(d => d.path),
     ];
 
-    let fullContent = editor.getValue();
-    if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
-        const cleanedContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
-        if (cleanedContent !== fullContent) {
-            fullContent = cleanedContent;
-            editor.setValue(fullContent);
+    // Show preview modal — all editor mutations deferred to doInsert callback
+    await showSummaryPreviewOrInsert(plugin, combinedOutput, () => {
+        // 1. Remove processed sources
+        let fullContent = editor.getValue();
+        if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
+            fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
         }
-    }
 
-    // Insert summary - replace content body (after frontmatter)
-    // Find where the content body starts (after frontmatter if present)
-    const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
-    const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
+        // 2. Replace body with summary (after frontmatter)
+        const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
+        const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
+        const frontmatter = fullContent.substring(0, frontmatterEnd);
+        editor.setValue(frontmatter + combinedOutput.trimStart());
 
-    // Build new content: frontmatter + summary (replacing body)
-    const frontmatter = fullContent.substring(0, frontmatterEnd);
-    const newContent = frontmatter + combinedOutput.trimStart();
-
-    editor.setValue(newContent);
-
-    // Add successful sources to References section
-    for (const source of allSources) {
-        if (source.url && source.success) {
-            const sourceRef: SourceReference = {
-                type: source.type === 'web' ? 'web' : source.type === 'youtube' ? 'youtube' : 'note',
-                title: source.title,
-                link: source.url,
-                date: source.date,
-                isInternal: false
-            };
-            addToReferencesSection(editor, sourceRef);
+        // 3. Add references for successful sources
+        for (const source of allSources) {
+            if (source.url && source.success) {
+                const sourceRef: SourceReference = {
+                    type: source.type === 'web' ? 'web' : source.type === 'youtube' ? 'youtube' : 'note',
+                    title: source.title,
+                    link: source.url,
+                    date: source.date,
+                    isInternal: false
+                };
+                addToReferencesSection(editor, sourceRef);
+            }
         }
-    }
 
-    // Ensure note structure (References and Pending Integration sections)
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
-
-    new Notice(`Summarized ${summaries.length} source(s)`);
+        // 4. Ensure note structure
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    }, true, `Summarized ${summaries.length} source(s)`);
 }
 
 /**

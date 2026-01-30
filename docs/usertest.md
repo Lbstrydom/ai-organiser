@@ -1,6 +1,6 @@
 # AI Organiser - Manual Test Checklist
 
-**Version:** 1.0.16
+**Version:** 1.0.15
 **Full Test Time:** ~35 minutes
 **Quick Smoke Test:** ~10 minutes (sections marked with *)
 **SecretStorage Tests:** Require Obsidian 1.11+
@@ -142,12 +142,27 @@ Pick at least ONE source type:
 - [x] Transcript saved (if enabled)
 
 ### Summary Preview Modal
-- [ ] After any summarization (URL/YouTube/PDF/Audio) → preview modal appears
+- [ ] After any summarization (URL/YouTube/PDF/Audio/Text) → preview modal appears
 - [ ] Modal shows rendered markdown preview (scrollable for long content)
-- [ ] **Insert at cursor** button (CTA) → content inserted at cursor position
+- [ ] **Insert at cursor** button (CTA styling) → content inserted at cursor position
 - [ ] **Copy to clipboard** button → content copied, notice shown
-- [ ] **Discard** button → nothing inserted
-- [ ] ESC / X close → treated as discard (no hanging)
+- [ ] **Discard** button (red/warning styling) → nothing inserted, no metadata written
+- [ ] ESC / X close → treated as discard (no hanging Promise)
+- [ ] Chunked summary → preview shows, notice says "combined from sections"
+
+### LLM Busy Indicator *
+- [ ] Any LLM operation → status bar spinner appears at bottom of Obsidian
+- [ ] Spinner text shows "AI processing..." (or "AI 处理中..." in Chinese)
+- [ ] Spinner pulses in opacity while spinning (peripheral visibility)
+- [ ] Spinner disappears when LLM completes (before preview modal opens)
+- [ ] Spinner does NOT stay active while preview modal is open
+- [ ] Chunked summarization → spinner stays visible throughout (no flicker between chunks)
+- [ ] Tag generation → spinner shows during analysis
+- [ ] Translation → spinner shows during LLM call
+- [ ] Meeting Minutes dictionary extraction → spinner shows
+- [ ] Settings → Taxonomy suggestion buttons → spinner shows
+- [ ] Settings → Test Connection → spinner still works (namespaced keyframes)
+- [ ] Related Notes sidebar → refresh button spinner still works
 
 ### Multi-Source Summarization
 - [x] Note with multiple URLs/PDFs → "Summarize"
@@ -345,7 +360,7 @@ Test with your configured provider:
 |----------|-------|
 | Obsidian Version | |
 | OS | |
-| Plugin Version | 1.0.15 |
+| Plugin Version | 1.0.16 |
 | AI Provider | |
 | Test Date | |
 | Tester | |
@@ -360,11 +375,12 @@ For rapid verification, test only sections marked with *:
 2. [ ] Settings UI (order correct, no visual issues)
 3. [ ] Command Picker (opens, categories visible)
 4. [ ] Tagging (generate + clear on one note)
-5. [ ] Summarization (one source type)
-6. [ ] Provider Test (connection + one operation)
-7. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
+5. [ ] Summarization (one source type + preview modal + spinner visible)
+6. [ ] LLM Busy Indicator (spinner appears during any LLM call, pulses, stops before modal)
+7. [ ] Provider Test (connection + one operation)
+8. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
 
-**Smoke Test Pass:** All 6 items (+ #7 if 1.11+) checked = Ready for release
+**Smoke Test Pass:** All 7 items (+ #8 if 1.11+) checked = Ready for release
 
 ---
 

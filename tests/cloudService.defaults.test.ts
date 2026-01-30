@@ -108,6 +108,60 @@ describe('CloudService Fallback Models', () => {
         expect([PROVIDER_DEFAULT_MODEL.deepseek, PROVIDER_DEFAULT_MODEL.openai]).toContain(body.model);
     });
 
+    it('reasoning models omit temperature and use 16384 max_completion_tokens', () => {
+        const reasoningModels = ['gpt-5.2', 'gpt-5', 'o1-preview', 'o1-mini', 'o3-mini'];
+        reasoningModels.forEach(modelName => {
+            const service = new CloudLLMService({
+                type: 'openai' as AdapterType,
+                endpoint: 'https://api.openai.com/v1/chat/completions',
+                apiKey: 'test-key',
+                modelName,
+                language: 'en'
+            }, mockApp);
+
+            const body = (service as any).buildSummarizeRequestBody('test prompt');
+
+            expect(body.temperature).toBeUndefined();
+            expect(body.max_completion_tokens).toBe(16384);
+            expect(body.max_tokens).toBeUndefined();
+        });
+    });
+
+    it('non-reasoning OpenAI models include temperature and use 4096 max_completion_tokens', () => {
+        const nonReasoningModels = ['gpt-4o', 'gpt-4o-mini'];
+        nonReasoningModels.forEach(modelName => {
+            const service = new CloudLLMService({
+                type: 'openai' as AdapterType,
+                endpoint: 'https://api.openai.com/v1/chat/completions',
+                apiKey: 'test-key',
+                modelName,
+                language: 'en'
+            }, mockApp);
+
+            const body = (service as any).buildSummarizeRequestBody('test prompt');
+
+            expect(body.temperature).toBe(0.3);
+            expect(body.max_completion_tokens).toBe(4096);
+            expect(body.max_tokens).toBeUndefined();
+        });
+    });
+
+    it('reasoning model gating works regardless of adapter type', () => {
+        // GPT-5 via OpenRouter should still get reasoning model treatment
+        const service = new CloudLLMService({
+            type: 'openrouter' as AdapterType,
+            endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+            apiKey: 'test-key',
+            modelName: 'gpt-5.2',
+            language: 'en'
+        }, mockApp);
+
+        const body = (service as any).buildSummarizeRequestBody('test prompt');
+
+        expect(body.temperature).toBeUndefined();
+        expect(body.max_completion_tokens).toBe(16384);
+    });
+
     it('no fallback uses hard-coded gpt-4', () => {
         // Scan all adapter types to ensure none fallback to 'gpt-4'
         const adapters: AdapterType[] = ['openai', 'claude', 'gemini', 'deepseek', 'groq', 'vertex', 'openrouter', 'bedrock', 'aliyun', 'cohere', 'grok', 'mistral', 'requesty', 'openai-compatible'];

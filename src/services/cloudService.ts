@@ -295,8 +295,23 @@ export class CloudLLMService extends BaseLLMService implements SummarizableLLMSe
         const responseText = response.text;
         try {
             const data = JSON.parse(responseText);
+            if (this.debugMode) {
+                console.log('[AI Organiser] Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
+                console.log('[AI Organiser] Summarize response preview:', responseText.substring(0, 300));
+            }
             const content = this.adapter.parseResponseContent(data);
             if (!content) {
+                // Detect reasoning model token exhaustion (finish_reason: "length" with empty content)
+                const finishReason = data.choices?.[0]?.finish_reason;
+                if (finishReason === 'length') {
+                    console.warn('[AI Organiser] Model returned empty content with finish_reason: "length".',
+                        'Reasoning models may exhaust max_completion_tokens on internal reasoning.',
+                        'choices[0]:', JSON.stringify(data.choices?.[0])?.substring(0, 300));
+                    throw new Error('Model output truncated -- the content was too long for the token limit. Try a shorter note or a non-reasoning model.');
+                }
+                console.warn('[AI Organiser] No content in summarize response.',
+                    'Response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data,
+                    'choices[0]:', JSON.stringify(data.choices?.[0])?.substring(0, 300));
                 throw new Error('No content found in response');
             }
             return content;
@@ -345,13 +360,22 @@ export class CloudLLMService extends BaseLLMService implements SummarizableLLMSe
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
                 const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType] || PROVIDER_DEFAULT_MODEL.openai;
 
-            // Newer OpenAI models (gpt-4o, gpt-5, o1, o3, etc.) use max_completion_tokens
-            // Older models and other providers use max_tokens
-            const isNewerOpenAIModel = this.adapterType === 'openai' &&
-                (modelName.startsWith('gpt-4o') ||
-                 modelName.startsWith('gpt-5') ||
-                 modelName.startsWith('o1') ||
-                 modelName.startsWith('o3'));
+            // Detect OpenAI-family model capabilities by model name, not adapter type.
+            // This ensures correct behavior when reasoning models are used via OpenRouter,
+            // Groq, DeepSeek, or other OpenAI-compatible providers.
+            const isNewerOpenAIModel =
+                modelName.startsWith('gpt-4o') ||
+                modelName.startsWith('gpt-5') ||
+                modelName.startsWith('o1') ||
+                modelName.startsWith('o3');
+
+            // Reasoning models (o1, o3, gpt-5) use max_completion_tokens for BOTH
+            // internal reasoning tokens AND visible output. 4096 is often exhausted
+            // by reasoning alone, producing empty content. Use 16384 for reasoning models.
+            const isReasoningModel =
+                modelName.startsWith('gpt-5') ||
+                modelName.startsWith('o1') ||
+                modelName.startsWith('o3');
 
             const baseRequest: any = {
                 model: modelName,
@@ -359,12 +383,16 @@ export class CloudLLMService extends BaseLLMService implements SummarizableLLMSe
                     { role: 'system', content: summarizeSystemPrompt },
                     { role: 'user', content: prompt }
                 ],
-                temperature: 0.3
             };
+
+            // Reasoning models don't support temperature
+            if (!isReasoningModel) {
+                baseRequest.temperature = 0.3;
+            }
 
             // Use the appropriate token limit parameter
             if (isNewerOpenAIModel) {
-                baseRequest.max_completion_tokens = 4096;
+                baseRequest.max_completion_tokens = isReasoningModel ? 16384 : 4096;
             } else {
                 baseRequest.max_tokens = 4096;
             }
