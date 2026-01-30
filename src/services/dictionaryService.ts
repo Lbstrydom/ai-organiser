@@ -571,16 +571,24 @@ Return ONLY the JSON array, no other text or explanation.
      * Repair a truncated JSON array by finding the last complete object
      */
     private repairTruncatedJsonArray(partial: string): string {
-        // Find the last complete "}" that closes a JSON object
+        // Find the last complete "}" that closes a JSON object,
+        // respecting string boundaries so braces inside values are ignored
         let depth = 0;
         let lastCompleteObject = -1;
+        let inString = false;
+        let escape = false;
 
         for (let i = 0; i < partial.length; i++) {
             const ch = partial[i];
-            if (ch === '{') depth++;
-            else if (ch === '}') {
-                depth--;
-                if (depth === 0) lastCompleteObject = i;
+            if (escape) { escape = false; continue; }
+            if (ch === '\\' && inString) { escape = true; continue; }
+            if (ch === '"') { inString = !inString; continue; }
+            if (!inString) {
+                if (ch === '{') depth++;
+                else if (ch === '}') {
+                    depth--;
+                    if (depth === 0) lastCompleteObject = i;
+                }
             }
         }
 

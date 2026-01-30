@@ -3,6 +3,7 @@
  */
 
 import { MarkdownPdfGenerator } from '../src/services/notebooklm/pdf/MarkdownPdfGenerator';
+import { parseMarkdown } from '../src/utils/markdownParser';
 import type { PdfConfig } from '../src/services/notebooklm/types';
 
 const DEFAULT_CONFIG: PdfConfig = {
@@ -17,11 +18,6 @@ const DEFAULT_CONFIG: PdfConfig = {
 };
 
 const generator = new MarkdownPdfGenerator();
-
-const parseMarkdown = (generator as any).parseMarkdown.bind(generator) as (
-    markdown: string,
-    includeFrontmatter: boolean
-) => Array<{ type: string; content: string }>;
 
 describe('MarkdownPdfGenerator', () => {
     describe('generate', () => {
@@ -256,6 +252,60 @@ This is the content.`;
             expect(header).toBe('%PDF');
         });
 
+        it('should handle markdown tables', async () => {
+            const markdown = `# Meeting Minutes
+
+## Decisions
+
+| ID | Decision | Owner | Due |
+|----|----------|-------|-----|
+| D1 | Approve budget | Alice | 2026-02-01 |
+| D2 | Hire contractor | Bob | 2026-03-01 |
+
+## Actions
+
+| ID | Action | Owner | Due | Status |
+|----|--------|-------|-----|--------|
+| A1 | Draft proposal | Alice | 2026-02-15 | new |
+| A2 | Review code | Bob | 2026-02-10 | new |
+
+## Notes
+
+Some follow-up text here.`;
+
+            const pdf = await generator.generate(
+                'Minutes',
+                markdown,
+                DEFAULT_CONFIG
+            );
+
+            expect(pdf).toBeInstanceOf(ArrayBuffer);
+            // A PDF with tables should be noticeably larger than an empty one
+            const emptyPdf = await generator.generate('Empty', '', DEFAULT_CONFIG);
+            expect(pdf.byteLength).toBeGreaterThan(emptyPdf.byteLength * 1.2);
+        });
+
+        it('should handle tables parsed correctly', () => {
+            const markdown = `## Decisions
+
+| ID | Decision | Owner |
+|----|----------|-------|
+| D1 | Budget | Alice |
+| D2 | Hire | Bob |`;
+
+            const lines = parseMarkdown(markdown, false);
+            const tableRows = lines.filter(l => l.type === 'table_row');
+            const tableSeps = lines.filter(l => l.type === 'table_separator');
+
+            // Should detect 3 table_row lines (1 header + 2 data)
+            expect(tableRows.length).toBe(3);
+            expect(tableSeps.length).toBe(1);
+
+            // Verify cells are parsed
+            expect(tableRows[0].cells).toEqual(['ID', 'Decision', 'Owner']);
+            expect(tableRows[1].cells).toEqual(['D1', 'Budget', 'Alice']);
+        });
+
         it('should handle three-level heading hierarchy', async () => {
             const markdown = `# H1 Title
 
@@ -277,6 +327,40 @@ Even more content.`;
 
             expect(pdf).toBeInstanceOf(ArrayBuffer);
             expect(pdf.byteLength).toBeGreaterThan(0);
+        });
+    });
+
+    describe('callout/blockquote handling', () => {
+        it('should detect tables inside callout-wrapped content', () => {
+            const markdown = `> [!info] External / Client Safe Minutes
+> ## Decisions
+>
+> | ID | Decision | Owner |
+> |----|----------|-------|
+> | D1 | Budget | Alice |`;
+
+            const lines = parseMarkdown(markdown, false);
+            const tableRows = lines.filter(l => l.type === 'table_row');
+            const headings = lines.filter(l => l.type === 'heading2');
+
+            // After preprocessMarkdown strips blockquote prefixes,
+            // tables and headings should be detected
+            expect(tableRows.length).toBe(2); // header + 1 data row
+            expect(headings.length).toBe(1);
+            expect(headings[0].content).toBe('Decisions');
+        });
+
+        it('should handle plain (non-callout) content unchanged', () => {
+            const markdown = `## Decisions
+
+| ID | Decision |
+|----|----------|
+| D1 | Budget |`;
+
+            const lines = parseMarkdown(markdown, false);
+            const tableRows = lines.filter(l => l.type === 'table_row');
+
+            expect(tableRows.length).toBe(2);
         });
     });
 

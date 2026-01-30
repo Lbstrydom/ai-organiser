@@ -40,9 +40,11 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
+    "docx": "^9.5.1",
     "js-yaml": "^4.1.0",
     "jspdf": "^4.0.0",
     "officeparser": "^6.0.4",
+    "pptxgenjs": "^4.0.1",
     "uuid": "^13.0.0",
     "voy-search": "^0.6.0"
   }

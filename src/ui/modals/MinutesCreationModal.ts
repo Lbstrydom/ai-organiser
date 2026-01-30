@@ -42,6 +42,7 @@ interface MinutesModalState {
     transcript: string;
     dualOutput: boolean;
     obsidianTasks: boolean;
+    detailLevel: string;
     languageOverride: string;
     customInstructions: string;
     // Audio transcription
@@ -97,6 +98,7 @@ export class MinutesCreationModal extends Modal {
     private audioSectionEl: HTMLElement | null = null;
     private documentsSectionEl: HTMLElement | null = null;
     private bulkTruncationEl: HTMLElement | null = null;
+    private participantListDropdownEl: HTMLSelectElement | null = null;
     private dictionarySectionEl: HTMLElement | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
@@ -124,6 +126,7 @@ export class MinutesCreationModal extends Modal {
             transcript: '',
             dualOutput: false,
             obsidianTasks: plugin.settings.minutesObsidianTasksFormat,
+            detailLevel: plugin.settings.minutesDetailLevel || 'standard',
             languageOverride: 'auto',
             customInstructions: '',
             // Audio transcription
@@ -351,6 +354,18 @@ export class MinutesCreationModal extends Modal {
                 toggle.onChange(value => this.state.obsidianTasks = value);
             });
 
+        const st = this.plugin.t.settings?.minutes;
+        new Setting(topSection)
+            .setName(t?.fieldDetailLevel || 'Detail level')
+            .setDesc(t?.fieldDetailLevelDesc || 'How much detail to include in the minutes output')
+            .addDropdown(dropdown => {
+                dropdown.addOption('concise', st?.detailConcise || 'Concise');
+                dropdown.addOption('standard', st?.detailStandard || 'Standard');
+                dropdown.addOption('detailed', st?.detailDetailed || 'Detailed');
+                dropdown.setValue(this.state.detailLevel);
+                dropdown.onChange(value => this.state.detailLevel = value);
+            });
+
         const warning = this.plugin.t.minutes?.privacyWarning;
         if (warning) {
             this.privacyWarningEl = topSection.createDiv({ cls: 'minutes-warning' });
@@ -368,13 +383,8 @@ export class MinutesCreationModal extends Modal {
             new Setting(section)
                 .setName(t?.participantListSelect || 'Select participant list')
                 .addDropdown(dropdown => {
-                    dropdown.addOption('', t?.participantListNone || '(None)');
-                    dropdown.addOption('__new__', t?.participantListCreateNew || '+ Create new list');
-
-                    for (const list of this.state.availableParticipantLists) {
-                        dropdown.addOption(list.id, `${list.name} (${list.entries.length})`);
-                    }
-
+                    this.participantListDropdownEl = dropdown.selectEl;
+                    this.populateParticipantListDropdown(dropdown);
                     dropdown.setValue(this.state.selectedParticipantListId);
                     dropdown.onChange(async (value) => {
                         if (value === '__new__') {
@@ -492,14 +502,12 @@ export class MinutesCreationModal extends Modal {
             minuteTaker: 'AI Organiser'
         };
 
-        // Get extracted context from documents before closing modal
         const contextDocuments = this.getExtractedContextText();
         const dictionaryContent = await this.getDictionaryContent();
 
-        // Close modal so status bar spinner is visible during LLM call
-        this.close();
-
-        const notice = new Notice(this.plugin.t.minutes?.generating || 'Generating minutes...', 0);
+        // Disable modal inputs + show overlay while LLM is working
+        // Keeps modal open so user can retry on failure without re-entering data
+        const overlay = this.showGeneratingOverlay();
 
         try {
             const result = await this.minutesService.generateMinutes({
@@ -511,13 +519,14 @@ export class MinutesCreationModal extends Modal {
                 customInstructions: this.state.customInstructions,
                 languageOverride: this.state.languageOverride,
                 contextDocuments: contextDocuments || undefined,
-                dictionaryContent: dictionaryContent || undefined
+                dictionaryContent: dictionaryContent || undefined,
+                detailLevel: this.state.detailLevel as import('../../core/constants').MinutesDetailLevel
             });
 
-            notice.hide();
+            this.close();
             new Notice(`${this.plugin.t.minutes?.saved || 'Minutes saved'}: ${result.filePath}`, 4000);
         } catch (error) {
-            notice.hide();
+            overlay.remove();
             console.error('[AI Organiser] Minutes generation error:', error);
             const message = error instanceof Error ? error.message : 'Failed to generate minutes';
             new Notice(`${this.plugin.t.minutes?.errorParsing || 'Failed to parse minutes response'}: ${message}`, 5000);
@@ -561,6 +570,19 @@ export class MinutesCreationModal extends Modal {
         if (!this.privacyWarningEl) return;
         const showWarning = this.state.outputAudience === 'external' || this.state.dualOutput;
         this.privacyWarningEl.toggleClass('is-hidden', !showWarning);
+    }
+
+    /**
+     * Show a translucent overlay with spinner while the LLM generates minutes.
+     * Returns the overlay element so it can be removed on failure.
+     */
+    private showGeneratingOverlay(): HTMLElement {
+        const overlay = this.contentEl.createDiv({ cls: 'minutes-generating-overlay' });
+        const spinner = overlay.createDiv({ cls: 'minutes-generating-spinner' });
+        spinner.createEl('span', {
+            text: this.plugin.t.minutes?.generating || 'Generating minutes...'
+        });
+        return overlay;
     }
 
     private createCollapsible(containerEl: HTMLElement, title: string): HTMLElement {
@@ -1255,7 +1277,11 @@ export class MinutesCreationModal extends Modal {
                 // Expected formats: "Title, Organisation" or "Title at Organisation" or just free text
                 const def = e.definition || '';
                 const { title, organisation } = this.parsePersonDefinition(def);
-                return `${e.term} | ${title} | ${organisation}`;
+                // Only include non-empty columns
+                const parts = [e.term];
+                if (title || organisation) parts.push(title);
+                if (organisation) parts.push(organisation);
+                return parts.join(' | ');
             })
             .filter(name => !existingNames.has(name.split('|')[0].trim().toLowerCase()));
 
@@ -1341,6 +1367,7 @@ export class MinutesCreationModal extends Modal {
             const list = await this.participantListService.createParticipantList(name, entries);
             await this.loadAvailableParticipantLists();
             this.state.selectedParticipantListId = list.id;
+            this.refreshParticipantListDropdown();
             new Notice(
                 (t?.participantListCreated || 'Created participant list: {name}')
                     .replace('{name}', name)
@@ -1359,7 +1386,7 @@ export class MinutesCreationModal extends Modal {
             .filter(Boolean);
 
         if (entries.length === 0) {
-            new Notice(t?.fieldParticipants || 'No participants to save');
+            new Notice(t?.participantListNoEntries || 'No participants to save');
             return;
         }
 
@@ -1381,6 +1408,30 @@ export class MinutesCreationModal extends Modal {
 
         // No list selected — prompt for name and create new
         await this.handleCreateNewParticipantList();
+    }
+
+    private populateParticipantListDropdown(dropdown: import('obsidian').DropdownComponent): void {
+        const t = this.plugin.t.minutes;
+        dropdown.addOption('', t?.participantListNone || '(None)');
+        dropdown.addOption('__new__', t?.participantListCreateNew || '+ Create new list');
+        for (const list of this.state.availableParticipantLists) {
+            dropdown.addOption(list.id, `${list.name} (${list.entries.length})`);
+        }
+    }
+
+    private refreshParticipantListDropdown(): void {
+        const el = this.participantListDropdownEl;
+        if (!el) return;
+        // Clear existing options and rebuild
+        const currentValue = this.state.selectedParticipantListId;
+        el.empty();
+        const t = this.plugin.t.minutes;
+        el.createEl('option', { text: t?.participantListNone || '(None)', attr: { value: '' } });
+        el.createEl('option', { text: t?.participantListCreateNew || '+ Create new list', attr: { value: '__new__' } });
+        for (const list of this.state.availableParticipantLists) {
+            el.createEl('option', { text: `${list.name} (${list.entries.length})`, attr: { value: list.id } });
+        }
+        el.value = currentValue;
     }
 
     /**
@@ -1795,7 +1846,7 @@ export class MinutesCreationModal extends Modal {
         const transcript = this.state.transcript.trim();
         const combinedContent = [docContent, transcript].filter(Boolean).join('\n\n---\n\n');
 
-        console.log('[AI Organiser] Dictionary extraction - docContent:', docContent.length, 'transcript:', transcript.length, 'combined:', combinedContent.length);
+        if (this.plugin.settings.debugMode) console.log('[AI Organiser] Dictionary extraction - docContent:', docContent.length, 'transcript:', transcript.length, 'combined:', combinedContent.length);
 
         if (!combinedContent) {
             new Notice(t?.dictionaryNoDocsExtracted || 'Add documents or a transcript first');
@@ -1831,12 +1882,14 @@ export class MinutesCreationModal extends Modal {
                 throw new Error(response.error || 'Extraction failed');
             }
 
-            console.log('[AI Organiser] Dictionary extraction - input chars:', truncatedContent.length, 'response length:', response.content.length);
-            console.log('[AI Organiser] Dictionary extraction response preview:', response.content.substring(0, 1000));
+            if (this.plugin.settings.debugMode) {
+                console.log('[AI Organiser] Dictionary extraction - input chars:', truncatedContent.length, 'response length:', response.content.length);
+                console.log('[AI Organiser] Dictionary extraction response preview:', response.content.substring(0, 1000));
+            }
 
             // Parse response
             const parseResult = this.dictionaryService.parseExtractionResponse(response.content);
-            console.log('[AI Organiser] Dictionary parse result:', parseResult.success, 'entries:', parseResult.entries?.length, 'error:', parseResult.error);
+            if (this.plugin.settings.debugMode) console.log('[AI Organiser] Dictionary parse result:', parseResult.success, 'entries:', parseResult.entries?.length, 'error:', parseResult.error);
 
             if (!parseResult.success || !parseResult.entries) {
                 throw new Error(parseResult.error || 'Failed to parse extracted terms');

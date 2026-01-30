@@ -1,5 +1,6 @@
 import { normalizePath, TAbstractFile, TFile, Vault } from 'obsidian';
 import { Action, MinutesJSON } from '../services/prompts/minutesPrompts';
+import { MinutesDetailLevel } from '../core/constants';
 
 export interface MinutesFrontmatterInput {
     json: MinutesJSON;
@@ -133,6 +134,150 @@ export function buildMinutesMarkdown(
     }
 
     return internalContent;
+}
+
+/**
+ * Render readable markdown minutes from structured JSON.
+ * Used as primary rendering when LLM produces JSON-only output,
+ * and as fallback when LLM markdown is empty/truncated.
+ */
+export function renderMinutesFromJson(json: MinutesJSON, detailLevel: MinutesDetailLevel): string {
+    const sections: string[] = [];
+    const meta = json.metadata;
+
+    // Header
+    sections.push(`# ${meta?.title || 'Meeting Minutes'}`);
+
+    // Metadata block
+    const metaLines: string[] = [];
+    if (meta?.date) {
+        let dateLine = `**Date:** ${meta.date}`;
+        if (meta.start_time) {
+            dateLine += ` | **Time:** ${meta.start_time}`;
+            if (meta.end_time) dateLine += `–${meta.end_time}`;
+            if (meta.timezone) dateLine += ` (${meta.timezone})`;
+        }
+        metaLines.push(dateLine);
+    }
+    if (meta?.location) metaLines.push(`**Location:** ${meta.location}`);
+    if (meta?.chair) metaLines.push(`**Chair:** ${meta.chair}`);
+    if (meta?.minute_taker) metaLines.push(`**Minute taker:** ${meta.minute_taker}`);
+
+    if (detailLevel !== 'concise') {
+        if (meta?.confidentiality_level && meta.confidentiality_level !== 'public') {
+            metaLines.push(`**Confidentiality:** ${meta.confidentiality_level}`);
+        }
+        if (meta?.quorum_present !== null && meta?.quorum_present !== undefined) {
+            metaLines.push(`**Quorum:** ${meta.quorum_present ? 'Yes' : 'No'}`);
+        }
+    }
+
+    if (metaLines.length > 0) sections.push(metaLines.join('\n'));
+
+    // Participants
+    const attendees = json.participants?.filter(p => p.attendance !== 'apologies') || [];
+    const apologies = json.participants?.filter(p => p.attendance === 'apologies') || [];
+
+    if (attendees.length > 0) {
+        const formatParticipant = (p: { name: string; role?: string; organisation?: string }) => {
+            const parts = [p.name];
+            if (p.role) parts.push(p.role);
+            if (p.organisation) parts.push(p.organisation);
+            return parts.length > 1 ? `${p.name} (${[p.role, p.organisation].filter(Boolean).join(', ')})` : p.name;
+        };
+        sections.push(`**Attendees:** ${attendees.map(formatParticipant).join(', ')}`);
+    }
+    if (apologies.length > 0) {
+        sections.push(`**Apologies:** ${apologies.map(p => p.name).join(', ')}`);
+    }
+
+    // Agenda
+    if (json.agenda?.length > 0 && detailLevel !== 'concise') {
+        const agendaLines = json.agenda.map((item, i) => `${i + 1}. ${item}`);
+        sections.push(`## Agenda\n\n${agendaLines.join('\n')}`);
+    }
+
+    // Key points / notable points (standard and detailed)
+    if (json.notable_points?.length > 0 && detailLevel !== 'concise') {
+        const pointLines = json.notable_points.map(p => {
+            let line = `- ${p.text}`;
+            if (detailLevel === 'detailed' && p.confidence !== 'high') line += ` *(${p.confidence} confidence)*`;
+            return line;
+        });
+        sections.push(`## Key Points\n\n${pointLines.join('\n')}`);
+    }
+
+    // Decisions
+    if (json.decisions?.length > 0) {
+        if (detailLevel === 'concise') {
+            const decisionLines = json.decisions.map(d => {
+                const owner = d.owner ? ` (${d.owner})` : '';
+                return `- **${d.id}** — ${d.text}${owner}`;
+            });
+            sections.push(`## Decisions\n\n${decisionLines.join('\n')}`);
+        } else {
+            const rows = json.decisions.map(d => {
+                const due = d.due_date || '—';
+                const owner = d.owner || '—';
+                const extra = detailLevel === 'detailed' && d.confidence !== 'high' ? ` *(${d.confidence})*` : '';
+                return `| ${d.id} | ${d.text}${extra} | ${owner} | ${due} |`;
+            });
+            sections.push(`## Decisions\n\n| ID | Decision | Owner | Due |\n|----|----------|-------|-----|\n${rows.join('\n')}`);
+        }
+    }
+
+    // Actions
+    if (json.actions?.length > 0) {
+        if (detailLevel === 'concise') {
+            const rows = json.actions.map(a => {
+                const due = a.due_date || '—';
+                return `| ${a.id} | ${a.text} | ${a.owner} | ${due} |`;
+            });
+            sections.push(`## Actions\n\n| ID | Action | Owner | Due |\n|----|--------|-------|-----|\n${rows.join('\n')}`);
+        } else {
+            const rows = json.actions.map(a => {
+                const due = a.due_date || '—';
+                const status = a.status || 'new';
+                const extra = detailLevel === 'detailed' && a.confidence !== 'high' ? ` *(${a.confidence})*` : '';
+                return `| ${a.id} | ${a.text}${extra} | ${a.owner} | ${due} | ${status} |`;
+            });
+            sections.push(`## Actions\n\n| ID | Action | Owner | Due | Status |\n|----|--------|-------|-----|--------|\n${rows.join('\n')}`);
+        }
+    }
+
+    // Risks (standard and detailed)
+    if (json.risks?.length > 0 && detailLevel !== 'concise') {
+        const riskLines = json.risks.map(r => {
+            let line = `- **${r.id}:** ${r.text}`;
+            if (r.impact) line += ` — Impact: ${r.impact}`;
+            if (r.mitigation) line += ` — Mitigation: ${r.mitigation}`;
+            if (r.owner) line += ` (${r.owner})`;
+            return line;
+        });
+        sections.push(`## Risks & Issues\n\n${riskLines.join('\n')}`);
+    }
+
+    // Open questions (standard and detailed)
+    if (json.open_questions?.length > 0 && detailLevel !== 'concise') {
+        const qLines = json.open_questions.map(q => {
+            let line = `- **${q.id}:** ${q.text}`;
+            if (q.owner) line += ` (${q.owner})`;
+            return line;
+        });
+        sections.push(`## Open Questions\n\n${qLines.join('\n')}`);
+    }
+
+    // Deferred items (detailed only)
+    if (json.deferred_items?.length > 0 && detailLevel === 'detailed') {
+        const dLines = json.deferred_items.map(d => {
+            let line = `- **${d.id}:** ${d.text}`;
+            if (d.reason) line += ` — Reason: ${d.reason}`;
+            return line;
+        });
+        sections.push(`## Deferred Items\n\n${dLines.join('\n')}`);
+    }
+
+    return sections.join('\n\n');
 }
 
 export function buildMinutesJsonComment(json: MinutesJSON): string {

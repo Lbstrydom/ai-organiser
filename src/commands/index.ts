@@ -12,6 +12,7 @@ import { registerChatCommands } from './chatCommands';
 import { registerMigrationCommands } from './migrationCommands';
 import { registerDashboardCommands } from './dashboardCommands';
 import { registerNotebookLMCommands } from './notebookLMCommands';
+import { registerExportCommands } from './exportCommands';
 import AIOrganiserPlugin from '../main';
 
 export function registerCommands(plugin: AIOrganiserPlugin) {
@@ -29,4 +30,5 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerMigrationCommands(plugin);
     registerDashboardCommands(plugin);
     registerNotebookLMCommands(plugin);
+    registerExportCommands(plugin);
 }

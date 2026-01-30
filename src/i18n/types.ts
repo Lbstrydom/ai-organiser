@@ -115,6 +115,11 @@ export interface Translations {
             oversizedAsk: string;
             oversizedTruncate: string;
             oversizedFull: string;
+            detailLevel: string;
+            detailLevelDesc: string;
+            detailConcise: string;
+            detailStandard: string;
+            detailDetailed: string;
         };
         configuration: {
             title: string;
@@ -257,6 +262,12 @@ export interface Translations {
             editTemplates: string;
             editTemplatesDesc: string;
             editTemplatesButton: string;
+        };
+        export: {
+            title: string;
+            description: string;
+            outputFolder: string;
+            outputFolderDesc: string;
         };
         notebookLM: {
             title: string;
@@ -445,6 +456,7 @@ export interface Translations {
         notebookLMToggle: string;
         notebookLMClear: string;
         notebookLMOpenFolder: string;
+        exportNote: string;
         createMeetingMinutes: string;
         addToPendingIntegration: string;
         integratePendingContent: string;
@@ -1192,6 +1204,27 @@ export interface Translations {
             searchingContext: string;
             retrievingInformation: string;
         };
+        exportNote: {
+            title: string;
+            format: string;
+            formatPdf: string;
+            formatDocx: string;
+            formatPptx: string;
+            outputFolder: string;
+            selectNotes: string;
+            currentNote: string;
+            multipleNotes: string;
+            includeToc: string;
+            includeTocDesc: string;
+            slideLayout: string;
+            slideLayoutTitleContent: string;
+            slideLayoutBlank: string;
+            exportButton: string;
+            exporting: string;
+            success: string;
+            error: string;
+            noNotesSelected: string;
+        };
         commandPicker: {
             placeholder: string;
             navigateHint: string;
@@ -1200,9 +1233,15 @@ export interface Translations {
             categoryCreate: string;
             categoryEnhance: string;
             categoryOrganize: string;
-            categorySearch: string;
-            categoryAnalyze: string;
+            categoryDiscover: string;
             categoryIntegrate: string;
+            groupBases: string;
+            groupPending: string;
+            groupNotebookLM: string;
+            groupHighlight: string;
+            groupTags: string;
+            groupAskAI: string;
+            groupFindNotes: string;
         };
     };
 
@@ -1274,6 +1313,8 @@ export interface Translations {
         fieldDualOutputDesc: string;
         fieldObsidianTasks: string;
         fieldObsidianTasksDesc: string;
+        fieldDetailLevel: string;
+        fieldDetailLevelDesc: string;
         privacyWarning: string;
         participantsSection: string;
         fieldParticipants: string;
@@ -1364,6 +1405,7 @@ export interface Translations {
         participantListSaved: string;
         participantListLoaded: string;
         participantListCreated: string;
+        participantListNoEntries: string;
     };
     integration: {
         resolveEmbeds: string;

@@ -14,13 +14,14 @@ import {
     parseMinutesResponse
 } from './prompts/minutesPrompts';
 import { chunkPlainTextAsync, chunkSegmentsAsync } from '../utils/textChunker';
-import { CHUNK_TOKEN_LIMIT } from '../core/constants';
+import { CHUNK_TOKEN_LIMIT, MinutesDetailLevel } from '../core/constants';
 import {
     buildMinutesFrontmatter,
     buildMinutesJsonComment,
     buildMinutesMarkdown,
     ensureFolderExists,
     getAvailableFilePath,
+    renderMinutesFromJson,
     sanitizeFileName
 } from '../utils/minutesUtils';
 import { summarizeText, pluginContext } from './llmFacade';
@@ -38,6 +39,8 @@ export interface MinutesGenerationInput {
     contextDocuments?: string;
     /** Optional terminology dictionary content for transcription accuracy */
     dictionaryContent?: string;
+    /** Minutes output detail level */
+    detailLevel?: MinutesDetailLevel;
 }
 
 export interface MinutesGenerationResult {
@@ -92,14 +95,23 @@ export class MinutesService {
             parsed = parseMinutesResponse(responseText);
         }
 
-        console.log('[AI Organiser] Minutes parsed — json keys:', Object.keys(parsed.json), 'markdown length:', parsed.markdown.length);
+        if (this.plugin.settings.debugMode) console.log('[AI Organiser] Minutes parsed — json keys:', Object.keys(parsed.json), 'markdown length:', parsed.markdown.length);
 
-        const markdown = buildMinutesMarkdown(parsed.markdown, parsed.markdownExternal, {
+        const detailLevel = input.detailLevel || this.plugin.settings.minutesDetailLevel || 'standard';
+
+        // Always render from JSON for reliable output.
+        // LLM markdown is used only if substantial (>200 chars), otherwise the JSON
+        // consumed the output token budget and the markdown was truncated/empty.
+        const llmMarkdown = parsed.markdown.trim();
+        const renderedMarkdown = renderMinutesFromJson(parsed.json, detailLevel);
+        const baseMarkdown = llmMarkdown.length > 200 ? llmMarkdown : renderedMarkdown;
+
+        const markdown = buildMinutesMarkdown(baseMarkdown, parsed.markdownExternal, {
             includeTasks: input.metadata.obsidianTasksFormat,
             actions: parsed.json.actions || []
         });
 
-        console.log('[AI Organiser] Minutes markdown built:', markdown.length, 'chars');
+        if (this.plugin.settings.debugMode) console.log('[AI Organiser] Minutes markdown built:', markdown.length, 'chars, source:', llmMarkdown.length > 200 ? 'llm' : 'rendered');
 
         const frontmatter = buildMinutesFrontmatter({
             json: parsed.json,
@@ -114,7 +126,7 @@ export class MinutesService {
         const safeTitle = sanitizeFileName(parsed.json.metadata?.title || input.metadata.title || 'Meeting Minutes');
         const fileName = `${datePart} ${safeTitle}.md`;
 
-        console.log('[AI Organiser] Minutes saving to:', input.outputFolder, '/', fileName);
+        if (this.plugin.settings.debugMode) console.log('[AI Organiser] Minutes saving to:', input.outputFolder, '/', fileName);
 
         await ensureFolderExists(this.plugin.app.vault, input.outputFolder);
         const targetPath = await getAvailableFilePath(this.plugin.app.vault, input.outputFolder, fileName);
@@ -303,6 +315,14 @@ export class MinutesService {
                     return {
                         name: parts[0],
                         role: parts[1] || undefined
+                    };
+                }
+                // Legacy format: "Name (Role) - Present" or "Name (Role)"
+                const legacyMatch = cleaned.match(/^(.+?)\s*\(([^)]+)\)\s*(?:-\s*\w+)?$/);
+                if (legacyMatch) {
+                    return {
+                        name: legacyMatch[1].trim(),
+                        role: legacyMatch[2].trim()
                     };
                 }
                 return { name: cleaned };

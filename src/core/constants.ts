@@ -92,6 +92,10 @@ export const SEARCH_TERM_SNIPPET_CHARS = 2000;
 export type TruncationChoice = 'truncate' | 'full' | 'skip';
 export type OversizedBehavior = 'ask' | 'truncate' | 'full';
 
+// Minutes detail level
+export type MinutesDetailLevel = 'concise' | 'standard' | 'detailed';
+export const DEFAULT_MINUTES_DETAIL_LEVEL: MinutesDetailLevel = 'standard';
+
 // Integration strategy types
 export type PlacementStrategy = 'cursor' | 'append' | 'callout' | 'merge';
 export type FormatStrategy = 'prose' | 'bullets' | 'tasks' | 'table';

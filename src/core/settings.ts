@@ -1,7 +1,7 @@
 import { LanguageCode } from '../services/types';
 import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
-import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior } from './constants';
+import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior, MinutesDetailLevel, DEFAULT_MINUTES_DETAIL_LEVEL } from './constants';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -83,8 +83,11 @@ export interface AIOrganiserSettings {
     minutesDefaultTimezone: string;      // Default timezone for meetings
     minutesDefaultPersona: string;       // Default minutes persona ID
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
+    minutesDetailLevel: MinutesDetailLevel; // Minutes output detail: concise, standard, detailed
     maxDocumentChars: number;            // Minutes: max document size before truncation
     oversizedDocumentBehavior: 'truncate' | 'full' | 'ask'; // Minutes: oversized behavior
+    // Export Settings (DOCX/PPTX)
+    exportOutputFolder: string;          // Folder for exported documents
     // Flashcard Settings
     flashcardFolder: string;             // Subfolder for flashcard exports (under pluginFolder)
     // Plugin Folder Settings (unified structure)
@@ -203,8 +206,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     minutesDefaultTimezone: getDefaultTimezone(),
     minutesDefaultPersona: 'corporate-minutes',
     minutesObsidianTasksFormat: false,
+    minutesDetailLevel: DEFAULT_MINUTES_DETAIL_LEVEL,
     maxDocumentChars: DEFAULT_MAX_DOCUMENT_CHARS,
     oversizedDocumentBehavior: 'ask' as OversizedBehavior,
+    exportOutputFolder: 'Exports',
     flashcardFolder: 'Flashcards',
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',

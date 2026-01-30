@@ -2,6 +2,7 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
+import type { MinutesDetailLevel } from '../../core/constants';
 
 export class MinutesSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
@@ -57,6 +58,19 @@ export class MinutesSettingsSection extends BaseSettingSection {
                     await this.plugin.saveSettings();
                 });
             });
+
+        new Setting(this.containerEl)
+            .setName(t.settings.minutes?.detailLevel || 'Minutes detail level')
+            .setDesc(t.settings.minutes?.detailLevelDesc || 'How much detail to include in the output')
+            .addDropdown(dropdown => dropdown
+                .addOption('concise', t.settings.minutes?.detailConcise || 'Concise')
+                .addOption('standard', t.settings.minutes?.detailStandard || 'Standard')
+                .addOption('detailed', t.settings.minutes?.detailDetailed || 'Detailed')
+                .setValue(this.plugin.settings.minutesDetailLevel)
+                .onChange(async (value) => {
+                    this.plugin.settings.minutesDetailLevel = value as MinutesDetailLevel;
+                    await this.plugin.saveSettings();
+                }));
 
         new Setting(this.containerEl)
             .setName(t.settings.minutes?.obsidianTasks || 'Obsidian Tasks format')

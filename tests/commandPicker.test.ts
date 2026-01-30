@@ -70,9 +70,15 @@ function createMockTranslations(): Translations {
                 categoryCreate: 'Create',
                 categoryEnhance: 'Enhance',
                 categoryOrganize: 'Organize',
-                categorySearch: 'Search',
-                categoryAnalyze: 'Analyze',
+                categoryDiscover: 'Discover',
                 categoryIntegrate: 'Integrate',
+                groupBases: 'Bases',
+                groupPending: 'Pending Integration',
+                groupNotebookLM: 'NotebookLM',
+                groupHighlight: 'Highlight',
+                groupTags: 'Tags',
+                groupAskAI: 'Ask AI',
+                groupFindNotes: 'Find Notes',
             },
         },
     } as unknown as Translations;
@@ -87,7 +93,7 @@ describe('Command Picker', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
 
             const categoryIds = categories.map(c => c.id);
-            expect(categoryIds).toEqual(['create', 'enhance', 'organize', 'search', 'analyze', 'integrate']);
+            expect(categoryIds).toEqual(['create', 'enhance', 'organize', 'discover', 'integrate']);
         });
 
         it('should have correct category names from i18n', () => {
@@ -98,8 +104,7 @@ describe('Command Picker', () => {
                 'Create',
                 'Enhance',
                 'Organize',
-                'Search',
-                'Analyze',
+                'Discover',
                 'Integrate'
             ]);
         });
@@ -122,7 +127,7 @@ describe('Command Picker', () => {
                 const commandIds = createCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('smart-summarize');
                 expect(commandIds).toContain('create-meeting-minutes');
-                expect(commandIds).toContain('notebooklm-export');
+                expect(commandIds).toContain('export-note');
             });
         });
 
@@ -135,8 +140,15 @@ describe('Command Picker', () => {
                 const commandIds = enhanceCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('enhance-note');
                 expect(commandIds).toContain('smart-translate');
-                expect(commandIds).toContain('highlight-selection');
-                expect(commandIds).toContain('remove-highlight');
+                expect(commandIds).toContain('highlight-group');
+
+                // Verify Highlight group contains sub-commands
+                const highlightGroup = enhanceCategory!.commands.find(c => c.id === 'highlight-group');
+                expect(highlightGroup).toBeDefined();
+                expect(highlightGroup!.subCommands).toBeDefined();
+                const subIds = highlightGroup!.subCommands!.map(c => c.id);
+                expect(subIds).toContain('highlight-selection');
+                expect(subIds).toContain('remove-highlight');
             });
         });
 
@@ -147,39 +159,58 @@ describe('Command Picker', () => {
 
                 expect(organizeCategory).toBeDefined();
                 const commandIds = organizeCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('smart-tag');
-                expect(commandIds).toContain('clear-tags');
-                expect(commandIds).toContain('upgrade-metadata');
-                expect(commandIds).toContain('upgrade-folder-metadata');
-                expect(commandIds).toContain('create-dashboard');
+                expect(commandIds).toContain('tags-group');
+                expect(commandIds).toContain('bases-group');
+
+                // Verify Tags group contains sub-commands
+                const tagsGroup = organizeCategory!.commands.find(c => c.id === 'tags-group');
+                expect(tagsGroup).toBeDefined();
+                expect(tagsGroup!.subCommands).toBeDefined();
+                const tagSubIds = tagsGroup!.subCommands!.map(c => c.id);
+                expect(tagSubIds).toContain('smart-tag');
+                expect(tagSubIds).toContain('clear-tags');
+                expect(tagSubIds).toContain('show-tag-network');
+                expect(tagSubIds).toContain('collect-all-tags');
+
+                // Verify Bases group contains sub-commands (now includes manage-index)
+                const basesGroup = organizeCategory!.commands.find(c => c.id === 'bases-group');
+                expect(basesGroup).toBeDefined();
+                expect(basesGroup!.subCommands).toBeDefined();
+                const basesSubIds = basesGroup!.subCommands!.map(c => c.id);
+                expect(basesSubIds).toContain('upgrade-metadata');
+                expect(basesSubIds).toContain('upgrade-folder-metadata');
+                expect(basesSubIds).toContain('create-dashboard');
+                expect(basesSubIds).toContain('manage-index');
             });
         });
 
-        describe('Search category', () => {
-            it('should contain expected commands', () => {
+        describe('Discover category', () => {
+            it('should contain expected groups', () => {
                 const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const searchCategory = categories.find(c => c.id === 'search');
+                const discoverCategory = categories.find(c => c.id === 'discover');
 
-                expect(searchCategory).toBeDefined();
-                const commandIds = searchCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('semantic-search');
-                expect(commandIds).toContain('find-related');
-                expect(commandIds).toContain('chat-with-vault');
-                expect(commandIds).toContain('ask-about-current-note');
-                expect(commandIds).toContain('insert-related-notes');
-                expect(commandIds).toContain('manage-index');
-            });
-        });
+                expect(discoverCategory).toBeDefined();
+                const commandIds = discoverCategory!.commands.map(c => c.id);
+                expect(commandIds).toContain('ask-ai-group');
+                expect(commandIds).toContain('find-notes-group');
+                expect(commandIds).toHaveLength(2); // pure user-mode, no admin items
 
-        describe('Analyze category', () => {
-            it('should contain expected commands', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const analyzeCategory = categories.find(c => c.id === 'analyze');
+                // Verify Ask AI group
+                const askAIGroup = discoverCategory!.commands.find(c => c.id === 'ask-ai-group');
+                expect(askAIGroup).toBeDefined();
+                expect(askAIGroup!.subCommands).toBeDefined();
+                const askSubIds = askAIGroup!.subCommands!.map(c => c.id);
+                expect(askSubIds).toContain('chat-with-vault');
+                expect(askSubIds).toContain('ask-about-current-note');
 
-                expect(analyzeCategory).toBeDefined();
-                const commandIds = analyzeCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('show-tag-network');
-                expect(commandIds).toContain('collect-all-tags');
+                // Verify Find Notes group
+                const findGroup = discoverCategory!.commands.find(c => c.id === 'find-notes-group');
+                expect(findGroup).toBeDefined();
+                expect(findGroup!.subCommands).toBeDefined();
+                const findSubIds = findGroup!.subCommands!.map(c => c.id);
+                expect(findSubIds).toContain('semantic-search');
+                expect(findSubIds).toContain('find-related');
+                expect(findSubIds).toContain('insert-related-notes');
             });
         });
 
@@ -190,12 +221,27 @@ describe('Command Picker', () => {
 
                 expect(integrateCategory).toBeDefined();
                 const commandIds = integrateCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('add-to-pending');
-                expect(commandIds).toContain('integrate-pending');
-                expect(commandIds).toContain('resolve-embeds');
-                expect(commandIds).toContain('notebooklm-toggle');
-                expect(commandIds).toContain('notebooklm-clear');
-                expect(commandIds).toContain('notebooklm-open-folder');
+                expect(commandIds).toContain('pending-group');
+                expect(commandIds).toContain('notebooklm-group');
+
+                // Verify Pending Integration group contains sub-commands
+                const pendingGroup = integrateCategory!.commands.find(c => c.id === 'pending-group');
+                expect(pendingGroup).toBeDefined();
+                expect(pendingGroup!.subCommands).toBeDefined();
+                const pendingSubIds = pendingGroup!.subCommands!.map(c => c.id);
+                expect(pendingSubIds).toContain('add-to-pending');
+                expect(pendingSubIds).toContain('integrate-pending');
+                expect(pendingSubIds).toContain('resolve-embeds');
+
+                // Verify NotebookLM group contains sub-commands
+                const nlmGroup = integrateCategory!.commands.find(c => c.id === 'notebooklm-group');
+                expect(nlmGroup).toBeDefined();
+                expect(nlmGroup!.subCommands).toBeDefined();
+                const nlmSubIds = nlmGroup!.subCommands!.map(c => c.id);
+                expect(nlmSubIds).toContain('notebooklm-export');
+                expect(nlmSubIds).toContain('notebooklm-toggle');
+                expect(nlmSubIds).toContain('notebooklm-clear');
+                expect(nlmSubIds).toContain('notebooklm-open-folder');
             });
         });
 

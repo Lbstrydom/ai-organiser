@@ -21,6 +21,8 @@ export interface PickerCommand {
     description?: string;
     aliases?: string[];
     callback: () => void | Promise<void>;
+    /** If present, clicking opens a sub-picker with these commands instead of executing callback */
+    subCommands?: PickerCommand[];
 }
 
 interface CommandItem {
@@ -78,6 +80,12 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
             cls: 'command-picker-name'
         });
 
+        // Sub-command chevron indicator
+        if (item.command.subCommands && item.command.subCommands.length > 0) {
+            const chevronEl = el.createEl('span', { cls: 'command-picker-chevron' });
+            this.renderIcon(chevronEl, 'chevron-right');
+        }
+
         // Category badge
         el.createEl('span', {
             text: item.category,
@@ -86,8 +94,29 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
     }
 
     onChooseItem(item: CommandItem, evt: MouseEvent | KeyboardEvent): void {
+        const cmd = item.command;
+
+        // If this is a group parent, open sub-picker with its children
+        if (cmd.subCommands && cmd.subCommands.length > 0) {
+            const subCategory: CommandCategory = {
+                id: item.categoryId + '-sub',
+                name: cmd.name,
+                icon: cmd.icon,
+                commands: cmd.subCommands
+            };
+            const subModal = new CommandPickerModal(this.app, this.t, [subCategory]);
+            subModal.open();
+            // Pass current search query to sub-modal for power-user flow
+            const currentQuery = this.inputEl?.value || '';
+            if (currentQuery) {
+                subModal.inputEl.value = currentQuery;
+                subModal.inputEl.dispatchEvent(new Event('input'));
+            }
+            return;
+        }
+
         try {
-            const result = item.command.callback();
+            const result = cmd.callback();
             if (result instanceof Promise) {
                 result.catch((error) => {
                     console.error('[AI Organiser] Command error:', error);
@@ -131,9 +160,9 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
  * Categories organized by user workflow (Gestalt principles):
  * 1. Create - Capture new content from external sources
  * 2. Enhance - Improve and augment existing notes
- * 3. Organize - Structure and categorize content
- * 4. Search - Discover and explore your vault
- * 5. Analyze - Insights and visualizations
+ * 3. Organize - Structure and categorize content (Tags group, Bases group)
+ * 4. Discover - Explore vault with AI chat and semantic search
+ * 5. Integrate - Combine and manage content
  */
 export function buildCommandCategories(
     t: Translations,
@@ -173,11 +202,11 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:create-meeting-minutes')
                 },
                 {
-                    id: 'notebooklm-export',
-                    name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
+                    id: 'export-note',
+                    name: t.commands?.exportNote || 'Export Note',
                     icon: 'file-output',
-                    aliases: ['notebooklm', 'export', 'pdf', 'pack'],
-                    callback: () => executeCommand('ai-organiser:notebooklm-export')
+                    aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint'],
+                    callback: () => executeCommand('ai-organiser:export-note')
                 }
             ]
         },
@@ -218,18 +247,27 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:smart-translate')
                 },
                 {
-                    id: 'highlight-selection',
-                    name: t.commands?.highlightSelection || 'Highlight selection',
+                    id: 'highlight-group',
+                    name: t.modals.commandPicker?.groupHighlight || 'Highlight',
                     icon: 'highlighter',
-                    aliases: ['highlight', 'color', 'mark'],
-                    callback: () => executeCommand('ai-organiser:highlight-selection')
-                },
-                {
-                    id: 'remove-highlight',
-                    name: t.commands?.removeHighlight || 'Remove highlight',
-                    icon: 'eraser',
-                    aliases: ['remove', 'clear', 'unhighlight'],
-                    callback: () => executeCommand('ai-organiser:remove-highlight')
+                    aliases: ['highlight', 'color', 'mark', 'remove', 'clear', 'unhighlight', 'eraser'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'highlight-selection',
+                            name: t.commands?.highlightSelection || 'Highlight selection',
+                            icon: 'highlighter',
+                            aliases: ['highlight', 'color', 'mark'],
+                            callback: () => executeCommand('ai-organiser:highlight-selection')
+                        },
+                        {
+                            id: 'remove-highlight',
+                            name: t.commands?.removeHighlight || 'Remove highlight',
+                            icon: 'eraser',
+                            aliases: ['remove', 'clear', 'unhighlight'],
+                            callback: () => executeCommand('ai-organiser:remove-highlight')
+                        }
+                    ]
                 }
             ]
         },
@@ -240,129 +278,157 @@ export function buildCommandCategories(
             icon: 'folder-tree',
             commands: [
                 {
-                    id: 'smart-tag',
-                    name: t.commands.tag || t.commands.generateTagsForCurrentNote,
+                    id: 'tags-group',
+                    name: t.modals.commandPicker?.groupTags || 'Tags',
                     icon: 'tag',
-                    aliases: [
-                        t.commands.generateTagsForCurrentNote,
-                        t.commands.generateTagsForCurrentFolder,
-                        t.commands.generateTagsForVault,
-                        'categorize',
-                        'label'
-                    ],
-                    callback: () => executeCommand('ai-organiser:smart-tag')
+                    aliases: ['tag', 'categorize', 'label', 'clear', 'remove', 'delete', 'network', 'graph', 'export', 'list', 'all tags', 'visualization'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'smart-tag',
+                            name: t.commands.tag || t.commands.generateTagsForCurrentNote,
+                            icon: 'tag',
+                            aliases: [
+                                t.commands.generateTagsForCurrentNote,
+                                t.commands.generateTagsForCurrentFolder,
+                                t.commands.generateTagsForVault,
+                                'categorize',
+                                'label'
+                            ],
+                            callback: () => executeCommand('ai-organiser:smart-tag')
+                        },
+                        {
+                            id: 'clear-tags',
+                            name: t.commands.clearTags || t.commands.clearTagsForCurrentNote,
+                            icon: 'eraser',
+                            aliases: [
+                                t.commands.clearTagsForCurrentNote,
+                                t.commands.clearTagsForCurrentFolder,
+                                t.commands.clearTagsForVault,
+                                'remove',
+                                'delete'
+                            ],
+                            callback: () => executeCommand('ai-organiser:clear-tags')
+                        },
+                        {
+                            id: 'show-tag-network',
+                            name: t.commands.showTagNetwork,
+                            icon: 'network',
+                            aliases: ['graph', 'visualization', 'map'],
+                            callback: () => executeCommand('ai-organiser:show-tag-network')
+                        },
+                        {
+                            id: 'collect-all-tags',
+                            name: t.commands.collectAllTags,
+                            icon: 'list-tree',
+                            aliases: ['export', 'list', 'all tags'],
+                            callback: () => executeCommand('ai-organiser:collect-all-tags')
+                        }
+                    ]
                 },
                 {
-                    id: 'clear-tags',
-                    name: t.commands.clearTags || t.commands.clearTagsForCurrentNote,
-                    icon: 'eraser',
-                    aliases: [
-                        t.commands.clearTagsForCurrentNote,
-                        t.commands.clearTagsForCurrentFolder,
-                        t.commands.clearTagsForVault,
-                        'remove',
-                        'delete'
-                    ],
-                    callback: () => executeCommand('ai-organiser:clear-tags')
-                },
-                {
-                    id: 'upgrade-metadata',
-                    name: t.commands?.upgradeToBases || 'Upgrade to Bases metadata',
+                    id: 'bases-group',
+                    name: t.modals.commandPicker?.groupBases || 'Bases',
                     icon: 'database',
-                    aliases: ['bases', 'migrate', 'metadata', 'upgrade'],
-                    callback: () => executeCommand('ai-organiser:upgrade-metadata')
-                },
-                {
-                    id: 'upgrade-folder-metadata',
-                    name: t.commands?.upgradeFolderToBases || 'Upgrade folder to Bases metadata',
-                    icon: 'database',
-                    aliases: ['bases', 'folder', 'migrate'],
-                    callback: () => executeCommand('ai-organiser:upgrade-folder-metadata')
-                },
-                {
-                    id: 'create-dashboard',
-                    name: t.commands?.createBasesDashboard || 'Create Bases dashboard',
-                    icon: 'layout-dashboard',
-                    aliases: ['bases', 'dashboard', 'view'],
-                    callback: () => executeCommand('ai-organiser:create-bases-dashboard')
+                    aliases: ['bases', 'metadata', 'dashboard', 'upgrade', 'migrate', 'view', 'index', 'rebuild'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'upgrade-metadata',
+                            name: t.commands?.upgradeToBases || 'Upgrade to Bases metadata',
+                            icon: 'database',
+                            aliases: ['bases', 'migrate', 'metadata', 'upgrade'],
+                            callback: () => executeCommand('ai-organiser:upgrade-metadata')
+                        },
+                        {
+                            id: 'upgrade-folder-metadata',
+                            name: t.commands?.upgradeFolderToBases || 'Upgrade folder to Bases metadata',
+                            icon: 'database',
+                            aliases: ['bases', 'folder', 'migrate'],
+                            callback: () => executeCommand('ai-organiser:upgrade-folder-metadata')
+                        },
+                        {
+                            id: 'create-dashboard',
+                            name: t.commands?.createBasesDashboard || 'Create Bases dashboard',
+                            icon: 'layout-dashboard',
+                            aliases: ['bases', 'dashboard', 'view'],
+                            callback: () => executeCommand('ai-organiser:create-bases-dashboard')
+                        },
+                        {
+                            id: 'manage-index',
+                            name: t.commands.manageIndex,
+                            icon: 'database',
+                            aliases: [
+                                t.commands.buildSemanticIndex,
+                                t.commands.updateSemanticIndex,
+                                t.commands.clearSemanticIndex,
+                                'index',
+                                'rebuild'
+                            ],
+                            callback: () => executeCommand('ai-organiser:manage-index')
+                        }
+                    ]
                 }
             ]
         },
-        // === SEARCH: Discover and explore ===
+        // === DISCOVER: Explore vault with AI chat and semantic search ===
         {
-            id: 'search',
-            name: t.modals.commandPicker?.categorySearch || 'Search',
-            icon: 'search',
+            id: 'discover',
+            name: t.modals.commandPicker?.categoryDiscover || 'Discover',
+            icon: 'compass',
             commands: [
                 {
-                    id: 'semantic-search',
-                    name: t.commands.searchSemanticVault,
-                    icon: 'search',
-                    aliases: ['find', 'query', 'lookup'],
-                    callback: () => executeCommand('ai-organiser:semantic-search')
-                },
-                {
-                    id: 'find-related',
-                    name: t.commands.showRelatedNotes,
-                    icon: 'link-2',
-                    aliases: ['similar', 'connections', 'linked'],
-                    callback: () => executeCommand('ai-organiser:find-related')
-                },
-                {
-                    id: 'chat-with-vault',
-                    name: t.commands.chatWithVault,
+                    id: 'ask-ai-group',
+                    name: t.modals.commandPicker?.groupAskAI || 'Ask AI',
                     icon: 'message-circle',
-                    aliases: ['ask', 'question', 'chat', 'RAG'],
-                    callback: () => executeCommand('ai-organiser:chat-with-vault')
+                    aliases: ['ask', 'question', 'chat', 'RAG', 'current note', 'analyze'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'chat-with-vault',
+                            name: t.commands.chatWithVault,
+                            icon: 'message-circle',
+                            aliases: ['ask', 'question', 'chat', 'RAG'],
+                            callback: () => executeCommand('ai-organiser:chat-with-vault')
+                        },
+                        {
+                            id: 'ask-about-current-note',
+                            name: t.commands.askAboutCurrentNote,
+                            icon: 'message-square-text',
+                            aliases: ['ask', 'current note', 'analyze'],
+                            callback: () => executeCommand('ai-organiser:ask-about-current-note')
+                        }
+                    ]
                 },
                 {
-                    id: 'ask-about-current-note',
-                    name: t.commands.askAboutCurrentNote,
-                    icon: 'message-square-text',
-                    aliases: ['ask', 'current note', 'analyze'],
-                    callback: () => executeCommand('ai-organiser:ask-about-current-note')
-                },
-                {
-                    id: 'insert-related-notes',
-                    name: t.commands.insertRelatedNotes,
-                    icon: 'copy-plus',
-                    aliases: ['insert', 'embed', 'related'],
-                    callback: () => executeCommand('ai-organiser:insert-related-notes')
-                },
-                {
-                    id: 'manage-index',
-                    name: t.commands.manageIndex,
-                    icon: 'database',
-                    aliases: [
-                        t.commands.buildSemanticIndex,
-                        t.commands.updateSemanticIndex,
-                        t.commands.clearSemanticIndex,
-                        'index',
-                        'rebuild'
-                    ],
-                    callback: () => executeCommand('ai-organiser:manage-index')
-                }
-            ]
-        },
-        // === ANALYZE: Insights and visualizations ===
-        {
-            id: 'analyze',
-            name: t.modals.commandPicker?.categoryAnalyze || 'Analyze',
-            icon: 'bar-chart-2',
-            commands: [
-                {
-                    id: 'show-tag-network',
-                    name: t.commands.showTagNetwork,
-                    icon: 'network',
-                    aliases: ['graph', 'visualization', 'map'],
-                    callback: () => executeCommand('ai-organiser:show-tag-network')
-                },
-                {
-                    id: 'collect-all-tags',
-                    name: t.commands.collectAllTags,
-                    icon: 'list-tree',
-                    aliases: ['export', 'list', 'all tags'],
-                    callback: () => executeCommand('ai-organiser:collect-all-tags')
+                    id: 'find-notes-group',
+                    name: t.modals.commandPicker?.groupFindNotes || 'Find Notes',
+                    icon: 'search',
+                    aliases: ['find', 'query', 'lookup', 'similar', 'connections', 'linked', 'insert', 'embed', 'related', 'semantic', 'search'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'semantic-search',
+                            name: t.commands.searchSemanticVault,
+                            icon: 'search',
+                            aliases: ['find', 'query', 'lookup'],
+                            callback: () => executeCommand('ai-organiser:semantic-search')
+                        },
+                        {
+                            id: 'find-related',
+                            name: t.commands.showRelatedNotes,
+                            icon: 'link-2',
+                            aliases: ['similar', 'connections', 'linked'],
+                            callback: () => executeCommand('ai-organiser:find-related')
+                        },
+                        {
+                            id: 'insert-related-notes',
+                            name: t.commands.insertRelatedNotes,
+                            icon: 'copy-plus',
+                            aliases: ['insert', 'embed', 'related'],
+                            callback: () => executeCommand('ai-organiser:insert-related-notes')
+                        }
+                    ]
                 }
             ]
         },
@@ -373,46 +439,71 @@ export function buildCommandCategories(
             icon: 'git-merge',
             commands: [
                 {
-                    id: 'add-to-pending',
-                    name: t.commands.addToPendingIntegration,
-                    icon: 'plus-circle',
-                    aliases: ['pending', 'add', 'integration'],
-                    callback: () => executeCommand('ai-organiser:add-to-pending-integration')
-                },
-                {
-                    id: 'integrate-pending',
-                    name: t.commands.integratePendingContent,
+                    id: 'pending-group',
+                    name: t.modals.commandPicker?.groupPending || 'Pending Integration',
                     icon: 'git-merge',
-                    aliases: ['integrate', 'merge', 'pending'],
-                    callback: () => executeCommand('ai-organiser:integrate-pending-content')
+                    aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'add-to-pending',
+                            name: t.commands.addToPendingIntegration,
+                            icon: 'plus-circle',
+                            aliases: ['pending', 'add', 'integration'],
+                            callback: () => executeCommand('ai-organiser:add-to-pending-integration')
+                        },
+                        {
+                            id: 'integrate-pending',
+                            name: t.commands.integratePendingContent,
+                            icon: 'git-merge',
+                            aliases: ['integrate', 'merge', 'pending'],
+                            callback: () => executeCommand('ai-organiser:integrate-pending-content')
+                        },
+                        {
+                            id: 'resolve-embeds',
+                            name: t.commands.resolvePendingEmbeds,
+                            icon: 'scan-text',
+                            aliases: ['embeds', 'resolve', 'extract'],
+                            callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
+                        }
+                    ]
                 },
                 {
-                    id: 'resolve-embeds',
-                    name: t.commands.resolvePendingEmbeds,
-                    icon: 'scan-text',
-                    aliases: ['embeds', 'resolve', 'extract'],
-                    callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
-                },
-                {
-                    id: 'notebooklm-toggle',
-                    name: t.commands?.notebookLMToggle || 'NotebookLM: Toggle Selection',
-                    icon: 'bookmark-plus',
-                    aliases: ['notebooklm', 'toggle', 'select'],
-                    callback: () => executeCommand('ai-organiser:notebooklm-toggle-selection')
-                },
-                {
-                    id: 'notebooklm-clear',
-                    name: t.commands?.notebookLMClear || 'NotebookLM: Clear Selection',
-                    icon: 'x-circle',
-                    aliases: ['notebooklm', 'clear', 'selection'],
-                    callback: () => executeCommand('ai-organiser:notebooklm-clear-selection')
-                },
-                {
-                    id: 'notebooklm-open-folder',
-                    name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
-                    icon: 'folder-open',
-                    aliases: ['notebooklm', 'export', 'folder'],
-                    callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
+                    id: 'notebooklm-group',
+                    name: t.modals.commandPicker?.groupNotebookLM || 'NotebookLM',
+                    icon: 'file-output',
+                    aliases: ['notebooklm', 'export', 'pack', 'toggle', 'select', 'clear', 'folder'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'notebooklm-export',
+                            name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
+                            icon: 'file-output',
+                            aliases: ['notebooklm', 'export', 'pdf', 'pack'],
+                            callback: () => executeCommand('ai-organiser:notebooklm-export')
+                        },
+                        {
+                            id: 'notebooklm-toggle',
+                            name: t.commands?.notebookLMToggle || 'NotebookLM: Toggle Selection',
+                            icon: 'bookmark-plus',
+                            aliases: ['notebooklm', 'toggle', 'select'],
+                            callback: () => executeCommand('ai-organiser:notebooklm-toggle-selection')
+                        },
+                        {
+                            id: 'notebooklm-clear',
+                            name: t.commands?.notebookLMClear || 'NotebookLM: Clear Selection',
+                            icon: 'x-circle',
+                            aliases: ['notebooklm', 'clear', 'selection'],
+                            callback: () => executeCommand('ai-organiser:notebooklm-clear-selection')
+                        },
+                        {
+                            id: 'notebooklm-open-folder',
+                            name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
+                            icon: 'folder-open',
+                            aliases: ['notebooklm', 'export', 'folder'],
+                            callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
+                        }
+                    ]
                 }
             ]
         }

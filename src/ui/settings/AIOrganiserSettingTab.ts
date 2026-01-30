@@ -13,6 +13,7 @@ import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
 import { YouTubeSettingsSection } from './YouTubeSettingsSection';
 import { PDFSettingsSection } from './PDFSettingsSection';
 import { AudioTranscriptionSettingsSection } from './AudioTranscriptionSettingsSection';
+import { ExportSettingsSection } from './ExportSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -29,6 +30,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private youtubeSection?: YouTubeSettingsSection;
     private pdfSection?: PDFSettingsSection;
     private audioTranscriptionSection?: AudioTranscriptionSettingsSection;
+    private exportSection?: ExportSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -89,6 +91,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
 
         this.notebookLMSection = new NotebookLMSettingsSection(this.plugin, containerEl, this);
         this.notebookLMSection.display();
+
+        // 6c. Document Export (DOCX/PPTX)
+        this.exportSection = new ExportSettingsSection(this.plugin, containerEl, this);
+        this.exportSection.display();
 
         // 7. Interface (preferences - language settings)
         this.interfaceSection = new InterfaceSettingsSection(this.plugin, containerEl, this);

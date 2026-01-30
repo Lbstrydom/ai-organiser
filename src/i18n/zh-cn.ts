@@ -252,6 +252,12 @@ export const zhCN: Translations = {
             editTemplatesDesc: "自定义创建 Bases 仪表板时可用的模板",
             editTemplatesButton: "编辑模板"
         },
+        export: {
+            title: "文档导出",
+            description: "将笔记导出为 Word (.docx) 或 PowerPoint (.pptx) 文件。",
+            outputFolder: "输出文件夹",
+            outputFolderDesc: "导出文档的保存位置",
+        },
         notebookLM: {
             title: "NotebookLM 集成",
             description: "将 Obsidian 笔记导出为 NotebookLM 可用的源文件包。",
@@ -402,7 +408,12 @@ export const zhCN: Translations = {
             oversizedBehaviorDesc: "当文档超过大小限制时的处理方式",
             oversizedAsk: "每个文档询问",
             oversizedTruncate: "始终截断",
-            oversizedFull: "始终使用完整内容"
+            oversizedFull: "始终使用完整内容",
+            detailLevel: "纪要详细程度",
+            detailLevelDesc: "输出中包含多少细节",
+            detailConcise: "简洁 — 仅决议和行动项",
+            detailStandard: "标准 — 议程、要点、决议、行动项、风险",
+            detailDetailed: "详细 — 包括延期事项和置信度"
         }
     },
 
@@ -458,6 +469,7 @@ export const zhCN: Translations = {
         notebookLMToggle: "NotebookLM: 切换选择",
         notebookLMClear: "NotebookLM: 清除选择",
         notebookLMOpenFolder: "NotebookLM: 打开导出文件夹",
+        exportNote: "导出笔记",
         createMeetingMinutes: "创建会议纪要",
         addToPendingIntegration: "添加内容到待处理集成",
         integratePendingContent: "将待处理内容整合到笔记",
@@ -1194,6 +1206,27 @@ export const zhCN: Translations = {
             searchingContext: "搜索保险库上下文...",
             retrievingInformation: "检索相关信息..."
         },
+        exportNote: {
+            title: "导出笔记",
+            format: "格式",
+            formatPdf: "PDF (.pdf)",
+            formatDocx: "Word (.docx)",
+            formatPptx: "PowerPoint (.pptx)",
+            outputFolder: "输出文件夹",
+            selectNotes: "要导出的笔记",
+            currentNote: "当前笔记",
+            multipleNotes: "选择笔记...",
+            includeToc: "包含目录",
+            includeTocDesc: "在文档开头添加目录",
+            slideLayout: "幻灯片布局",
+            slideLayoutTitleContent: "标题 + 内容",
+            slideLayoutBlank: "空白",
+            exportButton: "导出",
+            exporting: "导出中...",
+            success: "已导出到 {path}",
+            error: "导出失败：{error}",
+            noNotesSelected: "未选择笔记",
+        },
         commandPicker: {
             placeholder: "搜索命令...",
             navigateHint: "导航",
@@ -1202,9 +1235,15 @@ export const zhCN: Translations = {
             categoryCreate: "创建",
             categoryEnhance: "增强",
             categoryOrganize: "整理",
-            categorySearch: "搜索",
-            categoryAnalyze: "分析",
-            categoryIntegrate: "集成"
+            categoryDiscover: "发现",
+            categoryIntegrate: "集成",
+            groupBases: "Bases 数据库",
+            groupPending: "待处理集成",
+            groupNotebookLM: "NotebookLM",
+            groupHighlight: "高亮",
+            groupTags: "标签",
+            groupAskAI: "AI 问答",
+            groupFindNotes: "查找笔记"
         }
     },
 
@@ -1276,6 +1315,8 @@ export const zhCN: Translations = {
         fieldDualOutputDesc: "\u751F\u6210\u4F9B\u5916\u90E8\u5206\u4EAB\u7684\u7CBE\u7B80\u7248\u672C",
         fieldObsidianTasks: "Obsidian Tasks \u683C\u5F0F",
         fieldObsidianTasksDesc: "\u5C06\u884C\u52A8\u9879\u4EE5 - [ ] \u590D\u9009\u6846\u6DFB\u52A0",
+        fieldDetailLevel: "\u8BE6\u7EC6\u7A0B\u5EA6",
+        fieldDetailLevelDesc: "\u4F1A\u8BAE\u7EAA\u8981\u8F93\u51FA\u7684\u8BE6\u7EC6\u7A0B\u5EA6",
         privacyWarning: "\u4F1A\u8BAE\u8BB0\u5F55\u53EF\u80FD\u5305\u542B\u673A\u5BC6\u4FE1\u606F\u3002\u5916\u90E8\u8F93\u51FA\u5C06\u88AB\u8131\u654F\u5904\u7406\uFF0C\u4F46\u5206\u4EAB\u524D\u5E94\u8FDB\u884C\u5BA1\u6838\u3002",
         participantsSection: "\u53C2\u4F1A\u4EBA\u5458",
         fieldParticipants: "\u53C2\u4F1A\u4EBA\u5458",
@@ -1350,6 +1391,7 @@ export const zhCN: Translations = {
         participantListSaved: "参会人员列表已保存: {name}",
         participantListLoaded: "已加载 {count} 位参会人员",
         participantListCreated: "已创建参会人员列表: {name}",
+        participantListNoEntries: "没有可保存的参会人员",
         // Dictionary
         dictionarySection: "术语词典",
         dictionaryDesc: "使用包含姓名、术语和缩写的词典提高转录准确性",

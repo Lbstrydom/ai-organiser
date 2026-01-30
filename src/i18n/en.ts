@@ -127,7 +127,12 @@ export const en: Translations = {
             oversizedBehaviorDesc: "What to do when a document exceeds the size limit",
             oversizedAsk: "Ask for each document",
             oversizedTruncate: "Always truncate",
-            oversizedFull: "Always use full content"
+            oversizedFull: "Always use full content",
+            detailLevel: "Minutes detail level",
+            detailLevelDesc: "How much detail to include in the output",
+            detailConcise: "Concise — decisions & actions only",
+            detailStandard: "Standard — agenda, key points, decisions, actions, risks",
+            detailDetailed: "Detailed — everything including deferred items & confidence"
         },
         configuration: {
             title: "Advanced",
@@ -270,6 +275,12 @@ export const en: Translations = {
             editTemplates: "Edit Dashboard Templates",
             editTemplatesDesc: "Customize the dashboard templates available when creating Bases dashboards",
             editTemplatesButton: "Edit Templates"
+        },
+        export: {
+            title: "Document Export",
+            description: "Export notes as Word (.docx) or PowerPoint (.pptx) files.",
+            outputFolder: "Output folder",
+            outputFolderDesc: "Where to save exported documents",
         },
         notebookLM: {
             title: "NotebookLM Integration",
@@ -458,6 +469,7 @@ export const en: Translations = {
         notebookLMToggle: "NotebookLM: Toggle Selection",
         notebookLMClear: "NotebookLM: Clear Selection",
         notebookLMOpenFolder: "NotebookLM: Open Export Folder",
+        exportNote: "Export Note",
         createMeetingMinutes: "Create Meeting Minutes",
         addToPendingIntegration: "Add content to Pending Integration",
         integratePendingContent: "Integrate pending content into note",
@@ -1194,6 +1206,27 @@ export const en: Translations = {
             searchingContext: "Searching vault context...",
             retrievingInformation: "Retrieving relevant information..."
         },
+        exportNote: {
+            title: "Export Note",
+            format: "Format",
+            formatPdf: "PDF (.pdf)",
+            formatDocx: "Word (.docx)",
+            formatPptx: "PowerPoint (.pptx)",
+            outputFolder: "Output folder",
+            selectNotes: "Notes to export",
+            currentNote: "Current note",
+            multipleNotes: "Select notes...",
+            includeToc: "Include table of contents",
+            includeTocDesc: "Add a table of contents at the start of the document",
+            slideLayout: "Slide layout",
+            slideLayoutTitleContent: "Title + Content",
+            slideLayoutBlank: "Blank",
+            exportButton: "Export",
+            exporting: "Exporting...",
+            success: "Exported to {path}",
+            error: "Export failed: {error}",
+            noNotesSelected: "No notes selected",
+        },
         commandPicker: {
             placeholder: "Search commands...",
             navigateHint: "to navigate",
@@ -1202,9 +1235,15 @@ export const en: Translations = {
             categoryCreate: "Create",
             categoryEnhance: "Enhance",
             categoryOrganize: "Organize",
-            categorySearch: "Search",
-            categoryAnalyze: "Analyze",
-            categoryIntegrate: "Integrate"
+            categoryDiscover: "Discover",
+            categoryIntegrate: "Integrate",
+            groupBases: "Bases",
+            groupPending: "Pending Integration",
+            groupNotebookLM: "NotebookLM",
+            groupHighlight: "Highlight",
+            groupTags: "Tags",
+            groupAskAI: "Ask AI",
+            groupFindNotes: "Find Notes"
         }
     },
 
@@ -1276,6 +1315,8 @@ export const en: Translations = {
         fieldDualOutputDesc: "Creates sanitized version for external sharing",
         fieldObsidianTasks: "Obsidian Tasks format",
         fieldObsidianTasksDesc: "Add actions as - [ ] checkboxes",
+        fieldDetailLevel: "Detail level",
+        fieldDetailLevelDesc: "How much detail to include in the minutes output",
         privacyWarning: "Transcripts may contain confidential information. External output will be sanitized but should be reviewed before sharing.",
         participantsSection: "Participants",
         fieldParticipants: "Participants",
@@ -1350,6 +1391,7 @@ export const en: Translations = {
         participantListSaved: "Participant list saved: {name}",
         participantListLoaded: "Loaded {count} participants from list",
         participantListCreated: "Created participant list: {name}",
+        participantListNoEntries: "No participants to save",
         // Dictionary
         dictionarySection: "Terminology Dictionary",
         dictionaryDesc: "Use a dictionary of names, terms, and acronyms for better transcription accuracy",

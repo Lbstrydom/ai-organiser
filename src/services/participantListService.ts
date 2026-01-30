@@ -73,7 +73,18 @@ export class ParticipantListService {
     }
 
     async createParticipantList(name: string, entries: string[]): Promise<ParticipantList> {
-        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        // Fallback for non-Latin names that produce empty slug
+        if (!id) {
+            id = `list-${Date.now()}`;
+        }
+        // Prevent silent overwrites — append counter if id already exists
+        const baseId = id;
+        let counter = 1;
+        while (await this.getById(id)) {
+            id = `${baseId}-${counter}`;
+            counter++;
+        }
         const now = new Date().toISOString();
         const list: ParticipantList = { id, name, entries, createdAt: now, updatedAt: now };
         await this.save(list);

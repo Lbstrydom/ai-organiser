@@ -12,15 +12,7 @@
 
 import jsPDF from 'jspdf';
 import type { IPdfGenerator, PdfConfig } from '../types';
-
-/**
- * Semantic markdown line type
- */
-interface MarkdownLine {
-    type: 'heading1' | 'heading2' | 'heading3' | 'paragraph' | 'bullet' | 'ordered' | 'blank';
-    content: string;
-    depth?: number; // For lists
-}
+import { parseMarkdown, extractTables } from '../../../utils/markdownParser';
 
 /**
  * Markdown PDF Generator
@@ -83,8 +75,74 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
             return yPosition;
         };
 
-        // Parse markdown into semantic lines
-        const lines = this.parseMarkdown(markdownContent, config.includeFrontmatter);
+        // Parse markdown into semantic lines (using shared parser)
+        const lines = parseMarkdown(markdownContent, config.includeFrontmatter);
+        const tables = extractTables(lines);
+
+        // Build table range lookup
+        const tableRanges: { start: number; end: number; headers: string[]; rows: string[][] }[] = [];
+        for (const t of tables) {
+            const end = t.startIndex + 2 + t.table.rows.length;
+            tableRanges.push({ start: t.startIndex, end, headers: t.table.headers, rows: t.table.rows });
+        }
+
+        // Helper: render a table as a grid
+        const renderTable = (headers: string[], rows: string[][]): void => {
+            const colCount = headers.length;
+            if (colCount === 0) return;
+
+            const tableFontSize = Math.max(config.fontSize * 0.75, 7);
+            const cellPadding = 2;
+            const rowHeight = tableFontSize * config.lineHeight + cellPadding * 2;
+            const colWidth = contentWidth / colCount;
+
+            doc.setFontSize(tableFontSize);
+
+            // Draw header row
+            if (yPosition + rowHeight > pageHeight - config.marginY) {
+                doc.addPage();
+                yPosition = config.marginY;
+            }
+
+            // Header background
+            doc.setFillColor(232, 232, 232);
+            doc.rect(config.marginX, yPosition - tableFontSize * 0.3, contentWidth, rowHeight, 'F');
+
+            doc.setFont(config.fontName, 'bold');
+            for (let c = 0; c < colCount; c++) {
+                const cellX = config.marginX + c * colWidth + cellPadding;
+                const cellText = doc.splitTextToSize(headers[c] || '', colWidth - cellPadding * 2);
+                doc.text(cellText[0] || '', cellX, yPosition + cellPadding);
+            }
+            yPosition += rowHeight;
+
+            // Draw data rows
+            doc.setFont(config.fontName, 'normal');
+            for (const row of rows) {
+                if (yPosition + rowHeight > pageHeight - config.marginY) {
+                    doc.addPage();
+                    yPosition = config.marginY;
+                }
+
+                // Light row border
+                doc.setDrawColor(200, 200, 200);
+                doc.line(config.marginX, yPosition - tableFontSize * 0.3, config.marginX + contentWidth, yPosition - tableFontSize * 0.3);
+
+                for (let c = 0; c < colCount; c++) {
+                    const cellX = config.marginX + c * colWidth + cellPadding;
+                    const cellText = doc.splitTextToSize(row[c] || '', colWidth - cellPadding * 2);
+                    doc.text(cellText[0] || '', cellX, yPosition + cellPadding);
+                }
+                yPosition += rowHeight;
+            }
+
+            // Bottom border
+            doc.setDrawColor(200, 200, 200);
+            doc.line(config.marginX, yPosition - tableFontSize * 0.3, config.marginX + contentWidth, yPosition - tableFontSize * 0.3);
+
+            yPosition += config.fontSize * 0.5;
+            doc.setFontSize(config.fontSize);
+        };
 
         // Add title if configured
         if (config.includeTitle && title) {
@@ -93,7 +151,19 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
         }
 
         // Render each line
-        for (const line of lines) {
+        for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            // Check if this line starts a table
+            const tableEntry = tableRanges.find(r => r.start === lineIdx);
+            if (tableEntry) {
+                renderTable(tableEntry.headers, tableEntry.rows);
+                lineIdx = tableEntry.end - 1; // skip to end of table
+                continue;
+            }
+
+            // Skip lines that are part of a table
+            if (tableRanges.some(r => lineIdx >= r.start && lineIdx < r.end)) continue;
+
+            const line = lines[lineIdx];
             switch (line.type) {
                 case 'heading1':
                     yPosition = addWrappedText(line.content, true, config.fontSize * 1.6) + config.fontSize * 0.5;
@@ -170,208 +240,14 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
                 case 'blank':
                     yPosition += config.fontSize * 0.5;
                     break;
+
+                default:
+                    break;
             }
         }
 
         // Convert to ArrayBuffer
         const pdfBytes = doc.output('arraybuffer');
         return pdfBytes;
-    }
-
-    /**
-     * Parse markdown content into semantic lines
-     * Strips complex blocks and Obsidian-specific syntax
-     */
-    private parseMarkdown(
-        markdown: string,
-        includeFrontmatter: boolean
-    ): MarkdownLine[] {
-        const lines: MarkdownLine[] = [];
-        const cleanedMarkdown = this.preprocessMarkdown(markdown);
-        const rawLines = cleanedMarkdown.split('\n');
-
-        let inFrontmatter = false;
-        let inCodeBlock = false;
-        let frontmatterEnd = 0;
-
-        // Track frontmatter
-        if (rawLines[0]?.trim() === '---') {
-            inFrontmatter = true;
-            for (let i = 1; i < rawLines.length; i++) {
-                if (rawLines[i]?.trim() === '---') {
-                    frontmatterEnd = i + 1;
-                    inFrontmatter = false;
-                    break;
-                }
-            }
-        }
-
-        // Parse lines
-        for (let i = 0; i < rawLines.length; i++) {
-            // Skip frontmatter unless requested
-            if (i < frontmatterEnd) {
-                if (includeFrontmatter && i > 0 && i < frontmatterEnd - 1) {
-                    const line = rawLines[i].trim();
-                    if (line && !line.startsWith('---')) {
-                        // Simple YAML key: value rendering
-                        lines.push({
-                            type: 'paragraph',
-                            content: line,
-                        });
-                    }
-                }
-                continue;
-            }
-
-            const rawLine = rawLines[i];
-            const trimmed = rawLine?.trim() || '';
-
-            // Skip empty lines in processing but track them
-            if (!trimmed) {
-                if (lines.length > 0 && lines[lines.length - 1].type !== 'blank') {
-                    lines.push({ type: 'blank', content: '' });
-                }
-                continue;
-            }
-
-            // Skip code blocks and other complex elements
-            if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
-                inCodeBlock = !inCodeBlock;
-                continue;
-            }
-
-            if (inCodeBlock) {
-                continue;
-            }
-
-            // Skip HTML
-            if (trimmed.startsWith('<')) {
-                continue;
-            }
-
-            // Skip Dataview blocks
-            if (trimmed.startsWith('```dataview') || trimmed.startsWith('```query')) {
-                inCodeBlock = true;
-                continue;
-            }
-
-            // Skip comment blocks
-            if (trimmed.startsWith('%%')) {
-                continue;
-            }
-
-            // Parse heading
-            const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
-            if (headingMatch) {
-                const level = headingMatch[1].length;
-                const content = this.sanitizeText(headingMatch[2]);
-                const type = (`heading${level}` as any) as MarkdownLine['type'];
-                lines.push({ type, content });
-                continue;
-            }
-
-            // Parse unordered list
-            const bulletMatch = trimmed.match(/^(\s*)([-*+])\s+(.+)$/);
-            if (bulletMatch) {
-                const depth = bulletMatch[1].length / 2;
-                const content = this.sanitizeText(bulletMatch[3]);
-                lines.push({
-                    type: 'bullet',
-                    content,
-                    depth: Math.max(0, depth),
-                });
-                continue;
-            }
-
-            // Parse ordered list
-            const orderedMatch = trimmed.match(/^(\s*)(\d+)\.\s+(.+)$/);
-            if (orderedMatch) {
-                const depth = orderedMatch[1].length / 2;
-                const content = `${orderedMatch[2]}. ${this.sanitizeText(orderedMatch[3])}`;
-                lines.push({
-                    type: 'ordered',
-                    content,
-                    depth: Math.max(0, depth),
-                });
-                continue;
-            }
-
-            // Regular paragraph - sanitize Obsidian syntax
-            const sanitized = this.sanitizeText(trimmed);
-            if (sanitized) {
-                lines.push({
-                    type: 'paragraph',
-                    content: sanitized,
-                });
-            }
-        }
-
-        return lines;
-    }
-
-    /**
-     * Sanitize Obsidian-specific markdown syntax
-     * - Convert [[Internal Link]] to Internal Link
-     * - Convert [[Link|Display Text]] to Display Text
-     * - Remove bold/italic markers (keep text)
-     * - Remove strikethrough markers
-     * - Strip inline code backticks but keep text
-     */
-    private sanitizeText(text: string): string {
-        let result = text;
-
-        // Internal links: [[Link|Display]] or [[Link]]
-        result = result.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2'); // [[Link|Display]] -> Display
-        result = result.replace(/\[\[([^\]]+)\]\]/g, '$1'); // [[Link]] -> Link
-
-        // External links: [Display](url)
-        result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // [Display](url) -> Display
-
-        // Bold: **text** or __text__
-        result = result.replace(/\*\*([^\*]+)\*\*/g, '$1');
-        result = result.replace(/__([^_]+)__/g, '$1');
-
-        // Italic: *text* or _text_
-        result = result.replace(/\*([^\*]+)\*/g, '$1');
-        result = result.replace(/_([^_]+)_/g, '$1');
-
-        // Strikethrough: ~~text~~
-        result = result.replace(/~~([^~]+)~~/g, '$1');
-
-        // Inline code: `text` -> text
-        result = result.replace(/`([^`]+)`/g, '$1');
-
-        // Highlight: ==text== -> text
-        result = result.replace(/==([^=]+)==/g, '$1');
-
-        // Subscript/Superscript: ~text~ or ^text^
-        result = result.replace(/~([^~]+)~/g, '$1');
-        result = result.replace(/\^([^^]+)\^/g, '$1');
-
-        return result.trim();
-    }
-
-    /**
-     * Preprocess markdown to remove blocks that should never reach the parser.
-     * - Strips Obsidian comments (inline and multi-line)
-     * - Removes image embeds (wiki-style and markdown-style)
-     */
-    private preprocessMarkdown(markdown: string): string {
-        return markdown
-            // Obsidian comments: %% ... %% (supports multi-line)
-            .replace(/%%[\s\S]*?%%/g, '')
-            // Obsidian wiki image embeds: ![[image.png]]
-            .replace(/!\[\[.*?\]\]/g, '')
-            // Markdown image embeds: ![alt](url)
-            .replace(/!\[[^\]]*]\([^)]*\)/g, '');
-    }
-
-    /**
-     * Stub for future image embedding (v2+)
-     * v1: images are silently skipped in markdown parsing
-     */
-    private embedImage(doc: jsPDF, imagePath: string): void {
-        // TODO: v2 - implement image embedding with base64 encoding
-        // For now, this is a no-op; images are stripped by markdown parser
     }
 }

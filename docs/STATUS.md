@@ -2,11 +2,51 @@
 
 **Version:** 1.0.15
 **Last Updated:** January 30, 2026
-**Status:** Feature Complete - Preview Modal + Busy Indicator + UX Polish + Review Fixes
+**Status:** Feature Complete - Command Picker Phase 2 + PDF Table Fix + UX Polish
 
 ---
 
 ## Recent Updates
+
+### Command Picker Redesign Phase 2 & PDF Table Fix (2026-01-30)
+
+**All Parts Complete**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| PDF Fix | Strip blockquote/callout prefixes in preprocessMarkdown for table detection | Complete |
+| Phase 2 | Deeper command grouping: Highlight, Tags, Ask AI, Find Notes groups | Complete |
+| Phase 2 | Rename Search+Analyze to Discover (5 categories, 7 groups) | Complete |
+| Phase 2 | Move Manage Index to Bases group (Separation of Concerns) | Complete |
+
+**Build Status**: 871 tests passing (39 suites)
+
+**Key Files Modified:**
+- `src/utils/markdownParser.ts` — Added `.replace(/^> ?/gm, '')` to strip blockquote prefixes
+- `src/ui/modals/CommandPickerModal.ts` — Full restructure of `buildCommandCategories()`
+- `src/i18n/types.ts` — Removed `categorySearch`/`categoryAnalyze`, added `categoryDiscover`, `groupHighlight`, `groupTags`, `groupAskAI`, `groupFindNotes`
+- `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — New translations for Discover, Highlight, Tags, Ask AI, Find Notes
+- `tests/commandPicker.test.ts` — Rewritten for new 5-category structure with 7 sub-groups
+- `tests/markdownPdfGenerator.test.ts` — 4 new tests for table rendering and callout handling
+
+**Command Picker Structure (After):**
+| Category | Top-level Items | Groups |
+|----------|----------------|--------|
+| Create (3) | Smart Summarize, Meeting Minutes, Export Note | — |
+| Enhance (3) | Enhance Note, Translate, **Highlight** group | Highlight (2 sub) |
+| Organize (2) | **Tags** group, **Bases** group | Tags (4 sub), Bases (4 sub incl. Manage Index) |
+| Discover (2) | **Ask AI** group, **Find Notes** group | Ask AI (2 sub), Find Notes (3 sub) |
+| Integrate (2) | **Pending** group, **NotebookLM** group | Pending (3 sub), NotebookLM (4 sub) |
+
+**Design Rationale:**
+- Tags group (Gestalt proximity): "I want to do something with tags" consolidates Tag/Clear/Network/Export
+- Highlight group (inverse operation): Do/Undo on same feature reduces Enhance noise
+- Search → Discover (reframing): AI-powered exploration, not Ctrl+F text matching
+- Manage Index → Bases (SoC): Admin maintenance stays with infrastructure, not user-mode discovery
+
+**Documentation**: `docs/completed/menu-plan.md` (archived)
+
+---
 
 ### Preview Modal, Global LLM Busy Indicator & UX Polish (2026-01-30)
 
@@ -618,7 +658,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 868 unit tests (39 suites)
+npm test           # Run 871 unit tests (39 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 

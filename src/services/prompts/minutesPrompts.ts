@@ -121,19 +121,20 @@ export function buildMinutesSystemPrompt(outputLanguage: string, personaInstruct
 
 <<< RESPONSE FORMAT - CRITICAL >>>
 
-Your response MUST start with a valid JSON object (no preamble, no markdown fences).
-After the JSON, output exactly this delimiter on its own line:
-${MINUTES_JSON_DELIMITER}
-Then output the markdown minutes.
+Your response MUST contain a valid JSON object matching the schema below.
+Start with { (no preamble, no markdown fences, no text before the JSON).
 
-If dual_output is true, output markdown in exactly this structure after the delimiter:
+After the JSON object, you MAY optionally output this delimiter on its own line:
+${MINUTES_JSON_DELIMITER}
+followed by markdown minutes. This is optional — the JSON is the primary output.
+If token limits are tight, produce ONLY the JSON. The markdown will be rendered from the JSON.
+
+If dual_output is true AND you produce markdown, use exactly this structure after the delimiter:
 ## Minutes_Internal
 [full detail markdown]
 
 ## Minutes_External
 [sanitized markdown]
-
-Do not add separators between sections. Use exactly these headings.
 
 <<< LANGUAGE AND STYLE >>>
 
@@ -263,15 +264,10 @@ MinutesJSON (valid JSON, no markdown fences, must be first in response):
   ]
 }
 
-Minutes (markdown) must include:
-- Metadata block (title, date, time, location, chair, attendees, apologies, distribution, confidentiality)
-- Agenda (numbered)
-- Key points by agenda item (brief bullets)
-- Decisions (numbered, cross-ref D1 etc.)
-- Actions table: ID | Action | Owner | Due | Status | Notes
-- Risks / Issues (if any)
-- Parking lot / Deferred items
-- Clarifications needed (if any open_questions exist)
+IMPORTANT: The JSON is the primary output. Ensure all notable_points, decisions, actions,
+risks, open_questions, and deferred_items are complete in the JSON. Markdown is rendered
+from the JSON automatically. Only output markdown after the delimiter if you have
+sufficient output tokens remaining.
 
 <<< SELF-CHECK (run before returning) >>>
 
@@ -377,7 +373,6 @@ ${buildMinutesSystemPrompt(outputLanguage, personaInstructions)}`;
 }
 
 export function parseMinutesResponse(response: string): ParsedMinutes {
-    console.log('[AI Organiser] parseMinutesResponse — response length:', response.length, 'preview:', response.substring(0, 200));
 
     // Strip code fences BEFORE any parsing (LLMs often wrap in ```json despite instructions)
     // Remove opening ```json and its matching closing ``` (may be mid-response, not just at end)
@@ -397,14 +392,11 @@ export function parseMinutesResponse(response: string): ParsedMinutes {
     if (delimiterIndex !== -1) {
         jsonPart = cleaned.substring(0, delimiterIndex).trim();
         markdownPart = cleaned.substring(delimiterIndex + MINUTES_JSON_DELIMITER.length).trim();
-        console.log('[AI Organiser] parseMinutesResponse — found delimiter at', delimiterIndex);
     } else {
-        console.log('[AI Organiser] parseMinutesResponse — no delimiter, using brace matching');
         jsonPart = extractJsonByBraceMatching(cleaned);
         const jsonEndIndex = cleaned.indexOf(jsonPart) + jsonPart.length;
         markdownPart = cleaned.substring(jsonEndIndex).trim();
         markdownPart = markdownPart.replace(/^---+\s*/m, '').trim();
-        console.log('[AI Organiser] parseMinutesResponse — json length:', jsonPart.length, 'markdown length:', markdownPart.length);
     }
 
     const minutesJson = parseJsonWithRepair(jsonPart);
