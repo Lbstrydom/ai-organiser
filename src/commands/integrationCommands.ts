@@ -27,7 +27,8 @@ import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContent
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 import type { Persona } from '../services/configurationService';
-import { summarizeText } from '../services/llmFacade';
+import { summarizeText, pluginContext } from '../services/llmFacade';
+import { withBusyIndicator } from '../utils/busyIndicator';
 import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 
 export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
@@ -420,7 +421,7 @@ async function callLLMForIntegration(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
+    return await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 }
 
 /**

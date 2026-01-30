@@ -2,7 +2,6 @@
  * Tests for Integration Prompt Helpers
  */
 
-import { describe, it, expect } from 'vitest';
 import { getPlacementInstructions, getFormatInstructions, getDetailInstructions } from '../src/services/prompts/integrationPrompts';
 import { buildIntegrationPrompt } from '../src/commands/integrationCommands';
 

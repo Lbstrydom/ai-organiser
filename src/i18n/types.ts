@@ -675,6 +675,8 @@ export interface Translations {
         summarizedTitle: string;
         noContentCouldBeSummarized: string;
         errorGeneric: string;
+        aiProcessing: string;
+        summaryCombinedFromSections: string;
     };
 
     // Common UI strings

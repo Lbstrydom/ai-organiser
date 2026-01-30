@@ -45,7 +45,8 @@ import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSour
 import { isYouTubeUrl as isYouTubeUrlText } from '../utils/contentDetection';
 import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
-import { summarizeText } from '../services/llmFacade';
+import { summarizeText, pluginContext } from '../services/llmFacade';
+import { withBusyIndicator } from '../utils/busyIndicator';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
 import { SummaryResultModal, type SummaryResultAction } from '../ui/modals/SummaryResultModal';
@@ -58,14 +59,15 @@ function showSummaryPreviewOrInsert(
     plugin: AIOrganiserPlugin,
     output: string,
     doInsert: () => void,
-    showPreview: boolean
+    showPreview: boolean,
+    noticeMessage?: string
 ): Promise<SummaryResultAction> | undefined {
     if (showPreview) {
         return new Promise<SummaryResultAction>((resolve) => {
             new SummaryResultModal(plugin.app, plugin, output, (action) => {
                 if (action === 'cursor') {
                     doInsert();
-                    new Notice(plugin.t.messages.summaryInserted);
+                    new Notice(noticeMessage || plugin.t.messages.summaryInserted);
                 } else if (action === 'copy') {
                     navigator.clipboard.writeText(output);
                     new Notice(plugin.t.messages.copiedToClipboard);
@@ -1052,7 +1054,7 @@ async function callSummarizeService(
             finalPrompt = insertContentIntoPrompt(prompt, content);
         }
 
-        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, finalPrompt);
+        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt));
         return response.success ? response.content || null : null;
     } catch (e) {
         console.error('Failed to summarize content:', e);
@@ -1664,23 +1666,25 @@ async function handlePdfSummarization(
 
     new Notice(plugin.t.messages.readingPdf);
 
-    // Use unified PDF workflow
-    const result = await summarizePdfWithFullWorkflow(
+    // LLM work — wrapped with busy indicator
+    const result = await withBusyIndicator(plugin, () => summarizePdfWithFullWorkflow(
         plugin,
         pdfService,
         file.path,
         true, // isVaultFile
         { personaPrompt, userContext }
-    );
+    ));
 
     if (!result.success || !result.summary || !result.pdfContent) {
         new Notice(result.error || 'Failed to summarize PDF');
         return;
     }
 
-    // Insert summary into editor
-    insertPdfSummary(editor, result.summary, result.pdfContent, plugin, true);
-    new Notice(plugin.t.messages.summaryInserted);
+    // Preview modal + metadata — outside busy indicator
+    const action = await insertPdfSummary(editor, result.summary, result.pdfContent, plugin, true, true);
+
+    // Only skip metadata if user actively chose NOT to insert (copy/discard)
+    if (action && action !== 'cursor') return;
 
     // Update metadata if structured metadata is enabled
     if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -1724,23 +1728,25 @@ async function handleExternalPdfSummarization(
 
     new Notice(plugin.t.messages.readingPdf);
 
-    // Use unified PDF workflow
-    const result = await summarizePdfWithFullWorkflow(
+    // LLM work — wrapped with busy indicator
+    const result = await withBusyIndicator(plugin, () => summarizePdfWithFullWorkflow(
         plugin,
         pdfService,
         filePath,
         false, // isVaultFile (external)
         { personaPrompt, userContext }
-    );
+    ));
 
     if (!result.success || !result.summary || !result.pdfContent) {
         new Notice(result.error || 'Failed to summarize PDF');
         return;
     }
 
-    // Insert summary into editor
-    insertPdfSummary(editor, result.summary, result.pdfContent, plugin, false);
-    new Notice(plugin.t.messages.summaryInserted);
+    // Preview modal + metadata — outside busy indicator
+    const action = await insertPdfSummary(editor, result.summary, result.pdfContent, plugin, false, true);
+
+    // Only skip metadata if user actively chose NOT to insert (copy/discard)
+    if (action && action !== 'cursor') return;
 
     // Update metadata if structured metadata is enabled
     if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -2073,7 +2079,7 @@ async function summarizeAudioAndInsert(
     }
 
     try {
-        const response = await summarizeTextWithLLM(plugin, prompt);
+        const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
         if (plugin.settings.debugMode) {
             console.log('[AI Organiser] Summary response:', response);
@@ -2083,13 +2089,11 @@ async function summarizeAudioAndInsert(
             await insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath, true);
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
-            // Still insert metadata with error message
             await insertAudioSummary(editor, `[Summarization failed: ${response.error || 'No content returned'}]`, file, duration, plugin, transcriptPath);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         new Notice(`Error summarizing: ${errorMessage}`);
-        // Still insert metadata with error message
         await insertAudioSummary(editor, `[Error: ${errorMessage}]`, file, duration, plugin, transcriptPath);
     }
 }
@@ -2121,53 +2125,58 @@ async function summarizeAudioInChunks(
         personaPrompt: personaPrompt,
     };
 
-    // Map phase: summarize each chunk
-    for (let i = 0; i < chunks.length; i++) {
-        new Notice(
-            plugin.t.messages.summarizingChunk
-                .replace('{current}', String(i + 1))
-                .replace('{total}', String(chunks.length))
-        );
+    // Map phase: summarize each chunk, then reduce — all LLM work wrapped in busy indicator
+    const { finalContent } = await withBusyIndicator(plugin, async () => {
+        for (let i = 0; i < chunks.length; i++) {
+            new Notice(
+                plugin.t.messages.summarizingChunk
+                    .replace('{current}', String(i + 1))
+                    .replace('{total}', String(chunks.length))
+            );
 
-        const promptTemplate = buildSummaryPrompt(promptOptions);
-        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+            const promptTemplate = buildSummaryPrompt(promptOptions);
+            const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
 
-        try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            try {
+                const response = await summarizeTextWithLLM(plugin, prompt);
 
-            if (response.success && response.content) {
-                chunkSummaries.push(response.content);
-            } else {
+                if (response.success && response.content) {
+                    chunkSummaries.push(response.content);
+                } else {
+                    chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+                }
+            } catch (error) {
                 chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
             }
+        }
+
+        // Reduce phase: combine summaries
+        new Notice(plugin.t.messages.combiningChunks);
+
+        const combinePromptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+        };
+
+        const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
+        const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
+
+        try {
+            const response = await summarizeTextWithLLM(plugin, combinePrompt);
+
+            if (response.success && response.content) {
+                return { finalContent: response.content };
+            } else {
+                return { finalContent: chunkSummaries.join('\n\n') };
+            }
         } catch (error) {
-            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+            return { finalContent: chunkSummaries.join('\n\n') };
         }
-    }
+    });
 
-    // Reduce phase: combine summaries
-    new Notice(plugin.t.messages.combiningChunks);
-
-    const combinePromptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-    };
-
-    const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
-    const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
-
-    try {
-        const response = await summarizeTextWithLLM(plugin, combinePrompt);
-
-        if (response.success && response.content) {
-            await insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath, true);
-        } else {
-            await insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath, true);
-        }
-    } catch (error) {
-        await insertAudioSummary(editor, chunkSummaries.join('\n\n'), file, duration, plugin, transcriptPath, true);
-    }
+    // Preview modal outside busy indicator
+    await insertAudioSummary(editor, finalContent, file, duration, plugin, transcriptPath, true);
 }
 
 /**
@@ -2361,7 +2370,7 @@ async function summarizeYouTubeAndInsert(
     const prompt = insertContentIntoPrompt(promptTemplate, transcript);
 
     try {
-        const response = await summarizeTextWithLLM(plugin, prompt);
+        const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
         if (response.success && response.content) {
             await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
@@ -2370,10 +2379,10 @@ async function summarizeYouTubeAndInsert(
             if (plugin.settings.enableStructuredMetadata && personaId) {
                 const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                 if (view && videoInfo) {
-                        await updateNoteMetadataAfterSummary(
+                    await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                            createSummaryHook(response.content),
+                        createSummaryHook(response.content),
                         [],
                         'research',
                         'youtube',
@@ -2595,7 +2604,7 @@ async function summarizeAndInsert(
         }
 
         try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
             if (response.success && response.content) {
                 // Parse structured response
@@ -2674,70 +2683,71 @@ async function summarizeInChunks(
     personaPrompt: string,
     userContext?: string
 ): Promise<void> {
-    // Calculate chunk size (use 70% of max to leave room for prompt)
-    const limits = getProviderLimits(provider);
-    const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
+    // LLM work: chunk loop + combine — wrapped with busy indicator
+    const { finalContent } = await withBusyIndicator(plugin, async () => {
+        const limits = getProviderLimits(provider);
+        const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
 
-    const chunks = chunkContent(content, maxChunkChars);
-    const chunkSummaries: string[] = [];
+        const chunks = chunkContent(content, maxChunkChars);
+        const chunkSummaries: string[] = [];
 
-    const promptOptions: SummaryPromptOptions = {
-        length: 'detailed', // Use detailed for chunk summaries
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
+        const promptOptions: SummaryPromptOptions = {
+            length: 'detailed',
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
 
-    // Map phase: summarize each chunk
-    for (let i = 0; i < chunks.length; i++) {
-        new Notice(
-            plugin.t.messages.summarizingChunk
-                .replace('{current}', String(i + 1))
-                .replace('{total}', String(chunks.length))
-        );
+        for (let i = 0; i < chunks.length; i++) {
+            new Notice(
+                plugin.t.messages.summarizingChunk
+                    .replace('{current}', String(i + 1))
+                    .replace('{total}', String(chunks.length))
+            );
 
-        const promptTemplate = buildSummaryPrompt(promptOptions);
-        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+            const promptTemplate = buildSummaryPrompt(promptOptions);
+            const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
 
-        try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            try {
+                const response = await summarizeTextWithLLM(plugin, prompt);
 
-            if (response.success && response.content) {
-                chunkSummaries.push(response.content);
-            } else {
+                if (response.success && response.content) {
+                    chunkSummaries.push(response.content);
+                } else {
+                    chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+                }
+            } catch (error) {
                 chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
             }
+        }
+
+        new Notice(plugin.t.messages.combiningChunks);
+
+        const combinePromptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
+
+        const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
+        const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
+
+        try {
+            const response = await summarizeTextWithLLM(plugin, combinePrompt);
+
+            if (response.success && response.content) {
+                return { finalContent: response.content };
+            } else {
+                return { finalContent: chunkSummaries.join('\n\n') };
+            }
         } catch (error) {
-            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+            return { finalContent: chunkSummaries.join('\n\n') };
         }
-    }
+    });
 
-    // Reduce phase: combine summaries
-    new Notice(plugin.t.messages.combiningChunks);
-
-    const combinePromptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
-
-    const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
-    const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
-
-    try {
-        const response = await summarizeTextWithLLM(plugin, combinePrompt);
-
-        if (response.success && response.content) {
-            await insertWebSummary(editor, response.content, webContent, plugin, true);
-        } else {
-            // Fall back to concatenated summaries
-            await insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin, true);
-        }
-    } catch (error) {
-        // Fall back to concatenated summaries
-        await insertWebSummary(editor, chunkSummaries.join('\n\n'), webContent, plugin, true);
-    }
+    // Preview modal — outside busy indicator
+    await insertWebSummary(editor, finalContent, webContent, plugin, true);
 }
 
 /**
@@ -2759,18 +2769,13 @@ async function summarizePlainTextAndInsert(
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
     const prompt = insertContentIntoPrompt(promptTemplate, content);
+    const title = plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary';
 
     try {
-        const response = await summarizeTextWithLLM(plugin, prompt);
+        const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
         if (response.success && response.content) {
-            insertTextSummary(
-                editor,
-                response.content,
-                plugin,
-                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
-            );
-            new Notice(plugin.t.messages.summaryInserted);
+            await insertTextSummary(editor, response.content, plugin, title, true);
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
         }
@@ -2791,83 +2796,74 @@ async function summarizePlainTextInChunks(
     personaPrompt: string,
     userContext?: string
 ): Promise<void> {
-    const limits = getProviderLimits(provider);
-    const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
+    const title = plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary';
+    const combinedNotice = plugin.t.messages.summaryCombinedFromSections;
 
-    const chunks = chunkContent(content, maxChunkChars);
-    const chunkSummaries: string[] = [];
+    // LLM work: chunk loop + combine — wrapped with busy indicator
+    const { finalContent } = await withBusyIndicator(plugin, async () => {
+        const limits = getProviderLimits(provider);
+        const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
 
-    const promptOptions: SummaryPromptOptions = {
-        length: 'detailed',
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
+        const chunks = chunkContent(content, maxChunkChars);
+        const chunkSummaries: string[] = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-        new Notice(
-            plugin.t.messages.summarizingChunk
-                .replace('{current}', String(i + 1))
-                .replace('{total}', String(chunks.length))
-        );
+        const promptOptions: SummaryPromptOptions = {
+            length: 'detailed',
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
 
-        const promptTemplate = buildSummaryPrompt(promptOptions);
-        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+        for (let i = 0; i < chunks.length; i++) {
+            new Notice(
+                plugin.t.messages.summarizingChunk
+                    .replace('{current}', String(i + 1))
+                    .replace('{total}', String(chunks.length))
+            );
 
-        try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            const promptTemplate = buildSummaryPrompt(promptOptions);
+            const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
 
-            if (response.success && response.content) {
-                chunkSummaries.push(response.content);
-            } else {
+            try {
+                const response = await summarizeTextWithLLM(plugin, prompt);
+
+                if (response.success && response.content) {
+                    chunkSummaries.push(response.content);
+                } else {
+                    chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+                }
+            } catch (error) {
                 chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
             }
+        }
+
+        new Notice(plugin.t.messages.combiningChunks);
+
+        const combinePromptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
+
+        const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
+        const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
+
+        try {
+            const response = await summarizeTextWithLLM(plugin, combinePrompt);
+
+            if (response.success && response.content) {
+                return { finalContent: response.content };
+            } else {
+                return { finalContent: chunkSummaries.join('\n\n') };
+            }
         } catch (error) {
-            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+            return { finalContent: chunkSummaries.join('\n\n') };
         }
-    }
+    });
 
-    new Notice(plugin.t.messages.combiningChunks);
-
-    const combinePromptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
-
-    const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
-    const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
-
-    try {
-        const response = await summarizeTextWithLLM(plugin, combinePrompt);
-
-        if (response.success && response.content) {
-            insertTextSummary(
-                editor,
-                response.content,
-                plugin,
-                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
-            );
-            new Notice(plugin.t.messages.summaryInserted);
-        } else {
-            insertTextSummary(
-                editor,
-                chunkSummaries.join('\n\n'),
-                plugin,
-                plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
-            );
-            new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
-        }
-    } catch (error) {
-        insertTextSummary(
-            editor,
-            chunkSummaries.join('\n\n'),
-            plugin,
-            plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary'
-        );
-        new Notice(plugin.t.messages.summaryInserted + ' (combined from sections)');
-    }
+    // Preview modal — outside busy indicator (spinner already stopped)
+    await insertTextSummary(editor, finalContent, plugin, title, true, combinedNotice);
 }
 
 /**
@@ -2918,7 +2914,7 @@ async function summarizeTextWithLLM(
             }
         }
 
-        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, finalPrompt);
+        const response = await summarizeText(pluginContext(plugin), finalPrompt);
 
         // Append sources if RAG was used
         if (useRAG && ragSources.length > 0 && response.success && response.content) {
@@ -3086,7 +3082,8 @@ export async function summarizePdfWithFullWorkflow(
     const prompt = buildSummaryPrompt(promptOptions);
 
     // Step 3: Call LLM to summarize
-    const response = await summarizePdfWithLLM(plugin, pdfResult.content, prompt);
+    const pdfContent = pdfResult.content; // Extract after narrowing for closure
+    const response = await withBusyIndicator(plugin, () => summarizePdfWithLLM(plugin, pdfContent, prompt));
 
     if (!response.success || !response.content) {
         return {
@@ -3166,9 +3163,10 @@ function insertTextSummary(
     editor: Editor,
     summary: string,
     plugin: AIOrganiserPlugin,
-    title: string
-): void {
-    const cursor = editor.getCursor();
+    title: string,
+    showPreview: boolean = false,
+    noticeMessage?: string
+): Promise<SummaryResultAction> | undefined {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3176,8 +3174,13 @@ function insertTextSummary(
     }
 
     output += summary;
-    editor.replaceRange(output, cursor);
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
+
+    const doInsert = () => {
+        editor.replaceRange(output, editor.getCursor());
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    };
+
+    return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview, noticeMessage);
 }
 
 /**
@@ -3210,10 +3213,9 @@ function insertPdfSummary(
     summary: string,
     pdfContent: PdfContent,
     plugin: AIOrganiserPlugin,
-    isInternal: boolean
-): void {
-    const cursor = editor.getCursor();
-
+    isInternal: boolean,
+    showPreview: boolean = false
+): Promise<SummaryResultAction> | undefined {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3222,17 +3224,20 @@ function insertPdfSummary(
 
     output += summary;
 
-    // Insert summary at cursor
-    editor.replaceRange(output, cursor);
+    const doInsert = () => {
+        editor.replaceRange(output, editor.getCursor());
 
-    // Add source to References section
-    const sourceRef: SourceReference = {
-        type: 'pdf',
-        title: pdfContent.fileName,
-        link: pdfContent.filePath,
-        date: getTodayDate(),
-        isInternal: isInternal
+        // Add source to References section
+        const sourceRef: SourceReference = {
+            type: 'pdf',
+            title: pdfContent.fileName,
+            link: pdfContent.filePath,
+            date: getTodayDate(),
+            isInternal: isInternal
+        };
+        addToReferencesSection(editor, sourceRef);
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
     };
-    addToReferencesSection(editor, sourceRef);
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
+
+    return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
 }

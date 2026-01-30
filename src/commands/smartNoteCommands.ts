@@ -17,7 +17,8 @@ import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../serv
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
 import { exportFlashcardsFromCurrentNote } from './flashcardCommands';
 import { SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
-import { getServiceType, summarizeText } from '../services/llmFacade';
+import { getServiceType, summarizeText, pluginContext } from '../services/llmFacade';
+import { withBusyIndicator } from '../utils/busyIndicator';
 
 
 
@@ -168,7 +169,7 @@ async function generateMermaidDiagram(
     noteContent: string,
     options: MermaidDiagramResult
 ): Promise<void> {
-    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
+    const { provider: serviceType } = getServiceType(pluginContext(plugin));
 
     // Privacy notice gating (centralized)
     {
@@ -186,7 +187,7 @@ async function generateMermaidDiagram(
     });
 
     try {
-        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
+        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 
         if (response.success && response.content) {
             // Clean and wrap the output
@@ -218,7 +219,7 @@ async function improveNoteWithQuery(
     query: string,
     personaPrompt?: string
 ): Promise<void> {
-    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
+    const { provider: serviceType } = getServiceType(pluginContext(plugin));
 
     // Privacy notice gating (centralized)
     {
@@ -236,7 +237,7 @@ async function improveNoteWithQuery(
     const prompt = buildImprovePrompt(bodyContent, query, plugin.settings.summaryLanguage, personaPrompt);
 
     try {
-        const response = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
+        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 
         if (response.success && response.content) {
             // Replace main content while preserving References and Pending Integration sections
@@ -303,7 +304,7 @@ async function findAndShowResources(
     noteContent: string,
     query: string
 ): Promise<void> {
-    const { provider: serviceType } = getServiceType({ llmService: plugin.llmService, settings: plugin.settings });
+    const { provider: serviceType } = getServiceType(pluginContext(plugin));
 
     // Privacy notice gating (centralized)
     {
@@ -317,7 +318,7 @@ async function findAndShowResources(
         // First, ask AI to generate search terms based on the note and query
         const searchTermsPrompt = buildSearchTermsPrompt(noteContent, query);
 
-        const searchTermsResponse = await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, searchTermsPrompt);
+        const searchTermsResponse = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), searchTermsPrompt));
 
         if (!searchTermsResponse.success || !searchTermsResponse.content) {
             new Notice(plugin.t.messages.searchFailed || 'Failed to generate search terms');

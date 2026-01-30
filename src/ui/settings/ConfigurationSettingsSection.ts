@@ -2,6 +2,7 @@ import { Setting, Notice, Modal, App } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
 import { getConfigFolderFullPath } from '../../core/settings';
 import { TaxonomySuggestionService, SuggestedDiscipline, SuggestedTheme, TaxonomyChange } from '../../services/taxonomySuggestionService';
+import { withBusyIndicator } from '../../utils/busyIndicator';
 
 /**
  * Existing item with potential suggested change
@@ -1227,7 +1228,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
             new Notice('Analyzing vault and reviewing themes...');
 
-            const changes = await suggestionService.reviewThemes(existingThemes, userContext);
+            const changes = await withBusyIndicator(this.plugin, () => suggestionService.reviewThemes(existingThemes, userContext));
 
             if (changes.length === 0) {
                 new Notice('AI found no improvements to suggest. Your themes look good!');
@@ -1330,7 +1331,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
             new Notice(`Analyzing ${analysis.subfolders.length} folders for themes...`);
 
-            const suggestions = await suggestionService.suggestThemes(userContext);
+            const suggestions = await withBusyIndicator(this.plugin, () => suggestionService.suggestThemes(userContext));
 
             if (suggestions.length === 0) {
                 new Notice('Could not generate theme suggestions. Please try again.');
@@ -1395,7 +1396,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 this.plugin.llmService
             );
 
-            const newThemes = await suggestionService.suggestAdditionalThemes(currentThemes, userContext);
+            const newThemes = await withBusyIndicator(this.plugin, () => suggestionService.suggestAdditionalThemes(currentThemes, userContext));
 
             if (newThemes.length === 0) {
                 new Notice('AI could not suggest additional themes. Try being more specific.');
@@ -1578,11 +1579,11 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
             new Notice('Analyzing vault and reviewing disciplines...');
 
-            const changes = await suggestionService.reviewDisciplines(
+            const changes = await withBusyIndicator(this.plugin, () => suggestionService.reviewDisciplines(
                 existingDisciplines,
                 existingThemes.length > 0 ? existingThemes : undefined,
                 userContext
-            );
+            ));
 
             if (changes.length === 0) {
                 new Notice('AI found no improvements to suggest. Your disciplines look good!');
@@ -1693,7 +1694,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             }));
 
             // Get AI suggestions with user context and existing themes for alignment
-            const suggestions = await suggestionService.suggestDisciplines(userContext, existingThemes);
+            const suggestions = await withBusyIndicator(this.plugin, () => suggestionService.suggestDisciplines(userContext, existingThemes));
 
             if (suggestions.length === 0) {
                 new Notice('Could not generate discipline suggestions. Please try again.');
@@ -1762,10 +1763,10 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             );
 
             // Get additional discipline suggestions
-            const newDisciplines = await suggestionService.suggestAdditionalDisciplines(
+            const newDisciplines = await withBusyIndicator(this.plugin, () => suggestionService.suggestAdditionalDisciplines(
                 currentDisciplines,
                 userContext
-            );
+            ));
 
             if (newDisciplines.length === 0) {
                 new Notice('AI could not suggest additional disciplines. Try being more specific.');

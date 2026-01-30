@@ -1,3 +1,27 @@
+/* Status Bar Busy Indicator */
+.ai-organiser-busy-indicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-accent);
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-busy-indicator.ai-organiser-busy-active {
+    display: flex;
+}
+
+.ai-organiser-busy-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--text-accent);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
 /* Settings Header with Icon */
 .ai-organiser-settings-header {
     display: flex;

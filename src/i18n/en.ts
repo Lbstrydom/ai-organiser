@@ -688,6 +688,8 @@ export const en: Translations = {
         summarizedTitle: "Summarized: {title}...",
         noContentCouldBeSummarized: "No content could be summarized. See note for details.",
         errorGeneric: "Error: {error}",
+        aiProcessing: "AI processing...",
+        summaryCombinedFromSections: "Summary inserted (combined from sections)",
     },
 
     // Modal dialogs

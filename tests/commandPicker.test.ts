@@ -7,7 +7,6 @@
  * - Command-to-i18n key mappings are correct
  */
 
-import { describe, it, expect, vi } from 'vitest';
 import { buildCommandCategories } from '../src/ui/modals/CommandPickerModal';
 import type { Translations } from '../src/i18n/types';
 

@@ -12,7 +12,8 @@ import {
     cardsToCSV,
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
-import { summarizeText } from '../services/llmFacade';
+import { summarizeText, pluginContext } from '../services/llmFacade';
+import { withBusyIndicator } from '../utils/busyIndicator';
 
 /**
  * Register flashcard-related commands
@@ -184,5 +185,5 @@ async function callLLMForFlashcards(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
+    return await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 }

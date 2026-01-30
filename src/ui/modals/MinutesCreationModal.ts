@@ -20,6 +20,7 @@ import {
     createTruncationWarning,
     createBulkTruncationControls
 } from '../components/TruncationControls';
+import { withBusyIndicator } from '../../utils/busyIndicator';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
@@ -1451,7 +1452,7 @@ export class MinutesCreationModal extends Modal {
             const fullPrompt = `${extractionPrompt}\n\n--- DOCUMENT CONTENT ---\n\n${docContent}`;
 
             // Call LLM
-            const response = await this.plugin.llmService.summarizeText(fullPrompt);
+            const response = await withBusyIndicator(this.plugin, () => this.plugin.llmService.summarizeText(fullPrompt));
             if (!response.success || !response.content) {
                 throw new Error(response.error || 'Extraction failed');
             }

@@ -2,7 +2,6 @@
  * Tests for Editor Utilities
  */
 
-import { describe, it, expect, vi } from 'vitest';
 import { insertAtCursor, appendAsNewSections } from '../src/utils/editorUtils';
 
 function createMockEditor(content = '', cursorLine = 0, cursorCh = 0) {

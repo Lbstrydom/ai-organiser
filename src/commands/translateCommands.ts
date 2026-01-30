@@ -17,7 +17,8 @@ import {
     SourceType,
     getTodayDate
 } from '../utils/noteStructure';
-import { summarizeText } from '../services/llmFacade';
+import { summarizeText, pluginContext } from '../services/llmFacade';
+import { withBusyIndicator } from '../utils/busyIndicator';
 import { detectSourcesFromContent, hasAnySources, removeProcessedSources } from '../utils/sourceDetection';
 import { fetchArticle, chunkContent } from '../services/webContentService';
 import { getMaxContentChars } from '../services/tokenLimits';
@@ -215,7 +216,7 @@ async function translateWithLLM(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    return await summarizeText({ llmService: plugin.llmService, settings: plugin.settings }, prompt);
+    return await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 }
 
 // ─── Multi-Source Translation ───────────────────────────────────────

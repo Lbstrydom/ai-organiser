@@ -34,6 +34,7 @@ import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
 import { buildFolderContext, FolderContext } from './utils/folderContextUtils';
+import { resetBusyState, withBusyIndicator } from './utils/busyIndicator';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
@@ -49,6 +50,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private tagNetworkManager: TagNetworkManager;
     private tagOperations: TagOperations;
     public t = getTranslations(this.settings.interfaceLanguage);
+    public busyStatusBarEl: HTMLElement | null = null;
 
     constructor(app: App, manifest: any) {
         super(app, manifest);
@@ -265,6 +267,12 @@ export default class AIOrganiserPlugin extends Plugin {
 
         setSettings(this.settings);
 
+        // Initialize busy indicator status bar (desktop only)
+        if (!Platform.isMobile) {
+            this.busyStatusBarEl = this.addStatusBarItem();
+            this.busyStatusBarEl.addClass('ai-organiser-busy-indicator');
+        }
+
         // Initialize vector store for semantic search
         if (this.settings.enableSemanticSearch) {
             try {
@@ -353,6 +361,8 @@ export default class AIOrganiserPlugin extends Plugin {
         }
         this.embeddingService = null;
         this.eventHandlers.cleanup();
+        resetBusyState();
+        this.busyStatusBarEl = null;
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
         this.app.workspace.trigger('layout-change');
     }
@@ -611,7 +621,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 );
 
                 // Get tags from LLM
-                const response = await this.llmService.generateTags(prompt);
+                const response = await withBusyIndicator(this, () => this.llmService.generateTags(prompt));
 
                 if (!response.success || !response.tags) {
                     return { success: false, message: response.error || 'Failed to generate tags' };

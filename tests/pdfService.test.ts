@@ -1,5 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
 vi.mock('obsidian', async () => {
     const mod = await import('./mocks/obsidian');
     return {

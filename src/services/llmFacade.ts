@@ -29,6 +29,14 @@ export function getServiceType(context: LLMFacadeContext): ServiceTypeInfo {
     };
 }
 
+/**
+ * Create an LLMFacadeContext from a plugin instance.
+ * DRY helper replacing 14+ repeated `{ llmService: plugin.llmService, settings: plugin.settings }` constructions.
+ */
+export function pluginContext(plugin: { llmService: SummarizableLLMService; settings: { serviceType: 'cloud' | 'local'; cloudServiceType: string } }): LLMFacadeContext {
+    return { llmService: plugin.llmService, settings: plugin.settings };
+}
+
 export async function summarizeText(
     context: LLMFacadeContext,
     prompt: string

@@ -3,7 +3,6 @@
  * Covers key resolution, migration, fallback, and cross-plugin compatibility
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SecretStorageService } from '../src/services/secretStorageService';
 import { MockSecretStorage } from './mocks/mockSecretStorage';
 import { STANDARD_SECRET_IDS, PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../src/core/secretIds';
@@ -87,7 +86,7 @@ describe('SecretStorageService', () => {
             expect(value).toBe('sk-test123');
             
             // Verify it used the mapped secret ID
-            const standardValue = await service.getSecret(PROVIDER_TO_SECRET_ID[provider]);
+            const standardValue = await service.getSecret(PROVIDER_TO_SECRET_ID[provider]!);
             expect(standardValue).toBe('sk-test123');
         });
 

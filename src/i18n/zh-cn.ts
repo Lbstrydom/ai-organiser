@@ -688,6 +688,8 @@ export const zhCN: Translations = {
         summarizedTitle: "已总结：{title}...",
         noContentCouldBeSummarized: "无法总结内容。详见笔记。",
         errorGeneric: "错误：{error}",
+        aiProcessing: "AI 处理中...",
+        summaryCombinedFromSections: "摘要已插入（由多个部分合并）",
     },
 
     // 模态对话框

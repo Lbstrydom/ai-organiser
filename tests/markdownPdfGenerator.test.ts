@@ -2,7 +2,6 @@
  * Tests for MarkdownPdfGenerator
  */
 
-import { describe, it, expect } from 'vitest';
 import { MarkdownPdfGenerator } from '../src/services/notebooklm/pdf/MarkdownPdfGenerator';
 import type { PdfConfig } from '../src/services/notebooklm/types';
 

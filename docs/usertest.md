@@ -43,9 +43,9 @@
 - [x] "Test Connection" button works
 
 ### i18n Verification (optional)
-- [ ] Switch Language to 简体中文 → restart → UI shows Chinese
-- [ ] Command Picker shows Chinese category names (创建, 增强, 整理, 搜索, 分析, 集成)
-- [ ] Switch back to English → restart → UI restored
+- [x] Switch Language to 简体中文 → restart → UI shows Chinese
+- [x] Command Picker shows Chinese category names (创建, 增强, 整理, 搜索, 分析, 集成)
+- [x] Switch back to English → restart → UI restored
 
 ---
 
@@ -95,8 +95,8 @@
 - [x] Categories visible: Create, Enhance, Organize, Search, Analyze, Integrate
 - [x] Each command has icon and category badge
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
-- [ ] No "undefined" or raw i18n keys visible in command names/categories
-- [ ] "Generate from embedded" does NOT appear in picker (removed)
+- [x] No "undefined" or raw i18n keys visible in command names/categories
+- [x] "Generate from embedded" does NOT appear in picker (removed)
 
 ---
 
