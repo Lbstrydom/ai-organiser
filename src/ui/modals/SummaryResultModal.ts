@@ -52,6 +52,7 @@ export class SummaryResultModal extends Modal {
         new Setting(contentEl)
             .addButton(btn => btn
                 .setButtonText(sr.discard)
+                .setWarning()
                 .onClick(() => {
                     this.fireAction('discard');
                 }))

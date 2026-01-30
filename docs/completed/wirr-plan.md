@@ -357,3 +357,45 @@ Automated verification complete. Manual testing checklist:
 - [ ] Dictionary extraction in Minutes → spinner shows
 - [ ] Taxonomy suggestion in Settings → spinner shows
 - [ ] Audio/YouTube single-source summarize → spinner shows
+- [ ] Discard button in preview modal → red/warning styling
+- [ ] Spinner pulses in opacity while spinning (peripheral visibility)
+- [ ] Settings → Test Connection → spinner still works (namespaced keyframes)
+- [ ] Related Notes sidebar → refresh button spinner still works
+
+---
+
+## Review Rounds
+
+### Review Round 1 (2026-01-29): Spinner scoping + coverage gaps
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Spinner stays active during preview modal wait | MEDIUM | Scoped `withBusyIndicator` to LLM calls only, preview modal outside |
+| Missing busy indicator for `callSummarizeService`, `summarizePdfWithFullWorkflow`, chunked audio | HIGH | Wrapped inner LLM calls directly |
+| "Combined from sections" notice only on fallback path | LOW | Always pass `combinedNotice` |
+
+### Review Round 2 (2026-01-30): Remaining coverage gaps
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| `summarizeYouTubeInChunks` unwrapped | HIGH | Wrapped chunk loop + combine, preview outside |
+| Traditional web path in `summarizeAndInsert` unwrapped | HIGH | Wrapped `summarizeTextWithLLM` call |
+
+### Review Round 3 (2026-01-30): Full coverage audit
+
+27 `withBusyIndicator` call sites verified across 10 files. 3 apparent gaps confirmed as intentional:
+- `chatCommands.ts` (2 calls) — own indicator (disabled button + Notice)
+- `DictionaryController.ts` (1 call) — wrapped at higher call site in MinutesCreationModal
+
+### UX Polish (2026-01-30): Affordance, signifier & Gestalt
+
+| Change | Principle | Fix |
+|--------|-----------|-----|
+| Discard button identical to Copy | Signifier (Norman) | Added `.setWarning()` for red/destructive appearance |
+| Spinner hard to see in peripheral vision | Common fate (Gestalt) | Added opacity pulse animation (2s ease-in-out) |
+| Duplicate `@keyframes spin` (lines 211 + 1811) | DRY | Namespaced: `ai-organiser-spin`, `ai-organiser-pulse`, `related-notes-spin` |
+
+Considered and rejected:
+- Confirmation dialog for Discard — adds friction for low-stakes action
+- "Summary ready" Notice between spinner and modal — modal opens synchronously, IS the signal
+- Immediate click feedback Notice — spinner appears near-instantly for most paths

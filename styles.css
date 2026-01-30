@@ -9,6 +9,7 @@
 
 .ai-organiser-busy-indicator.ai-organiser-busy-active {
     display: flex;
+    animation: ai-organiser-pulse 2s ease-in-out infinite;
 }
 
 .ai-organiser-busy-indicator::before {
@@ -19,7 +20,16 @@
     border: 2px solid var(--text-accent);
     border-top-color: transparent;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: ai-organiser-spin 1s linear infinite;
+}
+
+@keyframes ai-organiser-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes ai-organiser-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 /* Settings Header with Icon */
@@ -205,13 +215,7 @@
     border: 2px solid var(--text-muted);
     border-top-color: transparent;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+    animation: ai-organiser-spin 1s linear infinite;
 }
 
 /* Support Container Styles */
@@ -1805,10 +1809,10 @@
 }
 
 .related-notes-refresh-btn.loading {
-    animation: spin 1s linear infinite;
+    animation: related-notes-spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes related-notes-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
@@ -2284,7 +2288,7 @@
     border: 3px solid var(--text-muted);
     border-top-color: transparent;
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: ai-organiser-spin 1s linear infinite;
 }
 
 .ai-organiser-migration-stats {

@@ -1,12 +1,58 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.16
-**Last Updated:** January 29, 2026
-**Status:** Feature Complete - Multi-Source Translation Complete
+**Last Updated:** January 30, 2026
+**Status:** Feature Complete - Preview Modal + Busy Indicator + UX Polish
 
 ---
 
 ## Recent Updates
+
+### Preview Modal, Global LLM Busy Indicator & UX Polish (2026-01-30)
+
+**All Parts Complete + 3 Review Rounds**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Part 1 | Fix summary preview modal for all paths (text + PDF) | Complete |
+| Part 2 | Global LLM busy indicator with ref counting | Complete |
+| Review 1 | Spinner scoped to LLM only, not preview modal wait | Complete |
+| Review 2 | YouTube chunks + traditional web path coverage gaps | Complete |
+| Review 3 | Coverage audit: all 27 LLM call sites verified wrapped | Complete |
+| UX Polish | Discard button warning signifier, pulse animation, keyframe DRY cleanup | Complete |
+
+**Build Status**: 863 tests passing (39 suites)
+
+**New Files Created:**
+- `src/utils/busyIndicator.ts` — ref-counted show/hide/withBusyIndicator/reset
+- `tests/busyIndicator.test.ts` — 8 tests (ref counting, concurrent ops, null guard)
+- `tests/llmFacade.test.ts` — 6 tests (pluginContext, summarizeText, getServiceType)
+
+**Key Files Modified:**
+- `src/commands/summarizeCommands.ts` — insertTextSummary/insertPdfSummary preview modal; 12 withBusyIndicator wrappers scoped to LLM calls only
+- `src/commands/translateCommands.ts` — withBusyIndicator + pluginContext
+- `src/commands/smartNoteCommands.ts` — withBusyIndicator + pluginContext (3 calls)
+- `src/commands/flashcardCommands.ts` — withBusyIndicator + pluginContext
+- `src/commands/integrationCommands.ts` — withBusyIndicator + pluginContext
+- `src/services/minutesService.ts` — withBusyIndicator + pluginContext
+- `src/ui/modals/MinutesCreationModal.ts` — withBusyIndicator for dictionary extraction
+- `src/ui/settings/ConfigurationSettingsSection.ts` — withBusyIndicator for 6 taxonomy suggestion calls
+- `src/main.ts` — busyStatusBarEl init/cleanup, withBusyIndicator for analyzeAndTagNote
+- `src/services/llmFacade.ts` — pluginContext() DRY helper
+- `src/ui/modals/SummaryResultModal.ts` — Discard button .setWarning()
+- `styles.css` — busy indicator CSS with pulse animation, namespaced @keyframes (DRY)
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — aiProcessing, summaryCombinedFromSections
+
+**Key Design Decisions:**
+- Spinner scoped to LLM calls only — preview modal (user action) does not hold spinner
+- Ref counting handles concurrent LLM operations (show on first, hide when all complete)
+- Chunked flows wrapped at outer level to prevent flicker
+- Chat commands intentionally excluded (have own persistent Notice indicator)
+- Namespaced CSS keyframes: `ai-organiser-spin`, `ai-organiser-pulse`, `related-notes-spin`
+
+**Documentation**: `docs/completed/wirr-plan.md`
+
+---
 
 ### Menu Cleanup & Integration Enhancement (2026-01-29)
 
@@ -566,7 +612,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 848 unit tests (37 suites)
+npm test           # Run 863 unit tests (39 suites)
 npm run test:auto  # Run 22 automated integration tests
 ```
 
