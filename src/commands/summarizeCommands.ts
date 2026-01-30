@@ -2427,70 +2427,75 @@ async function summarizeYouTubeInChunks(
         userContext: userContext,
     };
 
-    // Map phase: summarize each chunk
-    for (let i = 0; i < chunks.length; i++) {
-        new Notice(
-            plugin.t.messages.summarizingChunk
-                .replace('{current}', String(i + 1))
-                .replace('{total}', String(chunks.length))
-        );
+    // Map phase: summarize each chunk, then reduce — all LLM work wrapped in busy indicator
+    const { finalContent } = await withBusyIndicator(plugin, async () => {
+        for (let i = 0; i < chunks.length; i++) {
+            new Notice(
+                plugin.t.messages.summarizingChunk
+                    .replace('{current}', String(i + 1))
+                    .replace('{total}', String(chunks.length))
+            );
 
-        const promptTemplate = buildSummaryPrompt(promptOptions);
-        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+            const promptTemplate = buildSummaryPrompt(promptOptions);
+            const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
 
-        try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            try {
+                const response = await summarizeTextWithLLM(plugin, prompt);
 
-            if (response.success && response.content) {
-                chunkSummaries.push(response.content);
-            } else {
+                if (response.success && response.content) {
+                    chunkSummaries.push(response.content);
+                } else {
+                    chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+                }
+            } catch (error) {
                 chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
             }
-        } catch (error) {
-            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
         }
-    }
 
-    // Reduce phase: combine summaries
-    new Notice(plugin.t.messages.combiningChunks);
+        // Reduce phase: combine summaries
+        new Notice(plugin.t.messages.combiningChunks);
 
-    const combinePromptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
+        const combinePromptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
+            personaPrompt: personaPrompt,
+            userContext: userContext,
+        };
 
-    const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
-    const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
+        const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
+        const combinePrompt = insertSectionsIntoPrompt(combinePromptTemplate, chunkSummaries);
 
-    try {
-        const response = await summarizeTextWithLLM(plugin, combinePrompt);
+        try {
+            const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
-        if (response.success && response.content) {
-            await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
-
-            // Update metadata with persona if structured metadata is enabled
-            if (plugin.settings.enableStructuredMetadata && personaId) {
-                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                if (view && videoInfo) {
-                        await updateNoteMetadataAfterSummary(
-                        plugin,
-                        view,
-                            createSummaryHook(response.content),
-                        [],
-                        'research',
-                        'youtube',
-                        getYouTubeUrl(videoInfo.videoId),
-                        personaId
-                    );
-                }
+            if (response.success && response.content) {
+                return { finalContent: response.content };
+            } else {
+                return { finalContent: chunkSummaries.join('\n\n') };
             }
-        } else {
-            await insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath, true);
+        } catch (error) {
+            return { finalContent: chunkSummaries.join('\n\n') };
         }
-    } catch (error) {
-        await insertYouTubeSummary(editor, chunkSummaries.join('\n\n'), videoInfo, plugin, transcriptPath, true);
+    });
+
+    // Preview modal + metadata outside busy indicator
+    await insertYouTubeSummary(editor, finalContent, videoInfo, plugin, transcriptPath, true);
+
+    // Update metadata with persona if structured metadata is enabled
+    if (plugin.settings.enableStructuredMetadata && personaId) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view && videoInfo) {
+            await updateNoteMetadataAfterSummary(
+                plugin,
+                view,
+                createSummaryHook(finalContent),
+                [],
+                'research',
+                'youtube',
+                getYouTubeUrl(videoInfo.videoId),
+                personaId
+            );
+        }
     }
 }
 
@@ -2657,7 +2662,7 @@ async function summarizeAndInsert(
         const prompt = insertContentIntoPrompt(promptTemplate, content);
 
         try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
+            const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
             if (response.success && response.content) {
                 await insertWebSummary(editor, response.content, webContent, plugin, true);
