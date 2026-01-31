@@ -334,7 +334,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // Add ribbon icons
         this.addRibbonIcon(
             'sparkles',
-            this.t.commands.openCommandPicker || 'AI Organiser: Open command picker',
+            this.t.commands.ribbonTooltip || 'AI Organiser',
             () => this.openCommandPicker()
         );
 

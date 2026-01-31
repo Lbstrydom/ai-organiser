@@ -454,6 +454,7 @@ export const zhCN: Translations = {
         improveNote: "AI 改进笔记",
         findResources: "查找相关资源",
         openCommandPicker: "打开命令选择器",
+        ribbonTooltip: "AI Organiser",
         generateMermaidDiagram: "生成 Mermaid 图表",
         highlightSelection: "高亮选中文本",
         highlightWith: "使用颜色高亮",

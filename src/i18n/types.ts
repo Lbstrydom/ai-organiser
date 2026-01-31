@@ -441,6 +441,7 @@ export interface Translations {
         improveNote: string;
         findResources: string;
         openCommandPicker: string;
+        ribbonTooltip: string;
         generateMermaidDiagram: string;
         highlightSelection: string;
         highlightWith: string;

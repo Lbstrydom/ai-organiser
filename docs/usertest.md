@@ -82,9 +82,9 @@
 - [x] Test "Use main API key" button functionality
 
 ### Cross-Device Behavior
-- [ ] Understand: Keys are device-local (standard security practice)
-- [ ] New device: Must re-enter API keys
-- [ ] Multi-device sync: Keys NOT synced via Obsidian Sync (expected)
+- [x] Understand: Keys are device-local (standard security practice)
+- [x] New device: Must re-enter API keys
+- [x] Multi-device sync: Keys NOT synced via Obsidian Sync (expected)
 
 ---
 
