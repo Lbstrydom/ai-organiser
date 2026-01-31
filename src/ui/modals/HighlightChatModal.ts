@@ -21,14 +21,12 @@ import { summarizeText, pluginContext } from '../../services/llmFacade';
 export interface HighlightChatOptions {
     noteContent: string;
     noteTitle: string;
-    filePath: string;
     editorSelection?: string;
 }
 
 export class HighlightChatModal extends Modal {
     private readonly plugin: AIOrganiserPlugin;
     private readonly options: HighlightChatOptions;
-    private phase: 'select' | 'chat' = 'select';
     private blocks: ContentBlock[] = [];
     private readonly selectedIndices = new Set<number>();
     private readonly messages: HighlightChatMessage[] = [];
@@ -38,6 +36,7 @@ export class HighlightChatModal extends Modal {
     private chatContainer?: HTMLElement;
     private inputArea?: TextAreaComponent;
     private sendButton?: ButtonComponent;
+    private insertAnswerButton?: ButtonComponent;
     private allowBack = false;
 
     constructor(app: App, plugin: AIOrganiserPlugin, options: HighlightChatOptions) {
@@ -52,13 +51,11 @@ export class HighlightChatModal extends Modal {
 
         if (this.options.editorSelection?.trim()) {
             this.selectedPassageTexts = [this.options.editorSelection.trim()];
-            this.phase = 'chat';
             this.allowBack = false;
             this.renderChatPhase();
         } else {
             this.blocks = splitIntoBlocks(this.options.noteContent);
             this.preSelectHighlightedBlocks();
-            this.phase = 'select';
             this.allowBack = true;
             this.renderSelectionPhase();
         }
@@ -87,27 +84,28 @@ export class HighlightChatModal extends Modal {
         const listContainer = contentEl.createDiv({ cls: 'ai-organiser-hc-container' });
 
         this.blocks.forEach((block, index) => {
+            const isSelected = this.selectedIndices.has(index);
             const row = listContainer.createDiv({ cls: 'ai-organiser-hc-block' });
             if (block.hasHighlight) {
                 row.addClass('ai-organiser-hc-block-highlighted');
             }
+            if (isSelected) {
+                row.addClass('ai-organiser-hc-block-selected');
+            }
 
             const checkbox = row.createEl('input', { type: 'checkbox' });
-            checkbox.checked = this.selectedIndices.has(index);
+            checkbox.checked = isSelected;
             checkbox.addEventListener('click', (event) => {
                 event.stopPropagation();
             });
             checkbox.addEventListener('change', () => {
                 if (checkbox.checked) {
-                    this.selectBlock(index);
+                    this.selectBlock(index, row);
                 } else {
-                    this.deselectBlock(index);
+                    this.deselectBlock(index, row);
                 }
                 updateSelectionSummary();
             });
-
-            const typeEl = row.createDiv({ cls: 'ai-organiser-hc-block-type' });
-            typeEl.setText(block.type);
 
             const textEl = row.createDiv({ cls: 'ai-organiser-hc-block-text' });
             if (block.type === 'code') {
@@ -115,13 +113,16 @@ export class HighlightChatModal extends Modal {
             }
             textEl.setText(block.displayText || block.text);
 
+            const typeEl = row.createDiv({ cls: 'ai-organiser-hc-block-type' });
+            typeEl.setText(block.type);
+
             row.addEventListener('click', () => {
-                const nextState = !this.selectedIndices.has(index);
-                checkbox.checked = nextState;
-                if (nextState) {
-                    this.selectBlock(index);
+                if (this.selectedIndices.has(index)) {
+                    checkbox.checked = false;
+                    this.deselectBlock(index, row);
                 } else {
-                    this.deselectBlock(index);
+                    checkbox.checked = true;
+                    this.selectBlock(index, row);
                 }
                 updateSelectionSummary();
             });
@@ -135,11 +136,10 @@ export class HighlightChatModal extends Modal {
             .setCta()
             .onClick(() => {
                 if (this.selectedIndices.size === 0) {
-                    this.showNotice(t?.noPassagesSelected || 'Select at least one passage');
+                    this.notify(t?.noPassagesSelected || 'Select at least one passage');
                     return;
                 }
                 this.selectedPassageTexts = this.getSelectedPassages();
-                this.phase = 'chat';
                 this.renderChatPhase();
             });
 
@@ -180,7 +180,6 @@ export class HighlightChatModal extends Modal {
             new ButtonComponent(header)
                 .setButtonText(t?.back || 'Back to selection')
                 .onClick(() => {
-                    this.phase = 'select';
                     this.renderSelectionPhase();
                 });
         }
@@ -194,7 +193,8 @@ export class HighlightChatModal extends Modal {
         this.selectedPassageTexts.forEach((passage, index) => {
             const entry = passageList.createDiv({ cls: 'ai-organiser-hc-passage-item' });
             entry.createEl('strong', { text: `Passage ${index + 1}` });
-            entry.createEl('div', { text: passage });
+            const truncated = passage.length > 200 ? `${passage.slice(0, 200)}…` : passage;
+            entry.createEl('div', { text: truncated });
         });
 
         this.chatContainer = contentEl.createDiv({ cls: 'ai-organiser-hc-chat-container' });
@@ -223,23 +223,24 @@ export class HighlightChatModal extends Modal {
         const actionsRow = contentEl.createDiv({ cls: 'ai-organiser-hc-actions' });
         const insertSummaryButton = new ButtonComponent(actionsRow)
             .setButtonText(t?.insertSummary || 'Insert Summary')
+            .setTooltip(t?.insertSummaryDesc || 'AI distills the conversation into a clean note section')
             .onClick(() => this.handleInsertSummary());
 
-        const insertAnswerButton = new ButtonComponent(actionsRow)
+        this.insertAnswerButton = new ButtonComponent(actionsRow)
             .setButtonText(t?.insertAnswer || 'Insert Last Answer')
+            .setTooltip(t?.insertAnswerDesc || 'Insert only the last AI response')
             .onClick(() => this.handleInsertAnswer());
 
-        if (t?.insertSummaryDesc) {
-            insertSummaryButton.setTooltip(t.insertSummaryDesc);
-        }
-        if (t?.insertAnswerDesc) {
-            insertAnswerButton.setTooltip(t.insertAnswerDesc);
-        }
-
         const editor = this.app.workspace.activeEditor?.editor;
-        if (!editor) {
+        if (editor) {
+            // Disable "Insert Last Answer" until a Q/A exchange exists
+            this.updateInsertAnswerState();
+        } else {
+            const noEditorTip = t?.noEditor || 'No active editor for insertion';
             insertSummaryButton.setDisabled(true);
-            insertAnswerButton.setDisabled(true);
+            insertSummaryButton.setTooltip(noEditorTip);
+            this.insertAnswerButton.setDisabled(true);
+            this.insertAnswerButton.setTooltip(noEditorTip);
         }
     }
 
@@ -247,34 +248,45 @@ export class HighlightChatModal extends Modal {
         if (!this.chatContainer) return;
         this.chatContainer.empty();
 
+        if (this.messages.length === 0) {
+            const t = this.plugin.t.highlightChat;
+            const emptyEl = this.chatContainer.createDiv({ cls: 'ai-organiser-hc-empty-state' });
+            emptyEl.setText(t?.placeholder || 'Ask a question about the selected passages...');
+            return;
+        }
+
         for (const message of this.messages) {
             const messageEl = this.chatContainer.createDiv({
                 cls: `ai-organiser-hc-message ai-organiser-hc-message-${message.role}`
             });
+            const roleLabel = message.role === 'user' ? 'You' : 'AI';
+            messageEl.createEl('strong', { text: roleLabel, cls: 'ai-organiser-hc-message-role' });
             messageEl.createDiv({ text: message.content });
         }
 
         this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 
-    private selectBlock(index: number): void {
+    private selectBlock(index: number, row: HTMLElement): void {
         this.selectedIndices.add(index);
+        row.addClass('ai-organiser-hc-block-selected');
     }
 
-    private deselectBlock(index: number): void {
+    private deselectBlock(index: number, row: HTMLElement): void {
         this.selectedIndices.delete(index);
+        row.removeClass('ai-organiser-hc-block-selected');
     }
 
     private getSelectedPassages(): string[] {
         return this.blocks
             .filter((_block, index) => this.selectedIndices.has(index))
-            .map(block => this.normalizePassage(block.text))
+            .map(block => this.normalizePassage(block))
             .filter(text => text.length > 0);
     }
 
-    private normalizePassage(text: string): string {
-        const stripped = stripHighlightMarkup(text).trim();
-        return stripped.replaceAll(/\s+\n/g, '\n').trim();
+    private normalizePassage(block: ContentBlock): string {
+        const text = block.type === 'code' ? block.text : stripHighlightMarkup(block.text);
+        return text.replaceAll(/\s+\n/g, '\n').trim();
     }
 
     private async handleSend(): Promise<void> {
@@ -288,6 +300,7 @@ export class HighlightChatModal extends Modal {
         this.setProcessing(true);
 
         try {
+            // History excludes the just-added user message (sent separately in <question>)
             const history = this.messages.slice(0, -1);
             const prompt = buildHighlightChatPrompt(
                 question,
@@ -300,23 +313,13 @@ export class HighlightChatModal extends Modal {
             if (response.success && response.content) {
                 this.addMessage({ role: 'assistant', content: response.content });
             } else {
-                this.addMessage({
-                    role: 'assistant',
-                    content: this.plugin.t.highlightChat?.errorOccurred
-                        ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', 'No response')
-                        : 'Error: No response'
-                });
+                this.addMessage({ role: 'assistant', content: this.formatError('No response') });
             }
         } catch (error) {
-            const errorMessage = (error as Error).message || 'Unknown error';
-            this.addMessage({
-                role: 'assistant',
-                content: this.plugin.t.highlightChat?.errorOccurred
-                    ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', errorMessage)
-                    : `Error: ${errorMessage}`
-            });
+            this.addMessage({ role: 'assistant', content: this.formatError((error as Error).message) });
         } finally {
             this.setProcessing(false);
+            this.updateInsertAnswerState();
         }
     }
 
@@ -325,7 +328,7 @@ export class HighlightChatModal extends Modal {
 
         const editor = this.app.workspace.activeEditor?.editor;
         if (!editor) {
-            this.showNotice(this.plugin.t.highlightChat?.noEditor || 'No active editor for insertion');
+            this.notify(this.plugin.t.highlightChat?.noEditor || 'No active editor for insertion');
             return;
         }
 
@@ -339,18 +342,12 @@ export class HighlightChatModal extends Modal {
             const response = await summarizeText(pluginContext(this.plugin), prompt);
             if (response.success && response.content) {
                 editor.replaceSelection(response.content);
-                this.showNotice(this.plugin.t.highlightChat?.summaryInserted || 'Summary inserted into note');
+                this.notify(this.plugin.t.highlightChat?.summaryInserted || 'Summary inserted into note');
             } else {
-                this.showNotice(this.plugin.t.highlightChat?.errorOccurred
-                    ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', 'No response')
-                    : 'Error: No response');
+                this.notify(this.formatError('No response'));
             }
         } catch (error) {
-            const errorMessage = (error as Error).message || 'Unknown error';
-            this.showNotice(this.plugin.t.highlightChat?.errorOccurred
-                ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', errorMessage)
-                : `Error: ${errorMessage}`
-            );
+            this.notify(this.formatError((error as Error).message));
         } finally {
             this.setProcessing(false);
         }
@@ -361,13 +358,13 @@ export class HighlightChatModal extends Modal {
 
         const editor = this.app.workspace.activeEditor?.editor;
         if (!editor) {
-            this.showNotice(this.plugin.t.highlightChat?.noEditor || 'No active editor for insertion');
+            this.notify(this.plugin.t.highlightChat?.noEditor || 'No active editor for insertion');
             return;
         }
 
         const lastExchange = this.getLastExchange();
         if (!lastExchange) {
-            this.showNotice(this.plugin.t.highlightChat?.noAnswerYet || 'Ask a question first');
+            this.notify(this.plugin.t.highlightChat?.noAnswerYet || 'Ask a question first');
             return;
         }
 
@@ -382,18 +379,12 @@ export class HighlightChatModal extends Modal {
             const response = await summarizeText(pluginContext(this.plugin), prompt);
             if (response.success && response.content) {
                 editor.replaceSelection(response.content);
-                this.showNotice(this.plugin.t.highlightChat?.answerInserted || 'Answer inserted into note');
+                this.notify(this.plugin.t.highlightChat?.answerInserted || 'Answer inserted into note');
             } else {
-                this.showNotice(this.plugin.t.highlightChat?.errorOccurred
-                    ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', 'No response')
-                    : 'Error: No response');
+                this.notify(this.formatError('No response'));
             }
         } catch (error) {
-            const errorMessage = (error as Error).message || 'Unknown error';
-            this.showNotice(this.plugin.t.highlightChat?.errorOccurred
-                ? this.plugin.t.highlightChat.errorOccurred.replace('{error}', errorMessage)
-                : `Error: ${errorMessage}`
-            );
+            this.notify(this.formatError((error as Error).message));
         } finally {
             this.setProcessing(false);
         }
@@ -423,6 +414,7 @@ export class HighlightChatModal extends Modal {
             this.sendButton.setButtonText(this.plugin.t.highlightChat?.thinking || 'Thinking...');
             this.sendButton.setDisabled(true);
             this.inputArea.setDisabled(true);
+            this.insertAnswerButton?.setDisabled(true);
         } else {
             this.sendButton.setButtonText(this.plugin.t.highlightChat?.send || 'Send');
             this.sendButton.setDisabled(false);
@@ -430,7 +422,22 @@ export class HighlightChatModal extends Modal {
         }
     }
 
-    private showNotice(message: string): Notice {
+    private updateInsertAnswerState(): void {
+        if (!this.insertAnswerButton) return;
+        const hasExchange = this.getLastExchange() !== null;
+        const hasEditor = !!this.app.workspace.activeEditor?.editor;
+        this.insertAnswerButton.setDisabled(!hasExchange || !hasEditor);
+    }
+
+    private formatError(message = 'Unknown error'): string {
+        const t = this.plugin.t.highlightChat;
+        return t?.errorOccurred
+            ? t.errorOccurred.replace('{error}', message)
+            : `Error: ${message}`;
+    }
+
+    /** Obsidian Notice constructor is fire-and-forget (side effect). */
+    private notify(message: string): Notice {
         return new Notice(message);
     }
 }

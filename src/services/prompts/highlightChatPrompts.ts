@@ -3,20 +3,23 @@ export interface HighlightChatMessage {
     content: string;
 }
 
+function formatPassages(passages: string[]): string {
+    return passages
+        .map((text, index) => `Passage ${index + 1}:\n${text}`)
+        .join('\n\n');
+}
+
+function formatHistory(messages: HighlightChatMessage[]): string {
+    if (messages.length === 0) return 'None';
+    return messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+}
+
 export function buildHighlightChatPrompt(
     question: string,
     selectedPassages: string[],
     noteTitle: string,
     conversationHistory: HighlightChatMessage[]
 ): string {
-    const passages = selectedPassages
-        .map((text, index) => `Passage ${index + 1}:\n${text}`)
-        .join('\n\n');
-
-    const history = conversationHistory.length > 0
-        ? conversationHistory.map(message => `${message.role.toUpperCase()}: ${message.content}`).join('\n')
-        : 'None';
-
     return `<task>
 You are helping the user understand specific passages from their note "${noteTitle}".
 Answer based primarily on the highlighted passages below.
@@ -24,11 +27,11 @@ Reference broader context when relevant, but keep focus on the highlighted conte
 </task>
 
 <highlighted_passages>
-${passages}
+${formatPassages(selectedPassages)}
 </highlighted_passages>
 
 <conversation_history>
-${history}
+${formatHistory(conversationHistory)}
 </conversation_history>
 
 <question>
@@ -41,14 +44,6 @@ export function buildInsertSummaryPrompt(
     conversationHistory: HighlightChatMessage[],
     noteTitle: string
 ): string {
-    const passages = selectedPassages
-        .map((text, index) => `Passage ${index + 1}:\n${text}`)
-        .join('\n\n');
-
-    const history = conversationHistory.length > 0
-        ? conversationHistory.map(message => `${message.role.toUpperCase()}: ${message.content}`).join('\n')
-        : 'None';
-
     return `<task>
 Based on the conversation about passages from "${noteTitle}",
 write a concise, well-structured section suitable for inserting into the note.
@@ -59,11 +54,11 @@ Use markdown formatting. Be concise.
 </task>
 
 <highlighted_passages>
-${passages}
+${formatPassages(selectedPassages)}
 </highlighted_passages>
 
 <conversation_history>
-${history}
+${formatHistory(conversationHistory)}
 </conversation_history>`;
 }
 
@@ -73,10 +68,6 @@ export function buildInsertAnswerPrompt(
     selectedPassages: string[],
     noteTitle: string
 ): string {
-    const passages = selectedPassages
-        .map((text, index) => `Passage ${index + 1}:\n${text}`)
-        .join('\n\n');
-
     return `<task>
 Rewrite the assistant's last answer into a clean, insertable note section for "${noteTitle}".
 
@@ -86,7 +77,7 @@ Use markdown formatting. Be concise.
 </task>
 
 <highlighted_passages>
-${passages}
+${formatPassages(selectedPassages)}
 </highlighted_passages>
 
 <last_question>

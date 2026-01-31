@@ -3,7 +3,7 @@
  * Block-aware parser for note content and highlight detection.
  */
 
-export type ContentBlockType = 'paragraph' | 'code' | 'callout' | 'list' | 'table' | 'heading';
+type ContentBlockType = 'paragraph' | 'code' | 'callout' | 'list' | 'table' | 'heading';
 
 export interface ContentBlock {
     text: string;
@@ -12,13 +12,6 @@ export interface ContentBlock {
     lineEnd: number;
     type: ContentBlockType;
     hasHighlight: boolean;
-}
-
-export interface HighlightedPassage {
-    text: string;
-    raw: string;
-    lineNumber: number;
-    type: 'mark' | 'equals';
 }
 
 const MARK_DETECT = /<mark\b[^>]*>[\s\S]*?<\/mark>/i;
@@ -80,7 +73,7 @@ export function splitIntoBlocks(content: string): ContentBlock[] {
         if (isListLine(line)) {
             const start = i;
             i += 1;
-            while (i < lines.length && isListLine(lines[i])) {
+            while (i < lines.length && isListContinuation(lines[i])) {
                 i += 1;
             }
             pushBlock(blocks, lines, 'list', start, i - 1);
@@ -114,49 +107,6 @@ export function splitIntoBlocks(content: string): ContentBlock[] {
     }
 
     return blocks;
-}
-
-export function extractHighlightedPassages(content: string): HighlightedPassage[] {
-    const passages: HighlightedPassage[] = [];
-    const lines = content.split('\n');
-    let inCodeFence = false;
-
-    for (let index = 0; index < lines.length; index += 1) {
-        const line = lines[index];
-        if (isCodeFence(line)) {
-            inCodeFence = !inCodeFence;
-            continue;
-        }
-        if (inCodeFence) continue;
-
-        for (const match of line.matchAll(MARK_EXTRACT)) {
-            const raw = match[0];
-            const text = stripHighlightMarkup(raw).trim();
-            if (text.length > 0) {
-                passages.push({
-                    text,
-                    raw,
-                    lineNumber: index + 1,
-                    type: 'mark'
-                });
-            }
-        }
-
-        for (const match of line.matchAll(EQUAL_EXTRACT)) {
-            const raw = match[0];
-            const text = stripHighlightMarkup(raw).trim();
-            if (text.length > 0) {
-                passages.push({
-                    text,
-                    raw,
-                    lineNumber: index + 1,
-                    type: 'equals'
-                });
-            }
-        }
-    }
-
-    return passages;
 }
 
 function pushBlock(
@@ -249,6 +199,13 @@ function isCalloutLine(line: string): boolean {
 
 function isListLine(line: string): boolean {
     return /^\s*(?:[-*+]|\d+\.)\s+/.test(line);
+}
+
+function isListContinuation(line: string): boolean {
+    if (isListLine(line)) return true;
+    if (line.trim() === '') return false;
+    // Indented continuation or nested content under a list item
+    return /^\s{2,}/.test(line);
 }
 
 function isTableLine(line: string): boolean {

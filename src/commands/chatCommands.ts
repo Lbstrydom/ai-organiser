@@ -358,7 +358,6 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             const modal = new HighlightChatModal(plugin.app, plugin, {
                 noteContent: content,
                 noteTitle: file.basename,
-                filePath: file.path,
                 editorSelection: selection || undefined
             });
             modal.open();

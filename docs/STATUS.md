@@ -2,11 +2,61 @@
 
 **Version:** 1.0.15
 **Last Updated:** January 31, 2026
-**Status:** Feature Complete - In-Plugin Audio Recording
+**Status:** Feature Complete - Highlight Chat
 
 ---
 
 ## Recent Updates
+
+### Highlight Chat Feature (2026-01-31)
+
+**Implementation Complete + Dual Audit Refactor (12 findings addressed)**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Core | Block-aware content parser (`highlightExtractor.ts`) | Complete |
+| Core | Two-phase modal: block selection → chat → insert (`HighlightChatModal.ts`) | Complete |
+| Core | Prompt module with anti-hallucination instructions (`highlightChatPrompts.ts`) | Complete |
+| Integration | `chat-about-highlights` command + Command Picker (Discover > Ask AI) | Complete |
+| i18n | 20 new highlight chat strings (EN + ZH-CN) | Complete |
+| CSS | `ai-organiser-hc-*` styles (selection, chat, passages, empty state) | Complete |
+| Tests | 5 unit tests (block parsing, list continuation, code-fence immunity, markup stripping) | Complete |
+| Audit | Dual audit refactor — DRY, SOLID, dead code, UX/Gestalt fixes | Complete |
+
+**Build Status**: 878 tests passing (40 suites)
+
+**New Files Created:**
+- `src/ui/modals/HighlightChatModal.ts` — Two-phase modal: block selection with checkbox picker → multi-turn AI chat → insert summary/answer at cursor
+- `src/utils/highlightExtractor.ts` — Block-aware parser (paragraph, code, callout, list, table, heading) with frontmatter stripping, code-fence-aware highlight detection, non-text placeholders
+- `src/services/prompts/highlightChatPrompts.ts` — XML-structured prompts with anti-hallucination instructions for standalone prose output
+
+**Key Files Modified:**
+- `src/commands/chatCommands.ts` — `chat-about-highlights` command with smart dispatch (selection → Path A, no selection → Path B)
+- `src/ui/modals/CommandPickerModal.ts` — Added to Discover > Ask AI group (3 sub-commands)
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — 20 highlight chat keys + `chatAboutHighlights` command
+- `styles.css` — 25 CSS rules for selection phase, chat phase, passage summary, selected state, empty state, role labels
+- `tests/highlightExtractor.test.ts` — 5 tests for block parser + highlight extraction
+- `tests/commandPicker.test.ts` — Ask AI group assertion updated (3 sub-commands)
+
+**Audit Findings Addressed:**
+1. List continuation lines absorbed into list block (was splitting nested content as paragraphs)
+2. Code block `==`/`<mark>` stripping — `normalizePassage` now preserves code block content
+3. Dead code removed: `extractHighlightedPassages`, `HighlightedPassage`, `ContentBlockType` export, `filePath` option, `phase` field
+4. DRY: Extracted `formatPassages()`/`formatHistory()` helpers in prompts (3x duplication)
+5. DRY: Extracted `formatError()` in modal (6x duplication)
+6. DRY: Extracted `notify()` helper for Obsidian Notice pattern
+7. SOLID: Replaced boolean-parameter `toggleBlock()` with `selectBlock()`/`deselectBlock()`
+8. UX: "Insert Last Answer" disabled until Q/A exchange exists + during processing
+9. UX: Disabled insert buttons show tooltip explaining why (no active editor)
+10. UX: Empty chat state with placeholder guidance text
+11. UX: Role labels ("You" / "AI") on chat message bubbles
+12. UX: Selected-row visual state (background highlight on non-marked selected blocks)
+
+**User Workflow:**
+- **Path A (Quick Chat)**: Select text → command → modal opens in chat phase with selection as context
+- **Path B (Paragraph Picker)**: No selection → command → block picker with highlights pre-selected → Start Chat → multi-turn conversation → Insert Summary or Insert Last Answer
+
+---
 
 ### In-Plugin Audio Recording (2026-01-31)
 
@@ -762,7 +812,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 874 unit tests (39 suites)
+npm test           # Run 878 unit tests (40 suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

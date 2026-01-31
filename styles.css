@@ -3904,3 +3904,24 @@
     border: 1px solid var(--background-modifier-border);
 }
 
+/* Selected block visual state */
+.ai-organiser-hc-block-selected {
+    background: var(--background-modifier-hover);
+}
+
+/* Empty chat state */
+.ai-organiser-hc-empty-state {
+    text-align: center;
+    color: var(--text-faint);
+    padding: 24px 12px;
+    font-style: italic;
+}
+
+/* Chat message role label */
+.ai-organiser-hc-message-role {
+    display: block;
+    font-size: 0.8em;
+    color: var(--text-faint);
+    margin-bottom: 4px;
+}
+

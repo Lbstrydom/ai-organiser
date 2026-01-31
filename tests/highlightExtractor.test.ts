@@ -1,7 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import {
     splitIntoBlocks,
-    extractHighlightedPassages,
     stripHighlightMarkup
 } from '../src/utils/highlightExtractor';
 
@@ -55,19 +53,47 @@ const code = "==no highlight==";
         expect(blocks[7].displayText).toBe('[Embed: note.md]');
     });
 
-    it('extractHighlightedPassages ignores code fences', () => {
-        const content = `Before ==keep==
-\`\`\`
-code ==skip==
-\`\`\`
-<mark>also keep</mark>`;
+    it('list continuation lines stay in the same list block', () => {
+        const content = `- item one
+  continuation of item one
+- item two
+  - nested item
+  more nested content`;
 
-        const passages = extractHighlightedPassages(content);
-        const texts = passages.map(p => p.text);
+        const blocks = splitIntoBlocks(content);
 
-        expect(texts).toContain('keep');
-        expect(texts).toContain('also keep');
-        expect(texts).not.toContain('skip');
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].type).toBe('list');
+        expect(blocks[0].text).toContain('continuation of item one');
+        expect(blocks[0].text).toContain('nested item');
+        expect(blocks[0].text).toContain('more nested content');
+    });
+
+    it('list block ends at non-indented non-list content', () => {
+        const content = `- item one
+  continuation
+Not a list line`;
+
+        const blocks = splitIntoBlocks(content);
+
+        expect(blocks).toHaveLength(2);
+        expect(blocks[0].type).toBe('list');
+        expect(blocks[0].text).toContain('continuation');
+        expect(blocks[1].type).toBe('paragraph');
+        expect(blocks[1].text).toBe('Not a list line');
+    });
+
+    it('code blocks containing == are not detected as highlights', () => {
+        const content = `\`\`\`python
+if x == 5:
+    print(<mark>hello</mark>)
+\`\`\``;
+
+        const blocks = splitIntoBlocks(content);
+
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].type).toBe('code');
+        expect(blocks[0].hasHighlight).toBe(false);
     });
 
     it('stripHighlightMarkup removes highlight markers', () => {
