@@ -282,6 +282,19 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     }
                 }));
 
+        // Manage Index action
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.manageIndexAction)
+            .setDesc(t.settings.semanticSearch.manageIndexActionDesc)
+            .addButton(button => {
+                button
+                    .setButtonText(t.settings.semanticSearch.manageIndexButton)
+                    .setIcon('database')
+                    .onClick(() => {
+                        (plugin.app as any).commands.executeCommandById('ai-organiser:manage-index');
+                    });
+            });
+
         // === RAG Settings ===
         sectionEl.createEl('h3', { text: t.settings.semanticSearch.rag.title });
 
