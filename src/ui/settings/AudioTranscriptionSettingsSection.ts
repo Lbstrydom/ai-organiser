@@ -111,5 +111,35 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
                 href: linkUrl
             });
         }
+
+        // === Recording sub-section ===
+        const tr = this.plugin.t.recording;
+
+        this.containerEl.createEl('h4', { text: 'Recording' });
+
+        new Setting(this.containerEl)
+            .setName(tr?.settingsAutoTranscribe || 'Auto-transcribe recordings')
+            .setDesc(tr?.settingsAutoTranscribeDesc || 'Automatically transcribe recordings under 25 MB')
+            .addToggle(toggle => {
+                toggle.setValue(this.plugin.settings.autoTranscribeRecordings !== false);
+                toggle.onChange(async (value) => {
+                    this.plugin.settings.autoTranscribeRecordings = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+
+        new Setting(this.containerEl)
+            .setName(tr?.settingsEmbed || 'Embed audio in note')
+            .setDesc(tr?.settingsEmbedDesc || 'Include audio file link in note alongside transcript')
+            .addToggle(toggle => {
+                toggle.setValue(this.plugin.settings.embedAudioInNote !== false);
+                toggle.onChange(async (value) => {
+                    this.plugin.settings.embedAudioInNote = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+
+        const recordingInfoEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
+        recordingInfoEl.textContent = tr?.settingsInfo || 'Recordings saved to AI-Organiser/Recordings/';
     }
 }

@@ -4,6 +4,8 @@ import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
 import { detectEmbeddedAudio, DetectedContent } from '../../utils/embeddedContentDetector';
+import { isRecordingSupported } from '../../services/audioRecordingService';
+import { AudioRecorderModal } from './AudioRecorderModal';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath } from '../../core/settings';
@@ -183,6 +185,9 @@ export class MinutesCreationModal extends Modal {
             this.renderDictionarySection(contentEl);
             this.renderAudioTranscriptionSection(contentEl);
         }
+
+        // Record button renders on ALL platforms (mobile + desktop), even with zero detected audio
+        this.renderRecordButton(contentEl);
 
         this.renderParticipantsSection(contentEl);
         this.renderAdvancedSection(contentEl);
@@ -708,6 +713,33 @@ export class MinutesCreationModal extends Modal {
         if (documents.length === 0) return;
 
         await this.docController.extractAll();
+    }
+
+    private renderRecordButton(containerEl: HTMLElement): void {
+        if (!isRecordingSupported()) return;
+        const t = this.plugin.t.recording;
+        const section = containerEl.createDiv({ cls: 'ai-organiser-minutes-record-section' });
+        const btn = section.createEl('button', {
+            text: t?.record || 'Record Audio',
+            cls: 'ai-organiser-minutes-record-btn mod-cta'
+        });
+        const iconSpan = btn.createSpan({ cls: 'ai-organiser-minutes-record-icon' });
+        setIcon(iconSpan, 'mic');
+        btn.addEventListener('click', () => {
+            new AudioRecorderModal(this.app, this.plugin, {
+                mode: 'minutes',
+                transcriptionLanguage: this.state.transcriptionLanguage,
+                onComplete: (result) => {
+                    if (result.transcript) {
+                        const sep = this.state.transcript ? '\n\n---\n\n' : '';
+                        this.state.transcript += sep + result.transcript;
+                        if (this.transcriptTextArea) {
+                            this.transcriptTextArea.value = this.state.transcript;
+                        }
+                    }
+                }
+            }).open();
+        });
     }
 
     private renderAudioTranscriptionSection(containerEl: HTMLElement): void {

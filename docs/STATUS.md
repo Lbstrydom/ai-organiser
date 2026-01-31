@@ -1,12 +1,112 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 30, 2026
-**Status:** Feature Complete - Command Picker Phase 2 + PDF Table Fix + UX Polish
+**Last Updated:** January 31, 2026
+**Status:** Feature Complete - In-Plugin Audio Recording
 
 ---
 
 ## Recent Updates
+
+### In-Plugin Audio Recording (2026-01-31)
+
+**All Parts Complete + 2 Expert Review Rounds (18 findings addressed)**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Core | AudioRecordingService — MediaRecorder wrapper with mime negotiation | Complete |
+| Core | AudioRecorderModal — Record/Stop/Play/Save with live timer + size | Complete |
+| Integration | Standalone `record-audio` command + Command Picker | Complete |
+| Integration | Minutes modal — Record button (mobile + desktop, outside mobile gate) | Complete |
+| Integration | Multi-Source modal — Record button in both render paths | Complete |
+| Settings | Recording sub-section in Audio Transcription settings | Complete |
+| i18n | 28 new recording strings (EN + ZH-CN) | Complete |
+| CSS | `ai-organiser-audio-recorder-*` styles | Complete |
+| Tests | commandPicker.test.ts updated for `record-audio` | Complete |
+
+**Build Status**: 874 tests passing (39 suites)
+
+**New Files Created:**
+- `src/services/audioRecordingService.ts` — MediaRecorder wrapper, mime negotiation (`audio/mp4` → `audio/webm;codecs=opus` → fallbacks), actual chunk size tracking via 1-second timeslice, 64kbps bitrate
+- `src/ui/modals/AudioRecorderModal.ts` — Full recording modal with states (idle → recording → stopped → saving → transcribing → done), platform-aware transcription, close safety (auto-save on accidental close)
+
+**Key Files Modified:**
+- `src/ui/modals/MinutesCreationModal.ts` — `renderRecordButton()` method rendered OUTSIDE `!Platform.isMobile` gate
+- `src/ui/modals/MultiSourceModal.ts` — `renderAudioRecordButton()` helper called from both `renderSourceSection()` AND `renderSectionContent()` to survive rerenders
+- `src/commands/summarizeCommands.ts` — `record-audio` command registration
+- `src/ui/modals/CommandPickerModal.ts` — Record Audio in Create category with aliases
+- `src/core/settings.ts` — `autoTranscribeRecordings`, `embedAudioInNote` settings
+- `src/core/constants.ts` — `DEFAULT_RECORDING_FOLDER`
+- `src/ui/settings/AudioTranscriptionSettingsSection.ts` — Recording sub-section (toggles + info)
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — 28 recording keys + `recordAudio` command
+- `styles.css` — Audio recorder modal, minutes record button, multi-source record button styles
+- `tests/commandPicker.test.ts` — `record-audio` assertion in Create category
+
+**Expert Review Findings Addressed:**
+1. FFmpeg crash on mobile — uses `transcribeAudio()` directly, never `transcribeAudioWithFullWorkflow()`
+2. Multi-Source rerender button loss — record button in BOTH render paths via shared helper
+3. Fixed size estimate unreliable — actual chunk size accumulation via `mediaRecorder.start(1000)` timeslice
+4. `isTypeSupported` unreliable — fallback to default `new MediaRecorder(stream)`, read `mimeType` from instance
+5. Property name typo — `this.transcriptTextArea` (capital A)
+6. CSS prefix convention — all classes use `ai-organiser-audio-recorder-*` prefix
+7. Duplicate constant — reuses existing `MAX_FILE_SIZE_BYTES` from `audioTranscriptionService.ts`
+8. Missing transcription language — passes `transcriptionLanguage` from Minutes modal state
+9. Lost recording prevention — auto-save on modal close during recording or with unsaved data
+10. Bitrate control — `audioBitsPerSecond: 64000` (64kbps, ~52 min under 25MB)
+11. Upfront time limit warning — "Max ~52 min" label shown when auto-transcribe enabled
+
+**Folder Structure (After):**
+```
+AI-Organiser/
+├── Config/          # Taxonomy, personas, dictionaries
+├── Exports/         # NotebookLM exports, note exports
+├── Flashcards/      # Anki/Brainscape flashcards
+├── Meetings/        # Meeting minutes output
+├── NotebookLM/      # NotebookLM source packs
+├── Recordings/      # Audio recordings (NEW)
+└── Transcripts/     # Audio/YouTube transcripts
+```
+
+---
+
+### Minutes Fixes & Folder Consolidation (2026-01-30)
+
+**All Parts Complete**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Minutes Fix | JSON body rendering — `isUsableMarkdown()` guard rejects JSON fragments | Complete |
+| Minutes Fix | Removed `aio_` prefix from all 17 frontmatter properties (now clean names) | Complete |
+| Minutes Fix | Participant list dropdown refresh after save | Complete |
+| Minutes Fix | Debug logging for context documents and dictionary content | Complete |
+| Folder Consolidation | All output folders nested under `AI-Organiser/` via resolver functions | Complete |
+
+**Build Status**: 874 tests passing (39 suites)
+
+**Key Files Modified:**
+- `src/services/minutesService.ts` — Added `isUsableMarkdown()` method, debug logging for context docs/dictionary
+- `src/utils/minutesUtils.ts` — Removed `aio_` prefix from all 17 frontmatter property names
+- `src/ui/modals/MinutesCreationModal.ts` — Added `refreshParticipantListDropdown()` after save; use resolver imports
+- `src/core/settings.ts` — 4 new resolver functions: `getMinutesOutputFullPath`, `getExportOutputFullPath`, `getFlashcardFullPath`, `getTranscriptFullPath`
+- `src/commands/flashcardCommands.ts` — DRY folder resolution via resolver + `ensureFolderExists()`
+- `src/commands/summarizeCommands.ts` — DRY folder resolution via resolver + `ensureFolderExists()`
+- `src/ui/modals/ExportModal.ts` — Resolved export path via `getExportOutputFullPath()`
+- `tests/minutesService.test.ts` — Updated assertions for clean property names
+
+**Folder Structure (After):**
+```
+AI-Organiser/
+├── Config/          # Taxonomy, personas, dictionaries
+├── Exports/         # NotebookLM exports, note exports
+├── Flashcards/      # Anki/Brainscape flashcards
+├── Meetings/        # Meeting minutes output
+├── NotebookLM/      # NotebookLM source packs
+└── Transcripts/     # Audio/YouTube transcripts
+```
+
+Settings store subfolder names only (e.g., `Meetings`); resolver functions prepend the plugin folder at consumption time. Legacy full paths (e.g., `AI-Organiser/Meetings`) are tolerated without duplication.
+
+---
 
 ### Command Picker Redesign Phase 2 & PDF Table Fix (2026-01-30)
 
@@ -19,7 +119,7 @@
 | Phase 2 | Rename Search+Analyze to Discover (5 categories, 7 groups) | Complete |
 | Phase 2 | Move Manage Index to Bases group (Separation of Concerns) | Complete |
 
-**Build Status**: 871 tests passing (39 suites)
+**Build Status**: 874 tests passing (39 suites)
 
 **Key Files Modified:**
 - `src/utils/markdownParser.ts` — Added `.replace(/^> ?/gm, '')` to strip blockquote prefixes
@@ -32,7 +132,7 @@
 **Command Picker Structure (After):**
 | Category | Top-level Items | Groups |
 |----------|----------------|--------|
-| Create (3) | Smart Summarize, Meeting Minutes, Export Note | — |
+| Create (4) | Smart Summarize, Meeting Minutes, Export Note, Record Audio | — |
 | Enhance (3) | Enhance Note, Translate, **Highlight** group | Highlight (2 sub) |
 | Organize (2) | **Tags** group, **Bases** group | Tags (4 sub), Bases (4 sub incl. Manage Index) |
 | Discover (2) | **Ask AI** group, **Find Notes** group | Ask AI (2 sub), Find Notes (3 sub) |
@@ -436,6 +536,7 @@ main.ts (Plugin)
 |---------|----------|-------|
 | **Tagging** | Tag note/folder/vault, Clear tags | Taxonomy-based, 3-tier hierarchy |
 | **Summarization** | URL, PDF, YouTube, Audio | 5 personas, RAG-enhanced, Gemini-native YouTube, 6hr+ audio chunking |
+| **Audio Recording** | Record Audio | In-plugin recording, auto-transcribe, mobile-safe, 64kbps |
 | **Meeting Minutes** | Create meeting minutes | Persona-based, transcript chunking, Obsidian Tasks |
 | **Smart Notes** | Improve, Find resources, Diagrams | AI personas, Mermaid support |
 | **Translation** | Note, Selection, Multi-Source | 20+ languages, URL/YouTube/PDF/audio/document sources |
@@ -493,8 +594,11 @@ AI-Organiser/
 │   ├── summary-personas.md   # Summarization personas
 │   ├── minutes-personas.md   # Meeting minutes personas
 │   └── dictionaries/         # Terminology dictionaries (syncs across devices)
-├── Transcripts/              # Audio/YouTube transcripts
-└── Flashcards/               # Exported flashcards
+├── Exports/                  # NotebookLM exports, note exports
+├── Flashcards/               # Exported flashcards
+├── Meetings/                 # Meeting minutes output
+├── NotebookLM/               # NotebookLM source packs
+└── Transcripts/              # Audio/YouTube transcripts
 ```
 
 ---
@@ -640,12 +744,12 @@ AI-Organiser/
 - Full i18n support (EN/ZH-CN)
 
 ### Obsidian Bases Integration (Completed January 2025)
-- Structured metadata system (10 `aio_*` properties including `aio_persona`)
+- Structured metadata system (10 clean-name properties: `summary`, `status`, `type`, `processed`, `model`, `source`, `source_url`, `word_count`, `language`, `persona`)
 - 4-stage migration wizard with smart content detection
 - 10 built-in dashboard templates (.base files) in 2 categories:
   - 5 default templates (Knowledge Base, Research Tracker, etc.)
   - 5 persona templates (Student, Executive, Casual, Researcher, Technical)
-- Persona tracking: `aio_persona` written to frontmatter during summarization
+- Persona tracking: `persona` written to frontmatter during summarization
 - Conditional structured output in summarization
 - Complete bilingual support (EN/ZH-CN)
 - Settings section with migration and dashboard creation buttons
@@ -658,8 +762,8 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 871 unit tests (39 suites)
-npm run test:auto  # Run 22 automated integration tests
+npm test           # Run 874 unit tests (39 suites)
+npm run test:auto  # Run 17 automated integration tests
 ```
 
 **Deploy:** Copy `main.js`, `manifest.json`, `styles.css` to Obsidian plugins folder.

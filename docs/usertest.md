@@ -44,7 +44,7 @@
 
 ### i18n Verification (optional)
 - [x] Switch Language to 简体中文 → restart → UI shows Chinese
-- [x] Command Picker shows Chinese category names (创建, 增强, 整理, 搜索, 分析, 集成)
+- [x] Command Picker shows Chinese category names (创建, 增强, 整理, 发现, 集成)
 - [x] Switch back to English → restart → UI restored
 
 ---
@@ -92,7 +92,7 @@
 
 - [x] Ctrl+P → "AI Organiser" or ribbon icon → Command Picker opens
 - [x] Fuzzy search works (type "tag" → finds tagging commands)
-- [x] Categories visible: Create, Enhance, Organize, Search, Analyze, Integrate
+- [x] Categories visible: Create, Enhance, Organize, Discover, Integrate
 - [x] Each command has icon and category badge
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
 - [x] No "undefined" or raw i18n keys visible in command names/categories
@@ -169,6 +169,44 @@ Pick at least ONE source type:
 - [x] Modal shows detected sources with checkboxes
 - [x] Oversized document handling works (truncate/full/skip)
 
+### Audio Recording (NEW)
+
+#### Standalone Recording
+- [ ] Command Picker → Create → "Record Audio" → modal opens
+- [ ] Record button starts recording → timer + size display update live
+- [ ] Stop button stops recording → can Play to preview
+- [ ] "Insert at cursor" inserts transcript (with `![[recording.webm]]` embed if enabled)
+- [ ] "Create new note" creates `.md` file with embed + transcript
+- [ ] Recording saved to `AI-Organiser/Recordings/` folder
+- [ ] Auto-transcribe works when file ≤ 25MB and API key available
+- [ ] Without API key → recording saves, auto-transcribe disabled with info
+
+#### Minutes Modal Integration
+- [ ] Minutes modal → Record button visible (both mobile + desktop)
+- [ ] Record → transcript appends to transcript textarea via `---` separator
+- [ ] Multiple recordings: each appended with separator
+
+#### Multi-Source Modal Integration
+- [ ] Multi-Source modal → Audio section → Record button visible in header
+- [ ] Record → file appears in audio source list
+- [ ] Record button persists after section rerender (add manual audio, verify button still there)
+
+#### Close Safety
+- [ ] Close modal during active recording → recording auto-saved with `-unsaved` suffix
+- [ ] Close modal with stopped (unsaved) recording → recording auto-saved
+- [ ] Notice shows "Recording auto-saved"
+
+#### Edge Cases
+- [ ] No active editor → "Insert at cursor" disabled, defaults to "Create new note"
+- [ ] Recording >25MB → auto-transcribe checkbox auto-disabled, recording still saves
+- [ ] "Max ~52 min" label visible when auto-transcribe enabled
+
+#### Mobile (if testing on mobile)
+- [ ] Record button visible in Minutes modal (outside mobile gate)
+- [ ] `.m4a` file saved on iOS, `.webm` on Android
+- [ ] Live size display shows actual recorded bytes
+- [ ] Uses `transcribeAudio()` directly (no FFmpeg crash)
+
 ---
 
 ## 5. Translation (2 min)
@@ -199,22 +237,22 @@ Pick at least ONE source type:
 ## 7. Meeting Minutes (4 min)
 
 ### Basic Generation
-- [ ] Ctrl+P → "Create Meeting Minutes" → modal opens
-- [ ] Fill: Title, Date, Participants, Transcript
-- [ ] Select persona from dropdown
-- [ ] Generate → note created with structured output
-- [ ] Check frontmatter: `aio_meeting_date`, `aio_attendees`
+- [x] Ctrl+P → "Create Meeting Minutes" → modal opens
+- [x] Fill: Title, Date, Participants, Transcript
+- [x] Select persona from dropdown
+- [x] Generate → note created with structured output
+- [x] Check frontmatter: `meeting_date`, `attendees` (clean names, no prefix)
 
 ### Context Documents
-- [ ] Add agenda/presentation via "Add Document" button
-- [ ] Oversized documents show truncation controls
-- [ ] Documents included in minutes context
+- [x] Add agenda/presentation via "Add Document" button
+- [x] Oversized documents show truncation controls
+- [x] Documents included in minutes context
 
 ### Terminology Dictionary
-- [ ] Create new dictionary → add terms
-- [ ] Load existing dictionary → terms available
-- [ ] Extract terms from documents → populates dictionary
-- [ ] Dictionary improves name/term consistency in output
+- [x] Create new dictionary → add terms
+- [x] Load existing dictionary → terms available
+- [x] Extract terms from documents → populates dictionary
+- [x] Dictionary improves name/term consistency in output
 
 ---
 

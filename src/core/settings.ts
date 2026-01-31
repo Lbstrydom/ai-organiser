@@ -119,7 +119,7 @@ export interface AIOrganiserSettings {
     ragIncludeMetadata: boolean;         // Include file path, headings in context
 
     // === OBSIDIAN BASES INTEGRATION ===
-    enableStructuredMetadata: boolean;   // Use aio_* frontmatter properties for Bases
+    enableStructuredMetadata: boolean;   // Use structured frontmatter properties for Bases
     includeModelInMetadata: boolean;     // Track which LLM model was used
     autoDetectContentType: boolean;      // Auto-classify content type
 
@@ -159,6 +159,10 @@ export interface AIOrganiserSettings {
     // Whisper API for audio transcription (OpenAI or Groq)
     audioTranscriptionApiKey: string;    // Dedicated key for transcription (uses main key if provider supports Whisper)
     audioTranscriptionProvider: 'openai' | 'groq';  // Which Whisper provider to use
+
+    // === RECORDING SETTINGS ===
+    autoTranscribeRecordings: boolean;    // Auto-transcribe recordings under 25MB
+    embedAudioInNote: boolean;            // Embed audio file link in note alongside transcript
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -267,6 +271,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // Audio Transcription Defaults (Whisper API)
     audioTranscriptionApiKey: '',                       // Empty = use main OpenAI/Groq key if available
     audioTranscriptionProvider: 'openai',              // OpenAI Whisper by default
+
+    // Recording Defaults
+    autoTranscribeRecordings: true,                    // Auto-transcribe under 25MB
+    embedAudioInNote: true,                            // Embed audio link in note
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

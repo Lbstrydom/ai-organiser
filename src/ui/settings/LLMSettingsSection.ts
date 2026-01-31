@@ -255,6 +255,8 @@ export class LLMSettingsSection extends BaseSettingSection {
                 return text;
             });
 
+        this.renderProviderCapabilityBanner();
+
         const apiKeyPlaceholder =
             this.plugin.settings.cloudServiceType === 'openai' ? 'sk-...' :
             this.plugin.settings.cloudServiceType === 'gemini' ? 'AIza...' :
@@ -356,6 +358,35 @@ export class LLMSettingsSection extends BaseSettingSection {
         }
 
         this.createTestButton();
+    }
+
+    private renderProviderCapabilityBanner(): void {
+        const provider = this.plugin.settings.cloudServiceType;
+        const t = this.plugin.t.settings.llm.providerCapabilities;
+
+        const caps = {
+            youtube: ['gemini'],
+            audio: ['openai', 'groq'],
+            pdf: ['claude', 'gemini'],
+            embeddings: ['openai', 'gemini', 'cohere', 'voyage', 'openrouter', 'ollama']
+        };
+
+        const missing: string[] = [];
+        if (!caps.youtube.includes(provider)) missing.push(t.youtube);
+        if (!caps.audio.includes(provider)) missing.push(t.audio);
+        if (!caps.pdf.includes(provider)) missing.push(t.pdf);
+        if (provider === 'claude') missing.push(t.embeddings);
+
+        if (missing.length === 0) return;
+
+        const bannerEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
+        bannerEl.createEl('strong', { text: t.title });
+        const list = bannerEl.createEl('ul');
+        list.style.margin = '4px 0 0 0';
+        list.style.paddingLeft = '20px';
+        for (const item of missing) {
+            list.createEl('li', { text: item, cls: 'setting-item-description' });
+        }
     }
 
     private setStatusMessage(message: string, status: 'success' | 'error'): void {

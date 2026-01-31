@@ -21,6 +21,8 @@ import { UrlInputModal } from '../ui/modals/UrlInputModal';
 import { PdfSelectModal } from '../ui/modals/PdfSelectModal';
 import { YouTubeInputModal } from '../ui/modals/YouTubeInputModal';
 import { AudioSelectModal, AudioSelectResult } from '../ui/modals/AudioSelectModal';
+import { AudioRecorderModal } from '../ui/modals/AudioRecorderModal';
+import { isRecordingSupported } from '../services/audioRecordingService';
 import { ContentSizeModal, ContentSizeChoice } from '../ui/modals/ContentSizeModal';
 import { getLanguageNameForPrompt } from '../services/languages';
 import {
@@ -235,6 +237,20 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
         icon: 'file-text',
         callback: async () => {
             await executeSmartSummarize(plugin, pdfService);
+        }
+    });
+
+    // Record Audio command (standalone)
+    plugin.addCommand({
+        id: 'record-audio',
+        name: plugin.t.commands.recordAudio || 'Record Audio',
+        icon: 'mic',
+        callback: async () => {
+            if (!isRecordingSupported()) {
+                new Notice(plugin.t.recording?.notSupported || 'Audio recording not supported');
+                return;
+            }
+            new AudioRecorderModal(plugin.app, plugin, { mode: 'standalone' }).open();
         }
     });
 }

@@ -2,12 +2,12 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { EMBEDDING_DEFAULT_MODEL, getEmbeddingModelOptions, EmbeddingProvider } from '../../services/embeddings/embeddingRegistry';
-import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
+import { PLUGIN_SECRET_IDS, EMBEDDING_PROVIDER_TO_SECRET_ID, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 
 export class SemanticSearchSettingsSection extends BaseSettingSection {
     private sectionEl: HTMLElement | null = null;
 
-    display(): void {
+    async display(): Promise<void> {
         const { containerEl, plugin } = this;
         const t = plugin.t;
         const hasSecretStorage = plugin.secretStorageService.isAvailable();
@@ -118,7 +118,19 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
         // Embedding API Key (if not using Ollama)
         if (plugin.settings.embeddingProvider !== 'ollama') {
-            if (hasSecretStorage) {
+            const hasInheritedKey = await this.checkEmbeddingKeyAvailable(plugin);
+
+            if (hasInheritedKey) {
+                // Key available via inheritance chain — show green status like Audio does
+                const providerName = plugin.settings.embeddingProvider.charAt(0).toUpperCase()
+                    + plugin.settings.embeddingProvider.slice(1);
+                const statusEl = sectionEl.createDiv({ cls: 'ai-organiser-settings-status' });
+                statusEl.createEl('span', {
+                    text: `Using your ${providerName} API key`,
+                    cls: 'ai-organiser-status-success'
+                });
+            } else {
+                // No key found anywhere in the chain — show input field
                 this.renderApiKeyField({
                     name: t.settings.semanticSearch.embeddingApiKey.name,
                     desc: t.settings.semanticSearch.embeddingApiKey.description,
@@ -129,49 +141,6 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                         plugin.settings.embeddingApiKey = value;
                         await plugin.saveSettings();
                     }
-                });
-            } else {
-                const inferredKey = this.getDefaultEmbeddingApiKey(plugin.settings.embeddingProvider, plugin);
-                const hasInferredKey = inferredKey && !plugin.settings.embeddingApiKey;
-
-                // Build description - note if using main API key
-                let keyDesc = t.settings.semanticSearch.embeddingApiKey.description;
-                if (hasInferredKey && plugin.settings.embeddingProvider === plugin.settings.cloudServiceType) {
-                    keyDesc += ' (Using main LLM API key)';
-                }
-
-                const settingEl = new Setting(sectionEl)
-                    .setName(t.settings.semanticSearch.embeddingApiKey.name)
-                    .setDesc(keyDesc);
-
-                // If we can infer from main API key and same provider, show indicator
-                if (hasInferredKey) {
-                    settingEl.addButton(btn => btn
-                        .setButtonText('Use main API key')
-                        .setTooltip('Copy from main LLM settings')
-                        .onClick(async () => {
-                            plugin.settings.embeddingApiKey = inferredKey;
-                            await plugin.saveSettings();
-                            this.display(); // Refresh
-                        }));
-                }
-
-                settingEl.addText(text => {
-                    const displayKey = plugin.settings.embeddingApiKey || '';
-                    const maskedKey = displayKey && displayKey.length > 6
-                        ? displayKey.substring(0, 6) + '*'.repeat(Math.min(20, displayKey.length - 6))
-                        : displayKey;
-
-                    text.setPlaceholder(hasInferredKey ? '(using main API key)' : 'sk-...')
-                        .setValue(maskedKey)
-                        .onChange(async (value) => {
-                            // Only update if user actually typed something (not just the masked version)
-                            if (value !== maskedKey) {
-                                plugin.settings.embeddingApiKey = value;
-                                await plugin.saveSettings();
-                            }
-                        });
-                    text.inputEl.type = 'password';
                 });
             }
         }
@@ -380,5 +349,37 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             || providerKey
             || plugin.settings.cloudApiKey
             || '';
+    }
+
+    /**
+     * Check if any key in the embedding API key inheritance chain is available.
+     * Mirrors the runtime resolution in main.ts resolveEmbeddingApiKey().
+     * Chain: dedicated embedding secret → provider secret → main cloud secret → plaintext settings
+     */
+    private async checkEmbeddingKeyAvailable(plugin: AIOrganiserPlugin): Promise<boolean> {
+        const secretStorage = plugin.secretStorageService;
+        const provider = plugin.settings.embeddingProvider;
+
+        if (secretStorage.isAvailable()) {
+            // 1. Dedicated embedding secret
+            if (await secretStorage.hasSecret(PLUGIN_SECRET_IDS.EMBEDDING)) return true;
+
+            // 2. Provider-specific secret (e.g., OpenAI key used for embeddings)
+            const providerSecretId = EMBEDDING_PROVIDER_TO_SECRET_ID[provider as keyof typeof EMBEDDING_PROVIDER_TO_SECRET_ID];
+            if (providerSecretId && await secretStorage.hasSecret(providerSecretId)) return true;
+
+            // 3. Main cloud provider secret
+            const mainProvider = plugin.settings.cloudServiceType;
+            const mainSecretId = PROVIDER_TO_SECRET_ID[mainProvider as keyof typeof PROVIDER_TO_SECRET_ID];
+            if (mainSecretId && await secretStorage.hasSecret(mainSecretId)) return true;
+        }
+
+        // 4. Plaintext fallback chain
+        if (plugin.settings.embeddingApiKey) return true;
+        const providerKey = plugin.settings.providerSettings?.[provider as keyof typeof plugin.settings.providerSettings]?.apiKey;
+        if (providerKey) return true;
+        if (plugin.settings.cloudApiKey) return true;
+
+        return false;
     }
 }

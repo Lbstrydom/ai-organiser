@@ -314,7 +314,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // Register tag network view
         this.registerView(
             TAG_NETWORK_VIEW_TYPE,
-            (leaf) => new TagNetworkView(leaf, this.tagNetworkManager.getNetworkData())
+            (leaf) => new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles())
         );
 
         // Register related notes view
@@ -402,7 +402,11 @@ export default class AIOrganiserPlugin extends Plugin {
 
             let leaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
 
-            if (!leaf) {
+            if (leaf) {
+                // Leaf exists — push fresh data and re-render
+                const view = leaf.view as TagNetworkView;
+                view.updateNetworkData(networkData);
+            } else {
                 const newLeaf = await this.app.workspace.getRightLeaf(false);
                 if (!newLeaf) {
                     throw new Error('Failed to create new workspace leaf');

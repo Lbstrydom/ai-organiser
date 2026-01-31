@@ -38,7 +38,14 @@ export const zhCN: Translations = {
             debugModeDesc: "启用调试模式以获取详细日志信息",
             debugEnabled: "调试模式已启用",
             debugDisabled: "调试模式已禁用",
-            tipsPopularTools: "流行工具提示"
+            tipsPopularTools: "流行工具提示",
+            providerCapabilities: {
+                title: "部分功能需要额外的 API 密钥：",
+                youtube: "YouTube 处理需要 Gemini 密钥",
+                audio: "音频转录需要 OpenAI 或 Groq 密钥",
+                pdf: "PDF 处理需要 Claude 或 Gemini 密钥",
+                embeddings: "语义搜索 — Claude 没有嵌入 API，请使用 Voyage AI 或其他提供商"
+            }
         },
         tagging: {
             title: "标签设置",
@@ -232,7 +239,7 @@ export const zhCN: Translations = {
             title: "Obsidian Bases 集成",
             description: "为 Obsidian Bases 仪表板配置结构化元数据。这些设置控制 AI Organiser 如何向您的笔记添加元数据属性。",
             enableStructuredMetadata: "启用结构化元数据",
-            enableStructuredMetadataDesc: "在 AI 处理期间向笔记添加 aio_* 元数据属性",
+            enableStructuredMetadataDesc: "在 AI 处理期间向笔记添加结构化元数据属性（summary、status、type 等）",
             includeModelInMetadata: "包含模型信息",
             includeModelInMetadataDesc: "记录使用的 AI 模型",
             autoDetectContentType: "自动检测内容类型",
@@ -477,7 +484,8 @@ export const zhCN: Translations = {
         ensureNoteStructure: "添加 References 和 Pending Integration 章节",
         quickAddTextPending: "快速添加：文本到待处理集成",
         quickAddUrlPending: "快速添加：URL 到待处理集成",
-        dropSelectionPending: "将选中内容放入待处理集成"
+        dropSelectionPending: "将选中内容放入待处理集成",
+        recordAudio: "录制音频"
     },
 
     // 消息和通知
@@ -1052,7 +1060,7 @@ export const zhCN: Translations = {
             optionsTitle: "迁移选项",
             overwriteExisting: "覆盖现有元数据",
             extractSummary: "从笔记内容中提取摘要",
-            optionsInfo: "迁移将向笔记的 frontmatter 添加 aio_* 元数据属性。现有标签和内容将被保留。",
+            optionsInfo: "迁移将向笔记的 frontmatter 添加元数据属性。现有标签和内容将被保留。",
             startMigration: "开始迁移",
             progressTitle: "迁移进行中",
             starting: "正在开始迁移...",
@@ -1429,5 +1437,34 @@ export const zhCN: Translations = {
         writingManifest: "正在写入清单...",
         exportComplete: "导出完成！",
         cancelButton: "取消"
+    },
+    recording: {
+        title: "录制音频",
+        record: "录制",
+        stop: "停止",
+        play: "播放",
+        save: "保存",
+        discard: "丢弃",
+        recording: "录制中...",
+        transcribing: "转录中...",
+        saved: "录音已保存",
+        savedAndTranscribed: "录音已保存并转录",
+        insertAtCursor: "在光标处插入转录文本",
+        createNewNote: "创建新笔记",
+        embedAudio: "在笔记中嵌入音频文件",
+        autoTranscribe: "录制后自动转录",
+        notSupported: "此环境不支持音频录制",
+        noSupportedFormat: "未找到支持的音频录制格式",
+        micPermissionDenied: "麦克风访问被拒绝。请检查权限。",
+        tooLargeForAutoTranscribe: "录音超过 25 MB — 请在桌面端使用 FFmpeg 转录。",
+        noEditorAvailable: "没有活动编辑器 — 将创建新笔记",
+        maxRecordingTime: "自动转录最长约 {minutes} 分钟",
+        confirmDiscard: "录制进行中。保存还是丢弃？",
+        confirmDiscardStopped: "您有未保存的录音。保存还是丢弃？",
+        settingsAutoTranscribe: "自动转录录音",
+        settingsAutoTranscribeDesc: "自动转录 25 MB 以下的录音",
+        settingsEmbed: "在笔记中嵌入音频",
+        settingsEmbedDesc: "在转录文本旁包含音频文件链接",
+        settingsInfo: "录音保存至 AI-Organiser/Recordings/"
     }
 };

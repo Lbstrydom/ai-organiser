@@ -207,6 +207,13 @@ export function buildCommandCategories(
                     icon: 'file-output',
                     aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint'],
                     callback: () => executeCommand('ai-organiser:export-note')
+                },
+                {
+                    id: 'record-audio',
+                    name: t.commands?.recordAudio || 'Record Audio',
+                    icon: 'mic',
+                    aliases: ['record', 'voice', 'dictate', 'audio', 'microphone', 'memo'],
+                    callback: () => executeCommand('ai-organiser:record-audio')
                 }
             ]
         },

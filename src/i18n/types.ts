@@ -26,6 +26,13 @@ export interface Translations {
             debugEnabled: string;
             debugDisabled: string;
             tipsPopularTools: string;
+            providerCapabilities: {
+                title: string;
+                youtube: string;
+                audio: string;
+                pdf: string;
+                embeddings: string;
+            };
         };
         tagging: {
             title: string;
@@ -465,6 +472,7 @@ export interface Translations {
         quickAddTextPending: string;
         quickAddUrlPending: string;
         dropSelectionPending: string;
+        recordAudio: string;
     };
 
     // Messages and notifications
@@ -1425,5 +1433,34 @@ export interface Translations {
         writingManifest: string;
         exportComplete: string;
         cancelButton: string;
+    };
+    recording: {
+        title: string;
+        record: string;
+        stop: string;
+        play: string;
+        save: string;
+        discard: string;
+        recording: string;
+        transcribing: string;
+        saved: string;
+        savedAndTranscribed: string;
+        insertAtCursor: string;
+        createNewNote: string;
+        embedAudio: string;
+        autoTranscribe: string;
+        notSupported: string;
+        noSupportedFormat: string;
+        micPermissionDenied: string;
+        tooLargeForAutoTranscribe: string;
+        noEditorAvailable: string;
+        maxRecordingTime: string;
+        confirmDiscard: string;
+        confirmDiscardStopped: string;
+        settingsAutoTranscribe: string;
+        settingsAutoTranscribeDesc: string;
+        settingsEmbed: string;
+        settingsEmbedDesc: string;
+        settingsInfo: string;
     };
 }

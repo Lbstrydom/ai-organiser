@@ -433,14 +433,14 @@ export const DEFAULT_BASES_TEMPLATES: BasesTemplate[] = [
         content: `---
 name: Notes Dashboard
 description: AI-processed notes with summaries and metadata
-filters: 'property.aio_status == "processed"'
+filters: 'property.status == "processed"'
 columns:
   - property.name
-  - property.aio_summary
-  - property.aio_persona
-  - property.aio_type
+  - property.summary
+  - property.persona
+  - property.type
   - property.tags
-  - property.aio_processed`
+  - property.processed`
     }
 ];
 
@@ -1462,14 +1462,14 @@ The YAML content follows Obsidian Bases format with filters, columns, sorting, a
 - \`name\` - Note file name
 - \`tags\` - Note tags
 - \`created\` - Creation date
-- \`{aio_summary}\` - AI-generated summary
-- \`{aio_status}\` - Processing status (pending/processed/error)
-- \`{aio_type}\` - Content type (note/research/meeting/project/reference)
-- \`{aio_processed}\` - Processing timestamp
-- \`{aio_source}\` - Source type (url/pdf/youtube/audio)
-- \`{aio_source_url}\` - Original source URL
-- \`{aio_persona}\` - Summary persona used
-- \`{aio_model}\` - AI model used
+- \`{summary}\` - AI-generated summary
+- \`{status}\` - Processing status (pending/processed/error)
+- \`{type}\` - Content type (note/research/meeting/project/reference)
+- \`{processed}\` - Processing timestamp
+- \`{source}\` - Source type (url/pdf/youtube/audio)
+- \`{source_url}\` - Original source URL
+- \`{persona}\` - Summary persona used
+- \`{model}\` - AI model used
 
 ### Filter Operators
 

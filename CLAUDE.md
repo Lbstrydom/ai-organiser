@@ -178,7 +178,7 @@ Commands registered in `src/commands/`:
 - `clearCommands.ts`: Clear tags from notes/folders/vault
 - `predefinedTagsCommands.ts`: Assign predefined tags
 - `utilityCommands.ts`: Collect tags, show network visualization
-- `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
+- `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization + audio recording command
 - `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
 - `integrationCommands.ts`: Pending content integration with placement/format/detail strategies
@@ -263,7 +263,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (848 tests, 37 suites)
+npm test              # Run Vitest unit tests (874 tests, 39 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -479,11 +479,11 @@ Configuration        ← Advanced config
 
 **Command picker categories** (`CommandPickerModal.ts`):
 ```
-Create    ← Capture content (summarize URL, YouTube, audio)
+Create    ← Capture content (summarize URL, YouTube, audio, record audio)
 Enhance   ← Improve existing (rewrite, translate, diagram)
 Organize  ← Structure content (tag, clear tags)
-Search    ← Discover (related notes, semantic search)
-Analyze   ← Insights (tag network, vault stats)
+Discover  ← Find content (related notes, semantic search, vault chat)
+Integrate ← External tools (pending integration, NotebookLM)
 ```
 
 **Modal sections:**
@@ -717,6 +717,60 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Audio Recording
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+In-plugin audio recording using MediaRecorder API. Works on desktop and mobile (iOS/Android). Records voice notes, meeting audio, or dictation without leaving Obsidian. Recordings flow into the existing transcription pipeline.
+
+### Core Components
+
+**AudioRecordingService** (`src/services/audioRecordingService.ts`):
+- `isRecordingSupported()`: Feature detection for getUserMedia + MediaRecorder
+- `selectMime()`: Negotiate best mime type (`audio/mp4` → `audio/webm;codecs=opus` → fallbacks)
+- `mapMimeToExtension()`: Fallback when `isTypeSupported` is unreliable
+- `getMaxRecordingMinutes()`: Calculate max time from bitrate (64kbps → ~52 min under 25MB)
+- `AudioRecordingService` class: Start/stop recording, actual chunk size tracking via 1-second timeslice
+- `RECORDING_BITRATE = 64000` (64kbps, sufficient for speech)
+
+**AudioRecorderModal** (`src/ui/modals/AudioRecorderModal.ts`):
+- States: idle → recording → stopped → saving → transcribing → done
+- Live timer + actual recorded size display
+- Output choice: Insert at cursor or Create new note
+- Embed audio toggle, auto-transcribe toggle
+- Platform-aware: Uses `transcribeAudio()` directly (no FFmpeg dependency on mobile)
+- Close safety: Auto-saves recording on accidental modal close
+
+**RecorderOptions interface**:
+```typescript
+interface RecorderOptions {
+    mode: 'standalone' | 'minutes' | 'multi-source';
+    onComplete?: (result: RecordingResult) => void;
+    transcriptionLanguage?: string;
+}
+```
+
+### Integration Points
+
+- **Standalone command**: `record-audio` in Command Picker Create category
+- **Minutes modal**: Record button rendered OUTSIDE `!Platform.isMobile` gate, transcript appended via callback
+- **Multi-Source modal**: Record button in BOTH `renderSourceSection()` AND `renderSectionContent()` (survives rerenders)
+- **Settings**: `autoTranscribeRecordings` (default: true), `embedAudioInNote` (default: true) in Audio Transcription section
+- **Recordings folder**: `AI-Organiser/Recordings/` (auto-excluded from tagging)
+
+### Mobile Safeguards
+
+1. Feature detection gates all record buttons
+2. Mime negotiation: `audio/mp4` first (iOS native), fallback path for unreliable `isTypeSupported`
+3. Actual size tracking via 1-second timeslice chunks (not fixed estimate)
+4. Direct `transcribeAudio()` on mobile (no FFmpeg dependency)
+5. Size guard: Auto-transcribe only if ≤ 25MB
+6. 64kbps bitrate: ~52 min under 25MB limit
+7. Max time label shown when auto-transcribe enabled
+8. Close safety: Never silently discards recorded data
 
 ## Meeting Minutes Generation
 

@@ -38,7 +38,14 @@ export const en: Translations = {
             debugModeDesc: "Show detailed logs in console",
             debugEnabled: "Debug on",
             debugDisabled: "Debug off",
-            tipsPopularTools: "Setup Tips"
+            tipsPopularTools: "Setup Tips",
+            providerCapabilities: {
+                title: "Some features need additional API keys:",
+                youtube: "YouTube processing requires a Gemini key",
+                audio: "Audio transcription requires an OpenAI or Groq key",
+                pdf: "PDF processing requires a Claude or Gemini key",
+                embeddings: "Semantic search — Claude has no embedding API, use Voyage AI or another provider"
+            }
         },
         tagging: {
             title: "Tagging",
@@ -256,7 +263,7 @@ export const en: Translations = {
             title: "Obsidian Bases Integration",
             description: "Configure structured metadata for Obsidian Bases dashboards. These settings control how AI Organiser adds metadata properties to your notes.",
             enableStructuredMetadata: "Enable structured metadata",
-            enableStructuredMetadataDesc: "Add aio_* metadata properties to notes during AI processing",
+            enableStructuredMetadataDesc: "Add structured metadata properties (summary, status, type, etc.) to notes during AI processing",
             includeModelInMetadata: "Include model information",
             includeModelInMetadataDesc: "Record which AI model was used for processing",
             autoDetectContentType: "Auto-detect content type",
@@ -477,7 +484,8 @@ export const en: Translations = {
         ensureNoteStructure: "Add References and Pending Integration sections",
         quickAddTextPending: "Quick add: Text to Pending Integration",
         quickAddUrlPending: "Quick add: URL to Pending Integration",
-        dropSelectionPending: "Drop selection to Pending Integration"
+        dropSelectionPending: "Drop selection to Pending Integration",
+        recordAudio: "Record Audio"
     },
 
     // Messages and notifications
@@ -1052,7 +1060,7 @@ export const en: Translations = {
             optionsTitle: "Migration Options",
             overwriteExisting: "Overwrite existing metadata",
             extractSummary: "Extract summaries from note content",
-            optionsInfo: "Migration will add aio_* metadata properties to your notes' frontmatter. Existing tags and content will be preserved.",
+            optionsInfo: "Migration will add metadata properties to your notes' frontmatter. Existing tags and content will be preserved.",
             startMigration: "Start Migration",
             progressTitle: "Migration in Progress",
             starting: "Starting migration...",
@@ -1429,5 +1437,34 @@ export const en: Translations = {
         writingManifest: "Writing manifest...",
         exportComplete: "Export complete!",
         cancelButton: "Cancel"
+    },
+    recording: {
+        title: "Record Audio",
+        record: "Record",
+        stop: "Stop",
+        play: "Play",
+        save: "Save",
+        discard: "Discard",
+        recording: "Recording...",
+        transcribing: "Transcribing...",
+        saved: "Recording saved",
+        savedAndTranscribed: "Recording saved and transcribed",
+        insertAtCursor: "Insert transcript at cursor",
+        createNewNote: "Create new note",
+        embedAudio: "Embed audio file in note",
+        autoTranscribe: "Auto-transcribe after recording",
+        notSupported: "Audio recording not supported in this environment",
+        noSupportedFormat: "No supported audio recording format found",
+        micPermissionDenied: "Microphone access denied. Check permissions.",
+        tooLargeForAutoTranscribe: "Recording exceeds 25 MB — transcribe on desktop with FFmpeg.",
+        noEditorAvailable: "No active editor — will create a new note instead",
+        maxRecordingTime: "Max ~{minutes} min for auto-transcription",
+        confirmDiscard: "Recording in progress. Save or discard?",
+        confirmDiscardStopped: "You have an unsaved recording. Save or discard?",
+        settingsAutoTranscribe: "Auto-transcribe recordings",
+        settingsAutoTranscribeDesc: "Automatically transcribe recordings under 25 MB",
+        settingsEmbed: "Embed audio in note",
+        settingsEmbedDesc: "Include audio file link in note alongside transcript",
+        settingsInfo: "Recordings saved to AI-Organiser/Recordings/"
     }
 };

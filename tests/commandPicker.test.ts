@@ -60,6 +60,7 @@ function createMockTranslations(): Translations {
             notebookLMToggle: 'NotebookLM: Toggle Selection',
             notebookLMClear: 'NotebookLM: Clear Selection',
             notebookLMOpenFolder: 'NotebookLM: Open Export Folder',
+            recordAudio: 'Record Audio',
         },
         modals: {
             commandPicker: {
@@ -128,6 +129,7 @@ describe('Command Picker', () => {
                 expect(commandIds).toContain('smart-summarize');
                 expect(commandIds).toContain('create-meeting-minutes');
                 expect(commandIds).toContain('export-note');
+                expect(commandIds).toContain('record-audio');
             });
         });
 

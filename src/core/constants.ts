@@ -103,3 +103,6 @@ export type DetailStrategy = 'full' | 'concise' | 'summary';
 export const DEFAULT_PLACEMENT_STRATEGY: PlacementStrategy = 'cursor';
 export const DEFAULT_FORMAT_STRATEGY: FormatStrategy = 'prose';
 export const DEFAULT_DETAIL_STRATEGY: DetailStrategy = 'full';
+
+// Recording defaults
+export const DEFAULT_RECORDING_FOLDER = 'Recordings';

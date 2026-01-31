@@ -199,7 +199,7 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 Commands registered in `src/commands/`:
 - `generateCommands.ts`: Tag generation for notes/folders/vault
 - `clearCommands.ts`: Clear tags from notes/folders/vault
-- `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization
+- `summarizeCommands.ts`: URL/PDF/YouTube/Audio summarization + audio recording command
 - `translateCommands.ts`: Note, selection, and multi-source translation
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
 - `integrationCommands.ts`: Pending content integration with placement/format/detail strategies
@@ -440,11 +440,11 @@ AI Provider → Tagging → Summarization (with YouTube/Audio subsections) → M
 
 **Command Picker Categories** (`CommandPickerModal.ts`):
 ```
-Create   ← Capture (summarize URL, YouTube, audio)
+Create   ← Capture (summarize URL, YouTube, audio, record audio)
 Enhance  ← Improve (rewrite, translate, diagram)
 Organize ← Structure (tag, clear tags)
-Search   ← Discover (related notes)
-Analyze  ← Insights (tag network)
+Discover ← Find content (related notes, vault chat)
+Integrate← External tools (pending integration, NotebookLM)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last
@@ -628,6 +628,25 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Audio Recording
+
+**Status**: ✅ Implemented (January 2026)
+
+In-plugin audio recording using MediaRecorder API. Works on desktop and mobile (iOS/Android).
+
+**Core Components**:
+- `src/services/audioRecordingService.ts`: MediaRecorder wrapper, mime negotiation (`audio/mp4` → `audio/webm;codecs=opus` → fallbacks), actual chunk size tracking via 1-second timeslice, 64kbps bitrate
+- `src/ui/modals/AudioRecorderModal.ts`: Recording modal with states (idle → recording → stopped → saving → transcribing → done), platform-aware transcription, close safety
+
+**Integration Points**:
+- Standalone `record-audio` command in Command Picker Create category
+- Minutes modal: Record button rendered OUTSIDE `!Platform.isMobile` gate
+- Multi-Source modal: Record button in BOTH render paths via shared helper (survives rerenders)
+- Settings: `autoTranscribeRecordings`, `embedAudioInNote` in Audio Transcription section
+- Recordings saved to `AI-Organiser/Recordings/`
+
+**Mobile Safeguards**: Feature detection, mime negotiation with fallback, actual size tracking (not estimate), direct `transcribeAudio()` (no FFmpeg), 64kbps bitrate (~52 min under 25MB), close safety (auto-save).
 
 ## Meeting Minutes Generation
 

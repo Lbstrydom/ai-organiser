@@ -13,6 +13,8 @@ import { App, Modal, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { Persona } from '../../services/configurationService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
+import { isRecordingSupported } from '../../services/audioRecordingService';
+import { AudioRecorderModal } from './AudioRecorderModal';
 import {
     DetectedSource,
     DetectedSources,
@@ -336,6 +338,11 @@ export class MultiSourceModal extends Modal {
             });
         }
 
+        // Record button for audio section (renders on all platforms)
+        if (config.type === 'audio') {
+            this.renderAudioRecordButton(header);
+        }
+
         // Items container
         const itemsContainer = section.createDiv({ cls: 'ai-organiser-multi-source-items' });
 
@@ -601,6 +608,11 @@ export class MultiSourceModal extends Modal {
             });
         }
 
+        // Record button for audio section (survives rerenderSection)
+        if (config.type === 'audio') {
+            this.renderAudioRecordButton(header);
+        }
+
         // Items container
         const itemsContainer = section.createDiv({ cls: 'ai-organiser-multi-source-items' });
 
@@ -700,6 +712,30 @@ export class MultiSourceModal extends Modal {
             case 'audio': return this.selectedAudio.has(value);
             default: return false;
         }
+    }
+
+    /**
+     * Add record button to audio section header.
+     * Called from both renderSourceSection() and renderSectionContent() to survive rerenders.
+     */
+    private renderAudioRecordButton(header: HTMLElement): void {
+        if (!isRecordingSupported()) return;
+
+        const recordBtn = header.createEl('button', {
+            cls: 'ai-organiser-multi-source-record-btn clickable-icon',
+            attr: { 'aria-label': 'Record audio' }
+        });
+        setIcon(recordBtn, 'mic');
+        recordBtn.addEventListener('click', () => {
+            new AudioRecorderModal(this.app, this.plugin, {
+                mode: 'multi-source',
+                onComplete: (result) => {
+                    this.manualAudio.push(result.file.path);
+                    this.selectSource('audio', result.file.path, true);
+                    this.rerenderSection({ type: 'audio' } as SourceSection);
+                }
+            }).open();
+        });
     }
 
     private selectSource(type: string, value: string, selected: boolean): void {

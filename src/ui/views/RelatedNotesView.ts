@@ -3,7 +3,7 @@
  * Sidebar panel showing notes semantically similar to the current note
  */
 
-import { ItemView, TFile, WorkspaceLeaf, Menu, MarkdownView, Notice } from 'obsidian';
+import { ItemView, TFile, WorkspaceLeaf, Menu, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
 import { SearchResult } from '../../services/vector/types';
@@ -67,7 +67,7 @@ export class RelatedNotesView extends ItemView {
         container.addClass('related-notes-view-container');
 
         // Header
-        this.renderHeader(container as HTMLElement);
+        this.renderHeader(container);
 
         // Result container
         this.resultContainer = container.createEl('div', { cls: 'related-notes-results' });
@@ -89,7 +89,7 @@ export class RelatedNotesView extends ItemView {
     private renderHeader(container: HTMLElement): void {
         const header = container.createEl('div', { cls: 'related-notes-header' });
 
-        const title = header.createEl('h3', { text: 'Related Notes', cls: 'related-notes-title' });
+        header.createEl('h3', { text: 'Related Notes', cls: 'related-notes-title' });
 
         const controls = header.createEl('div', { cls: 'related-notes-controls' });
 
@@ -306,10 +306,11 @@ export class RelatedNotesView extends ItemView {
                 this.openNote(result.document.filePath);
             });
 
-            // Related badge (no fake similarity score)
+            // Similarity badge color-coded by score
+            const { cls: scoreClass, label: scoreLabel } = this.getScoreBadge(result.score);
             itemEl.createEl('span', {
-                cls: 'related-notes-score',
-                text: 'Related'
+                cls: `related-notes-score ${scoreClass}`,
+                text: scoreLabel
             });
 
             // Preview (optional)
@@ -346,37 +347,45 @@ export class RelatedNotesView extends ItemView {
         const popup = document.createElement('div');
         popup.className = 'related-notes-popup';
 
-        // Title
-        const titleEl = popup.createEl('strong', {
+        popup.createEl('strong', {
             text: result.document.metadata.title || 'No title',
             cls: 'popup-title'
         });
 
-        // File path
-        const pathEl = popup.createEl('small', {
+        popup.createEl('small', {
             text: result.document.filePath,
             cls: 'popup-path'
         });
 
-        // Preview text (first 150 chars)
         const previewText = result.document.content.substring(0, 150).trim();
-        const previewEl = popup.createEl('p', {
+        popup.createEl('p', {
             text: previewText + (previewText.length === 150 ? '...' : ''),
             cls: 'popup-preview'
         });
 
-        // Position popup near item
-        const rect = itemEl.getBoundingClientRect();
-        popup.style.position = 'fixed';
-        popup.style.top = rect.top + 'px';
-        popup.style.left = rect.right + 10 + 'px';
-        popup.style.zIndex = '1000';
-
+        // Position popup near item, flipping left if near right edge
         document.body.appendChild(popup);
+        const rect = itemEl.getBoundingClientRect();
+        const popupWidth = popup.offsetWidth || 300;
+        const spaceRight = window.innerWidth - rect.right;
+        const left = spaceRight > popupWidth + 20
+            ? rect.right + 10
+            : rect.left - popupWidth - 10;
+
+        popup.style.position = 'fixed';
+        popup.style.top = `${Math.max(0, rect.top)}px`;
+        popup.style.left = `${Math.max(0, left)}px`;
+        popup.style.zIndex = '1000';
     }
 
     private hidePreviewPopup(): void {
         document.querySelectorAll('.related-notes-popup').forEach(el => el.remove());
+    }
+
+    private getScoreBadge(score: number): { cls: string; label: string } {
+        if (score >= 0.8) return { cls: 'score-excellent', label: 'Excellent' };
+        if (score >= 0.6) return { cls: 'score-good', label: 'Good' };
+        return { cls: 'score-fair', label: 'Fair' };
     }
 
     private async openNote(filePath: string): Promise<void> {
@@ -395,14 +404,14 @@ export class RelatedNotesView extends ItemView {
             lines.push('## Related Notes\n');
             for (const result of this.state.results) {
                 const fileName = result.document.filePath.split('/').pop()?.replace('.md', '') || 'Untitled';
-                lines.push(`- [[${result.document.filePath}|${fileName}]] (related)`);
+                const { label } = this.getScoreBadge(result.score);
+                lines.push(`- [[${result.document.filePath}|${fileName}]] (${label.toLowerCase()})`);
             }
         }
 
         const markdown = lines.join('\n');
         navigator.clipboard.writeText(markdown).then(() => {
-            const plugin = (this.app as any).plugins.plugins['ai-organiser'];
-            const t = plugin?.t?.messages;
+            const t = this.plugin.t?.messages;
             new Notice(t?.relatedNotesCopiedToClipboard || 'Related notes copied to clipboard');
         });
     }
@@ -412,8 +421,7 @@ export class RelatedNotesView extends ItemView {
         this.state.currentFilePath = undefined;
         this.state.error = undefined;
         this.renderEmptyState();
-        const plugin = (this.app as any).plugins.plugins['ai-organiser'];
-        const t = plugin?.t?.messages;
+        const t = this.plugin.t?.messages;
         new Notice(t?.cacheClearedSuccessfully || 'Cache cleared');
     }
 
