@@ -139,6 +139,20 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
                 });
             });
 
+        new Setting(this.containerEl)
+            .setName(tr?.settingsQuality || 'Recording quality')
+            .setDesc(tr?.settingsQualityDesc || 'Speech optimized saves space (~52 min). High quality for music or detailed audio (~26 min).')
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('speech', tr?.qualitySpeech || 'Speech optimized (64 kbps)')
+                    .addOption('high', tr?.qualityHigh || 'High quality (128 kbps)')
+                    .setValue(this.plugin.settings.recordingQuality || 'speech')
+                    .onChange(async (value) => {
+                        this.plugin.settings.recordingQuality = value as 'speech' | 'high';
+                        await this.plugin.saveSettings();
+                    });
+            });
+
         const recordingInfoEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
         recordingInfoEl.textContent = tr?.settingsInfo || 'Recordings saved to AI-Organiser/Recordings/';
     }

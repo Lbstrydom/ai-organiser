@@ -3719,6 +3719,18 @@
     padding: 16px 0;
 }
 
+.ai-organiser-audio-recorder-name-row {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+}
+
+.ai-organiser-audio-recorder-filename {
+    width: 80%;
+    max-width: 300px;
+    text-align: center;
+}
+
 .ai-organiser-audio-recorder-status {
     text-align: center;
     color: var(--text-muted);

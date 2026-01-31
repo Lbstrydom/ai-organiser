@@ -6,8 +6,15 @@
 
 import { MAX_FILE_SIZE_BYTES } from './audioTranscriptionService';
 
-/** Bitrate for speech recording — 64kbps is sufficient and maximizes recording time under 25MB */
-export const RECORDING_BITRATE = 64000;
+/** Bitrate presets for recording quality */
+export const RECORDING_BITRATES = {
+    speech: 64000,   // ~52 min under 25MB — sufficient for voice
+    high: 128000,    // ~26 min under 25MB — music or detailed audio
+} as const;
+export type RecordingQuality = keyof typeof RECORDING_BITRATES;
+
+/** @deprecated Use RECORDING_BITRATES.speech instead */
+export const RECORDING_BITRATE = RECORDING_BITRATES.speech;
 
 export interface MimeSelection {
     mimeType: string;    // e.g. 'audio/mp4', 'audio/webm;codecs=opus'
@@ -58,11 +65,11 @@ export function selectMime(): MimeSelection | null {
 }
 
 /**
- * Calculate max recording minutes before hitting Whisper file size limit.
- * Based on configured bitrate.
+ * Calculate approximate max recording minutes before hitting Whisper file size limit.
+ * Based on target bitrate (actual duration may vary with VBR encoding).
  */
-export function getMaxRecordingMinutes(): number {
-    const bytesPerSecond = RECORDING_BITRATE / 8;
+export function getMaxRecordingMinutes(quality: RecordingQuality = 'speech'): number {
+    const bytesPerSecond = RECORDING_BITRATES[quality] / 8;
     return Math.floor(MAX_FILE_SIZE_BYTES / bytesPerSecond / 60);
 }
 
@@ -78,8 +85,9 @@ export class AudioRecordingService {
      * Start recording audio from the microphone.
      * Negotiates best mime type, with fallback to default MediaRecorder.
      * Uses 1-second timeslice for accurate size tracking.
+     * @param bitrate Target audio bitrate in bits/sec (default: 64000 for speech)
      */
-    async startRecording(): Promise<void> {
+    async startRecording(bitrate: number = RECORDING_BITRATES.speech): Promise<void> {
         if (this.mediaRecorder?.state === 'recording') {
             throw new Error('Already recording');
         }
@@ -97,12 +105,12 @@ export class AudioRecordingService {
             this.mime = negotiated;
             options = {
                 mimeType: negotiated.mimeType,
-                audioBitsPerSecond: RECORDING_BITRATE
+                audioBitsPerSecond: bitrate
             };
         } else {
             // Fallback: let browser pick default, read mimeType from instance
             options = {
-                audioBitsPerSecond: RECORDING_BITRATE
+                audioBitsPerSecond: bitrate
             };
         }
 
@@ -153,6 +161,15 @@ export class AudioRecordingService {
             this.releaseStream();
             this.mediaRecorder = null;
             throw err;
+        }
+
+        // Some browsers only populate mimeType after start().
+        // Use it as a secondary truth source if we don't have one yet.
+        if (this.mediaRecorder.mimeType && this.mime.mimeType !== this.mediaRecorder.mimeType) {
+            this.mime = {
+                mimeType: this.mediaRecorder.mimeType,
+                extension: mapMimeToExtension(this.mediaRecorder.mimeType)
+            };
         }
     }
 

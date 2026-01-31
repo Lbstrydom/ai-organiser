@@ -1463,5 +1463,10 @@ export interface Translations {
         settingsEmbed: string;
         settingsEmbedDesc: string;
         settingsInfo: string;
+        filenamePlaceholder: string;
+        settingsQuality: string;
+        settingsQualityDesc: string;
+        qualitySpeech: string;
+        qualityHigh: string;
     };
 }

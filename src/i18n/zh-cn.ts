@@ -1466,6 +1466,11 @@ export const zhCN: Translations = {
         settingsAutoTranscribeDesc: "自动转录 25 MB 以下的录音",
         settingsEmbed: "在笔记中嵌入音频",
         settingsEmbedDesc: "在转录文本旁包含音频文件链接",
-        settingsInfo: "录音保存至 AI-Organiser/Recordings/"
+        settingsInfo: "录音保存至 AI-Organiser/Recordings/",
+        filenamePlaceholder: "录音名称（可选）",
+        settingsQuality: "录音质量",
+        settingsQualityDesc: "语音优化节省空间（约52分钟）。高质量适用于音乐或详细音频（约26分钟）。",
+        qualitySpeech: "语音优化 (64 kbps)",
+        qualityHigh: "高质量 (128 kbps)"
     }
 };

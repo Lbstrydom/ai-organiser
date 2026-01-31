@@ -1466,6 +1466,11 @@ export const en: Translations = {
         settingsAutoTranscribeDesc: "Automatically transcribe recordings under 25 MB",
         settingsEmbed: "Embed audio in note",
         settingsEmbedDesc: "Include audio file link in note alongside transcript",
-        settingsInfo: "Recordings saved to AI-Organiser/Recordings/"
+        settingsInfo: "Recordings saved to AI-Organiser/Recordings/",
+        filenamePlaceholder: "Recording name (optional)",
+        settingsQuality: "Recording quality",
+        settingsQualityDesc: "Speech optimized saves space (~52 min). High quality for music or detailed audio (~26 min).",
+        qualitySpeech: "Speech optimized (64 kbps)",
+        qualityHigh: "High quality (128 kbps)"
     }
 };

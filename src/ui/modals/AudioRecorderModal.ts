@@ -11,11 +11,12 @@ import {
     isRecordingSupported,
     selectMime,
     getMaxRecordingMinutes,
-    RECORDING_BITRATE
+    RECORDING_BITRATES,
+    type RecordingQuality
 } from '../../services/audioRecordingService';
 import { MAX_FILE_SIZE_BYTES, transcribeAudio } from '../../services/audioTranscriptionService';
 import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
-import { ensureFolderExists } from '../../utils/minutesUtils';
+import { ensureFolderExists, sanitizeFileName, getAvailableFilePath } from '../../utils/minutesUtils';
 import { insertAtCursor } from '../../utils/editorUtils';
 import { DEFAULT_RECORDING_FOLDER } from '../../core/constants';
 import { getPluginSubfolderPath } from '../../core/settings';
@@ -53,6 +54,7 @@ export class AudioRecorderModal extends Modal {
     private autoTranscribeCheckbox: HTMLInputElement | null = null;
     private embedCheckbox: HTMLInputElement | null = null;
     private outputRadios: HTMLInputElement[] = [];
+    private filenameInput: HTMLInputElement | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin, options: RecorderOptions) {
         super(app);
@@ -95,7 +97,8 @@ export class AudioRecorderModal extends Modal {
 
         // Max time hint (mobile only, when auto-transcribe makes sense)
         if (Platform.isMobile) {
-            const maxMin = getMaxRecordingMinutes();
+            const quality: RecordingQuality = this.plugin.settings.recordingQuality || 'speech';
+            const maxMin = getMaxRecordingMinutes(quality);
             const maxTimeEl = contentEl.createDiv({ cls: 'ai-organiser-audio-recorder-max-time' });
             maxTimeEl.textContent = (t?.maxRecordingTime || 'Max ~{minutes} min for auto-transcription')
                 .replace('{minutes}', String(maxMin));
@@ -156,7 +159,22 @@ export class AudioRecorderModal extends Modal {
                 });
                 const reIcon = reRecordBtn.createSpan({ cls: 'ai-organiser-audio-recorder-btn-icon' });
                 setIcon(reIcon, 'mic');
-                reRecordBtn.addEventListener('click', () => this.startRecording());
+                reRecordBtn.addEventListener('click', () => {
+                    // Don't null filenameInput here — if startRecording() fails,
+                    // the user stays in 'stopped' state and the input must still work.
+                    // renderControls() rebuilds the DOM (including a fresh input) on success.
+                    this.startRecording();
+                });
+
+                // Filename input (standalone mode only)
+                if (this.options.mode === 'standalone') {
+                    const nameRow = this.controlsEl.createDiv({ cls: 'ai-organiser-audio-recorder-name-row' });
+                    this.filenameInput = nameRow.createEl('input', {
+                        type: 'text',
+                        placeholder: t?.filenamePlaceholder || 'Recording name (optional)',
+                        cls: 'ai-organiser-audio-recorder-filename'
+                    });
+                }
 
                 // Action buttons
                 const saveBtn = this.controlsEl.createEl('button', {
@@ -235,7 +253,8 @@ export class AudioRecorderModal extends Modal {
 
     private async startRecording(): Promise<void> {
         try {
-            await this.recorder.startRecording();
+            const quality: RecordingQuality = this.plugin.settings.recordingQuality || 'speech';
+            await this.recorder.startRecording(RECORDING_BITRATES[quality]);
             this.state = 'recording';
             this.blob = null;
             this.revokeAudioUrl();
@@ -287,12 +306,32 @@ export class AudioRecorderModal extends Modal {
         const now = new Date();
         const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
         const ext = this.recorder.getMimeSelection().extension;
-        const fileName = `recording-${timestamp}${suffix}${ext}`;
+        const defaultName = `recording-${timestamp}`;
+
+        // For autosave (emergency recovery), always use timestamp for deterministic naming.
+        // For explicit save, use custom name if provided (standalone mode).
+        const isAutosave = suffix === '-unsaved';
+        const rawName = (!isAutosave && this.filenameInput?.value.trim()) || '';
+        let baseName: string;
+        if (rawName) {
+            // Strip any user-typed extension to avoid double-extension (e.g. "meeting.webm.webm")
+            const stripped = rawName.replace(/\.[^.]+$/, '');
+            const sanitized = sanitizeFileName(stripped || rawName);
+            // Guard: if sanitization yields empty or dots-only, fall back to timestamp
+            baseName = (sanitized && !/^\.+$/.test(sanitized)) ? sanitized : defaultName;
+        } else {
+            baseName = defaultName;
+        }
+
+        const fileName = `${baseName}${suffix}${ext}`;
         const recordingFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
         await ensureFolderExists(this.app.vault, recordingFolder);
-        const filePath = `${recordingFolder}/${fileName}`;
+
+        // Resolve collisions: "Meeting.webm" → "Meeting (2).webm" if exists
+        const safePath = await getAvailableFilePath(this.app.vault, recordingFolder, fileName);
+
         const arrayBuffer = await this.blob!.arrayBuffer();
-        return this.app.vault.createBinary(filePath, arrayBuffer);
+        return this.app.vault.createBinary(safePath, arrayBuffer);
     }
 
     private async saveRecording(): Promise<void> {
@@ -413,12 +452,12 @@ export class AudioRecorderModal extends Modal {
                 insertAtCursor(editor, content);
             }
         } else {
-            // Create new note
+            // Create new note (collision-safe)
             const noteName = file.name.replace(/\.[^.]+$/, '') + '.md';
             const noteFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
-            const notePath = `${noteFolder}/${noteName}`;
-            await this.app.vault.create(notePath, content);
-            await this.app.workspace.openLinkText(notePath, '', false);
+            const safePath = await getAvailableFilePath(this.app.vault, noteFolder, noteName);
+            await this.app.vault.create(safePath, content);
+            await this.app.workspace.openLinkText(safePath, '', false);
         }
 
         this.options.onComplete?.(result);
