@@ -487,3 +487,9 @@ npm run build    # type-check + tests + i18n parity
 ```
 
 Then deploy and test manually per checklist above.
+
+## Progress
+
+- ✅ Implementation complete (feature, prompts, command, UI, tests).
+- ✅ Build + automated tests passed on 2026-01-31.
+- ⏳ Manual QA pending (see Manual Testing checklist above).
