@@ -2,11 +2,67 @@
 
 **Version:** 1.0.15
 **Last Updated:** January 31, 2026
-**Status:** Feature Complete - Highlight Chat
+**Status:** Feature Complete - Canvas Toolkit
 
 ---
 
 ## Recent Updates
+
+### Canvas Toolkit + Audit Refactor (2026-01-31)
+
+**Implementation Complete + Dual Audit Refactor (24 findings addressed)**
+
+| Part | Feature | Status |
+|------|---------|--------|
+| Phase 0 | Shared infrastructure: types, layouts, canvas utilities | Complete |
+| Phase 1 | Investigation Board — RAG-based related notes canvas with LLM edge labels | Complete |
+| Phase 2 | Context Board — embedded content visualization (YouTube, PDF, links, audio, docs) | Complete |
+| Phase 3 | Cluster Board — tag-based grouping with LLM or deterministic clustering | Complete |
+| Phase 4 | Integration: settings, i18n, Command Picker Canvas group, TagPickerModal | Complete |
+| Audit | DRY extraction (shared JSON parser, tag extractor), SOLID fixes, error codes, language support, UX | Complete |
+| Tests | 75 new tests across 7 test files (layouts, utils, prompts, boards, response parser) | Complete |
+
+**Build Status**: 953 tests passing (46 suites) + 17 integration tests
+
+**New Files Created:**
+- `src/services/canvas/types.ts` — Canvas JSON types (CanvasNode, CanvasEdge, CanvasData) + internal descriptors (NodeDescriptor, EdgeDescriptor, ClusterDescriptor) + CanvasErrorCode type
+- `src/services/canvas/layouts.ts` — Pure layout algorithms: radial, grid, adaptive, clustered + edge side computation
+- `src/services/canvas/canvasUtils.ts` — File creation, node/edge builders, ID generation, name sanitization, safety-capped path deduplication
+- `src/services/canvas/investigationBoard.ts` — Investigation Board builder with RAG + LLM edge labels + score-based fallback
+- `src/services/canvas/contextBoard.ts` — Context Board builder with embedded content detection (no LLM required)
+- `src/services/canvas/clusterBoard.ts` — Cluster Board builder with deterministic fallback (folder → subtag → chunk)
+- `src/services/prompts/canvasPrompts.ts` — Edge label + cluster prompts with language parameter
+- `src/commands/canvasCommands.ts` — Three canvas commands with error code handling, try/catch, language resolution
+- `src/ui/settings/CanvasSettingsSection.ts` — 4 settings: output folder, open after create, edge labels, LLM clustering
+- `src/ui/modals/TagPickerModal.ts` — FuzzySuggestModal for tag selection with empty-tag guard
+
+**Audit Findings Addressed:**
+1. DRY: Extracted `tryParseJson`, `tryParseJsonFromFence`, `tryParseJsonFromObject`, `tryExtractJson` into `responseParser.ts` (was duplicated in investigation + cluster boards)
+2. DRY: Extracted `extractTagsFromCache()` into `tagUtils.ts` (was in 3 files: canvasCommands, clusterBoard, sourcePackService)
+3. DRY: Extracted `getClusterColor()` helper replacing 4 inline `CLUSTER_COLORS[i % len]` usages
+4. SOLID: Removed `globalThis.app` from clusterBoard — `app` parameter threaded explicitly
+5. SOLID: Added `CanvasErrorCode` type union (`no-related-notes`, `no-sources-detected`, `no-notes-with-tag`, `creation-failed`) replacing string matching
+6. New setting: `canvasUseLLMClustering` toggle (was hardcoded `true`)
+7. Language: `buildEdgeLabelPrompt` now accepts language parameter with `<requirements>` section
+8. Language: Cluster Board uses `summaryLanguage` setting instead of hardcoded `'English'`
+9. Dead code: Removed `canvas.selectTag` i18n key
+10. UX: TagPickerModal checks tag count before opening, shows notice if empty
+11. UX: Edge labels description mentions "Investigation Board" scope
+12. Robustness: `buildCanvasEdge` warns on missing positions with `console.warn`
+13. Robustness: `getAvailableCanvasPath` has MAX_COUNTER=999 safety cap
+14. Error handling: All `withBusyIndicator` calls wrapped in try/catch
+15. Removed redundant line in `radialLayout`
+16. Removed fallback i18n strings in TagPickerModal (keys exist in both locales)
+
+**Key Files Modified:**
+- `src/utils/responseParser.ts` — 4 new generic JSON extraction exports
+- `src/utils/tagUtils.ts` — `extractTagsFromCache()` shared utility
+- `src/services/canvas/types.ts` — `CanvasErrorCode` + `errorCode` on `CanvasResult`
+- `src/commands/canvasCommands.ts` — Error codes, try/catch, shared utilities, LLM clustering setting, language
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — Canvas section, LLM clustering strings, dead key removal
+- `src/services/notebooklm/sourcePackService.ts` — Uses shared `extractTagsFromCache`
+
+---
 
 ### Highlight Chat Feature (2026-01-31)
 
@@ -812,7 +868,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 878 unit tests (40 suites)
+npm test           # Run 953 unit tests (46 suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

@@ -183,6 +183,8 @@ Commands registered in `src/commands/`:
 - `smartNoteCommands.ts`: Improve note, find resources, diagrams
 - `integrationCommands.ts`: Pending content integration with placement/format/detail strategies
 - `minutesCommands.ts`: Meeting minutes generation
+- `canvasCommands.ts`: Investigation, Context, and Cluster Board canvas generation
+- `chatCommands.ts`: Highlight chat (chat about highlights)
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 
@@ -263,7 +265,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (874 tests, 39 suites)
+npm test              # Run Vitest unit tests (953 tests, 46 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -717,6 +719,76 @@ The Bases integration enables structured metadata and dashboard generation for s
 **Smart Summarization**: Auto-detects source type based on input (URL → 'url', PDF → 'pdf', YouTube → 'youtube')
 
 **Batch Operations**: Migration service supports folder and vault-wide operations with progress tracking
+
+## Canvas Toolkit
+
+**Status**: ✅ Implemented (January 2026)
+
+### Overview
+
+Three commands that create Obsidian `.canvas` JSON files from note context, RAG results, and tag clusters. Desktop only (gated by `Platform.isMobile`).
+
+### Core Components
+
+**Canvas Types** (`src/services/canvas/types.ts`):
+- `CanvasNode`, `CanvasEdge`, `CanvasData`: Mirror Obsidian `.canvas` JSON spec
+- `NodeDescriptor`, `EdgeDescriptor`, `ClusterDescriptor`: Internal pre-layout descriptors
+- `CanvasResult` with `errorCode: CanvasErrorCode` for typed error handling
+
+**Layout Algorithms** (`src/services/canvas/layouts.ts`):
+- Pure math functions (no Obsidian imports, fully testable)
+- `radialLayout`, `gridLayout`, `adaptiveLayout` (≤12 → radial, >12 → grid), `clusteredLayout`
+- `computeEdgeSides(from, to)`: Determines edge connection sides based on relative positions
+
+**Canvas Utilities** (`src/services/canvas/canvasUtils.ts`):
+- `writeCanvasFile()`: Create `.canvas` file with auto-increment naming (safety cap: 999)
+- `buildCanvasNode()`, `buildCanvasEdge()`, `sanitizeCanvasName()`, `generateId()`
+
+### Three Board Types
+
+| Board | File | LLM | RAG | Description |
+|-------|------|-----|-----|-------------|
+| Investigation | `investigationBoard.ts` | Optional (edge labels) | Required | Related notes via RAG with radial/grid layout |
+| Context | `contextBoard.ts` | No | No | Embedded content visualization (YouTube, PDF, links, audio, docs) |
+| Cluster | `clusterBoard.ts` | Optional (clustering) | No | Tag-based grouping with deterministic fallback |
+
+**Investigation Board**: RAG → related notes → adaptive layout → optional LLM edge labels (batch call) → score-based fallback labels if LLM fails
+
+**Context Board**: `detectEmbeddedContent()` → color-coded nodes by type → no LLM needed
+
+**Cluster Board**: TagPickerModal → LLM or deterministic clustering (folder → subtag → chunk) → clustered layout with group rectangles
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `canvasOutputFolder` | `'Canvas'` | Subfolder under plugin folder |
+| `canvasOpenAfterCreate` | `true` | Open canvas after creation |
+| `canvasEnableEdgeLabels` | `true` | LLM edge labels on Investigation Board |
+| `canvasUseLLMClustering` | `true` | LLM clustering on Cluster Board |
+
+Settings UI: `CanvasSettingsSection.ts` (4 toggles, after Semantic Search section)
+
+### Commands
+
+- `build-investigation-canvas`: Requires semantic search enabled
+- `build-context-canvas`: Works without semantic search
+- `build-cluster-canvas`: Opens TagPickerModal, then builds canvas
+
+All in Command Picker → Discover → Canvas group.
+
+### Shared Utilities (DRY)
+
+- `tryExtractJson()` in `responseParser.ts`: 3-tier JSON extraction (direct → code fence → object search)
+- `extractTagsFromCache()` in `tagUtils.ts`: Shared tag extraction from metadata cache
+- `CanvasErrorCode` on `CanvasResult` replaces string matching
+
+### Prompts (`src/services/prompts/canvasPrompts.ts`)
+
+- `buildEdgeLabelPrompt(pairs, language)`: Relationship labels with language parameter
+- `buildClusterPrompt(tag, notes, language)`: Group notes into meaningful clusters
+
+---
 
 ## Audio Recording
 

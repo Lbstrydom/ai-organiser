@@ -493,6 +493,8 @@ export interface Translations {
         openAfterCreateDesc: string;
         enableEdgeLabels: string;
         enableEdgeLabelsDesc: string;
+        useLLMClustering: string;
+        useLLMClusteringDesc: string;
         created: string;
         creationFailed: string;
         noSourcesDetected: string;
@@ -501,7 +503,6 @@ export interface Translations {
         requiresSemanticSearch: string;
         desktopOnly: string;
         emptyNote: string;
-        selectTag: string;
     };
 
     // Messages and notifications

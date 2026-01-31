@@ -10,11 +10,12 @@ export class TagPickerModal extends FuzzySuggestModal<string> {
         this.onSelect = onSelect;
         this.tags = this.getTags(app);
 
-        this.setPlaceholder(t.modals.tagPicker?.placeholder || 'Select a tag...');
-        this.setTitle(t.modals.tagPicker?.title || 'Select Tag');
+        this.setPlaceholder(t.modals.tagPicker?.placeholder ?? 'Select a tag...');
+        this.setTitle(t.modals.tagPicker?.title ?? 'Select Tag');
 
         if (this.tags.length === 0) {
-            this.showNotice(t.modals.tagPicker?.noTags || 'No tags found');
+            new Notice(t.modals.tagPicker?.noTags ?? 'No tags found');
+            this.close();
         }
     }
 
@@ -35,9 +36,5 @@ export class TagPickerModal extends FuzzySuggestModal<string> {
         return Object.keys(tagCounts)
             .map(tag => (tag.startsWith('#') ? tag.substring(1) : tag))
             .sort((a, b) => a.localeCompare(b));
-    }
-
-    private showNotice(message: string): Notice {
-        return new Notice(message);
     }
 }

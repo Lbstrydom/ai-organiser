@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { buildCanvasEdge, buildCanvasNode, generateId, sanitizeCanvasName, serializeCanvas, writeCanvasFile } from '../src/services/canvas/canvasUtils';
 import { CanvasData, EdgeDescriptor, NodeDescriptor } from '../src/services/canvas/types';
 
@@ -89,6 +90,65 @@ describe('Canvas Utils', () => {
         expect(sanitizeCanvasName('My: Note / Title')).toBe('My Note Title');
     });
 
+    it('sanitizeCanvasName should return Canvas for empty string', () => {
+        expect(sanitizeCanvasName('')).toBe('Canvas');
+    });
+
+    it('sanitizeCanvasName should return Canvas for all-invalid characters', () => {
+        expect(sanitizeCanvasName('***')).toBe('Canvas');
+    });
+
+    it('buildCanvasNode should use custom width/height from descriptor', () => {
+        const node = buildCanvasNode({
+            id: '1',
+            label: 'Custom',
+            type: 'text',
+            text: 'Test',
+            width: 600,
+            height: 300
+        } as NodeDescriptor, 0, 0);
+
+        expect(node.width).toBe(600);
+        expect(node.height).toBe(300);
+    });
+
+    it('buildCanvasNode should propagate color', () => {
+        const node = buildCanvasNode({
+            id: '1',
+            label: 'Colored',
+            type: 'file',
+            file: 'test.md',
+            color: '5'
+        } as NodeDescriptor, 0, 0);
+
+        expect(node.color).toBe('5');
+    });
+
+    it('buildCanvasEdge should warn and fallback for missing positions', () => {
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const edge: EdgeDescriptor = { fromId: 'x', toId: 'y' };
+        const positions = new Map<string, { x: number; y: number }>();
+
+        const result = buildCanvasEdge(edge, positions);
+
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Missing position'));
+        expect(result.fromNode).toBe('x');
+        expect(result.toNode).toBe('y');
+        warnSpy.mockRestore();
+    });
+
+    it('serializeCanvas should produce valid JSON with nodes and edges', () => {
+        const data: CanvasData = {
+            nodes: [{ id: '1', type: 'text', x: 0, y: 0, width: 400, height: 200, text: 'Hello' }],
+            edges: []
+        };
+
+        const serialized = serializeCanvas(data);
+        const parsed = JSON.parse(serialized);
+        expect(parsed.nodes).toHaveLength(1);
+        expect(parsed.nodes[0].text).toBe('Hello');
+    });
+
     it('writeCanvasFile should auto-increment when file exists', async () => {
         const existing = new Set<string>(['Canvas/Canvas.canvas']);
         const app = createMockApp(existing);
@@ -97,5 +157,30 @@ describe('Canvas Utils', () => {
         const result = await writeCanvasFile(app, 'Canvas', 'Canvas', data);
         expect(result.success).toBe(true);
         expect(result.filePath).toBe('Canvas/Canvas 2.canvas');
+    });
+
+    it('writeCanvasFile should succeed when no collision', async () => {
+        const existing = new Set<string>();
+        const app = createMockApp(existing);
+        const data: CanvasData = { nodes: [], edges: [] };
+
+        const result = await writeCanvasFile(app, 'Canvas', 'My Board', data);
+        expect(result.success).toBe(true);
+        expect(result.filePath).toBe('Canvas/My Board.canvas');
+    });
+
+    it('writeCanvasFile should return error on failure', async () => {
+        const app = {
+            vault: {
+                getAbstractFileByPath: () => null,
+                createFolder: async () => { throw new Error('disk full'); },
+                create: async () => { throw new Error('disk full'); }
+            }
+        } as any;
+        const data: CanvasData = { nodes: [], edges: [] };
+
+        const result = await writeCanvasFile(app, 'Canvas', 'Test', data);
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('disk full');
     });
 });

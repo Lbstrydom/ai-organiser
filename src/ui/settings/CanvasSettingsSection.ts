@@ -46,5 +46,15 @@ export class CanvasSettingsSection extends BaseSettingSection {
                     this.plugin.settings.canvasEnableEdgeLabels = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(this.containerEl)
+            .setName(t.canvas.useLLMClustering)
+            .setDesc(t.canvas.useLLMClusteringDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.canvasUseLLMClustering)
+                .onChange(async (value) => {
+                    this.plugin.settings.canvasUseLLMClustering = value;
+                    await this.plugin.saveSettings();
+                }));
     }
 }

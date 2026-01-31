@@ -35,9 +35,13 @@ export function buildCanvasEdge(
     desc: EdgeDescriptor,
     positions: Map<string, { x: number; y: number }>
 ): CanvasEdge {
-    const fromPos = positions.get(desc.fromId) || { x: 0, y: 0 };
-    const toPos = positions.get(desc.toId) || { x: 0, y: 0 };
-    const sides = computeEdgeSides(fromPos, toPos);
+    const origin = { x: 0, y: 0 };
+    const fromPos = positions.get(desc.fromId);
+    const toPos = positions.get(desc.toId);
+    if (!fromPos || !toPos) {
+        console.warn(`[Canvas] Missing position for edge: ${desc.fromId} -> ${desc.toId}`);
+    }
+    const sides = computeEdgeSides(fromPos ?? origin, toPos ?? origin);
 
     return {
         id: generateId(),
@@ -132,9 +136,10 @@ function getAvailableCanvasPath(
     const extensionIndex = baseName.lastIndexOf('.');
     const stem = extensionIndex > -1 ? baseName.substring(0, extensionIndex) : baseName;
     const extension = extensionIndex > -1 ? baseName.substring(extensionIndex) : '';
+    const MAX_COUNTER = 999;
     let counter = 2;
 
-    while (true) {
+    while (counter <= MAX_COUNTER) {
         const candidate = folderPath
             ? `${folderPath}/${stem} ${counter}${extension}`
             : `${stem} ${counter}${extension}`;
@@ -143,4 +148,9 @@ function getAvailableCanvasPath(
         }
         counter++;
     }
+
+    // Fallback: use the last candidate even if it exists (should never happen in practice)
+    return folderPath
+        ? `${folderPath}/${stem} ${MAX_COUNTER}${extension}`
+        : `${stem} ${MAX_COUNTER}${extension}`;
 }

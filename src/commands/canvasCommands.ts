@@ -7,7 +7,12 @@ import { buildContextBoard } from '../services/canvas/contextBoard';
 import { buildClusterBoard } from '../services/canvas/clusterBoard';
 import { getCanvasOutputFullPath } from '../core/settings';
 import { withBusyIndicator } from '../utils/busyIndicator';
+import { extractTagsFromCache } from '../utils/tagUtils';
 import { TagPickerModal } from '../ui/modals/TagPickerModal';
+
+function resolveCanvasLanguage(plugin: AIOrganiserPlugin): string {
+    return plugin.settings.summaryLanguage || 'English';
+}
 
 export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
     plugin.addCommand({
@@ -16,24 +21,24 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
         icon: 'network',
         callback: async () => {
             if (Platform.isMobile) {
-                showNotice(plugin.t.canvas.desktopOnly);
+                new Notice(plugin.t.canvas.desktopOnly);
                 return;
             }
 
             if (!plugin.settings.enableSemanticSearch || !plugin.vectorStore) {
-                showNotice(plugin.t.canvas.requiresSemanticSearch);
+                new Notice(plugin.t.canvas.requiresSemanticSearch);
                 return;
             }
 
             const file = plugin.app.workspace.getActiveFile();
             if (!file) {
-                showNotice(plugin.t.messages.openNote);
+                new Notice(plugin.t.messages.openNote);
                 return;
             }
 
             const content = await plugin.app.vault.read(file);
             if (!content.trim()) {
-                showNotice(plugin.t.canvas.emptyNote);
+                new Notice(plugin.t.canvas.emptyNote);
                 return;
             }
 
@@ -43,28 +48,33 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 plugin.embeddingService
             );
 
-            const result = await withBusyIndicator(plugin, () =>
-                buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
-                    file,
-                    content,
-                    maxRelated: 8,
-                    enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
-                    canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                    openAfterCreate: plugin.settings.canvasOpenAfterCreate
-                })
-            );
+            try {
+                const result = await withBusyIndicator(plugin, () =>
+                    buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
+                        file,
+                        content,
+                        maxRelated: 8,
+                        enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
+                        canvasFolder: getCanvasOutputFullPath(plugin.settings),
+                        openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                        language: resolveCanvasLanguage(plugin)
+                    })
+                );
 
-            if (result.success) {
-                showNotice(plugin.t.canvas.created);
-                return;
+                if (result.success) {
+                    new Notice(plugin.t.canvas.created);
+                    return;
+                }
+
+                if (result.errorCode === 'no-related-notes') {
+                    new Notice(plugin.t.canvas.noRelatedNotes);
+                    return;
+                }
+
+                new Notice(result.error || plugin.t.canvas.creationFailed);
+            } catch {
+                new Notice(plugin.t.canvas.creationFailed);
             }
-
-            if (result.error === 'No related notes found') {
-                showNotice(plugin.t.canvas.noRelatedNotes);
-                return;
-            }
-
-            showNotice(result.error || plugin.t.canvas.creationFailed);
         }
     });
 
@@ -74,42 +84,46 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
         icon: 'git-branch',
         callback: async () => {
             if (Platform.isMobile) {
-                showNotice(plugin.t.canvas.desktopOnly);
+                new Notice(plugin.t.canvas.desktopOnly);
                 return;
             }
 
             const file = plugin.app.workspace.getActiveFile();
             if (!file) {
-                showNotice(plugin.t.messages.openNote);
+                new Notice(plugin.t.messages.openNote);
                 return;
             }
 
             const content = await plugin.app.vault.read(file);
             if (!content.trim()) {
-                showNotice(plugin.t.canvas.emptyNote);
+                new Notice(plugin.t.canvas.emptyNote);
                 return;
             }
 
-            const result = await withBusyIndicator(plugin, () =>
-                buildContextBoard(plugin.app, {
-                    file,
-                    content,
-                    canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                    openAfterCreate: plugin.settings.canvasOpenAfterCreate
-                })
-            );
+            try {
+                const result = await withBusyIndicator(plugin, () =>
+                    buildContextBoard(plugin.app, {
+                        file,
+                        content,
+                        canvasFolder: getCanvasOutputFullPath(plugin.settings),
+                        openAfterCreate: plugin.settings.canvasOpenAfterCreate
+                    })
+                );
 
-            if (result.success) {
-                showNotice(plugin.t.canvas.created);
-                return;
+                if (result.success) {
+                    new Notice(plugin.t.canvas.created);
+                    return;
+                }
+
+                if (result.errorCode === 'no-sources-detected') {
+                    new Notice(plugin.t.canvas.noSourcesDetected);
+                    return;
+                }
+
+                new Notice(result.error || plugin.t.canvas.creationFailed);
+            } catch {
+                new Notice(plugin.t.canvas.creationFailed);
             }
-
-            if (result.error === 'No sources detected') {
-                showNotice(plugin.t.canvas.noSourcesDetected);
-                return;
-            }
-
-            showNotice(result.error || plugin.t.canvas.creationFailed);
         }
     });
 
@@ -119,42 +133,44 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
         icon: 'boxes',
         callback: async () => {
             if (Platform.isMobile) {
-                showNotice(plugin.t.canvas.desktopOnly);
+                new Notice(plugin.t.canvas.desktopOnly);
                 return;
             }
 
             const modal = new TagPickerModal(plugin.app, plugin.t, async (tag) => {
                 const files = getFilesWithTag(plugin, tag);
-                const result = await withBusyIndicator(plugin, () =>
-                    buildClusterBoard(plugin.app, pluginContext(plugin), {
-                        tag,
-                        files,
-                        canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                        openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                        useLLMClustering: true
-                    })
-                );
 
-                if (result.success) {
-                    showNotice(plugin.t.canvas.created);
-                    return;
+                try {
+                    const result = await withBusyIndicator(plugin, () =>
+                        buildClusterBoard(plugin.app, pluginContext(plugin), {
+                            tag,
+                            files,
+                            canvasFolder: getCanvasOutputFullPath(plugin.settings),
+                            openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                            useLLMClustering: plugin.settings.canvasUseLLMClustering,
+                            language: resolveCanvasLanguage(plugin)
+                        })
+                    );
+
+                    if (result.success) {
+                        new Notice(plugin.t.canvas.created);
+                        return;
+                    }
+
+                    if (result.errorCode === 'no-notes-with-tag') {
+                        new Notice(plugin.t.canvas.noNotesWithTag);
+                        return;
+                    }
+
+                    new Notice(result.error || plugin.t.canvas.creationFailed);
+                } catch {
+                    new Notice(plugin.t.canvas.creationFailed);
                 }
-
-                if (result.error === 'No notes with tag') {
-                    showNotice(plugin.t.canvas.noNotesWithTag);
-                    return;
-                }
-
-                showNotice(result.error || plugin.t.canvas.creationFailed);
             });
 
             modal.open();
         }
     });
-}
-
-function showNotice(message: string): Notice {
-    return new Notice(message);
 }
 
 function getFilesWithTag(plugin: AIOrganiserPlugin, tag: string) {
@@ -163,26 +179,10 @@ function getFilesWithTag(plugin: AIOrganiserPlugin, tag: string) {
 
     return files.filter(file => {
         const cache = plugin.app.metadataCache.getFileCache(file);
-        if (!cache) return false;
-
-        const tags = extractTags(cache);
+        const tags = extractTagsFromCache(cache);
         return tags.some((value: string) => {
             const clean = value.startsWith('#') ? value.substring(1) : value;
             return clean === matchTag || clean.startsWith(`${matchTag}/`);
         });
     });
-}
-
-function extractTags(cache: any): string[] {
-    if (Array.isArray(cache.tags)) {
-        return cache.tags.map((entry: any) => entry.tag || entry);
-    }
-
-    if (cache.frontmatter?.tags) {
-        return Array.isArray(cache.frontmatter.tags)
-            ? cache.frontmatter.tags
-            : [cache.frontmatter.tags];
-    }
-
-    return [];
 }

@@ -1,6 +1,8 @@
 import { App, TFile } from 'obsidian';
 import { LLMFacadeContext, summarizeText } from '../llmFacade';
 import { buildClusterPrompt } from '../prompts/canvasPrompts';
+import { tryExtractJson } from '../../utils/responseParser';
+import { extractTagsFromCache } from '../../utils/tagUtils';
 import { clusteredLayout } from './layouts';
 import { buildCanvasNode, generateId, openCanvasFile, writeCanvasFile } from './canvasUtils';
 import { CanvasData, CanvasNode, CanvasResult, ClusterDescriptor, NodeDescriptor } from './types';
@@ -11,9 +13,17 @@ export interface ClusterBoardOptions {
     canvasFolder: string;
     openAfterCreate: boolean;
     useLLMClustering: boolean;
+    language: string;
 }
 
 const CLUSTER_COLORS = ['1', '2', '3', '4', '5', '6'];
+
+const SNIPPET_CHARS = 500;
+const MAX_PROMPT_TOKENS = 4000;
+
+function getClusterColor(index: number): string {
+    return CLUSTER_COLORS[index % CLUSTER_COLORS.length];
+}
 
 export async function buildClusterBoard(
     app: App,
@@ -21,7 +31,7 @@ export async function buildClusterBoard(
     options: ClusterBoardOptions
 ): Promise<CanvasResult> {
     if (!options.files.length) {
-        return { success: false, error: 'No notes with tag' };
+        return { success: false, error: 'No notes with tag', errorCode: 'no-notes-with-tag' };
     }
 
     const nodeDescriptors: NodeDescriptor[] = options.files.map(file => ({
@@ -33,24 +43,24 @@ export async function buildClusterBoard(
     }));
 
     let clusters: ClusterDescriptor[] | null = null;
-    const maxNotes = computeMaxNotes(500, 4000);
+    const maxNotes = computeMaxNotes(SNIPPET_CHARS, MAX_PROMPT_TOKENS);
 
     if (options.useLLMClustering && options.files.length <= maxNotes) {
         const notes = await Promise.all(
             options.files.map(async file => ({
                 title: file.basename,
-                snippet: (await app.vault.read(file)).slice(0, 500)
+                snippet: (await app.vault.read(file)).slice(0, SNIPPET_CHARS)
             }))
         );
 
-        const prompt = buildClusterPrompt(options.tag, notes, 'English');
+        const prompt = buildClusterPrompt(options.tag, notes, options.language);
         const response = await summarizeText(llmContext, prompt);
         if (response.success && response.content) {
             clusters = parseClusterResponse(response.content, options.files.length);
         }
     }
 
-    clusters ??= deterministicClustering(options.files, options.tag);
+    clusters ??= deterministicClustering(app, options.files, options.tag);
 
     const mappedClusters = remapClusterIds(clusters, nodeDescriptors);
 
@@ -58,7 +68,7 @@ export async function buildClusterBoard(
         mappedClusters.map((cluster, index) => ({
             label: cluster.label,
             nodeCount: cluster.nodeIds.length,
-            color: cluster.color || CLUSTER_COLORS[index % CLUSTER_COLORS.length]
+            color: cluster.color || getClusterColor(index)
         }))
     );
 
@@ -81,7 +91,7 @@ export async function buildClusterBoard(
         width: group.width,
         height: group.height,
         label: group.label,
-        color: group.color || CLUSTER_COLORS[index % CLUSTER_COLORS.length]
+        color: group.color || getClusterColor(index)
     }));
 
     const data: CanvasData = {
@@ -103,7 +113,7 @@ export async function buildClusterBoard(
     return result;
 }
 
-export function deterministicClustering(files: TFile[], tag: string): ClusterDescriptor[] {
+export function deterministicClustering(app: App, files: TFile[], tag: string): ClusterDescriptor[] {
     const byFolder = new Map<string, number[]>();
 
     files.forEach((file, index) => {
@@ -118,16 +128,16 @@ export function deterministicClustering(files: TFile[], tag: string): ClusterDes
         return Array.from(byFolder.entries()).map(([label, indexes], i) => ({
             label,
             nodeIds: indexes.map(String),
-            color: CLUSTER_COLORS[i % CLUSTER_COLORS.length]
+            color: getClusterColor(i)
         }));
     }
 
-    const subtagGroups = groupBySubtag(files, tag);
+    const subtagGroups = groupBySubtag(app, files, tag);
     if (subtagGroups && subtagGroups.size > 1) {
         return Array.from(subtagGroups.entries()).map(([label, indexes], i) => ({
             label,
             nodeIds: indexes.map(String),
-            color: CLUSTER_COLORS[i % CLUSTER_COLORS.length]
+            color: getClusterColor(i)
         }));
     }
 
@@ -139,7 +149,7 @@ export function deterministicClustering(files: TFile[], tag: string): ClusterDes
         clusters.push({
             label: `Group ${clusters.length + 1}`,
             nodeIds: chunk.map(String),
-            color: CLUSTER_COLORS[clusters.length % CLUSTER_COLORS.length]
+            color: getClusterColor(clusters.length)
         });
     }
 
@@ -155,7 +165,7 @@ export function computeMaxNotes(snippetChars: number, maxPromptTokens: number): 
 export function parseClusterResponse(response: string, noteCount: number): ClusterDescriptor[] | null {
     if (!response?.trim()) return null;
 
-    const parsed = tryParseJson(response) || tryParseJsonFromFence(response) || tryParseJsonFromObject(response);
+    const parsed = tryExtractJson(response);
     const clustersValue = (parsed as { clusters?: unknown } | null)?.clusters;
     if (!Array.isArray(clustersValue)) return null;
 
@@ -171,28 +181,6 @@ export function parseClusterResponse(response: string, noteCount: number): Clust
     }
 
     return clusters.length ? clusters : null;
-}
-
-function tryParseJson(response: string): unknown {
-    try {
-        return JSON.parse(response.trim());
-    } catch {
-        return null;
-    }
-}
-
-function tryParseJsonFromFence(response: string): unknown {
-    const regex = /```(?:json)?\s*\n([\s\S]*?)\n```/gi;
-    const match = regex.exec(response);
-    if (!match) return null;
-    return tryParseJson(match[1]);
-}
-
-function tryParseJsonFromObject(response: string): unknown {
-    const regex = /\{[\s\S]*\}/g;
-    const match = regex.exec(response);
-    if (!match) return null;
-    return tryParseJson(match[0]);
 }
 
 function extractIndexes(cluster: Record<string, unknown>, noteCount: number): number[] {
@@ -238,15 +226,12 @@ function remapClusterIds(clusters: ClusterDescriptor[], nodes: NodeDescriptor[])
     return mapped;
 }
 
-function groupBySubtag(files: TFile[], tag: string): Map<string, number[]> | null {
-    const app = (globalThis as any).app;
-    if (!app?.metadataCache) return null;
-
+function groupBySubtag(app: App, files: TFile[], tag: string): Map<string, number[]> | null {
     const groups = new Map<string, number[]>();
 
     files.forEach((file, index) => {
         const cache = app.metadataCache.getFileCache(file);
-        const tags = extractTags(cache);
+        const tags = extractTagsFromCache(cache);
         const subtag = tags
             .map((value: string) => value.startsWith('#') ? value.substring(1) : value)
             .find((value: string) => value.startsWith(`${tag}/`));
@@ -259,19 +244,4 @@ function groupBySubtag(files: TFile[], tag: string): Map<string, number[]> | nul
     });
 
     return groups.size ? groups : null;
-}
-
-function extractTags(cache: any): string[] {
-    if (!cache) return [];
-    if (Array.isArray(cache.tags)) {
-        return cache.tags.map((entry: any) => entry.tag || entry);
-    }
-
-    if (cache.frontmatter?.tags) {
-        return Array.isArray(cache.frontmatter.tags)
-            ? cache.frontmatter.tags
-            : [cache.frontmatter.tags];
-    }
-
-    return [];
 }

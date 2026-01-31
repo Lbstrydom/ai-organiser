@@ -39,8 +39,6 @@ export function radialLayout(
         height
     }));
 
-    nodes[centerIndex] = { x: 0, y: 0, width, height };
-
     if (count === 1) {
         return nodes;
     }

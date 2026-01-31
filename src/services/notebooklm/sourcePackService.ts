@@ -23,6 +23,7 @@ import { RegistryService } from './registry';
 import { computeSHA256, computeBinarySHA256 } from './hashing';
 import { MarkdownPdfGenerator } from './pdf/MarkdownPdfGenerator';
 import { detectEmbeddedContent } from '../../utils/embeddedContentDetector';
+import { extractTagsFromCache } from '../../utils/tagUtils';
 
 /** Sleep utility for async yielding to keep UI responsive */
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
@@ -199,7 +200,7 @@ export class SourcePackService {
 
                     // Get file metadata
                     const cache = this.app.metadataCache.getFileCache(file);
-                    const tags = this.extractTags(cache);
+                    const tags = extractTagsFromCache(cache).map((t: string) => t.replace(/^#/, ''));
 
                     entries.push({
                         type: 'note-pdf',
@@ -412,24 +413,6 @@ export class SourcePackService {
             .replaceAll(/-+/g, '-') // Collapse multiple dashes
             .replaceAll(/(^-)|(-$)/g, '') // Trim leading/trailing dashes
             .slice(0, 200); // Limit length
-    }
-
-    /**
-     * Extract tags from file cache
-     */
-    private extractTags(cache: ReturnType<typeof this.app.metadataCache.getFileCache>): string[] {
-        if (!cache?.frontmatter?.tags) {
-            return [];
-        }
-
-        const tags = cache.frontmatter.tags;
-        if (Array.isArray(tags)) {
-            return tags.map((t: string) => t.replace(/^#/, ''));
-        } else if (typeof tags === 'string') {
-            return [tags.replace(/^#/, '')];
-        }
-
-        return [];
     }
 
     /**

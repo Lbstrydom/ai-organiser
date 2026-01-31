@@ -94,6 +94,52 @@ describe('Canvas Layouts', () => {
         expect(computeEdgeSides({ x: 0, y: 0 }, { x: 0, y: -10 })).toEqual({ fromSide: 'top', toSide: 'bottom' });
     });
 
+    it('radialLayout(0, 0) should return empty array', () => {
+        expect(radialLayout(0, 0)).toEqual([]);
+    });
+
+    it('gridLayout(0) should return empty array', () => {
+        expect(gridLayout(0)).toEqual([]);
+    });
+
+    it('radialLayout should clamp out-of-bounds centerIdx', () => {
+        const nodes = radialLayout(5, 999);
+        expect(nodes).toHaveLength(5);
+        // centerIdx clamped to 4 (last index), so node[4] should be at origin
+        expect(nodes[4].x).toBe(0);
+        expect(nodes[4].y).toBe(0);
+    });
+
+    it('computeEdgeSides should handle diagonal tie-break (dx === dy)', () => {
+        // When dx === dy, Math.abs(dx) is NOT > Math.abs(dy), so falls to vertical branch
+        const result = computeEdgeSides({ x: 0, y: 0 }, { x: 10, y: 10 });
+        expect(result).toEqual({ fromSide: 'bottom', toSide: 'top' });
+    });
+
+    it('computeEdgeSides should handle same position (dx === 0, dy === 0)', () => {
+        // Both are 0, falls to vertical branch with dy >= 0
+        const result = computeEdgeSides({ x: 0, y: 0 }, { x: 0, y: 0 });
+        expect(result).toEqual({ fromSide: 'bottom', toSide: 'top' });
+    });
+
+    it('clusteredLayout with single cluster should work', () => {
+        const { nodes, groups } = clusteredLayout([
+            { label: 'Solo', nodeCount: 3 }
+        ]);
+        expect(groups).toHaveLength(1);
+        expect(nodes).toHaveLength(3);
+        expect(groups[0].label).toBe('Solo');
+    });
+
+    it('clusteredLayout with empty cluster (nodeCount: 0) should work', () => {
+        const { nodes, groups } = clusteredLayout([
+            { label: 'Empty', nodeCount: 0 },
+            { label: 'Full', nodeCount: 2 }
+        ]);
+        expect(groups).toHaveLength(2);
+        expect(nodes).toHaveLength(2);
+    });
+
     it('should avoid overlapping nodes for N=1..20', () => {
         for (let count = 1; count <= 20; count++) {
             const nodes = adaptiveLayout(count, 0, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT);

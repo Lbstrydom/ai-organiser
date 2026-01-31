@@ -772,3 +772,24 @@ export class TagUtils {
         }
     }
 }
+
+/**
+ * Extract all tags from an Obsidian CachedMetadata object.
+ * Handles both inline tags (cache.tags) and frontmatter tags.
+ * Returns raw tag strings (may include # prefix depending on source).
+ */
+export function extractTagsFromCache(cache: { tags?: Array<{ tag: string }>; frontmatter?: { tags?: string | string[] } } | null): string[] {
+    if (!cache) return [];
+
+    if (Array.isArray(cache.tags)) {
+        return cache.tags.map(entry => entry.tag || (entry as any));
+    }
+
+    if (cache.frontmatter?.tags) {
+        return Array.isArray(cache.frontmatter.tags)
+            ? cache.frontmatter.tags
+            : [cache.frontmatter.tags];
+    }
+
+    return [];
+}

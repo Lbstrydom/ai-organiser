@@ -1,5 +1,6 @@
 export function buildEdgeLabelPrompt(
-    pairs: Array<{ fromTitle: string; fromSnippet: string; toTitle: string; toSnippet: string; pairIndex: number }>
+    pairs: Array<{ fromTitle: string; fromSnippet: string; toTitle: string; toSnippet: string; pairIndex: number }>,
+    language: string
 ): string {
     const formattedPairs = pairs
         .map(pair => {
@@ -18,6 +19,11 @@ You are analyzing relationships between notes in a knowledge vault.
 For each pair of notes below, provide a 1-4 word relationship label
 describing how the second note relates to the first.
 </task>
+
+<requirements>
+- Use ${language} for labels
+- Keep labels to 1-4 words
+</requirements>
 
 <pairs>
 ${formattedPairs}

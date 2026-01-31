@@ -504,7 +504,9 @@ export const en: Translations = {
         openAfterCreate: "Open after create",
         openAfterCreateDesc: "Open the canvas file after creation",
         enableEdgeLabels: "Enable edge labels",
-        enableEdgeLabelsDesc: "Max ~8 notes analyzed per canvas.",
+        enableEdgeLabelsDesc: "Use AI to label connections on Investigation Boards. Max ~8 notes per canvas.",
+        useLLMClustering: "AI-powered clustering",
+        useLLMClusteringDesc: "Use AI to group notes on Cluster Boards. Uses one LLM call per board. When disabled, groups by folder or sub-tag.",
         created: "Canvas created",
         creationFailed: "Failed to create canvas",
         noSourcesDetected: "No sources detected",
@@ -512,8 +514,7 @@ export const en: Translations = {
         noNotesWithTag: "No notes found with that tag",
         requiresSemanticSearch: "Requires Semantic Search to be enabled",
         desktopOnly: "Canvas boards are available on desktop only",
-        emptyNote: "This note is empty",
-        selectTag: "Select a tag"
+        emptyNote: "This note is empty"
     },
 
     // Messages and notifications

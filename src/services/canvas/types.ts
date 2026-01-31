@@ -52,8 +52,15 @@ export interface ClusterDescriptor {
     color?: string;
 }
 
+export type CanvasErrorCode =
+    | 'no-related-notes'
+    | 'no-sources-detected'
+    | 'no-notes-with-tag'
+    | 'creation-failed';
+
 export interface CanvasResult {
     success: boolean;
     filePath?: string;
     error?: string;
+    errorCode?: CanvasErrorCode;
 }

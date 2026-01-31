@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { RAGService } from '../ragService';
 import { LLMFacadeContext, summarizeText } from '../llmFacade';
 import { buildEdgeLabelPrompt } from '../prompts/canvasPrompts';
+import { tryParseJson, tryParseJsonFromFence } from '../../utils/responseParser';
 import { adaptiveLayout } from './layouts';
 import { buildCanvasEdge, buildCanvasNode, generateId, openCanvasFile, writeCanvasFile } from './canvasUtils';
 import { CanvasData, CanvasResult, EdgeDescriptor, NodeDescriptor } from './types';
@@ -13,6 +14,7 @@ export interface InvestigationOptions {
     enableEdgeLabels: boolean;
     canvasFolder: string;
     openAfterCreate: boolean;
+    language: string;
 }
 
 export async function buildInvestigationBoard(
@@ -28,7 +30,7 @@ export async function buildInvestigationBoard(
     );
 
     if (!relatedNotes.length) {
-        return { success: false, error: 'No related notes found' };
+        return { success: false, error: 'No related notes found', errorCode: 'no-related-notes' };
     }
 
     const nodes: NodeDescriptor[] = [];
@@ -77,7 +79,7 @@ export async function buildInvestigationBoard(
             pairIndex: index
         }));
 
-        const prompt = buildEdgeLabelPrompt(pairs);
+        const prompt = buildEdgeLabelPrompt(pairs, options.language);
         const response = await summarizeText(llmContext, prompt);
         if (response.success && response.content) {
             const parsed = parseEdgeLabelResponse(response.content, pairs.length);
@@ -117,36 +119,22 @@ export async function buildInvestigationBoard(
 }
 
 export function parseEdgeLabelResponse(response: string, pairCount: number): (string | undefined)[] {
-    if (!response?.trim()) {
-        return Array.from({ length: pairCount }, () => undefined);
-    }
+    const empty = () => Array.from({ length: pairCount }, () => undefined as string | undefined);
 
-    const trimmed = response.trim();
+    if (!response?.trim()) return empty();
 
-    try {
-        const parsed = JSON.parse(trimmed);
+    // Tier 1 & 2: Direct JSON / code fence
+    const parsed = tryParseJson(response) ?? tryParseJsonFromFence(response);
+    if (parsed) {
         const labels = extractLabelArray(parsed, pairCount);
         if (labels) return labels;
-    } catch {
-        // Continue to other parsing methods
     }
 
-    const fenceRegex = /```(?:json)?\s*\n([\s\S]*?)\n```/gi;
-    const fenceMatch = fenceRegex.exec(trimmed);
-    if (fenceMatch) {
-        try {
-            const parsed = JSON.parse(fenceMatch[1].trim());
-            const labels = extractLabelArray(parsed, pairCount);
-            if (labels) return labels;
-        } catch {
-            // Continue to regex fallback
-        }
-    }
-
+    // Tier 3: Regex fallback for "label": "..." patterns
     const regex = /"label"\s*:\s*"([^"]+)"/g;
     const extracted: string[] = [];
     let match: RegExpExecArray | null = null;
-    while ((match = regex.exec(trimmed)) !== null) {
+    while ((match = regex.exec(response)) !== null) {
         extracted.push(match[1]);
     }
 
@@ -154,7 +142,7 @@ export function parseEdgeLabelResponse(response: string, pairCount: number): (st
         return Array.from({ length: pairCount }, (_, i) => extracted[i]);
     }
 
-    return Array.from({ length: pairCount }, () => undefined);
+    return empty();
 }
 
 export function getFallbackEdgeLabel(score: number): string {

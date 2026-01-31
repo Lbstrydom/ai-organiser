@@ -504,7 +504,9 @@ export const zhCN: Translations = {
         openAfterCreate: "创建后打开",
         openAfterCreateDesc: "创建后自动打开画板",
         enableEdgeLabels: "启用连线标签",
-        enableEdgeLabelsDesc: "每个画板最多分析约 8 条笔记。",
+        enableEdgeLabelsDesc: "使用 AI 为调查画板上的连线添加标签。每个画板最多分析约 8 条笔记。",
+        useLLMClustering: "AI 智能分组",
+        useLLMClusteringDesc: "使用 AI 对聚类画板中的笔记进行分组。每个画板消耗一次 LLM 调用。禁用时按文件夹或子标签分组。",
         created: "画板已创建",
         creationFailed: "创建画板失败",
         noSourcesDetected: "未检测到来源",
@@ -512,8 +514,7 @@ export const zhCN: Translations = {
         noNotesWithTag: "未找到包含该标签的笔记",
         requiresSemanticSearch: "需要启用语义搜索",
         desktopOnly: "画板仅在桌面端可用",
-        emptyNote: "笔记为空",
-        selectTag: "选择标签"
+        emptyNote: "笔记为空"
     },
 
     // 消息和通知

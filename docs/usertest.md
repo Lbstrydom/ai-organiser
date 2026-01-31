@@ -318,7 +318,86 @@ Pick at least ONE source type:
 
 ---
 
-## 10. Highlights (1 min)
+## 10. Canvas Toolkit (5 min) - Desktop Only
+
+### Investigation Board (requires Semantic Search enabled + indexed vault)
+- [ ] Open a note with content → Command Picker → Discover → Canvas → "Investigation Board"
+- [ ] Canvas file created in `AI-Organiser/Canvas/` folder
+- [ ] Canvas opens automatically (if `openAfterCreate` enabled)
+- [ ] Center node is current note (cyan color)
+- [ ] Related notes appear as satellite nodes (green, purple if score ≥0.8)
+- [ ] Edges have LLM-generated labels (if edge labels enabled in settings)
+- [ ] With edge labels disabled: no labels on edges
+- [ ] Empty note → shows notice, no canvas created
+- [ ] No semantic search → shows "Requires Semantic Search" notice
+- [ ] Mobile → shows "Desktop only" notice
+
+### Context Board (no semantic search required)
+- [ ] Open note with embedded content (YouTube links, PDFs, audio, wikilinks)
+- [ ] Command Picker → Discover → Canvas → "Context Board"
+- [ ] Center node is current note
+- [ ] YouTube links → purple link nodes
+- [ ] PDF embeds → green file nodes
+- [ ] Web links → yellow link nodes
+- [ ] Missing file references → red text nodes (not crash)
+- [ ] Audio embeds → orange nodes
+- [ ] Note with no embedded content → shows "No sources detected" notice
+
+### Cluster Board (requires notes with tags)
+- [ ] Command Picker → Discover → Canvas → "Cluster Board"
+- [ ] TagPickerModal opens → shows all vault tags
+- [ ] Select a tag → canvas generated with grouped nodes
+- [ ] Groups shown as labeled rectangles containing file nodes
+- [ ] With LLM clustering enabled: AI-generated group labels
+- [ ] With LLM clustering disabled: folder-based or subtag-based grouping
+- [ ] Tag with no notes → shows "No notes with this tag" notice
+- [ ] No tags in vault → shows notice, modal doesn't open
+
+### Canvas Settings
+- [ ] Settings → Canvas section visible (after Semantic Search)
+- [ ] Output folder setting works (default: Canvas)
+- [ ] Open after create toggle works
+- [ ] Edge labels toggle works
+- [ ] LLM clustering toggle works
+
+---
+
+## 10b. Highlight Chat (3 min)
+
+### Path A: Quick Chat (with editor selection)
+- [ ] Select text in editor → Command Picker → Discover → Ask AI → "Chat about highlights"
+- [ ] Modal opens directly in **chat phase** (no block picker)
+- [ ] Selected text shown as context (collapsed, expandable)
+- [ ] Type a question → Send → AI responds about selected text
+- [ ] Multi-turn: ask follow-up → AI uses conversation history
+- [ ] "Insert Last Answer" → last AI response inserted at cursor
+- [ ] "Insert Summary" → AI generates standalone prose summary → inserted at cursor
+
+### Path B: Paragraph Picker (no editor selection)
+- [ ] Place cursor without selection → "Chat about highlights" command
+- [ ] Modal opens in **selection phase** showing note split into blocks
+- [ ] Blocks with `==highlight==` or `<mark>` are pre-selected (accent border)
+- [ ] Click blocks to toggle selection
+- [ ] Token estimate shown: "Selected: N passages (~Xk tokens)"
+- [ ] "Start Chat" disabled if nothing selected
+- [ ] Click "Start Chat" → enters chat phase
+
+### Chat Features
+- [ ] "Back" button returns to selection phase (chat history preserved)
+- [ ] Role labels ("You" / "AI") on chat messages
+- [ ] "Insert Summary" disabled until at least one Q/A exchange
+- [ ] "Insert Last Answer" disabled until at least one Q/A exchange
+- [ ] No active editor → insert buttons disabled with tooltip
+
+### Edge Cases
+- [ ] Empty note → notice shown, modal doesn't open
+- [ ] Code block containing `==text==` → NOT detected as highlight (code-fence immunity)
+- [ ] Note with no highlights → all blocks unselected, user must select manually
+- [ ] Anti-hallucination: inserted summary uses standalone prose (no "[Passage 1]" references)
+
+---
+
+## 10c. Highlights (1 min)
 
 - [ ] Select text → "Highlight selection" → text highlighted
 - [ ] Select highlighted text → "Remove highlight" → highlight removed
@@ -410,15 +489,16 @@ Test with your configured provider:
 For rapid verification, test only sections marked with *:
 
 1. [ ] Pre-Test (build, deploy, restart)
-2. [ ] Settings UI (order correct, no visual issues)
-3. [ ] Command Picker (opens, categories visible)
+2. [ ] Settings UI (order correct, no visual issues, canvas section visible)
+3. [ ] Command Picker (opens, categories visible, Canvas group in Discover)
 4. [ ] Tagging (generate + clear on one note)
 5. [ ] Summarization (one source type + preview modal + spinner visible)
 6. [ ] LLM Busy Indicator (spinner appears during any LLM call, pulses, stops before modal)
-7. [ ] Provider Test (connection + one operation)
-8. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
+7. [ ] Canvas (one board type — Context Board is fastest, no RAG needed)
+8. [ ] Provider Test (connection + one operation)
+9. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
 
-**Smoke Test Pass:** All 7 items (+ #8 if 1.11+) checked = Ready for release
+**Smoke Test Pass:** All 8 items (+ #9 if 1.11+) checked = Ready for release
 
 ---
 

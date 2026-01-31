@@ -6,6 +6,39 @@
 import { StructuredSummaryResponse } from '../services/prompts/structuredPrompts';
 import { SUMMARY_HOOK_MAX_LENGTH } from '../core/constants';
 
+// ── Generic JSON extraction (used by canvas boards, structured responses, etc.) ──
+
+/** Attempt direct JSON.parse on trimmed text. Returns parsed value or null. */
+export function tryParseJson(text: string): unknown {
+    try {
+        return JSON.parse(text.trim());
+    } catch {
+        return null;
+    }
+}
+
+/** Extract JSON from a markdown code fence (```json ... ```). */
+export function tryParseJsonFromFence(text: string): unknown {
+    const regex = /```(?:json)?\s*\n([\s\S]*?)\n```/gi;
+    const match = regex.exec(text);
+    if (!match) return null;
+    return tryParseJson(match[1]);
+}
+
+/** Find the first JSON object ({...}) embedded in surrounding text. */
+export function tryParseJsonFromObject(text: string): unknown {
+    const regex = /\{[\s\S]*\}/g;
+    const match = regex.exec(text);
+    if (!match) return null;
+    return tryParseJson(match[0]);
+}
+
+/** Try all three JSON extraction strategies in order. Returns parsed value or null. */
+export function tryExtractJson(text: string): unknown {
+    if (!text?.trim()) return null;
+    return tryParseJson(text) ?? tryParseJsonFromFence(text) ?? tryParseJsonFromObject(text);
+}
+
 /**
  * Parse LLM response attempting to extract structured JSON
  * Falls back gracefully to plain text if JSON not found

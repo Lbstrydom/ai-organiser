@@ -5,7 +5,7 @@
  * These tests verify the parsing logic that handles various LLM response formats
  */
 
-import { parseStructuredResponse, sanitizeSummaryHook, extractPlainText } from '../src/utils/responseParser';
+import { parseStructuredResponse, sanitizeSummaryHook, extractPlainText, tryParseJson, tryParseJsonFromFence, tryParseJsonFromObject, tryExtractJson } from '../src/utils/responseParser';
 import { SUMMARY_HOOK_MAX_LENGTH } from '../src/core/constants';
 
 describe('Response Parser - parseStructuredResponse', () => {
@@ -526,5 +526,89 @@ Let me know if you need any clarification!`;
         const result = parseStructuredResponse(response);
 
         expect(result?.summary_hook).toBe('Analysis results');
+    });
+});
+
+describe('Response Parser - Generic JSON Extraction', () => {
+    describe('tryParseJson', () => {
+        it('should parse valid JSON', () => {
+            expect(tryParseJson('{"key": "value"}')).toEqual({ key: 'value' });
+        });
+
+        it('should parse JSON with surrounding whitespace', () => {
+            expect(tryParseJson('  {"a": 1}  ')).toEqual({ a: 1 });
+        });
+
+        it('should return null for invalid JSON', () => {
+            expect(tryParseJson('not json')).toBeNull();
+        });
+
+        it('should return null for empty string', () => {
+            expect(tryParseJson('')).toBeNull();
+        });
+
+        it('should parse arrays', () => {
+            expect(tryParseJson('[1, 2, 3]')).toEqual([1, 2, 3]);
+        });
+    });
+
+    describe('tryParseJsonFromFence', () => {
+        it('should extract JSON from ```json fence', () => {
+            const text = 'Here is the result:\n```json\n{"labels": [1]}\n```\nDone.';
+            expect(tryParseJsonFromFence(text)).toEqual({ labels: [1] });
+        });
+
+        it('should extract JSON from ``` fence without language tag', () => {
+            const text = '```\n{"key": "val"}\n```';
+            expect(tryParseJsonFromFence(text)).toEqual({ key: 'val' });
+        });
+
+        it('should return null when no fence present', () => {
+            expect(tryParseJsonFromFence('just plain text')).toBeNull();
+        });
+
+        it('should return null when fence contains invalid JSON', () => {
+            expect(tryParseJsonFromFence('```json\nnot json\n```')).toBeNull();
+        });
+    });
+
+    describe('tryParseJsonFromObject', () => {
+        it('should find JSON object in surrounding text', () => {
+            const text = 'Result: {"a": 1} end';
+            expect(tryParseJsonFromObject(text)).toEqual({ a: 1 });
+        });
+
+        it('should return null when no braces present', () => {
+            expect(tryParseJsonFromObject('no json here')).toBeNull();
+        });
+
+        it('should return null when braces contain invalid JSON', () => {
+            expect(tryParseJsonFromObject('prefix {broken json} suffix')).toBeNull();
+        });
+    });
+
+    describe('tryExtractJson', () => {
+        it('should try direct parse first', () => {
+            expect(tryExtractJson('{"direct": true}')).toEqual({ direct: true });
+        });
+
+        it('should fall back to code fence', () => {
+            const text = 'prefix\n```json\n{"fenced": true}\n```\nsuffix';
+            expect(tryExtractJson(text)).toEqual({ fenced: true });
+        });
+
+        it('should fall back to object search', () => {
+            const text = 'The result is {"embedded": true} here';
+            expect(tryExtractJson(text)).toEqual({ embedded: true });
+        });
+
+        it('should return null for empty/whitespace input', () => {
+            expect(tryExtractJson('')).toBeNull();
+            expect(tryExtractJson('   ')).toBeNull();
+        });
+
+        it('should return null when nothing works', () => {
+            expect(tryExtractJson('completely plain text')).toBeNull();
+        });
     });
 });

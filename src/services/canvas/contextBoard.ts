@@ -16,7 +16,7 @@ export async function buildContextBoard(app: App, options: ContextBoardOptions):
     const sources = detection.items.filter(item => item.type !== 'image');
 
     if (!sources.length) {
-        return { success: false, error: 'No sources detected' };
+        return { success: false, error: 'No sources detected', errorCode: 'no-sources-detected' };
     }
 
     const nodes: NodeDescriptor[] = [];

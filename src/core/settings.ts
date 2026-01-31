@@ -99,6 +99,7 @@ export interface AIOrganiserSettings {
     canvasOutputFolder: string;         // Subfolder under pluginFolder
     canvasOpenAfterCreate: boolean;     // Open canvas file after creation
     canvasEnableEdgeLabels: boolean;    // Use LLM for edge labels (Investigation Board)
+    canvasUseLLMClustering: boolean;    // Use LLM for cluster grouping (Cluster Board)
     
     // === SEMANTIC SEARCH SETTINGS ===
     enableSemanticSearch: boolean;       // Master toggle for semantic search features
@@ -229,6 +230,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     canvasOutputFolder: 'Canvas',
     canvasOpenAfterCreate: true,
     canvasEnableEdgeLabels: true,
+    canvasUseLLMClustering: true,
     
     // Semantic Search Defaults
     enableSemanticSearch: false,                        // User must opt-in
