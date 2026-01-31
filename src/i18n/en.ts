@@ -490,7 +490,30 @@ export const en: Translations = {
         quickAddTextPending: "Quick add: Text to Pending Integration",
         quickAddUrlPending: "Quick add: URL to Pending Integration",
         dropSelectionPending: "Drop selection to Pending Integration",
-        recordAudio: "Record Audio"
+        recordAudio: "Record Audio",
+        buildInvestigationCanvas: "Build Investigation Board",
+        buildContextCanvas: "Build Context Board",
+        buildClusterCanvas: "Build Cluster Board"
+    },
+
+    canvas: {
+        settingsTitle: "Canvas Boards",
+        settingsDescription: "Create visual canvases from note context, related notes, and tag clusters.",
+        outputFolder: "Canvas output folder",
+        outputFolderDesc: "Where to save generated canvas files",
+        openAfterCreate: "Open after create",
+        openAfterCreateDesc: "Open the canvas file after creation",
+        enableEdgeLabels: "Enable edge labels",
+        enableEdgeLabelsDesc: "Max ~8 notes analyzed per canvas.",
+        created: "Canvas created",
+        creationFailed: "Failed to create canvas",
+        noSourcesDetected: "No sources detected",
+        noRelatedNotes: "No related notes found",
+        noNotesWithTag: "No notes found with that tag",
+        requiresSemanticSearch: "Requires Semantic Search to be enabled",
+        desktopOnly: "Canvas boards are available on desktop only",
+        emptyNote: "This note is empty",
+        selectTag: "Select a tag"
     },
 
     // Messages and notifications
@@ -1255,7 +1278,13 @@ export const en: Translations = {
             groupHighlight: "Highlight",
             groupTags: "Tags",
             groupAskAI: "Ask AI",
-            groupFindNotes: "Find Notes"
+            groupFindNotes: "Find Notes",
+            groupCanvas: "Canvas"
+        },
+        tagPicker: {
+            title: "Select Tag",
+            placeholder: "Search tags...",
+            noTags: "No tags found"
         }
     },
 

@@ -14,6 +14,7 @@ import { YouTubeSettingsSection } from './YouTubeSettingsSection';
 import { PDFSettingsSection } from './PDFSettingsSection';
 import { AudioTranscriptionSettingsSection } from './AudioTranscriptionSettingsSection';
 import { ExportSettingsSection } from './ExportSettingsSection';
+import { CanvasSettingsSection } from './CanvasSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -31,6 +32,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private pdfSection?: PDFSettingsSection;
     private audioTranscriptionSection?: AudioTranscriptionSettingsSection;
     private exportSection?: ExportSettingsSection;
+    private canvasSection?: CanvasSettingsSection;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
@@ -75,6 +77,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // 5. Vault Context / RAG (advanced feature - enhances core features)
         this.semanticSearchSection = new SemanticSearchSettingsSection(this.plugin, containerEl, this);
         this.semanticSearchSection.display();
+
+        // 5b. Canvas boards (builds on semantic search)
+        this.canvasSection = new CanvasSettingsSection(this.plugin, containerEl, this);
+        this.canvasSection.display();
 
         // 6. Integrations (external tools - Bases + NotebookLM)
         const integrationsHeader = containerEl.createEl('h1', { cls: 'ai-organiser-settings-header' });

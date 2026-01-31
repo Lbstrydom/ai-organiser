@@ -1,0 +1,181 @@
+import { App, TFile } from 'obsidian';
+import { RAGService } from '../ragService';
+import { LLMFacadeContext, summarizeText } from '../llmFacade';
+import { buildEdgeLabelPrompt } from '../prompts/canvasPrompts';
+import { adaptiveLayout } from './layouts';
+import { buildCanvasEdge, buildCanvasNode, generateId, openCanvasFile, writeCanvasFile } from './canvasUtils';
+import { CanvasData, CanvasResult, EdgeDescriptor, NodeDescriptor } from './types';
+
+export interface InvestigationOptions {
+    file: TFile;
+    content: string;
+    maxRelated: number;
+    enableEdgeLabels: boolean;
+    canvasFolder: string;
+    openAfterCreate: boolean;
+}
+
+export async function buildInvestigationBoard(
+    app: App,
+    ragService: RAGService,
+    llmContext: LLMFacadeContext,
+    options: InvestigationOptions
+): Promise<CanvasResult> {
+    const relatedNotes = await ragService.getRelatedNotes(
+        options.file,
+        options.content,
+        options.maxRelated
+    );
+
+    if (!relatedNotes.length) {
+        return { success: false, error: 'No related notes found' };
+    }
+
+    const nodes: NodeDescriptor[] = [];
+    const centerId = generateId();
+
+    nodes.push({
+        id: centerId,
+        label: options.file.basename,
+        type: 'file',
+        file: options.file.path,
+        color: '5'
+    });
+
+    relatedNotes.forEach(result => {
+        const id = generateId();
+        const title = result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled';
+        const color = result.score >= 0.8 ? '6' : '4';
+        nodes.push({
+            id,
+            label: title,
+            type: 'file',
+            file: result.document.filePath,
+            color
+        });
+    });
+
+    const layout = adaptiveLayout(nodes.length, 0);
+    const positions = new Map<string, { x: number; y: number }>();
+    const canvasNodes = nodes.map((desc, index) => {
+        const pos = layout[index];
+        positions.set(desc.id, { x: pos.x, y: pos.y });
+        return buildCanvasNode(desc, pos.x, pos.y);
+    });
+
+    const edges: EdgeDescriptor[] = [];
+    const fallbackLabels = relatedNotes.map(result => getFallbackEdgeLabel(result.score));
+    let edgeLabels: (string | undefined)[] = fallbackLabels;
+
+    if (options.enableEdgeLabels) {
+        const fromSnippet = options.content.slice(0, 500);
+        const pairs = relatedNotes.map((result, index) => ({
+            fromTitle: options.file.basename,
+            fromSnippet,
+            toTitle: result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled',
+            toSnippet: result.document.content.slice(0, 500),
+            pairIndex: index
+        }));
+
+        const prompt = buildEdgeLabelPrompt(pairs);
+        const response = await summarizeText(llmContext, prompt);
+        if (response.success && response.content) {
+            const parsed = parseEdgeLabelResponse(response.content, pairs.length);
+            if (parsed.some(Boolean)) {
+                edgeLabels = parsed.map((label, idx) => label || fallbackLabels[idx]);
+            }
+        }
+    }
+
+    for (let i = 1; i < nodes.length; i++) {
+        edges.push({
+            fromId: centerId,
+            toId: nodes[i].id,
+            label: edgeLabels[i - 1]
+        });
+    }
+
+    const canvasEdges = edges.map(edge => buildCanvasEdge(edge, positions));
+
+    const data: CanvasData = {
+        nodes: canvasNodes,
+        edges: canvasEdges
+    };
+
+    const result = await writeCanvasFile(
+        app,
+        options.canvasFolder,
+        `Investigation Board - ${options.file.basename}`,
+        data
+    );
+
+    if (result.success && result.filePath && options.openAfterCreate) {
+        await openCanvasFile(app, result.filePath);
+    }
+
+    return result;
+}
+
+export function parseEdgeLabelResponse(response: string, pairCount: number): (string | undefined)[] {
+    if (!response?.trim()) {
+        return Array.from({ length: pairCount }, () => undefined);
+    }
+
+    const trimmed = response.trim();
+
+    try {
+        const parsed = JSON.parse(trimmed);
+        const labels = extractLabelArray(parsed, pairCount);
+        if (labels) return labels;
+    } catch {
+        // Continue to other parsing methods
+    }
+
+    const fenceRegex = /```(?:json)?\s*\n([\s\S]*?)\n```/gi;
+    const fenceMatch = fenceRegex.exec(trimmed);
+    if (fenceMatch) {
+        try {
+            const parsed = JSON.parse(fenceMatch[1].trim());
+            const labels = extractLabelArray(parsed, pairCount);
+            if (labels) return labels;
+        } catch {
+            // Continue to regex fallback
+        }
+    }
+
+    const regex = /"label"\s*:\s*"([^"]+)"/g;
+    const extracted: string[] = [];
+    let match: RegExpExecArray | null = null;
+    while ((match = regex.exec(trimmed)) !== null) {
+        extracted.push(match[1]);
+    }
+
+    if (extracted.length > 0) {
+        return Array.from({ length: pairCount }, (_, i) => extracted[i]);
+    }
+
+    return Array.from({ length: pairCount }, () => undefined);
+}
+
+export function getFallbackEdgeLabel(score: number): string {
+    if (score >= 0.8) return 'Closely related';
+    if (score >= 0.6) return 'Related';
+    return 'Loosely related';
+}
+
+function extractLabelArray(parsed: any, pairCount: number): (string | undefined)[] | null {
+    const labels = parsed?.labels;
+    if (!Array.isArray(labels)) return null;
+
+    const output = Array.from({ length: pairCount }, () => undefined as string | undefined);
+    for (const item of labels) {
+        if (!item || typeof item !== 'object') continue;
+        const index = typeof item.pairIndex === 'number' ? item.pairIndex : Number(item.pairIndex);
+        if (Number.isNaN(index) || index < 0 || index >= pairCount) continue;
+        if (typeof item.label === 'string') {
+            output[index] = item.label;
+        }
+    }
+
+    return output;
+}

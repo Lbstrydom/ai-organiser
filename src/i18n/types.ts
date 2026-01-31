@@ -478,6 +478,30 @@ export interface Translations {
         quickAddUrlPending: string;
         dropSelectionPending: string;
         recordAudio: string;
+        buildInvestigationCanvas: string;
+        buildContextCanvas: string;
+        buildClusterCanvas: string;
+    };
+
+    // Canvas
+    canvas: {
+        settingsTitle: string;
+        settingsDescription: string;
+        outputFolder: string;
+        outputFolderDesc: string;
+        openAfterCreate: string;
+        openAfterCreateDesc: string;
+        enableEdgeLabels: string;
+        enableEdgeLabelsDesc: string;
+        created: string;
+        creationFailed: string;
+        noSourcesDetected: string;
+        noRelatedNotes: string;
+        noNotesWithTag: string;
+        requiresSemanticSearch: string;
+        desktopOnly: string;
+        emptyNote: string;
+        selectTag: string;
     };
 
     // Messages and notifications
@@ -1254,6 +1278,12 @@ export interface Translations {
             groupTags: string;
             groupAskAI: string;
             groupFindNotes: string;
+            groupCanvas: string;
+        };
+        tagPicker: {
+            title: string;
+            placeholder: string;
+            noTags: string;
         };
     };
 

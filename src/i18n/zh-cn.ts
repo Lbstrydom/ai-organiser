@@ -490,7 +490,30 @@ export const zhCN: Translations = {
         quickAddTextPending: "快速添加：文本到待处理集成",
         quickAddUrlPending: "快速添加：URL 到待处理集成",
         dropSelectionPending: "将选中内容放入待处理集成",
-        recordAudio: "录制音频"
+        recordAudio: "录制音频",
+        buildInvestigationCanvas: "生成调查画板",
+        buildContextCanvas: "生成上下文画板",
+        buildClusterCanvas: "生成聚类画板"
+    },
+
+    canvas: {
+        settingsTitle: "Canvas 画板",
+        settingsDescription: "根据笔记上下文、相关笔记和标签聚类创建可视化画板。",
+        outputFolder: "画板输出文件夹",
+        outputFolderDesc: "保存生成的画板文件的位置",
+        openAfterCreate: "创建后打开",
+        openAfterCreateDesc: "创建后自动打开画板",
+        enableEdgeLabels: "启用连线标签",
+        enableEdgeLabelsDesc: "每个画板最多分析约 8 条笔记。",
+        created: "画板已创建",
+        creationFailed: "创建画板失败",
+        noSourcesDetected: "未检测到来源",
+        noRelatedNotes: "未找到相关笔记",
+        noNotesWithTag: "未找到包含该标签的笔记",
+        requiresSemanticSearch: "需要启用语义搜索",
+        desktopOnly: "画板仅在桌面端可用",
+        emptyNote: "笔记为空",
+        selectTag: "选择标签"
     },
 
     // 消息和通知
@@ -1255,7 +1278,13 @@ export const zhCN: Translations = {
             groupHighlight: "高亮",
             groupTags: "标签",
             groupAskAI: "AI 问答",
-            groupFindNotes: "查找笔记"
+            groupFindNotes: "查找笔记",
+            groupCanvas: "画板"
+        },
+        tagPicker: {
+            title: "选择标签",
+            placeholder: "搜索标签...",
+            noTags: "未找到标签"
         }
     },
 

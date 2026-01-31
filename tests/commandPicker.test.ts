@@ -62,6 +62,9 @@ function createMockTranslations(): Translations {
             notebookLMClear: 'NotebookLM: Clear Selection',
             notebookLMOpenFolder: 'NotebookLM: Open Export Folder',
             recordAudio: 'Record Audio',
+            buildInvestigationCanvas: 'Build Investigation Board',
+            buildContextCanvas: 'Build Context Board',
+            buildClusterCanvas: 'Build Cluster Board',
         },
         modals: {
             commandPicker: {
@@ -80,6 +83,7 @@ function createMockTranslations(): Translations {
                 groupTags: 'Tags',
                 groupAskAI: 'Ask AI',
                 groupFindNotes: 'Find Notes',
+                groupCanvas: 'Canvas',
             },
         },
     } as unknown as Translations;
@@ -214,7 +218,8 @@ describe('Command Picker', () => {
                 const commandIds = discoverCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('ask-ai-group');
                 expect(commandIds).toContain('find-notes-group');
-                expect(commandIds).toHaveLength(2); // pure user-mode, no admin items
+                expect(commandIds).toContain('canvas-group');
+                expect(commandIds).toHaveLength(3); // pure user-mode, no admin items
 
                 // Verify Ask AI group
                 const askAIGroup = discoverCategory!.commands.find(c => c.id === 'ask-ai-group');
@@ -234,6 +239,15 @@ describe('Command Picker', () => {
                 expect(findSubIds).toContain('semantic-search');
                 expect(findSubIds).toContain('find-related');
                 expect(findSubIds).toContain('insert-related-notes');
+
+                // Verify Canvas group
+                const canvasGroup = discoverCategory!.commands.find(c => c.id === 'canvas-group');
+                expect(canvasGroup).toBeDefined();
+                expect(canvasGroup!.subCommands).toBeDefined();
+                const canvasSubIds = canvasGroup!.subCommands!.map(c => c.id);
+                expect(canvasSubIds).toContain('build-investigation-canvas');
+                expect(canvasSubIds).toContain('build-context-canvas');
+                expect(canvasSubIds).toContain('build-cluster-canvas');
             });
         });
 

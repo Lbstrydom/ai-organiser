@@ -94,6 +94,11 @@ export interface AIOrganiserSettings {
     pluginFolder: string;                // Main plugin folder (contains Config, Transcripts, Flashcards)
     configFolderPath: string;            // Subfolder for config files (under pluginFolder)
     lastSummarizeSource: 'note' | 'url' | 'pdf' | 'youtube' | 'audio';
+
+    // === CANVAS SETTINGS ===
+    canvasOutputFolder: string;         // Subfolder under pluginFolder
+    canvasOpenAfterCreate: boolean;     // Open canvas file after creation
+    canvasEnableEdgeLabels: boolean;    // Use LLM for edge labels (Investigation Board)
     
     // === SEMANTIC SEARCH SETTINGS ===
     enableSemanticSearch: boolean;       // Master toggle for semantic search features
@@ -219,6 +224,11 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     pluginFolder: DEFAULT_PLUGIN_FOLDER,
     configFolderPath: 'Config',
     lastSummarizeSource: 'note',
+
+    // Canvas Defaults
+    canvasOutputFolder: 'Canvas',
+    canvasOpenAfterCreate: true,
+    canvasEnableEdgeLabels: true,
     
     // Semantic Search Defaults
     enableSemanticSearch: false,                        // User must opt-in
@@ -345,6 +355,10 @@ export function getExportOutputFullPath(settings: AIOrganiserSettings): string {
 
 export function getFlashcardFullPath(settings: AIOrganiserSettings): string {
     return resolvePluginPath(settings, settings.flashcardFolder, 'Flashcards');
+}
+
+export function getCanvasOutputFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.canvasOutputFolder, 'Canvas');
 }
 
 export function getTranscriptFullPath(settings: AIOrganiserSettings): string {

@@ -487,6 +487,36 @@ export function buildCommandCategories(
                             callback: () => executeCommand('ai-organiser:insert-related-notes')
                         }
                     ]
+                },
+                {
+                    id: 'canvas-group',
+                    name: t.modals.commandPicker?.groupCanvas || 'Canvas',
+                    icon: 'layout-grid',
+                    aliases: ['canvas', 'board', 'investigation', 'context', 'cluster', 'visualize', 'map', 'diagram'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'build-investigation-canvas',
+                            name: t.commands.buildInvestigationCanvas,
+                            icon: 'network',
+                            aliases: ['investigation', 'related', 'semantic', 'explore'],
+                            callback: () => executeCommand('ai-organiser:build-investigation-canvas')
+                        },
+                        {
+                            id: 'build-context-canvas',
+                            name: t.commands.buildContextCanvas,
+                            icon: 'git-branch',
+                            aliases: ['context', 'sources', 'links', 'references'],
+                            callback: () => executeCommand('ai-organiser:build-context-canvas')
+                        },
+                        {
+                            id: 'build-cluster-canvas',
+                            name: t.commands.buildClusterCanvas,
+                            icon: 'boxes',
+                            aliases: ['cluster', 'group', 'tag', 'organize'],
+                            callback: () => executeCommand('ai-organiser:build-cluster-canvas')
+                        }
+                    ]
                 }
             ]
         }
