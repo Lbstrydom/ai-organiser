@@ -175,7 +175,7 @@ export class AudioRecorderModal extends Modal {
             case 'transcribing': {
                 const statusText = this.state === 'transcribing'
                     ? (t?.transcribing || 'Transcribing...')
-                    : (t?.recording || 'Saving...');
+                    : (t?.saving || 'Saving...');
                 this.controlsEl.createEl('span', { text: statusText, cls: 'ai-organiser-audio-recorder-busy' });
                 break;
             }
@@ -282,6 +282,19 @@ export class AudioRecorderModal extends Modal {
         }
     }
 
+    /** Save blob to vault as a binary recording file. */
+    private async saveBlobToVault(suffix = ''): Promise<TFile> {
+        const now = new Date();
+        const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        const ext = this.recorder.getMimeSelection().extension;
+        const fileName = `recording-${timestamp}${suffix}${ext}`;
+        const recordingFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
+        await ensureFolderExists(this.app.vault, recordingFolder);
+        const filePath = `${recordingFolder}/${fileName}`;
+        const arrayBuffer = await this.blob!.arrayBuffer();
+        return this.app.vault.createBinary(filePath, arrayBuffer);
+    }
+
     private async saveRecording(): Promise<void> {
         if (!this.blob || this.blob.size === 0) {
             new Notice('No recording to save');
@@ -294,20 +307,7 @@ export class AudioRecorderModal extends Modal {
         const t = this.plugin.t.recording;
 
         try {
-            // Generate filename
-            const now = new Date();
-            const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
-            const ext = this.recorder.getMimeSelection().extension;
-            const fileName = `recording-${timestamp}${ext}`;
-
-            // Ensure folder
-            const recordingFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
-            await ensureFolderExists(this.app.vault, recordingFolder);
-
-            // Save file
-            const filePath = `${recordingFolder}/${fileName}`;
-            const arrayBuffer = await this.blob.arrayBuffer();
-            const savedFile = await this.app.vault.createBinary(filePath, arrayBuffer);
+            const savedFile = await this.saveBlobToVault();
 
             const duration = this.recorder.getElapsedSeconds();
             let transcript: string | undefined;
@@ -404,9 +404,12 @@ export class AudioRecorderModal extends Modal {
         const embedLink = shouldEmbed ? `![[${file.name}]]\n\n` : '';
         const content = embedLink + (transcript || '');
 
+        // Guard: don't create an empty note or insert nothing
+        if (!content.trim()) return;
+
         if (outputChoice === 'cursor') {
             const editor = this.app.workspace.activeEditor?.editor;
-            if (editor && content.trim()) {
+            if (editor) {
                 insertAtCursor(editor, content);
             }
         } else {
@@ -473,17 +476,13 @@ export class AudioRecorderModal extends Modal {
     }
 
     async onClose(): Promise<void> {
-        // If recording or has unsaved data, confirm before closing
+        // If recording or has unsaved data, auto-save to prevent data loss.
+        // Modal.onClose can't be async-blocked for a confirmation dialog,
+        // so we save unconditionally and notify the user.
         if (!this.actionFired && (this.recorder.isRecording() || this.recorder.hasData())) {
-            // Show confirmation — prevent silent data loss
             const t = this.plugin.t.recording;
             const isActive = this.recorder.isRecording();
-            const message = isActive
-                ? (t?.confirmDiscard || 'Recording in progress. Save or discard?')
-                : (t?.confirmDiscardStopped || 'You have an unsaved recording. Save or discard?');
 
-            // Show a simple confirmation using Obsidian's confirm dialog pattern
-            // Since Modal.onClose can't be async-blocked easily, we save what we can
             if (isActive) {
                 try {
                     this.blob = await this.recorder.stopRecording();
@@ -495,18 +494,9 @@ export class AudioRecorderModal extends Modal {
             // Attempt auto-save to prevent data loss
             if (this.blob && this.blob.size > 0) {
                 try {
-                    const now = new Date();
-                    const timestamp = now.toISOString().replace(/[:.]/g, '-').substring(0, 19);
-                    const ext = this.recorder.getMimeSelection().extension;
-                    const fileName = `recording-${timestamp}-unsaved${ext}`;
-                    const recordingFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
-                    await ensureFolderExists(this.app.vault, recordingFolder);
-                    const filePath = `${recordingFolder}/${fileName}`;
-                    const arrayBuffer = await this.blob.arrayBuffer();
-                    await this.app.vault.createBinary(filePath, arrayBuffer);
+                    await this.saveBlobToVault('-unsaved');
                     new Notice(t?.saved || 'Recording auto-saved');
                 } catch {
-                    // Best effort — at least we tried to save
                     console.warn('[Audio Recorder] Failed to auto-save recording on close');
                 }
             }

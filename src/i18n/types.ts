@@ -1442,6 +1442,7 @@ export interface Translations {
         save: string;
         discard: string;
         recording: string;
+        saving: string;
         transcribing: string;
         saved: string;
         savedAndTranscribed: string;

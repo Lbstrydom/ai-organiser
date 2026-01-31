@@ -106,7 +106,14 @@ export class AudioRecordingService {
             };
         }
 
-        this.mediaRecorder = new MediaRecorder(this.stream, options);
+        try {
+            this.mediaRecorder = new MediaRecorder(this.stream, options);
+        } catch (err) {
+            // MediaRecorder constructor can throw (e.g. unsupported mime on this device).
+            // Release the mic stream we already acquired to avoid a leak.
+            this.releaseStream();
+            throw err;
+        }
 
         // If we used the fallback path, read actual mimeType from instance
         if (!negotiated && this.mediaRecorder.mimeType) {
@@ -119,9 +126,18 @@ export class AudioRecordingService {
             this.mime = { mimeType: 'audio/webm', extension: '.webm' };
         }
 
-        // Accumulate chunks with real size tracking
+        // Accumulate chunks with real size tracking.
+        // Also capture the actual mime type from the first chunk — this is the
+        // ground truth when isTypeSupported was unreliable or the browser
+        // silently chose a different codec than requested.
         this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
             if (event.data.size > 0) {
+                if (this.chunks.length === 0 && event.data.type) {
+                    this.mime = {
+                        mimeType: event.data.type,
+                        extension: mapMimeToExtension(event.data.type)
+                    };
+                }
                 this.chunks.push(event.data);
                 this.recordedBytes += event.data.size;
             }
@@ -129,7 +145,15 @@ export class AudioRecordingService {
 
         // Start with 1-second timeslice for accurate live size display
         this.startTime = Date.now();
-        this.mediaRecorder.start(1000);
+        try {
+            this.mediaRecorder.start(1000);
+        } catch (err) {
+            // start() can throw InvalidStateError or NotSupportedError.
+            // Release the mic stream to avoid a leak.
+            this.releaseStream();
+            this.mediaRecorder = null;
+            throw err;
+        }
     }
 
     /**
@@ -144,6 +168,15 @@ export class AudioRecordingService {
             }
 
             this.mediaRecorder.onstop = () => {
+                // Use the actual mime type from the recorder instance as the
+                // definitive source — it reflects what the browser really encoded.
+                const actualMime = this.mediaRecorder?.mimeType;
+                if (actualMime && actualMime !== this.mime.mimeType) {
+                    this.mime = {
+                        mimeType: actualMime,
+                        extension: mapMimeToExtension(actualMime)
+                    };
+                }
                 const blob = new Blob(this.chunks, { type: this.mime.mimeType });
                 this.releaseStream();
                 resolve(blob);

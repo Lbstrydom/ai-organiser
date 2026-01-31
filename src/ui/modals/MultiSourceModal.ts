@@ -721,9 +721,10 @@ export class MultiSourceModal extends Modal {
     private renderAudioRecordButton(header: HTMLElement): void {
         if (!isRecordingSupported()) return;
 
+        const recordLabel = this.plugin.t.recording?.title || 'Record Audio';
         const recordBtn = header.createEl('button', {
             cls: 'ai-organiser-multi-source-record-btn clickable-icon',
-            attr: { 'aria-label': 'Record audio' }
+            attr: { 'aria-label': recordLabel, title: recordLabel }
         });
         setIcon(recordBtn, 'mic');
         recordBtn.addEventListener('click', () => {

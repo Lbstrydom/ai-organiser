@@ -1446,6 +1446,7 @@ export const zhCN: Translations = {
         save: "保存",
         discard: "丢弃",
         recording: "录制中...",
+        saving: "保存中...",
         transcribing: "转录中...",
         saved: "录音已保存",
         savedAndTranscribed: "录音已保存并转录",

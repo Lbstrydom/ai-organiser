@@ -1446,6 +1446,7 @@ export const en: Translations = {
         save: "Save",
         discard: "Discard",
         recording: "Recording...",
+        saving: "Saving...",
         transcribing: "Transcribing...",
         saved: "Recording saved",
         savedAndTranscribed: "Recording saved and transcribed",

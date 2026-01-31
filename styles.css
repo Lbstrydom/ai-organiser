@@ -3691,13 +3691,13 @@
     animation: ai-organiser-pulse 1.5s ease-in-out infinite;
 }
 
-.ai-organiser-audio-recorder-options {
+.ai-organiser-audio-recorder-output {
     margin-top: 12px;
     padding-top: 12px;
     border-top: 1px solid var(--background-modifier-border);
 }
 
-.ai-organiser-audio-recorder-options label {
+.ai-organiser-audio-recorder-output label {
     display: flex;
     align-items: center;
     gap: 8px;
