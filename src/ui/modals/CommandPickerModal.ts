@@ -158,11 +158,10 @@ export class CommandPickerModal extends FuzzySuggestModal<CommandItem> {
  * Build command categories from the plugin's registered commands
  *
  * Categories organized by user workflow (Gestalt principles):
- * 1. Create - Capture new content from external sources
- * 2. Enhance - Improve and augment existing notes
- * 3. Organize - Structure and categorize content (Tags group, Bases group)
+ * 1. Create - Capture new content from external sources (Export group)
+ * 2. Enhance - Improve and augment existing notes (Highlight group, Pending group)
+ * 3. Organize - Structure and categorize content (Tags, Bases, NotebookLM groups)
  * 4. Discover - Explore vault with AI chat and semantic search
- * 5. Integrate - Combine and manage content
  */
 export function buildCommandCategories(
     t: Translations,
@@ -202,18 +201,34 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:create-meeting-minutes')
                 },
                 {
-                    id: 'export-note',
-                    name: t.commands?.exportNote || 'Export Note',
-                    icon: 'file-output',
-                    aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint'],
-                    callback: () => executeCommand('ai-organiser:export-note')
-                },
-                {
                     id: 'record-audio',
                     name: t.commands?.recordAudio || 'Record Audio',
                     icon: 'mic',
                     aliases: ['record', 'voice', 'dictate', 'audio', 'microphone', 'memo'],
                     callback: () => executeCommand('ai-organiser:record-audio')
+                },
+                {
+                    id: 'export-group',
+                    name: t.modals.commandPicker?.groupExport || 'Export',
+                    icon: 'file-output',
+                    aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint', 'flashcards', 'anki', 'brainscape', 'cards', 'study'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'export-note',
+                            name: t.commands?.exportNote || 'Export Note',
+                            icon: 'file-output',
+                            aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint'],
+                            callback: () => executeCommand('ai-organiser:export-note')
+                        },
+                        {
+                            id: 'export-flashcards',
+                            name: t.commands.exportFlashcards,
+                            icon: 'layers',
+                            aliases: ['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
+                            callback: () => executeCommand('ai-organiser:export-flashcards')
+                        }
+                    ]
                 }
             ]
         },
@@ -240,13 +255,6 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:enhance-note')
                 },
                 {
-                    id: 'export-flashcards',
-                    name: t.commands.exportFlashcards,
-                    icon: 'layers',
-                    aliases: ['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
-                    callback: () => executeCommand('ai-organiser:export-flashcards')
-                },
-                {
                     id: 'smart-translate',
                     name: t.commands.translate || t.commands.translateNote,
                     icon: 'languages',
@@ -257,6 +265,13 @@ export function buildCommandCategories(
                         'convert'
                     ],
                     callback: () => executeCommand('ai-organiser:smart-translate')
+                },
+                {
+                    id: 'create-dashboard',
+                    name: t.commands?.createBasesDashboard || 'Create Bases dashboard',
+                    icon: 'layout-dashboard',
+                    aliases: ['bases', 'dashboard', 'view'],
+                    callback: () => executeCommand('ai-organiser:create-bases-dashboard')
                 },
                 {
                     id: 'highlight-group',
@@ -278,6 +293,36 @@ export function buildCommandCategories(
                             icon: 'eraser',
                             aliases: ['remove', 'clear', 'unhighlight'],
                             callback: () => executeCommand('ai-organiser:remove-highlight')
+                        }
+                    ]
+                },
+                {
+                    id: 'pending-group',
+                    name: t.modals.commandPicker?.groupPending || 'Pending Integration',
+                    icon: 'git-merge',
+                    aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'add-to-pending',
+                            name: t.commands.addToPendingIntegration,
+                            icon: 'plus-circle',
+                            aliases: ['pending', 'add', 'integration'],
+                            callback: () => executeCommand('ai-organiser:add-to-pending-integration')
+                        },
+                        {
+                            id: 'integrate-pending',
+                            name: t.commands.integratePendingContent,
+                            icon: 'git-merge',
+                            aliases: ['integrate', 'merge', 'pending'],
+                            callback: () => executeCommand('ai-organiser:integrate-pending-content')
+                        },
+                        {
+                            id: 'resolve-embeds',
+                            name: t.commands.resolvePendingEmbeds,
+                            icon: 'scan-text',
+                            aliases: ['embeds', 'resolve', 'extract'],
+                            callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
                         }
                     ]
                 }
@@ -339,148 +384,6 @@ export function buildCommandCategories(
                     ]
                 },
                 {
-                    id: 'bases-group',
-                    name: t.modals.commandPicker?.groupBases || 'Bases',
-                    icon: 'database',
-                    aliases: ['bases', 'metadata', 'dashboard', 'upgrade', 'migrate', 'view', 'index', 'rebuild'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'upgrade-metadata',
-                            name: t.commands?.upgradeToBases || 'Upgrade to Bases metadata',
-                            icon: 'database',
-                            aliases: ['bases', 'migrate', 'metadata', 'upgrade'],
-                            callback: () => executeCommand('ai-organiser:upgrade-metadata')
-                        },
-                        {
-                            id: 'upgrade-folder-metadata',
-                            name: t.commands?.upgradeFolderToBases || 'Upgrade folder to Bases metadata',
-                            icon: 'database',
-                            aliases: ['bases', 'folder', 'migrate'],
-                            callback: () => executeCommand('ai-organiser:upgrade-folder-metadata')
-                        },
-                        {
-                            id: 'create-dashboard',
-                            name: t.commands?.createBasesDashboard || 'Create Bases dashboard',
-                            icon: 'layout-dashboard',
-                            aliases: ['bases', 'dashboard', 'view'],
-                            callback: () => executeCommand('ai-organiser:create-bases-dashboard')
-                        },
-                        {
-                            id: 'manage-index',
-                            name: t.commands.manageIndex,
-                            icon: 'database',
-                            aliases: [
-                                t.commands.buildSemanticIndex,
-                                t.commands.updateSemanticIndex,
-                                t.commands.clearSemanticIndex,
-                                'index',
-                                'rebuild'
-                            ],
-                            callback: () => executeCommand('ai-organiser:manage-index')
-                        }
-                    ]
-                }
-            ]
-        },
-        // === DISCOVER: Explore vault with AI chat and semantic search ===
-        {
-            id: 'discover',
-            name: t.modals.commandPicker?.categoryDiscover || 'Discover',
-            icon: 'compass',
-            commands: [
-                {
-                    id: 'ask-ai-group',
-                    name: t.modals.commandPicker?.groupAskAI || 'Ask AI',
-                    icon: 'message-circle',
-                    aliases: ['ask', 'question', 'chat', 'RAG', 'current note', 'analyze'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'chat-with-vault',
-                            name: t.commands.chatWithVault,
-                            icon: 'message-circle',
-                            aliases: ['ask', 'question', 'chat', 'RAG'],
-                            callback: () => executeCommand('ai-organiser:chat-with-vault')
-                        },
-                        {
-                            id: 'ask-about-current-note',
-                            name: t.commands.askAboutCurrentNote,
-                            icon: 'message-square-text',
-                            aliases: ['ask', 'current note', 'analyze'],
-                            callback: () => executeCommand('ai-organiser:ask-about-current-note')
-                        }
-                    ]
-                },
-                {
-                    id: 'find-notes-group',
-                    name: t.modals.commandPicker?.groupFindNotes || 'Find Notes',
-                    icon: 'search',
-                    aliases: ['find', 'query', 'lookup', 'similar', 'connections', 'linked', 'insert', 'embed', 'related', 'semantic', 'search'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'semantic-search',
-                            name: t.commands.searchSemanticVault,
-                            icon: 'search',
-                            aliases: ['find', 'query', 'lookup'],
-                            callback: () => executeCommand('ai-organiser:semantic-search')
-                        },
-                        {
-                            id: 'find-related',
-                            name: t.commands.showRelatedNotes,
-                            icon: 'link-2',
-                            aliases: ['similar', 'connections', 'linked'],
-                            callback: () => executeCommand('ai-organiser:find-related')
-                        },
-                        {
-                            id: 'insert-related-notes',
-                            name: t.commands.insertRelatedNotes,
-                            icon: 'copy-plus',
-                            aliases: ['insert', 'embed', 'related'],
-                            callback: () => executeCommand('ai-organiser:insert-related-notes')
-                        }
-                    ]
-                }
-            ]
-        },
-        // === INTEGRATE: Combine and manage content ===
-        {
-            id: 'integrate',
-            name: t.modals.commandPicker?.categoryIntegrate || 'Integrate',
-            icon: 'git-merge',
-            commands: [
-                {
-                    id: 'pending-group',
-                    name: t.modals.commandPicker?.groupPending || 'Pending Integration',
-                    icon: 'git-merge',
-                    aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'add-to-pending',
-                            name: t.commands.addToPendingIntegration,
-                            icon: 'plus-circle',
-                            aliases: ['pending', 'add', 'integration'],
-                            callback: () => executeCommand('ai-organiser:add-to-pending-integration')
-                        },
-                        {
-                            id: 'integrate-pending',
-                            name: t.commands.integratePendingContent,
-                            icon: 'git-merge',
-                            aliases: ['integrate', 'merge', 'pending'],
-                            callback: () => executeCommand('ai-organiser:integrate-pending-content')
-                        },
-                        {
-                            id: 'resolve-embeds',
-                            name: t.commands.resolvePendingEmbeds,
-                            icon: 'scan-text',
-                            aliases: ['embeds', 'resolve', 'extract'],
-                            callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
-                        }
-                    ]
-                },
-                {
                     id: 'notebooklm-group',
                     name: t.modals.commandPicker?.groupNotebookLM || 'NotebookLM',
                     icon: 'file-output',
@@ -514,6 +417,74 @@ export function buildCommandCategories(
                             icon: 'folder-open',
                             aliases: ['notebooklm', 'export', 'folder'],
                             callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
+                        }
+                    ]
+                }
+            ]
+        },
+        // === DISCOVER: Explore vault with AI chat and semantic search ===
+        {
+            id: 'discover',
+            name: t.modals.commandPicker?.categoryDiscover || 'Discover',
+            icon: 'compass',
+            commands: [
+                {
+                    id: 'ask-ai-group',
+                    name: t.modals.commandPicker?.groupAskAI || 'Ask AI',
+                    icon: 'message-circle',
+                    aliases: ['ask', 'question', 'chat', 'RAG', 'current note', 'analyze'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'chat-with-vault',
+                            name: t.commands.chatWithVault,
+                            icon: 'message-circle',
+                            aliases: ['ask', 'question', 'chat', 'RAG'],
+                            callback: () => executeCommand('ai-organiser:chat-with-vault')
+                        },
+                        {
+                            id: 'ask-about-current-note',
+                            name: t.commands.askAboutCurrentNote,
+                            icon: 'message-square-text',
+                            aliases: ['ask', 'current note', 'analyze'],
+                            callback: () => executeCommand('ai-organiser:ask-about-current-note')
+                        },
+                        {
+                            id: 'chat-about-highlights',
+                            name: t.commands.chatAboutHighlights,
+                            icon: 'message-square-quote',
+                            aliases: ['highlight', 'chat', 'discuss', 'passages', 'selected', 'focus'],
+                            callback: () => executeCommand('ai-organiser:chat-about-highlights')
+                        }
+                    ]
+                },
+                {
+                    id: 'find-notes-group',
+                    name: t.modals.commandPicker?.groupFindNotes || 'Find Notes',
+                    icon: 'search',
+                    aliases: ['find', 'query', 'lookup', 'similar', 'connections', 'linked', 'insert', 'embed', 'related', 'semantic', 'search'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'semantic-search',
+                            name: t.commands.searchSemanticVault,
+                            icon: 'search',
+                            aliases: ['find', 'query', 'lookup'],
+                            callback: () => executeCommand('ai-organiser:semantic-search')
+                        },
+                        {
+                            id: 'find-related',
+                            name: t.commands.showRelatedNotes,
+                            icon: 'link-2',
+                            aliases: ['similar', 'connections', 'linked'],
+                            callback: () => executeCommand('ai-organiser:find-related')
+                        },
+                        {
+                            id: 'insert-related-notes',
+                            name: t.commands.insertRelatedNotes,
+                            icon: 'copy-plus',
+                            aliases: ['insert', 'embed', 'related'],
+                            callback: () => executeCommand('ai-organiser:insert-related-notes')
                         }
                     ]
                 }

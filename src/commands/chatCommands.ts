@@ -7,6 +7,7 @@ import { Notice, Modal, App, Setting, TextAreaComponent, ButtonComponent } from 
 import AIOrganiserPlugin from '../main';
 import { RAGService, RAGContext } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { HighlightChatModal } from '../ui/modals/HighlightChatModal';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 
 /**
@@ -335,6 +336,32 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             } catch (error) {
                 new Notice(plugin.t.messages.semanticSearchDisabled + ': ' + (error as any).message);
             }
+        }
+    });
+
+    // Chat about highlights
+    plugin.addCommand({
+        id: 'chat-about-highlights',
+        name: plugin.t.commands.chatAboutHighlights || 'Chat about highlights',
+        icon: 'message-square-quote',
+        editorCallback: (editor, view) => {
+            const file = view.file;
+            if (!file) return;
+
+            const content = editor.getValue();
+            if (!content.trim()) {
+                new Notice(plugin.t.highlightChat?.noContent || 'Note is empty');
+                return;
+            }
+
+            const selection = editor.getSelection();
+            const modal = new HighlightChatModal(plugin.app, plugin, {
+                noteContent: content,
+                noteTitle: file.basename,
+                filePath: file.path,
+                editorSelection: selection || undefined
+            });
+            modal.open();
         }
     });
 

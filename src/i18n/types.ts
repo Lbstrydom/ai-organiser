@@ -195,6 +195,9 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            manageIndexAction: string;
+            manageIndexActionDesc: string;
+            manageIndexButton: string;
             rag: {
                 title: string;
             };
@@ -455,6 +458,7 @@ export interface Translations {
         searchSemanticVault: string;
         chatWithVault: string;
         askAboutCurrentNote: string;
+        chatAboutHighlights: string;
         insertRelatedNotes: string;
         upgradeToBases: string;
         upgradeFolderToBases: string;
@@ -1243,8 +1247,7 @@ export interface Translations {
             categoryEnhance: string;
             categoryOrganize: string;
             categoryDiscover: string;
-            categoryIntegrate: string;
-            groupBases: string;
+            groupExport: string;
             groupPending: string;
             groupNotebookLM: string;
             groupHighlight: string;
@@ -1252,6 +1255,30 @@ export interface Translations {
             groupAskAI: string;
             groupFindNotes: string;
         };
+    };
+
+    // Highlight chat
+    highlightChat: {
+        title: string;
+        selectPassages: string;
+        selected: string;
+        noPassagesSelected: string;
+        startChat: string;
+        back: string;
+        placeholder: string;
+        send: string;
+        thinking: string;
+        insertSummary: string;
+        insertSummaryDesc: string;
+        insertAnswer: string;
+        insertAnswerDesc: string;
+        noContent: string;
+        noEditor: string;
+        summaryInserted: string;
+        answerInserted: string;
+        passagesSummary: string;
+        errorOccurred: string;
+        noAnswerYet: string;
     };
 
     // File menu items

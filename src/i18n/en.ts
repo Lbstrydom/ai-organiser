@@ -208,6 +208,9 @@ export const en: Translations = {
                 name: "Max Chunks",
                 description: "Per note limit (default: 10)"
             },
+            manageIndexAction: "Manage Index",
+            manageIndexActionDesc: "Build, update, or clear your semantic search index",
+            manageIndexButton: "Manage",
             rag: {
                 title: "Vault Context (RAG)"
             },
@@ -468,6 +471,7 @@ export const en: Translations = {
         searchSemanticVault: "Semantic search",
         chatWithVault: "Chat with vault",
         askAboutCurrentNote: "Ask Question About Current Note",
+        chatAboutHighlights: "Chat about highlights",
         insertRelatedNotes: "Insert Related Notes",
         upgradeToBases: "Upgrade to Bases metadata",
         upgradeFolderToBases: "Upgrade folder to Bases metadata",
@@ -1245,8 +1249,7 @@ export const en: Translations = {
             categoryEnhance: "Enhance",
             categoryOrganize: "Organize",
             categoryDiscover: "Discover",
-            categoryIntegrate: "Integrate",
-            groupBases: "Bases",
+            groupExport: "Export",
             groupPending: "Pending Integration",
             groupNotebookLM: "NotebookLM",
             groupHighlight: "Highlight",
@@ -1419,6 +1422,28 @@ export const en: Translations = {
         dictionaryNoDocsExtracted: "Extract document content first",
         dictionaryCreatePrompt: "No dictionary selected. Create a new one?",
         dictionaryNotFound: "Dictionary file not found"
+    },
+    highlightChat: {
+        title: "Chat About Highlights",
+        selectPassages: "Select passages to discuss:",
+        selected: "Selected: {count} passages (~{tokens}k tokens)",
+        noPassagesSelected: "Select at least one passage",
+        startChat: "Start Chat",
+        back: "Back to selection",
+        placeholder: "Ask a question about the selected passages...",
+        send: "Send",
+        thinking: "Thinking...",
+        insertSummary: "Insert Summary",
+        insertSummaryDesc: "AI distills the conversation into a clean note section",
+        insertAnswer: "Insert Last Answer",
+        insertAnswerDesc: "Insert only the last AI response",
+        noContent: "Note is empty",
+        noEditor: "No active editor for insertion",
+        summaryInserted: "Summary inserted into note",
+        answerInserted: "Answer inserted into note",
+        passagesSummary: "{count} passages selected",
+        errorOccurred: "Error: {error}",
+        noAnswerYet: "Ask a question first"
     },
     integration: {
         resolveEmbeds: "Resolve pending embeds",

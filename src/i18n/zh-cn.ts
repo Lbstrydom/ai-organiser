@@ -184,6 +184,9 @@ export const zhCN: Translations = {
                 name: "每个笔记的最大块数",
                 description: "每个笔记的最大块数，以防止内存问题。（默认：10）"
             },
+            manageIndexAction: "管理索引",
+            manageIndexActionDesc: "构建、更新或清除语义搜索索引",
+            manageIndexButton: "管理",
             rag: {
                 title: "RAG（检索增强生成）"
             },
@@ -468,6 +471,7 @@ export const zhCN: Translations = {
         searchSemanticVault: "语义搜索库",
         chatWithVault: "与库聊天（RAG）",
         askAboutCurrentNote: "询问当前笔记",
+        chatAboutHighlights: "与高亮内容对话",
         insertRelatedNotes: "插入相关笔记",
         upgradeToBases: "升级到 Bases 元数据",
         upgradeFolderToBases: "升级文件夹到 Bases 元数据",
@@ -1245,8 +1249,7 @@ export const zhCN: Translations = {
             categoryEnhance: "增强",
             categoryOrganize: "整理",
             categoryDiscover: "发现",
-            categoryIntegrate: "集成",
-            groupBases: "Bases 数据库",
+            groupExport: "导出",
             groupPending: "待处理集成",
             groupNotebookLM: "NotebookLM",
             groupHighlight: "高亮",
@@ -1419,6 +1422,28 @@ export const zhCN: Translations = {
         dictionaryNoDocsExtracted: "请先提取文档内容",
         dictionaryCreatePrompt: "未选择词典。是否创建新词典？",
         dictionaryNotFound: "未找到词典文件"
+    },
+    highlightChat: {
+        title: "与高亮内容对话",
+        selectPassages: "选择要讨论的段落：",
+        selected: "已选：{count} 段（约 {tokens}k tokens）",
+        noPassagesSelected: "请至少选择一段内容",
+        startChat: "开始对话",
+        back: "返回选择",
+        placeholder: "就选中的段落提问...",
+        send: "发送",
+        thinking: "思考中...",
+        insertSummary: "插入总结",
+        insertSummaryDesc: "AI 将对话整理为干净的笔记段落",
+        insertAnswer: "插入最后回复",
+        insertAnswerDesc: "仅插入最后一条 AI 回复",
+        noContent: "笔记内容为空",
+        noEditor: "没有可用的编辑器用于插入",
+        summaryInserted: "总结已插入到笔记",
+        answerInserted: "回复已插入到笔记",
+        passagesSummary: "已选 {count} 段",
+        errorOccurred: "错误：{error}",
+        noAnswerYet: "请先提出问题"
     },
     integration: {
         resolveEmbeds: "解析待整合嵌入",

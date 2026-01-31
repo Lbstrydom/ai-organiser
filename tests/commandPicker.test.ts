@@ -47,6 +47,7 @@ function createMockTranslations(): Translations {
             showRelatedNotes: 'Show Related Notes',
             chatWithVault: 'Chat with Vault',
             askAboutCurrentNote: 'Ask Question About Current Note',
+            chatAboutHighlights: 'Chat about highlights',
             insertRelatedNotes: 'Insert Related Notes',
             manageIndex: 'Manage Index',
             buildSemanticIndex: 'Build Index',
@@ -72,8 +73,7 @@ function createMockTranslations(): Translations {
                 categoryEnhance: 'Enhance',
                 categoryOrganize: 'Organize',
                 categoryDiscover: 'Discover',
-                categoryIntegrate: 'Integrate',
-                groupBases: 'Bases',
+                groupExport: 'Export',
                 groupPending: 'Pending Integration',
                 groupNotebookLM: 'NotebookLM',
                 groupHighlight: 'Highlight',
@@ -94,7 +94,7 @@ describe('Command Picker', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
 
             const categoryIds = categories.map(c => c.id);
-            expect(categoryIds).toEqual(['create', 'enhance', 'organize', 'discover', 'integrate']);
+            expect(categoryIds).toEqual(['create', 'enhance', 'organize', 'discover']);
         });
 
         it('should have correct category names from i18n', () => {
@@ -105,8 +105,7 @@ describe('Command Picker', () => {
                 'Create',
                 'Enhance',
                 'Organize',
-                'Discover',
-                'Integrate'
+                'Discover'
             ]);
         });
 
@@ -128,8 +127,16 @@ describe('Command Picker', () => {
                 const commandIds = createCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('smart-summarize');
                 expect(commandIds).toContain('create-meeting-minutes');
-                expect(commandIds).toContain('export-note');
                 expect(commandIds).toContain('record-audio');
+                expect(commandIds).toContain('export-group');
+
+                // Verify Export group contains sub-commands
+                const exportGroup = createCategory!.commands.find(c => c.id === 'export-group');
+                expect(exportGroup).toBeDefined();
+                expect(exportGroup!.subCommands).toBeDefined();
+                const subIds = exportGroup!.subCommands!.map(c => c.id);
+                expect(subIds).toContain('export-note');
+                expect(subIds).toContain('export-flashcards');
             });
         });
 
@@ -141,17 +148,27 @@ describe('Command Picker', () => {
                 expect(enhanceCategory).toBeDefined();
                 const commandIds = enhanceCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('enhance-note');
-                expect(commandIds).toContain('export-flashcards');
                 expect(commandIds).toContain('smart-translate');
+                expect(commandIds).toContain('create-dashboard');
                 expect(commandIds).toContain('highlight-group');
+                expect(commandIds).toContain('pending-group');
 
                 // Verify Highlight group contains sub-commands
                 const highlightGroup = enhanceCategory!.commands.find(c => c.id === 'highlight-group');
                 expect(highlightGroup).toBeDefined();
                 expect(highlightGroup!.subCommands).toBeDefined();
-                const subIds = highlightGroup!.subCommands!.map(c => c.id);
-                expect(subIds).toContain('highlight-selection');
-                expect(subIds).toContain('remove-highlight');
+                const highlightSubIds = highlightGroup!.subCommands!.map(c => c.id);
+                expect(highlightSubIds).toContain('highlight-selection');
+                expect(highlightSubIds).toContain('remove-highlight');
+
+                // Verify Pending group contains sub-commands
+                const pendingGroup = enhanceCategory!.commands.find(c => c.id === 'pending-group');
+                expect(pendingGroup).toBeDefined();
+                expect(pendingGroup!.subCommands).toBeDefined();
+                const pendingSubIds = pendingGroup!.subCommands!.map(c => c.id);
+                expect(pendingSubIds).toContain('add-to-pending');
+                expect(pendingSubIds).toContain('integrate-pending');
+                expect(pendingSubIds).toContain('resolve-embeds');
             });
         });
 
@@ -163,7 +180,8 @@ describe('Command Picker', () => {
                 expect(organizeCategory).toBeDefined();
                 const commandIds = organizeCategory!.commands.map(c => c.id);
                 expect(commandIds).toContain('tags-group');
-                expect(commandIds).toContain('bases-group');
+                expect(commandIds).toContain('notebooklm-group');
+                expect(commandIds).not.toContain('bases-group');
 
                 // Verify Tags group contains sub-commands
                 const tagsGroup = organizeCategory!.commands.find(c => c.id === 'tags-group');
@@ -175,15 +193,15 @@ describe('Command Picker', () => {
                 expect(tagSubIds).toContain('show-tag-network');
                 expect(tagSubIds).toContain('collect-all-tags');
 
-                // Verify Bases group contains sub-commands (now includes manage-index)
-                const basesGroup = organizeCategory!.commands.find(c => c.id === 'bases-group');
-                expect(basesGroup).toBeDefined();
-                expect(basesGroup!.subCommands).toBeDefined();
-                const basesSubIds = basesGroup!.subCommands!.map(c => c.id);
-                expect(basesSubIds).toContain('upgrade-metadata');
-                expect(basesSubIds).toContain('upgrade-folder-metadata');
-                expect(basesSubIds).toContain('create-dashboard');
-                expect(basesSubIds).toContain('manage-index');
+                // Verify NotebookLM group contains sub-commands
+                const nlmGroup = organizeCategory!.commands.find(c => c.id === 'notebooklm-group');
+                expect(nlmGroup).toBeDefined();
+                expect(nlmGroup!.subCommands).toBeDefined();
+                const nlmSubIds = nlmGroup!.subCommands!.map(c => c.id);
+                expect(nlmSubIds).toContain('notebooklm-export');
+                expect(nlmSubIds).toContain('notebooklm-toggle');
+                expect(nlmSubIds).toContain('notebooklm-clear');
+                expect(nlmSubIds).toContain('notebooklm-open-folder');
             });
         });
 
@@ -205,6 +223,8 @@ describe('Command Picker', () => {
                 const askSubIds = askAIGroup!.subCommands!.map(c => c.id);
                 expect(askSubIds).toContain('chat-with-vault');
                 expect(askSubIds).toContain('ask-about-current-note');
+                expect(askSubIds).toContain('chat-about-highlights');
+                expect(askSubIds).toHaveLength(3);
 
                 // Verify Find Notes group
                 const findGroup = discoverCategory!.commands.find(c => c.id === 'find-notes-group');
@@ -214,37 +234,6 @@ describe('Command Picker', () => {
                 expect(findSubIds).toContain('semantic-search');
                 expect(findSubIds).toContain('find-related');
                 expect(findSubIds).toContain('insert-related-notes');
-            });
-        });
-
-        describe('Integrate category', () => {
-            it('should contain expected commands', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const integrateCategory = categories.find(c => c.id === 'integrate');
-
-                expect(integrateCategory).toBeDefined();
-                const commandIds = integrateCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('pending-group');
-                expect(commandIds).toContain('notebooklm-group');
-
-                // Verify Pending Integration group contains sub-commands
-                const pendingGroup = integrateCategory!.commands.find(c => c.id === 'pending-group');
-                expect(pendingGroup).toBeDefined();
-                expect(pendingGroup!.subCommands).toBeDefined();
-                const pendingSubIds = pendingGroup!.subCommands!.map(c => c.id);
-                expect(pendingSubIds).toContain('add-to-pending');
-                expect(pendingSubIds).toContain('integrate-pending');
-                expect(pendingSubIds).toContain('resolve-embeds');
-
-                // Verify NotebookLM group contains sub-commands
-                const nlmGroup = integrateCategory!.commands.find(c => c.id === 'notebooklm-group');
-                expect(nlmGroup).toBeDefined();
-                expect(nlmGroup!.subCommands).toBeDefined();
-                const nlmSubIds = nlmGroup!.subCommands!.map(c => c.id);
-                expect(nlmSubIds).toContain('notebooklm-export');
-                expect(nlmSubIds).toContain('notebooklm-toggle');
-                expect(nlmSubIds).toContain('notebooklm-clear');
-                expect(nlmSubIds).toContain('notebooklm-open-folder');
             });
         });
 
