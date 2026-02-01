@@ -4,7 +4,7 @@
  */
 
 import { TFile } from 'obsidian';
-import { IVectorStore, SearchResult } from './vector/types';
+import { IVectorStore, SearchResult, VectorDocument } from './vector/types';
 import { IEmbeddingService } from './embeddings/types';
 import { AIOrganiserSettings } from '../core/settings';
 
@@ -191,21 +191,30 @@ export class RAGService {
 
     /**
      * Get related notes for a file
+     * @param options.folderScope Restrict results to this folder (and subfolders). null = whole vault.
      */
     public async getRelatedNotes(
         file: TFile,
         content: string,
-        maxResults: number = 5
+        maxResults: number = 5,
+        options?: { folderScope?: string | null }
     ): Promise<SearchResult[]> {
         try {
             const queryContent = content.length > MAX_QUERY_CHARS
                 ? content.substring(0, MAX_QUERY_CHARS)
                 : content;
 
+            // Build folder filter predicate (single source of truth)
+            const folderScope = options?.folderScope;
+            const filter = (folderScope && folderScope !== '' && folderScope !== '/')
+                ? (doc: VectorDocument) => doc.filePath.startsWith(folderScope + '/')
+                : undefined;
+
             const results = await this.vectorStore.searchByContent(
                 queryContent,
                 this.embeddingService,
-                maxResults + 1 // Get one extra to exclude self
+                maxResults + 1, // Get one extra to exclude self
+                filter
             );
 
             // Filter out the current file

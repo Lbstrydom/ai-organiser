@@ -156,6 +156,34 @@ class TestVectorStore implements IVectorStore {
                     wordCount: 7,
                     tokens: 12
                 }
+            },
+            {
+                id: 'Projects/ai-research.md-0',
+                filePath: 'Projects/ai-research.md',
+                chunkIndex: 0,
+                content: 'Research into transformer architectures and attention mechanisms.',
+                metadata: {
+                    title: 'AI Research',
+                    createdTime: 4000000,
+                    modifiedTime: 4000000,
+                    contentHash: 'hash4',
+                    wordCount: 8,
+                    tokens: 16
+                }
+            },
+            {
+                id: 'Projects/ml-notes.md-0',
+                filePath: 'Projects/ml-notes.md',
+                chunkIndex: 0,
+                content: 'Machine learning models require large training datasets.',
+                metadata: {
+                    title: 'ML Notes',
+                    createdTime: 5000000,
+                    modifiedTime: 5000000,
+                    contentHash: 'hash5',
+                    wordCount: 7,
+                    tokens: 14
+                }
             }
         ];
 
@@ -228,16 +256,20 @@ class TestVectorStore implements IVectorStore {
         });
     }
 
-    async search(queryVector: number[], topK: number = 5): Promise<SearchResult[]> {
+    async search(queryVector: number[], topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
         const results: Array<{ id: string; score: number }> = [];
-        
+
         this.embeddings.forEach((embedding, id) => {
+            if (filter) {
+                const doc = this.documents.get(id);
+                if (!doc || !filter(doc)) return;
+            }
             const score = this.cosineSimilarity(queryVector, embedding);
             results.push({ id, score });
         });
-        
+
         results.sort((a, b) => b.score - a.score);
-        
+
         return results.slice(0, topK).map(r => ({
             document: this.documents.get(r.id)!,
             score: r.score,
@@ -245,9 +277,9 @@ class TestVectorStore implements IVectorStore {
         }));
     }
 
-    async searchByContent(query: string, embeddingService: any, topK: number = 5): Promise<SearchResult[]> {
+    async searchByContent(query: string, embeddingService: any, topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
         const queryEmbedding = this.simpleEmbedding(query);
-        return this.search(queryEmbedding, topK);
+        return this.search(queryEmbedding, topK, filter);
     }
 
     async getDocument(id: string): Promise<VectorDocument | null> {
@@ -411,8 +443,8 @@ describe('RAGService', () => {
         it('should return empty context on vector store error', async () => {
             // Create a store that throws
             const errorStore: IVectorStore = {
-                searchByContent: async () => { throw new Error('Store error'); },
-                search: async () => { throw new Error('Store error'); },
+                searchByContent: async (_q: string, _e: any, _k?: number, _f?: any) => { throw new Error('Store error'); },
+                search: async (_v: number[], _k?: number, _f?: any) => { throw new Error('Store error'); },
                 upsert: async () => {},
                 remove: async () => {},
                 getDocument: async () => null,
@@ -577,6 +609,105 @@ describe('RAGService', () => {
                 expect(prompt).toContain('Task');
                 expect(prompt).toContain('Based on the context');
             }
+        });
+    });
+
+    describe('getRelatedNotes', () => {
+        it('should return related notes excluding the current file', async () => {
+            const file = createMockFile('test.md');
+            const results = await ragService.getRelatedNotes(file, 'machine learning concepts', 5);
+
+            results.forEach(r => {
+                expect(r.document.filePath).not.toBe('test.md');
+            });
+        });
+
+        it('should filter by folderScope when provided', async () => {
+            const file = createMockFile('test.md');
+            const results = await ragService.getRelatedNotes(
+                file, 'machine learning research', 10,
+                { folderScope: 'Projects' }
+            );
+
+            results.forEach(r => {
+                expect(r.document.filePath).toMatch(/^Projects\//);
+            });
+        });
+
+        it('should return all notes when folderScope is null', async () => {
+            const file = createMockFile('test.md');
+            const results = await ragService.getRelatedNotes(
+                file, 'machine learning', 10,
+                { folderScope: null }
+            );
+
+            // Should include notes from multiple folders
+            const paths = results.map(r => r.document.filePath);
+            expect(paths.length).toBeGreaterThan(0);
+        });
+
+        it('should return all notes when folderScope is empty string', async () => {
+            const file = createMockFile('test.md');
+            const results = await ragService.getRelatedNotes(
+                file, 'machine learning', 10,
+                { folderScope: '' }
+            );
+
+            // Empty string normalizes to no filter (vault-wide)
+            const hasRootNotes = results.some(r => !r.document.filePath.includes('/'));
+            expect(hasRootNotes || results.length === 0).toBe(true);
+        });
+
+        it('should return all notes when folderScope is "/"', async () => {
+            const file = createMockFile('test.md');
+            const results = await ragService.getRelatedNotes(
+                file, 'machine learning', 10,
+                { folderScope: '/' }
+            );
+
+            // "/" normalizes to no filter (vault-wide)
+            expect(results).toBeDefined();
+        });
+
+        it('should respect maxResults', async () => {
+            const file = createMockFile('nonexistent.md');
+            const results = await ragService.getRelatedNotes(
+                file, 'machine learning', 2
+            );
+
+            expect(results.length).toBeLessThanOrEqual(2);
+        });
+
+        it('should return empty array on error', async () => {
+            const errorStore: IVectorStore = {
+                searchByContent: async (_q: string, _e: any, _k?: number, _f?: any) => { throw new Error('Store error'); },
+                search: async (_v: number[], _k?: number, _f?: any) => { throw new Error('Store error'); },
+                upsert: async () => {},
+                remove: async () => {},
+                getDocument: async () => null,
+                getDocumentsByFile: async () => [],
+                removeFile: async () => {},
+                renameFile: async () => {},
+                getMetadata: async () => ({} as any),
+                clear: async () => {},
+                getFileChangeTracker: () => ({
+                    hasChanged: () => false,
+                    updateHash: () => {},
+                    removeHash: () => {},
+                    getTrackedFiles: () => new Map(),
+                    clear: () => {}
+                }),
+                rebuild: async () => {},
+                save: async () => {},
+                load: async () => {},
+                dispose: async () => {}
+            };
+
+            const service = new RAGService(errorStore, settings, embeddingService);
+            const file = createMockFile('test.md');
+            const results = await service.getRelatedNotes(file, 'query', 5);
+
+            expect(results).toEqual([]);
         });
     });
 

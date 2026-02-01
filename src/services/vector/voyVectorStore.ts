@@ -165,19 +165,22 @@ export class VoyVectorStore implements IVectorStore {
         this.metadata.lastUpdated = Date.now();
     }
 
-    async search(queryVector: number[], topK: number = 5): Promise<SearchResult[]> {
+    async search(queryVector: number[], topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
         await this.initializeVoy();
         if (!this.voy) throw new Error('Voy not initialized');
 
         try {
             // Convert to Float32Array for Voy
             const queryFloat32 = new Float32Array(queryVector);
-            
+
+            // Over-fetch when filtering (Voy WASM has no built-in filter)
+            const fetchK = filter ? Math.min(topK * 10, 100) : topK;
+
             // Search using Voy
-            const voyResults = this.voy.search(queryFloat32, topK);
+            const voyResults = this.voy.search(queryFloat32, fetchK);
 
             // Convert Voy results to SearchResult format
-            const results: SearchResult[] = [];
+            let results: SearchResult[] = [];
             for (const voyResult of voyResults.neighbors) {
                 const doc = this.documents.get(voyResult.id);
                 if (doc) {
@@ -189,7 +192,12 @@ export class VoyVectorStore implements IVectorStore {
                 }
             }
 
-            return results;
+            // Apply filter post-search
+            if (filter) {
+                results = results.filter(r => filter(r.document));
+            }
+
+            return results.slice(0, topK);
         } catch (error) {
             console.error('Voy search error:', error);
             return [];
@@ -199,7 +207,8 @@ export class VoyVectorStore implements IVectorStore {
     async searchByContent(
         query: string,
         embeddingService: any,
-        topK: number = 5
+        topK: number = 5,
+        filter?: (doc: VectorDocument) => boolean
     ): Promise<SearchResult[]> {
         try {
             if (!embeddingService || typeof embeddingService.generateEmbedding !== 'function') {
@@ -213,7 +222,7 @@ export class VoyVectorStore implements IVectorStore {
                 return [];
             }
 
-            return this.search(result.embedding, topK);
+            return this.search(result.embedding, topK, filter);
         } catch (error) {
             console.error('Error in semantic search:', error);
             return [];

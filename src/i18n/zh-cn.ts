@@ -1052,7 +1052,17 @@ export const zhCN: Translations = {
             description: "基于含义和内容与当前笔记语义相似的笔记。",
             searchPlaceholder: "筛选结果...",
             noResults: "未找到相关笔记",
-            clickToOpen: "点击打开"
+            clickToOpen: "点击打开",
+            scopeAllNotes: "所有笔记",
+            scopeFolder: "当前文件夹",
+            searchingIn: "搜索范围：",
+            fewResultsInFolder: "当前文件夹结果较少",
+            noResultsInFolder: "当前文件夹无相关笔记",
+            tryAllNotes: "搜索所有笔记",
+            searchCurrentFolder: "搜索当前文件夹",
+            searchEntireVault: "搜索整个库",
+            pinScope: "固定范围",
+            unpinScope: "取消固定（跟随当前笔记）"
         },
         semanticSearch: {
             title: "语义库搜索",

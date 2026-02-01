@@ -1052,7 +1052,17 @@ export const en: Translations = {
             description: "Notes semantically similar to the current note based on meaning and content.",
             searchPlaceholder: "Filter results...",
             noResults: "No related notes found",
-            clickToOpen: "Click to open"
+            clickToOpen: "Click to open",
+            scopeAllNotes: "All notes",
+            scopeFolder: "Current folder",
+            searchingIn: "Searching in:",
+            fewResultsInFolder: "Few results in this folder",
+            noResultsInFolder: "No related notes in this folder",
+            tryAllNotes: "Search all notes",
+            searchCurrentFolder: "Search current folder",
+            searchEntireVault: "Search entire vault",
+            pinScope: "Pin scope",
+            unpinScope: "Unpin (follow active note)"
         },
         semanticSearch: {
             title: "Semantic Vault Search",

@@ -60,13 +60,15 @@ export interface IVectorStore {
 
     /**
      * Search for similar documents
+     * @param filter Optional predicate to include only matching documents
      */
-    search(queryVector: number[], topK?: number): Promise<SearchResult[]>;
+    search(queryVector: number[], topK?: number, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]>;
 
     /**
      * Search by content (embeds query automatically)
+     * @param filter Optional predicate to include only matching documents
      */
-    searchByContent(query: string, embeddingService: any, topK?: number): Promise<SearchResult[]>;
+    searchByContent(query: string, embeddingService: any, topK?: number, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]>;
 
     /**
      * Get document by ID

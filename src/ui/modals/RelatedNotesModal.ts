@@ -9,6 +9,7 @@ export class RelatedNotesModal extends Modal {
     private results: SearchResult[] = [];
     private statusEl: HTMLElement | null = null;
     private listEl: HTMLElement | null = null;
+    private folderScope: string | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
@@ -27,14 +28,55 @@ export class RelatedNotesModal extends Modal {
         }
     }
 
+    private normalizeFolderPath(path: string | undefined | null): string | null {
+        if (!path || path === '/' || path === '') return null;
+        return path;
+    }
+
     async onOpen(): Promise<void> {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('related-notes-modal');
 
+        // Derive initial folder scope from active file
+        const currentFile = this.app.workspace.getActiveFile();
+        this.folderScope = this.normalizeFolderPath(currentFile?.parent?.path);
+
         const header = contentEl.createDiv({ cls: 'related-notes-header' });
         header.createEl('h3', { text: this.plugin.t.commands.showRelatedNotes });
-        const refreshButton = header.createEl('button', {
+
+        // Scope toggle + refresh in a controls row
+        const controls = header.createDiv({ cls: 'related-notes-modal-controls' });
+
+        const t = this.plugin.t?.modals?.relatedNotes;
+
+        // Scope toggle buttons
+        const scopeGroup = controls.createDiv({ cls: 'related-notes-scope-toggle' });
+
+        const folderBtn = scopeGroup.createEl('button', {
+            text: t?.scopeFolder || 'This folder',
+            cls: this.folderScope !== null ? 'mod-cta' : ''
+        });
+        const vaultBtn = scopeGroup.createEl('button', {
+            text: t?.scopeAllNotes || 'All notes',
+            cls: this.folderScope === null ? 'mod-cta' : ''
+        });
+
+        folderBtn.addEventListener('click', () => {
+            this.folderScope = this.normalizeFolderPath(this.app.workspace.getActiveFile()?.parent?.path);
+            folderBtn.addClass('mod-cta');
+            vaultBtn.removeClass('mod-cta');
+            this.fetchRelatedNotes();
+        });
+
+        vaultBtn.addEventListener('click', () => {
+            this.folderScope = null;
+            vaultBtn.addClass('mod-cta');
+            folderBtn.removeClass('mod-cta');
+            this.fetchRelatedNotes();
+        });
+
+        const refreshButton = controls.createEl('button', {
             cls: 'mod-cta',
             text: 'Refresh'
         });
@@ -88,7 +130,10 @@ export class RelatedNotesModal extends Modal {
                 return;
             }
 
-            this.results = await this.ragService.getRelatedNotes(currentFile, content, 5);
+            this.results = await this.ragService.getRelatedNotes(
+                currentFile, content, 5,
+                { folderScope: this.folderScope }
+            );
             if (this.results.length === 0) {
                 this.statusEl.setText(this.plugin.t.messages.noRelatedNotes);
                 return;

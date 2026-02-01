@@ -95,10 +95,15 @@ export class SimpleVectorStore implements IVectorStore {
         this.metadata.lastUpdated = Date.now();
     }
 
-    async search(queryVector: number[], topK: number = 5): Promise<SearchResult[]> {
+    async search(queryVector: number[], topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
         const results: Array<{ id: string; score: number }> = [];
 
         for (const [id, embedding] of this.embeddings.entries()) {
+            // Skip docs that don't pass filter before computing similarity
+            if (filter) {
+                const doc = this.documents.get(id);
+                if (!doc || !filter(doc)) continue;
+            }
             const score = cosineSimilarity(queryVector, embedding);
             if (score > 0) {
                 results.push({ id, score });
@@ -119,7 +124,8 @@ export class SimpleVectorStore implements IVectorStore {
     async searchByContent(
         query: string,
         embeddingService: any,
-        topK: number = 5
+        topK: number = 5,
+        filter?: (doc: VectorDocument) => boolean
     ): Promise<SearchResult[]> {
         try {
             if (!embeddingService || typeof embeddingService.generateEmbedding !== 'function') {
@@ -135,7 +141,7 @@ export class SimpleVectorStore implements IVectorStore {
             }
 
             // Use the vector search
-            return this.search(result.embedding, topK);
+            return this.search(result.embedding, topK, filter);
         } catch (error) {
             console.error('[SimpleVectorStore] Error in semantic search:', error);
             return [];

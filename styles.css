@@ -1969,6 +1969,69 @@
     font-size: var(--font-ui-smaller);
 }
 
+/* Scope UI — sidebar */
+.related-notes-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    overflow: hidden;
+    min-width: 0;
+}
+
+.related-notes-scope-btn {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+}
+
+.related-notes-pin-btn {
+    color: var(--text-faint);
+    flex-shrink: 0;
+}
+
+.related-notes-pin-btn.is-pinned {
+    color: var(--text-accent);
+}
+
+.related-notes-scope-indicator {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    margin-top: var(--size-2-2);
+}
+
+.related-notes-scoped-empty {
+    text-align: center;
+    padding: var(--size-4-4);
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+.related-notes-scoped-empty button {
+    margin-top: var(--size-4-2);
+}
+
+/* Scope UI — mobile modal */
+.related-notes-modal-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    margin-bottom: var(--size-4-2);
+}
+
+.related-notes-scope-toggle {
+    display: flex;
+    gap: var(--size-2-2);
+}
+
+.related-notes-scope-toggle button {
+    font-size: var(--font-ui-small);
+    padding: var(--size-2-1) var(--size-4-2);
+    border-radius: var(--radius-s);
+}
+
 /* Popup preview styling */
 .related-notes-popup {
     background-color: var(--background-primary);

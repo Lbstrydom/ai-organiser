@@ -172,29 +172,29 @@ Pick at least ONE source type:
 ### Audio Recording (NEW)
 
 #### Standalone Recording
-- [ ] Command Picker → Create → "Record Audio" → modal opens
-- [ ] Record button starts recording → timer + size display update live
-- [ ] Stop button stops recording → can Play to preview
-- [ ] "Insert at cursor" inserts transcript (with `![[recording.webm]]` embed if enabled)
-- [ ] "Create new note" creates `.md` file with embed + transcript
-- [ ] Recording saved to `AI-Organiser/Recordings/` folder
-- [ ] Auto-transcribe works when file ≤ 25MB and API key available
-- [ ] Without API key → recording saves, auto-transcribe disabled with info
+- [x] Command Picker → Create → "Record Audio" → modal opens
+- [x] Record button starts recording → timer + size display update live
+- [x] Stop button stops recording → can Play to preview
+- [x] "Insert at cursor" inserts transcript (with `![[recording.webm]]` embed if enabled)
+- [x] "Create new note" creates `.md` file with embed + transcript
+- [x] Recording saved to `AI-Organiser/Recordings/` folder
+- [x] Auto-transcribe works when file ≤ 25MB and API key available
+- [x] Without API key → recording saves, auto-transcribe disabled with info
 
 #### Minutes Modal Integration
-- [ ] Minutes modal → Record button visible (both mobile + desktop)
-- [ ] Record → transcript appends to transcript textarea via `---` separator
-- [ ] Multiple recordings: each appended with separator
+- [x] Minutes modal → Record button visible (both mobile + desktop)
+- [x] Record → transcript appends to transcript textarea via `---` separator
+- [x] Multiple recordings: each appended with separator
 
 #### Multi-Source Modal Integration
-- [ ] Multi-Source modal → Audio section → Record button visible in header
-- [ ] Record → file appears in audio source list
-- [ ] Record button persists after section rerender (add manual audio, verify button still there)
+- [x] Multi-Source modal → Audio section → Record button visible in header
+- [x] Record → file appears in audio source list
+- [x] Record button persists after section rerender (add manual audio, verify button still there)
 
 #### Close Safety
-- [ ] Close modal during active recording → recording auto-saved with `-unsaved` suffix
-- [ ] Close modal with stopped (unsaved) recording → recording auto-saved
-- [ ] Notice shows "Recording auto-saved"
+- [x] Close modal during active recording → recording auto-saved with `-unsaved` suffix
+- [x] Close modal with stopped (unsaved) recording → recording auto-saved
+- [x] Notice shows "Recording auto-saved"
 
 #### Edge Cases
 - [ ] No active editor → "Insert at cursor" disabled, defaults to "Create new note"
@@ -202,10 +202,10 @@ Pick at least ONE source type:
 - [ ] "Max ~52 min" label visible when auto-transcribe enabled
 
 #### Mobile (if testing on mobile)
-- [ ] Record button visible in Minutes modal (outside mobile gate)
-- [ ] `.m4a` file saved on iOS, `.webm` on Android
-- [ ] Live size display shows actual recorded bytes
-- [ ] Uses `transcribeAudio()` directly (no FFmpeg crash)
+- [x] Record button visible in Minutes modal (outside mobile gate)
+- [x] `.m4a` file saved on iOS, `.m4a` or `.webm` on Android (device-dependent)
+- [x] Live size display shows actual recorded bytes
+- [x] Uses `transcribeAudio()` directly (no FFmpeg crash)
 
 ---
 
@@ -214,7 +214,7 @@ Pick at least ONE source type:
 ### Note Translation
 - [x] Open note → "Translate" → language picker
 - [x] Full note translated, formatting preserved
-- [ ] **Insert at cursor toggle** — enable toggle → translation inserted at cursor instead of replacing note
+- [x] **Insert at cursor toggle** — enable toggle → translation inserted at cursor instead of replacing note
 
 ### Selection Translation
 - [x] Select text → "Translate selection"
@@ -270,6 +270,19 @@ Pick at least ONE source type:
 - [ ] Similarity badges color-coded (green ≥0.8, yellow ≥0.6, gray <0.6)
 - [ ] Click related note → navigates to it
 - [ ] Hover → preview shown
+
+#### Folder Scope
+- [ ] Open note in subfolder → results default to current folder
+- [ ] Footer shows "Searching in: FolderName/"
+- [ ] Click scope button → folder picker → select different folder → results update
+- [ ] Pin icon appears when folder-scoped; click pin → unpins → reverts to auto-follow
+- [ ] Switch notes between folders → scope auto-follows when unpinned
+- [ ] When pinned → scope stays fixed across note switches
+- [ ] Options menu → "Search current folder" / "Search entire vault" work
+- [ ] Few results in folder → hint shown below results
+- [ ] No results in folder → scoped empty state with "Search all notes" action
+- [ ] Root-level note → defaults to vault-wide (no folder scope)
+- [ ] Mobile modal: "This folder" / "All notes" toggle works
 
 ### Search Commands
 - [ ] "Semantic Search" → search modal → finds semantically similar notes

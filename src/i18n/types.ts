@@ -1052,6 +1052,16 @@ export interface Translations {
             searchPlaceholder: string;
             noResults: string;
             clickToOpen: string;
+            scopeAllNotes: string;
+            scopeFolder: string;
+            searchingIn: string;
+            fewResultsInFolder: string;
+            noResultsInFolder: string;
+            tryAllNotes: string;
+            searchCurrentFolder: string;
+            searchEntireVault: string;
+            pinScope: string;
+            unpinScope: string;
         };
         semanticSearch: {
             title: string;

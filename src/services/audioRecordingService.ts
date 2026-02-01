@@ -1,7 +1,7 @@
 /**
  * Audio Recording Service
  * MediaRecorder wrapper for in-plugin audio recording
- * Works on desktop (WebM/Opus) and mobile (MP4/AAC via iOS, WebM via Android)
+ * Works on desktop and mobile via MediaRecorder mime negotiation (MP4/AAC preferred, WebM/Opus fallback)
  */
 
 import { MAX_FILE_SIZE_BYTES } from './audioTranscriptionService';

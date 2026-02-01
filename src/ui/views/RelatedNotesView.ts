@@ -1,12 +1,14 @@
 /**
  * Related Notes View
  * Sidebar panel showing notes semantically similar to the current note
+ * Defaults to current folder scope with pin/unpin for manual override
  */
 
-import { ItemView, TFile, WorkspaceLeaf, Menu, Notice } from 'obsidian';
+import { ItemView, TFile, TFolder, WorkspaceLeaf, Menu, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
 import { SearchResult } from '../../services/vector/types';
+import { FolderScopePickerModal } from '../modals/FolderScopePickerModal';
 
 export const RELATED_NOTES_VIEW_TYPE = 'related-notes-view';
 
@@ -16,6 +18,8 @@ interface RelatedNotesState {
     isLoading: boolean;
     error?: string;
     timestamp?: number;
+    folderScope: string | null;   // null = whole vault
+    scopePinned: boolean;         // true = user manually chose scope
 }
 
 /**
@@ -27,11 +31,14 @@ export class RelatedNotesView extends ItemView {
     private ragService: RAGService | null = null;
     private state: RelatedNotesState = {
         results: [],
-        isLoading: false
+        isLoading: false,
+        folderScope: null,
+        scopePinned: false
     };
     private debounceTimer: NodeJS.Timeout | null = null;
     private readonly DEBOUNCE_MS = 500;
     private resultContainer: HTMLElement | null = null;
+    private headerContainer: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: AIOrganiserPlugin) {
         super(leaf);
@@ -54,7 +61,8 @@ export class RelatedNotesView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'Related Notes';
+        const t = this.plugin.t?.modals?.relatedNotes;
+        return t?.title || 'Related Notes';
     }
 
     getIcon(): string {
@@ -66,7 +74,14 @@ export class RelatedNotesView extends ItemView {
         container.empty();
         container.addClass('related-notes-view-container');
 
+        // Derive initial folder scope from active file before first fetch
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && !this.state.scopePinned) {
+            this.state.folderScope = this.normalizeFolderPath(activeFile.parent?.path);
+        }
+
         // Header
+        this.headerContainer = container;
         this.renderHeader(container);
 
         // Result container
@@ -82,15 +97,90 @@ export class RelatedNotesView extends ItemView {
             })
         );
 
-        // Settings changes will be handled by workspace updates
-        // since we track active note changes automatically
+        // Handle folder renames — update scope if the pinned folder was renamed
+        this.registerEvent(
+            this.app.vault.on('rename', (file, oldPath) => {
+                if (!this.state.scopePinned || !this.state.folderScope) return;
+                if (!(file instanceof TFolder)) return;
+                if (this.state.folderScope === oldPath || this.state.folderScope.startsWith(oldPath + '/')) {
+                    this.state.folderScope = this.state.folderScope.replace(oldPath, file.path);
+                    this.rerenderHeader();
+                }
+            })
+        );
+
+        // Handle folder deletions — reset to auto-follow
+        this.registerEvent(
+            this.app.vault.on('delete', (file) => {
+                if (!(file instanceof TFolder)) return;
+                if (this.state.folderScope === file.path || this.state.folderScope?.startsWith(file.path + '/')) {
+                    this.state.scopePinned = false;
+                    this.state.folderScope = this.normalizeFolderPath(this.app.workspace.getActiveFile()?.parent?.path);
+                    this.rerenderHeader();
+                    this.updateRelatedNotes(true);
+                }
+            })
+        );
+    }
+
+    private normalizeFolderPath(path: string | undefined | null): string | null {
+        if (!path || path === '/' || path === '') return null;
+        return path;
+    }
+
+    private rerenderHeader(): void {
+        if (!this.headerContainer) return;
+        // Remove old header
+        const oldHeader = this.headerContainer.querySelector('.related-notes-header');
+        if (oldHeader) oldHeader.remove();
+        // Re-render before result container
+        this.renderHeader(this.headerContainer);
     }
 
     private renderHeader(container: HTMLElement): void {
+        const t = this.plugin.t?.modals?.relatedNotes;
         const header = container.createEl('div', { cls: 'related-notes-header' });
 
-        header.createEl('h3', { text: 'Related Notes', cls: 'related-notes-title' });
+        // Left group: title + scope button
+        const leftGroup = header.createEl('div', { cls: 'related-notes-header-left' });
+        leftGroup.createEl('h3', { text: t?.title || 'Related Notes', cls: 'related-notes-title' });
 
+        // Scope button
+        const scopeBtn = leftGroup.createEl('button', {
+            cls: 'clickable-icon related-notes-scope-btn',
+            title: this.state.folderScope
+                ? (t?.scopeFolder || 'Current folder')
+                : (t?.scopeAllNotes || 'All notes')
+        });
+        scopeBtn.textContent = this.getScopeDisplayText();
+        scopeBtn.addEventListener('click', () => this.showFolderPicker());
+
+        // Pin button (only shown when scoped to a folder)
+        if (this.state.folderScope !== null) {
+            const pinBtn = leftGroup.createEl('button', {
+                cls: `clickable-icon related-notes-pin-btn${this.state.scopePinned ? ' is-pinned' : ''}`,
+                title: this.state.scopePinned
+                    ? (t?.unpinScope || 'Unpin (follow active note)')
+                    : (t?.pinScope || 'Pin scope')
+            });
+            pinBtn.textContent = this.state.scopePinned ? '📌' : '📍';
+            pinBtn.addEventListener('click', () => {
+                if (this.state.scopePinned) {
+                    // Unpin → revert to current file's folder
+                    this.state.scopePinned = false;
+                    const activeFile = this.app.workspace.getActiveFile();
+                    this.state.folderScope = this.normalizeFolderPath(activeFile?.parent?.path);
+                    this.rerenderHeader();
+                    this.updateRelatedNotes(true);
+                } else {
+                    // Pin current scope
+                    this.state.scopePinned = true;
+                    this.rerenderHeader();
+                }
+            });
+        }
+
+        // Right group: controls
         const controls = header.createEl('div', { cls: 'related-notes-controls' });
 
         // Refresh button
@@ -98,10 +188,10 @@ export class RelatedNotesView extends ItemView {
             cls: 'clickable-icon related-notes-refresh-btn',
             title: 'Refresh'
         });
-        refreshBtn.innerHTML = '⟳';
+        refreshBtn.innerHTML = '&#8635;';
         refreshBtn.addEventListener('click', async () => {
             refreshBtn.classList.add('loading');
-            await this.updateRelatedNotes(true); // Force refresh
+            await this.updateRelatedNotes(true);
             refreshBtn.classList.remove('loading');
         });
 
@@ -110,14 +200,72 @@ export class RelatedNotesView extends ItemView {
             cls: 'clickable-icon related-notes-options-btn',
             title: 'Options'
         });
-        optionsBtn.innerHTML = '⋯';
+        optionsBtn.innerHTML = '&#8943;';
         optionsBtn.addEventListener('click', (e) => {
             this.showOptionsMenu(e);
         });
+
+        // Insert header before resultContainer if it exists
+        if (this.resultContainer && container.contains(this.resultContainer)) {
+            container.insertBefore(header, this.resultContainer);
+        }
+    }
+
+    private getScopeDisplayText(): string {
+        const t = this.plugin.t?.modals?.relatedNotes;
+        if (!this.state.folderScope) {
+            return t?.scopeAllNotes || 'All notes';
+        }
+        // Show last folder name for brevity
+        const parts = this.state.folderScope.split('/');
+        return parts[parts.length - 1] || this.state.folderScope;
+    }
+
+    private showFolderPicker(): void {
+        const t = this.plugin.t?.modals?.relatedNotes;
+        new FolderScopePickerModal(this.app, this.plugin, {
+            title: t?.searchingIn || 'Search scope',
+            allowSkip: true,
+            defaultFolder: this.state.folderScope || undefined,
+            onSelect: (folderPath: string | null) => {
+                this.state.folderScope = folderPath;
+                this.state.scopePinned = true; // User explicitly chose
+                this.rerenderHeader();
+                this.updateRelatedNotes(true);
+            }
+        }).open();
     }
 
     private showOptionsMenu(e: Event): void {
+        const t = this.plugin.t?.modals?.relatedNotes;
         const menu = new Menu();
+
+        menu.addItem(item => {
+            item
+                .setTitle(t?.searchCurrentFolder || 'Search current folder')
+                .setIcon('folder')
+                .onClick(() => {
+                    this.state.scopePinned = false;
+                    const activeFile = this.app.workspace.getActiveFile();
+                    this.state.folderScope = this.normalizeFolderPath(activeFile?.parent?.path);
+                    this.rerenderHeader();
+                    this.updateRelatedNotes(true);
+                });
+        });
+
+        menu.addItem(item => {
+            item
+                .setTitle(t?.searchEntireVault || 'Search entire vault')
+                .setIcon('vault')
+                .onClick(() => {
+                    this.state.folderScope = null;
+                    this.state.scopePinned = true;
+                    this.rerenderHeader();
+                    this.updateRelatedNotes(true);
+                });
+        });
+
+        menu.addSeparator();
 
         menu.addItem(item => {
             item
@@ -137,7 +285,19 @@ export class RelatedNotesView extends ItemView {
     }
 
     private async onActiveNoteChanged(): Promise<void> {
-        // Debounce updates to avoid excessive searches
+        // Auto-update folder scope when not pinned
+        if (!this.state.scopePinned) {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (activeFile) {
+                const newScope = this.normalizeFolderPath(activeFile.parent?.path);
+                if (newScope !== this.state.folderScope) {
+                    this.state.folderScope = newScope;
+                    this.rerenderHeader();
+                }
+            }
+        }
+
+        // Debounce the search update
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
@@ -182,9 +342,12 @@ export class RelatedNotesView extends ItemView {
             return;
         }
 
-        // Check if already processing same file (skip unless forced)
-        if (!forceRefresh && this.state.currentFilePath === currentFile.path && !this.state.isLoading) {
-            // File unchanged, skip unnecessary search
+        // Cache key: same file + same scope = skip (unless forced)
+        const previousScope = this.state.folderScope;
+        if (!forceRefresh
+            && this.state.currentFilePath === currentFile.path
+            && previousScope === this.state.folderScope
+            && !this.state.isLoading) {
             return;
         }
 
@@ -202,18 +365,23 @@ export class RelatedNotesView extends ItemView {
                 return;
             }
 
-            // Get related notes
-            console.log('[Related Notes] Searching for related notes...');
+            // Get related notes with folder scope
             const results = await this.ragService.getRelatedNotes(
                 currentFile,
                 content,
-                5  // Max 5 related notes
+                5,
+                { folderScope: this.state.folderScope }
             );
-            console.log(`[Related Notes] Found ${results.length} related notes`);
 
             this.state.results = results;
             this.state.timestamp = Date.now();
-            this.renderResults();
+
+            // Decide which render path based on results + scope
+            if (results.length === 0 && this.state.folderScope !== null) {
+                this.renderScopedEmptyState();
+            } else {
+                this.renderResults();
+            }
         } catch (error) {
             console.error('Error fetching related notes:', error);
             this.state.error = (error as any).message || 'Failed to fetch related notes';
@@ -245,12 +413,44 @@ export class RelatedNotesView extends ItemView {
         });
     }
 
+    /** Scoped empty state — preserves scope indicator and offers "Search all notes" action */
+    private renderScopedEmptyState(): void {
+        if (!this.resultContainer) return;
+
+        this.resultContainer.empty();
+        const t = this.plugin.t?.modals?.relatedNotes;
+        const emptyEl = this.resultContainer.createEl('div', { cls: 'related-notes-scoped-empty' });
+
+        emptyEl.createEl('p', { text: t?.noResultsInFolder || 'No related notes in this folder' });
+
+        // Show scope indicator
+        const scopeText = this.state.folderScope
+            ? `${t?.searchingIn || 'Searching in:'} ${this.state.folderScope}/`
+            : `${t?.searchingIn || 'Searching in:'} ${t?.scopeAllNotes || 'All notes'}`;
+        emptyEl.createEl('small', {
+            text: scopeText,
+            cls: 'related-notes-scope-indicator'
+        });
+
+        // Action: expand to vault
+        const expandBtn = emptyEl.createEl('button', {
+            text: t?.tryAllNotes || 'Search all notes',
+            cls: 'mod-cta related-notes-expand-btn'
+        });
+        expandBtn.addEventListener('click', () => {
+            this.state.folderScope = null;
+            this.state.scopePinned = true;
+            this.rerenderHeader();
+            this.updateRelatedNotes(true);
+        });
+    }
+
     private renderDisabledState(reason: string): void {
         if (!this.resultContainer) return;
 
         this.resultContainer.empty();
         const disabledEl = this.resultContainer.createEl('div', { cls: 'related-notes-disabled' });
-        disabledEl.createEl('p', { text: '🔒 ' + reason });
+        disabledEl.createEl('p', { text: reason });
         disabledEl.createEl('small', {
             text: 'Configure semantic search in plugin settings to use this feature',
             cls: 'related-notes-disabled-hint'
@@ -262,7 +462,7 @@ export class RelatedNotesView extends ItemView {
 
         this.resultContainer.empty();
         const errorEl = this.resultContainer.createEl('div', { cls: 'related-notes-error' });
-        errorEl.createEl('p', { text: '⚠️ Error' });
+        errorEl.createEl('p', { text: 'Error' });
         errorEl.createEl('small', {
             text: this.state.error || 'Unknown error',
             cls: 'related-notes-error-message'
@@ -273,7 +473,7 @@ export class RelatedNotesView extends ItemView {
             cls: 'mod-cta'
         });
         retryBtn.addEventListener('click', () => {
-            this.updateRelatedNotes(true); // Force refresh on retry
+            this.updateRelatedNotes(true);
         });
     }
 
@@ -281,9 +481,10 @@ export class RelatedNotesView extends ItemView {
         if (!this.resultContainer) return;
 
         this.resultContainer.empty();
+        const t = this.plugin.t?.modals?.relatedNotes;
 
         if (this.state.results.length === 0) {
-            this.renderEmptyState('No related notes found');
+            this.renderEmptyState(t?.noResults || 'No related notes found');
             return;
         }
 
@@ -331,11 +532,43 @@ export class RelatedNotesView extends ItemView {
             });
         }
 
-        // Show timestamp
+        // Footer: scope indicator + timestamp
+        const footerEl = this.resultContainer.createEl('div', { cls: 'related-notes-footer' });
+
+        // Scope indicator
+        const scopeText = this.state.folderScope
+            ? `${t?.searchingIn || 'Searching in:'} ${this.state.folderScope}/`
+            : `${t?.searchingIn || 'Searching in:'} ${t?.scopeAllNotes || 'All notes'}`;
+        footerEl.createEl('small', {
+            text: scopeText,
+            cls: 'related-notes-scope-indicator'
+        });
+
+        // Few results hint
+        if (this.state.results.length < 2 && this.state.folderScope !== null) {
+            const hintEl = footerEl.createEl('small', {
+                text: ` · ${t?.fewResultsInFolder || 'Few results in this folder'}`,
+                cls: 'related-notes-few-hint'
+            });
+            const expandLink = hintEl.createEl('a', {
+                text: ` ${t?.tryAllNotes || 'Search all notes'}`,
+                cls: 'related-notes-expand-link'
+            });
+            expandLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.state.folderScope = null;
+                this.state.scopePinned = true;
+                this.rerenderHeader();
+                this.updateRelatedNotes(true);
+            });
+        }
+
+        // Timestamp
         if (this.state.timestamp) {
-            const footerEl = this.resultContainer.createEl('div', { cls: 'related-notes-footer' });
-            const timeEl = footerEl.createEl('small', { cls: 'related-notes-timestamp' });
-            timeEl.textContent = `Updated ${this.getRelativeTime(this.state.timestamp)}`;
+            footerEl.createEl('small', {
+                text: `Updated ${this.getRelativeTime(this.state.timestamp)}`,
+                cls: 'related-notes-timestamp'
+            });
         }
     }
 
@@ -436,7 +669,6 @@ export class RelatedNotesView extends ItemView {
     }
 
     onClose(): Promise<void> {
-        // Cleanup
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
