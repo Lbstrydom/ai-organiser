@@ -1062,7 +1062,15 @@ export const en: Translations = {
             searchCurrentFolder: "Search current folder",
             searchEntireVault: "Search entire vault",
             pinScope: "Pin scope",
-            unpinScope: "Unpin (follow active note)"
+            unpinScope: "Unpin (follow active note)",
+            searching: "Searching for related notes...",
+            noNoteOpen: "No note open",
+            openNoteHint: "Open a note to find related content",
+            noteEmpty: "Current note is empty",
+            configureHint: "Configure semantic search in plugin settings to use this feature",
+            error: "Error",
+            retry: "Retry",
+            refresh: "Refresh"
         },
         semanticSearch: {
             title: "Semantic Vault Search",

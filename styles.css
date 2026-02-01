@@ -2013,6 +2013,21 @@
     margin-top: var(--size-4-2);
 }
 
+.related-notes-few-hint {
+    color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+}
+
+.related-notes-expand-link {
+    color: var(--interactive-accent);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.related-notes-expand-link:hover {
+    text-decoration: underline;
+}
+
 /* Scope UI — mobile modal */
 .related-notes-modal-controls {
     display: flex;

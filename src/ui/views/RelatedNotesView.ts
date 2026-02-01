@@ -19,6 +19,7 @@ interface RelatedNotesState {
     error?: string;
     timestamp?: number;
     folderScope: string | null;   // null = whole vault
+    lastFetchedScope?: string | null; // scope used for last successful fetch
     scopePinned: boolean;         // true = user manually chose scope
 }
 
@@ -105,6 +106,7 @@ export class RelatedNotesView extends ItemView {
                 if (this.state.folderScope === oldPath || this.state.folderScope.startsWith(oldPath + '/')) {
                     this.state.folderScope = this.state.folderScope.replace(oldPath, file.path);
                     this.rerenderHeader();
+                    this.updateRelatedNotes(true);
                 }
             })
         );
@@ -343,10 +345,9 @@ export class RelatedNotesView extends ItemView {
         }
 
         // Cache key: same file + same scope = skip (unless forced)
-        const previousScope = this.state.folderScope;
         if (!forceRefresh
             && this.state.currentFilePath === currentFile.path
-            && previousScope === this.state.folderScope
+            && this.state.lastFetchedScope === this.state.folderScope
             && !this.state.isLoading) {
             return;
         }
@@ -361,7 +362,8 @@ export class RelatedNotesView extends ItemView {
             const content = await this.app.vault.cachedRead(currentFile);
 
             if (!content.trim()) {
-                this.renderEmptyState('Current note is empty');
+                const tEmpty = this.plugin.t?.modals?.relatedNotes;
+                this.renderEmptyState(tEmpty?.noteEmpty || 'Current note is empty');
                 return;
             }
 
@@ -375,6 +377,7 @@ export class RelatedNotesView extends ItemView {
 
             this.state.results = results;
             this.state.timestamp = Date.now();
+            this.state.lastFetchedScope = this.state.folderScope;
 
             // Decide which render path based on results + scope
             if (results.length === 0 && this.state.folderScope !== null) {
@@ -393,22 +396,24 @@ export class RelatedNotesView extends ItemView {
 
     private renderLoadingState(): void {
         if (!this.resultContainer) return;
+        const t = this.plugin.t?.modals?.relatedNotes;
 
         this.resultContainer.empty();
         this.resultContainer.createEl('div', {
             cls: 'related-notes-loading',
-            text: 'Searching for related notes...'
+            text: t?.searching || 'Searching for related notes...'
         });
     }
 
-    private renderEmptyState(message: string = 'No note open'): void {
+    private renderEmptyState(message?: string): void {
         if (!this.resultContainer) return;
+        const t = this.plugin.t?.modals?.relatedNotes;
 
         this.resultContainer.empty();
         const emptyEl = this.resultContainer.createEl('div', { cls: 'related-notes-empty' });
-        emptyEl.createEl('p', { text: message });
+        emptyEl.createEl('p', { text: message || t?.noNoteOpen || 'No note open' });
         emptyEl.createEl('small', {
-            text: 'Open a note to find related content',
+            text: t?.openNoteHint || 'Open a note to find related content',
             cls: 'related-notes-empty-hint'
         });
     }
@@ -447,29 +452,31 @@ export class RelatedNotesView extends ItemView {
 
     private renderDisabledState(reason: string): void {
         if (!this.resultContainer) return;
+        const t = this.plugin.t?.modals?.relatedNotes;
 
         this.resultContainer.empty();
         const disabledEl = this.resultContainer.createEl('div', { cls: 'related-notes-disabled' });
         disabledEl.createEl('p', { text: reason });
         disabledEl.createEl('small', {
-            text: 'Configure semantic search in plugin settings to use this feature',
+            text: t?.configureHint || 'Configure semantic search in plugin settings to use this feature',
             cls: 'related-notes-disabled-hint'
         });
     }
 
     private renderErrorState(): void {
         if (!this.resultContainer) return;
+        const t = this.plugin.t?.modals?.relatedNotes;
 
         this.resultContainer.empty();
         const errorEl = this.resultContainer.createEl('div', { cls: 'related-notes-error' });
-        errorEl.createEl('p', { text: 'Error' });
+        errorEl.createEl('p', { text: t?.error || 'Error' });
         errorEl.createEl('small', {
             text: this.state.error || 'Unknown error',
             cls: 'related-notes-error-message'
         });
 
         const retryBtn = errorEl.createEl('button', {
-            text: 'Retry',
+            text: t?.retry || 'Retry',
             cls: 'mod-cta'
         });
         retryBtn.addEventListener('click', () => {

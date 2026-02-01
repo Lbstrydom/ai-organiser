@@ -1062,7 +1062,15 @@ export const zhCN: Translations = {
             searchCurrentFolder: "搜索当前文件夹",
             searchEntireVault: "搜索整个库",
             pinScope: "固定范围",
-            unpinScope: "取消固定（跟随当前笔记）"
+            unpinScope: "取消固定（跟随当前笔记）",
+            searching: "正在搜索相关笔记...",
+            noNoteOpen: "未打开笔记",
+            openNoteHint: "打开笔记以查找相关内容",
+            noteEmpty: "当前笔记为空",
+            configureHint: "在插件设置中配置语义搜索以使用此功能",
+            error: "错误",
+            retry: "重试",
+            refresh: "刷新"
         },
         semanticSearch: {
             title: "语义库搜索",

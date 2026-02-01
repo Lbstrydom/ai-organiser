@@ -1062,6 +1062,14 @@ export interface Translations {
             searchEntireVault: string;
             pinScope: string;
             unpinScope: string;
+            searching: string;
+            noNoteOpen: string;
+            openNoteHint: string;
+            noteEmpty: string;
+            configureHint: string;
+            error: string;
+            retry: string;
+            refresh: string;
         };
         semanticSearch: {
             title: string;

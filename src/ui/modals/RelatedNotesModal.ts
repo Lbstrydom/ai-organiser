@@ -53,17 +53,25 @@ export class RelatedNotesModal extends Modal {
         // Scope toggle buttons
         const scopeGroup = controls.createDiv({ cls: 'related-notes-scope-toggle' });
 
+        const isRootLevel = this.folderScope === null;
+
         const folderBtn = scopeGroup.createEl('button', {
             text: t?.scopeFolder || 'This folder',
-            cls: this.folderScope !== null ? 'mod-cta' : ''
+            cls: !isRootLevel ? 'mod-cta' : ''
         });
+        if (isRootLevel) {
+            folderBtn.disabled = true;
+            folderBtn.title = 'Note is at vault root — no parent folder';
+        }
         const vaultBtn = scopeGroup.createEl('button', {
             text: t?.scopeAllNotes || 'All notes',
-            cls: this.folderScope === null ? 'mod-cta' : ''
+            cls: isRootLevel ? 'mod-cta' : ''
         });
 
         folderBtn.addEventListener('click', () => {
-            this.folderScope = this.normalizeFolderPath(this.app.workspace.getActiveFile()?.parent?.path);
+            const scope = this.normalizeFolderPath(this.app.workspace.getActiveFile()?.parent?.path);
+            if (scope === null) return; // Root-level — no-op
+            this.folderScope = scope;
             folderBtn.addClass('mod-cta');
             vaultBtn.removeClass('mod-cta');
             this.fetchRelatedNotes();
@@ -78,7 +86,7 @@ export class RelatedNotesModal extends Modal {
 
         const refreshButton = controls.createEl('button', {
             cls: 'mod-cta',
-            text: 'Refresh'
+            text: t?.refresh || 'Refresh'
         });
         refreshButton.addEventListener('click', async () => {
             refreshButton.disabled = true;
