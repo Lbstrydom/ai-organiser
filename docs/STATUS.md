@@ -1,12 +1,45 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** January 31, 2026
-**Status:** Feature Complete - Canvas Toolkit
+**Last Updated:** February 1, 2026
+**Status:** Feature Complete - Canvas Toolkit + Polish
 
 ---
 
 ## Recent Updates
+
+### Canvas & Code Quality Polish (2026-02-01)
+
+**Magic number extraction, i18n edge labels, SOLID cleanup**
+
+| Area | Change | Status |
+|------|--------|--------|
+| Investigation Board | Edge label strings now i18n-driven via `EdgeLabelStrings` interface | Complete |
+| Investigation Board | Score thresholds extracted to named constants (`SCORE_THRESHOLD_HIGH/MEDIUM`) | Complete |
+| Investigation Board | Snippet char limit extracted to `EDGE_SNIPPET_CHARS` constant | Complete |
+| Cluster Board | Deterministic chunk size extracted to `DETERMINISTIC_CHUNK_SIZE` constant | Complete |
+| Layouts | Radial/grid threshold extracted to `RADIAL_LAYOUT_THRESHOLD` constant | Complete |
+| RAG Service | `DEFAULT_MIN_SIMILARITY` and `MAX_QUERY_CHARS` extracted to module-level constants | Complete |
+| Highlight Extractor | Display text limit extracted to `DISPLAY_TEXT_LIMIT` constant | Complete |
+| i18n | 3 new edge label strings (`edgeCloselyRelated`, `edgeRelated`, `edgeLooselyRelated`) in EN + ZH-CN | Complete |
+
+**Build Status**: 953 tests passing (46 suites) + 17 integration tests
+
+**Key Files Modified:**
+- `src/services/canvas/investigationBoard.ts` — `EdgeLabelStrings` interface, score/snippet constants, i18n-driven fallback labels
+- `src/services/canvas/clusterBoard.ts` — `DETERMINISTIC_CHUNK_SIZE` constant
+- `src/services/canvas/layouts.ts` — `RADIAL_LAYOUT_THRESHOLD` export
+- `src/services/ragService.ts` — `DEFAULT_MIN_SIMILARITY`, `MAX_QUERY_CHARS` module-level constants
+- `src/utils/highlightExtractor.ts` — `DISPLAY_TEXT_LIMIT` constant
+- `src/commands/canvasCommands.ts` — Passes `edgeLabelStrings` from i18n to Investigation Board
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — 3 new edge label translation keys
+
+**Design Rationale:**
+- Magic numbers replaced with named constants for readability and maintainability
+- Edge label fallbacks ("Closely related", "Related", "Loosely related") were hardcoded English — now driven by i18n system
+- No behavioral changes — pure refactor with identical test results
+
+---
 
 ### Canvas Toolkit + Audit Refactor (2026-01-31)
 

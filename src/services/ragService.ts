@@ -22,6 +22,11 @@ export interface RAGOptions {
     excludeCurrentFile?: boolean;
 }
 
+/** Default minimum similarity score for filtering search results. */
+const DEFAULT_MIN_SIMILARITY = 0.5;
+/** Maximum characters to use from note content when querying for related notes. */
+const MAX_QUERY_CHARS = 30000;
+
 /**
  * Service for retrieving and formatting context for RAG
  */
@@ -51,7 +56,7 @@ export class RAGService {
         const {
             maxChunks = this.settings.ragContextChunks || 5,
             includeMetadata = this.settings.ragIncludeMetadata ?? true,
-            minSimilarity = 0.5,
+            minSimilarity = DEFAULT_MIN_SIMILARITY,
             excludeCurrentFile = false
         } = options;
 
@@ -193,9 +198,6 @@ export class RAGService {
         maxResults: number = 5
     ): Promise<SearchResult[]> {
         try {
-            // Truncate content for similarity query - we don't need the full document,
-            // the first ~7500 tokens capture the main topics well enough for similarity
-            const MAX_QUERY_CHARS = 30000;
             const queryContent = content.length > MAX_QUERY_CHARS
                 ? content.substring(0, MAX_QUERY_CHARS)
                 : content;

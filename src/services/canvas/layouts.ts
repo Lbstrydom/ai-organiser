@@ -2,6 +2,8 @@ export const DEFAULT_NODE_WIDTH = 400;
 export const DEFAULT_NODE_HEIGHT = 200;
 export const NODE_GAP = 60;
 export const GROUP_PADDING = 60;
+/** Maximum node count for radial layout; above this threshold grid layout is used. */
+export const RADIAL_LAYOUT_THRESHOLD = 12;
 
 export interface LayoutNode {
     x: number;
@@ -20,7 +22,7 @@ export interface GroupRect {
 }
 
 export function chooseLayout(count: number): 'radial' | 'grid' {
-    return count <= 12 ? 'radial' : 'grid';
+    return count <= RADIAL_LAYOUT_THRESHOLD ? 'radial' : 'grid';
 }
 
 export function radialLayout(

@@ -514,7 +514,10 @@ export const zhCN: Translations = {
         noNotesWithTag: "未找到包含该标签的笔记",
         requiresSemanticSearch: "需要启用语义搜索",
         desktopOnly: "画板仅在桌面端可用",
-        emptyNote: "笔记为空"
+        emptyNote: "笔记为空",
+        edgeCloselyRelated: "密切相关",
+        edgeRelated: "相关",
+        edgeLooselyRelated: "不太相关"
     },
 
     // 消息和通知

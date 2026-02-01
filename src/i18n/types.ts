@@ -503,6 +503,9 @@ export interface Translations {
         requiresSemanticSearch: string;
         desktopOnly: string;
         emptyNote: string;
+        edgeCloselyRelated: string;
+        edgeRelated: string;
+        edgeLooselyRelated: string;
     };
 
     // Messages and notifications

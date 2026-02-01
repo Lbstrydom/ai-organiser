@@ -57,7 +57,12 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                         enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
                         canvasFolder: getCanvasOutputFullPath(plugin.settings),
                         openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                        language: resolveCanvasLanguage(plugin)
+                        language: resolveCanvasLanguage(plugin),
+                        edgeLabelStrings: {
+                            closelyRelated: plugin.t.canvas.edgeCloselyRelated,
+                            related: plugin.t.canvas.edgeRelated,
+                            looselyRelated: plugin.t.canvas.edgeLooselyRelated
+                        }
                     })
                 );
 

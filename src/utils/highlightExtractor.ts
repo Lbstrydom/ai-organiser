@@ -20,6 +20,8 @@ const MARK_EXTRACT = /<mark\b[^>]*>([\s\S]*?)<\/mark>/gi;
 const EQUAL_EXTRACT = /==([^=][\s\S]*?)==/g;
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'tiff'];
+/** Maximum characters for block display text preview. */
+const DISPLAY_TEXT_LIMIT = 220;
 
 export function stripHighlightMarkup(text: string): string {
     return text
@@ -149,7 +151,7 @@ function buildDisplayText(text: string, type: ContentBlockType): string {
 
     const placeholderText = replaceNonTextElements(text);
     const clean = stripHighlightMarkup(placeholderText).replace(/\s+/g, ' ').trim();
-    return truncate(clean, 220);
+    return truncate(clean, DISPLAY_TEXT_LIMIT);
 }
 
 function replaceNonTextElements(text: string): string {

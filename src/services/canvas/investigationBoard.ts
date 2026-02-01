@@ -7,6 +7,19 @@ import { adaptiveLayout } from './layouts';
 import { buildCanvasEdge, buildCanvasNode, generateId, openCanvasFile, writeCanvasFile } from './canvasUtils';
 import { CanvasData, CanvasResult, EdgeDescriptor, NodeDescriptor } from './types';
 
+/** Score threshold for "closely related" classification (high confidence). */
+const SCORE_THRESHOLD_HIGH = 0.8;
+/** Score threshold for "related" classification (medium confidence). */
+const SCORE_THRESHOLD_MEDIUM = 0.6;
+/** Maximum characters to use for edge label snippet context. */
+const EDGE_SNIPPET_CHARS = 500;
+
+export interface EdgeLabelStrings {
+    closelyRelated: string;
+    related: string;
+    looselyRelated: string;
+}
+
 export interface InvestigationOptions {
     file: TFile;
     content: string;
@@ -15,6 +28,7 @@ export interface InvestigationOptions {
     canvasFolder: string;
     openAfterCreate: boolean;
     language: string;
+    edgeLabelStrings?: EdgeLabelStrings;
 }
 
 export async function buildInvestigationBoard(
@@ -47,7 +61,7 @@ export async function buildInvestigationBoard(
     relatedNotes.forEach(result => {
         const id = generateId();
         const title = result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled';
-        const color = result.score >= 0.8 ? '6' : '4';
+        const color = result.score >= SCORE_THRESHOLD_HIGH ? '6' : '4';
         nodes.push({
             id,
             label: title,
@@ -66,16 +80,17 @@ export async function buildInvestigationBoard(
     });
 
     const edges: EdgeDescriptor[] = [];
-    const fallbackLabels = relatedNotes.map(result => getFallbackEdgeLabel(result.score));
+    const labelStrings = options.edgeLabelStrings ?? DEFAULT_EDGE_LABELS;
+    const fallbackLabels = relatedNotes.map(result => getFallbackEdgeLabel(result.score, labelStrings));
     let edgeLabels: (string | undefined)[] = fallbackLabels;
 
     if (options.enableEdgeLabels) {
-        const fromSnippet = options.content.slice(0, 500);
+        const fromSnippet = options.content.slice(0, EDGE_SNIPPET_CHARS);
         const pairs = relatedNotes.map((result, index) => ({
             fromTitle: options.file.basename,
             fromSnippet,
             toTitle: result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled',
-            toSnippet: result.document.content.slice(0, 500),
+            toSnippet: result.document.content.slice(0, EDGE_SNIPPET_CHARS),
             pairIndex: index
         }));
 
@@ -145,10 +160,16 @@ export function parseEdgeLabelResponse(response: string, pairCount: number): (st
     return empty();
 }
 
-export function getFallbackEdgeLabel(score: number): string {
-    if (score >= 0.8) return 'Closely related';
-    if (score >= 0.6) return 'Related';
-    return 'Loosely related';
+const DEFAULT_EDGE_LABELS: EdgeLabelStrings = {
+    closelyRelated: 'Closely related',
+    related: 'Related',
+    looselyRelated: 'Loosely related'
+};
+
+export function getFallbackEdgeLabel(score: number, strings: EdgeLabelStrings = DEFAULT_EDGE_LABELS): string {
+    if (score >= SCORE_THRESHOLD_HIGH) return strings.closelyRelated;
+    if (score >= SCORE_THRESHOLD_MEDIUM) return strings.related;
+    return strings.looselyRelated;
 }
 
 function extractLabelArray(parsed: any, pairCount: number): (string | undefined)[] | null {

@@ -20,6 +20,8 @@ const CLUSTER_COLORS = ['1', '2', '3', '4', '5', '6'];
 
 const SNIPPET_CHARS = 500;
 const MAX_PROMPT_TOKENS = 4000;
+/** Number of notes per chunk when using deterministic fallback grouping. */
+const DETERMINISTIC_CHUNK_SIZE = 6;
 
 function getClusterColor(index: number): string {
     return CLUSTER_COLORS[index % CLUSTER_COLORS.length];
@@ -142,7 +144,7 @@ export function deterministicClustering(app: App, files: TFile[], tag: string): 
     }
 
     const indexes = files.map((_, index) => index);
-    const chunkSize = 6;
+    const chunkSize = DETERMINISTIC_CHUNK_SIZE;
     const clusters: ClusterDescriptor[] = [];
     for (let i = 0; i < indexes.length; i += chunkSize) {
         const chunk = indexes.slice(i, i + chunkSize);

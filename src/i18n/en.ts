@@ -514,7 +514,10 @@ export const en: Translations = {
         noNotesWithTag: "No notes found with that tag",
         requiresSemanticSearch: "Requires Semantic Search to be enabled",
         desktopOnly: "Canvas boards are available on desktop only",
-        emptyNote: "This note is empty"
+        emptyNote: "This note is empty",
+        edgeCloselyRelated: "Closely related",
+        edgeRelated: "Related",
+        edgeLooselyRelated: "Loosely related"
     },
 
     // Messages and notifications
