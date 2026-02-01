@@ -7,6 +7,7 @@
 import type { Voy as VoyClient } from 'voy-search';
 import { App } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker } from './types';
+import { cosineSimilarity } from './vectorMath';
 
 const voyWasm = require('voy-search/voy_search_bg.wasm') as Uint8Array;
 const voyBg = require('voy-search/voy_search_bg.js') as any;
@@ -184,9 +185,12 @@ export class VoyVectorStore implements IVectorStore {
             for (const voyResult of voyResults.neighbors) {
                 const doc = this.documents.get(voyResult.id);
                 if (doc) {
+                    const score = doc.embedding?.length
+                        ? cosineSimilarity(queryVector, doc.embedding)
+                        : 0.5;
                     results.push({
                         document: doc,
-                        score: 0.9, // Voy doesn't return distance in v0.6, use placeholder
+                        score,
                         highlightedText: doc.content.substring(0, 200) + '...'
                     });
                 }

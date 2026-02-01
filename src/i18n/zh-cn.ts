@@ -203,6 +203,10 @@ export const zhCN: Translations = {
                 name: "包含元数据",
                 description: "在 RAG 上下文中包含笔记标题、文件路径和标题。"
             },
+            relatedNotesCount: {
+                name: "相关笔记数量",
+                description: "在侧边栏和弹窗中显示的相关笔记数量 (1-50)"
+            },
             testConnection: "测试连接",
             testing: "正在测试...",
             connectionSuccessful: "连接成功！可以开始构建索引。",

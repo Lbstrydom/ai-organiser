@@ -24,8 +24,10 @@ export interface RAGOptions {
 
 /** Default minimum similarity score for filtering search results. */
 const DEFAULT_MIN_SIMILARITY = 0.5;
-/** Maximum characters to use from note content when querying for related notes. */
-const MAX_QUERY_CHARS = 30000;
+/** Maximum characters for the focused query embedding. Matches chunk granularity (2000 char chunks). */
+const QUERY_MAX_CHARS = 2500;
+/** Hard ceiling for over-fetch to keep Voy KNN performant. */
+const MAX_FETCH_LIMIT = 200;
 
 /**
  * Service for retrieving and formatting context for RAG
@@ -200,9 +202,11 @@ export class RAGService {
         options?: { folderScope?: string | null }
     ): Promise<SearchResult[]> {
         try {
-            const queryContent = content.length > MAX_QUERY_CHARS
-                ? content.substring(0, MAX_QUERY_CHARS)
-                : content;
+            const body = content.replace(/^---[\s\S]*?---\n?/, '');
+            const title = file.basename || file.path.split('/').pop()?.replace(/\.md$/i, '') || '';
+            const queryContent = `${title}\n\n${body}`.substring(0, QUERY_MAX_CHARS);
+
+            const fetchLimit = Math.min(maxResults * 5, MAX_FETCH_LIMIT);
 
             // Build folder filter predicate (single source of truth)
             const folderScope = options?.folderScope;
@@ -213,12 +217,25 @@ export class RAGService {
             const results = await this.vectorStore.searchByContent(
                 queryContent,
                 this.embeddingService,
-                maxResults + 1, // Get one extra to exclude self
+                fetchLimit,
                 filter
             );
 
-            // Filter out the current file
-            return results.filter((r: SearchResult) => r.document.filePath !== file.path).slice(0, maxResults);
+            // Filter out the current file before dedup
+            const filtered = results.filter((r: SearchResult) => r.document.filePath !== file.path);
+
+            // Deduplicate by file path, keep highest score
+            const bestByFile = new Map<string, SearchResult>();
+            for (const result of filtered) {
+                const existing = bestByFile.get(result.document.filePath);
+                if (!existing || result.score > existing.score) {
+                    bestByFile.set(result.document.filePath, result);
+                }
+            }
+
+            return Array.from(bestByFile.values())
+                .sort((a, b) => b.score - a.score)
+                .slice(0, maxResults);
         } catch (error) {
             console.error('Error getting related notes:', error);
             return [];

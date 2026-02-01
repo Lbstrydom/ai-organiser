@@ -138,8 +138,9 @@ export class RelatedNotesModal extends Modal {
                 return;
             }
 
+            const limit = this.plugin.settings.relatedNotesCount || 15;
             this.results = await this.ragService.getRelatedNotes(
-                currentFile, content, 5,
+                currentFile, content, limit,
                 { folderScope: this.folderScope }
             );
             if (this.results.length === 0) {

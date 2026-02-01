@@ -123,6 +123,7 @@ export interface AIOrganiserSettings {
     enableVaultChat: boolean;            // Enable Chat with Vault (RAG) - Phase 2
     ragContextChunks: number;            // How many chunks to include in context (default: 5)
     ragIncludeMetadata: boolean;         // Include file path, headings in context
+    relatedNotesCount: number;           // How many related notes to show (default: 15)
 
     // === OBSIDIAN BASES INTEGRATION ===
     enableStructuredMetadata: boolean;   // Use structured frontmatter properties for Bases
@@ -248,6 +249,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     enableVaultChat: false,                             // Phase 2 feature
     ragContextChunks: 5,                                // Standard context window
     ragIncludeMetadata: true,                           // Include paths/headings
+    relatedNotesCount: 15,
     
     // Bases Integration Defaults
     enableStructuredMetadata: true,                     // Enable by default

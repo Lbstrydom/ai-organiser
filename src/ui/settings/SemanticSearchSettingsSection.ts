@@ -345,6 +345,20 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     plugin.settings.ragIncludeMetadata = value;
                     await plugin.saveSettings();
                 }));
+
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.relatedNotesCount.name)
+            .setDesc(t.settings.semanticSearch.relatedNotesCount.description)
+            .addText(text => text
+                .setPlaceholder('15')
+                .setValue(plugin.settings.relatedNotesCount.toString())
+                .onChange(async (value) => {
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue >= 1 && numValue <= 50) {
+                        plugin.settings.relatedNotesCount = numValue;
+                        await plugin.saveSettings();
+                    }
+                }));
     }
 
     private getDefaultEmbeddingModel(provider: string): string {

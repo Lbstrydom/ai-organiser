@@ -368,10 +368,11 @@ export class RelatedNotesView extends ItemView {
             }
 
             // Get related notes with folder scope
+            const limit = this.plugin.settings.relatedNotesCount || 15;
             const results = await this.ragService.getRelatedNotes(
                 currentFile,
                 content,
-                5,
+                limit,
                 { folderScope: this.state.folderScope }
             );
 

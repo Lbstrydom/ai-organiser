@@ -214,6 +214,10 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            relatedNotesCount: {
+                name: string;
+                description: string;
+            };
             testConnection: string;
             testing: string;
             connectionSuccessful: string;

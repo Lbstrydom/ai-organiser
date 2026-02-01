@@ -268,8 +268,11 @@ Pick at least ONE source type:
 - [ ] View → "Related Notes" → sidebar opens
 - [ ] Switch between notes → panel updates (500ms debounce)
 - [ ] Similarity badges color-coded (green ≥0.8, yellow ≥0.6, gray <0.6)
+- [ ] Scores vary across results (not all identical)
 - [ ] Click related note → navigates to it
 - [ ] Hover → preview shown
+- [ ] Settings → Semantic Search → Related Notes Count = 3 → sidebar shows 3 results
+- [ ] Change Related Notes Count to 25 → sidebar expands to match
 
 #### Folder Scope
 - [ ] Open note in subfolder → results default to current folder
@@ -287,6 +290,7 @@ Pick at least ONE source type:
 ### Search Commands
 - [ ] "Semantic Search" → search modal → finds semantically similar notes
 - [ ] "Find Related" → opens Related Notes sidebar
+- [ ] "Show Related Notes" modal → uses Related Notes Count setting
 - [ ] "Chat with Vault" → RAG-enhanced Q&A modal
 - [ ] "Ask about current note" → Q&A for active note
 - [ ] "Insert Related Notes" → inserts links to related notes
@@ -339,6 +343,7 @@ Pick at least ONE source type:
 - [ ] Canvas opens automatically (if `openAfterCreate` enabled)
 - [ ] Center node is current note (cyan color)
 - [ ] Related notes appear as satellite nodes (green, purple if score ≥0.8)
+- [ ] Related note count matches Related Notes Count setting
 - [ ] Edges have LLM-generated labels (if edge labels enabled in settings)
 - [ ] With edge labels disabled: no labels on edges
 - [ ] Empty note → shows notice, no canvas created

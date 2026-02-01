@@ -53,7 +53,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
                         file,
                         content,
-                        maxRelated: 8,
+                        maxRelated: plugin.settings.relatedNotesCount || 15,
                         enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
                         canvasFolder: getCanvasOutputFullPath(plugin.settings),
                         openAfterCreate: plugin.settings.canvasOpenAfterCreate,

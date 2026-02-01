@@ -70,6 +70,9 @@ class MockEmbeddingService implements IEmbeddingService {
 class TestVectorStore implements IVectorStore {
     private documents: Map<string, VectorDocument> = new Map();
     private embeddings: Map<string, number[]> = new Map();
+    public lastSearchQuery: string | null = null;
+    public lastSearchTopK: number | null = null;
+    public lastSearchFilter: ((doc: VectorDocument) => boolean) | undefined;
     private tracker: FileChangeTracker = {
         hasChanged: () => true,
         updateHash: () => {},
@@ -278,6 +281,9 @@ class TestVectorStore implements IVectorStore {
     }
 
     async searchByContent(query: string, embeddingService: any, topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
+        this.lastSearchQuery = query;
+        this.lastSearchTopK = topK;
+        this.lastSearchFilter = filter;
         const queryEmbedding = this.simpleEmbedding(query);
         return this.search(queryEmbedding, topK, filter);
     }
@@ -358,7 +364,8 @@ function createMockSettings(overrides?: Partial<AIOrganiserSettings>): AIOrganis
  * Create mock TFile
  */
 function createMockFile(path: string) {
-    return { path } as any;
+    const basename = path.split('/').pop()?.replace(/\.md$/i, '') || path;
+    return { path, basename } as any;
 }
 
 describe('RAGService', () => {
@@ -620,6 +627,39 @@ describe('RAGService', () => {
             results.forEach(r => {
                 expect(r.document.filePath).not.toBe('test.md');
             });
+        });
+
+        it('should build a focused query with title and stripped frontmatter', async () => {
+            const file = createMockFile('sample.md');
+            const content = [
+                '---',
+                'title: Frontmatter Title',
+                'tags: [test]',
+                '---',
+                'Body text about machine learning.'
+            ].join('\n');
+
+            await ragService.getRelatedNotes(file, content, 5);
+
+            expect(vectorStore.lastSearchQuery).toContain('sample');
+            expect(vectorStore.lastSearchQuery).toContain('Body text about machine learning.');
+            expect(vectorStore.lastSearchQuery).not.toContain('title: Frontmatter Title');
+            expect(vectorStore.lastSearchQuery).not.toContain('---');
+        });
+
+        it('should over-fetch results before slicing', async () => {
+            const file = createMockFile('test.md');
+            await ragService.getRelatedNotes(file, 'machine learning concepts', 2);
+
+            expect(vectorStore.lastSearchTopK).toBe(10);
+        });
+
+        it('should deduplicate results by file path', async () => {
+            const file = createMockFile('nonexistent.md');
+            const results = await ragService.getRelatedNotes(file, 'machine learning', 10);
+
+            const uniquePaths = new Set(results.map(r => r.document.filePath));
+            expect(uniquePaths.size).toBe(results.length);
         });
 
         it('should filter by folderScope when provided', async () => {

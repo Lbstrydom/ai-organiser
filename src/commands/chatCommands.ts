@@ -386,7 +386,11 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 );
                 
                 const statusNotice = new Notice(plugin.t.messages.findingRelatedNotesDetailed, 0);
-                const related = await ragService.getRelatedNotes(file, content, 5);
+                const related = await ragService.getRelatedNotes(
+                    file,
+                    content,
+                    plugin.settings.relatedNotesCount || 15
+                );
                 statusNotice.hide();
 
                 if (related.length === 0) {

@@ -227,6 +227,10 @@ export const en: Translations = {
                 name: "Include Metadata",
                 description: "Add note titles and paths to context"
             },
+            relatedNotesCount: {
+                name: "Related Notes Count",
+                description: "Number of related notes to display in sidebar and modal (1-50)"
+            },
             testConnection: "Test",
             testing: "Testing...",
             connectionSuccessful: "Connected! Ready to index.",
