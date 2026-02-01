@@ -268,7 +268,9 @@ Pick at least ONE source type:
 - [ ] View → "Related Notes" → sidebar opens
 - [ ] Switch between notes → panel updates (500ms debounce)
 - [ ] Similarity badges color-coded (green ≥0.8, yellow ≥0.6, gray <0.6)
-- [ ] Scores vary across results (not all identical)
+- [ ] Scores vary across results (not all "excellent" — real cosine similarity, not placeholder)
+- [ ] Open a note that previously had few results → verify more unique files appear (dedup working)
+- [ ] Multiple chunks from same file → only 1 result per file shown (dedup by file path)
 - [ ] Click related note → navigates to it
 - [ ] Hover → preview shown
 - [ ] Settings → Semantic Search → Related Notes Count = 3 → sidebar shows 3 results
@@ -294,6 +296,13 @@ Pick at least ONE source type:
 - [ ] "Chat with Vault" → RAG-enhanced Q&A modal
 - [ ] "Ask about current note" → Q&A for active note
 - [ ] "Insert Related Notes" → inserts links to related notes
+
+### Wide Net Retrieval Verification (Enhanced Semantic Search)
+- [ ] Investigation Board → related note count matches Related Notes Count setting
+- [ ] Highlight Chat → related notes context uses Related Notes Count setting
+- [ ] Folder scope still works with new pipeline (sidebar folder filter + Investigation Board)
+- [ ] Very small vault (<15 notes) → returns fewer than requested (no error)
+- [ ] Notes with only frontmatter → still returns results (title-only query)
 
 ### Index Management
 - [ ] "Manage Index" → shows options: Build, Update, Clear

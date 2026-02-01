@@ -8,6 +8,55 @@
 
 ## Recent Updates
 
+### Enhanced Semantic Search: Wide Net Retrieval + User Configuration (2026-02-01)
+
+**Fix "light results" in Related Notes — query dilution, chunk starvation, placeholder scores**
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Phase 1.1 | Core pipeline refactor: focused query, over-fetch, dedup | Complete |
+| Phase 1.2 | Shared `vectorMath.ts` — extracted `cosineSimilarity` (DRY) | Complete |
+| Phase 1.3 | Voy real cosine scores replacing placeholder `0.9` | Complete |
+| Phase 1.4 | SimpleVectorStore imports shared cosine | Complete |
+| Phase 2.1 | `relatedNotesCount` setting (default 15, range 1-50) | Complete |
+| Phase 2.2 | Settings UI numeric input | Complete |
+| Phase 2.3-2.6 | All 4 call sites use setting (sidebar, modal, canvas, chat) | Complete |
+| Phase 2.7 | i18n strings (EN + ZH-CN) | Complete |
+| Tests | `vectorMath.test.ts` (5 tests), `ragService.test.ts` updates (30 tests) | Complete |
+
+**Build Status**: 968 tests passing (47 suites) + 17 integration tests
+
+**New Files Created:**
+- `src/services/vector/vectorMath.ts` — Shared `cosineSimilarity` function (extracted from SimpleVectorStore)
+- `tests/vectorMath.test.ts` — 5 unit tests (identical, orthogonal, mismatch, zero-magnitude, known vectors)
+
+**Key Files Modified:**
+- `src/services/ragService.ts` — `getRelatedNotes()` refactored: focused query (title + 2500 chars body), over-fetch 5×maxResults (capped 200), exclude self before dedup, dedup by file path, sort + slice
+- `src/services/vector/voyVectorStore.ts` — Real cosine similarity via `cosineSimilarity(queryVector, doc.embedding)` replacing hardcoded `score: 0.9`; fallback `0.5` for old index data
+- `src/services/vector/simpleVectorStore.ts` — Imports shared `cosineSimilarity` from `vectorMath.ts` (local copy removed)
+- `src/core/settings.ts` — `relatedNotesCount: number` (default 15)
+- `src/ui/settings/SemanticSearchSettingsSection.ts` — Numeric input with parseInt validation (1-50)
+- `src/ui/views/RelatedNotesView.ts` — Uses `plugin.settings.relatedNotesCount || 15`
+- `src/ui/modals/RelatedNotesModal.ts` — Uses `plugin.settings.relatedNotesCount || 15`
+- `src/commands/canvasCommands.ts` — Uses setting for Investigation Board
+- `src/commands/chatCommands.ts` — Uses setting for highlight chat
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — `relatedNotesCount` name + description strings
+
+**Root Causes Fixed:**
+1. **Query embedding dilution** — Full 30K-char note content produced blurred embedding; now uses focused query (title + first 2500 chars of stripped body)
+2. **Chunk slot starvation** — Only 5-8 results requested; now over-fetches 5× with dedup to surface more unique files
+3. **Placeholder similarity scores** — Voy WASM hardcoded `score: 0.9` broke ranking and badges; now computes real cosine similarity
+
+**Review Findings Incorporated:**
+- Exclude current file before dedup (not after)
+- `score > 0` gate in SimpleVectorStore preserved (negative cosine = genuinely irrelevant)
+- Over-fetch cap raised to 200 (adaptive re-query rejected for complexity)
+- Setting applies to all 4 call sites (sidebar, modal, canvas, chat)
+
+**Documentation**: `docs/completed/semantic-plan.md`
+
+---
+
 ### Canvas & Code Quality Polish (2026-02-01)
 
 **Magic number extraction, i18n edge labels, SOLID cleanup**
@@ -23,7 +72,7 @@
 | Highlight Extractor | Display text limit extracted to `DISPLAY_TEXT_LIMIT` constant | Complete |
 | i18n | 3 new edge label strings (`edgeCloselyRelated`, `edgeRelated`, `edgeLooselyRelated`) in EN + ZH-CN | Complete |
 
-**Build Status**: 953 tests passing (46 suites) + 17 integration tests
+**Build Status**: 968 tests passing (47 suites) + 17 integration tests
 
 **Key Files Modified:**
 - `src/services/canvas/investigationBoard.ts` — `EdgeLabelStrings` interface, score/snippet constants, i18n-driven fallback labels
@@ -55,7 +104,7 @@
 | Audit | DRY extraction (shared JSON parser, tag extractor), SOLID fixes, error codes, language support, UX | Complete |
 | Tests | 75 new tests across 7 test files (layouts, utils, prompts, boards, response parser) | Complete |
 
-**Build Status**: 953 tests passing (46 suites) + 17 integration tests
+**Build Status**: 968 tests passing (47 suites) + 17 integration tests
 
 **New Files Created:**
 - `src/services/canvas/types.ts` — Canvas JSON types (CanvasNode, CanvasEdge, CanvasData) + internal descriptors (NodeDescriptor, EdgeDescriptor, ClusterDescriptor) + CanvasErrorCode type
@@ -901,7 +950,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 953 unit tests (46 suites)
+npm test           # Run 968 unit tests (47 suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

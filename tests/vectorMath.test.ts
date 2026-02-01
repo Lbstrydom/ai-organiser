@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { cosineSimilarity } from '../src/services/vector/vectorMath';
 
 describe('cosineSimilarity', () => {

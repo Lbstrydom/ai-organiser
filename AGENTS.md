@@ -945,8 +945,9 @@ onOpen() {
 - `tests/sourceDetection.test.ts` (58 tests): URL/YouTube/PDF/audio detection
 - `tests/frontmatterUtils.test.ts` (45 tests): Summary hooks, word counting, language detection
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
+- `tests/vectorMath.test.ts` (5 tests): Cosine similarity (identical, orthogonal, mismatch, zero-magnitude, known vectors)
 
-Total: 953 unit tests (46 suites) + 17 automated integration tests
+Total: 968 unit tests (47 suites) + 17 automated integration tests
 
 ## Multi-Source Translation
 
