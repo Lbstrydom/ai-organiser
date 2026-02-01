@@ -170,6 +170,7 @@ export interface AIOrganiserSettings {
     autoTranscribeRecordings: boolean;    // Auto-transcribe recordings under 25MB
     embedAudioInNote: boolean;            // Embed audio file link in note alongside transcript
     recordingQuality: 'speech' | 'high'; // 64kbps (speech) or 128kbps (high quality)
+    postRecordingStorage: 'ask' | 'keep-original' | 'keep-compressed' | 'delete'; // What to do with raw audio after transcription
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -289,6 +290,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     autoTranscribeRecordings: true,                    // Auto-transcribe under 25MB
     embedAudioInNote: true,                            // Embed audio link in note
     recordingQuality: 'speech' as const,               // Speech optimized (64kbps)
+    postRecordingStorage: 'ask' as const,              // Ask user after transcription
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

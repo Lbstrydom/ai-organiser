@@ -14,7 +14,7 @@ import {
     RECORDING_BITRATES,
     type RecordingQuality
 } from '../../services/audioRecordingService';
-import { MAX_FILE_SIZE_BYTES, transcribeAudio } from '../../services/audioTranscriptionService';
+import { MAX_FILE_SIZE_BYTES, transcribeAudio, formatFileSize } from '../../services/audioTranscriptionService';
 import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
 import { ensureFolderExists, sanitizeFileName, getAvailableFilePath } from '../../utils/minutesUtils';
 import { insertAtCursor } from '../../utils/editorUtils';
@@ -33,7 +33,7 @@ export interface RecordingResult {
     duration: number;
 }
 
-type RecorderState = 'idle' | 'recording' | 'stopped' | 'saving' | 'transcribing' | 'done';
+type RecorderState = 'idle' | 'recording' | 'stopped' | 'saving' | 'transcribing' | 'post-save' | 'done';
 
 export class AudioRecorderModal extends Modal {
     private plugin: AIOrganiserPlugin;
@@ -363,9 +363,6 @@ export class AudioRecorderModal extends Modal {
                 transcript = await this.transcribeFile(savedFile);
             }
 
-            // Handle output based on mode
-            await this.handleOutput(savedFile, transcript, duration);
-
             this.actionFired = true;
 
             // Show success notice
@@ -376,6 +373,21 @@ export class AudioRecorderModal extends Modal {
                 if (this.blob.size > MAX_FILE_SIZE_BYTES) {
                     new Notice(t?.tooLargeForAutoTranscribe || 'Recording exceeds 25 MB — transcribe on desktop with FFmpeg.');
                 }
+            }
+
+            // Post-save storage options: resolve BEFORE handleOutput so embeds
+            // point to the correct file (compressed .mp3) or are skipped (delete).
+            if (this.options.mode === 'standalone' && transcript) {
+                const policy = this.plugin.settings.postRecordingStorage || 'ask';
+                if (policy === 'ask') {
+                    this.state = 'post-save';
+                    this.renderPostSaveOptions(savedFile, transcript, duration);
+                    return; // Don't close — user picks, then completes output
+                }
+                const finalFile = await this.applyStoragePolicy(policy, savedFile);
+                await this.handleOutput(finalFile, transcript, duration);
+            } else {
+                await this.handleOutput(savedFile, transcript, duration);
             }
 
             this.close();
@@ -428,18 +440,16 @@ export class AudioRecorderModal extends Modal {
         }
     }
 
-    private async handleOutput(file: TFile, transcript: string | undefined, duration: number): Promise<void> {
-        const result: RecordingResult = { file, transcript, duration };
-
+    private async handleOutput(file: TFile | null, transcript: string | undefined, duration: number): Promise<void> {
         if (this.options.mode === 'minutes' || this.options.mode === 'multi-source') {
-            // Callback mode — let parent modal handle it
-            this.options.onComplete?.(result);
+            // Callback mode — let parent modal handle it (file should always exist here)
+            if (file) this.options.onComplete?.({ file, transcript, duration });
             return;
         }
 
         // Standalone mode — insert into editor or create note
         const outputChoice = this.getSelectedOutput();
-        const shouldEmbed = this.embedCheckbox?.checked ?? true;
+        const shouldEmbed = file && (this.embedCheckbox?.checked ?? true);
         const embedLink = shouldEmbed ? `![[${file.name}]]\n\n` : '';
         const content = embedLink + (transcript || '');
 
@@ -453,14 +463,130 @@ export class AudioRecorderModal extends Modal {
             }
         } else {
             // Create new note (collision-safe)
-            const noteName = file.name.replace(/\.[^.]+$/, '') + '.md';
+            const baseName = file ? file.name.replace(/\.[^.]+$/, '') : 'recording';
             const noteFolder = getPluginSubfolderPath(this.plugin.settings, DEFAULT_RECORDING_FOLDER);
-            const safePath = await getAvailableFilePath(this.app.vault, noteFolder, noteName);
+            const safePath = await getAvailableFilePath(this.app.vault, noteFolder, baseName + '.md');
             await this.app.vault.create(safePath, content);
             await this.app.workspace.openLinkText(safePath, '', false);
         }
 
-        this.options.onComplete?.(result);
+        if (file) this.options.onComplete?.({ file, transcript, duration });
+    }
+
+    private renderPostSaveOptions(savedFile: TFile, transcript: string, duration: number): void {
+        if (!this.controlsEl) return;
+        this.controlsEl.empty();
+
+        const t = this.plugin.t.recording;
+        const fileSize = formatFileSize(savedFile.stat.size);
+
+        // Title
+        const titleEl = this.controlsEl.createDiv({ cls: 'ai-organiser-audio-recorder-post-save-title' });
+        titleEl.textContent = t?.postRecordingTitle || 'What to do with the audio file?';
+
+        // File size info
+        const infoEl = this.controlsEl.createDiv({ cls: 'ai-organiser-audio-recorder-post-save-info' });
+        infoEl.textContent = `${savedFile.name} (${fileSize})`;
+
+        // Buttons
+        const btnRow = this.controlsEl.createDiv({ cls: 'ai-organiser-audio-recorder-post-save-buttons' });
+
+        // Helper: complete output and close
+        const finishWith = async (file: TFile | null) => {
+            await this.handleOutput(file, transcript, duration);
+            this.close();
+        };
+
+        // Keep original
+        const keepBtn = btnRow.createEl('button', {
+            text: t?.keepOriginal || 'Keep original',
+            attr: { title: t?.keepOriginalDesc || 'Keep the full-quality recording' }
+        });
+        keepBtn.addEventListener('click', () => finishWith(savedFile));
+
+        // Keep compressed (desktop only, requires FFmpeg)
+        if (!Platform.isMobile) {
+            const compressBtn = btnRow.createEl('button', {
+                text: t?.keepCompressed || 'Keep compressed',
+                attr: { title: t?.keepCompressedDesc || 'Replace with smaller MP3' }
+            });
+            compressBtn.addEventListener('click', async () => {
+                compressBtn.disabled = true;
+                compressBtn.textContent = t?.compressing || 'Compressing...';
+                const compressedFile = await this.compressAndReplace(savedFile);
+                await finishWith(compressedFile ?? savedFile);
+            });
+        }
+
+        // Delete audio
+        const deleteBtn = btnRow.createEl('button', {
+            text: t?.deleteAudio || 'Delete audio',
+            cls: 'mod-warning',
+            attr: { title: t?.deleteAudioDesc || 'Remove audio file (transcript saved)' }
+        });
+        deleteBtn.addEventListener('click', async () => {
+            await this.deleteRecording(savedFile);
+            await finishWith(null);
+        });
+    }
+
+    /** Apply storage policy and return the final file (null if deleted, new TFile if compressed). */
+    private async applyStoragePolicy(policy: string, file: TFile): Promise<TFile | null> {
+        if (policy === 'keep-compressed' && !Platform.isMobile) {
+            return await this.compressAndReplace(file) ?? file;
+        } else if (policy === 'delete') {
+            await this.deleteRecording(file);
+            return null;
+        }
+        return file; // 'keep-original' → unchanged
+    }
+
+    /** Compress file to MP3, delete original. Returns new TFile or undefined on failure. */
+    private async compressAndReplace(file: TFile): Promise<TFile | undefined> {
+        const t = this.plugin.t.recording;
+        try {
+            // Dynamic import to avoid loading FFmpeg code on mobile
+            const { compressAudio, isFFmpegAvailable } = await import('../../services/audioCompressionService');
+            const ffmpegOk = await isFFmpegAvailable();
+            if (!ffmpegOk) {
+                new Notice(t?.compressionFailed || 'Compression failed — keeping original');
+                return undefined;
+            }
+
+            const result = await compressAudio(this.app, file);
+            if (!result.success || !result.data) {
+                new Notice(t?.compressionFailed || 'Compression failed — keeping original');
+                return undefined;
+            }
+
+            // Save compressed MP3 alongside original
+            const folder = file.parent?.path || '';
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            const compressedPath = await getAvailableFilePath(this.app.vault, folder, `${baseName}.mp3`);
+            const compressedFile = await this.app.vault.createBinary(compressedPath, result.data.buffer as ArrayBuffer);
+
+            // Delete original
+            await this.app.vault.delete(file);
+
+            const originalSize = formatFileSize(file.stat.size);
+            const compressedSize = formatFileSize(result.data.byteLength);
+            new Notice(`${t?.audioCompressed || 'Audio compressed'} (${originalSize} → ${compressedSize})`);
+            return compressedFile;
+        } catch (err) {
+            console.error('[Audio Recorder] Compression failed:', err);
+            new Notice(t?.compressionFailed || 'Compression failed — keeping original');
+            return undefined;
+        }
+    }
+
+    private async deleteRecording(file: TFile): Promise<void> {
+        const t = this.plugin.t.recording;
+        try {
+            await this.app.vault.delete(file);
+            new Notice(t?.audioDeleted || 'Audio file deleted');
+        } catch (err) {
+            console.error('[Audio Recorder] Failed to delete recording:', err);
+        }
     }
 
     private getSelectedOutput(): 'cursor' | 'note' {

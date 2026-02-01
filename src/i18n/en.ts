@@ -1530,6 +1530,23 @@ export const en: Translations = {
         settingsQuality: "Recording quality",
         settingsQualityDesc: "Speech optimized saves space (~52 min). High quality for music or detailed audio (~26 min).",
         qualitySpeech: "Speech optimized (64 kbps)",
-        qualityHigh: "High quality (128 kbps)"
+        qualityHigh: "High quality (128 kbps)",
+        postRecordingTitle: "What to do with the audio file?",
+        keepOriginal: "Keep original",
+        keepCompressed: "Keep compressed",
+        deleteAudio: "Delete audio",
+        keepOriginalDesc: "Keep the full-quality recording",
+        keepCompressedDesc: "Replace with smaller MP3",
+        deleteAudioDesc: "Remove audio file (transcript saved)",
+        compressing: "Compressing...",
+        audioDeleted: "Audio file deleted",
+        audioCompressed: "Audio compressed",
+        compressionFailed: "Compression failed — keeping original",
+        settingsPostRecording: "After transcription",
+        settingsPostRecordingDesc: "What to do with the raw audio file after successful transcription",
+        postRecordingAsk: "Ask each time",
+        postRecordingKeepOriginal: "Keep original",
+        postRecordingKeepCompressed: "Keep compressed (MP3)",
+        postRecordingDelete: "Delete audio"
     }
 };

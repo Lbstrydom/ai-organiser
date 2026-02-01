@@ -153,6 +153,22 @@ export class AudioTranscriptionSettingsSection extends BaseSettingSection {
                     });
             });
 
+        new Setting(this.containerEl)
+            .setName(tr?.settingsPostRecording || 'After transcription')
+            .setDesc(tr?.settingsPostRecordingDesc || 'What to do with the raw audio file after successful transcription')
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('ask', tr?.postRecordingAsk || 'Ask each time')
+                    .addOption('keep-original', tr?.postRecordingKeepOriginal || 'Keep original')
+                    .addOption('keep-compressed', tr?.postRecordingKeepCompressed || 'Keep compressed (MP3)')
+                    .addOption('delete', tr?.postRecordingDelete || 'Delete audio')
+                    .setValue(this.plugin.settings.postRecordingStorage || 'ask')
+                    .onChange(async (value) => {
+                        this.plugin.settings.postRecordingStorage = value as 'ask' | 'keep-original' | 'keep-compressed' | 'delete';
+                        await this.plugin.saveSettings();
+                    });
+            });
+
         const recordingInfoEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
         recordingInfoEl.textContent = tr?.settingsInfo || 'Recordings saved to AI-Organiser/Recordings/';
     }

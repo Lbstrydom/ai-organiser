@@ -1530,6 +1530,23 @@ export const zhCN: Translations = {
         settingsQuality: "录音质量",
         settingsQualityDesc: "语音优化节省空间（约52分钟）。高质量适用于音乐或详细音频（约26分钟）。",
         qualitySpeech: "语音优化 (64 kbps)",
-        qualityHigh: "高质量 (128 kbps)"
+        qualityHigh: "高质量 (128 kbps)",
+        postRecordingTitle: "如何处理音频文件？",
+        keepOriginal: "保留原始文件",
+        keepCompressed: "保留压缩版本",
+        deleteAudio: "删除音频",
+        keepOriginalDesc: "保留完整质量的录音",
+        keepCompressedDesc: "替换为更小的 MP3",
+        deleteAudioDesc: "删除音频文件（已保存转录文本）",
+        compressing: "压缩中...",
+        audioDeleted: "音频文件已删除",
+        audioCompressed: "音频已压缩",
+        compressionFailed: "压缩失败 — 保留原始文件",
+        settingsPostRecording: "转录后处理",
+        settingsPostRecordingDesc: "成功转录后如何处理原始音频文件",
+        postRecordingAsk: "每次询问",
+        postRecordingKeepOriginal: "保留原始文件",
+        postRecordingKeepCompressed: "保留压缩版本 (MP3)",
+        postRecordingDelete: "删除音频"
     }
 };

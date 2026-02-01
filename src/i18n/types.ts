@@ -1530,5 +1530,22 @@ export interface Translations {
         settingsQualityDesc: string;
         qualitySpeech: string;
         qualityHigh: string;
+        postRecordingTitle: string;
+        keepOriginal: string;
+        keepCompressed: string;
+        deleteAudio: string;
+        keepOriginalDesc: string;
+        keepCompressedDesc: string;
+        deleteAudioDesc: string;
+        compressing: string;
+        audioDeleted: string;
+        audioCompressed: string;
+        compressionFailed: string;
+        settingsPostRecording: string;
+        settingsPostRecordingDesc: string;
+        postRecordingAsk: string;
+        postRecordingKeepOriginal: string;
+        postRecordingKeepCompressed: string;
+        postRecordingDelete: string;
     };
 }
