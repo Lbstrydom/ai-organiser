@@ -456,7 +456,7 @@ export const zhCN: Translations = {
         translateSelection: "翻译选中内容",
         improveNote: "AI 改进笔记",
         findResources: "查找相关资源",
-        openCommandPicker: "打开命令选择器",
+        openCommandPicker: "AI Organiser",
         ribbonTooltip: "AI Organiser",
         generateMermaidDiagram: "生成 Mermaid 图表",
         highlightSelection: "高亮选中文本",

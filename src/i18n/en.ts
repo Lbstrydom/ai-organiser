@@ -456,7 +456,7 @@ export const en: Translations = {
         enhance: "Enhance",
         improveNote: "Improve with AI",
         findResources: "Find resources",
-        openCommandPicker: "Open command picker",
+        openCommandPicker: "AI Organiser",
         ribbonTooltip: "AI Organiser",
         generateMermaidDiagram: "Create diagram",
         highlightSelection: "Highlight",
