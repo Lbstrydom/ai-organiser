@@ -187,6 +187,35 @@ export class Modal {
     get isClosed() { return this._isClosed; }
 }
 
+export class WorkspaceLeaf {
+    app: App;
+    view: any;
+
+    constructor(app?: App) {
+        this.app = app || new App();
+        this.view = null;
+    }
+
+    setViewState(_state: any): Promise<void> {
+        return Promise.resolve();
+    }
+}
+
+export class ItemView {
+    leaf: WorkspaceLeaf;
+    contentEl: any;
+
+    constructor(leaf: WorkspaceLeaf) {
+        this.leaf = leaf;
+        this.contentEl = { empty: () => {} };
+    }
+
+    getViewType(): string { return ''; }
+    getDisplayText(): string { return ''; }
+    onOpen(): Promise<void> | void {}
+    onClose(): Promise<void> | void {}
+}
+
 export class FuzzySuggestModal<T> extends Modal {
     constructor(app: App) {
         super(app);
@@ -363,4 +392,16 @@ export class Plugin {
     loadData() { return Promise.resolve({}); }
     saveData(data: any) { return Promise.resolve(); }
     registerEvent(event: any) {}
+}
+
+export class PluginSettingTab {
+    app: App;
+    plugin: any;
+
+    constructor(app: App, plugin: any) {
+        this.app = app;
+        this.plugin = plugin;
+    }
+
+    display(): void {}
 }

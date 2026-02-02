@@ -915,13 +915,14 @@ export const zhCN: Translations = {
             buildLabel: "构建完整索引",
             buildDesc: "为仓库中的所有笔记建立索引",
             buildButton: "构建",
-            updateLabel: "更新当前笔记",
-            updateDesc: "重新索引当前笔记",
+            updateLabel: "更新已修改文件",
+            updateDesc: "重新索引自上次索引以来已更改的笔记",
             updateButton: "更新",
             clearLabel: "清除索引",
             clearDesc: "移除所有索引数据",
             clearButton: "清除",
             clearConfirm: "确定要清除语义搜索索引吗？你可以随时重新构建。",
+            indexOutdated: "索引由旧版本构建。建议重新构建以获得最佳效果。",
             closeButton: "关闭"
         },
         youtubeInput: {

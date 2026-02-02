@@ -11,6 +11,8 @@ import { AIOrganiserSettings } from '../../core/settings';
 import { createContentHash } from './hashUtils';
 import { getTranslations } from '../../i18n';
 
+export const INDEX_SCHEMA_VERSION = '2.0.0';
+
 /**
  * Search cache entry
  */
@@ -107,6 +109,9 @@ class SearchCache {
  * Service for managing vector store operations
  */
 export class VectorStoreService {
+    private static readonly METADATA_PREFIX_MAX_CHARS = 200;
+    private static readonly BULK_RENAME_THRESHOLD = 10;
+    private static readonly RENAME_DEBOUNCE_MS = 500;
     private vectorStore: IVectorStore | null = null;
     private embeddingService: any;
     private app: App;
@@ -115,6 +120,9 @@ export class VectorStoreService {
     private searchCache = new SearchCache();
     private fileEventRefs: EventRef[] = [];
     private loadPromise: Promise<void> | null = null;
+    private pendingRenames: Array<{ oldPath: string; newPath: string }> = [];
+    private renameTimer: ReturnType<typeof setTimeout> | null = null;
+    private hasWarnedIndexVersion = false;
 
     constructor(
         app: App,
@@ -209,11 +217,11 @@ export class VectorStoreService {
      * Update embedding service and reinitialize if needed
      */
     public async updateEmbeddingService(
-        embeddingService: any
+        embeddingService: any,
+        shouldClear: boolean = false
     ): Promise<void> {
         this.embeddingService = embeddingService;
-        if (this.vectorStore) {
-            // Reset vector store to reindex with new embeddings
+        if (shouldClear && this.vectorStore) {
             await this.vectorStore.clear();
         }
     }
@@ -265,6 +273,10 @@ export class VectorStoreService {
             const chunks = this.splitIntoChunks(content, chunkSize, overlap)
                 .slice(0, this.settings.maxChunksPerNote);
 
+            const tags = this.getFileTags(file);
+            const folderPath = file.parent?.path || '';
+            const metadataPrefix = this.buildMetadataPrefix(file.basename, folderPath, tags);
+
             // Create documents and embeddings
             const documents: VectorDocument[] = [];
             for (let i = 0; i < chunks.length; i++) {
@@ -288,7 +300,7 @@ export class VectorStoreService {
             }
 
             const embeddingResult = await this.embeddingService.batchGenerateEmbeddings(
-                documents.map(doc => doc.content)
+                documents.map(doc => metadataPrefix + doc.content)
             );
 
             if (!embeddingResult.success || !embeddingResult.embeddings) {
@@ -385,11 +397,60 @@ export class VectorStoreService {
      * Handle note rename
      */
     public async renameNote(oldPath: string, newPath: string): Promise<void> {
-        if (this.vectorStore) {
-            await this.ensureIndexLoaded();
+        if (!this.vectorStore) return;
+
+        await this.ensureIndexLoaded();
+
+        if (this.embeddingService) {
+            await this.vectorStore.removeFile(oldPath);
+            const file = this.app.vault.getFileByPath(newPath);
+            if (file instanceof TFile) {
+                await this.indexNote(file);
+            }
+        } else {
             await this.vectorStore.renameFile(oldPath, newPath);
-            // Invalidate cache when file renamed
+        }
+
+        this.searchCache.clear();
+    }
+
+    public queueRenameNote(oldPath: string, newPath: string): void {
+        this.pendingRenames.push({ oldPath, newPath });
+
+        if (this.renameTimer) {
+            clearTimeout(this.renameTimer);
+        }
+
+        this.renameTimer = setTimeout(() => {
+            void this.flushRenames();
+        }, VectorStoreService.RENAME_DEBOUNCE_MS);
+    }
+
+    private async flushRenames(): Promise<void> {
+        const batch = [...this.pendingRenames];
+        this.pendingRenames = [];
+        this.renameTimer = null;
+
+        if (batch.length === 0 || !this.vectorStore) {
+            return;
+        }
+
+        await this.ensureIndexLoaded();
+
+        if (batch.length > VectorStoreService.BULK_RENAME_THRESHOLD) {
+            new Notice(
+                `${batch.length} notes moved. Run "Update Changed Files" in Manage Index to re-embed with updated paths.`,
+                10000
+            );
+            for (const { oldPath, newPath } of batch) {
+                await this.vectorStore.renameFile(oldPath, newPath);
+            }
             this.searchCache.clear();
+            return;
+        }
+
+        for (const { oldPath, newPath } of batch) {
+            await this.renameNote(oldPath, newPath);
         }
     }
 
@@ -425,7 +486,7 @@ export class VectorStoreService {
         // Listen for file rename
         this.fileEventRefs.push(this.app.vault.on('rename', async (file, oldPath) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
-                await this.renameNote(oldPath, file.path);
+                this.queueRenameNote(oldPath, file.path);
             }
         }));
     }
@@ -544,6 +605,22 @@ export class VectorStoreService {
         if (this.loadPromise) {
             await this.loadPromise;
         }
+
+        await this.checkIndexVersion();
+    }
+
+    private async checkIndexVersion(): Promise<void> {
+        if (!this.vectorStore || this.hasWarnedIndexVersion) {
+            return;
+        }
+
+        const metadata = await this.vectorStore.getMetadata();
+        if (metadata?.version !== INDEX_SCHEMA_VERSION) {
+            console.warn(
+                `Vector index version ${metadata?.version ?? 'unknown'} is outdated. Recommended version: ${INDEX_SCHEMA_VERSION}.`
+            );
+            this.hasWarnedIndexVersion = true;
+        }
     }
 
     private async getIndexSizeBytes(storagePath: string): Promise<number> {
@@ -583,5 +660,38 @@ export class VectorStoreService {
         }
 
         return chunks;
+    }
+
+    private buildMetadataPrefix(title: string, folderPath: string, tags: string[]): string {
+        const parts: string[] = [];
+        if (title) parts.push(`Title: ${title}`);
+        if (folderPath) parts.push(`Path: ${folderPath}`);
+        if (tags.length > 0) parts.push(`Tags: ${tags.join(', ')}`);
+
+        let prefix = parts.join('\n');
+        if (prefix.length > VectorStoreService.METADATA_PREFIX_MAX_CHARS) {
+            prefix = prefix.substring(0, VectorStoreService.METADATA_PREFIX_MAX_CHARS);
+        }
+
+        return prefix ? `${prefix}\n---\n` : '';
+    }
+
+    private getFileTags(file: TFile): string[] {
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (!cache) return [];
+
+        const tags: string[] = [];
+        if (cache.frontmatter?.tags) {
+            const fmTags = Array.isArray(cache.frontmatter.tags)
+                ? cache.frontmatter.tags
+                : [cache.frontmatter.tags];
+            tags.push(...fmTags.map((tag: string) => tag.replace(/^#/, '')));
+        }
+
+        if (cache.tags) {
+            tags.push(...cache.tags.map(tag => tag.tag.replace(/^#/, '')));
+        }
+
+        return [...new Set(tags)].filter(Boolean);
     }
 }

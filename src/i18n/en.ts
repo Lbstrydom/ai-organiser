@@ -915,13 +915,14 @@ export const en: Translations = {
             buildLabel: "Build full index",
             buildDesc: "Index every note in your vault",
             buildButton: "Build",
-            updateLabel: "Update current note",
-            updateDesc: "Re-index the active note",
+            updateLabel: "Update changed files",
+            updateDesc: "Re-index notes that have changed since last indexing",
             updateButton: "Update",
             clearLabel: "Clear index",
             clearDesc: "Remove all indexed data",
             clearButton: "Clear",
             clearConfirm: "Clear the semantic search index? You can rebuild it anytime.",
+            indexOutdated: "Index was built with an older version. Rebuild recommended for best results.",
             closeButton: "Close"
         },
         youtubeInput: {

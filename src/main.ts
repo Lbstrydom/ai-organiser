@@ -38,6 +38,11 @@ import { resetBusyState, withBusyIndicator } from './utils/busyIndicator';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
+    private lastEmbeddingConfig = {
+        provider: DEFAULT_SETTINGS.embeddingProvider,
+        model: DEFAULT_SETTINGS.embeddingModel,
+        enabled: DEFAULT_SETTINGS.enableSemanticSearch
+    };
     public llmService: SummarizableLLMService;
     public configService: ConfigurationService;
     public secretStorageService: SecretStorageService;
@@ -88,12 +93,31 @@ export default class AIOrganiserPlugin extends Plugin {
 
         this.settings = Object.assign({}, DEFAULT_SETTINGS, oldSettings);
         this.t = getTranslations(this.settings.interfaceLanguage);
+        this.lastEmbeddingConfig = {
+            provider: this.settings.embeddingProvider,
+            model: this.settings.embeddingModel,
+            enabled: this.settings.enableSemanticSearch
+        };
     }
 
     public async saveSettings(): Promise<void> {
+        const embeddingSettingsChanged =
+            this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
+            this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
+            this.settings.enableSemanticSearch !== this.lastEmbeddingConfig.enabled;
+
         await this.saveData(this.settings);
         await this.initializeLLMService();
-        await this.initializeEmbeddingService();
+
+        if (embeddingSettingsChanged) {
+            await this.initializeEmbeddingService();
+        }
+
+        this.lastEmbeddingConfig = {
+            provider: this.settings.embeddingProvider,
+            model: this.settings.embeddingModel,
+            enabled: this.settings.enableSemanticSearch
+        };
         this.t = getTranslations(this.settings.interfaceLanguage);
     }
 
@@ -113,7 +137,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
             // Update vector store service with new embedding service
             if (this.vectorStoreService) {
-                await this.vectorStoreService.updateEmbeddingService(this.embeddingService);
+                await this.vectorStoreService.updateEmbeddingService(this.embeddingService, true);
             }
         }
     }

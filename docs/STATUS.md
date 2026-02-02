@@ -1,12 +1,56 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** February 1, 2026
-**Status:** Feature Complete - Canvas Toolkit + Polish
+**Last Updated:** February 2, 2026
+**Status:** Feature Complete - Semantic Search Stability & Quality Overhaul
 
 ---
 
 ## Recent Updates
+
+### Semantic Search Stability & Quality Overhaul (2026-02-02)
+
+**Fix critical index lifecycle bug, improve retrieval quality via metadata injection, fix "Update Index" scope**
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| Phase 1.1 | Conditional embedding reinit in `saveSettings()` — stop wiping index on every settings change | Complete |
+| Phase 1.2 | `shouldClear` parameter on `updateEmbeddingService()` — only clear when explicitly requested | Complete |
+| Phase 2.1 | "Update Index" changed from active-note-only to vault-wide via `indexVault()` | Complete |
+| Phase 2.2 | i18n label updates (EN + ZH-CN): "Update changed files" | Complete |
+| Phase 3.1 | Metadata injection: Title/Path/Tags prepended to chunk text for embedding only | Complete |
+| Phase 3.2 | Index schema version bump to `2.0.0` (Voy + Simple stores) | Complete |
+| Phase 3.3 | Staleness detection: ManageIndexModal warns when index version mismatches | Complete |
+| Phase 3.4 | i18n strings for `indexOutdated` warning (EN + ZH-CN) | Complete |
+| Phase 4.1 | Re-embed on rename/move: `renameNote()` does full re-index with metadata prefix | Complete |
+| Phase 4.1b | Fallback: lightweight path rewrite when embedding service unavailable | Complete |
+| Phase 4.2 | Bulk Rename Guard: debounced queue (500ms), threshold (10), prevents folder rename bombs | Complete |
+| Tests | `semanticSearchPlan.test.ts` — conditional clear, metadata prefix, rename, bulk guard | Complete |
+
+**Build Status**: 968+ tests passing
+
+**Root Causes Fixed:**
+1. **Index wipe on any settings change** — `saveSettings()` unconditionally called `initializeEmbeddingService()` → `vectorStore.clear()`. Now tracks `lastEmbeddingConfig` and only reinitializes when embedding provider/model/enabled changes.
+2. **"Update Index" only updated active note** — `handleUpdateIndex()` called `indexNote(file)` for just the active file. Now calls `indexVault()` which uses the change tracker to skip unchanged files.
+3. **Missing categorical context in embeddings** — "GROW Model" note in `Coaching/` folder didn't embed "coaching" concept. Now prepends `Title: / Path: / Tags:` metadata prefix (max 200 chars) to chunks for embedding generation only (not stored in content field).
+4. **Stale embeddings after rename/move** — With metadata injection, folder path baked into embeddings becomes stale on rename. Now re-embeds at new path. Bulk rename guard prevents mass API calls when moving folders.
+
+**Key Files Modified:**
+- `src/main.ts` — `saveSettings()` conditional embedding reinit with `lastEmbeddingConfig` tracking
+- `src/services/vector/vectorStoreService.ts` — `updateEmbeddingService(service, shouldClear)`, `buildMetadataPrefix()`, `getFileTags()`, `queueRenameNote()`, `flushRenames()`, `INDEX_SCHEMA_VERSION = '2.0.0'`
+- `src/ui/modals/ManageIndexModal.ts` — Vault-wide `handleUpdateIndex()`, schema staleness warning
+- `src/services/vector/voyVectorStore.ts` — Version bump to `2.0.0`
+- `src/services/vector/simpleVectorStore.ts` — Version bump to `2.0.0`
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — `updateLabel`, `updateDesc`, `indexOutdated` strings
+
+**Expert Review Decisions:**
+- **`score > 0` gate preserved** — Negative cosine similarity indicates genuinely anti-correlated content. Removing the gate would flood results with noise.
+- **TagNetworkView semantic links deferred** — Architecture mismatch: tag graph uses tags as nodes, semantic links are file-to-file. Existing alternatives (Related Notes sidebar, Investigation Board) already serve this need.
+- **Content hash change detection** — Already implemented via `createContentHash(content)` + `changeTracker.hasChanged()` (not mtime-based). No changes needed.
+
+**Documentation**: `docs/completed/semsearch-plan.md`
+
+---
 
 ### Enhanced Semantic Search: Wide Net Retrieval + User Configuration (2026-02-01)
 

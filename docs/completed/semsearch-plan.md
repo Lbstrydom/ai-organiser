@@ -292,9 +292,83 @@ public async renameNote(oldPath: string, newPath: string): Promise<void> {
 }
 ```
 
-**Cost consideration**: Rename/move triggers one embedding API call per file (batch for all chunks). This is acceptable — renames are infrequent and the alternative is stale categorical context.
+**Cost consideration**: Rename/move triggers one embedding API call per file (batch for all chunks). This is acceptable for individual file renames.
 
 **Fallback**: If `embeddingService` is null (semantic search disabled), fall back to the current path-rewrite behavior to avoid data loss.
+
+### 4.2 Bulk Rename Guard
+
+**Problem**: Obsidian fires individual `rename` events per file. Renaming a root folder with 500 notes triggers 500 re-embed calls — massive cost for cloud providers (~$0.50–$2.00 on OpenAI) and app freeze for local/Ollama users.
+
+**Solution**: Batch rename detection with debounced queue in `vectorStoreService.ts`:
+
+```typescript
+/** Threshold above which bulk rename requires user confirmation */
+private static readonly BULK_RENAME_THRESHOLD = 10;
+/** Debounce window to collect rename events from a single folder rename (ms) */
+private static readonly RENAME_DEBOUNCE_MS = 500;
+
+private pendingRenames: Array<{ oldPath: string; newPath: string }> = [];
+private renameTimer: ReturnType<typeof setTimeout> | null = null;
+
+public queueRenameNote(oldPath: string, newPath: string): void {
+    this.pendingRenames.push({ oldPath, newPath });
+
+    if (this.renameTimer) clearTimeout(this.renameTimer);
+    this.renameTimer = setTimeout(() => this.flushRenames(), VectorStoreService.RENAME_DEBOUNCE_MS);
+}
+
+private async flushRenames(): Promise<void> {
+    const batch = [...this.pendingRenames];
+    this.pendingRenames = [];
+    this.renameTimer = null;
+
+    if (batch.length > VectorStoreService.BULK_RENAME_THRESHOLD) {
+        // Show notice — user can rebuild via Manage Index instead
+        new Notice(
+            `${batch.length} notes moved. Run "Update Changed Files" in Manage Index to re-embed with updated paths.`,
+            10000
+        );
+        // Do lightweight path rewrites only (preserves old embeddings, avoids cost)
+        for (const { oldPath, newPath } of batch) {
+            if (this.vectorStore) {
+                await this.vectorStore.renameFile(oldPath, newPath);
+            }
+        }
+        this.searchCache.clear();
+    } else {
+        // Small batch — re-embed each file
+        for (const { oldPath, newPath } of batch) {
+            await this.renameNote(oldPath, newPath);
+        }
+    }
+}
+```
+
+Update the event handler in `registerFileEventHandlers()` to use the queue:
+
+```typescript
+this.fileEventRefs.push(this.app.vault.on('rename', async (file, oldPath) => {
+    if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
+        this.queueRenameNote(oldPath, file.path);
+    }
+}));
+```
+
+**Behavior**:
+- ≤10 files renamed: Re-embed each immediately (current plan)
+- >10 files renamed: Lightweight path rewrite + notice to rebuild via Manage Index
+- Debounce window (500ms) collects all events from a single folder rename before deciding
+
+---
+
+## Reviewer Notes (addressed)
+
+### Content hash vs mtime
+The reviewer suggested using content hash instead of mtime for change detection. This is **already implemented** — `vectorStoreService.ts` uses `createContentHash(content)` (line 244) and `changeTracker.hasChanged(filePath, contentHash)` (line 246). The change tracker stores content hashes, not timestamps. Files that were "touched" without content changes are correctly skipped.
+
+### Score > 0 gate
+Kept as-is. If users still report light results after metadata injection, we can revisit by lowering to a small negative threshold (e.g., -0.05) as a follow-up, but this should not be needed — metadata injection solves the categorical gap that was the actual root cause. The Top-K limit already prevents garbage from reaching users.
 
 ---
 
@@ -317,8 +391,11 @@ public async renameNote(oldPath: string, newPath: string): Promise<void> {
 - `main.ts saveSettings` — Mock: change non-embedding setting → verify `vectorStore.clear()` NOT called
 - `main.ts saveSettings` — Mock: change embedding provider → verify `vectorStore.clear()` IS called
 - `vectorStoreService.buildMetadataPrefix` — Verify format and bounded length
+- `vectorStoreService.buildMetadataPrefix` — Verify truncation at METADATA_PREFIX_MAX_CHARS
 - `vectorStoreService.renameNote` — Verify removes old + re-indexes at new path
 - `vectorStoreService.renameNote` — Verify fallback to path rewrite when no embedding service
+- `vectorStoreService.flushRenames` — ≤10 files → each re-embedded
+- `vectorStoreService.flushRenames` — >10 files → lightweight rewrite only + notice
 
 ### Existing test updates
 - `ragService.test.ts` — No changes needed (pipeline logic unchanged)
@@ -343,6 +420,8 @@ public async renameNote(oldPath: string, newPath: string): Promise<void> {
 - [ ] Rename a note → related notes still find it with correct context
 - [ ] Move a note to different folder → semantic search reflects new folder category
 - [ ] Rename with semantic search disabled → lightweight path rewrite (no error)
+- [ ] Rename folder with >10 notes → notice shown, lightweight rewrite (no mass re-embed)
+- [ ] Rename folder with ≤10 notes → each re-embedded silently
 
 ### Schema Migration
 - [ ] Open Manage Index with old index → staleness warning shown
@@ -351,7 +430,9 @@ public async renameNote(oldPath: string, newPath: string): Promise<void> {
 
 ## Edge Cases
 - **Rename during indexing** (`this.isIndexing` flag) — existing guard skips rename handler during bulk indexing
+- **Bulk folder rename (500+ notes)** — debounce queue collects events, >10 triggers lightweight rewrite + notice instead of mass re-embed
 - **Notes with no tags and root-level** — prefix is just `Title: X\n---\n` (still useful)
 - **Very long folder paths** — bounded by `METADATA_PREFIX_MAX_CHARS` (200 chars)
 - **Embedding service unavailable on rename** — falls back to path rewrite
 - **First load after upgrade** — old index works but with stale embeddings; ManageIndex shows staleness notice
+- **Content hash already in use** — `createContentHash(content)` + `changeTracker.hasChanged()` already prevents re-embedding unchanged files (not mtime-based)

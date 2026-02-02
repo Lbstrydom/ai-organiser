@@ -921,6 +921,7 @@ export interface Translations {
             clearDesc: string;
             clearButton: string;
             clearConfirm: string;
+            indexOutdated: string;
             closeButton: string;
         };
         youtubeInput: {

@@ -79,7 +79,7 @@ export class VoyVectorStore implements IVectorStore {
         lastUpdated: Date.now(),
         embeddingDims: 1536, // Default OpenAI
         embeddingModel: 'unknown',
-        version: '1.0.0'
+        version: '2.0.0'
     };
     private app: App;
     private storagePath: string;

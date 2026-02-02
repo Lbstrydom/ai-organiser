@@ -49,7 +49,7 @@ export class SimpleVectorStore implements IVectorStore {
         lastUpdated: Date.now(),
         embeddingDims: 1536, // Default OpenAI
         embeddingModel: 'unknown',
-        version: '1.0.0'
+        version: '2.0.0'
     };
 
     async upsert(documents: VectorDocument[]): Promise<void> {

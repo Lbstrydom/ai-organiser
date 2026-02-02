@@ -1,5 +1,6 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
+import { INDEX_SCHEMA_VERSION } from '../../services/vector/vectorStoreService';
 
 export class ManageIndexModal extends Modal {
     private plugin: AIOrganiserPlugin;
@@ -9,7 +10,7 @@ export class ManageIndexModal extends Modal {
         this.plugin = plugin;
     }
 
-    onOpen(): void {
+    async onOpen(): Promise<void> {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-organiser-modal-content');
@@ -48,6 +49,16 @@ export class ManageIndexModal extends Modal {
             .addButton(btn => btn
                 .setButtonText(this.plugin.t.modals.manageIndex.closeButton)
                 .onClick(() => this.close()));
+
+        if (this.plugin.vectorStore) {
+            const metadata = await this.plugin.vectorStore.getMetadata();
+            if (metadata && metadata.version !== INDEX_SCHEMA_VERSION) {
+                contentEl.createEl('p', {
+                    text: this.plugin.t.modals.manageIndex.indexOutdated,
+                    cls: 'ai-organiser-warning'
+                });
+            }
+        }
     }
 
     onClose(): void {
@@ -93,17 +104,15 @@ export class ManageIndexModal extends Modal {
             return;
         }
 
-        const file = this.plugin.app.workspace.getActiveFile();
-        if (!file) {
-            new Notice(this.plugin.t.messages.openNote);
-            return;
-        }
-
         const statusNotice = new Notice(this.plugin.t.messages.updatingIndex, 0);
         try {
-            await this.plugin.vectorStoreService.indexNote(file);
+            const result = await this.plugin.vectorStoreService.indexVault();
             statusNotice.hide();
-            new Notice(this.plugin.t.messages.indexUpdateComplete);
+            new Notice(
+                this.plugin.t.messages.indexBuildComplete
+                    .replace('{indexed}', String(result.indexed))
+                    .replace('{failed}', String(result.failed))
+            );
         } catch (error) {
             statusNotice.hide();
             new Notice(`${this.plugin.t.messages.indexUpdateFailed}: ${(error as any).message}`);
