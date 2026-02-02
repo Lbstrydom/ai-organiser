@@ -243,10 +243,15 @@ Pick at least ONE source type:
 - [x] Generate → note created with structured output
 - [x] Check frontmatter: `meeting_date`, `attendees` (clean names, no prefix)
 
-### Output Folder Override
-- [ ] Minutes modal → "Output folder" text field visible near bottom of form
-- [ ] Default value matches settings (e.g., `AI-Organiser/Meetings`)
-- [ ] Change folder path → generate minutes → file created in new folder
+### Output Folder Override (Folder Picker)
+- [ ] Minutes modal → "Output folder" button visible near bottom of form (not text input)
+- [ ] Click button → folder picker modal opens with tree view
+- [ ] Default folder shown or prefilled from settings (e.g., `AI-Organiser/Meetings`)
+- [ ] Search folders → filters correctly
+- [ ] Type non-existing folder → "+ Create" item appears
+- [ ] Resolved path preview shown inside picker before confirm
+- [ ] Select folder → display updates to show selected path
+- [ ] Generate minutes → file created in chosen folder
 - [ ] Leave default → generate minutes → file goes to default folder
 
 ### Context Documents
@@ -412,11 +417,16 @@ Pick at least ONE source type:
 
 ### Chat Export
 - [ ] Chat with Vault → have at least one Q/A exchange
-- [ ] Click "Export" button → folder confirmation modal opens
-- [ ] Default path shown: `AI-Organiser/Chats` (or custom chatExportFolder)
-- [ ] Change folder path → click Export → file created in new folder
+- [ ] Click "Export" button → folder picker modal opens (tree view, not text input)
+- [ ] Default path shown or prefilled: `AI-Organiser/Chats` (or custom chatExportFolder)
+- [ ] Search folders in picker → filters correctly
+- [ ] Type non-existing folder name → "+ Create" item appears at top with accent color
+- [ ] Click Create → folder created (including nested paths), export proceeds
+- [ ] Resolved path preview shown inside picker before confirm (e.g. "Destination: AI-Organiser/Chats/MyFolder")
+- [ ] Select existing folder → click Export → file created in chosen folder
 - [ ] Keep default → click Export → file created in `AI-Organiser/Chats/`
-- [ ] Click Cancel → no file created
+- [ ] Click Cancel / ESC → no file created
+- [ ] First run (default folder doesn't exist) → search prefilled with default path, "+ Create" shown
 - [ ] Open exported file → proper markdown format:
   - [ ] Heading with date: `# Chat with Vault — {date}`
   - [ ] Messages with timestamps and role labels (**You** / **Assistant**)
@@ -452,6 +462,16 @@ Pick at least ONE source type:
 - [ ] "Start Chat" disabled if nothing selected
 - [ ] Click "Start Chat" → enters chat phase
 
+### Highlight Scoping (NEW)
+- [ ] Note with highlights → only highlighted passages shown by default (not all blocks)
+- [ ] "Showing X of Y passages" count label visible next to toggle
+- [ ] Click "Show all passages" → all blocks visible, highlighted ones still selected
+- [ ] Select a non-highlighted block while "Show all" is on
+- [ ] Click "Show highlights only" → non-highlighted selections auto-cleared (hidden-selection bug prevention)
+- [ ] Token count always reflects actual selected passages (not hidden ones)
+- [ ] Verify correct passage text sent: highlight at paragraph #50 → "Show highlights only" → Start Chat → LLM receives paragraph #50 content (not #1)
+- [ ] Note with NO highlights and no editor selection → notice shown ("No highlights found..."), modal closes
+
 ### Chat Features
 - [ ] "Back" button returns to selection phase (chat history preserved)
 - [ ] Role labels ("You" / "AI") on chat messages
@@ -464,16 +484,26 @@ Pick at least ONE source type:
 ### Edge Cases
 - [ ] Empty note → notice shown, modal doesn't open
 - [ ] Code block containing `==text==` → NOT detected as highlight (code-fence immunity)
-- [ ] Note with no highlights → all blocks unselected, user must select manually
+- [ ] Note with no highlights and no selection → notice shown, modal closes (changed from previous behavior)
 - [ ] Anti-hallucination: inserted summary uses standalone prose (no "[Passage 1]" references)
 
 ---
 
-## 10d. Highlights (1 min)
+## 10d. Highlights (2 min)
 
-- [ ] Select text → "Highlight selection" → text highlighted
+### Command Palette
+- [ ] Select text → "Highlight selection" → color picker → text highlighted
 - [ ] Select highlighted text → "Remove highlight" → highlight removed
 - [ ] Multiple highlight colors available (if configured)
+
+### Right-Click Context Menu (NEW)
+- [ ] Select text → right-click → "Highlight" visible in context menu
+- [ ] Click "Highlight" → color picker opens → highlights text
+- [ ] Select highlighted text (`==text==` or `<mark>`) → right-click → "Remove highlight" also visible
+- [ ] Click "Remove highlight" → markup removed, plain text remains
+- [ ] Right-click without any selection → no highlight items in menu
+- [ ] Select `==A== plain ==B==` → right-click → "Remove highlight" → both highlights removed correctly
+- [ ] Select very large text (>5000 chars) → right-click → "Highlight" still visible, "Remove highlight" absent (performance guard)
 
 ---
 

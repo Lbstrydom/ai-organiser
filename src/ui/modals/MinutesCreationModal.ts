@@ -25,6 +25,7 @@ import {
 import { withBusyIndicator } from '../../utils/busyIndicator';
 import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
 import { ParticipantListService, ParticipantList } from '../../services/participantListService';
+import { FolderScopePickerModal } from './FolderScopePickerModal';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
@@ -196,12 +197,39 @@ export class MinutesCreationModal extends Modal {
         this.renderParticipantsSection(contentEl);
         this.renderAdvancedSection(contentEl);
 
-        // Output folder field
-        new Setting(contentEl)
-            .setName(this.plugin.t.minutes?.outputFolderLabel || 'Output folder')
-            .addText(text => text
-                .setValue(this.state.outputFolder)
-                .onChange(v => { this.state.outputFolder = v.trim(); }));
+        // Output folder field with folder picker button
+        const outputFolderSetting = new Setting(contentEl)
+            .setName(this.plugin.t.minutes?.outputFolderLabel || 'Output folder');
+
+        const folderDisplayEl = outputFolderSetting.controlEl.createSpan({
+            text: this.state.outputFolder || '—',
+            cls: 'ai-organiser-folder-display'
+        });
+        folderDisplayEl.style.marginRight = '8px';
+        folderDisplayEl.style.color = 'var(--text-muted)';
+
+        outputFolderSetting.addButton(btn => btn
+            .setButtonText(this.plugin.t.modals?.folderScopePicker?.selectButton || 'Select')
+            .onClick(() => {
+                const picker = new FolderScopePickerModal(
+                    this.app,
+                    this.plugin,
+                    {
+                        title: this.plugin.t.minutes?.outputFolderLabel || 'Output folder',
+                        allowSkip: false,
+                        allowNewFolder: true,
+                        defaultFolder: this.state.outputFolder,
+                        resolvePreview: (path) => resolvePluginPath(this.plugin.settings, path, 'Meetings'),
+                        onSelect: (folder) => {
+                            if (folder) {
+                                this.state.outputFolder = folder;
+                                folderDisplayEl.textContent = folder;
+                            }
+                        }
+                    }
+                );
+                picker.open();
+            }));
 
         this.renderFooter(contentEl);
 

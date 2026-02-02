@@ -154,16 +154,10 @@ describe('Command Picker', () => {
                 expect(commandIds).toContain('enhance-note');
                 expect(commandIds).toContain('smart-translate');
                 expect(commandIds).toContain('create-dashboard');
-                expect(commandIds).toContain('highlight-group');
                 expect(commandIds).toContain('pending-group');
 
-                // Verify Highlight group contains sub-commands
-                const highlightGroup = enhanceCategory!.commands.find(c => c.id === 'highlight-group');
-                expect(highlightGroup).toBeDefined();
-                expect(highlightGroup!.subCommands).toBeDefined();
-                const highlightSubIds = highlightGroup!.subCommands!.map(c => c.id);
-                expect(highlightSubIds).toContain('highlight-selection');
-                expect(highlightSubIds).toContain('remove-highlight');
+                // Highlight group removed — highlight/unhighlight now accessible via right-click context menu
+                expect(commandIds).not.toContain('highlight-group');
 
                 // Verify Pending group contains sub-commands
                 const pendingGroup = enhanceCategory!.commands.find(c => c.id === 'pending-group');

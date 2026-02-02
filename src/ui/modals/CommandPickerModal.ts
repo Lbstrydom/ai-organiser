@@ -274,29 +274,6 @@ export function buildCommandCategories(
                     callback: () => executeCommand('ai-organiser:create-bases-dashboard')
                 },
                 {
-                    id: 'highlight-group',
-                    name: t.modals.commandPicker?.groupHighlight || 'Highlight',
-                    icon: 'highlighter',
-                    aliases: ['highlight', 'color', 'mark', 'remove', 'clear', 'unhighlight', 'eraser'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'highlight-selection',
-                            name: t.commands?.highlightSelection || 'Highlight selection',
-                            icon: 'highlighter',
-                            aliases: ['highlight', 'color', 'mark'],
-                            callback: () => executeCommand('ai-organiser:highlight-selection')
-                        },
-                        {
-                            id: 'remove-highlight',
-                            name: t.commands?.removeHighlight || 'Remove highlight',
-                            icon: 'eraser',
-                            aliases: ['remove', 'clear', 'unhighlight'],
-                            callback: () => executeCommand('ai-organiser:remove-highlight')
-                        }
-                    ]
-                },
-                {
                     id: 'pending-group',
                     name: t.modals.commandPicker?.groupPending || 'Pending Integration',
                     icon: 'git-merge',

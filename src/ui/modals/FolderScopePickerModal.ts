@@ -3,9 +3,10 @@
  * Allows users to select a root folder to constrain AI suggestions
  */
 
-import { App, Modal, ButtonComponent, TFolder } from 'obsidian';
+import { App, Modal, ButtonComponent, TFolder, normalizePath } from 'obsidian';
 import AIOrganiserPlugin from '../../main';
 import { getAllFolders, buildFolderTree, FolderTreeNode } from '../../utils/folderContextUtils';
+import { ensureFolderExists } from '../../utils/minutesUtils';
 
 export interface FolderScopePickerOptions {
     /** Modal title (defaults to i18n key) */
@@ -18,6 +19,12 @@ export interface FolderScopePickerOptions {
     defaultFolder?: string;
     /** Callback when folder is selected (null = use entire vault) */
     onSelect: (folderPath: string | null) => void;
+    /** Custom text for the select/confirm button (e.g. "Export") */
+    confirmButtonText?: string;
+    /** Allow creating new folders from search input (default: false) */
+    allowNewFolder?: boolean;
+    /** Callback to resolve a preview path shown inside the picker */
+    resolvePreview?: (path: string) => string;
 }
 
 export class FolderScopePickerModal extends Modal {
@@ -29,6 +36,7 @@ export class FolderScopePickerModal extends Modal {
     private allFolders: TFolder[] = [];
     private folderTree: FolderTreeNode[] = [];
     private searchTerm: string = '';
+    private previewEl!: HTMLElement;
 
     constructor(
         app: App,
@@ -38,6 +46,7 @@ export class FolderScopePickerModal extends Modal {
         super(app);
         this.options = {
             allowSkip: true,
+            allowNewFolder: false,
             ...options
         };
         this.selectedFolder = options.defaultFolder || null;
@@ -110,6 +119,26 @@ export class FolderScopePickerModal extends Modal {
 
         this.renderFolderList();
 
+        // Resolved-path preview element
+        this.previewEl = contentEl.createDiv({ cls: 'folder-picker-preview' });
+        this.previewEl.style.margin = '0 0 12px';
+        this.previewEl.style.padding = '6px 12px';
+        this.previewEl.style.fontSize = '13px';
+        this.previewEl.style.color = 'var(--text-muted)';
+        this.previewEl.style.fontStyle = 'italic';
+        this.updatePreview();
+
+        // If defaultFolder doesn't exist in vault, prefill search with that path
+        if (this.options.defaultFolder && this.options.allowNewFolder) {
+            const exists = this.allFolders.some(f => f.path === this.options.defaultFolder);
+            if (!exists) {
+                this.searchInput.value = this.options.defaultFolder;
+                this.searchTerm = this.options.defaultFolder.toLowerCase();
+                this.selectedFolder = null;
+                this.renderFolderList();
+            }
+        }
+
         // Button container
         const buttonContainer = contentEl.createDiv({ cls: 'folder-picker-buttons' });
         buttonContainer.style.display = 'flex';
@@ -142,7 +171,7 @@ export class FolderScopePickerModal extends Modal {
             });
 
         this.selectButton = new ButtonComponent(rightButtons)
-            .setButtonText(t?.selectButton || 'Select')
+            .setButtonText(this.options.confirmButtonText || t?.selectButton || 'Select')
             .setCta()
             .onClick(() => {
                 this.options.onSelect(this.selectedFolder);
@@ -180,12 +209,25 @@ export class FolderScopePickerModal extends Modal {
             filteredFolders = this.allFolders;
         }
 
-        if (filteredFolders.length === 0) {
+        // "Create new folder" item when allowNewFolder and search term doesn't match any existing folder
+        if (this.options.allowNewFolder && this.searchTerm) {
+            const normalizedSearch = this.searchTerm.trim().replaceAll(/(^\/+)|(\/+$)/g, '');
+            const exactMatch = this.allFolders.some(f => f.path.toLowerCase() === normalizedSearch);
+            if (!exactMatch && normalizedSearch.length > 0) {
+                this.renderCreateFolderItem(normalizedSearch);
+            }
+        }
+
+        if (filteredFolders.length === 0 && !this.options.allowNewFolder) {
             const emptyEl = this.folderListEl.createDiv({ cls: 'folder-list-empty' });
             emptyEl.style.padding = '20px';
             emptyEl.style.textAlign = 'center';
             emptyEl.style.color = 'var(--text-muted)';
             emptyEl.textContent = t?.noFoldersFound || 'No folders found';
+            return;
+        }
+
+        if (filteredFolders.length === 0) {
             return;
         }
 
@@ -296,14 +338,73 @@ export class FolderScopePickerModal extends Modal {
         });
     }
 
+    private renderCreateFolderItem(folderName: string): void {
+        const t = this.plugin.t.modals?.folderScopePicker;
+        const label = (t?.createFolder || 'Create new folder: "{path}"').replace('{path}', folderName);
+
+        const itemEl = this.folderListEl.createDiv({ cls: 'folder-item folder-item-create' });
+        itemEl.style.padding = '8px 12px';
+        itemEl.style.cursor = 'pointer';
+        itemEl.style.display = 'flex';
+        itemEl.style.alignItems = 'center';
+        itemEl.style.gap = '8px';
+        itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+        itemEl.style.color = 'var(--interactive-accent)';
+        itemEl.style.fontWeight = '600';
+
+        const iconEl = itemEl.createSpan();
+        iconEl.style.fontSize = '14px';
+        iconEl.textContent = '+';
+
+        const nameEl = itemEl.createSpan({ text: label });
+        nameEl.style.flex = '1';
+
+        itemEl.addEventListener('mouseenter', () => {
+            itemEl.style.backgroundColor = 'var(--background-modifier-hover)';
+        });
+        itemEl.addEventListener('mouseleave', () => {
+            itemEl.style.backgroundColor = '';
+        });
+
+        itemEl.addEventListener('click', async () => {
+            const normalized = normalizePath(folderName);
+            // Validate: no invalid characters
+            if (/[<>:"|?*]/.test(normalized)) {
+                return;
+            }
+            try {
+                await ensureFolderExists(this.app.vault, normalized);
+                this.options.onSelect(normalized);
+                this.close();
+            } catch {
+                // Folder creation failed silently — user can retry
+            }
+        });
+
+        this.updatePreview(folderName);
+    }
+
     private selectFolder(folderPath: string): void {
         this.selectedFolder = folderPath;
         this.renderFolderList();
+        this.updatePreview();
 
         // Enable the select button
         if (this.selectButton) {
             this.selectButton.setDisabled(false);
         }
+    }
+
+    private updatePreview(overridePath?: string): void {
+        if (!this.previewEl) return;
+        const path = overridePath || this.selectedFolder;
+        if (!path || !this.options.resolvePreview) {
+            this.previewEl.textContent = '';
+            return;
+        }
+        const t = this.plugin.t.modals?.folderScopePicker;
+        const resolved = this.options.resolvePreview(path);
+        this.previewEl.textContent = (t?.exportDestination || 'Destination: {path}').replace('{path}', resolved);
     }
 
     private getFolderIcon(): string {

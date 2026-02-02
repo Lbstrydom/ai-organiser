@@ -8,6 +8,7 @@ import AIOrganiserPlugin from '../main';
 import { RAGService, RAGContext } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { HighlightChatModal } from '../ui/modals/HighlightChatModal';
+import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { INDEX_SCHEMA_VERSION } from '../services/vector/vectorStoreService';
 import { getChatExportFullPath, resolvePluginPath } from '../core/settings';
@@ -249,38 +250,23 @@ class ChatWithVaultModal extends Modal {
     private promptExportFolder(): Promise<string | null> {
         const t = this.plugin.t.modals.chatWithVault;
         return new Promise((resolve) => {
-            const modal = new Modal(this.app);
-            modal.titleEl.setText(t.exportTitle);
             let resolved = false;
-
-            let folderValue = getChatExportFullPath(this.plugin.settings);
-
-            new Setting(modal.contentEl)
-                .setName(t.exportFolderLabel)
-                .addText(text => {
-                    text.setValue(folderValue)
-                        .onChange(v => { folderValue = v.trim(); });
-                    text.inputEl.style.width = '100%';
-                });
-
-            new Setting(modal.contentEl)
-                .addButton(btn => {
-                    btn.setButtonText(t.exportConfirmButton)
-                        .setCta()
-                        .onClick(() => {
-                            resolved = true;
-                            modal.close();
-                            resolve(folderValue || null);
-                        });
-                })
-                .addButton(btn => {
-                    btn.setButtonText(this.plugin.t.modals.cancel)
-                        .onClick(() => {
-                            resolved = true;
-                            modal.close();
-                            resolve(null);
-                        });
-                });
+            const modal = new FolderScopePickerModal(
+                this.app,
+                this.plugin,
+                {
+                    title: t.exportTitle,
+                    allowSkip: false,
+                    allowNewFolder: true,
+                    confirmButtonText: t.exportConfirmButton,
+                    defaultFolder: getChatExportFullPath(this.plugin.settings),
+                    resolvePreview: (path) => resolvePluginPath(this.plugin.settings, path, 'Chats'),
+                    onSelect: (folder) => {
+                        resolved = true;
+                        resolve(folder);
+                    }
+                }
+            );
 
             const origOnClose = modal.onClose.bind(modal);
             modal.onClose = () => {

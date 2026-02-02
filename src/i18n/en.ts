@@ -920,7 +920,9 @@ export const en: Translations = {
             searchPlaceholder: "Search folders...",
             useEntireVault: "Use entire vault",
             selectButton: "Select",
-            noFoldersFound: "No folders found"
+            noFoldersFound: "No folders found",
+            createFolder: 'Create new folder: "{path}"',
+            exportDestination: "Destination: {path}"
         },
         clearTagsScope: {
             title: "Clear Tags",
@@ -1535,7 +1537,11 @@ export const en: Translations = {
         answerInserted: "Answer inserted into note",
         passagesSummary: "{count} passages selected",
         errorOccurred: "Error: {error}",
-        noAnswerYet: "Ask a question first"
+        noAnswerYet: "Ask a question first",
+        noHighlightsFound: "No highlights found in this note. Select text first, or add highlights using the Highlight command.",
+        showAllPassages: "Show all passages",
+        showHighlightsOnly: "Show highlights only",
+        showingCount: "Showing {visible} of {total} passages"
     },
     integration: {
         resolveEmbeds: "Resolve pending embeds",

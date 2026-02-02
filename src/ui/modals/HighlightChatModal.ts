@@ -32,6 +32,7 @@ export class HighlightChatModal extends Modal {
     private readonly messages: HighlightChatMessage[] = [];
     private selectedPassageTexts: string[] = [];
     private isProcessing = false;
+    private showAllBlocks = false;
     private component?: Component;
 
     private chatContainer?: HTMLElement;
@@ -56,6 +57,15 @@ export class HighlightChatModal extends Modal {
             this.renderChatPhase();
         } else {
             this.blocks = splitIntoBlocks(this.options.noteContent);
+            const hasHighlights = this.blocks.some(b => b.hasHighlight);
+
+            if (!hasHighlights) {
+                const t = this.plugin.t.highlightChat;
+                new Notice(t?.noHighlightsFound || 'No highlights found in this note. Select text first, or add highlights using the Highlight command.');
+                this.close();
+                return;
+            }
+
             this.preSelectHighlightedBlocks();
             this.allowBack = true;
             this.renderSelectionPhase();
@@ -83,10 +93,40 @@ export class HighlightChatModal extends Modal {
         contentEl.createEl('h2', { text: t?.title || 'Chat About Highlights' });
         contentEl.createEl('p', { text: t?.selectPassages || 'Select passages to discuss:' });
 
+        // Build display blocks with originalIndex tracking
+        const displayBlocks = this.showAllBlocks
+            ? this.blocks.map((b, i) => ({ block: b, originalIndex: i }))
+            : this.blocks
+                .map((b, i) => ({ block: b, originalIndex: i }))
+                .filter(item => item.block.hasHighlight);
+
+        // Toggle button with count
+        const toggleRow = contentEl.createDiv({ cls: 'ai-organiser-hc-toggle-row' });
+        new ButtonComponent(toggleRow)
+            .setButtonText(this.showAllBlocks
+                ? (t?.showHighlightsOnly || 'Show highlights only')
+                : (t?.showAllPassages || 'Show all passages'))
+            .onClick(() => {
+                this.showAllBlocks = !this.showAllBlocks;
+                if (!this.showAllBlocks) {
+                    // Auto-deselect non-highlighted blocks when filtering back
+                    const toRemove = Array.from(this.selectedIndices).filter(idx => !this.blocks[idx].hasHighlight);
+                    for (const idx of toRemove) {
+                        this.selectedIndices.delete(idx);
+                    }
+                }
+                this.renderSelectionPhase();
+            });
+
+        const countLabel = (t?.showingCount || 'Showing {visible} of {total} passages')
+            .replace('{visible}', String(displayBlocks.length))
+            .replace('{total}', String(this.blocks.length));
+        toggleRow.createSpan({ text: countLabel, cls: 'ai-organiser-hc-showing-count' });
+
         const listContainer = contentEl.createDiv({ cls: 'ai-organiser-hc-container' });
 
-        this.blocks.forEach((block, index) => {
-            const isSelected = this.selectedIndices.has(index);
+        for (const { block, originalIndex } of displayBlocks) {
+            const isSelected = this.selectedIndices.has(originalIndex);
             const row = listContainer.createDiv({ cls: 'ai-organiser-hc-block' });
             if (block.hasHighlight) {
                 row.addClass('ai-organiser-hc-block-highlighted');
@@ -102,9 +142,9 @@ export class HighlightChatModal extends Modal {
             });
             checkbox.addEventListener('change', () => {
                 if (checkbox.checked) {
-                    this.selectBlock(index, row);
+                    this.selectBlock(originalIndex, row);
                 } else {
-                    this.deselectBlock(index, row);
+                    this.deselectBlock(originalIndex, row);
                 }
                 updateSelectionSummary();
             });
@@ -119,16 +159,16 @@ export class HighlightChatModal extends Modal {
             typeEl.setText(block.type);
 
             row.addEventListener('click', () => {
-                if (this.selectedIndices.has(index)) {
+                if (this.selectedIndices.has(originalIndex)) {
                     checkbox.checked = false;
-                    this.deselectBlock(index, row);
+                    this.deselectBlock(originalIndex, row);
                 } else {
                     checkbox.checked = true;
-                    this.selectBlock(index, row);
+                    this.selectBlock(originalIndex, row);
                 }
                 updateSelectionSummary();
             });
-        });
+        }
 
         const summaryEl = contentEl.createDiv({ cls: 'ai-organiser-hc-selection-count' });
         const warningEl = contentEl.createDiv({ cls: 'ai-organiser-hc-selection-warning' });

@@ -5,7 +5,6 @@
  * functions used by ChatWithVaultModal.
  */
 
-import { describe, it, expect } from 'vitest';
 import {
     formatConversationHistory,
     formatExportMarkdown,

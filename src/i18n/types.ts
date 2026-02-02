@@ -920,6 +920,8 @@ export interface Translations {
             useEntireVault: string;
             selectButton: string;
             noFoldersFound: string;
+            createFolder: string;
+            exportDestination: string;
         };
         clearTagsScope: {
             title: string;
@@ -1371,6 +1373,10 @@ export interface Translations {
         passagesSummary: string;
         errorOccurred: string;
         noAnswerYet: string;
+        noHighlightsFound: string;
+        showAllPassages: string;
+        showHighlightsOnly: string;
+        showingCount: string;
     };
 
     // File menu items

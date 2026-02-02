@@ -1,5 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
 vi.mock('obsidian', async () => await import('./mocks/obsidian'));
 vi.mock('../src/services/embeddings', () => ({
     createEmbeddingServiceFromSettings: vi.fn(() => ({

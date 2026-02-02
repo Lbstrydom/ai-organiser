@@ -920,7 +920,9 @@ export const zhCN: Translations = {
             searchPlaceholder: "搜索文件夹...",
             useEntireVault: "使用整个仓库",
             selectButton: "选择",
-            noFoldersFound: "未找到文件夹"
+            noFoldersFound: "未找到文件夹",
+            createFolder: '创建新文件夹: "{path}"',
+            exportDestination: "目标路径: {path}"
         },
         clearTagsScope: {
             title: "清除标签",
@@ -1535,7 +1537,11 @@ export const zhCN: Translations = {
         answerInserted: "回复已插入到笔记",
         passagesSummary: "已选 {count} 段",
         errorOccurred: "错误：{error}",
-        noAnswerYet: "请先提出问题"
+        noAnswerYet: "请先提出问题",
+        noHighlightsFound: "此笔记中未找到高亮内容。请先选择文本，或使用高亮命令添加高亮。",
+        showAllPassages: "显示所有段落",
+        showHighlightsOnly: "仅显示高亮段落",
+        showingCount: "显示 {visible} / {total} 段"
     },
     integration: {
         resolveEmbeds: "解析待整合嵌入",
