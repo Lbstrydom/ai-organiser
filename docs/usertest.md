@@ -259,22 +259,22 @@ Pick at least ONE source type:
 ## 8. Semantic Search / RAG (5 min)
 
 ### Setup
-- [ ] Enable Semantic Search in settings
-- [ ] Select embedding provider (OpenAI, Gemini, Ollama, etc.)
-- [ ] Enter API key if needed (or use main key)
-- [ ] "Build Index" → indexing progress shown
+- [x] Enable Semantic Search in settings
+- [x] Select embedding provider (OpenAI, Gemini, Ollama, etc.)
+- [x] Enter API key if needed (or use main key)
+- [x] "Build Index" → indexing progress shown
 
 ### Related Notes Sidebar
-- [ ] View → "Related Notes" → sidebar opens
-- [ ] Switch between notes → panel updates (500ms debounce)
-- [ ] Similarity badges color-coded (green ≥0.8, yellow ≥0.6, gray <0.6)
-- [ ] Scores vary across results (not all "excellent" — real cosine similarity, not placeholder)
-- [ ] Open a note that previously had few results → verify more unique files appear (dedup working)
-- [ ] Multiple chunks from same file → only 1 result per file shown (dedup by file path)
-- [ ] Click related note → navigates to it
-- [ ] Hover → preview shown
-- [ ] Settings → Semantic Search → Related Notes Count = 3 → sidebar shows 3 results
-- [ ] Change Related Notes Count to 25 → sidebar expands to match
+- [x] View → "Related Notes" → sidebar opens
+- [x] Switch between notes → panel updates (500ms debounce)
+- [x] Similarity badges color-coded (green ≥0.8, yellow ≥0.6, gray <0.6)
+- [x] Scores vary across results (not all "excellent" — real cosine similarity, not placeholder)
+- [x] Open a note that previously had few results → verify more unique files appear (dedup working)
+- [x] Multiple chunks from same file → only 1 result per file shown (dedup by file path)
+- [x] Click related note → navigates to it
+- [x] Hover → preview shown
+- [x] Settings → Semantic Search → Related Notes Count = 3 → sidebar shows 3 results
+- [x] Change Related Notes Count to 25 → sidebar expands to match
 
 #### Folder Scope
 - [ ] Open note in subfolder → results default to current folder

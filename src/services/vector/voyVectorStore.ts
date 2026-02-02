@@ -174,8 +174,10 @@ export class VoyVectorStore implements IVectorStore {
             // Convert to Float32Array for Voy
             const queryFloat32 = new Float32Array(queryVector);
 
-            // Over-fetch when filtering (Voy WASM has no built-in filter)
-            const fetchK = filter ? Math.min(topK * 10, 100) : topK;
+            // Over-fetch when filtering (Voy WASM has no built-in filter).
+            // Cap must be high enough for folder-scoped searches where most
+            // nearest neighbors may be outside the target folder.
+            const fetchK = filter ? Math.min(topK * 3, 500) : topK;
 
             // Search using Voy
             const voyResults = this.voy.search(queryFloat32, fetchK);
