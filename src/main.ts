@@ -338,7 +338,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // Register tag network view
         this.registerView(
             TAG_NETWORK_VIEW_TYPE,
-            (leaf) => new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles())
+            (leaf) => new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles(), this)
         );
 
         // Register related notes view

@@ -524,6 +524,24 @@ export const zhCN: Translations = {
         edgeLooselyRelated: "不太相关"
     },
 
+    // Tag Network
+    tagNetwork: {
+        title: "标签网络可视化",
+        description: "节点大小代表标签频率。连接代表在笔记中同时出现的标签。",
+        searchPlaceholder: "输入以查找标签...",
+        noTagsFound: "库中没有找到标签。请先添加标签！",
+        noMatchingTags: "没有匹配的标签",
+        coOccurringTags: "共现标签",
+        legendFrequency: "频率：",
+        legendLow: "低",
+        legendMedium: "中",
+        legendHigh: "高",
+        tooltipFrequency: "频率",
+        tooltipConnections: "与 {count} 个其他标签相连",
+        loadingVisualization: "正在加载可视化...",
+        loadFailed: "无法加载可视化库。请检查网络连接。"
+    },
+
     // 消息和通知
     messages: {
         openNote: "请打开一个笔记",

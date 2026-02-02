@@ -524,6 +524,24 @@ export const en: Translations = {
         edgeLooselyRelated: "Loosely related"
     },
 
+    // Tag Network
+    tagNetwork: {
+        title: "Tag Network Visualization",
+        description: "Node size represents tag frequency. Connections represent tags that appear together in notes.",
+        searchPlaceholder: "Type to find tags...",
+        noTagsFound: "No tags found in your vault. Add some tags first!",
+        noMatchingTags: "No matching tags",
+        coOccurringTags: "Co-occurring tags",
+        legendFrequency: "Frequency:",
+        legendLow: "Low",
+        legendMedium: "Medium",
+        legendHigh: "High",
+        tooltipFrequency: "Frequency",
+        tooltipConnections: "Connected to {count} other tags",
+        loadingVisualization: "Loading visualization...",
+        loadFailed: "Failed to load visualization library. Please check your internet connection."
+    },
+
     // Messages and notifications
     messages: {
         openNote: "Open a note first",

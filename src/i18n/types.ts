@@ -512,6 +512,24 @@ export interface Translations {
         edgeLooselyRelated: string;
     };
 
+    // Tag Network
+    tagNetwork: {
+        title: string;
+        description: string;
+        searchPlaceholder: string;
+        noTagsFound: string;
+        noMatchingTags: string;
+        coOccurringTags: string;
+        legendFrequency: string;
+        legendLow: string;
+        legendMedium: string;
+        legendHigh: string;
+        tooltipFrequency: string;
+        tooltipConnections: string;
+        loadingVisualization: string;
+        loadFailed: string;
+    };
+
     // Messages and notifications
     messages: {
         openNote: string;

@@ -1,7 +1,61 @@
 import { ItemView, WorkspaceLeaf, Platform } from 'obsidian';
 import { NetworkData, NetworkNode, NetworkEdge, TagNetworkManager } from '../../utils/tagNetworkUtils';
+import type AIOrganiserPlugin from '../../main';
 
 export const TAG_NETWORK_VIEW_TYPE = 'tag-network-view';
+
+const OPACITY_SELECTED = 1;
+const OPACITY_NEIGHBOR = 0.7;
+const OPACITY_FADED = 0.15;
+const EDGE_OPACITY_BOTH_SELECTED = 1;
+const EDGE_OPACITY_ONE_SELECTED = 0.5;
+const EDGE_OPACITY_NONE = 0.05;
+const EDGE_OPACITY_DEFAULT = 0.6;
+
+export interface TagSuggestion {
+    id: string;
+    label: string;
+    frequency: number;
+}
+
+export function filterSuggestions(
+    allNodes: NetworkNode[],
+    term: string,
+    selectedIds: Set<string>,
+    maxResults?: number
+): TagSuggestion[] {
+    const trimmedTerm = term.trim().toLowerCase();
+    if (!trimmedTerm) return [];
+
+    const sorted = allNodes
+        .filter(n => !selectedIds.has(n.id) && n.label.toLowerCase().includes(trimmedTerm))
+        .sort((a, b) => b.frequency - a.frequency);
+    const sliced = maxResults == null ? sorted : sorted.slice(0, maxResults);
+    return sliced.map(n => ({ id: n.id, label: n.label, frequency: n.frequency }));
+}
+
+export function computeFilterSets(
+    selectedIds: Set<string>,
+    edges: NetworkEdge[]
+): { neighborSet: Set<string> } {
+    const neighborSet = new Set<string>();
+    for (const edge of edges) {
+        if (selectedIds.has(edge.source)) neighborSet.add(edge.target);
+        if (selectedIds.has(edge.target)) neighborSet.add(edge.source);
+    }
+    for (const id of selectedIds) neighborSet.delete(id);
+    return { neighborSet };
+}
+
+interface TagSearchState {
+    container: HTMLElement;
+    input: HTMLInputElement;
+    dropdown: HTMLElement;
+    selectedIds: Set<string>;
+    selectedOrder: string[];
+    activeIndex: number;
+    suggestions: TagSuggestion[];
+}
 
 declare global {
     interface Window {
@@ -14,11 +68,18 @@ export class TagNetworkView extends ItemView {
     private cleanup: (() => void)[] = [];
     private tagNetworkManager: TagNetworkManager;
     private getFiles: () => import('obsidian').TFile[];
+    private plugin: AIOrganiserPlugin;
 
-    constructor(leaf: WorkspaceLeaf, tagNetworkManager: TagNetworkManager, getFiles: () => import('obsidian').TFile[]) {
+    constructor(
+        leaf: WorkspaceLeaf,
+        tagNetworkManager: TagNetworkManager,
+        getFiles: () => import('obsidian').TFile[],
+        plugin: AIOrganiserPlugin
+    ) {
         super(leaf);
         this.tagNetworkManager = tagNetworkManager;
         this.getFiles = getFiles;
+        this.plugin = plugin;
         this.networkData = tagNetworkManager.getNetworkData();
     }
 
@@ -27,7 +88,7 @@ export class TagNetworkView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'Tag Network';
+        return this.plugin.t.tagNetwork.title;
     }
 
     getIcon(): string {
@@ -72,12 +133,12 @@ export class TagNetworkView extends ItemView {
         contentEl.empty();
         contentEl.addClass('tag-network-view');
 
-        contentEl.createEl('h2', { text: 'Tag Network Visualization' });
-        contentEl.createEl('p', {
-            text: 'Node size represents tag frequency. Connections represent tags that appear together in notes.'
-        });
+        const t = this.plugin.t.tagNetwork;
+        contentEl.createEl('h2', { text: t.title });
+        contentEl.createEl('p', { text: t.description });
 
-        const searchInput = this.buildSearchInput(contentEl);
+        let onSelectionChange = () => {};
+        const searchState = this.buildTagSearchInput(contentEl, this.networkData.nodes, () => onSelectionChange());
         this.buildLegend(contentEl);
 
         const container = contentEl.createDiv({ cls: 'tag-network-container' });
@@ -87,41 +148,223 @@ export class TagNetworkView extends ItemView {
         const statusEl = contentEl.createDiv({ cls: 'tag-network-status' });
 
         if (this.networkData.nodes.length === 0) {
-            statusEl.setText('No tags found in your vault. Add some tags first!');
+            statusEl.setText(t.noTagsFound);
             return;
         }
 
         if (Platform.isMobile) {
             statusEl.setText('');
-            this.renderMobileList(container, searchInput, statusEl);
+            onSelectionChange = this.renderMobileList(container, searchState, statusEl);
             return;
         }
 
-        statusEl.setText('Loading visualization...');
-        this.loadD3AndRender(container, searchInput, tooltip, statusEl);
+        statusEl.setText(t.loadingVisualization);
+        this.loadD3AndRender(container, searchState, tooltip, statusEl, (handler) => { onSelectionChange = handler; });
     }
 
     // ── UI building helpers ─────────────────────────────────────
 
-    private buildSearchInput(parent: HTMLElement): HTMLInputElement {
+    private buildTagSearchInput(
+        parent: HTMLElement,
+        nodes: NetworkNode[],
+        onSelectionChange: () => void
+    ): TagSearchState {
+        const t = this.plugin.t.tagNetwork;
         const controlsContainer = parent.createDiv({ cls: 'tag-network-controls' });
         const searchContainer = controlsContainer.createDiv({ cls: 'tag-network-search' });
-        searchContainer.createEl('span', { text: 'Search tags: ' });
-        return searchContainer.createEl('input', {
+        const chipContainer = searchContainer.createDiv({ cls: 'tag-network-chip-container' });
+        const input = chipContainer.createEl('input', {
             type: 'text',
-            placeholder: 'Type to search...',
+            placeholder: t.searchPlaceholder,
             cls: 'tag-network-search-input'
         });
+        input.setAttr('aria-label', t.searchPlaceholder);
+
+        const dropdown = searchContainer.createDiv({ cls: 'tag-network-dropdown' });
+        dropdown.style.display = 'none';
+
+        const nodeById = new Map(nodes.map(node => [node.id, node]));
+        const selectedIds = new Set<string>();
+        const selectedOrder: string[] = [];
+
+        const state: TagSearchState = {
+            container: searchContainer,
+            input,
+            dropdown,
+            selectedIds,
+            selectedOrder,
+            activeIndex: -1,
+            suggestions: []
+        };
+
+        const hideDropdown = () => {
+            dropdown.style.display = 'none';
+            dropdown.empty();
+        };
+
+        const renderDropdown = (activeIndex: number) => {
+            const suggestions = filterSuggestions(nodes, input.value, selectedIds);
+            dropdown.empty();
+
+            if (suggestions.length === 0) {
+                if (input.value.trim().length > 0) {
+                    const emptyItem = dropdown.createDiv({ cls: 'tag-network-dropdown-item tag-network-dropdown-empty' });
+                    emptyItem.setText(t.noMatchingTags);
+                    dropdown.style.display = 'block';
+                } else {
+                    hideDropdown();
+                }
+                return { suggestions, activeIndex: -1 };
+            }
+
+            suggestions.forEach((suggestion, index) => {
+                const item = dropdown.createDiv({
+                    cls: `tag-network-dropdown-item${index === activeIndex ? ' active' : ''}`
+                });
+                item.setAttr('data-id', suggestion.id);
+                item.createDiv({ text: suggestion.label });
+                item.createDiv({ cls: 'tag-network-dropdown-freq', text: String(suggestion.frequency) });
+                item.addEventListener('click', () => {
+                    addChip(suggestion.id);
+                    hideDropdown();
+                });
+            });
+
+            dropdown.style.display = 'block';
+            return { suggestions, activeIndex: Math.max(0, Math.min(activeIndex, suggestions.length - 1)) };
+        };
+
+        const addChip = (id: string) => {
+            if (selectedIds.has(id)) return;
+            const node = nodeById.get(id);
+            if (!node) return;
+
+            selectedIds.add(id);
+            selectedOrder.push(id);
+
+            const chip = chipContainer.createDiv({ cls: 'tag-network-chip' });
+            chip.dataset.chipId = id;
+            chip.createDiv({ cls: 'tag-network-chip-label', text: node.label });
+            const removeButton = chip.createEl('button', { cls: 'tag-network-chip-remove', text: '×' });
+            removeButton.setAttr('aria-label', `Remove ${node.label}`);
+            removeButton.setAttr('type', 'button');
+            removeButton.addEventListener('click', () => removeChip(id));
+
+            input.value = '';
+            hideDropdown();
+            onSelectionChange();
+            input.focus();
+        };
+
+        const removeChip = (id: string) => {
+            if (!selectedIds.has(id)) return;
+            selectedIds.delete(id);
+            const index = selectedOrder.indexOf(id);
+            if (index >= 0) selectedOrder.splice(index, 1);
+
+            const chip = chipContainer.querySelector(`[data-chip-id="${id}"]`) as HTMLElement | null;
+            if (chip) {
+                chip.remove();
+            } else {
+                for (const child of Array.from(chipContainer.children)) {
+                    if (child instanceof HTMLElement && child.dataset.chipId === id) {
+                        child.remove();
+                        break;
+                    }
+                }
+            }
+            onSelectionChange();
+            input.focus();
+        };
+
+        const onInput = () => {
+            const { suggestions, activeIndex } = renderDropdown(0);
+            state.suggestions = suggestions;
+            state.activeIndex = activeIndex;
+        };
+
+        const onKeydown = (event: KeyboardEvent) => {
+            if (event.key === 'Backspace' && input.value.length === 0 && selectedOrder.length > 0) {
+                removeChip(selectedOrder[selectedOrder.length - 1]);
+                return;
+            }
+
+            if (dropdown.style.display !== 'block') return;
+            if (state.suggestions.length === 0) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                state.activeIndex = (state.activeIndex + 1) % state.suggestions.length;
+                const { suggestions, activeIndex } = renderDropdown(state.activeIndex);
+                state.suggestions = suggestions;
+                state.activeIndex = activeIndex;
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                state.activeIndex = (state.activeIndex - 1 + state.suggestions.length) % state.suggestions.length;
+                const { suggestions, activeIndex } = renderDropdown(state.activeIndex);
+                state.suggestions = suggestions;
+                state.activeIndex = activeIndex;
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                const suggestion = state.suggestions[state.activeIndex];
+                if (suggestion) {
+                    addChip(suggestion.id);
+                }
+                hideDropdown();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                hideDropdown();
+            }
+        };
+
+        const onClickOutside = (event: MouseEvent) => {
+            if (!searchContainer.contains(event.target as Node)) {
+                hideDropdown();
+            }
+        };
+
+        const onContainerClick = () => input.focus();
+
+        const onFocus = () => {
+            if (input.value.trim().length > 0) {
+                const { suggestions, activeIndex } = renderDropdown(0);
+                state.suggestions = suggestions;
+                state.activeIndex = activeIndex;
+            }
+        };
+
+        input.addEventListener('input', onInput);
+        input.addEventListener('keydown', onKeydown);
+        input.addEventListener('focus', onFocus);
+        chipContainer.addEventListener('click', onContainerClick);
+        document.addEventListener('click', onClickOutside);
+
+        this.cleanup.push(() => {
+            input.removeEventListener('input', onInput);
+            input.removeEventListener('keydown', onKeydown);
+            input.removeEventListener('focus', onFocus);
+            chipContainer.removeEventListener('click', onContainerClick);
+            document.removeEventListener('click', onClickOutside);
+        });
+
+        return state;
     }
 
     private buildLegend(parent: HTMLElement): void {
+        const t = this.plugin.t.tagNetwork;
         const legendContainer = parent.createDiv({ cls: 'tag-network-legend' });
-        legendContainer.createEl('span', { text: 'Frequency: ' });
+        legendContainer.createEl('span', { text: t.legendFrequency });
 
-        for (const label of ['Low', 'Medium', 'High']) {
+        const legendItems = [
+            { key: 'low', label: t.legendLow },
+            { key: 'medium', label: t.legendMedium },
+            { key: 'high', label: t.legendHigh }
+        ];
+
+        for (const itemData of legendItems) {
             const item = legendContainer.createDiv({ cls: 'tag-network-legend-item' });
-            item.createDiv({ cls: `tag-network-legend-color ${label.toLowerCase()}` });
-            item.createEl('span', { text: label });
+            item.createDiv({ cls: `tag-network-legend-color ${itemData.key}` });
+            item.createEl('span', { text: itemData.label });
         }
     }
 
@@ -129,17 +372,20 @@ export class TagNetworkView extends ItemView {
 
     private async loadD3AndRender(
         container: HTMLElement,
-        searchInput: HTMLInputElement,
+        searchState: TagSearchState,
         tooltip: HTMLElement,
-        statusEl: HTMLElement
+        statusEl: HTMLElement,
+        onSearchHandlerReady: (handler: () => void) => void
     ): Promise<void> {
+        const t = this.plugin.t.tagNetwork;
         try {
             if (!window.d3) {
                 await this.loadD3Script();
             }
-            this.renderD3Network(container, searchInput, tooltip, statusEl);
+            const handler = this.renderD3Network(container, searchState, tooltip, statusEl);
+            onSearchHandlerReady(handler);
         } catch {
-            statusEl.setText('Failed to load visualization library. Please check your internet connection.');
+            statusEl.setText(t.loadFailed);
         }
     }
 
@@ -166,17 +412,18 @@ export class TagNetworkView extends ItemView {
 
     private renderD3Network(
         container: HTMLElement,
-        searchInput: HTMLInputElement,
+        searchState: TagSearchState,
         tooltip: HTMLElement,
         statusEl: HTMLElement
-    ): void {
+    ): () => void {
+        const t = this.plugin.t.tagNetwork;
         const d3 = window.d3;
         if (!d3) {
-            statusEl.setText('Error: D3.js library not loaded');
-            return;
+            statusEl.setText(t.loadFailed);
+            return () => {};
         }
 
-        statusEl.setText('Rendering network...');
+        statusEl.setText(t.loadingVisualization);
         container.empty();
 
         const width = container.clientWidth || 800;
@@ -236,16 +483,63 @@ export class TagNetworkView extends ItemView {
             .attr('dy', 4);
 
         // ── Hover ──
+        const getId = (value: any) => (typeof value === 'string' ? value : value.id);
+
+        let filterState: { selectedSet: Set<string>; neighborSet: Set<string> } | null = null;
+
+        const applyFilterState = () => {
+            if (!filterState) {
+                node.attr('opacity', OPACITY_SELECTED)
+                    .attr('stroke', null)
+                    .attr('stroke-width', null);
+                labels.attr('opacity', OPACITY_SELECTED);
+                link.attr('stroke-opacity', EDGE_OPACITY_DEFAULT)
+                    .attr('stroke-width', (d: NetworkEdge) => Math.sqrt(d.weight));
+                return;
+            }
+
+            const { selectedSet, neighborSet } = filterState;
+            node.attr('opacity', (d: NetworkNode) =>
+                selectedSet.has(d.id) ? OPACITY_SELECTED : neighborSet.has(d.id) ? OPACITY_NEIGHBOR : OPACITY_FADED
+            ).attr('stroke', (d: NetworkNode) =>
+                selectedSet.has(d.id) ? 'var(--interactive-accent)' : null
+            ).attr('stroke-width', (d: NetworkNode) =>
+                selectedSet.has(d.id) ? 2 : null
+            );
+            labels.attr('opacity', (d: NetworkNode) =>
+                selectedSet.has(d.id) ? OPACITY_SELECTED : neighborSet.has(d.id) ? OPACITY_NEIGHBOR : OPACITY_FADED
+            );
+            link.attr('stroke-opacity', (l: any) => {
+                const srcSelected = selectedSet.has(getId(l.source));
+                const tgtSelected = selectedSet.has(getId(l.target));
+                if (srcSelected && tgtSelected) return EDGE_OPACITY_BOTH_SELECTED;
+                if (srcSelected || tgtSelected) return EDGE_OPACITY_ONE_SELECTED;
+                return EDGE_OPACITY_NONE;
+            }).attr('stroke-width', (l: any) => {
+                const srcSelected = selectedSet.has(getId(l.source));
+                const tgtSelected = selectedSet.has(getId(l.target));
+                const baseWidth = Math.sqrt(l.weight);
+                return (srcSelected && tgtSelected) ? baseWidth + 2 : baseWidth;
+            });
+        };
+
         node.on('mouseover', (event: MouseEvent, d: NetworkNode) => {
             node.attr('opacity', (n: NetworkNode) => {
                 const connected = links.some((l: any) =>
-                    (l.source.id === d.id && l.target.id === n.id) ||
-                    (l.target.id === d.id && l.source.id === n.id)
+                    (getId(l.source) === d.id && getId(l.target) === n.id) ||
+                    (getId(l.target) === d.id && getId(l.source) === n.id)
                 );
-                return n === d || connected ? 1 : 0.2;
+                return n === d || connected ? OPACITY_SELECTED : OPACITY_FADED;
+            });
+            labels.attr('opacity', (n: NetworkNode) => {
+                const connected = links.some((l: any) =>
+                    (getId(l.source) === d.id && getId(l.target) === n.id) ||
+                    (getId(l.target) === d.id && getId(l.source) === n.id)
+                );
+                return n === d || connected ? OPACITY_SELECTED : OPACITY_FADED;
             });
             link.attr('stroke-opacity', (l: any) =>
-                l.source.id === d.id || l.target.id === d.id ? 1 : 0.1
+                getId(l.source) === d.id || getId(l.target) === d.id ? EDGE_OPACITY_BOTH_SELECTED : EDGE_OPACITY_NONE
             );
 
             tooltip.addClass('visible');
@@ -255,50 +549,41 @@ export class TagNetworkView extends ItemView {
             const content = tooltip.querySelector('.tag-tooltip-content');
             if (content) {
                 const connectionCount = links.filter((l: any) =>
-                    l.source.id === d.id || l.target.id === d.id
+                    getId(l.source) === d.id || getId(l.target) === d.id
                 ).length;
+                const connectionText = t.tooltipConnections.replace('{count}', String(connectionCount));
                 content.innerHTML = `
                     <div class="tag-tooltip-title">${d.label}</div>
-                    <div class="tag-tooltip-info">Frequency: ${d.frequency}</div>
-                    <div class="tag-tooltip-info">Connected to ${connectionCount} other tags</div>
+                    <div class="tag-tooltip-info">${t.tooltipFrequency}: ${d.frequency}</div>
+                    <div class="tag-tooltip-info">${connectionText}</div>
                 `;
             }
         }).on('mouseout', () => {
-            node.attr('opacity', 1);
-            link.attr('stroke-opacity', 0.6);
+            applyFilterState();
             tooltip.removeClass('visible');
         });
 
         // ── Search with zoom-to-fit ──
         const handleSearch = () => {
-            const term = searchInput.value.toLowerCase();
-
-            if (term.length > 0) {
-                const matches = (d: NetworkNode) => d.label.toLowerCase().includes(term);
-
-                node.attr('opacity', (d: NetworkNode) => matches(d) ? 1 : 0.2);
-                labels.attr('opacity', (d: NetworkNode) => matches(d) ? 1 : 0.2);
-                link.attr('stroke-opacity', (l: any) =>
-                    matches(l.source) && matches(l.target) ? 1 : 0.1
-                );
-
-                // Zoom/pan to center on matching nodes
-                const matchingNodes = nodes.filter((n: any) =>
-                    matches(n) && n.x != null && n.y != null
-                );
-                if (matchingNodes.length > 0) {
-                    this.zoomToNodes(svg, zoom, d3, matchingNodes, width, height);
-                }
-            } else {
-                node.attr('opacity', 1);
-                labels.attr('opacity', 1);
-                link.attr('stroke-opacity', 0.6);
+            const selectedSet = new Set(searchState.selectedIds);
+            if (selectedSet.size === 0) {
+                filterState = null;
+                applyFilterState();
                 svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity);
+                return;
+            }
+
+            const { neighborSet } = computeFilterSets(selectedSet, this.networkData.edges);
+            filterState = { selectedSet, neighborSet };
+            applyFilterState();
+
+            const matchingNodes = nodes.filter(n => selectedSet.has(n.id) && n.x != null && n.y != null);
+            if (matchingNodes.length > 0) {
+                this.zoomToNodes(svg, zoom, d3, matchingNodes, width, height);
             }
         };
 
-        searchInput.addEventListener('input', handleSearch);
-        this.cleanup.push(() => searchInput.removeEventListener('input', handleSearch));
+        handleSearch();
 
         // ── Tick ──
         simulation.on('tick', () => {
@@ -317,6 +602,7 @@ export class TagNetworkView extends ItemView {
 
         this.cleanup.push(() => simulation.stop());
         statusEl.style.display = 'none';
+        return handleSearch;
     }
 
     // ── Zoom helper ─────────────────────────────────────────────
@@ -345,7 +631,8 @@ export class TagNetworkView extends ItemView {
 
     // ── Mobile list rendering ───────────────────────────────────
 
-    private renderMobileList(container: HTMLElement, searchInput: HTMLInputElement, statusEl: HTMLElement): void {
+    private renderMobileList(container: HTMLElement, searchState: TagSearchState, statusEl: HTMLElement): () => void {
+        const t = this.plugin.t.tagNetwork;
         container.empty();
         const listEl = container.createEl('ul', { cls: 'tag-network-list' });
 
@@ -356,17 +643,21 @@ export class TagNetworkView extends ItemView {
         }
 
         const nodes = [...this.networkData.nodes].sort((a, b) => b.frequency - a.frequency);
+        const nodeById = new Map(nodes.map(node => [node.id, node]));
 
         const renderList = () => {
-            const term = searchInput.value.trim().toLowerCase();
             listEl.empty();
 
-            const filtered = term
-                ? nodes.filter(n => n.label.toLowerCase().includes(term))
+            const selectedIds = new Set(searchState.selectedIds);
+            const neighborSet = selectedIds.size > 0
+                ? computeFilterSets(selectedIds, this.networkData.edges).neighborSet
+                : null;
+            const filtered = neighborSet
+                ? nodes.filter(n => selectedIds.has(n.id) || neighborSet.has(n.id))
                 : nodes;
 
             if (filtered.length === 0) {
-                statusEl.setText('No matching tags');
+                statusEl.setText(t.noMatchingTags);
                 return;
             }
 
@@ -392,14 +683,30 @@ export class TagNetworkView extends ItemView {
                 const connectionCount = connectionCounts.get(n.id) || 0;
                 itemEl.createEl('small', {
                     cls: 'tag-network-list-meta',
-                    text: `Frequency: ${n.frequency} · Connections: ${connectionCount}`
+                    text: `${t.tooltipFrequency}: ${n.frequency} · ${t.tooltipConnections.replace('{count}', String(connectionCount))}`
                 });
+
+                if (searchState.selectedIds.size > 0) {
+                    const coOccurring = this.networkData.edges
+                        .filter(edge =>
+                            (edge.source === n.id && searchState.selectedIds.has(edge.target)) ||
+                            (edge.target === n.id && searchState.selectedIds.has(edge.source))
+                        )
+                        .map(edge => edge.source === n.id ? edge.target : edge.source)
+                        .map(id => nodeById.get(id)?.label)
+                        .filter((label): label is string => Boolean(label));
+
+                    if (coOccurring.length > 0) {
+                        itemEl.createEl('small', {
+                            cls: 'tag-network-list-meta',
+                            text: `${t.coOccurringTags}: ${coOccurring.join(', ')}`
+                        });
+                    }
+                }
             }
         };
-
-        searchInput.addEventListener('input', renderList);
-        this.cleanup.push(() => searchInput.removeEventListener('input', renderList));
         renderList();
+        return renderList;
     }
 
     // ── Utilities ───────────────────────────────────────────────

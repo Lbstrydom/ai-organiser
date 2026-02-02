@@ -285,10 +285,102 @@
     align-items: center;
     gap: var(--size-4-2);
     margin-bottom: var(--size-4-2);
+    position: relative;
 }
 
-.tag-network-search input {
-    width: 200px;
+.tag-network-chip-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    padding: 4px 8px;
+    background: var(--background-primary);
+    min-height: 30px;
+    width: 240px;
+}
+
+.tag-network-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    max-width: 150px;
+}
+
+.tag-network-chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tag-network-chip-remove {
+    cursor: pointer;
+    opacity: 0.7;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+    line-height: 1;
+}
+
+.tag-network-chip-remove:hover {
+    opacity: 1;
+}
+
+.tag-network-chip-container input {
+    border: none;
+    outline: none;
+    background: transparent;
+    flex: 1;
+    min-width: 80px;
+    font-size: 13px;
+}
+
+.tag-network-dropdown {
+    position: absolute;
+    z-index: 10;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: 2px;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tag-network-dropdown-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tag-network-dropdown-item:hover,
+.tag-network-dropdown-item.active {
+    background: var(--background-modifier-hover);
+}
+
+.tag-network-dropdown-item.tag-network-dropdown-empty {
+    cursor: default;
+    color: var(--text-muted);
+}
+
+.tag-network-dropdown-freq {
+    color: var(--text-muted);
+    font-size: 11px;
 }
 
 .tag-network-legend {
