@@ -13,7 +13,8 @@ vi.mock('../src/services/vector/voyVectorStore', () => ({
 import AIOrganiserPlugin from '../src/main';
 import { VectorStoreService } from '../src/services/vector/vectorStoreService';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
-import { App, TFile, clearMockNotices, mockNotices } from 'obsidian';
+import { App, TFile } from 'obsidian';
+import { clearMockNotices, mockNotices } from './mocks/obsidian';
 
 describe('AIOrganiserPlugin.saveSettings', () => {
     it('does not reinitialize embeddings for non-embedding changes', async () => {
@@ -35,8 +36,8 @@ describe('AIOrganiserPlugin.saveSettings', () => {
             })
         } as any;
 
-        const initLLMSpy = vi.spyOn(plugin as any, 'initializeLLMService').mockResolvedValue();
-        const initEmbeddingSpy = vi.spyOn(plugin as any, 'initializeEmbeddingService').mockResolvedValue();
+        const initLLMSpy = vi.spyOn(plugin as any, 'initializeLLMService').mockResolvedValue(undefined);
+        const initEmbeddingSpy = vi.spyOn(plugin as any, 'initializeEmbeddingService').mockResolvedValue(undefined);
 
         await plugin.saveSettings();
 
@@ -64,7 +65,7 @@ describe('AIOrganiserPlugin.saveSettings', () => {
 
         plugin.vectorStoreService = { updateEmbeddingService } as any;
 
-        vi.spyOn(plugin as any, 'initializeLLMService').mockResolvedValue();
+        vi.spyOn(plugin as any, 'initializeLLMService').mockResolvedValue(undefined);
         vi.spyOn(plugin as any, 'resolveEmbeddingApiKey').mockResolvedValue(null);
 
         await plugin.saveSettings();
@@ -111,9 +112,10 @@ describe('VectorStoreService rename behavior', () => {
 
         (service as any).vectorStore = vectorStore;
         (service as any).embeddingService = {};
-        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue();
+        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue(undefined);
 
-        const newFile = new TFile('new.md');
+        const newFile = new TFile();
+        newFile.path = 'new.md';
         app.vault.getFileByPath = vi.fn().mockReturnValue(newFile);
 
         const indexSpy = vi.spyOn(service, 'indexNote').mockResolvedValue(true);
@@ -135,7 +137,7 @@ describe('VectorStoreService rename behavior', () => {
 
         (service as any).vectorStore = vectorStore;
         (service as any).embeddingService = null;
-        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue();
+        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue(undefined);
 
         const indexSpy = vi.spyOn(service, 'indexNote').mockResolvedValue(true);
 
@@ -159,9 +161,9 @@ describe('VectorStoreService rename batching', () => {
         };
 
         (service as any).vectorStore = vectorStore;
-        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue();
+        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue(undefined);
 
-        const renameSpy = vi.spyOn(service, 'renameNote').mockResolvedValue();
+        const renameSpy = vi.spyOn(service, 'renameNote').mockResolvedValue(undefined);
 
         (service as any).pendingRenames = [
             { oldPath: 'a.md', newPath: 'a2.md' },
@@ -183,9 +185,9 @@ describe('VectorStoreService rename batching', () => {
         };
 
         (service as any).vectorStore = vectorStore;
-        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue();
+        vi.spyOn(service as any, 'ensureIndexLoaded').mockResolvedValue(undefined);
 
-        const renameSpy = vi.spyOn(service, 'renameNote').mockResolvedValue();
+        const renameSpy = vi.spyOn(service, 'renameNote').mockResolvedValue(undefined);
 
         (service as any).pendingRenames = Array.from({ length: 11 }, (_, index) => ({
             oldPath: `old-${index}.md`,
@@ -196,6 +198,6 @@ describe('VectorStoreService rename batching', () => {
 
         expect(renameSpy).not.toHaveBeenCalled();
         expect(vectorStore.renameFile).toHaveBeenCalledTimes(11);
-        expect(mockNotices.some((notice) => notice.includes('notes moved'))).toBe(true);
+        expect(mockNotices.some((notice: string) => notice.includes('notes moved'))).toBe(true);
     });
 });
