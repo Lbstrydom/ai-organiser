@@ -1289,6 +1289,8 @@ export const en: Translations = {
             chatCleared: "Chat cleared. Ask me anything about your vault!",
             sourcesLabel: "Sources:",
             noRelevantInfo: "I couldn't find relevant information in your vault to answer this question. Try asking something else or make sure your vault is indexed.",
+            noVaultContextFallback: "No matching vault content found. Answering from general knowledge:",
+            embeddingServiceMissing: "Embedding service not available — check your embedding API key and provider in settings. Vault search is disabled.",
             responseFailed: "Sorry, I encountered an error generating a response. Please try again.",
             searchingContext: "Searching vault context...",
             retrievingInformation: "Retrieving relevant information..."

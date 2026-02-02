@@ -93,6 +93,7 @@ export class ManageIndexModal extends Modal {
                     .replace('{indexed}', String(result.indexed))
                     .replace('{failed}', String(result.failed))
             );
+            await this.onOpen();
         } catch (error) {
             statusNotice.hide();
             new Notice(`${this.plugin.t.messages.indexBuildFailed}: ${(error as any).message}`);
@@ -113,6 +114,7 @@ export class ManageIndexModal extends Modal {
                     .replace('{indexed}', String(result.indexed))
                     .replace('{failed}', String(result.failed))
             );
+            await this.onOpen();
         } catch (error) {
             statusNotice.hide();
             new Notice(`${this.plugin.t.messages.indexUpdateFailed}: ${(error as any).message}`);
@@ -136,6 +138,7 @@ export class ManageIndexModal extends Modal {
             await this.plugin.vectorStore.clear();
             statusNotice.hide();
             new Notice(this.plugin.t.messages.indexCleared);
+            await this.onOpen();
         } catch (error) {
             statusNotice.hide();
             new Notice(`${this.plugin.t.messages.indexClearFailed}: ${(error as any).message}`);

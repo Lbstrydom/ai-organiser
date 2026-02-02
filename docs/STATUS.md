@@ -8,6 +8,76 @@
 
 ## Recent Updates
 
+### Tag Network Search Enhancement (2026-02-02)
+
+**Replace plain text filter with chip/token multi-tag input, autocomplete dropdown, and hover-safe graph highlighting. Convert all hardcoded strings to i18n.**
+
+| Area | Feature | Status |
+|------|---------|--------|
+| Constructor | Pass `plugin` as 4th arg to TagNetworkView for i18n access | Complete |
+| Search UI | Chip/token multi-tag input with × remove buttons | Complete |
+| Dropdown | Autocomplete suggestions filtered by substring, sorted by frequency, max 8 | Complete |
+| Keyboard | ↑/↓ navigation, Enter selects, Escape closes, Backspace removes last chip | Complete |
+| Graph Filter | Multi-tag OR highlighting with `computeFilterSets()` pure function | Complete |
+| Hover Safety | `applyFilterState()` restores filter on mouseout instead of hardcoded defaults | Complete |
+| Constants | Opacity values extracted to named constants (no magic numbers) | Complete |
+| Pure Functions | `filterSuggestions()` and `computeFilterSets()` exported for testability | Complete |
+| i18n | 13 hardcoded English strings converted to `tagNetwork` i18n section (EN + ZH-CN) | Complete |
+| CSS | Chip container, dropdown, positioning (`position: relative` on search) | Complete |
+| Mobile | Chip input in list view, co-occurrence filtering via graph edges | Complete |
+| Tests | `tagNetworkSearch.test.ts` — suggestion filtering, filter set computation | Complete |
+
+**Build Status**: 974+ tests passing
+
+**Key Files Modified:**
+- `src/ui/views/TagNetworkView.ts` — Chip input, dropdown, `filterSuggestions()`, `computeFilterSets()`, `applyFilterState()`, opacity constants, full i18n conversion
+- `src/main.ts` — Pass `this` (plugin) as 4th arg to TagNetworkView constructor
+- `src/i18n/types.ts` — New `tagNetwork` section (13 keys)
+- `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — English + Chinese translations
+- `styles.css` — `.tag-network-chip-*`, `.tag-network-dropdown-*` classes
+- `tests/tagNetworkSearch.test.ts` — Pure function unit tests
+
+**Expert Review Findings Addressed:**
+1. `this.plugin` didn't exist — added as 4th constructor arg
+2. Hover resets wiped search highlighting — `applyFilterState()` restores filter state on mouseout
+3. Tag ID vs label mismatch — chips store node IDs internally, display labels in UI
+4. No `views` section in i18n — created dedicated `tagNetwork` top-level section
+5. All 13 hardcoded strings converted to i18n in same pass
+6. Dropdown CSS positioning — `position: relative` on `.tag-network-search`
+7. Event cleanup — all listeners registered with `this.cleanup.push()`
+8. Unit tests added for pure logic functions
+
+**Documentation**: `docs/completed/tag-improplan.md`
+
+---
+
+### Index Version Persistence Fix & Chat with Vault Improvements (2026-02-02)
+
+**Fix index version persisting as `1.0.0` after clear+rebuild. Fix Chat with Vault modal ordering, LLM fallback, and diagnostics.**
+
+| Area | Fix | Status |
+|------|-----|--------|
+| VoyVectorStore | `clear()` resets entire metadata object including version (was only resetting counts) | Complete |
+| VectorStoreService | Reset `hasWarnedIndexVersion` after clearing in `updateEmbeddingService()` | Complete |
+| ManageIndexModal | Re-render modal after Build/Update/Clear operations (`await this.onOpen()`) | Complete |
+| ChatCommands | Replace hardcoded `'2.0.0'` with `INDEX_SCHEMA_VERSION` constant | Complete |
+| ChatCommands | Fix modal CSS class, chat container ordering, LLM fallback path | Complete |
+| i18n | Add `noVaultContextFallback` and `embeddingServiceMissing` keys (EN + ZH-CN) | Complete |
+
+**Build Status**: 974+ tests passing
+
+**Root Cause**: `load()` overwrites default metadata (including version `2.0.0`) from persisted `meta.json` containing `1.0.0`. `clear()` only reset `totalDocuments`, `totalNotes`, `lastUpdated` but left the stale version. After clear+rebuild, the old version persisted.
+
+**Key Files Modified:**
+- `src/services/vector/voyVectorStore.ts` — `clear()` resets full metadata object preserving `embeddingDims`/`embeddingModel`
+- `src/services/vector/vectorStoreService.ts` — `hasWarnedIndexVersion = false` after clear
+- `src/ui/modals/ManageIndexModal.ts` — `await this.onOpen()` after operations to refresh version warning
+- `src/commands/chatCommands.ts` — `INDEX_SCHEMA_VERSION` constant, modal class fix, container ordering, fallback
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — Chat diagnostics i18n keys
+- `styles.css` — Chat modal CSS selector fixes
+
+---
+
 ### Semantic Search Stability & Quality Overhaul (2026-02-02)
 
 **Fix critical index lifecycle bug, improve retrieval quality via metadata injection, fix "Update Index" scope**
@@ -994,7 +1064,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 968 unit tests (47 suites)
+npm test           # Run 974+ unit tests (47+ suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

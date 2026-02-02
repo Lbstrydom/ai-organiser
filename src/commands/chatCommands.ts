@@ -9,6 +9,7 @@ import { RAGService, RAGContext } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { HighlightChatModal } from '../ui/modals/HighlightChatModal';
 import { summarizeText, pluginContext } from '../services/llmFacade';
+import { INDEX_SCHEMA_VERSION } from '../services/vector/vectorStoreService';
 
 /**
  * Chat message interface
@@ -52,16 +53,26 @@ class ChatWithVaultModal extends Modal {
     async onOpen(): Promise<void> {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.addClass('chat-with-vault-modal');
+        this.modalEl.addClass('chat-with-vault-modal');
+
+        // Chat container (scrollable) — must be created before addSystemMessage
+        this.chatContainer = contentEl.createEl('div', {
+            cls: 'chat-container'
+        });
 
         // Add intro message
         this.addSystemMessage(this.plugin.t.modals.chatWithVault.intro);
 
-        // Chat container (scrollable)
-        this.chatContainer = contentEl.createEl('div', {
-            cls: 'chat-container'
-        });
-        this.renderMessages();
+        // Show diagnostic status
+        const hasEmbedding = !!this.plugin.embeddingService;
+        const metadata = await this.plugin.vectorStore?.getMetadata();
+        const docCount = metadata?.totalDocuments ?? 0;
+        const indexVersion = metadata?.version ?? 'unknown';
+        const statusParts: string[] = [];
+        if (!hasEmbedding) statusParts.push('⚠ Embedding service not initialized');
+        statusParts.push(`Index: ${docCount} documents (v${indexVersion})`);
+        if (indexVersion !== INDEX_SCHEMA_VERSION && docCount > 0) statusParts.push('⚠ Index outdated — rebuild recommended');
+        this.addSystemMessage(statusParts.join(' | '));
 
         // Input area container
         const inputContainer = contentEl.createEl('div', {
@@ -115,32 +126,53 @@ class ChatWithVaultModal extends Modal {
         this.addMessage('user', query);
 
         try {
-            // Retrieve context from vector store
-            const statusNotice = new Notice(this.plugin.t.messages.searchingVaultContext, 0);
-            const context = await this.ragService.retrieveContext(query);
-            statusNotice.hide();
+            // Check if embedding service is available for vault search
+            const hasEmbeddings = !!this.plugin.embeddingService;
+            let context: RAGContext | null = null;
 
-            if (context.totalChunks === 0) {
-                this.addMessage('assistant', this.plugin.t.modals.chatWithVault.noRelevantInfo);
-                return;
+            if (hasEmbeddings) {
+                const statusNotice = new Notice(this.plugin.t.messages.searchingVaultContext, 0);
+                context = await this.ragService.retrieveContext(query);
+                statusNotice.hide();
+
+                // Diagnostic: log raw search results for debugging
+                console.log('[Chat with Vault] Query:', query);
+                console.log('[Chat with Vault] Results:', context.totalChunks, 'chunks from', context.sources.length, 'sources');
+                if (context.chunks.length > 0) {
+                    console.log('[Chat with Vault] Top scores:', context.chunks.slice(0, 3).map(c => c.score.toFixed(3)));
+                }
+
+                if (context.totalChunks > 0) {
+                    new Notice(this.plugin.t.messages.foundRelevantChunks.replace('{count}', String(context.totalChunks)).replace('{sources}', String(context.sources.length)), 3000);
+                }
+            } else {
+                console.warn('[Chat with Vault] Embedding service is null — vault search disabled');
+                this.addSystemMessage(this.plugin.t.modals.chatWithVault.embeddingServiceMissing);
             }
 
-            // Show context sources
-            new Notice(this.plugin.t.messages.foundRelevantChunks.replace('{count}', String(context.totalChunks)).replace('{sources}', String(context.sources.length)), 3000);
+            // Build prompt — with vault context if available, general knowledge otherwise
+            let prompt: string;
+            let sources: string[] = [];
 
-            // Build RAG prompt
-            const ragPrompt = this.ragService.buildRAGPrompt(
-                query,
-                context,
-                'You are a helpful assistant that answers questions based on the user\'s personal knowledge vault.'
-            );
+            if (context && context.totalChunks > 0) {
+                prompt = this.ragService.buildRAGPrompt(
+                    query,
+                    context,
+                    'You are a helpful assistant that answers questions based on the user\'s personal knowledge vault.'
+                );
+                sources = context.sources;
+            } else {
+                if (hasEmbeddings) {
+                    this.addSystemMessage(this.plugin.t.modals.chatWithVault.noVaultContextFallback);
+                }
+                prompt = `You are a helpful assistant. The user has a personal knowledge vault but no matching content was found for their query. Answer from your general knowledge.\n\nUser question: ${query}`;
+            }
 
             // Get response from LLM via centralized facade
-            const response = await summarizeText(pluginContext(this.plugin), ragPrompt);
+            const response = await summarizeText(pluginContext(this.plugin), prompt);
 
             if (response.success && response.content) {
-                // Add assistant response with sources
-                this.addMessage('assistant', response.content, context.sources);
+                this.addMessage('assistant', response.content, sources.length > 0 ? sources : undefined);
             } else {
                 this.addMessage('assistant', this.plugin.t.modals.chatWithVault.responseFailed);
             }

@@ -1288,6 +1288,8 @@ export interface Translations {
             chatCleared: string;
             sourcesLabel: string;
             noRelevantInfo: string;
+            noVaultContextFallback: string;
+            embeddingServiceMissing: string;
             responseFailed: string;
             searchingContext: string;
             retrievingInformation: string;

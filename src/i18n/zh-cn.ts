@@ -1289,6 +1289,8 @@ export const zhCN: Translations = {
             chatCleared: "聊天已清除。问我任何关于你的保险库的问题！",
             sourcesLabel: "来源：",
             noRelevantInfo: "在你的库中没有找到足够信息来回答此问题。请尝试换个问题，或确保已建立索引。",
+            noVaultContextFallback: "未在库中找到匹配内容。将基于通用知识回答：",
+            embeddingServiceMissing: "嵌入服务不可用——请在设置中检查嵌入 API 密钥和提供商。库搜索已禁用。",
             responseFailed: "抱歉，生成回复时出错。请再试一次。",
             searchingContext: "搜索保险库上下文...",
             retrievingInformation: "检索相关信息..."

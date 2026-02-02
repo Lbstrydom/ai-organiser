@@ -223,6 +223,7 @@ export class VectorStoreService {
         this.embeddingService = embeddingService;
         if (shouldClear && this.vectorStore) {
             await this.vectorStore.clear();
+            this.hasWarnedIndexVersion = false;
         }
     }
 

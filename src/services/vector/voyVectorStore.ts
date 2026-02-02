@@ -286,12 +286,17 @@ export class VoyVectorStore implements IVectorStore {
         // Reinitialize Voy to clear all data
         this.voy = null;
         await this.initializeVoy();
-        
+
         this.documents.clear();
         this.fileChangeTracker.clear();
-        this.metadata.totalDocuments = 0;
-        this.metadata.totalNotes = 0;
-        this.metadata.lastUpdated = Date.now();
+        this.metadata = {
+            totalDocuments: 0,
+            totalNotes: 0,
+            lastUpdated: Date.now(),
+            embeddingDims: this.metadata.embeddingDims,
+            embeddingModel: this.metadata.embeddingModel,
+            version: '2.0.0'
+        };
     }
 
     async rebuild(documents: VectorDocument[]): Promise<void> {
