@@ -488,6 +488,7 @@ export class RelatedNotesView extends ItemView {
     private renderResults(): void {
         if (!this.resultContainer) return;
 
+        this.hidePreviewPopup();
         this.resultContainer.empty();
         const t = this.plugin.t?.modals?.relatedNotes;
 
@@ -497,6 +498,9 @@ export class RelatedNotesView extends ItemView {
         }
 
         const listEl = this.resultContainer.createEl('ul', { cls: 'related-notes-list' });
+
+        // Dismiss popup on scroll (prevents orphaned popups)
+        listEl.addEventListener('scroll', () => this.hidePreviewPopup());
 
         for (const result of this.state.results) {
             const itemEl = listEl.createEl('li', { cls: 'related-notes-item' });
@@ -535,7 +539,11 @@ export class RelatedNotesView extends ItemView {
                 this.showPreviewPopup(itemEl, result);
             });
 
-            itemEl.addEventListener('mouseleave', () => {
+            itemEl.addEventListener('mouseleave', (e) => {
+                // Don't hide if mouse moved into the popup itself
+                const related = e.relatedTarget as Node | null;
+                const popup = document.querySelector('.related-notes-popup');
+                if (popup && related && popup.contains(related)) return;
                 this.hidePreviewPopup();
             });
         }
@@ -602,6 +610,11 @@ export class RelatedNotesView extends ItemView {
         popup.createEl('p', {
             text: previewText + (previewText.length === 150 ? '...' : ''),
             cls: 'popup-preview'
+        });
+
+        // Hide popup when mouse leaves it
+        popup.addEventListener('mouseleave', () => {
+            this.hidePreviewPopup();
         });
 
         // Position popup near item, flipping left if near right edge
