@@ -3,9 +3,38 @@
  * Enables searching vault by semantic similarity
  */
 
-import { Notice, Modal, App, Setting, Platform } from 'obsidian';
+import { Notice, Modal, App, Platform, ButtonComponent, TFile } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
+import { SearchResult } from '../services/vector/types';
+import { summarizeText, pluginContext } from '../services/llmFacade';
+
+/** Over-fetch multiplier to compensate for dedup (multiple chunks per file). */
+const SEARCH_OVERFETCH_MULTIPLIER = 5;
+/** Hard ceiling for over-fetch. */
+const MAX_SEARCH_FETCH = 200;
+
+/**
+ * Build a prompt that asks the LLM to expand a user query with related terms.
+ * Returns a short expanded query suitable for embedding search.
+ */
+function buildQueryExpansionPrompt(query: string, language: string): string {
+    return `<task>
+Expand the following search query with related terms, synonyms, and closely associated concepts.
+The goal is to improve semantic search recall in a personal knowledge base.
+</task>
+
+<query>${query}</query>
+
+<requirements>
+- Output ONLY the expanded query text, nothing else
+- Include the original terms plus 5-10 related terms/phrases
+- Include specific names, techniques, frameworks, and models related to the topic
+- Keep it under 200 words
+- Language: ${language}
+- Do NOT explain or add commentary — just the expanded search terms
+</requirements>`;
+}
 
 /**
  * Modal for displaying semantic search results
@@ -13,7 +42,12 @@ import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
 class SemanticSearchResultsModal extends Modal {
     private plugin: AIOrganiserPlugin;
     private query: string = '';
-    private results: any[] = [];
+    private results: SearchResult[] = [];
+    private resultsDiv!: HTMLElement;
+    private searchTextarea!: HTMLTextAreaElement;
+    private searchButton!: ButtonComponent;
+    private expandToggle!: HTMLInputElement;
+    private isSearching: boolean = false;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
@@ -24,110 +58,307 @@ class SemanticSearchResultsModal extends Modal {
     async onOpen(): Promise<void> {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.addClass('ai-organiser-semantic-search');
 
-        // Search input
-        contentEl.createEl('div', { cls: 'search-input-container' });
-        const searchDiv = contentEl.querySelector('.search-input-container') as HTMLElement;
-        
-        new Setting(searchDiv)
-            .setName(this.plugin.t.modals.semanticSearch.title)
-            .addText(text => {
-                text.setPlaceholder(this.plugin.t.modals.semanticSearch.searchPlaceholder)
-                    .setValue(this.query)
-                    .onChange(value => {
-                        this.query = value;
-                    });
-            })
-            .addButton(btn => {
-                btn.setButtonText(this.plugin.t.modals.semanticSearch.searchButton)
-                    .onClick(async () => {
-                        await this.performSearch();
-                    });
+        const t = this.plugin.t.modals.semanticSearch;
+
+        // Description
+        const descEl = contentEl.createEl('p', {
+            text: t.description,
+            cls: 'semantic-search-description'
+        });
+        descEl.style.color = 'var(--text-muted)';
+        descEl.style.fontSize = '13px';
+        descEl.style.marginBottom = '12px';
+
+        // Search input area
+        const searchContainer = contentEl.createDiv({ cls: 'semantic-search-input-container' });
+
+        this.searchTextarea = searchContainer.createEl('textarea', {
+            placeholder: t.searchPlaceholder,
+            cls: 'semantic-search-textarea'
+        });
+        this.searchTextarea.value = this.query;
+        this.searchTextarea.rows = 3;
+        this.searchTextarea.style.width = '100%';
+        this.searchTextarea.style.padding = '10px 12px';
+        this.searchTextarea.style.fontSize = '14px';
+        this.searchTextarea.style.border = '1px solid var(--background-modifier-border)';
+        this.searchTextarea.style.borderRadius = '6px';
+        this.searchTextarea.style.backgroundColor = 'var(--background-primary)';
+        this.searchTextarea.style.color = 'var(--text-normal)';
+        this.searchTextarea.style.resize = 'vertical';
+        this.searchTextarea.style.fontFamily = 'inherit';
+        this.searchTextarea.style.lineHeight = '1.5';
+
+        this.searchTextarea.addEventListener('input', () => {
+            this.query = this.searchTextarea.value;
+        });
+
+        // Enter key triggers search (Shift+Enter for newline)
+        this.searchTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!this.isSearching) {
+                    this.performSearch();
+                }
+            }
+        });
+
+        // Controls row: expand toggle + search button
+        const controlsRow = contentEl.createDiv({ cls: 'semantic-search-controls' });
+        controlsRow.style.display = 'flex';
+        controlsRow.style.justifyContent = 'space-between';
+        controlsRow.style.alignItems = 'center';
+        controlsRow.style.marginTop = '8px';
+        controlsRow.style.marginBottom = '16px';
+
+        // LLM expand toggle
+        const expandLabel = controlsRow.createEl('label', {
+            cls: 'semantic-search-expand-label'
+        });
+        expandLabel.style.display = 'flex';
+        expandLabel.style.alignItems = 'center';
+        expandLabel.style.gap = '6px';
+        expandLabel.style.fontSize = '13px';
+        expandLabel.style.color = 'var(--text-muted)';
+        expandLabel.style.cursor = 'pointer';
+
+        this.expandToggle = expandLabel.createEl('input', {
+            type: 'checkbox',
+            cls: 'semantic-search-expand-checkbox'
+        });
+        this.expandToggle.checked = true;
+
+        expandLabel.createSpan({
+            text: t.expandWithAI || 'Expand query with AI'
+        });
+
+        // Tooltip
+        const infoIcon = expandLabel.createSpan({ text: '?' });
+        infoIcon.style.display = 'inline-flex';
+        infoIcon.style.alignItems = 'center';
+        infoIcon.style.justifyContent = 'center';
+        infoIcon.style.width = '16px';
+        infoIcon.style.height = '16px';
+        infoIcon.style.borderRadius = '50%';
+        infoIcon.style.border = '1px solid var(--text-muted)';
+        infoIcon.style.fontSize = '10px';
+        infoIcon.style.color = 'var(--text-muted)';
+        infoIcon.title = t.expandTooltip || 'Uses your LLM to add related terms, synonyms, and concepts to improve search results';
+
+        // Search button
+        const buttonContainer = controlsRow.createDiv();
+        this.searchButton = new ButtonComponent(buttonContainer)
+            .setButtonText(t.searchButton)
+            .setCta()
+            .onClick(async () => {
+                await this.performSearch();
             });
 
         // Results container
-        const resultsDiv = contentEl.createEl('div', { cls: 'search-results' });
-        if (this.results.length === 0) {
-            resultsDiv.createEl('p', {
-                text: this.plugin.t.modals.semanticSearch.noResults,
-                cls: 'search-empty'
-            });
-        } else {
-            this.displayResults(resultsDiv);
-        }
+        this.resultsDiv = contentEl.createDiv({ cls: 'semantic-search-results' });
+        this.resultsDiv.createEl('p', {
+            text: t.enterQueryHint || 'Enter a query and press Enter or click Search',
+            cls: 'search-empty'
+        });
+        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.color = 'var(--text-muted)';
+        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.textAlign = 'center';
+        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.padding = '30px 20px';
+
+        // Focus textarea
+        setTimeout(() => this.searchTextarea.focus(), 50);
     }
 
     private async performSearch(): Promise<void> {
-        if (!this.query.trim()) {
-            new Notice(this.plugin.t.modals.semanticSearch.searchPlaceholder);
-            return;
-        }
+        if (!this.query.trim() || this.isSearching) return;
 
         try {
+            this.isSearching = true;
+            this.searchButton.setDisabled(true);
+            this.searchButton.setButtonText(this.plugin.t.modals.semanticSearch.searching || 'Searching...');
+
             if (!this.plugin.vectorStore) {
                 new Notice(this.plugin.t.messages.vectorStoreFailed);
                 return;
             }
 
-            new Notice(this.plugin.t.messages.searchingVault, 2000);
             const embeddingService =
                 this.plugin.embeddingService ||
                 (this.plugin.llmService as any).getEmbeddingService?.();
-            this.results = await this.plugin.vectorStore.searchByContent(
-                this.query,
+
+            // Determine search query: optionally expand with LLM
+            let searchQuery = this.query.trim();
+            if (this.expandToggle.checked) {
+                try {
+                    const language = this.plugin.settings.summaryLanguage || 'English';
+                    const prompt = buildQueryExpansionPrompt(searchQuery, language);
+                    const result = await summarizeText(pluginContext(this.plugin), prompt);
+                    if (result.success && result.content) {
+                        searchQuery = result.content.trim();
+                    }
+                } catch {
+                    // Fallback to original query if LLM expansion fails
+                }
+            }
+
+            // Over-fetch for dedup
+            const maxResults = this.plugin.settings.relatedNotesCount || 15;
+            const fetchLimit = Math.min(maxResults * SEARCH_OVERFETCH_MULTIPLIER, MAX_SEARCH_FETCH);
+
+            const rawResults = await this.plugin.vectorStore.searchByContent(
+                searchQuery,
                 embeddingService,
-                5
+                fetchLimit
             );
 
-            // Refresh results display
-            const resultsDiv = this.contentEl.querySelector('.search-results') as HTMLElement;
-            if (resultsDiv) {
-                resultsDiv.empty();
-                this.displayResults(resultsDiv);
+            // Deduplicate by file: keep highest-scoring chunk per unique file
+            const bestByFile = new Map<string, SearchResult>();
+            for (const r of rawResults) {
+                const existing = bestByFile.get(r.document.filePath);
+                if (!existing || r.score > existing.score) {
+                    bestByFile.set(r.document.filePath, r);
+                }
             }
+
+            // Sort by score descending, slice to maxResults
+            this.results = Array.from(bestByFile.values())
+                .sort((a, b) => b.score - a.score)
+                .slice(0, maxResults);
+
+            // Refresh results display
+            this.resultsDiv.empty();
+            this.displayResults(this.resultsDiv);
         } catch (error) {
             new Notice('Search error: ' + (error as any).message, 5000);
             console.error('Semantic search error:', error);
+        } finally {
+            this.isSearching = false;
+            this.searchButton.setDisabled(false);
+            this.searchButton.setButtonText(this.plugin.t.modals.semanticSearch.searchButton);
         }
     }
 
     private displayResults(container: HTMLElement): void {
+        const t = this.plugin.t.modals.semanticSearch;
+
         if (this.results.length === 0) {
-            container.createEl('p', {
-                text: this.plugin.t.modals.semanticSearch.noResults,
+            const emptyEl = container.createEl('p', {
+                text: t.noResults,
                 cls: 'search-empty'
             });
+            emptyEl.style.color = 'var(--text-muted)';
+            emptyEl.style.textAlign = 'center';
+            emptyEl.style.padding = '30px 20px';
             return;
         }
 
-        container.createEl('h3', { text: `Found ${this.results.length} results` });
+        const headerEl = container.createEl('div', { cls: 'semantic-search-results-header' });
+        headerEl.style.display = 'flex';
+        headerEl.style.justifyContent = 'space-between';
+        headerEl.style.alignItems = 'center';
+        headerEl.style.marginBottom = '10px';
+        headerEl.style.paddingBottom = '8px';
+        headerEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+
+        headerEl.createEl('span', {
+            text: `${this.results.length} ${t.resultsFound || 'results found'}`,
+            cls: 'semantic-search-count'
+        }).style.color = 'var(--text-muted)';
+
+        if (this.expandToggle.checked) {
+            const aiLabel = headerEl.createEl('span', {
+                text: t.aiExpanded || 'AI-expanded',
+                cls: 'semantic-search-ai-badge'
+            });
+            aiLabel.style.fontSize = '11px';
+            aiLabel.style.padding = '2px 8px';
+            aiLabel.style.borderRadius = '10px';
+            aiLabel.style.backgroundColor = 'var(--interactive-accent)';
+            aiLabel.style.color = 'var(--text-on-accent)';
+        }
+
+        const listEl = container.createDiv({ cls: 'semantic-search-list' });
+        listEl.style.maxHeight = '400px';
+        listEl.style.overflowY = 'auto';
 
         for (const result of this.results) {
-            const resultEl = container.createEl('div', {
-                cls: 'search-result-item'
+            const resultEl = listEl.createEl('div', {
+                cls: 'semantic-search-result-item'
+            });
+            resultEl.style.padding = '10px 12px';
+            resultEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+            resultEl.style.cursor = 'pointer';
+
+            resultEl.addEventListener('mouseenter', () => {
+                resultEl.style.backgroundColor = 'var(--background-modifier-hover)';
+            });
+            resultEl.addEventListener('mouseleave', () => {
+                resultEl.style.backgroundColor = '';
             });
 
-            resultEl.createEl('h4', { text: result.document.metadata.title });
-            resultEl.createEl('p', {
-                text: result.highlightedText || result.document.content.substring(0, 200),
-                cls: 'search-result-preview'
-            });
+            // Title row with score badge
+            const titleRow = resultEl.createDiv();
+            titleRow.style.display = 'flex';
+            titleRow.style.justifyContent = 'space-between';
+            titleRow.style.alignItems = 'center';
+            titleRow.style.marginBottom = '4px';
 
-            const scoreEl = resultEl.createEl('span', {
-                cls: 'search-result-score',
-                text: `Similarity: ${(result.score * 100).toFixed(1)}%`
-            });
+            const title = result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled';
+            titleRow.createEl('span', {
+                text: title,
+                cls: 'semantic-search-result-title'
+            }).style.fontWeight = '600';
 
-            resultEl.createEl('button', {
-                text: this.plugin.t.modals.semanticSearch.clickToOpen,
-                cls: 'search-result-open'
-            }).onclick = () => {
+            // Score badge
+            const score = result.score;
+            const scorePercent = (score * 100).toFixed(0);
+            const badgeEl = titleRow.createEl('span', {
+                text: `${scorePercent}%`,
+                cls: 'semantic-search-score-badge'
+            });
+            badgeEl.style.fontSize = '11px';
+            badgeEl.style.padding = '1px 6px';
+            badgeEl.style.borderRadius = '8px';
+            if (score >= 0.8) {
+                badgeEl.style.backgroundColor = 'var(--color-green)';
+                badgeEl.style.color = 'white';
+            } else if (score >= 0.6) {
+                badgeEl.style.backgroundColor = 'var(--color-yellow)';
+                badgeEl.style.color = 'black';
+            } else {
+                badgeEl.style.backgroundColor = 'var(--background-modifier-border)';
+                badgeEl.style.color = 'var(--text-muted)';
+            }
+
+            // File path
+            const pathEl = resultEl.createEl('div', {
+                text: result.document.filePath,
+                cls: 'semantic-search-result-path'
+            });
+            pathEl.style.fontSize = '11px';
+            pathEl.style.color = 'var(--text-muted)';
+            pathEl.style.marginBottom = '4px';
+
+            // Preview text
+            const preview = result.highlightedText || result.document.content.substring(0, 200);
+            const previewEl = resultEl.createEl('p', {
+                text: preview.length > 200 ? preview.substring(0, 200) + '...' : preview,
+                cls: 'semantic-search-result-preview'
+            });
+            previewEl.style.fontSize = '12px';
+            previewEl.style.color = 'var(--text-muted)';
+            previewEl.style.margin = '0';
+            previewEl.style.lineHeight = '1.4';
+
+            // Click to open
+            resultEl.addEventListener('click', () => {
                 const file = this.app.vault.getFileByPath(result.document.filePath);
-                if (file) {
+                if (file && file instanceof TFile) {
                     this.app.workspace.getLeaf().openFile(file);
                     this.close();
                 }
-            };
+            });
         }
     }
 
@@ -204,7 +435,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
 
             // Import here to avoid circular dependency
             const { RELATED_NOTES_VIEW_TYPE } = await import('../ui/views/RelatedNotesView');
-            
+
             const leaf = plugin.app.workspace.getRightLeaf(false);
             if (leaf) {
                 await leaf.setViewState({

@@ -1081,8 +1081,14 @@ export const en: Translations = {
             description: "Search your vault by meaning, not just keywords. Finds conceptually related content.",
             searchPlaceholder: "What are you looking for?",
             searchButton: "Search",
+            searching: "Searching...",
             noResults: "No results found",
-            clickToOpen: "Click to open"
+            clickToOpen: "Click to open",
+            expandWithAI: "Expand query with AI",
+            expandTooltip: "Uses your LLM to add related terms, synonyms, and concepts to improve search results",
+            enterQueryHint: "Enter a query and press Enter or click Search",
+            resultsFound: "results found",
+            aiExpanded: "AI-expanded"
         },
         localSetupWizard: {
             title: "Local Embedding Setup",

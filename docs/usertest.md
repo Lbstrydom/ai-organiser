@@ -277,17 +277,17 @@ Pick at least ONE source type:
 - [x] Change Related Notes Count to 25 → sidebar expands to match
 
 #### Folder Scope
-- [ ] Open note in subfolder → results default to current folder
-- [ ] Footer shows "Searching in: FolderName/"
-- [ ] Click scope button → folder picker → select different folder → results update
-- [ ] Pin icon appears when folder-scoped; click pin → unpins → reverts to auto-follow
-- [ ] Switch notes between folders → scope auto-follows when unpinned
-- [ ] When pinned → scope stays fixed across note switches
-- [ ] Options menu → "Search current folder" / "Search entire vault" work
-- [ ] Few results in folder → hint shown below results
-- [ ] No results in folder → scoped empty state with "Search all notes" action
-- [ ] Root-level note → defaults to vault-wide (no folder scope)
-- [ ] Mobile modal: "This folder" / "All notes" toggle works
+- [x] Open note in subfolder → results default to current folder
+- [x] Footer shows "Searching in: FolderName/"
+- [x] Click scope button → folder picker → select different folder → results update
+- [x] Pin icon appears when folder-scoped; click pin → unpins → reverts to auto-follow
+- [x] Switch notes between folders → scope auto-follows when unpinned
+- [x] When pinned → scope stays fixed across note switches
+- [x] Options menu → "Search current folder" / "Search entire vault" work
+- [x] Few results in folder → hint shown below results
+- [x] No results in folder → scoped empty state with "Search all notes" action
+- [x] Root-level note → defaults to vault-wide (no folder scope)
+- [x] Mobile modal: "This folder" / "All notes" toggle works
 
 ### Search Commands
 - [ ] "Semantic Search" → search modal → finds semantically similar notes

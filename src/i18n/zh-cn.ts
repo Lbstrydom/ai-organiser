@@ -1081,8 +1081,14 @@ export const zhCN: Translations = {
             description: "根据含义而非仅关键词搜索您的库。查找概念相关的内容。",
             searchPlaceholder: "您在寻找什么？",
             searchButton: "搜索",
+            searching: "搜索中...",
             noResults: "未找到结果",
-            clickToOpen: "点击打开"
+            clickToOpen: "点击打开",
+            expandWithAI: "用AI扩展查询",
+            expandTooltip: "使用您的LLM添加相关术语、同义词和概念以改善搜索结果",
+            enterQueryHint: "输入查询后按Enter或点击搜索",
+            resultsFound: "条结果",
+            aiExpanded: "AI扩展"
         },
         localSetupWizard: {
             title: "本地嵌入设置",

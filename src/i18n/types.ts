@@ -1080,8 +1080,14 @@ export interface Translations {
             description: string;
             searchPlaceholder: string;
             searchButton: string;
+            searching: string;
             noResults: string;
             clickToOpen: string;
+            expandWithAI: string;
+            expandTooltip: string;
+            enterQueryHint: string;
+            resultsFound: string;
+            aiExpanded: string;
         };
         localSetupWizard: {
             title: string;
