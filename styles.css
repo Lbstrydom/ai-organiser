@@ -1901,6 +1901,14 @@
     gap: var(--size-4-2);
 }
 
+/* Markdown inside chat assistant bubbles */
+.chat-message-assistant .chat-message-content > p:first-child,
+.ai-organiser-hc-message-content > p:first-child { margin-top: 0; }
+.chat-message-assistant .chat-message-content > p:last-child,
+.ai-organiser-hc-message-content > p:last-child { margin-bottom: 0; }
+.chat-message-assistant .chat-message-content pre,
+.ai-organiser-hc-message-content pre { margin: 8px 0; }
+
 /* Related Notes View Styles */
 .related-notes-view-container {
     display: flex;

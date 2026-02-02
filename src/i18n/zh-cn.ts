@@ -207,6 +207,8 @@ export const zhCN: Translations = {
                 name: "相关笔记数量",
                 description: "在侧边栏和弹窗中显示的相关笔记数量 (1-50)"
             },
+            chatExportFolder: "聊天导出文件夹",
+            chatExportFolderDesc: "导出聊天对话的子文件夹",
             testConnection: "测试连接",
             testing: "正在测试...",
             connectionSuccessful: "连接成功！可以开始构建索引。",
@@ -1293,7 +1295,14 @@ export const zhCN: Translations = {
             embeddingServiceMissing: "嵌入服务不可用——请在设置中检查嵌入 API 密钥和提供商。库搜索已禁用。",
             responseFailed: "抱歉，生成回复时出错。请再试一次。",
             searchingContext: "搜索保险库上下文...",
-            retrievingInformation: "检索相关信息..."
+            retrievingInformation: "检索相关信息...",
+            exportButton: "导出",
+            exportTitle: "导出聊天",
+            exportFolderLabel: "导出文件夹",
+            exportConfirmButton: "导出",
+            exportSuccess: "聊天已导出到 {path}",
+            exportEmpty: "没有消息可导出",
+            exportFailed: "导出失败: {error}"
         },
         exportNote: {
             title: "导出笔记",
@@ -1503,7 +1512,8 @@ export const zhCN: Translations = {
         dictionaryExtractionFailed: "提取失败",
         dictionaryNoDocsExtracted: "请先提取文档内容",
         dictionaryCreatePrompt: "未选择词典。是否创建新词典？",
-        dictionaryNotFound: "未找到词典文件"
+        dictionaryNotFound: "未找到词典文件",
+        outputFolderLabel: "输出文件夹"
     },
     highlightChat: {
         title: "与高亮内容对话",

@@ -243,6 +243,12 @@ Pick at least ONE source type:
 - [x] Generate → note created with structured output
 - [x] Check frontmatter: `meeting_date`, `attendees` (clean names, no prefix)
 
+### Output Folder Override
+- [ ] Minutes modal → "Output folder" text field visible near bottom of form
+- [ ] Default value matches settings (e.g., `AI-Organiser/Meetings`)
+- [ ] Change folder path → generate minutes → file created in new folder
+- [ ] Leave default → generate minutes → file goes to default folder
+
 ### Context Documents
 - [x] Add agenda/presentation via "Add Document" button
 - [x] Oversized documents show truncation controls
@@ -389,7 +395,44 @@ Pick at least ONE source type:
 
 ---
 
-## 10b. Highlight Chat (3 min)
+## 10b. Chat with Vault UX (4 min)
+
+### Markdown Rendering
+- [ ] Open Chat with Vault → ask a question that returns markdown (e.g., "List 3 key topics in my vault")
+- [ ] Assistant response renders **bold**, *italic*, headers, lists, and `code` properly
+- [ ] User messages stay plain text (no markdown rendering)
+- [ ] Code blocks in assistant response show with proper formatting
+
+### Conversation History (Follow-ups)
+- [ ] Ask initial question → AI responds
+- [ ] Ask follow-up referencing previous answer (e.g., "Tell me more about the first point")
+- [ ] AI references prior answer correctly (conversation context preserved)
+- [ ] Ask 3-4 questions in sequence → conversation stays coherent
+- [ ] Close modal, reopen → history is cleared (fresh session)
+
+### Chat Export
+- [ ] Chat with Vault → have at least one Q/A exchange
+- [ ] Click "Export" button → folder confirmation modal opens
+- [ ] Default path shown: `AI-Organiser/Chats` (or custom chatExportFolder)
+- [ ] Change folder path → click Export → file created in new folder
+- [ ] Keep default → click Export → file created in `AI-Organiser/Chats/`
+- [ ] Click Cancel → no file created
+- [ ] Open exported file → proper markdown format:
+  - [ ] Heading with date: `# Chat with Vault — {date}`
+  - [ ] Messages with timestamps and role labels (**You** / **Assistant**)
+  - [ ] Sources as wikilinks: `[[Notes/Meeting.md]]`
+  - [ ] Messages separated by `---` horizontal rules
+- [ ] Export again within same minute → file gets ` (2)` suffix (collision-safe)
+- [ ] With no messages → click Export → "No messages to export" notice shown
+
+### Chat Export Settings
+- [ ] Settings → Semantic Search → "Chat export folder" text field visible
+- [ ] Change folder name → Chat with Vault export uses new folder
+- [ ] Clear field → defaults back to "Chats"
+
+---
+
+## 10c. Highlight Chat (3 min) - Markdown + Chat
 
 ### Path A: Quick Chat (with editor selection)
 - [ ] Select text in editor → Command Picker → Discover → Ask AI → "Chat about highlights"
@@ -412,6 +455,8 @@ Pick at least ONE source type:
 ### Chat Features
 - [ ] "Back" button returns to selection phase (chat history preserved)
 - [ ] Role labels ("You" / "AI") on chat messages
+- [ ] Assistant messages render markdown (bold, lists, code blocks)
+- [ ] User messages stay plain text
 - [ ] "Insert Summary" disabled until at least one Q/A exchange
 - [ ] "Insert Last Answer" disabled until at least one Q/A exchange
 - [ ] No active editor → insert buttons disabled with tooltip
@@ -424,7 +469,7 @@ Pick at least ONE source type:
 
 ---
 
-## 10c. Highlights (1 min)
+## 10d. Highlights (1 min)
 
 - [ ] Select text → "Highlight selection" → text highlighted
 - [ ] Select highlighted text → "Remove highlight" → highlight removed
@@ -516,16 +561,17 @@ Test with your configured provider:
 For rapid verification, test only sections marked with *:
 
 1. [ ] Pre-Test (build, deploy, restart)
-2. [ ] Settings UI (order correct, no visual issues, canvas section visible)
+2. [ ] Settings UI (order correct, no visual issues, canvas section visible, chat export folder visible)
 3. [ ] Command Picker (opens, categories visible, Canvas group in Discover)
 4. [ ] Tagging (generate + clear on one note)
 5. [ ] Summarization (one source type + preview modal + spinner visible)
 6. [ ] LLM Busy Indicator (spinner appears during any LLM call, pulses, stops before modal)
 7. [ ] Canvas (one board type — Context Board is fastest, no RAG needed)
-8. [ ] Provider Test (connection + one operation)
-9. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
+8. [ ] Chat with Vault (markdown renders, follow-up works, export creates file)
+9. [ ] Provider Test (connection + one operation)
+10. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
 
-**Smoke Test Pass:** All 8 items (+ #9 if 1.11+) checked = Ready for release
+**Smoke Test Pass:** All 9 items (+ #10 if 1.11+) checked = Ready for release
 
 ---
 

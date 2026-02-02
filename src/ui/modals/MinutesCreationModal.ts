@@ -8,7 +8,7 @@ import { isRecordingSupported } from '../../services/audioRecordingService';
 import { AudioRecorderModal } from './AudioRecorderModal';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
-import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath } from '../../core/settings';
+import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath, resolvePluginPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
     DEFAULT_MAX_DOCUMENT_CHARS,
@@ -60,6 +60,8 @@ interface MinutesModalState {
     isExtractingDictionary: boolean;
     dictionaryExtractionProgress: string;
     dictionaryAutoExtractOffered: boolean;
+    // Output folder
+    outputFolder: string;
     // Bulk truncation
     bulkTruncationChoice: TruncationChoice;
     // Participant lists
@@ -144,6 +146,8 @@ export class MinutesCreationModal extends Modal {
             isExtractingDictionary: false,
             dictionaryExtractionProgress: '',
             dictionaryAutoExtractOffered: false,
+            // Output folder
+            outputFolder: getMinutesOutputFullPath(this.plugin.settings),
             // Bulk truncation
             bulkTruncationChoice: 'truncate',
             // Participant lists
@@ -191,6 +195,14 @@ export class MinutesCreationModal extends Modal {
 
         this.renderParticipantsSection(contentEl);
         this.renderAdvancedSection(contentEl);
+
+        // Output folder field
+        new Setting(contentEl)
+            .setName(this.plugin.t.minutes?.outputFolderLabel || 'Output folder')
+            .addText(text => text
+                .setValue(this.state.outputFolder)
+                .onChange(v => { this.state.outputFolder = v.trim(); }));
+
         this.renderFooter(contentEl);
 
         await this.autoFillTranscriptFromActiveFile();
@@ -520,7 +532,7 @@ export class MinutesCreationModal extends Modal {
                 participantsRaw: this.state.participants,
                 transcript: this.state.transcript,
                 personaId: this.state.personaId,
-                outputFolder: getMinutesOutputFullPath(this.plugin.settings),
+                outputFolder: resolvePluginPath(this.plugin.settings, this.state.outputFolder, 'Meetings'),
                 customInstructions: this.state.customInstructions,
                 languageOverride: this.state.languageOverride,
                 contextDocuments: contextDocuments || undefined,

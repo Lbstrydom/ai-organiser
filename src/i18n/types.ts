@@ -218,6 +218,8 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            chatExportFolder: string;
+            chatExportFolderDesc: string;
             testConnection: string;
             testing: string;
             connectionSuccessful: string;
@@ -1293,6 +1295,13 @@ export interface Translations {
             responseFailed: string;
             searchingContext: string;
             retrievingInformation: string;
+            exportButton: string;
+            exportTitle: string;
+            exportFolderLabel: string;
+            exportConfirmButton: string;
+            exportSuccess: string;
+            exportEmpty: string;
+            exportFailed: string;
         };
         exportNote: {
             title: string;
@@ -1525,6 +1534,7 @@ export interface Translations {
         participantListLoaded: string;
         participantListCreated: string;
         participantListNoEntries: string;
+        outputFolderLabel: string;
     };
     integration: {
         resolveEmbeds: string;

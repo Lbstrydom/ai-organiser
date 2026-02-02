@@ -320,6 +320,18 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             return;
         }
 
+        // Chat export folder
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.chatExportFolder)
+            .setDesc(t.settings.semanticSearch.chatExportFolderDesc)
+            .addText(text => text
+                .setPlaceholder('Chats')
+                .setValue(plugin.settings.chatExportFolder)
+                .onChange(async (value) => {
+                    plugin.settings.chatExportFolder = value.trim() || 'Chats';
+                    await plugin.saveSettings();
+                }));
+
         // RAG context chunks
         new Setting(sectionEl)
             .setName(t.settings.semanticSearch.ragContextChunks.name)

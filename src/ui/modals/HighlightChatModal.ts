@@ -3,7 +3,7 @@
  * Two-phase modal for selecting passages and chatting about them.
  */
 
-import { App, Modal, Notice, TextAreaComponent, ButtonComponent } from 'obsidian';
+import { App, Modal, Notice, TextAreaComponent, ButtonComponent, MarkdownRenderer, Component } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import {
     ContentBlock,
@@ -32,6 +32,7 @@ export class HighlightChatModal extends Modal {
     private readonly messages: HighlightChatMessage[] = [];
     private selectedPassageTexts: string[] = [];
     private isProcessing = false;
+    private component?: Component;
 
     private chatContainer?: HTMLElement;
     private inputArea?: TextAreaComponent;
@@ -62,6 +63,7 @@ export class HighlightChatModal extends Modal {
     }
 
     onClose(): void {
+        this.component?.unload();
         this.contentEl.empty();
     }
 
@@ -246,6 +248,12 @@ export class HighlightChatModal extends Modal {
 
     private renderMessages(): void {
         if (!this.chatContainer) return;
+
+        // Reset Component lifecycle to prevent listener accumulation
+        this.component?.unload();
+        this.component = new Component();
+        this.component.load();
+
         this.chatContainer.empty();
 
         if (this.messages.length === 0) {
@@ -261,7 +269,12 @@ export class HighlightChatModal extends Modal {
             });
             const roleLabel = message.role === 'user' ? 'You' : 'AI';
             messageEl.createEl('strong', { text: roleLabel, cls: 'ai-organiser-hc-message-role' });
-            messageEl.createDiv({ text: message.content });
+            const contentDiv = messageEl.createDiv({ cls: 'ai-organiser-hc-message-content' });
+            if (message.role === 'assistant') {
+                MarkdownRenderer.render(this.app, message.content, contentDiv, '', this.component!);
+            } else {
+                contentDiv.textContent = message.content;
+            }
         }
 
         this.chatContainer.scrollTop = this.chatContainer.scrollHeight;

@@ -8,6 +8,58 @@
 
 ## Recent Updates
 
+### Chat UX Improvements + Minutes Folder Selection (2026-02-02)
+
+**Markdown rendering, conversation history, chat export, and minutes folder override across ChatWithVault, HighlightChat, and Minutes modals.**
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Markdown Rendering | `MarkdownRenderer.render()` for assistant messages in ChatWithVault + HighlightChat | Complete |
+| Component Lifecycle | Reset `Component` at start of each `renderMessages()` call to prevent listener accumulation | Complete |
+| Conversation History | `formatConversationHistory()` with MAX_HISTORY_MESSAGES (20) + MAX_HISTORY_CHARS (8000) limits | Complete |
+| History Injection | `<conversation_history>` XML section appended to both RAG and fallback prompt paths | Complete |
+| Chat Export Button | "Export Chat" button in ChatWithVault modal header | Complete |
+| Export Folder Confirm | One-off folder override modal (does not persist to settings) | Complete |
+| Export File Format | `Chat-YYYY-MM-DD-HHmm.md` with timestamps, sources as wikilinks, collision-safe naming | Complete |
+| Chat Export Setting | `chatExportFolder` subfolder under pluginFolder (default: `Chats`) | Complete |
+| Minutes Output Folder | Editable output folder field in MinutesCreationModal (one-off override) | Complete |
+| CSS | Markdown margin fixes for `p:first-child/last-child` and `pre` in chat bubbles | Complete |
+| i18n | 9 new keys: 6 chat export, 2 settings, 1 minutes (EN + ZH-CN) | Complete |
+| Tests | 10 new tests in `chatExport.test.ts`, 3 new tests in `pathUtils.test.ts` | Complete |
+
+**Review Findings Addressed:**
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Export folder modal Esc/X hangs `handleExport()` promise | High | `resolved` flag + `onClose` fallback in `promptExportFolder()` |
+| Hardcoded English error notice in export | Medium | Added `exportFailed` i18n key with `{error}` placeholder (EN + ZH-CN) |
+| Tests are logic copies, not testing production code | Medium | Extracted pure functions to `chatExportUtils.ts`, imported by both production and tests |
+| Folder edit inconsistency with subfolder model | Medium | Typed values run through `resolvePluginPath()` in both chat export and minutes modal |
+
+**Build Status**: 995 tests passing (50 suites)
+
+**Key Files Modified:**
+- `src/commands/chatCommands.ts` — Component lifecycle, markdown rendering, conversation history, export button + handler + folder prompt modal
+- `src/utils/chatExportUtils.ts` — Shared pure functions: `formatConversationHistory()`, `formatExportMarkdown()`, constants, `ChatExportMessage` interface
+- `src/ui/modals/HighlightChatModal.ts` — Component lifecycle, markdown rendering with `.ai-organiser-hc-message-content` wrapper div
+- `src/core/settings.ts` — `chatExportFolder` setting + default + `getChatExportFullPath()` resolver; `resolvePluginPath()` exported
+- `src/ui/settings/SemanticSearchSettingsSection.ts` — Chat export folder text field in RAG subsection
+- `src/ui/modals/MinutesCreationModal.ts` — `outputFolder` state field, editable text field, `resolvePluginPath()` in `handleSubmit()`
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — Chat export keys (incl. `exportFailed`), minutes outputFolderLabel, semanticSearch chatExportFolder
+- `styles.css` — Markdown margin fixes for chat assistant bubbles
+- `tests/chatExport.test.ts` — Imports from production `chatExportUtils.ts` (10 tests)
+- `tests/pathUtils.test.ts` — `getChatExportFullPath()` tests (3 tests)
+
+**Design Decisions:**
+- Export only in ChatWithVault — HighlightChat already has "Insert Summary" / "Insert Answer" as output mechanisms
+- Folder overrides are one-off — consistent with no other feature persisting modal-level folder changes
+- History excludes system messages and the just-added user query (`.slice(0, -1)`) to avoid duplication
+- RAG retrieval still uses only the latest query — correct since we search for the new topic
+
+**Documentation**: `docs/completed/chat-plan.md`
+
+---
+
 ### Tag Network Search Enhancement (2026-02-02)
 
 **Replace plain text filter with chip/token multi-tag input, autocomplete dropdown, and hover-safe graph highlighting. Convert all hardcoded strings to i18n.**
@@ -360,12 +412,13 @@
 **Folder Structure (After):**
 ```
 AI-Organiser/
+├── Chats/           # Exported chat conversations
 ├── Config/          # Taxonomy, personas, dictionaries
 ├── Exports/         # NotebookLM exports, note exports
 ├── Flashcards/      # Anki/Brainscape flashcards
 ├── Meetings/        # Meeting minutes output
 ├── NotebookLM/      # NotebookLM source packs
-├── Recordings/      # Audio recordings (NEW)
+├── Recordings/      # Audio recordings
 └── Transcripts/     # Audio/YouTube transcripts
 ```
 
@@ -889,6 +942,7 @@ All plugin files under `AI-Organiser/` (configurable):
 
 ```
 AI-Organiser/
+├── Chats/                    # Exported chat conversations
 ├── Config/
 │   ├── taxonomy.md           # Tagging themes/disciplines
 │   ├── excluded-tags.md      # Tags to never suggest
@@ -900,6 +954,7 @@ AI-Organiser/
 ├── Flashcards/               # Exported flashcards
 ├── Meetings/                 # Meeting minutes output
 ├── NotebookLM/               # NotebookLM source packs
+├── Recordings/               # Audio recordings
 └── Transcripts/              # Audio/YouTube transcripts
 ```
 
@@ -1064,7 +1119,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 974+ unit tests (47+ suites)
+npm test           # Run 995+ unit tests (50+ suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

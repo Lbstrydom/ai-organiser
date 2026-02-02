@@ -231,6 +231,8 @@ export const en: Translations = {
                 name: "Related Notes Count",
                 description: "Number of related notes to display in sidebar and modal (1-50)"
             },
+            chatExportFolder: "Chat export folder",
+            chatExportFolderDesc: "Subfolder for exported chat conversations",
             testConnection: "Test",
             testing: "Testing...",
             connectionSuccessful: "Connected! Ready to index.",
@@ -1293,7 +1295,14 @@ export const en: Translations = {
             embeddingServiceMissing: "Embedding service not available — check your embedding API key and provider in settings. Vault search is disabled.",
             responseFailed: "Sorry, I encountered an error generating a response. Please try again.",
             searchingContext: "Searching vault context...",
-            retrievingInformation: "Retrieving relevant information..."
+            retrievingInformation: "Retrieving relevant information...",
+            exportButton: "Export",
+            exportTitle: "Export Chat",
+            exportFolderLabel: "Export folder",
+            exportConfirmButton: "Export",
+            exportSuccess: "Chat exported to {path}",
+            exportEmpty: "No messages to export",
+            exportFailed: "Export failed: {error}"
         },
         exportNote: {
             title: "Export Note",
@@ -1503,7 +1512,8 @@ export const en: Translations = {
         dictionaryExtractionFailed: "Extraction failed",
         dictionaryNoDocsExtracted: "Extract document content first",
         dictionaryCreatePrompt: "No dictionary selected. Create a new one?",
-        dictionaryNotFound: "Dictionary file not found"
+        dictionaryNotFound: "Dictionary file not found",
+        outputFolderLabel: "Output folder"
     },
     highlightChat: {
         title: "Chat About Highlights",

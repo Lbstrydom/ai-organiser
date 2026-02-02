@@ -95,6 +95,9 @@ export interface AIOrganiserSettings {
     configFolderPath: string;            // Subfolder for config files (under pluginFolder)
     lastSummarizeSource: 'note' | 'url' | 'pdf' | 'youtube' | 'audio';
 
+    // === CHAT EXPORT SETTINGS ===
+    chatExportFolder: string;           // Subfolder under pluginFolder for chat exports
+
     // === CANVAS SETTINGS ===
     canvasOutputFolder: string;         // Subfolder under pluginFolder
     canvasOpenAfterCreate: boolean;     // Open canvas file after creation
@@ -228,6 +231,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     configFolderPath: 'Config',
     lastSummarizeSource: 'note',
 
+    // Chat Export Defaults
+    chatExportFolder: 'Chats',
+
     // Canvas Defaults
     canvasOutputFolder: 'Canvas',
     canvasOpenAfterCreate: true,
@@ -326,7 +332,7 @@ function collapseDuplicatePrefix(fullPath: string, pluginFolder: string): string
     return normalized.replace(/\/+$/, '');
 }
 
-function resolvePluginPath(settings: AIOrganiserSettings, folderValue: string | undefined, defaultSubfolder: string): string {
+export function resolvePluginPath(settings: AIOrganiserSettings, folderValue: string | undefined, defaultSubfolder: string): string {
     const pluginFolder = normalizeFolderSegment(settings.pluginFolder, DEFAULT_PLUGIN_FOLDER);
     const pluginPrefix = `${pluginFolder}/`;
     let subfolder = normalizeFolderSegment(folderValue, defaultSubfolder);
@@ -361,6 +367,10 @@ export function getExportOutputFullPath(settings: AIOrganiserSettings): string {
 
 export function getFlashcardFullPath(settings: AIOrganiserSettings): string {
     return resolvePluginPath(settings, settings.flashcardFolder, 'Flashcards');
+}
+
+export function getChatExportFullPath(settings: AIOrganiserSettings): string {
+    return resolvePluginPath(settings, settings.chatExportFolder, 'Chats');
 }
 
 export function getCanvasOutputFullPath(settings: AIOrganiserSettings): string {

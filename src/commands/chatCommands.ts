@@ -3,13 +3,16 @@
  * Interactive chat using RAG (Retrieval-Augmented Generation)
  */
 
-import { Notice, Modal, App, Setting, TextAreaComponent, ButtonComponent } from 'obsidian';
+import { Notice, Modal, App, Setting, TextAreaComponent, ButtonComponent, MarkdownRenderer, Component } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { RAGService, RAGContext } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { HighlightChatModal } from '../ui/modals/HighlightChatModal';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { INDEX_SCHEMA_VERSION } from '../services/vector/vectorStoreService';
+import { getChatExportFullPath, resolvePluginPath } from '../core/settings';
+import { ensureFolderExists, getAvailableFilePath } from '../utils/minutesUtils';
+import { formatConversationHistory, formatExportMarkdown } from '../utils/chatExportUtils';
 
 /**
  * Chat message interface
@@ -33,15 +36,16 @@ class ChatWithVaultModal extends Modal {
     private inputArea!: TextAreaComponent;
     private sendButton!: ButtonComponent;
     private isProcessing: boolean = false;
+    private component!: Component;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
         this.plugin = plugin;
-        
+
         if (!plugin.vectorStore) {
             throw new Error('Vector store not initialized');
         }
-        
+
         this.ragService = new RAGService(
             plugin.vectorStore,
             plugin.settings,
@@ -82,7 +86,7 @@ class ChatWithVaultModal extends Modal {
         // Text input
         const inputSetting = new Setting(inputContainer)
             .setClass('chat-input-setting');
-        
+
         this.inputArea = new TextAreaComponent(inputSetting.controlEl);
         this.inputArea
             .setPlaceholder(this.plugin.t.modals.chatWithVault.placeholder)
@@ -100,7 +104,7 @@ class ChatWithVaultModal extends Modal {
         const buttonContainer = inputContainer.createEl('div', {
             cls: 'chat-button-container'
         });
-        
+
         this.sendButton = new ButtonComponent(buttonContainer)
             .setButtonText(this.plugin.t.modals.chatWithVault.sendButton)
             .onClick(() => this.handleSend());
@@ -108,6 +112,14 @@ class ChatWithVaultModal extends Modal {
         new ButtonComponent(buttonContainer)
             .setButtonText(this.plugin.t.modals.chatWithVault.clearButton)
             .onClick(() => this.handleClear());
+
+        new ButtonComponent(buttonContainer)
+            .setButtonText(this.plugin.t.modals.chatWithVault.exportButton)
+            .onClick(() => this.handleExport());
+    }
+
+    private formatConversationHistory(): string {
+        return formatConversationHistory(this.messages);
     }
 
     private async handleSend(): Promise<void> {
@@ -126,6 +138,12 @@ class ChatWithVaultModal extends Modal {
         this.addMessage('user', query);
 
         try {
+            // Build conversation history for context
+            const conversationHistory = this.formatConversationHistory();
+            const historySection = conversationHistory
+                ? `\n<conversation_history>\n${conversationHistory}\n</conversation_history>\n`
+                : '';
+
             // Check if embedding service is available for vault search
             const hasEmbeddings = !!this.plugin.embeddingService;
             let context: RAGContext | null = null;
@@ -155,17 +173,18 @@ class ChatWithVaultModal extends Modal {
             let sources: string[] = [];
 
             if (context && context.totalChunks > 0) {
+                const systemPrompt = 'You are a helpful assistant that answers questions based on the user\'s personal knowledge vault.' + historySection;
                 prompt = this.ragService.buildRAGPrompt(
                     query,
                     context,
-                    'You are a helpful assistant that answers questions based on the user\'s personal knowledge vault.'
+                    systemPrompt
                 );
                 sources = context.sources;
             } else {
                 if (hasEmbeddings) {
                     this.addSystemMessage(this.plugin.t.modals.chatWithVault.noVaultContextFallback);
                 }
-                prompt = `You are a helpful assistant. The user has a personal knowledge vault but no matching content was found for their query. Answer from your general knowledge.\n\nUser question: ${query}`;
+                prompt = `You are a helpful assistant. The user has a personal knowledge vault but no matching content was found for their query. Answer from your general knowledge.${historySection}\n\nUser question: ${query}`;
             }
 
             // Get response from LLM via centralized facade
@@ -194,6 +213,85 @@ class ChatWithVaultModal extends Modal {
         this.renderMessages();
     }
 
+    private async handleExport(): Promise<void> {
+        const t = this.plugin.t.modals.chatWithVault;
+        const nonSystemMessages = this.messages.filter(m => m.role !== 'system');
+        if (nonSystemMessages.length === 0) {
+            new Notice(t.exportEmpty);
+            return;
+        }
+
+        const folder = await this.promptExportFolder();
+        if (!folder) return;
+
+        // Resolve typed folder through plugin path system so subfolders nest correctly
+        const resolvedFolder = resolvePluginPath(this.plugin.settings, folder, 'Chats');
+
+        try {
+            await ensureFolderExists(this.app.vault, resolvedFolder);
+
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10);
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+            const fileName = `Chat-${dateStr}-${timeStr}.md`;
+            const filePath = await getAvailableFilePath(this.app.vault, resolvedFolder, fileName);
+
+            const markdown = formatExportMarkdown(this.messages);
+
+            await this.app.vault.create(filePath, markdown);
+            new Notice(t.exportSuccess.replace('{path}', filePath));
+        } catch (error) {
+            console.error('Chat export error:', error);
+            new Notice(t.exportFailed.replace('{error}', (error as Error).message));
+        }
+    }
+
+    private promptExportFolder(): Promise<string | null> {
+        const t = this.plugin.t.modals.chatWithVault;
+        return new Promise((resolve) => {
+            const modal = new Modal(this.app);
+            modal.titleEl.setText(t.exportTitle);
+            let resolved = false;
+
+            let folderValue = getChatExportFullPath(this.plugin.settings);
+
+            new Setting(modal.contentEl)
+                .setName(t.exportFolderLabel)
+                .addText(text => {
+                    text.setValue(folderValue)
+                        .onChange(v => { folderValue = v.trim(); });
+                    text.inputEl.style.width = '100%';
+                });
+
+            new Setting(modal.contentEl)
+                .addButton(btn => {
+                    btn.setButtonText(t.exportConfirmButton)
+                        .setCta()
+                        .onClick(() => {
+                            resolved = true;
+                            modal.close();
+                            resolve(folderValue || null);
+                        });
+                })
+                .addButton(btn => {
+                    btn.setButtonText(this.plugin.t.modals.cancel)
+                        .onClick(() => {
+                            resolved = true;
+                            modal.close();
+                            resolve(null);
+                        });
+                });
+
+            const origOnClose = modal.onClose.bind(modal);
+            modal.onClose = () => {
+                origOnClose();
+                if (!resolved) resolve(null);
+            };
+
+            modal.open();
+        });
+    }
+
     private addSystemMessage(content: string): void {
         this.messages.push({
             role: 'system',
@@ -214,6 +312,11 @@ class ChatWithVaultModal extends Modal {
     }
 
     private renderMessages(): void {
+        // Reset Component lifecycle to prevent listener accumulation
+        this.component?.unload();
+        this.component = new Component();
+        this.component.load();
+
         this.chatContainer.empty();
 
         for (const message of this.messages) {
@@ -224,7 +327,12 @@ class ChatWithVaultModal extends Modal {
             const contentEl = messageEl.createEl('div', {
                 cls: 'chat-message-content'
             });
-            contentEl.textContent = message.content;
+
+            if (message.role === 'assistant') {
+                MarkdownRenderer.render(this.app, message.content, contentEl, '', this.component);
+            } else {
+                contentEl.textContent = message.content;
+            }
 
             // Add sources if present
             if (message.sources && message.sources.length > 0) {
@@ -232,7 +340,7 @@ class ChatWithVaultModal extends Modal {
                     cls: 'chat-message-sources'
                 });
                 sourcesEl.createEl('strong', { text: this.plugin.t.modals.chatWithVault.sourcesLabel });
-                
+
                 const sourcesList = sourcesEl.createEl('ul');
                 for (const source of message.sources) {
                     const sourceItem = sourcesList.createEl('li');
@@ -262,6 +370,7 @@ class ChatWithVaultModal extends Modal {
     }
 
     onClose(): void {
+        this.component?.unload();
         const { contentEl } = this;
         contentEl.empty();
     }
@@ -330,10 +439,10 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     plugin.settings,
                     plugin.embeddingService
                 );
-                
+
                 // Build query from content and question
                 const query = `Context: ${content.substring(0, 500)}\n\nQuestion: ${question}`;
-                
+
                 const statusNotice = new Notice(plugin.t.messages.searchingForRelevantInfo, 0);
                 const context = await ragService.retrieveContext(query, file, {
                     excludeCurrentFile: false,
@@ -416,7 +525,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                     plugin.settings,
                     plugin.embeddingService
                 );
-                
+
                 const statusNotice = new Notice(plugin.t.messages.findingRelatedNotesDetailed, 0);
                 const related = await ragService.getRelatedNotes(
                     file,
@@ -434,7 +543,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 const relatedSection = [
                     '\n\n---\n',
                     '## Related Notes\n',
-                    ...related.map(r => 
+                    ...related.map(r =>
                         `- [[${r.document.filePath}|${r.document.metadata.title}]] (related)`
                     ),
                     '\n'
@@ -459,9 +568,9 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
     return new Promise((resolve) => {
         const modal = new Modal(plugin.app);
         modal.titleEl.setText(plugin.t.modals.chatWithVault.askQuestion);
-        
+
         let question = '';
-        
+
         new Setting(modal.contentEl)
             .setName(plugin.t.modals.chatWithVault.yourQuestion)
             .addText(text => {
@@ -472,7 +581,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
                 text.inputEl.style.width = '100%';
                 text.inputEl.focus();
             });
-        
+
         new Setting(modal.contentEl)
             .addButton(btn => {
                 btn.setButtonText(plugin.t.modals.chatWithVault.askButton)
@@ -489,7 +598,7 @@ async function promptForQuestion(plugin: AIOrganiserPlugin): Promise<string | nu
                         resolve(null);
                     });
             });
-        
+
         modal.open();
     });
 }
