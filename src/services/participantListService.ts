@@ -1,7 +1,7 @@
 /**
  * Participant List Service
  * Manages persistent participant lists for meeting minutes.
- * Stored as markdown files in AI-Organiser/Config/participants/
+ * Stored as markdown files in AI-Organiser/Meetings/participants/
  */
 
 import { App, TFile, TFolder, normalizePath } from 'obsidian';

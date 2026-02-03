@@ -112,7 +112,7 @@ export class MinutesCreationModal extends Modal {
         // Support dependency injection for testing, with default implementations
         this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
         this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, getConfigFolderFullPath(plugin.settings));
-        this.participantListService = new ParticipantListService(app, getConfigFolderFullPath(plugin.settings));
+        this.participantListService = new ParticipantListService(app, getMinutesOutputFullPath(plugin.settings));
         this.documentService = deps?.documentService ?? new DocumentExtractionService(app);
 
         this.state = {
