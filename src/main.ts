@@ -486,7 +486,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
             this.app.workspace.revealLeaf(leaf);
         } catch (error) {
-            new Notice(this.t.messages.failedToBuildNetwork, 4000);
+            console.error('Tag network error:', error);
+            new Notice(this.t.messages.failedToBuildNetwork + ': ' + (error as any).message, 4000);
         }
     }
 
