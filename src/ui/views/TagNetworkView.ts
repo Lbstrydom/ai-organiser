@@ -390,13 +390,33 @@ export class TagNetworkView extends ItemView {
     }
 
     private loadD3Script(): Promise<void> {
+        const cdnUrls = [
+            'https://d3js.org/d3.v7.min.js',
+            'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js',
+            'https://unpkg.com/d3@7/dist/d3.min.js'
+        ];
+
+        return this.tryLoadFromCDN(cdnUrls, 0);
+    }
+
+    private tryLoadFromCDN(cdnUrls: string[], index: number): Promise<void> {
+        if (index >= cdnUrls.length) {
+            return Promise.reject(new Error('All CDN attempts failed'));
+        }
+
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = 'https://d3js.org/d3.v7.min.js';
+            script.src = cdnUrls[index];
             script.async = true;
 
             const handleLoad = () => { cleanup(); resolve(); };
-            const handleError = (e: ErrorEvent) => { cleanup(); reject(e); };
+            const handleError = () => { 
+                cleanup(); 
+                // Try next CDN
+                this.tryLoadFromCDN(cdnUrls, index + 1)
+                    .then(resolve)
+                    .catch(reject);
+            };
             const cleanup = () => {
                 script.removeEventListener('load', handleLoad);
                 script.removeEventListener('error', handleError);

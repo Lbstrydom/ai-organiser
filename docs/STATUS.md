@@ -1396,7 +1396,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 1067+ unit tests (52+ suites)
+npm test           # Run 1108+ unit tests (54+ suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

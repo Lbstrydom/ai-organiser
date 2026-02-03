@@ -352,31 +352,31 @@ Pick at least ONE source type:
 - [x] "NotebookLM: Open Export Folder" → opens folder in file explorer
 
 ### Pending Integration (Enhanced)
-- [ ] "Add to Pending Integration" → adds selection/content to pending
-- [ ] "Integrate pending content" → modal opens with 3 dropdowns + toggle:
-  - [ ] **Placement dropdown**: Insert at cursor / Add as new section(s) / Add as callouts / Merge into sections
-  - [ ] **Format dropdown**: Prose / Bullet points / Action items / Table
-  - [ ] **Detail dropdown**: Full detail / Concise / Summary only
-  - [ ] **Auto-tag toggle**: Re-tag note after integration
-- [ ] **Placement: cursor** — content appears at cursor, note body untouched
-- [ ] **Placement: append** — new section at bottom of main content (before References)
-- [ ] **Placement: merge** — warning text appears in dropdown description
-- [ ] **Format: tasks** — output uses `- [ ]` checkbox syntax
-- [ ] **Source extraction**: After integration, sources from `### Source:` blocks are moved to References section
-- [ ] **Deduplication**: Sources already in References are not duplicated
-- [ ] "Resolve pending embeds" → extracts text from embedded documents
-- [ ] **Pending auto-resolution**: Pending with web URL → integration includes article text
-- [ ] **Pending auto-resolution**: Pending with YouTube link + Gemini key → transcript used
-- [ ] **Pending auto-resolution**: Pending with YouTube link + no Gemini key → caption scraping fallback works (not skipped)
-- [ ] **Pending auto-resolution**: Pending with `![[recording.wav]]` + OpenAI/Groq key → transcript used
-- [ ] **Pending auto-resolution**: Pending with `![[recording.wav]]` + no audio key → notice shown, audio skipped
-- [ ] **Pending auto-resolution**: Pending with `![[report.pdf]]` (vault) → text extracted via officeparser
-- [ ] **Pending auto-resolution**: Pending with external PDF URL → text extracted via `extractFromUrl`
-- [ ] **Pending auto-resolution**: Pending with `![[data.docx]]` → text extracted and integrated
-- [ ] **Pending auto-resolution**: Mixed sources → all resolved, rich integration produced
-- [ ] **Pending auto-resolution**: Failed source (bad URL) → graceful skip, rest integrated
-- [ ] **Privacy consent**: Local LLM + YouTube/audio → consent shown for Gemini/OpenAI specifically
-- [ ] **Truncation**: `merge` placement with large enriched content → truncated to fit limits
+- [x] "Add to Pending Integration" → adds selection/content to pending
+- [x] "Integrate pending content" → modal opens with 3 dropdowns + toggle:
+  - [x] **Placement dropdown**: Insert at cursor / Add as new section(s) / Add as callouts / Merge into sections
+  - [x] **Format dropdown**: Prose / Bullet points / Action items / Table
+  - [x] **Detail dropdown**: Full detail / Concise / Summary only
+  - [x] **Auto-tag toggle**: Re-tag note after integration
+- [x] **Placement: cursor** — content appears at cursor, note body untouched
+- [x] **Placement: append** — new section at bottom of main content (before References)
+- [x] **Placement: merge** — warning text appears in dropdown description
+- [x] **Format: tasks** — output uses `- [ ]` checkbox syntax
+- [x] **Source extraction**: After integration, sources from `### Source:` blocks are moved to References section
+- [x] **Deduplication**: Sources already in References are not duplicated
+- [x] "Resolve pending embeds" → extracts text from embedded documents
+- [x] **Pending auto-resolution**: Pending with web URL → integration includes article text
+- [x] **Pending auto-resolution**: Pending with YouTube link + Gemini key → transcript used
+- [x] **Pending auto-resolution**: Pending with YouTube link + no Gemini key → caption scraping fallback works (not skipped)
+- [x] **Pending auto-resolution**: Pending with `![[recording.wav]]` + OpenAI/Groq key → transcript used
+- [x] **Pending auto-resolution**: Pending with `![[recording.wav]]` + no audio key → notice shown, audio skipped
+- [x] **Pending auto-resolution**: Pending with `![[report.pdf]]` (vault) → multimodal extraction via Claude/Gemini (when available)
+- [x] **Pending auto-resolution**: Pending with external PDF URL → multimodal or text extraction based on provider
+- [x] **Pending auto-resolution**: Pending with `![[data.docx]]` → text extracted and integrated
+- [x] **Pending auto-resolution**: Mixed sources → all resolved, rich integration produced
+- [x] **Pending auto-resolution**: Failed source (bad URL) → graceful skip, rest integrated
+- [x] **Privacy consent**: Local LLM + YouTube/audio → consent shown for Gemini/OpenAI specifically
+- [x] **Truncation**: `merge` placement with large enriched content → truncated to fit limits
 
 ---
 

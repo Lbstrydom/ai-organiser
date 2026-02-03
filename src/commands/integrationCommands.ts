@@ -31,7 +31,7 @@ import { ContentExtractionService, ExtractionResult, AudioTranscriptionConfig, P
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 import type { Persona } from '../services/configurationService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
-import { withBusyIndicator } from '../utils/busyIndicator';
+import { withBusyIndicator, showBusy, hideBusy } from '../utils/busyIndicator';
 import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
@@ -101,6 +101,8 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
 
                     new Notice(plugin.t.messages.integratingContent);
 
+                    // Show busy indicator for the entire resolve + LLM flow
+                    showBusy(plugin);
                     try {
                         // Get persona prompt
                         const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
@@ -190,6 +192,8 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                         showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
+                    } finally {
+                        hideBusy(plugin);
                     }
                 }
             );

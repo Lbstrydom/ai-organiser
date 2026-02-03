@@ -265,7 +265,7 @@ if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
 
 **Automated Tests**:
 ```bash
-npm test              # Run Vitest unit tests (968 tests, 47 suites)
+npm test              # Run Vitest unit tests (1108 tests, 54 suites)
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 npm run test:auto     # Run automated integration tests (no Obsidian required)
@@ -1085,7 +1085,7 @@ onOpen() {
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
 
-Total: 848 unit tests (37 suites) + 22 automated integration tests
+Total: 1108 unit tests (54 suites) + 22 automated integration tests
 
 ## Multi-Source Translation
 
@@ -1121,11 +1121,27 @@ Translate note content and external sources (URLs, YouTube, PDFs, documents, aud
 
 ## Enhanced Pending Integration
 
-**Status**: ✅ Implemented (January 2026)
+**Status**: ✅ Implemented (February 2026)
 
 ### Overview
 
-The integration command (`integrate-pending-content`) provides 3 strategy dropdowns and an auto-tag toggle for resolving pending content into notes.
+The integration command (`integrate-pending-content`) auto-resolves all embedded content (web articles, YouTube, audio, PDFs, documents) before integration, then provides 3 strategy dropdowns and an auto-tag toggle.
+
+### Auto-Resolve Pipeline
+
+When the command runs, `resolveAllPendingContent()` in `integrationCommands.ts`:
+1. Detects embedded content via `detectEmbeddedContent()` (web links, YouTube, audio, PDF, documents)
+2. Requests privacy consent per cloud provider used (Gemini for YouTube, OpenAI/Groq for audio, Claude/Gemini for multimodal PDF — independent of main LLM)
+3. Extracts content via `ContentExtractionService` with `textOnly` flag (or multimodal PDF when provider available)
+4. Builds enriched content using positional line-based replacement (bottom-up by `lineNumber`)
+5. Truncates to fit provider token limits (accounts for main content + prompt overhead)
+6. Passes enriched content to `buildIntegrationPrompt()` for LLM integration
+
+**Key behaviors**:
+- YouTube without Gemini key falls back to caption scraping (never skipped)
+- Audio without OpenAI/Groq key shows warning notice and skips audio items
+- PDF uses multimodal extraction (Claude/Gemini) when available, falls back to text extraction (officeparser)
+- Failed sources leave original text unchanged and increment `failedCount`
 
 ### Strategy Dimensions
 
@@ -1141,16 +1157,19 @@ The integration command (`integrate-pending-content`) provides 3 strategy dropdo
 
 ### Key Files
 
-- **`src/commands/integrationCommands.ts`**: Command handler, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
-- **`src/services/prompts/integrationPrompts.ts`**: `getPlacementInstructions()`, `getFormatInstructions()`, `getDetailInstructions()`
+- **`src/commands/integrationCommands.ts`**: Command handler, `resolveAllPendingContent()`, `buildEnrichedContent()`, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
+- **`src/services/contentExtractionService.ts`**: Audio transcription support, `extractPdfAsText()`, `extractPdfWithMultimodal()`, `textOnly` flag
+- **`src/services/prompts/integrationPrompts.ts`**: `getPlacementInstructions()`, `getFormatInstructions()`, `getDetailInstructions()`, `buildPdfExtractionPrompt()`
 - **`src/utils/editorUtils.ts`**: `insertAtCursor()`, `appendAsNewSections()` (shared DRY utility)
 - **`src/core/constants.ts`**: Strategy types and defaults
 
 ### Key Patterns
 
+- **Per-provider privacy consent**: Each cloud provider (Gemini, OpenAI, Groq, main LLM) consented independently; session-scoped (shown once)
+- **Positional replacement**: Line-based bottom-up replacement using `DetectedContent.lineNumber` — prevents cross-line false matches
+- **Truncation budget**: Accounts for main content (callout/merge only) + 2000 char prompt overhead before truncating pending content
 - **Guard branching**: `cursor`/`append` only need pending content; `callout`/`merge` need both main+pending
 - **Editor buffer for auto-tag**: Uses `editor.getValue()` not disk read for fresh content
-- **Prompt helpers in `src/services/prompts/`**: Per codebase convention, not inline
 
 ## Summary Result Preview Modal
 

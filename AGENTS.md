@@ -946,7 +946,7 @@ onOpen() {
 - `tests/dashboardService.test.ts` (23 tests): Filter injection, folder paths
 - `tests/vectorMath.test.ts` (5 tests): Cosine similarity (identical, orthogonal, mismatch, zero-magnitude, known vectors)
 
-Total: 968 unit tests (47 suites) + 17 automated integration tests
+Total: 1108 unit tests (54 suites) + 17 automated integration tests
 
 ## Multi-Source Translation
 
@@ -966,17 +966,27 @@ Translate note content and external sources (URLs, YouTube, PDFs, documents, aud
 
 ## Enhanced Pending Integration
 
-**Status**: ✅ Implemented (January 2026)
+**Status**: ✅ Implemented (February 2026)
 
-3 strategy dropdowns (placement/format/detail) + auto-tag toggle for resolving pending content.
+Auto-resolves all embedded content (web articles, YouTube, audio, PDFs, documents) before integration. 3 strategy dropdowns (placement/format/detail) + auto-tag toggle.
+
+**Auto-Resolve Pipeline** (`resolveAllPendingContent()` in `integrationCommands.ts`):
+1. Detects embedded content via `detectEmbeddedContent()` (web, YouTube, audio, PDF, documents)
+2. Per-provider privacy consent (Gemini/OpenAI/Groq independent of main LLM)
+3. Extracts content via `ContentExtractionService` — text-only or multimodal PDF
+4. Positional line-based replacement (bottom-up by `lineNumber`)
+5. Truncates to fit provider limits (main content + overhead budget)
+
+**Key behaviors**: YouTube falls back to caption scraping without Gemini key; audio skipped without API key; PDF uses multimodal when available, else officeparser text.
 
 **Key Files**:
-- `src/commands/integrationCommands.ts`: Command handler, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
-- `src/services/prompts/integrationPrompts.ts`: Strategy-specific prompt helpers
+- `src/commands/integrationCommands.ts`: Command handler, `resolveAllPendingContent()`, `buildEnrichedContent()`, `IntegrationConfirmModal`, `buildIntegrationPrompt()`
+- `src/services/contentExtractionService.ts`: Audio support, `extractPdfAsText()`, `extractPdfWithMultimodal()`, `textOnly` flag
+- `src/services/prompts/integrationPrompts.ts`: Strategy-specific prompt helpers, `buildPdfExtractionPrompt()`
 - `src/utils/editorUtils.ts`: `insertAtCursor()`, `appendAsNewSections()` (shared DRY utility)
 - `src/core/constants.ts`: `PlacementStrategy`, `FormatStrategy`, `DetailStrategy` types + defaults
 
-**Patterns**: Guard branching (cursor/append need only pending; callout/merge need both), editor buffer for auto-tag, prompt helpers in `src/services/prompts/`.
+**Patterns**: Per-provider privacy consent (session-scoped), positional line-based replacement, truncation budget (main content for callout/merge + 2000 overhead), guard branching, editor buffer for auto-tag.
 
 ## Summary Result Preview Modal
 
