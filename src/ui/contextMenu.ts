@@ -1,10 +1,9 @@
 /**
  * Context Menu Handler
  * Centralized right-click context menu registration for all plugin items.
- * Groups items by cognitive category with separators:
- *   Visual (Highlight / Remove Highlight)
- *   Intelligence (Ask AI / Translate)
- *   Workflow (Add to Pending)
+ * Groups items with a single separator:
+ *   Actions (Highlight, Remove Highlight, Ask AI, Translate)
+ *   Workflow (Add to Pending) — instant, no modal
  */
 
 import { Editor, MarkdownView, MarkdownFileInfo, Menu } from 'obsidian';
@@ -68,11 +67,6 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                 }
             }
 
-            // ── Separator ────────────────────────────────────────────
-            menu.addSeparator();
-
-            // ── Group 2: Intelligence ────────────────────────────────
-
             // Ask AI (opens UnifiedChatModal with selection locked)
             menu.addItem((item) => {
                 item.setTitle(plugin.t.contextMenu.askAI || 'Ask AI')
@@ -91,10 +85,8 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                     });
             });
 
-            // ── Separator ────────────────────────────────────────────
+            // ── Separator: Workflow ───────────────────────────────────
             menu.addSeparator();
-
-            // ── Group 3: Workflow ────────────────────────────────────
 
             // Add to Pending (instant, no modal)
             menu.addItem((item) => {
