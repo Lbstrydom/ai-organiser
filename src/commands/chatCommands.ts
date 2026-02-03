@@ -1,6 +1,6 @@
 /**
- * Chat with Vault Commands
- * Interactive chat using RAG (Retrieval-Augmented Generation)
+ * Chat Commands
+ * Single unified chat command + related notes insertion
  */
 
 import { Notice } from 'obsidian';
@@ -14,13 +14,14 @@ function notify(message: string, duration?: number): Notice {
 }
 
 /**
- * Register chat with vault commands
+ * Register chat commands
  */
 export function registerChatCommands(plugin: AIOrganiserPlugin): void {
-    // Chat with vault command
+    // Unified chat command — auto-selects best mode based on context
     plugin.addCommand({
-        id: 'chat-with-vault',
-        name: plugin.t.commands.chatWithVault,
+        id: 'chat-with-ai',
+        name: plugin.t.commands.chatWithAI,
+        icon: 'message-circle',
         callback: async () => {
             const activeEditor = plugin.app.workspace.activeEditor?.editor;
             const activeFile = plugin.app.workspace.getActiveFile();
@@ -31,58 +32,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 noteContent: content,
                 noteTitle: activeFile?.basename,
                 editorSelection: selection,
-                initialMode: 'vault'
-            });
-            modal.open();
-        }
-    });
-
-    // Ask about current note
-    plugin.addCommand({
-        id: 'ask-about-current-note',
-        name: plugin.t.commands.askAboutCurrentNote,
-        editorCallback: async (editor, view) => {
-            const file = view.file;
-            if (!file) return;
-
-            const selection = editor.getSelection();
-            const content = selection || editor.getValue();
-
-            if (!content.trim()) {
-                notify(plugin.t.messages.noContentToAnalyzeDetailed);
-                return;
-            }
-            const modal = new UnifiedChatModal(plugin.app, plugin, {
-                noteContent: editor.getValue(),
-                noteTitle: file.basename,
-                editorSelection: selection || undefined,
-                initialMode: 'note'
-            });
-            modal.open();
-        }
-    });
-
-    // Chat about highlights
-    plugin.addCommand({
-        id: 'chat-about-highlights',
-        name: plugin.t.commands.chatAboutHighlights || 'Chat about highlights',
-        icon: 'message-square-quote',
-        editorCallback: (editor, view) => {
-            const file = view.file;
-            if (!file) return;
-
-            const content = editor.getValue();
-            if (!content.trim()) {
-                notify(plugin.t.messages.noContentToAnalyzeDetailed);
-                return;
-            }
-
-            const selection = editor.getSelection();
-            const modal = new UnifiedChatModal(plugin.app, plugin, {
-                noteContent: content,
-                noteTitle: file.basename,
-                editorSelection: selection || undefined,
-                initialMode: 'highlight'
+                // No initialMode — let auto-selection pick the best mode
             });
             modal.open();
         }

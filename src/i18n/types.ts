@@ -462,9 +462,7 @@ export interface Translations {
         manageIndex: string;
         showRelatedNotes: string;
         searchSemanticVault: string;
-        chatWithVault: string;
-        askAboutCurrentNote: string;
-        chatAboutHighlights: string;
+        chatWithAI: string;
         insertRelatedNotes: string;
         upgradeToBases: string;
         upgradeFolderToBases: string;

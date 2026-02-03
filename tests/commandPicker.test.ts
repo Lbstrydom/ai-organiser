@@ -45,9 +45,7 @@ function createMockTranslations(): Translations {
             createBasesDashboard: 'Create Bases Dashboard',
             searchSemanticVault: 'Semantic Search',
             showRelatedNotes: 'Show Related Notes',
-            chatWithVault: 'Chat with Vault',
-            askAboutCurrentNote: 'Ask Question About Current Note',
-            chatAboutHighlights: 'Chat about highlights',
+            chatWithAI: 'Chat with AI',
             insertRelatedNotes: 'Insert Related Notes',
             manageIndex: 'Manage Index',
             buildSemanticIndex: 'Build Index',
@@ -210,20 +208,10 @@ describe('Command Picker', () => {
 
                 expect(discoverCategory).toBeDefined();
                 const commandIds = discoverCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('ask-ai-group');
+                expect(commandIds).toContain('chat-with-ai');
                 expect(commandIds).toContain('find-notes-group');
                 expect(commandIds).toContain('canvas-group');
-                expect(commandIds).toHaveLength(3); // pure user-mode, no admin items
-
-                // Verify Ask AI group
-                const askAIGroup = discoverCategory!.commands.find(c => c.id === 'ask-ai-group');
-                expect(askAIGroup).toBeDefined();
-                expect(askAIGroup!.subCommands).toBeDefined();
-                const askSubIds = askAIGroup!.subCommands!.map(c => c.id);
-                expect(askSubIds).toContain('chat-with-vault');
-                expect(askSubIds).toContain('ask-about-current-note');
-                expect(askSubIds).toContain('chat-about-highlights');
-                expect(askSubIds).toHaveLength(3);
+                expect(commandIds).toHaveLength(3); // Chat with AI, Find Notes group, Canvas group
 
                 // Verify Find Notes group
                 const findGroup = discoverCategory!.commands.find(c => c.id === 'find-notes-group');

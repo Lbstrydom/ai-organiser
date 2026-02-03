@@ -406,34 +406,11 @@ export function buildCommandCategories(
             icon: 'compass',
             commands: [
                 {
-                    id: 'ask-ai-group',
-                    name: t.modals.commandPicker?.groupAskAI || 'Ask AI',
+                    id: 'chat-with-ai',
+                    name: t.commands.chatWithAI,
                     icon: 'message-circle',
-                    aliases: ['ask', 'question', 'chat', 'RAG', 'current note', 'analyze'],
-                    callback: () => {},
-                    subCommands: [
-                        {
-                            id: 'chat-with-vault',
-                            name: t.commands.chatWithVault,
-                            icon: 'message-circle',
-                            aliases: ['ask', 'question', 'chat', 'RAG'],
-                            callback: () => executeCommand('ai-organiser:chat-with-vault')
-                        },
-                        {
-                            id: 'ask-about-current-note',
-                            name: t.commands.askAboutCurrentNote,
-                            icon: 'message-square-text',
-                            aliases: ['ask', 'current note', 'analyze'],
-                            callback: () => executeCommand('ai-organiser:ask-about-current-note')
-                        },
-                        {
-                            id: 'chat-about-highlights',
-                            name: t.commands.chatAboutHighlights,
-                            icon: 'message-square-quote',
-                            aliases: ['highlight', 'chat', 'discuss', 'passages', 'selected', 'focus'],
-                            callback: () => executeCommand('ai-organiser:chat-about-highlights')
-                        }
-                    ]
+                    aliases: ['ask', 'question', 'chat', 'RAG', 'current note', 'analyze', 'highlight', 'vault', 'passages'],
+                    callback: () => executeCommand('ai-organiser:chat-with-ai')
                 },
                 {
                     id: 'find-notes-group',
