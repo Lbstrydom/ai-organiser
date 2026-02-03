@@ -482,7 +482,7 @@ export const zhCN: Translations = {
         createBasesDashboard: "创建 Bases 仪表板",
         createBasesDashboardHere: "创建 Bases 仪表板",
         notebookLMExport: "NotebookLM: 导出源文件包",
-        notebookLMToggle: "NotebookLM: 切换选择",
+        notebookLMToggle: "NotebookLM: 选择导出",
         notebookLMClear: "NotebookLM: 清除选择",
         notebookLMOpenFolder: "NotebookLM: 打开导出文件夹",
         exportNote: "导出笔记",
@@ -719,6 +719,8 @@ export const zhCN: Translations = {
         notebookLMClearFailed: "清除选择失败",
         notebookLMFolderNotFound: "未找到导出文件夹。请先运行导出。",
         notebookLMOpenFolderFailed: "打开导出文件夹失败",
+        notebookLMStatusSelected: "{count} 已选择",
+        notebookLMGeneratingName: "正在生成导出名称...",
         desktopOnly: "此功能仅在桌面端可用",
         // Chat/RAG messages
         searchingVaultContext: "正在搜索库...",

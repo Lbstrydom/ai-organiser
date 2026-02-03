@@ -482,7 +482,7 @@ export const en: Translations = {
         createBasesDashboard: "Create Bases dashboard",
         createBasesDashboardHere: "Create Bases Dashboard",
         notebookLMExport: "NotebookLM: Export Source Pack",
-        notebookLMToggle: "NotebookLM: Toggle Selection",
+        notebookLMToggle: "NotebookLM: Select for Export",
         notebookLMClear: "NotebookLM: Clear Selection",
         notebookLMOpenFolder: "NotebookLM: Open Export Folder",
         exportNote: "Export Note",
@@ -719,6 +719,8 @@ export const en: Translations = {
         notebookLMClearFailed: "Failed to clear selection",
         notebookLMFolderNotFound: "Export folder not found. Run an export first.",
         notebookLMOpenFolderFailed: "Failed to open export folder",
+        notebookLMStatusSelected: "{count} selected",
+        notebookLMGeneratingName: "Generating export name...",
         desktopOnly: "This feature is only available on desktop",
         // Chat/RAG messages
         searchingVaultContext: "Searching vault...",

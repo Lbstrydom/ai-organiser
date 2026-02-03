@@ -5,6 +5,7 @@ import { getChatExportFullPath, resolvePluginPath } from '../../core/settings';
 import { ensureFolderExists, getAvailableFilePath } from '../../utils/minutesUtils';
 import { summarizeText, pluginContext } from '../../services/llmFacade';
 import { buildInsertSummaryPrompt, HighlightChatMessage } from '../../services/prompts/highlightChatPrompts';
+import { buildChatFileNamePrompt } from '../../services/prompts/chatPrompts';
 import { splitIntoBlocks } from '../../utils/highlightExtractor';
 import type { ChatMode, ChatModeHandler, ChatPluginContext, ModalContext, UnifiedChatOptions } from '../chat/ChatModeHandler';
 import { NoteModeHandler } from '../chat/NoteModeHandler';
@@ -519,10 +520,8 @@ export class UnifiedChatModal extends Modal {
         try {
             await ensureFolderExists(this.app.vault, resolvedFolder);
 
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0, 10);
-            const timeStr = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-            const fileName = `Chat-${dateStr}-${timeStr}.md`;
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const fileName = await this.generateChatFileName(nonSystemMessages, dateStr);
             const filePath = await getAvailableFilePath(this.app.vault, resolvedFolder, fileName);
 
             const title = this.buildExportTitle();
@@ -552,6 +551,37 @@ export class UnifiedChatModal extends Modal {
                     .replace('{noteTitle}', noteTitle)
                     .replace('{date}', dateLabel);
         }
+    }
+
+    private async generateChatFileName(messages: ChatMessage[], dateStr: string): Promise<string> {
+        const fallback = `Chat-${dateStr}.md`;
+        try {
+            const firstUserMsg = messages.find(m => m.role === 'user');
+            if (!firstUserMsg) return fallback;
+
+            const prompt = buildChatFileNamePrompt(
+                firstUserMsg.content,
+                this.activeMode || 'note',
+                this.options.noteTitle
+            );
+            const ctx = pluginContext(this.plugin);
+            const result = await summarizeText(ctx, prompt);
+
+            if (result.success && result.content) {
+                const slug = result.content
+                    .trim()
+                    .replaceAll(/[`'"\n\r]/g, '')
+                    .toLowerCase()
+                    .replaceAll(/[^a-z0-9-]/g, '-')
+                    .replaceAll(/-+/g, '-')
+                    .replaceAll(/(^-)|(-$)/g, '')
+                    .slice(0, 40);
+                if (slug.length > 0) return `${slug}_${dateStr}.md`;
+            }
+        } catch {
+            // Silent fallback
+        }
+        return fallback;
     }
 
     private async promptExportFolder(): Promise<string | null> {

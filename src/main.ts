@@ -56,6 +56,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private tagOperations: TagOperations;
     public t = getTranslations(this.settings.interfaceLanguage);
     public busyStatusBarEl: HTMLElement | null = null;
+    public notebookLMStatusBarEl: HTMLElement | null = null;
 
     constructor(app: App, manifest: any) {
         super(app, manifest);
@@ -297,6 +298,28 @@ export default class AIOrganiserPlugin extends Plugin {
             this.busyStatusBarEl.addClass('ai-organiser-busy-indicator');
         }
 
+        // Initialize NotebookLM selection counter status bar (desktop only)
+        if (!Platform.isMobile) {
+            this.notebookLMStatusBarEl = this.addStatusBarItem();
+            this.notebookLMStatusBarEl.addClass('ai-organiser-notebooklm-status');
+            this.notebookLMStatusBarEl.hide();
+            this.notebookLMStatusBarEl.addEventListener('click', () => {
+                (this.app as any).commands.executeCommandById('ai-organiser:notebooklm-export');
+            });
+
+            // Debounced metadata listener to update count
+            let notebookLMUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+            this.registerEvent(
+                this.app.metadataCache.on('changed', () => {
+                    if (notebookLMUpdateTimer) clearTimeout(notebookLMUpdateTimer);
+                    notebookLMUpdateTimer = setTimeout(() => this.updateNotebookLMStatus(), 500);
+                })
+            );
+
+            // Initial count on load
+            this.updateNotebookLMStatus();
+        }
+
         // Initialize vector store for semantic search
         if (this.settings.enableSemanticSearch) {
             try {
@@ -375,6 +398,19 @@ export default class AIOrganiserPlugin extends Plugin {
         );
     }
 
+    /** Update NotebookLM status bar counter */
+    public updateNotebookLMStatus(): void {
+        if (!this.notebookLMStatusBarEl || !this.sourcePackService) return;
+        const count = this.sourcePackService.getSelectionCount();
+        if (count > 0) {
+            const text = this.t.messages.notebookLMStatusSelected.replace('{count}', String(count));
+            this.notebookLMStatusBarEl.setText(`NotebookLM: ${text}`);
+            this.notebookLMStatusBarEl.show();
+        } else {
+            this.notebookLMStatusBarEl.hide();
+        }
+    }
+
     public async onunload(): Promise<void> {
         await this.llmService?.dispose();
         await this.embeddingService?.dispose();
@@ -387,6 +423,7 @@ export default class AIOrganiserPlugin extends Plugin {
         this.eventHandlers.cleanup();
         resetBusyState();
         this.busyStatusBarEl = null;
+        this.notebookLMStatusBarEl = null;
         this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
         this.app.workspace.trigger('layout-change');
     }

@@ -232,11 +232,23 @@ export class SelectionService {
     }
 
     /**
-     * Get count of selected files
+     * Get count of selected files (cache-only, no file reads).
+     * Optimized for frequent calls (e.g., status bar updates).
      * @returns Number of files with selection tag
      */
-    async getSelectionCount(): Promise<number> {
-        const files = await this.getSelectedFiles();
-        return files.length;
+    getSelectionCount(): number {
+        const tag = this.selectionTag;
+        let count = 0;
+        for (const file of this.app.vault.getMarkdownFiles()) {
+            const cache = this.app.metadataCache.getFileCache(file);
+            if (cache?.frontmatter?.tags) {
+                const tags = cache.frontmatter.tags;
+                const tagArray = Array.isArray(tags) ? tags : [tags];
+                if (tagArray.some((t: string) => t === tag || t === `#${tag}` || t.replace(/^#/, '') === tag)) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 }

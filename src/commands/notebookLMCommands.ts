@@ -8,10 +8,12 @@
  * - Open export folder
  */
 
-import { Notice, Platform } from 'obsidian';
+import { Notice, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { getNotebookLMExportFullPath } from '../core/settings';
 import { NotebookLMExportModal } from '../ui/modals/NotebookLMExportModal';
+import { pluginContext, summarizeText } from '../services/llmFacade';
+import { buildFolderNamePrompt } from '../services/prompts/notebookLMPrompts';
 
 export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
@@ -54,13 +56,17 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                         plugin.sourcePackService!.updateConfig(result.config);
 
                         try {
+                            // Generate AI folder name (silent fallback to timestamp)
+                            const folderName = await generateExportFolderName(plugin, preview.selection.files);
+
                             // Execute export with progress callback
                             const exportResult = await plugin.sourcePackService!.executeExport(
                                 preview.selection,
                                 (current, total, message) => {
                                     // Update modal progress
                                     exportModal?.updateProgress(current, total, message);
-                                }
+                                },
+                                folderName
                             );
 
                             if (exportResult.success) {
@@ -151,6 +157,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                 } else {
                     new Notice(t.messages?.notebookLMSelectionRemoved || 'Note removed from NotebookLM selection');
                 }
+                plugin.updateNotebookLMStatus();
             } catch (error) {
                 console.error('Failed to toggle selection:', error);
                 new Notice(t.messages?.notebookLMToggleFailed || 'Failed to toggle selection');
@@ -201,6 +208,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     (t.messages?.notebookLMSelectionCleared || 'Cleared selection from {count} notes')
                         .replace('{count}', String(files.length))
                 );
+                plugin.updateNotebookLMStatus();
 
             } catch (error) {
                 console.error('Failed to clear selection:', error);
@@ -247,4 +255,45 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
             }
         }
     });
+}
+
+/**
+ * Sanitize a raw LLM response into a valid folder name.
+ */
+function sanitizeFolderName(raw: string): string {
+    return raw
+        .trim()
+        .replaceAll(/[`'"\n\r]/g, '')
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9-]/g, '-')
+        .replaceAll(/-+/g, '-')
+        .replaceAll(/(^-)|(-$)/g, '')
+        .slice(0, 40);
+}
+
+/**
+ * Generate a descriptive export folder name via LLM.
+ * Returns undefined on failure (service falls back to timestamp).
+ */
+async function generateExportFolderName(
+    plugin: AIOrganiserPlugin,
+    files: TFile[]
+): Promise<string | undefined> {
+    try {
+        const titles = files.slice(0, 10).map(f => f.basename);
+        const prompt = buildFolderNamePrompt(titles, files.length);
+        const ctx = pluginContext(plugin);
+        const result = await summarizeText(ctx, prompt);
+
+        if (result.success && result.content) {
+            const slug = sanitizeFolderName(result.content);
+            if (slug.length > 0) {
+                const dateSuffix = new Date().toISOString().slice(0, 10);
+                return `${slug}_${dateSuffix}`;
+            }
+        }
+    } catch {
+        // Silent fallback to timestamp
+    }
+    return undefined;
 }

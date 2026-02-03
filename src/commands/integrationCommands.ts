@@ -18,6 +18,8 @@ import {
     SourceType,
     getTodayDate,
     addToReferencesSection,
+    extractSourcesFromPending,
+    getReferencesContent,
     SourceReference
 } from '../utils/noteStructure';
 import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PlacementStrategy, FormatStrategy, DetailStrategy, DEFAULT_PLACEMENT_STRATEGY, DEFAULT_FORMAT_STRATEGY, DEFAULT_DETAIL_STRATEGY } from '../core/constants';
@@ -120,7 +122,8 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                             replaceMainContent(editor, response.content);
                         }
 
-                        // Clear the pending integration section
+                        // Move sources from pending to References, then clear
+                        movePendingSourcesToReferences(editor, pendingContent);
                         clearPendingIntegration(editor);
 
                         // Auto-tag if requested — use editor buffer (not disk) for fresh content
@@ -269,6 +272,21 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
             new Notice(plugin.t.messages.selectionAddedToPending);
         }
     });
+}
+
+/**
+ * Extract sources from pending content and add them to the References section,
+ * skipping any that already exist (dedup by normalized link).
+ */
+function movePendingSourcesToReferences(editor: Editor, pendingContent: string): void {
+    const sources = extractSourcesFromPending(pendingContent);
+    for (const source of sources) {
+        const existingRefs = getReferencesContent(editor);
+        const normalizedLink = source.isInternal ? `[[${source.link}]]` : source.link;
+        if (!existingRefs.includes(normalizedLink)) {
+            addToReferencesSection(editor, source);
+        }
+    }
 }
 
 function getDefaultSourceTitle(t: Translations, type: SourceType): string {

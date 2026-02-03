@@ -65,6 +65,13 @@ export class SourcePackService {
     }
 
     /**
+     * Get count of selected notes (cache-only, fast).
+     */
+    getSelectionCount(): number {
+        return this.selectionService.getSelectionCount();
+    }
+
+    /**
      * Get preview data for export modal
      */
     async getExportPreview(selectionTag?: string): Promise<ExportPreview> {
@@ -132,7 +139,8 @@ export class SourcePackService {
      */
     async executeExport(
         selection: SelectionResult,
-        onProgress?: (current: number, total: number, message: string) => void
+        onProgress?: (current: number, total: number, message: string) => void,
+        folderName?: string
     ): Promise<ExportResult> {
         const warnings: string[] = [];
         const entries: PackEntry[] = [];
@@ -142,8 +150,16 @@ export class SourcePackService {
         try {
             // Generate pack ID and determine folder path
             const packId = this.generatePackId();
-            const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-').slice(0, 19);
-            const packFolderPath = `${this.config.exportFolder}/${timestamp}`;
+            const name = folderName
+                || new Date().toISOString().replaceAll(/[:.]/g, '-').slice(0, 19);
+            let packFolderPath = `${this.config.exportFolder}/${name}`;
+
+            // Collision safety: append increment if folder exists
+            let counter = 2;
+            while (this.app.vault.getAbstractFileByPath(packFolderPath) && counter <= 999) {
+                packFolderPath = `${this.config.exportFolder}/${name}-${counter}`;
+                counter++;
+            }
 
             // Ensure pack folder exists
             await this.writerService.ensureFolder(this.config.exportFolder);

@@ -707,6 +707,8 @@ export interface Translations {
         notebookLMClearFailed: string;
         notebookLMFolderNotFound: string;
         notebookLMOpenFolderFailed: string;
+        notebookLMStatusSelected: string;
+        notebookLMGeneratingName: string;
         desktopOnly: string;
         // Chat/RAG messages
         searchingVaultContext: string;

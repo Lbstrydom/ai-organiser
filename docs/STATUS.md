@@ -8,6 +8,58 @@
 
 ## Recent Updates
 
+### Pending Integration Fix + Chat AI Naming (2026-02-03) — COMPLETE
+
+**Fixed pending integration source extraction to handle unstructured content (raw URLs, wikilink embeds). Added AI-generated filenames for chat exports.**
+
+| Aspect | Status |
+|--------|--------|
+| Pending source extraction: unstructured content support | Complete — raw URLs, `![[embeds]]`, dedup |
+| Chat export AI naming | Complete — LLM generates descriptive filename, fallback to timestamp |
+| Tests | Complete — 21 tests (noteStructure.test.ts) |
+
+**Build Status**: 1087 tests passing (53 suites)
+
+**Root cause (pending refs bug):** `extractSourcesFromPending()` only parsed structured `### Source:` / `> From:` format. Users paste raw URLs and wikilinks directly into `## Pending Integration` without using the "Add to Pending" command. Added Pass 2 (raw URL extraction) and Pass 3 (wikilink embed extraction) with cross-pass deduplication.
+
+**Files Modified:**
+- `src/utils/noteStructure.ts` — `extractSourcesFromPending()` now handles raw URLs and `![[embeds]]`
+- `src/ui/modals/UnifiedChatModal.ts` — `generateChatFileName()` via LLM, fallback to `Chat-{date}.md`
+- `src/services/prompts/chatPrompts.ts` — New: `buildChatFileNamePrompt()`
+- `tests/noteStructure.test.ts` — 6 new tests for unstructured content
+
+---
+
+### NotebookLM UX Improvements (2026-02-03) — COMPLETE
+
+**Four changes: renamed command, status bar counter, AI folder names, and pending source extraction.**
+
+| Aspect | Status |
+|--------|--------|
+| Change 1: Rename "Toggle Selection" → "Select for Export" | Complete — i18n only |
+| Change 2: Status bar selection counter | Complete — desktop only, click to export |
+| Change 3: AI-generated export folder names | Complete — LLM in command layer, collision-safe |
+| Change 4: Pending Integration source extraction | Complete — sources moved to References before clearing |
+| Tests | Complete — 21 tests (noteStructure.test.ts) |
+
+**Build Status**: 1087 tests passing (53 suites)
+
+**Files Modified:**
+- `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — New i18n keys
+- `src/main.ts` — NotebookLM status bar element, debounced metadata listener, `updateNotebookLMStatus()`
+- `src/services/notebooklm/selectionService.ts` — Optimized `getSelectionCount()` to synchronous cache-only
+- `src/services/notebooklm/sourcePackService.ts` — Accept optional `folderName`, collision-safe increment
+- `src/commands/notebookLMCommands.ts` — AI folder name generation via LLM, status bar updates after toggle/clear
+- `src/services/prompts/notebookLMPrompts.ts` — New: `buildFolderNamePrompt()`
+- `src/utils/noteStructure.ts` — New: `extractSourcesFromPending()`, `getReferencesContent()`
+- `src/commands/integrationCommands.ts` — `movePendingSourcesToReferences()` before clearing pending
+- `styles.css` — NotebookLM status bar styles
+- `tests/noteStructure.test.ts` — 21 unit tests for source extraction
+- `docs/usertest.md` — Updated NotebookLM + Pending Integration test items
+- `docs/menu-plan.md` — "Toggle Selection" → "Select for Export"
+
+---
+
 ### Command Picker Restructuring (2026-02-03) — COMPLETE
 
 **Restructured Command Picker from functional grouping (Create, Enhance, Organize, Discover, Integrate) to context-based grouping (Active Note, Capture, Vault Intelligence, Tools & Workflows).**

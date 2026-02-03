@@ -243,6 +243,128 @@ export function addToReferencesSection(
 }
 
 /**
+ * Detect source type from a link string
+ */
+function detectSourceTypeFromLink(link: string): SourceType {
+    const lower = link.toLowerCase();
+    if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'youtube';
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (/\.(mp3|wav|m4a|webm|ogg|aac)$/.test(lower)) return 'audio';
+    if (/\.(mp4|mov|avi)$/.test(lower)) return 'video';
+    if (/\.(docx|xlsx|pptx|doc|xls|ppt|rtf|txt)$/.test(lower)) return 'document';
+    if (!link.startsWith('http')) return 'note';
+    return 'web';
+}
+
+/**
+ * Extract source references from pending integration content.
+ * Handles two formats:
+ * 1. Structured: ### Source: headings with > From: links
+ * 2. Unstructured: Raw URLs, wikilinks (![[...]]), and markdown links in plain text
+ */
+export function extractSourcesFromPending(pendingContent: string): SourceReference[] {
+    const sources: SourceReference[] = [];
+    const seen = new Set<string>();
+
+    // Pass 1: Extract from structured ### Source: blocks
+    const blocks = pendingContent.split(/(?=^### Source:)/m);
+    const headingRegex = /^### Source:\s*(.+?)(?:\s*\((\d{4}-\d{2}-\d{2})\))?\s*$/m;
+    const linkRegex = /^> From:\s*(.+)$/m;
+
+    for (const block of blocks) {
+        const headingMatch = headingRegex.exec(block);
+        if (!headingMatch) continue;
+
+        const title = headingMatch[1].trim();
+        const date = headingMatch[2] || undefined;
+
+        const linkMatch = linkRegex.exec(block);
+        if (!linkMatch) continue;
+
+        const rawLink = linkMatch[1].trim();
+        const isInternal = rawLink.startsWith('[[');
+        const link = isInternal ? rawLink.replaceAll(/(?:^\[\[)|(?:\]\]$)/g, '') : rawLink;
+        const type = detectSourceTypeFromLink(link);
+
+        seen.add(link.toLowerCase());
+        sources.push({ type, title, link, date, isInternal });
+    }
+
+    // Pass 2: Extract raw URLs from unstructured content
+    const urlMatches = pendingContent.matchAll(/(?:^|\s)(https?:\/\/[^\s<>]+)/gm);
+    for (const match of urlMatches) {
+        const url = match[1].replace(/[.,;:!?)]+$/, ''); // Strip trailing punctuation
+        if (seen.has(url.toLowerCase())) continue;
+        seen.add(url.toLowerCase());
+
+        const type = detectSourceTypeFromLink(url);
+        const title = extractTitleFromUrl(url);
+        sources.push({ type, title, link: url, isInternal: false });
+    }
+
+    // Pass 3: Extract wikilink embeds (![[...]])
+    const embedMatches = pendingContent.matchAll(/!\[\[([^\]]+)\]\]/g);
+    for (const match of embedMatches) {
+        const path = match[1];
+        if (seen.has(path.toLowerCase())) continue;
+        seen.add(path.toLowerCase());
+
+        const type = detectSourceTypeFromLink(path);
+        sources.push({ type, title: path, link: path, isInternal: true });
+    }
+
+    return sources;
+}
+
+/**
+ * Extract a readable title from a URL.
+ * Uses the last meaningful path segment, falling back to hostname.
+ */
+function extractTitleFromUrl(url: string): string {
+    try {
+        const parsed = new URL(url);
+        const hostname = parsed.hostname.replace(/^www\./, '');
+
+        // Try to get a meaningful title from the URL path
+        const pathSegments = parsed.pathname
+            .split('/')
+            .filter(s => s.length > 0)
+            .map(s => decodeURIComponent(s));
+
+        // Use the last meaningful segment (skip short IDs, file extensions)
+        for (let i = pathSegments.length - 1; i >= 0; i--) {
+            const segment = pathSegments[i]
+                .replace(/\.[a-z]{2,4}$/i, '') // strip file extension
+                .replaceAll(/[-_]/g, ' ')       // convert separators to spaces
+                .trim();
+            if (segment.length >= 3) {
+                // Capitalize first letter of each word
+                const title = segment.replaceAll(/\b\w/g, c => c.toUpperCase());
+                return `${title} — ${hostname}`;
+            }
+        }
+
+        return hostname;
+    } catch {
+        return url.slice(0, 50);
+    }
+}
+
+/**
+ * Get the text content of the References section for deduplication checks
+ */
+export function getReferencesContent(editor: Editor): string {
+    const structure = analyzeNoteStructure(editor);
+    if (!structure.references.found) return '';
+
+    const lines: string[] = [];
+    for (let i = structure.references.startLine; i <= structure.references.endLine; i++) {
+        lines.push(editor.getLine(i));
+    }
+    return lines.join('\n');
+}
+
+/**
  * Pending integration source with content
  */
 export interface PendingSource {

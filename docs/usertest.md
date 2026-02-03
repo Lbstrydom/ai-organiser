@@ -97,12 +97,12 @@
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
 - [x] No "undefined" or raw i18n keys visible in command names/categories
 - [x] "Generate from embedded" does NOT appear in picker (removed)
-- [ ] Vault Intelligence has sub-groups: Ask & Search, Visualize
-- [ ] Ask & Search contains: Chat with AI, Semantic Search
-- [ ] Visualize contains: Group Notes by Tag, Visualize Tag Graph, Create Bases Dashboard
-- [ ] Capture has "Smart Summarize" (not "Summarize Web / YouTube")
-- [ ] Tools has only NotebookLM group (no "Export all tags")
-- [ ] Root view shows ~10 items (4 Active Note groups + 3 Capture + 2 Vault groups + 1 Tools group)
+- [x] Vault Intelligence has sub-groups: Ask & Search, Visualize
+- [x] Ask & Search contains: Chat with AI, Semantic Search
+- [x] Visualize contains: Group Notes by Tag, Visualize Tag Graph, Create Bases Dashboard
+- [x] Capture has "Smart Summarize" (not "Summarize Web / YouTube")
+- [x] Tools has only NotebookLM group (no "Export all tags")
+- [x] Root view shows ~10 items (4 Active Note groups + 3 Capture + 2 Vault groups + 1 Tools group)
 
 ---
 
@@ -314,36 +314,42 @@ Pick at least ONE source type:
 - [x] "Insert Related Notes" → inserts links to related notes
 
 ### Wide Net Retrieval Verification (Enhanced Semantic Search)
-- [ ] Investigation Board → related note count matches Related Notes Count setting
-- [ ] Highlight Chat → related notes context uses Related Notes Count setting
-- [ ] Folder scope still works with new pipeline (sidebar folder filter + Investigation Board)
-- [ ] Very small vault (<15 notes) → returns fewer than requested (no error)
-- [ ] Notes with only frontmatter → still returns results (title-only query)
+- [x] Investigation Board → related note count matches Related Notes Count setting
+- [x] Highlight Chat → related notes context uses Related Notes Count setting
+- [x] Folder scope still works with new pipeline (sidebar folder filter + Investigation Board)
+- [x] Very small vault (<15 notes) → returns fewer than requested (no error)
+- [x] Notes with only frontmatter → still returns results (title-only query)
 
 ### Index Management
-- [ ] "Manage Index" → shows options: Build, Update, Clear
-- [ ] Update → re-indexes changed files
-- [ ] Clear → removes index (requires rebuild)
+- [x] "Manage Index" → shows options: Build, Update, Clear
+- [x] Update → re-indexes changed files
+- [x] Clear → removes index (requires rebuild)
 
 ---
 
 ## 9. Integrations (4 min)
 
 ### Bases Integration
-- [ ] "Upgrade metadata" → MigrationModal opens
-- [ ] Analysis shows: total, needs migration, already migrated
-- [ ] Run migration → metadata added to notes
-- [ ] Check frontmatter: `summary`, `source_url` (minimal set)
-- [ ] "Create dashboard" → DashboardCreationModal
-- [ ] Dashboard created with folder filtering
+- [x] "Upgrade metadata" → MigrationModal opens
+- [x] Analysis shows: total, needs migration, already migrated
+- [x] Run migration → metadata added to notes
+- [x] Check frontmatter: `summary`, `source_url` (minimal set)
+- [x] "Create dashboard" → DashboardCreationModal
+- [x] Dashboard created with folder filtering
 
 ### NotebookLM Integration
-- [ ] "NotebookLM: Toggle Selection" → adds/removes note from export list
-- [ ] "NotebookLM: Export Source Pack" → ExportPreviewModal opens
-- [ ] Preview shows selected notes, linked documents, total size
-- [ ] Export → creates PDF in export folder
-- [ ] "NotebookLM: Clear Selection" → removes all selections
-- [ ] "NotebookLM: Open Export Folder" → opens folder in file explorer
+- [x] "NotebookLM: Select for Export" → adds/removes note from export list (renamed from "Toggle Selection")
+- [x] After selecting a note → status bar shows "NotebookLM: 1 selected"
+- [x] Select 3 notes → status bar shows "NotebookLM: 3 selected"
+- [x] Click status bar counter → export modal opens
+- [x] Deselect all notes → status bar counter hidden
+- [x] "NotebookLM: Export Source Pack" → ExportPreviewModal opens
+- [x] Preview shows selected notes, linked documents, total size
+- [x] Export → creates PDF in export folder with AI-generated descriptive name (e.g., `meeting-notes-alpha_2026-02-03`)
+- [x] Export same content again → collision-safe folder name with `-2` suffix
+- [x] LLM unavailable → export folder falls back to timestamp format
+- [x] "NotebookLM: Clear Selection" → removes all selections, status bar updates
+- [x] "NotebookLM: Open Export Folder" → opens folder in file explorer
 
 ### Pending Integration (Enhanced)
 - [ ] "Add to Pending Integration" → adds selection/content to pending
@@ -356,6 +362,8 @@ Pick at least ONE source type:
 - [ ] **Placement: append** — new section at bottom of main content (before References)
 - [ ] **Placement: merge** — warning text appears in dropdown description
 - [ ] **Format: tasks** — output uses `- [ ]` checkbox syntax
+- [ ] **Source extraction**: After integration, sources from `### Source:` blocks are moved to References section
+- [ ] **Deduplication**: Sources already in References are not duplicated
 - [ ] "Resolve pending embeds" → extracts text from embedded documents
 
 ---

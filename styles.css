@@ -4070,3 +4070,14 @@
 
 /* (Highlight chat styles removed in favor of unified chat modal) */
 
+/* NotebookLM Status Bar Counter */
+.ai-organiser-notebooklm-status {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-notebooklm-status:hover {
+    color: var(--text-accent);
+}
+

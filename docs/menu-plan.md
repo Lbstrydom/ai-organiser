@@ -58,7 +58,7 @@ Specialized or bulk operations.
 
 1. **NotebookLM** (sub-group, icon: `book-open`)
    - Export Source Pack — `notebooklm-export`
-   - Toggle Selection — `notebooklm-toggle`
+   - Select for Export — `notebooklm-toggle`
    - Clear Selection — `notebooklm-clear`
    - Open Export Folder — `notebooklm-open-folder`
 
