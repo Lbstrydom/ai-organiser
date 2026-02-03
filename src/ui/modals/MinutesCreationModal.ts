@@ -363,6 +363,7 @@ export class MinutesCreationModal extends Modal {
             .setName(t?.fieldAgenda || 'Agenda (one item per line)')
             .addTextArea(text => {
                 text.inputEl.rows = 4;
+                text.inputEl.spellcheck = true;
                 text.setValue(this.state.agenda);
                 text.onChange(value => this.state.agenda = value);
                 text.inputEl.addClass('minutes-textarea');
@@ -374,6 +375,7 @@ export class MinutesCreationModal extends Modal {
             .setDesc(t?.fieldTranscriptDesc || 'Paste or edit the transcript text')
             .addTextArea(text => {
                 text.inputEl.rows = 8;
+                text.inputEl.spellcheck = true;
                 text.setValue(this.state.transcript);
                 text.onChange(value => this.state.transcript = value);
                 text.inputEl.addClass('minutes-textarea');
@@ -468,6 +470,7 @@ export class MinutesCreationModal extends Modal {
             cls: 'minutes-participants-textarea'
         });
         textarea.rows = 6;
+        textarea.spellcheck = true;
         textarea.value = this.state.participants;
         textarea.addEventListener('input', () => {
             this.state.participants = textarea.value;
@@ -500,6 +503,7 @@ export class MinutesCreationModal extends Modal {
             .setDesc(t?.fieldCustomInstructionsDesc || 'Optional instructions appended to persona')
             .addTextArea(text => {
                 text.inputEl.rows = 4;
+                text.inputEl.spellcheck = true;
                 text.setValue(this.state.customInstructions);
                 text.onChange(value => this.state.customInstructions = value);
                 text.inputEl.addClass('minutes-textarea');

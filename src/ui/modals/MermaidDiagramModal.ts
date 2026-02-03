@@ -92,6 +92,7 @@ export class MermaidDiagramModal extends Modal {
                 });
                 // Make text area larger
                 text.inputEl.rows = 4;
+                text.inputEl.spellcheck = true;
                 text.inputEl.style.width = '100%';
             });
 

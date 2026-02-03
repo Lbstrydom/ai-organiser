@@ -134,6 +134,7 @@ export class AudioSelectModal extends Modal {
                         this.contextPrompt = value;
                     });
                 text.inputEl.rows = 2;
+                text.inputEl.spellcheck = true;
                 text.inputEl.addClass('audio-select-context-input');
             });
 

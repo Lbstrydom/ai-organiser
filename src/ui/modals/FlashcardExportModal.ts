@@ -103,6 +103,7 @@ export class FlashcardExportModal extends Modal {
                     .setValue(this.context)
                     .onChange(value => this.context = value);
                 text.inputEl.rows = 3;
+                text.inputEl.spellcheck = true;
                 text.inputEl.style.width = '100%';
             });
 

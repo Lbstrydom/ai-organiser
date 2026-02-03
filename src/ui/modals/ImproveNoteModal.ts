@@ -105,6 +105,7 @@ export class ImproveNoteModal extends Modal {
                         this.query = value;
                     });
                 text.inputEl.rows = 4;
+                text.inputEl.spellcheck = true;
                 text.inputEl.addClass('improve-note-textarea');
 
                 // Focus the textarea

@@ -76,6 +76,7 @@ export class FindResourcesModal extends Modal {
                         this.query = value;
                     });
                 text.inputEl.rows = 3;
+                text.inputEl.spellcheck = true;
                 text.inputEl.addClass('find-resources-textarea');
 
                 // Focus the textarea

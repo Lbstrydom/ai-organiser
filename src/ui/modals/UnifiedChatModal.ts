@@ -172,6 +172,7 @@ export class UnifiedChatModal extends Modal {
         this.inputArea = new TextAreaComponent(inputRow);
         this.inputArea.setPlaceholder(this.getActiveHandler().getPlaceholder(this.plugin.t));
         this.inputArea.inputEl.rows = 4;
+        this.inputArea.inputEl.spellcheck = true;
         
         // Auto-expand textarea as user types (up to max-height in CSS)
         this.inputArea.inputEl.addEventListener('input', () => {
