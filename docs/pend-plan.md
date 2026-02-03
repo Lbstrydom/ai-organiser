@@ -1,8 +1,18 @@
 # Integrate Pending: Auto-Resolve All Content Types
 
-**Status**: Plan (not yet implemented). This is the source of truth for this work item.
+**Status**: ✅ Implemented with multimodal PDF support. This is the source of truth for this work item.
 
-**Goal**: Make "Integrate Pending Content" a one-stop command that automatically fetches web articles, transcribes YouTube/audio, extracts PDF/document text — then summarizes and integrates everything into the note. Eliminates need for separate "Smart Summarize" or "Resolve Embeds" for pending content.
+**Goal**: Make "Integrate Pending Content" a one-stop command that automatically fetches web articles, transcribes YouTube/audio, extracts PDF content — then summarizes and integrates everything into the note. Eliminates need for separate "Smart Summarize" or "Resolve Embeds" for pending content.
+
+## Update: Multimodal PDF Extraction (February 2026)
+
+When a PDF-capable provider (Claude or Gemini) is configured, PDFs are now processed using **multimodal extraction** — the same quality as Smart Summarize:
+
+- PDFs are sent as base64 to Claude/Gemini with an extraction prompt
+- The LLM describes all content including images, diagrams, charts, and tables
+- Falls back to text-only extraction (officeparser) when no multimodal provider is available
+
+This ensures capability parity between Smart Summarize and Pending Integration.
 
 ---
 

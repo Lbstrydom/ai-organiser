@@ -2,7 +2,7 @@
  * Tests for Integration Prompt Helpers
  */
 
-import { getPlacementInstructions, getFormatInstructions, getDetailInstructions } from '../src/services/prompts/integrationPrompts';
+import { getPlacementInstructions, getFormatInstructions, getDetailInstructions, buildPdfExtractionPrompt } from '../src/services/prompts/integrationPrompts';
 import { buildIntegrationPrompt } from '../src/commands/integrationCommands';
 
 describe('Integration Prompt Helpers', () => {
@@ -145,6 +145,47 @@ describe('Integration Prompt Helpers', () => {
                 'full'
             );
             expect(result).toContain('You are a technical writer.');
+        });
+    });
+
+    describe('buildPdfExtractionPrompt', () => {
+        it('should include PDF name in document_name tag', () => {
+            const result = buildPdfExtractionPrompt('quarterly-report.pdf');
+            expect(result).toContain('<document_name>quarterly-report.pdf</document_name>');
+        });
+
+        it('should request full extraction not summarization', () => {
+            const result = buildPdfExtractionPrompt('report.pdf');
+            expect(result).toContain('Extract ALL text content');
+            expect(result).toContain('Do NOT summarize');
+            // Should emphasize extraction over summarization
+            expect(result).toContain('FULL content');
+        });
+
+        it('should include instructions for diagrams and visual content', () => {
+            const result = buildPdfExtractionPrompt('presentation.pdf');
+            expect(result).toMatch(/diagram|chart|graph|image/i);
+        });
+
+        it('should include instructions for tables', () => {
+            const result = buildPdfExtractionPrompt('data.pdf');
+            expect(result).toContain('markdown table');
+        });
+
+        it('should include language instruction when provided', () => {
+            const result = buildPdfExtractionPrompt('document.pdf', 'Chinese');
+            expect(result).toContain('Respond in Chinese');
+        });
+
+        it('should not include language instruction when not provided', () => {
+            const result = buildPdfExtractionPrompt('document.pdf');
+            expect(result).not.toContain('Respond in');
+        });
+
+        it('should request markdown output format', () => {
+            const result = buildPdfExtractionPrompt('report.pdf');
+            expect(result).toContain('<output_format>');
+            expect(result.toLowerCase()).toContain('markdown');
         });
     });
 });

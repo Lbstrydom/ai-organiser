@@ -2,11 +2,52 @@
 
 **Version:** 1.0.15
 **Last Updated:** February 3, 2026
-**Status:** Feature Complete - Command Picker Restructured
+**Status:** Feature Complete - Multimodal PDF Integration
 
 ---
 
 ## Recent Updates
+
+### Multimodal PDF Extraction for Pending Integration (2026-02-03) — COMPLETE
+
+**Pending Integration now uses Claude/Gemini multimodal to extract full PDF content including images, diagrams, and tables — matching Smart Summarize quality.**
+
+| Aspect | Status |
+|--------|--------|
+| Multimodal PDF extraction | Complete — sends base64 to Claude/Gemini with extraction prompt |
+| PDF extraction prompt | Complete — extracts full content, describes visuals, converts tables to markdown |
+| Graceful fallback | Complete — uses text extraction (officeparser) when no multimodal provider |
+| Privacy consent | Complete — requests consent for PDF provider (may differ from main LLM) |
+| Tests | Complete — integrationResolve.test.ts (23 cases), integrationPrompts.test.ts (7 new) |
+
+**Files Modified:**
+- `src/services/contentExtractionService.ts` — `PdfExtractionConfig`, `setPdfExtractionConfig()`, `extractPdfWithMultimodal()`
+- `src/services/prompts/integrationPrompts.ts` — `buildPdfExtractionPrompt()` for multimodal extraction
+- `src/commands/integrationCommands.ts` — configures PDF extraction, passes textOnly=false when multimodal available
+- `tests/integrationResolve.test.ts` — multimodal PDF tests, language config test
+- `tests/integrationPrompts.test.ts` — PDF extraction prompt tests
+
+### Pending Integration: Auto-Resolve All Sources (2026-02-03) — COMPLETE
+
+**Pending Integration now resolves web articles, YouTube/audio transcripts, PDFs, and documents before integration.**
+
+| Aspect | Status |
+|--------|--------|
+| Content resolution pipeline | Complete — web/YouTube/audio/PDF/document/internal links |
+| Privacy consent gating | Complete — per-provider consent (Gemini/OpenAI/Groq + main LLM) |
+| Positional replacement | Complete — line-based, bottom-up replacement |
+| Prompt truncation budget | Complete — accounts for main content and overhead |
+| Tests | Complete — integrationResolve.test.ts (20 cases) |
+
+**Build Status**: 1108 tests passing (54 suites)
+
+**Files Modified:**
+- `src/services/contentExtractionService.ts` — audio transcription support, text-only PDF extraction path
+- `src/commands/integrationCommands.ts` — resolveAllPendingContent, privacy consent, truncation budget
+- `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — new integration messages
+- `tests/integrationResolve.test.ts` — content resolution, consent, and truncation tests
+- `docs/usertest.md` — manual test cases for pending auto-resolution
+
 
 ### Pending Integration Fix + Chat AI Naming (2026-02-03) — COMPLETE
 
@@ -56,7 +97,7 @@
 - `styles.css` — NotebookLM status bar styles
 - `tests/noteStructure.test.ts` — 21 unit tests for source extraction
 - `docs/usertest.md` — Updated NotebookLM + Pending Integration test items
-- `docs/menu-plan.md` — "Toggle Selection" → "Select for Export"
+- `docs/completed/menu-plan-command-picker.md` — "Toggle Selection" → "Select for Export"
 
 ---
 
@@ -66,7 +107,7 @@
 
 | Aspect | Status |
 |--------|--------|
-| Plan | Complete — `docs/menu-plan.md` (3 rounds of review) |
+| Plan | Complete — `docs/completed/menu-plan-command-picker.md` (3 rounds of review) |
 | Implementation | Complete |
 | Tests | Complete — 9 tests covering structure, callbacks, leaf count |
 
@@ -101,7 +142,7 @@
 - `CLAUDE.md`, `AGENTS.md` — Command Picker docs updated
 - `docs/usertest.md` — Command Picker test section updated
 
-**Documentation**: `docs/menu-plan.md`
+**Documentation**: `docs/completed/menu-plan-command-picker.md`
 
 ---
 

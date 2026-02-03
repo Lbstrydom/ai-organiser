@@ -730,6 +730,11 @@ export interface Translations {
         integratingContent: string;
         integratingContentFailed: string;
         contentIntegratedSuccessfully: string;
+        integrationResolvingContent: string;
+        integrationResolvingProgress: string;
+        integrationResolutionComplete: string;
+        integrationAudioKeyMissing: string;
+        integrationContentTruncated: string;
         noteStructureAdded: string;
         urlAddedToPending: string;
         selectTextFirst: string;

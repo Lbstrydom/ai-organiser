@@ -365,6 +365,18 @@ Pick at least ONE source type:
 - [ ] **Source extraction**: After integration, sources from `### Source:` blocks are moved to References section
 - [ ] **Deduplication**: Sources already in References are not duplicated
 - [ ] "Resolve pending embeds" → extracts text from embedded documents
+- [ ] **Pending auto-resolution**: Pending with web URL → integration includes article text
+- [ ] **Pending auto-resolution**: Pending with YouTube link + Gemini key → transcript used
+- [ ] **Pending auto-resolution**: Pending with YouTube link + no Gemini key → caption scraping fallback works (not skipped)
+- [ ] **Pending auto-resolution**: Pending with `![[recording.wav]]` + OpenAI/Groq key → transcript used
+- [ ] **Pending auto-resolution**: Pending with `![[recording.wav]]` + no audio key → notice shown, audio skipped
+- [ ] **Pending auto-resolution**: Pending with `![[report.pdf]]` (vault) → text extracted via officeparser
+- [ ] **Pending auto-resolution**: Pending with external PDF URL → text extracted via `extractFromUrl`
+- [ ] **Pending auto-resolution**: Pending with `![[data.docx]]` → text extracted and integrated
+- [ ] **Pending auto-resolution**: Mixed sources → all resolved, rich integration produced
+- [ ] **Pending auto-resolution**: Failed source (bad URL) → graceful skip, rest integrated
+- [ ] **Privacy consent**: Local LLM + YouTube/audio → consent shown for Gemini/OpenAI specifically
+- [ ] **Truncation**: `merge` placement with large enriched content → truncated to fit limits
 
 ---
 

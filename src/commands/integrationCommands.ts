@@ -27,11 +27,16 @@ import { getPlacementInstructions, getFormatInstructions, getDetailInstructions 
 import { insertAtCursor, appendAsNewSections } from '../utils/editorUtils';
 import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { DocumentExtractionService } from '../services/documentExtractionService';
+import { ContentExtractionService, ExtractionResult, AudioTranscriptionConfig, PdfExtractionConfig } from '../services/contentExtractionService';
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 import type { Persona } from '../services/configurationService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
 import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
+import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
+import { getPdfProviderConfig } from '../services/pdfTranslationService';
+import { ensurePrivacyConsent } from '../services/privacyNotice';
+import { getMaxContentChars } from '../services/tokenLimits';
 
 export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
@@ -100,8 +105,53 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         // Get persona prompt
                         const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
 
+                        // Resolve embedded content (includes privacy consent)
+                        new Notice(plugin.t.messages.integrationResolvingContent);
+                        const resolutionResult = await resolveAllPendingContent(
+                            plugin,
+                            pendingContent,
+                            plugin.app.workspace.getActiveFile() || undefined,
+                            (message, current, total) => {
+                                new Notice(
+                                    plugin.t.messages.integrationResolvingProgress
+                                        .replace('{current}', String(current))
+                                        .replace('{total}', String(total))
+                                        .replace('{item}', message)
+                                );
+                            }
+                        );
+
+                        if (resolutionResult.errors.includes(plugin.t.messages.operationCancelled)) {
+                            new Notice(plugin.t.messages.operationCancelled);
+                            return;
+                        }
+
+                        if (resolutionResult.resolvedCount > 0) {
+                            new Notice(
+                                plugin.t.messages.integrationResolutionComplete
+                                    .replace('{count}', String(resolutionResult.resolvedCount))
+                            );
+                        }
+
+                        let enrichedPending = resolutionResult.enrichedContent;
+
+                        // Apply truncation budget based on provider limits
+                        const serviceType = plugin.settings.serviceType === 'cloud'
+                            ? plugin.settings.cloudServiceType
+                            : 'local';
+                        const truncationResult = truncatePendingContentForIntegration(
+                            enrichedPending,
+                            mainContent,
+                            placement,
+                            serviceType
+                        );
+                        enrichedPending = truncationResult.content;
+                        if (truncationResult.wasTruncated) {
+                            new Notice(plugin.t.messages.integrationContentTruncated);
+                        }
+
                         // Build the integration prompt with strategy params
-                        const prompt = buildIntegrationPrompt(mainContent, pendingContent, plugin, personaPrompt, placement, format, detail);
+                        const prompt = buildIntegrationPrompt(mainContent, enrichedPending, plugin, personaPrompt, placement, format, detail);
 
                         // Call the LLM service
                         const response = await callLLMForIntegration(plugin, prompt);
@@ -287,6 +337,189 @@ function movePendingSourcesToReferences(editor: Editor, pendingContent: string):
             addToReferencesSection(editor, source);
         }
     }
+}
+
+export interface ContentResolutionResult {
+    enrichedContent: string;
+    resolvedCount: number;
+    failedCount: number;
+    errors: string[];
+}
+
+export async function resolveAllPendingContent(
+    plugin: AIOrganiserPlugin,
+    pendingContent: string,
+    activeFile: TFile | undefined,
+    onProgress?: (message: string, current: number, total: number) => void
+): Promise<ContentResolutionResult> {
+    const detection = detectEmbeddedContent(plugin.app, pendingContent, activeFile);
+    const resolvableTypes = new Set(['web-link', 'youtube', 'pdf', 'document', 'audio', 'internal-link']);
+    const resolvableItems = detection.items.filter(item => resolvableTypes.has(item.type));
+
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    const providersToConsent: string[] = [];
+    if (serviceType !== 'local') {
+        providersToConsent.push(serviceType);
+    }
+
+    const hasYouTubeItems = resolvableItems.some(item => item.type === 'youtube');
+    const hasAudioItems = resolvableItems.some(item => item.type === 'audio');
+    const hasPdfItems = resolvableItems.some(item => item.type === 'pdf');
+
+    const youtubeGeminiKey = hasYouTubeItems ? await getYouTubeGeminiApiKey(plugin) : null;
+    if (hasYouTubeItems && youtubeGeminiKey) {
+        providersToConsent.push('gemini');
+    }
+
+    const audioTranscriptionConfig = hasAudioItems ? await getAudioTranscriptionApiKey(plugin) : null;
+    if (hasAudioItems && audioTranscriptionConfig) {
+        providersToConsent.push(audioTranscriptionConfig.provider);
+    }
+
+    // Check for PDF-capable provider (Claude/Gemini multimodal)
+    const pdfProviderConfig = hasPdfItems ? await getPdfProviderConfig(plugin) : null;
+    if (hasPdfItems && pdfProviderConfig) {
+        providersToConsent.push(pdfProviderConfig.provider);
+    }
+
+    const uniqueProviders = [...new Set(providersToConsent)];
+    for (const provider of uniqueProviders) {
+        const consentGiven = await ensurePrivacyConsent(plugin, provider);
+        if (!consentGiven) {
+            return {
+                enrichedContent: pendingContent,
+                resolvedCount: 0,
+                failedCount: 0,
+                errors: [plugin.t.messages.operationCancelled]
+            };
+        }
+    }
+
+    if (resolvableItems.length === 0) {
+        return {
+            enrichedContent: pendingContent,
+            resolvedCount: 0,
+            failedCount: 0,
+            errors: []
+        };
+    }
+
+    const errors: string[] = [];
+    let itemsToResolve = [...resolvableItems];
+
+    if (hasAudioItems && !audioTranscriptionConfig) {
+        new Notice(plugin.t.messages.integrationAudioKeyMissing);
+        errors.push(plugin.t.messages.integrationAudioKeyMissing);
+        itemsToResolve = itemsToResolve.filter(item => item.type !== 'audio');
+    }
+
+    const youtubeConfig = youtubeGeminiKey
+        ? {
+            apiKey: youtubeGeminiKey,
+            model: plugin.settings.youtubeGeminiModel,
+            timeoutMs: plugin.settings.summarizeTimeoutSeconds * 1000
+        }
+        : undefined;
+
+    const audioConfig: AudioTranscriptionConfig | undefined = audioTranscriptionConfig
+        ? {
+            provider: audioTranscriptionConfig.provider,
+            apiKey: audioTranscriptionConfig.key
+        }
+        : undefined;
+
+    // Configure multimodal PDF extraction if available
+    const pdfConfig: PdfExtractionConfig | undefined = pdfProviderConfig
+        ? {
+            provider: pdfProviderConfig.provider,
+            apiKey: pdfProviderConfig.apiKey,
+            model: pdfProviderConfig.model,
+            language: plugin.settings.summaryLanguage !== 'auto'
+                ? plugin.settings.summaryLanguage
+                : undefined
+        }
+        : undefined;
+
+    const contentExtractionService = new ContentExtractionService(plugin.app, youtubeConfig);
+    contentExtractionService.setYouTubeGeminiConfig(youtubeConfig);
+    contentExtractionService.setAudioTranscriptionConfig(audioConfig);
+    contentExtractionService.setPdfExtractionConfig(pdfConfig);
+
+    // textOnly=false when PDF config is available (enables multimodal extraction)
+    const extractionResult = await contentExtractionService.extractContent(
+        itemsToResolve,
+        (current, total, item) => onProgress?.(item, current, total),
+        !pdfConfig  // textOnly = true only when no multimodal PDF config
+    );
+
+    const enrichedContent = buildEnrichedContent(pendingContent, extractionResult);
+    const resolvedCount = extractionResult.items.filter(item => item.success && item.content).length;
+    const failedCount = extractionResult.items.filter(item => !item.success).length;
+
+    return {
+        enrichedContent,
+        resolvedCount,
+        failedCount,
+        errors: [...errors, ...extractionResult.errors]
+    };
+}
+
+function buildEnrichedContent(pendingContent: string, extractionResult: ExtractionResult): string {
+    const lines = pendingContent.split('\n');
+
+    const successItems = extractionResult.items
+        .filter(item => item.success && item.content)
+        .sort((a, b) => b.source.lineNumber - a.source.lineNumber);
+
+    for (const item of successItems) {
+        const lineIdx = item.source.lineNumber - 1;
+        if (lineIdx < 0 || lineIdx >= lines.length) {
+            continue;
+        }
+
+        const line = lines[lineIdx];
+        const originalText = item.source.originalText;
+        const pos = line.indexOf(originalText);
+        if (pos === -1) {
+            continue;
+        }
+
+        const replacement = `\n### Content: ${item.source.displayName}\n\n${item.content}\n`;
+        lines[lineIdx] = line.slice(0, pos) + replacement + line.slice(pos + originalText.length);
+    }
+
+    return lines.join('\n');
+}
+
+export function truncatePendingContentForIntegration(
+    pendingContent: string,
+    mainContent: string,
+    placement: PlacementStrategy,
+    serviceType: string
+): { content: string; wasTruncated: boolean; availableForPending: number } {
+    const maxTotal = getMaxContentChars(serviceType);
+    const promptOverhead = 2000;
+    const mainContentChars = (placement === 'callout' || placement === 'merge')
+        ? mainContent.length
+        : 0;
+    const availableForPending = maxTotal - mainContentChars - promptOverhead;
+
+    if (availableForPending > 0 && pendingContent.length > availableForPending) {
+        return {
+            content: pendingContent.slice(0, availableForPending),
+            wasTruncated: true,
+            availableForPending
+        };
+    }
+
+    return {
+        content: pendingContent,
+        wasTruncated: false,
+        availableForPending
+    };
 }
 
 function getDefaultSourceTitle(t: Translations, type: SourceType): string {

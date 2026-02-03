@@ -14,6 +14,7 @@ import {
     YouTubeGeminiResult
 } from './youtubeService';
 import { DocumentExtractionService } from './documentExtractionService';
+import { transcribeAudioWithFullWorkflow, TranscriptionOptions } from './audioTranscriptionService';
 
 export interface ExtractedContent {
     source: DetectedContent;
@@ -31,11 +32,29 @@ export interface ExtractionResult {
     errors: string[];
 }
 
+export interface AudioTranscriptionConfig {
+    provider: 'openai' | 'groq';
+    apiKey: string;
+    language?: string;
+}
+
+/**
+ * Configuration for multimodal PDF extraction using Claude/Gemini
+ */
+export interface PdfExtractionConfig {
+    provider: 'claude' | 'gemini';
+    apiKey: string;
+    model: string;
+    language?: string;
+}
+
 export class ContentExtractionService {
     private app: App;
     private pdfService: PdfService;
     private documentService: DocumentExtractionService;
     private youtubeGeminiConfig?: Omit<YouTubeGeminiConfig, 'url'>;
+    private audioTranscriptionConfig?: AudioTranscriptionConfig;
+    private pdfExtractionConfig?: PdfExtractionConfig;
 
     constructor(app: App, youtubeGeminiConfig?: Omit<YouTubeGeminiConfig, 'url'>) {
         this.app = app;
@@ -52,11 +71,26 @@ export class ContentExtractionService {
     }
 
     /**
+     * Set audio transcription config for Whisper processing
+     */
+    setAudioTranscriptionConfig(config: AudioTranscriptionConfig | undefined): void {
+        this.audioTranscriptionConfig = config;
+    }
+
+    /**
+     * Set PDF extraction config for multimodal (Claude/Gemini) processing
+     */
+    setPdfExtractionConfig(config: PdfExtractionConfig | undefined): void {
+        this.pdfExtractionConfig = config;
+    }
+
+    /**
      * Extract content from multiple detected items
      */
     async extractContent(
         items: DetectedContent[],
-        onProgress?: (current: number, total: number, item: string) => void
+        onProgress?: (current: number, total: number, item: string) => void,
+        textOnly: boolean = false
     ): Promise<ExtractionResult> {
         const result: ExtractionResult = {
             items: [],
@@ -72,7 +106,7 @@ export class ContentExtractionService {
             onProgress?.(i + 1, total, item.displayName);
 
             try {
-                const extracted = await this.extractSingleItem(item);
+                const extracted = await this.extractSingleItem(item, textOnly);
                 result.items.push(extracted);
 
                 if (extracted.success) {
@@ -102,7 +136,7 @@ export class ContentExtractionService {
     /**
      * Extract content from a single item
      */
-    private async extractSingleItem(item: DetectedContent): Promise<ExtractedContent> {
+    private async extractSingleItem(item: DetectedContent, textOnly: boolean): Promise<ExtractedContent> {
         switch (item.type) {
             case 'web-link':
                 return this.extractWebContent(item);
@@ -111,7 +145,12 @@ export class ContentExtractionService {
                 return this.extractYouTubeContent(item);
 
             case 'pdf':
-                return this.extractPdfContent(item);
+                // Prefer multimodal extraction if config is available (captures images/diagrams/tables)
+                if (this.pdfExtractionConfig && !textOnly) {
+                    return this.extractPdfWithMultimodal(item);
+                }
+                // Fall back to text extraction
+                return this.extractPdfAsText(item);
 
             case 'image':
                 return this.extractImageContent(item);
@@ -121,6 +160,9 @@ export class ContentExtractionService {
 
             case 'document':
                 return this.extractDocumentContent(item);
+
+            case 'audio':
+                return this.extractAudioContent(item);
 
             default:
                 return {
@@ -265,6 +307,218 @@ export class ContentExtractionService {
                 content: `[PDF: ${item.displayName}]`,
                 base64: pdfResult.content.base64Data,
                 mimeType: 'application/pdf',
+                success: true
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                source: item,
+                content: '',
+                success: false,
+                error: errorMessage
+            };
+        }
+    }
+
+    /**
+     * Extract text from PDF (text-only path for integration)
+     */
+    private async extractPdfAsText(item: DetectedContent): Promise<ExtractedContent> {
+        try {
+            if (item.isExternal) {
+                const result = await this.documentService.extractFromUrl(item.url);
+                if (!result.success || !result.text) {
+                    return {
+                        source: item,
+                        content: '',
+                        success: false,
+                        error: result.error || 'PDF text extraction failed'
+                    };
+                }
+                return {
+                    source: item,
+                    content: result.text,
+                    success: true
+                };
+            }
+
+            let file = item.resolvedFile;
+            if (!file) {
+                const abstractFile = this.app.vault.getAbstractFileByPath(item.url);
+                if (abstractFile instanceof TFile) {
+                    file = abstractFile;
+                }
+            }
+
+            if (!file) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: 'PDF not found'
+                };
+            }
+
+            const result = await this.documentService.extractText(file);
+            if (!result.success || !result.text) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: result.error || 'PDF text extraction failed'
+                };
+            }
+
+            return {
+                source: item,
+                content: result.text,
+                success: true
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            return {
+                source: item,
+                content: '',
+                success: false,
+                error: errorMessage
+            };
+        }
+    }
+
+    /**
+     * Extract content from PDF using multimodal LLM (Claude/Gemini)
+     * This captures images, diagrams, tables, and visual content that text extraction misses.
+     */
+    private async extractPdfWithMultimodal(item: DetectedContent): Promise<ExtractedContent> {
+        try {
+            if (!this.pdfExtractionConfig) {
+                // Fall back to text extraction
+                return this.extractPdfAsText(item);
+            }
+
+            // Get PDF as base64
+            let pdfResult: PdfServiceResult | null = null;
+
+            if (item.isExternal) {
+                // External PDF - download first
+                const urlParts = item.url.split('/');
+                let fileName = urlParts[urlParts.length - 1] || 'downloaded.pdf';
+                if (!fileName.endsWith('.pdf')) {
+                    fileName += '.pdf';
+                }
+                const savedFile = await this.pdfService.downloadPdfToVault(item.url, fileName);
+                if (savedFile) {
+                    pdfResult = await this.pdfService.readPdfAsBase64(savedFile);
+                }
+            } else if (item.resolvedFile) {
+                pdfResult = await this.pdfService.readPdfAsBase64(item.resolvedFile);
+            } else {
+                const file = this.app.vault.getAbstractFileByPath(item.url);
+                if (file instanceof TFile) {
+                    pdfResult = await this.pdfService.readPdfAsBase64(file);
+                }
+            }
+
+            if (!pdfResult || !pdfResult.success || !pdfResult.content) {
+                // Fall back to text extraction
+                console.log('[AI Organiser] PDF base64 extraction failed, falling back to text extraction');
+                return this.extractPdfAsText(item);
+            }
+
+            // Build extraction prompt
+            const { buildPdfExtractionPrompt } = await import('./prompts/integrationPrompts');
+            const prompt = buildPdfExtractionPrompt(item.displayName, this.pdfExtractionConfig.language);
+
+            // Call LLM with multimodal request
+            const { CloudLLMService } = await import('./cloudService');
+            const cloudService = new CloudLLMService({
+                type: this.pdfExtractionConfig.provider,
+                endpoint: this.pdfExtractionConfig.provider === 'claude'
+                    ? 'https://api.anthropic.com/v1/messages'
+                    : 'https://generativelanguage.googleapis.com/v1beta/openai',
+                apiKey: this.pdfExtractionConfig.apiKey,
+                modelName: this.pdfExtractionConfig.model
+            }, this.app);
+
+            const response = await cloudService.summarizePdf(pdfResult.content.base64Data, prompt);
+
+            if (!response.success || !response.content) {
+                console.log('[AI Organiser] Multimodal PDF extraction failed, falling back to text extraction');
+                return this.extractPdfAsText(item);
+            }
+
+            return {
+                source: item,
+                content: response.content,
+                success: true
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.log('[AI Organiser] Multimodal PDF extraction error, falling back to text extraction:', errorMessage);
+            // Fall back to text extraction on any error
+            return this.extractPdfAsText(item);
+        }
+    }
+
+    /**
+     * Extract content from audio file
+     */
+    private async extractAudioContent(item: DetectedContent): Promise<ExtractedContent> {
+        try {
+            if (item.isExternal) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: 'External audio is not supported'
+                };
+            }
+
+            if (!this.audioTranscriptionConfig) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: 'Audio transcription not configured'
+                };
+            }
+
+            let file = item.resolvedFile;
+            if (!file) {
+                const abstractFile = this.app.vault.getAbstractFileByPath(item.url);
+                if (abstractFile instanceof TFile) {
+                    file = abstractFile;
+                }
+            }
+
+            if (!file) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: 'Audio file not found'
+                };
+            }
+
+            const options: TranscriptionOptions = {
+                provider: this.audioTranscriptionConfig.provider,
+                apiKey: this.audioTranscriptionConfig.apiKey,
+                language: this.audioTranscriptionConfig.language
+            };
+
+            const result = await transcribeAudioWithFullWorkflow(this.app, file, options);
+            if (!result.success || !result.transcript) {
+                return {
+                    source: item,
+                    content: '',
+                    success: false,
+                    error: result.error || 'Failed to transcribe audio'
+                };
+            }
+
+            return {
+                source: item,
+                content: result.transcript,
                 success: true
             };
         } catch (error) {

@@ -58,3 +58,41 @@ export function getDetailInstructions(detail: DetailStrategy): string {
             return `Distil the pending content to its core insights before integrating. Discard verbose explanations and secondary details.`;
     }
 }
+
+/**
+ * Build prompt for extracting content from a PDF using multimodal vision.
+ * This is different from summarization - we want the full content extracted,
+ * not a summary. The extracted content will be integrated into notes.
+ *
+ * @param pdfName Display name of the PDF for context
+ * @param language Output language (optional)
+ * @returns Extraction prompt for the LLM
+ */
+export function buildPdfExtractionPrompt(pdfName: string, language?: string): string {
+    const langInstruction = language ? `\n\nRespond in ${language}.` : '';
+
+    return `<task>
+Extract and describe all content from this PDF document.
+</task>
+
+<document_name>${pdfName}</document_name>
+
+<requirements>
+- Extract ALL text content, preserving the logical structure and hierarchy
+- Describe any diagrams, charts, graphs, or images in detail
+- For tables, reproduce the data in markdown table format
+- For figures/diagrams, explain what they show and any data points visible
+- Include headings, section titles, and maintain the document's organization
+- Preserve important formatting like lists, numbered items, and emphasis
+- If there are citations or references, include them
+- Do NOT summarize or condense - extract the FULL content
+</requirements>
+
+<output_format>
+Provide the extracted content in clean markdown format:
+- Use appropriate heading levels (##, ###) matching the document structure
+- Render tables in markdown format
+- Use prose to describe visual elements you cannot directly transcribe
+- Separate major sections with blank lines for readability
+</output_format>${langInstruction}`;
+}
