@@ -317,8 +317,8 @@ export function buildCommandCategories(
             icon: 'plus-circle',
             commands: [
                 {
-                    id: 'summarize-web',
-                    name: t.commands.summarizeWebYouTube,
+                    id: 'smart-summarize',
+                    name: t.commands.summarizeSmart,
                     icon: 'link',
                     aliases: summarizeAliases,
                     callback: () => executeCommand('ai-organiser:smart-summarize')
@@ -345,39 +345,57 @@ export function buildCommandCategories(
             icon: 'brain',
             commands: [
                 {
-                    id: 'chat-with-ai',
-                    name: t.commands.chatWithAI,
+                    id: 'ask-search-group',
+                    name: t.modals.commandPicker.groupAskSearch,
                     icon: 'message-circle',
-                    aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages'],
-                    callback: () => executeCommand('ai-organiser:chat-with-ai')
+                    aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages', 'semantic', 'search', 'find', 'query', 'lookup'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'chat-with-ai',
+                            name: t.commands.chatWithAI,
+                            icon: 'message-circle',
+                            aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages'],
+                            callback: () => executeCommand('ai-organiser:chat-with-ai')
+                        },
+                        {
+                            id: 'semantic-search',
+                            name: t.commands.searchSemanticVault,
+                            icon: 'search',
+                            aliases: ['semantic', 'search', 'find', 'query', 'lookup'],
+                            callback: () => executeCommand('ai-organiser:semantic-search')
+                        }
+                    ]
                 },
                 {
-                    id: 'semantic-search',
-                    name: t.commands.searchSemanticVault,
-                    icon: 'search',
-                    aliases: ['semantic', 'search', 'find', 'query', 'lookup'],
-                    callback: () => executeCommand('ai-organiser:semantic-search')
-                },
-                {
-                    id: 'build-cluster-canvas',
-                    name: t.commands.groupNotesByTag,
-                    icon: 'boxes',
-                    aliases: ['cluster', 'group', 'tag', 'organize'],
-                    callback: () => executeCommand('ai-organiser:build-cluster-canvas')
-                },
-                {
-                    id: 'show-tag-network',
-                    name: t.commands.visualizeTagGraph,
-                    icon: 'network',
-                    aliases: ['graph', 'visualization', 'map', 'tags'],
-                    callback: () => executeCommand('ai-organiser:show-tag-network')
-                },
-                {
-                    id: 'create-dashboard',
-                    name: t.commands.createBasesDashboard,
-                    icon: 'layout-dashboard',
-                    aliases: ['bases', 'dashboard', 'view'],
-                    callback: () => executeCommand('ai-organiser:create-bases-dashboard')
+                    id: 'visualize-group',
+                    name: t.modals.commandPicker.groupVisualize,
+                    icon: 'eye',
+                    aliases: ['cluster', 'group', 'tag', 'graph', 'visualization', 'map', 'bases', 'dashboard', 'view', 'organize'],
+                    callback: () => {},
+                    subCommands: [
+                        {
+                            id: 'build-cluster-canvas',
+                            name: t.commands.groupNotesByTag,
+                            icon: 'boxes',
+                            aliases: ['cluster', 'group', 'tag', 'organize'],
+                            callback: () => executeCommand('ai-organiser:build-cluster-canvas')
+                        },
+                        {
+                            id: 'show-tag-network',
+                            name: t.commands.visualizeTagGraph,
+                            icon: 'network',
+                            aliases: ['graph', 'visualization', 'map', 'tags'],
+                            callback: () => executeCommand('ai-organiser:show-tag-network')
+                        },
+                        {
+                            id: 'create-dashboard',
+                            name: t.commands.createBasesDashboard,
+                            icon: 'layout-dashboard',
+                            aliases: ['bases', 'dashboard', 'view'],
+                            callback: () => executeCommand('ai-organiser:create-bases-dashboard')
+                        }
+                    ]
                 }
             ]
         },
@@ -422,13 +440,6 @@ export function buildCommandCategories(
                             callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
                         }
                     ]
-                },
-                {
-                    id: 'collect-all-tags',
-                    name: t.commands.collectAllTags,
-                    icon: 'list-tree',
-                    aliases: ['export', 'list', 'all tags'],
-                    callback: () => executeCommand('ai-organiser:collect-all-tags')
                 }
             ]
         }

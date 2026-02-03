@@ -1375,6 +1375,8 @@ export const zhCN: Translations = {
             groupRefine: "优化内容",
             groupExport: "导出",
             groupPending: "待处理集成",
+            groupAskSearch: "提问与搜索",
+            groupVisualize: "可视化",
             groupNotebookLM: "NotebookLM"
         },
         tagPicker: {

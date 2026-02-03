@@ -37,7 +37,7 @@ Commands that act on the file currently open in the editor.
 
 Bringing new information into the vault from external sources.
 
-1. **Summarize Web / YouTube** — `smart-summarize` *(Intent: creation/ingest from external source)*
+1. **Smart Summarize** — `smart-summarize` *(Intent: creation/ingest from any source — web, YouTube, PDF, documents, audio)*
 2. **Create Meeting Minutes** — `create-meeting-minutes`
 3. **Record Voice Note** — `record-audio`
 
@@ -45,11 +45,13 @@ Bringing new information into the vault from external sources.
 
 Exploring and connecting the broader knowledge base.
 
-1. **Chat with AI** — `chat-with-ai`
-2. **Semantic Search** — `semantic-search`
-3. **Group Notes by Tag** — `build-cluster-canvas`
-4. **Visualize Tag Graph** — `show-tag-network`
-5. **Create Bases Dashboard** — `create-bases-dashboard`
+1. **Ask & Search** (sub-group, icon: `message-circle`)
+   - Chat with AI — `chat-with-ai`
+   - Semantic Search — `semantic-search`
+2. **Visualize** (sub-group, icon: `eye`)
+   - Group Notes by Tag — `build-cluster-canvas`
+   - Visualize Tag Graph — `show-tag-network`
+   - Create Bases Dashboard — `create-bases-dashboard`
 
 ### D. Tools & Workflows (`tools`, icon: `settings`, color: Gray)
 
@@ -60,21 +62,22 @@ Specialized or bulk operations.
    - Toggle Selection — `notebooklm-toggle`
    - Clear Selection — `notebooklm-clear`
    - Open Export Folder — `notebooklm-open-folder`
-2. **Collect All Tags** — `collect-all-tags`
+
+*Note: "Collect All Tags" removed from picker (rare maintenance utility, still accessible via Ctrl+P).*
 
 ---
 
-## Command Inventory (27 entries, 26 unique commands)
+## Command Inventory (26 entries, 25 unique commands)
 
-`smart-summarize` appears in both Active Note ("Summarize Note") and Capture ("Summarize Web/YouTube"). This is intentional — the same command serves two user intents and should be findable where each intent arises.
+`smart-summarize` appears in both Active Note ("Summarize Note") and Capture ("Smart Summarize"). This is intentional — the same command serves two user intents and should be findable where each intent arises. "Collect All Tags" removed from picker (rare maintenance utility, still accessible via Ctrl+P).
 
 | Category | Leaf Commands | Count |
 |----------|---------------|-------|
 | Active Note | investigation, context, find-related, insert-related, smart-tag, enhance, smart-summarize, translate, clear-tags, add-pending, integrate-pending, resolve-embeds, export-note, export-flashcards | 14 |
 | Capture | smart-summarize, meeting-minutes, record-audio | 3 |
 | Vault | chat, search, cluster-canvas, tag-network, dashboard | 5 |
-| Tools | 4x notebooklm, collect-tags | 5 |
-| **Total unique** | | **26** |
+| Tools | 4x notebooklm | 4 |
+| **Total unique** | | **25** |
 
 ---
 

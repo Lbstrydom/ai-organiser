@@ -1374,6 +1374,8 @@ export interface Translations {
             groupRefine: string;
             groupExport: string;
             groupPending: string;
+            groupAskSearch: string;
+            groupVisualize: string;
             groupNotebookLM: string;
         };
         tagPicker: {

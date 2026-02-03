@@ -1375,6 +1375,8 @@ export const en: Translations = {
             groupRefine: "Refine Content",
             groupExport: "Export",
             groupPending: "Pending Integration",
+            groupAskSearch: "Ask & Search",
+            groupVisualize: "Visualize",
             groupNotebookLM: "NotebookLM"
         },
         tagPicker: {

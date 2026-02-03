@@ -66,27 +66,36 @@ describe('Command Picker', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const capture = categories.find(c => c.id === 'capture');
             const ids = capture!.commands.map(c => c.id);
-            expect(ids).toEqual(['summarize-web', 'create-meeting-minutes', 'record-audio']);
+            expect(ids).toEqual(['smart-summarize', 'create-meeting-minutes', 'record-audio']);
         });
 
-        it('vault should contain expected commands', () => {
+        it('vault should contain expected sub-groups', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const vault = categories.find(c => c.id === 'vault');
+
+            expect(vault).toBeDefined();
             const ids = vault!.commands.map(c => c.id);
-            expect(ids).toEqual([
+            expect(ids).toEqual(['ask-search-group', 'visualize-group']);
+
+            const askSearch = vault!.commands.find(c => c.id === 'ask-search-group');
+            expect(askSearch?.subCommands?.map(c => c.id)).toEqual([
                 'chat-with-ai',
-                'semantic-search',
+                'semantic-search'
+            ]);
+
+            const visualize = vault!.commands.find(c => c.id === 'visualize-group');
+            expect(visualize?.subCommands?.map(c => c.id)).toEqual([
                 'build-cluster-canvas',
                 'show-tag-network',
                 'create-dashboard'
             ]);
         });
 
-        it('tools should contain notebooklm group and collect all tags', () => {
+        it('tools should contain notebooklm group', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const tools = categories.find(c => c.id === 'tools');
             const ids = tools!.commands.map(c => c.id);
-            expect(ids).toEqual(['notebooklm-group', 'collect-all-tags']);
+            expect(ids).toEqual(['notebooklm-group']);
 
             const notebookGroup = tools!.commands.find(c => c.id === 'notebooklm-group');
             expect(notebookGroup?.subCommands?.map(c => c.id)).toEqual([
@@ -106,7 +115,7 @@ describe('Command Picker', () => {
 
             const captureSummarize = categories
                 .find(c => c.id === 'capture')!
-                .commands.find(c => c.id === 'summarize-web')!;
+                .commands.find(c => c.id === 'smart-summarize')!;
 
             summarizeNote.callback();
             captureSummarize.callback();
@@ -118,10 +127,10 @@ describe('Command Picker', () => {
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            expect(leafCount).toBe(27);
+            expect(leafCount).toBe(26);
         });
 
-        it('should include the expected 26 unique command IDs across all leaf callbacks', () => {
+        it('should include the expected 25 unique command IDs across all leaf callbacks', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCommands = categories.flatMap(category => collectLeafCommands(category.commands));
 
@@ -136,7 +145,6 @@ describe('Command Picker', () => {
                 'ai-organiser:build-investigation-canvas',
                 'ai-organiser:chat-with-ai',
                 'ai-organiser:clear-tags',
-                'ai-organiser:collect-all-tags',
                 'ai-organiser:create-bases-dashboard',
                 'ai-organiser:create-meeting-minutes',
                 'ai-organiser:enhance-note',
@@ -157,7 +165,7 @@ describe('Command Picker', () => {
                 'ai-organiser:smart-tag',
                 'ai-organiser:smart-translate',
             ]);
-            expect(uniqueExecutedCommands.size).toBe(26);
+            expect(uniqueExecutedCommands.size).toBe(25);
         });
     });
 });

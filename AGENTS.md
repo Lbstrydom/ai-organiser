@@ -443,9 +443,9 @@ AI Provider → Tagging → Summarization (with YouTube/Audio subsections) → M
 **Command Picker Categories** (`CommandPickerModal.ts`):
 ```
 Active Note  ← Commands on the open file (maps, refine, pending, export)
-Capture      ← Bring external content in (summarize web, meeting minutes, record audio)
-Vault        ← Explore the knowledge base (chat, search, cluster, tag graph, dashboard)
-Tools        ← Specialized/bulk operations (NotebookLM, collect tags)
+Capture      ← Bring external content in (smart summarize, meeting minutes, record audio)
+Vault        ← Explore the knowledge base (ask & search, visualize)
+Tools        ← Specialized/bulk operations (NotebookLM)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last

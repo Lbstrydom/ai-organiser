@@ -25,14 +25,17 @@
 |----------|-----------|---------------|
 | Active Note (4 groups) | Connections & Maps (4), Refine Content (5), Pending Integration (3), Export (2) | 14 |
 | Capture (3 flat) | — | 3 |
-| Vault Intelligence (5 flat) | — | 5 |
-| Tools & Workflows (1 group + 1 flat) | NotebookLM (4) | 5 |
-| **Total** | | **27 entries, 26 unique** |
+| Vault Intelligence (2 groups) | Ask & Search (2), Visualize (3) | 5 |
+| Tools & Workflows (1 group) | NotebookLM (4) | 4 |
+| **Total** | | **26 entries, 25 unique** |
 
 **Key design decisions:**
 - Context-based grouping (Gestalt proximity — commands grouped by user's current focus)
-- `smart-summarize` in both Active Note ("Summarize Note") and Capture ("Summarize Web/YouTube") — same command, two user intents
+- `smart-summarize` in both Active Note ("Summarize Note") and Capture ("Smart Summarize") — same command, two user intents
 - "Refine Content" sub-group solves Active Note density (5 polishing actions under one sub-menu)
+- Vault sub-grouped into "Ask & Search" (chat, semantic search) and "Visualize" (cluster, tag graph, dashboard) — reduces root items from 14 to 10
+- "Collect All Tags" removed from picker (rare maintenance utility, still in Ctrl+P)
+- "Summarize Web / YouTube" renamed to "Smart Summarize" (covers all 7 source types)
 - Strict i18n: no `?.` or `|| 'fallback'` patterns, all keys in `Translations` interface
 - Shared alias token arrays for fuzzy search consistency
 - Full CSS audit: only 4 `[data-category]` selectors remain

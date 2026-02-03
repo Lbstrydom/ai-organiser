@@ -97,8 +97,12 @@
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
 - [x] No "undefined" or raw i18n keys visible in command names/categories
 - [x] "Generate from embedded" does NOT appear in picker (removed)
-- [x] Vault Intelligence category has "Chat with AI" as a top-level command
-- [x] "Chat with AI" has correct icon (message-circle)
+- [ ] Vault Intelligence has sub-groups: Ask & Search, Visualize
+- [ ] Ask & Search contains: Chat with AI, Semantic Search
+- [ ] Visualize contains: Group Notes by Tag, Visualize Tag Graph, Create Bases Dashboard
+- [ ] Capture has "Smart Summarize" (not "Summarize Web / YouTube")
+- [ ] Tools has only NotebookLM group (no "Export all tags")
+- [ ] Root view shows ~10 items (4 Active Note groups + 3 Capture + 2 Vault groups + 1 Tools group)
 
 ---
 
@@ -383,7 +387,7 @@ Pick at least ONE source type:
 - [ ] Note with no embedded content → shows "No sources detected" notice
 
 ### Cluster Board (requires notes with tags)
-- [ ] Command Picker -> Vault Intelligence -> "Group Notes by Tag"
+- [ ] Command Picker -> Vault Intelligence -> Visualize -> "Group Notes by Tag"
 - [ ] TagPickerModal opens → shows all vault tags
 - [ ] Select a tag → canvas generated with grouped nodes
 - [ ] Groups shown as labeled rectangles containing file nodes
@@ -404,7 +408,7 @@ Pick at least ONE source type:
 ## 10b. Unified Chat Modal (6 min)
 
 ### Opening & Auto-Mode Selection
-- [ ] Command Picker -> Vault Intelligence -> "Chat with AI" -> unified modal opens
+- [ ] Command Picker -> Vault Intelligence -> Ask & Search -> "Chat with AI" -> unified modal opens
 - [ ] Modal has 3 tabs at top: **Note**, **Vault**, **Highlight**
 - [ ] With no note open → defaults to Vault mode (if index available) or shows empty state
 - [ ] With note open, no selection, no highlights → defaults to Vault or Note mode
@@ -574,7 +578,7 @@ For rapid verification, test only sections marked with *:
 
 1. [ ] Pre-Test (build, deploy, restart)
 2. [ ] Settings UI (order correct, no visual issues, canvas section visible, chat export folder visible)
-3. [ ] Command Picker (opens, categories visible, Vault Intelligence has "Chat with AI")
+3. [ ] Command Picker (opens, categories visible, Vault has Ask & Search and Visualize sub-groups)
 4. [ ] Tagging (generate + clear on one note)
 5. [ ] Summarization (one source type + preview modal + spinner visible)
 6. [ ] LLM Busy Indicator (spinner appears during any LLM call, pulses, stops before modal)
