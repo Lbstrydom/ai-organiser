@@ -587,6 +587,11 @@ export class UnifiedChatModal extends Modal {
     private async promptExportFolder(): Promise<string | null> {
         const t = this.plugin.t.modals.unifiedChat;
         const { FolderScopePickerModal } = await import('./FolderScopePickerModal');
+        
+        // Default to current note's folder, fallback to settings folder
+        const activeFile = this.app.workspace.getActiveFile();
+        const defaultFolder = activeFile?.parent?.path || getChatExportFullPath(this.plugin.settings);
+        
         return new Promise((resolve) => {
             let resolved = false;
             const modal = new FolderScopePickerModal(
@@ -597,7 +602,7 @@ export class UnifiedChatModal extends Modal {
                     allowSkip: false,
                     allowNewFolder: true,
                     confirmButtonText: t.export,
-                    defaultFolder: getChatExportFullPath(this.plugin.settings),
+                    defaultFolder,
                     resolvePreview: (path) => resolvePluginPath(this.plugin.settings, path, 'Chats'),
                     onSelect: (folder) => {
                         resolved = true;

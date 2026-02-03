@@ -774,7 +774,7 @@ Settings UI: `CanvasSettingsSection.ts` (4 toggles, after Semantic Search sectio
 - `build-context-canvas`: Works without semantic search
 - `build-cluster-canvas`: Opens TagPickerModal, then builds canvas
 
-Investigation and Context boards are in Command Picker → Active Note → Connections & Maps. Cluster Board is in Command Picker → Vault Intelligence.
+Investigation and Context boards are in Command Picker → Active Note → Note Maps. Cluster Board is in Command Picker → Vault Intelligence → Vault Visualizations.
 
 ### Shared Utilities (DRY)
 

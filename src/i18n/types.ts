@@ -516,6 +516,8 @@ export interface Translations {
         edgeCloselyRelated: string;
         edgeRelated: string;
         edgeLooselyRelated: string;
+        chooseFolder: string;
+        chooseFolderDesc: string;
     };
 
     // Tag Network
@@ -1122,6 +1124,29 @@ export interface Translations {
             enterQueryHint: string;
             resultsFound: string;
             aiExpanded: string;
+            selectAll: string;
+            deselectAll: string;
+            exportSelected: string;
+            selected: string;
+            noneSelected: string;
+        };
+        exportSearchResults: {
+            title: string;
+            description: string;
+            targetLabel: string;
+            newNote: string;
+            existingNote: string;
+            folderLabel: string;
+            chooseFolder: string;
+            noteLabel: string;
+            chooseNote: string;
+            formatLabel: string;
+            linksOnly: string;
+            linksWithExcerpts: string;
+            exportButton: string;
+            exporting: string;
+            success: string;
+            noNotesSelected: string;
         };
         localSetupWizard: {
             title: string;
@@ -1377,12 +1402,12 @@ export interface Translations {
             categoryCapture: string;
             categoryVault: string;
             categoryTools: string;
-            groupMaps: string;
+            groupNoteMaps: string;
             groupRefine: string;
             groupExport: string;
             groupPending: string;
             groupAskSearch: string;
-            groupVisualize: string;
+            groupVaultVisualizations: string;
             groupNotebookLM: string;
         };
         tagPicker: {

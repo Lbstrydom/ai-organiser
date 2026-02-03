@@ -383,45 +383,51 @@ Pick at least ONE source type:
 ## 10. Canvas Toolkit (5 min) - Desktop Only
 
 ### Investigation Board (requires Semantic Search enabled + indexed vault)
-- [ ] Open a note with content -> Command Picker -> Active Note -> Connections & Maps -> "Map Related Concepts"
-- [ ] Canvas file created in `AI-Organiser/Canvas/` folder
-- [ ] Canvas opens automatically (if `openAfterCreate` enabled)
-- [ ] Center node is current note (cyan color)
-- [ ] Related notes appear as satellite nodes (green, purple if score ≥0.8)
-- [ ] Related note count matches Related Notes Count setting
-- [ ] Edges have LLM-generated labels (if edge labels enabled in settings)
-- [ ] With edge labels disabled: no labels on edges
-- [ ] Empty note → shows notice, no canvas created
-- [ ] No semantic search → shows "Requires Semantic Search" notice
-- [ ] Mobile → shows "Desktop only" notice
+- [x] Open a note with content -> Command Picker -> Active Note -> Note Maps -> "Map Related Concepts"
+- [x] Folder picker opens → defaults to current note's folder
+- [x] Can change folder or create new one
+- [x] Confirm → canvas file created in chosen folder
+- [x] Canvas opens automatically (if `openAfterCreate` enabled)
+- [x] Center node is current note (cyan color)
+- [x] Related notes appear as satellite nodes (green, purple if score ≥0.8)
+- [x] Related note count matches Related Notes Count setting
+- [x] Edges have LLM-generated labels (if edge labels enabled in settings)
+- [x] With edge labels disabled: no labels on edges
+- [x] Empty note → shows notice, no canvas created
+- [x] No semantic search → shows "Requires Semantic Search" notice
+- [x] Mobile → shows "Desktop only" notice
 
 ### Context Board (no semantic search required)
-- [ ] Open note with embedded content (YouTube links, PDFs, audio, wikilinks)
-- [ ] Command Picker -> Active Note -> Connections & Maps -> "Map Attachments"
-- [ ] Center node is current note
-- [ ] YouTube links → purple link nodes
-- [ ] PDF embeds → green file nodes
-- [ ] Web links → yellow link nodes
-- [ ] Missing file references → red text nodes (not crash)
-- [ ] Audio embeds → orange nodes
-- [ ] Note with no embedded content → shows "No sources detected" notice
+- [x] Open note with embedded content (YouTube links, PDFs, audio, wikilinks)
+- [x] Command Picker -> Active Note -> Note Maps -> "Map Attachments"
+- [x] Folder picker opens → defaults to current note's folder
+- [x] Confirm → canvas file created in chosen folder
+- [x] Center node is current note
+- [x] YouTube links → purple link nodes
+- [x] PDF embeds → green file nodes
+- [x] Web links → yellow link nodes
+- [x] Missing file references → red text nodes (not crash)
+- [x] Audio embeds → orange nodes
+- [x] Note with no embedded content → shows "No sources detected" notice
 
 ### Cluster Board (requires notes with tags)
-- [ ] Command Picker -> Vault Intelligence -> Visualize -> "Group Notes by Tag"
-- [ ] TagPickerModal opens → shows all vault tags
-- [ ] Select a tag → canvas generated with grouped nodes
-- [ ] Groups shown as labeled rectangles containing file nodes
-- [ ] With LLM clustering enabled: AI-generated group labels
-- [ ] With LLM clustering disabled: folder-based or subtag-based grouping
-- [ ] Tag with no notes → shows "No notes with this tag" notice
-- [ ] No tags in vault → shows notice, modal doesn't open
+- [x] Command Picker -> Vault Intelligence -> Vault Visualizations -> "Group Notes by Tag"
+- [x] TagPickerModal opens → shows all vault tags
+- [x] Select a tag → folder picker opens
+- [x] Folder picker defaults to current note's folder (or settings default)
+- [x] Confirm → canvas generated with grouped nodes
+- [x] Groups shown as labeled rectangles containing file nodes
+- [x] With LLM clustering enabled: AI-generated group labels
+- [x] With LLM clustering disabled: folder-based or subtag-based grouping
+- [x] Tag with no notes → shows "No notes with this tag" notice
+- [x] No tags in vault → shows notice, modal doesn't open
 
 ### Canvas Settings
-- [ ] Settings → Canvas section visible (after Semantic Search)
-- [ ] Output folder setting works (default: Canvas)
-- [ ] Open after create toggle works
-- [ ] Edge labels toggle works
-- [ ] LLM clustering toggle works
+- [x] Settings → Canvas section visible (after Semantic Search)
+- [x] Output folder setting works (default: Canvas)
+- [x] Open after create toggle works
+- [x] Edge labels toggle works
+- [x] LLM clustering toggle works
 
 ---
 

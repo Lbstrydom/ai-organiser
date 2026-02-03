@@ -527,7 +527,9 @@ export const en: Translations = {
         emptyNote: "This note is empty",
         edgeCloselyRelated: "Closely related",
         edgeRelated: "Related",
-        edgeLooselyRelated: "Loosely related"
+        edgeLooselyRelated: "Loosely related",
+        chooseFolder: "Save Canvas",
+        chooseFolderDesc: "Choose where to save the canvas"
     },
 
     // Tag Network
@@ -1122,7 +1124,30 @@ export const en: Translations = {
             expandTooltip: "Uses your LLM to add related terms, synonyms, and concepts to improve search results",
             enterQueryHint: "Enter a query and press Enter or click Search",
             resultsFound: "results found",
-            aiExpanded: "AI-expanded"
+            aiExpanded: "AI-expanded",
+            selectAll: "Select All",
+            deselectAll: "Deselect All",
+            exportSelected: "Export Selected",
+            selected: "selected",
+            noneSelected: "Select results to export"
+        },
+        exportSearchResults: {
+            title: "Export Search Results",
+            description: "Choose how to export selected notes",
+            targetLabel: "Export to",
+            newNote: "New note",
+            existingNote: "Existing note",
+            folderLabel: "Folder",
+            chooseFolder: "Choose folder",
+            noteLabel: "Note",
+            chooseNote: "Choose note",
+            formatLabel: "Format",
+            linksOnly: "Links only",
+            linksWithExcerpts: "Links with excerpts",
+            exportButton: "Export",
+            exporting: "Exporting...",
+            success: "Exported {count} notes",
+            noNotesSelected: "No notes selected. Select notes from search results first."
         },
         localSetupWizard: {
             title: "Local Embedding Setup",
@@ -1378,12 +1403,12 @@ export const en: Translations = {
             categoryCapture: "Capture",
             categoryVault: "Vault Intelligence",
             categoryTools: "Tools & Workflows",
-            groupMaps: "Connections & Maps",
+            groupNoteMaps: "Note Maps",
             groupRefine: "Refine Content",
             groupExport: "Export",
             groupPending: "Pending Integration",
             groupAskSearch: "Ask & Search",
-            groupVisualize: "Visualize",
+            groupVaultVisualizations: "Vault Visualizations",
             groupNotebookLM: "NotebookLM"
         },
         tagPicker: {

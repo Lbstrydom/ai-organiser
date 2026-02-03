@@ -130,6 +130,20 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 - **Factory pattern**: `createEmbeddingServiceFromSettings()` handles API key inheritance
 - **Note**: Claude/Anthropic does NOT have an embeddings API - use Voyage AI instead
 
+**Semantic Search Modal** (`src/commands/semanticSearchCommands.ts`):
+- `SemanticSearchResultsModal`: Main search interface with multi-select and export
+- **Selection Features**:
+  - Checkboxes on each result for multi-select
+  - "Select All" / "Deselect All" toggle in header
+  - Selection count badge (live updates)
+  - "Export Selected" button (disabled when none selected)
+- **Export Functionality**:
+  - `ExportSearchResultsModal`: Export selected results to notes
+  - Target options: New note (with folder picker) or existing note
+  - Format options: Links only or links with excerpts (1-line blockquotes)
+  - Auto-opens new note after export
+  - Appends to existing note with timestamp header
+
 **Related Notes View** (`src/ui/views/RelatedNotesView.ts`):
 - Persistent sidebar ItemView showing semantically similar notes
 - Auto-updates with 500ms debounce on note switch
@@ -724,7 +738,7 @@ Settings UI: `src/ui/settings/CanvasSettingsSection.ts` (4 toggles, placed after
 - `build-context-canvas`: Context Board (works without semantic search)
 - `build-cluster-canvas`: Cluster Board with TagPickerModal
 
-Investigation and Context boards are in Command Picker → Active Note → Connections & Maps. Cluster Board is in Command Picker → Vault Intelligence.
+Investigation and Context boards are in Command Picker → Active Note → Note Maps. Cluster Board is in Command Picker → Vault Intelligence → Vault Visualizations.
 
 ### Shared Utilities (DRY)
 

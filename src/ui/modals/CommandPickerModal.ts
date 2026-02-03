@@ -177,7 +177,7 @@ export function buildCommandCategories(
             commands: [
                 {
                     id: 'maps-group',
-                    name: t.modals.commandPicker.groupMaps,
+                    name: t.modals.commandPicker.groupNoteMaps,
                     icon: 'network',
                     aliases: ['maps', 'connections', 'investigation', 'context', 'related', 'canvas'],
                     callback: () => {},
@@ -362,7 +362,7 @@ export function buildCommandCategories(
                 },
                 {
                     id: 'visualize-group',
-                    name: t.modals.commandPicker.groupVisualize,
+                    name: t.modals.commandPicker.groupVaultVisualizations,
                     icon: 'eye',
                     aliases: ['cluster', 'group', 'tag', 'graph', 'visualization', 'map', 'bases', 'dashboard', 'view', 'organize'],
                     callback: () => {},

@@ -9,9 +9,19 @@ import { getCanvasOutputFullPath } from '../core/settings';
 import { withBusyIndicator } from '../utils/busyIndicator';
 import { extractTagsFromCache } from '../utils/tagUtils';
 import { TagPickerModal } from '../ui/modals/TagPickerModal';
+import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 
 function resolveCanvasLanguage(plugin: AIOrganiserPlugin): string {
     return plugin.settings.summaryLanguage || 'English';
+}
+
+/** Get the folder path of the current note, or fallback to settings default */
+function getCurrentNoteFolder(plugin: AIOrganiserPlugin): string {
+    const file = plugin.app.workspace.getActiveFile();
+    if (file?.parent) {
+        return file.parent.path;
+    }
+    return getCanvasOutputFullPath(plugin.settings);
 }
 
 export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
@@ -48,38 +58,53 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 plugin.embeddingService
             );
 
-            try {
-                const result = await withBusyIndicator(plugin, () =>
-                    buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
-                        file,
-                        content,
-                        maxRelated: plugin.settings.relatedNotesCount || 15,
-                        enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
-                        canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                        openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                        language: resolveCanvasLanguage(plugin),
-                        edgeLabelStrings: {
-                            closelyRelated: plugin.t.canvas.edgeCloselyRelated,
-                            related: plugin.t.canvas.edgeRelated,
-                            looselyRelated: plugin.t.canvas.edgeLooselyRelated
+            // Show folder picker with current note's folder as default
+            const defaultFolder = getCurrentNoteFolder(plugin);
+            const folderPicker = new FolderScopePickerModal(plugin.app, plugin, {
+                title: plugin.t.canvas.chooseFolder,
+                description: plugin.t.canvas.chooseFolderDesc,
+                defaultFolder,
+                allowSkip: false,
+                allowNewFolder: true,
+                confirmButtonText: plugin.t.canvas.chooseFolder,
+                onSelect: async (selectedFolder) => {
+                    const canvasFolder = selectedFolder || defaultFolder;
+                    
+                    try {
+                        const result = await withBusyIndicator(plugin, () =>
+                            buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
+                                file,
+                                content,
+                                maxRelated: plugin.settings.relatedNotesCount || 15,
+                                enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
+                                canvasFolder,
+                                openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                                language: resolveCanvasLanguage(plugin),
+                                edgeLabelStrings: {
+                                    closelyRelated: plugin.t.canvas.edgeCloselyRelated,
+                                    related: plugin.t.canvas.edgeRelated,
+                                    looselyRelated: plugin.t.canvas.edgeLooselyRelated
+                                }
+                            })
+                        );
+
+                        if (result.success) {
+                            new Notice(plugin.t.canvas.created);
+                            return;
                         }
-                    })
-                );
 
-                if (result.success) {
-                    new Notice(plugin.t.canvas.created);
-                    return;
+                        if (result.errorCode === 'no-related-notes') {
+                            new Notice(plugin.t.canvas.noRelatedNotes);
+                            return;
+                        }
+
+                        new Notice(result.error || plugin.t.canvas.creationFailed);
+                    } catch {
+                        new Notice(plugin.t.canvas.creationFailed);
+                    }
                 }
-
-                if (result.errorCode === 'no-related-notes') {
-                    new Notice(plugin.t.canvas.noRelatedNotes);
-                    return;
-                }
-
-                new Notice(result.error || plugin.t.canvas.creationFailed);
-            } catch {
-                new Notice(plugin.t.canvas.creationFailed);
-            }
+            });
+            folderPicker.open();
         }
     });
 
@@ -105,30 +130,45 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 return;
             }
 
-            try {
-                const result = await withBusyIndicator(plugin, () =>
-                    buildContextBoard(plugin.app, {
-                        file,
-                        content,
-                        canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                        openAfterCreate: plugin.settings.canvasOpenAfterCreate
-                    })
-                );
+            // Show folder picker with current note's folder as default
+            const defaultFolder = getCurrentNoteFolder(plugin);
+            const folderPicker = new FolderScopePickerModal(plugin.app, plugin, {
+                title: plugin.t.canvas.chooseFolder,
+                description: plugin.t.canvas.chooseFolderDesc,
+                defaultFolder,
+                allowSkip: false,
+                allowNewFolder: true,
+                confirmButtonText: plugin.t.canvas.chooseFolder,
+                onSelect: async (selectedFolder) => {
+                    const canvasFolder = selectedFolder || defaultFolder;
+                    
+                    try {
+                        const result = await withBusyIndicator(plugin, () =>
+                            buildContextBoard(plugin.app, {
+                                file,
+                                content,
+                                canvasFolder,
+                                openAfterCreate: plugin.settings.canvasOpenAfterCreate
+                            })
+                        );
 
-                if (result.success) {
-                    new Notice(plugin.t.canvas.created);
-                    return;
+                        if (result.success) {
+                            new Notice(plugin.t.canvas.created);
+                            return;
+                        }
+
+                        if (result.errorCode === 'no-sources-detected') {
+                            new Notice(plugin.t.canvas.noSourcesDetected);
+                            return;
+                        }
+
+                        new Notice(result.error || plugin.t.canvas.creationFailed);
+                    } catch {
+                        new Notice(plugin.t.canvas.creationFailed);
+                    }
                 }
-
-                if (result.errorCode === 'no-sources-detected') {
-                    new Notice(plugin.t.canvas.noSourcesDetected);
-                    return;
-                }
-
-                new Notice(result.error || plugin.t.canvas.creationFailed);
-            } catch {
-                new Notice(plugin.t.canvas.creationFailed);
-            }
+            });
+            folderPicker.open();
         }
     });
 
@@ -145,32 +185,47 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
             const modal = new TagPickerModal(plugin.app, plugin.t, async (tag) => {
                 const files = getFilesWithTag(plugin, tag);
 
-                try {
-                    const result = await withBusyIndicator(plugin, () =>
-                        buildClusterBoard(plugin.app, pluginContext(plugin), {
-                            tag,
-                            files,
-                            canvasFolder: getCanvasOutputFullPath(plugin.settings),
-                            openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                            useLLMClustering: plugin.settings.canvasUseLLMClustering,
-                            language: resolveCanvasLanguage(plugin)
-                        })
-                    );
+                // Show folder picker - default to current note folder or settings default
+                const defaultFolder = getCurrentNoteFolder(plugin);
+                const folderPicker = new FolderScopePickerModal(plugin.app, plugin, {
+                    title: plugin.t.canvas.chooseFolder,
+                    description: plugin.t.canvas.chooseFolderDesc,
+                    defaultFolder,
+                    allowSkip: false,
+                    allowNewFolder: true,
+                    confirmButtonText: plugin.t.canvas.chooseFolder,
+                    onSelect: async (selectedFolder) => {
+                        const canvasFolder = selectedFolder || defaultFolder;
+                        
+                        try {
+                            const result = await withBusyIndicator(plugin, () =>
+                                buildClusterBoard(plugin.app, pluginContext(plugin), {
+                                    tag,
+                                    files,
+                                    canvasFolder,
+                                    openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                                    useLLMClustering: plugin.settings.canvasUseLLMClustering,
+                                    language: resolveCanvasLanguage(plugin)
+                                })
+                            );
 
-                    if (result.success) {
-                        new Notice(plugin.t.canvas.created);
-                        return;
+                            if (result.success) {
+                                new Notice(plugin.t.canvas.created);
+                                return;
+                            }
+
+                            if (result.errorCode === 'no-notes-with-tag') {
+                                new Notice(plugin.t.canvas.noNotesWithTag);
+                                return;
+                            }
+
+                            new Notice(result.error || plugin.t.canvas.creationFailed);
+                        } catch {
+                            new Notice(plugin.t.canvas.creationFailed);
+                        }
                     }
-
-                    if (result.errorCode === 'no-notes-with-tag') {
-                        new Notice(plugin.t.canvas.noNotesWithTag);
-                        return;
-                    }
-
-                    new Notice(result.error || plugin.t.canvas.creationFailed);
-                } catch {
-                    new Notice(plugin.t.canvas.creationFailed);
-                }
+                });
+                folderPicker.open();
             });
 
             modal.open();

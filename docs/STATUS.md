@@ -8,6 +8,44 @@
 
 ## Recent Updates
 
+### Command Picker Naming & Canvas Folder Picker (2026-02-03) — COMPLETE
+
+**Improved naming clarity and added folder picker for canvas creation.**
+
+| Aspect | Status |
+|--------|--------|
+| Rename "Connections & Maps" → "Note Maps" | Complete — clarifies note-scoped context |
+| Rename "Visualize" → "Vault Visualizations" | Complete — clarifies vault-scoped context |
+| Canvas folder picker | Complete — defaults to current note's folder, allows change |
+| Build | 1118 tests passing |
+
+**Files Modified:**
+- `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — New group names and folder picker i18n
+- `src/ui/modals/CommandPickerModal.ts` — Updated i18n key references
+- `src/commands/canvasCommands.ts` — All 3 canvas commands now show FolderScopePickerModal
+
+---
+
+### Tag Network & AI Suggestions Modal Fixes (2026-02-03) — COMPLETE
+
+**Fixed tag network view initialization error and improved AI suggestions modal with Gestalt-compliant card layout.**
+
+| Aspect | Status |
+|--------|--------|
+| Tag network view initialization | Complete — pass networkData to newly created views, use needsNewLeaf flag |
+| AI suggestions modal layout | Complete — Gestalt card design with proper visual hierarchy |
+| Build | 1118 tests passing |
+
+**Root cause (tag network):** When opening tag network for the first time, `updateNetworkData()` was called before the view was fully initialized. Fixed by using a `needsNewLeaf` boolean flag pattern and passing `networkData` after `setViewState()` completes.
+
+**Root cause (suggestions modal):** Obsidian's Setting component places toggle and text controls in a vertical layout by default. CSS specificity was too low to override. Added high-specificity selectors with `.ai-organiser-modal-content` prefix and `!important` flags.
+
+**Files Modified:**
+- `src/main.ts` — `showTagNetwork()` refactored with proper view initialization, `revealLeaf()` for focus
+- `styles.css` — `.ai-organiser-suggestion-item` card layout with background, border, fixed 140px label width
+
+---
+
 ### Multimodal PDF Extraction for Pending Integration (2026-02-03) — COMPLETE
 
 **Pending Integration now uses Claude/Gemini multimodal to extract full PDF content including images, diagrams, and tables — matching Smart Summarize quality.**
@@ -116,7 +154,7 @@
 **New Command Picker Structure:**
 | Category | Sub-groups | Leaf Commands |
 |----------|-----------|---------------|
-| Active Note (4 groups) | Connections & Maps (4), Refine Content (4), Pending Integration (3), Export (2) | 13 |
+| Active Note (4 groups) | Note Maps (4), Refine Content (4), Pending Integration (3), Export (2) | 13 |
 | Capture (3 flat) | — | 3 |
 | Vault Intelligence (2 groups) | Ask & Search (2), Visualize (3) | 5 |
 | Tools & Workflows (1 group) | NotebookLM (4) | 4 |

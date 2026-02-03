@@ -527,7 +527,9 @@ export const zhCN: Translations = {
         emptyNote: "笔记为空",
         edgeCloselyRelated: "密切相关",
         edgeRelated: "相关",
-        edgeLooselyRelated: "不太相关"
+        edgeLooselyRelated: "不太相关",
+        chooseFolder: "保存画板",
+        chooseFolderDesc: "选择画板保存位置"
     },
 
     // Tag Network
@@ -1122,7 +1124,30 @@ export const zhCN: Translations = {
             expandTooltip: "使用您的LLM添加相关术语、同义词和概念以改善搜索结果",
             enterQueryHint: "输入查询后按Enter或点击搜索",
             resultsFound: "条结果",
-            aiExpanded: "AI扩展"
+            aiExpanded: "AI扩展",
+            selectAll: "全选",
+            deselectAll: "取消全选",
+            exportSelected: "导出选中",
+            selected: "已选",
+            noneSelected: "选择结果以导出"
+        },
+        exportSearchResults: {
+            title: "导出搜索结果",
+            description: "选择如何导出所选笔记",
+            targetLabel: "导出至",
+            newNote: "新笔记",
+            existingNote: "现有笔记",
+            folderLabel: "文件夹",
+            chooseFolder: "选择文件夹",
+            noteLabel: "笔记",
+            chooseNote: "选择笔记",
+            formatLabel: "格式",
+            linksOnly: "仅链接",
+            linksWithExcerpts: "链接与摘录",
+            exportButton: "导出",
+            exporting: "导出中...",
+            success: "已导出 {count} 个笔记",
+            noNotesSelected: "未选中笔记。请先从搜索结果中选择笔记。"
         },
         localSetupWizard: {
             title: "本地嵌入设置",
@@ -1378,12 +1403,12 @@ export const zhCN: Translations = {
             categoryCapture: "采集",
             categoryVault: "知识库",
             categoryTools: "工具与流程",
-            groupMaps: "关联与图谱",
+            groupNoteMaps: "笔记地图",
             groupRefine: "优化内容",
             groupExport: "导出",
             groupPending: "待处理集成",
             groupAskSearch: "提问与搜索",
-            groupVisualize: "可视化",
+            groupVaultVisualizations: "库可视化",
             groupNotebookLM: "NotebookLM"
         },
         tagPicker: {

@@ -3,9 +3,10 @@
  * Enables searching vault by semantic similarity
  */
 
-import { Notice, Modal, App, Platform, ButtonComponent, TFile } from 'obsidian';
+import { Notice, Modal, App, Platform, ButtonComponent, TFile, Setting, DropdownComponent } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
+import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 import { SearchResult } from '../services/vector/types';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 
@@ -48,6 +49,8 @@ class SemanticSearchResultsModal extends Modal {
     private searchButton!: ButtonComponent;
     private expandToggle!: HTMLInputElement;
     private isSearching: boolean = false;
+    private selectedResults: Set<string> = new Set(); // Track selected file paths
+    private selectionHeader!: HTMLElement; // Header with Select All/Export buttons
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
@@ -253,21 +256,28 @@ class SemanticSearchResultsModal extends Modal {
             return;
         }
 
-        const headerEl = container.createEl('div', { cls: 'semantic-search-results-header' });
-        headerEl.style.display = 'flex';
-        headerEl.style.justifyContent = 'space-between';
-        headerEl.style.alignItems = 'center';
-        headerEl.style.marginBottom = '10px';
-        headerEl.style.paddingBottom = '8px';
-        headerEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+        // Header with controls
+        this.selectionHeader = container.createEl('div', { cls: 'semantic-search-results-header' });
+        this.selectionHeader.style.display = 'flex';
+        this.selectionHeader.style.justifyContent = 'space-between';
+        this.selectionHeader.style.alignItems = 'center';
+        this.selectionHeader.style.marginBottom = '10px';
+        this.selectionHeader.style.paddingBottom = '8px';
+        this.selectionHeader.style.borderBottom = '1px solid var(--background-modifier-border)';
 
-        headerEl.createEl('span', {
+        // Left side: result count + AI badge + selection count
+        const leftSide = this.selectionHeader.createDiv();
+        leftSide.style.display = 'flex';
+        leftSide.style.alignItems = 'center';
+        leftSide.style.gap = '8px';
+
+        leftSide.createEl('span', {
             text: `${this.results.length} ${t.resultsFound || 'results found'}`,
             cls: 'semantic-search-count'
         }).style.color = 'var(--text-muted)';
 
         if (this.expandToggle.checked) {
-            const aiLabel = headerEl.createEl('span', {
+            const aiLabel = leftSide.createEl('span', {
                 text: t.aiExpanded || 'AI-expanded',
                 cls: 'semantic-search-ai-badge'
             });
@@ -277,6 +287,55 @@ class SemanticSearchResultsModal extends Modal {
             aiLabel.style.backgroundColor = 'var(--interactive-accent)';
             aiLabel.style.color = 'var(--text-on-accent)';
         }
+
+        // Selection count badge
+        const selectionBadge = leftSide.createEl('span', {
+            text: this.selectedResults.size > 0 
+                ? `${this.selectedResults.size} ${t.selected}` 
+                : t.noneSelected,
+            cls: 'semantic-search-selection-badge'
+        });
+        selectionBadge.style.fontSize = '11px';
+        selectionBadge.style.padding = '2px 8px';
+        selectionBadge.style.borderRadius = '10px';
+        selectionBadge.style.backgroundColor = this.selectedResults.size > 0 
+            ? 'var(--interactive-accent)' 
+            : 'var(--background-modifier-border)';
+        selectionBadge.style.color = this.selectedResults.size > 0 
+            ? 'var(--text-on-accent)' 
+            : 'var(--text-muted)';
+
+        // Right side: Select All/Deselect All + Export buttons
+        const rightSide = this.selectionHeader.createDiv();
+        rightSide.style.display = 'flex';
+        rightSide.style.gap = '8px';
+
+        // Select All/Deselect All toggle button
+        const selectToggleBtn = new ButtonComponent(rightSide);
+        selectToggleBtn
+            .setButtonText(this.selectedResults.size === this.results.length ? t.deselectAll : t.selectAll)
+            .onClick(() => {
+                if (this.selectedResults.size === this.results.length) {
+                    // Deselect all
+                    this.selectedResults.clear();
+                } else {
+                    // Select all
+                    this.results.forEach(r => this.selectedResults.add(r.document.filePath));
+                }
+                // Refresh display
+                container.empty();
+                this.displayResults(container);
+            });
+
+        // Export Selected button (disabled if none selected)
+        const exportBtn = new ButtonComponent(rightSide);
+        exportBtn
+            .setButtonText(t.exportSelected)
+            .setCta()
+            .setDisabled(this.selectedResults.size === 0)
+            .onClick(async () => {
+                await this.openExportModal();
+            });
 
         const listEl = container.createDiv({ cls: 'semantic-search-list' });
         listEl.style.maxHeight = '400px';
@@ -288,17 +347,40 @@ class SemanticSearchResultsModal extends Modal {
             });
             resultEl.style.padding = '10px 12px';
             resultEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-            resultEl.style.cursor = 'pointer';
+            resultEl.style.display = 'flex';
+            resultEl.style.gap = '10px';
+            resultEl.style.alignItems = 'flex-start';
 
-            resultEl.addEventListener('mouseenter', () => {
-                resultEl.style.backgroundColor = 'var(--background-modifier-hover)';
+            // Checkbox
+            const checkboxContainer = resultEl.createDiv();
+            checkboxContainer.style.paddingTop = '2px';
+            const checkbox = checkboxContainer.createEl('input', { type: 'checkbox' });
+            checkbox.checked = this.selectedResults.has(result.document.filePath);
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    this.selectedResults.add(result.document.filePath);
+                } else {
+                    this.selectedResults.delete(result.document.filePath);
+                }
+                // Update header display
+                container.empty();
+                this.displayResults(container);
             });
-            resultEl.addEventListener('mouseleave', () => {
-                resultEl.style.backgroundColor = '';
+
+            // Content area
+            const contentEl = resultEl.createDiv();
+            contentEl.style.flex = '1';
+            contentEl.style.cursor = 'pointer';
+
+            contentEl.addEventListener('mouseenter', () => {
+                contentEl.style.opacity = '0.8';
+            });
+            contentEl.addEventListener('mouseleave', () => {
+                contentEl.style.opacity = '1';
             });
 
             // Title row with score badge
-            const titleRow = resultEl.createDiv();
+            const titleRow = contentEl.createDiv();
             titleRow.style.display = 'flex';
             titleRow.style.justifyContent = 'space-between';
             titleRow.style.alignItems = 'center';
@@ -332,7 +414,7 @@ class SemanticSearchResultsModal extends Modal {
             }
 
             // File path
-            const pathEl = resultEl.createEl('div', {
+            const pathEl = contentEl.createEl('div', {
                 text: result.document.filePath,
                 cls: 'semantic-search-result-path'
             });
@@ -342,7 +424,7 @@ class SemanticSearchResultsModal extends Modal {
 
             // Preview text
             const preview = result.highlightedText || result.document.content.substring(0, 200);
-            const previewEl = resultEl.createEl('p', {
+            const previewEl = contentEl.createEl('p', {
                 text: preview.length > 200 ? preview.substring(0, 200) + '...' : preview,
                 cls: 'semantic-search-result-preview'
             });
@@ -351,8 +433,8 @@ class SemanticSearchResultsModal extends Modal {
             previewEl.style.margin = '0';
             previewEl.style.lineHeight = '1.4';
 
-            // Click to open
-            resultEl.addEventListener('click', () => {
+            // Click content to open note
+            contentEl.addEventListener('click', () => {
                 const file = this.app.vault.getFileByPath(result.document.filePath);
                 if (file && file instanceof TFile) {
                     this.app.workspace.getLeaf().openFile(file);
@@ -360,6 +442,254 @@ class SemanticSearchResultsModal extends Modal {
                 }
             });
         }
+    }
+
+    private async openExportModal(): Promise<void> {
+        if (this.selectedResults.size === 0) {
+            new Notice(this.plugin.t.modals.exportSearchResults.noNotesSelected);
+            return;
+        }
+
+        // Get selected results data
+        const selectedData = this.results.filter(r => 
+            this.selectedResults.has(r.document.filePath)
+        );
+
+        const modal = new ExportSearchResultsModal(
+            this.app, 
+            this.plugin, 
+            selectedData
+        );
+        modal.open();
+    }
+
+    onClose(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
+
+/**
+ * Modal for exporting selected search results
+ */
+class ExportSearchResultsModal extends Modal {
+    private plugin: AIOrganiserPlugin;
+    private results: SearchResult[];
+    private exportTarget: 'new' | 'existing' = 'new';
+    private includeExcerpts: boolean = false;
+    private selectedFolder: string = '';
+    private selectedNote: TFile | null = null;
+
+    constructor(app: App, plugin: AIOrganiserPlugin, results: SearchResult[]) {
+        super(app);
+        this.plugin = plugin;
+        this.results = results;
+        this.selectedFolder = this.getDefaultFolder();
+    }
+
+    private getDefaultFolder(): string {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile?.parent) {
+            return activeFile.parent.path;
+        }
+        return '';
+    }
+
+    async onOpen(): Promise<void> {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('ai-organiser-export-search-results');
+
+        const t = this.plugin.t.modals.exportSearchResults;
+
+        this.titleEl.setText(t.title);
+
+        // Description
+        contentEl.createEl('p', {
+            text: t.description,
+            cls: 'export-description'
+        }).style.marginBottom = '16px';
+
+        // Export target (New note vs Existing note)
+        new Setting(contentEl)
+            .setName(t.targetLabel)
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('new', t.newNote)
+                    .addOption('existing', t.existingNote)
+                    .setValue(this.exportTarget)
+                    .onChange(async (value) => {
+                        this.exportTarget = value as 'new' | 'existing';
+                        await this.refresh();
+                    });
+            });
+
+        // Folder picker (for new note) or Note picker (for existing note)
+        if (this.exportTarget === 'new') {
+            new Setting(contentEl)
+                .setName(t.folderLabel)
+                .setDesc(this.selectedFolder || t.chooseFolder)
+                .addButton(button => {
+                    button
+                        .setButtonText(t.chooseFolder)
+                        .onClick(async () => {
+                            const modal = new FolderScopePickerModal(
+                                this.app,
+                                this.plugin,
+                                {
+                                    defaultFolder: this.selectedFolder,
+                                    onSelect: async (folder: string | null) => {
+                                        this.selectedFolder = folder || '';
+                                        await this.refresh();
+                                    }
+                                }
+                            );
+                            modal.open();
+                        });
+                });
+        } else {
+            // Note picker for existing note
+            new Setting(contentEl)
+                .setName(t.noteLabel)
+                .setDesc(this.selectedNote ? this.selectedNote.basename : t.chooseNote)
+                .addButton(button => {
+                    button
+                        .setButtonText(t.chooseNote)
+                        .onClick(() => {
+                            // Simple file suggester
+                            const files = this.app.vault.getMarkdownFiles();
+                            const names = files.map(f => f.basename);
+                            
+                            // Create a minimal suggester using Setting
+                            const suggestSetting = new Setting(contentEl)
+                                .setName('Select note')
+                                .addText(text => {
+                                    text.inputEl.placeholder = 'Type to search...';
+                                    text.inputEl.addEventListener('input', () => {
+                                        const query = text.inputEl.value.toLowerCase();
+                                        // Simple filter (in production would use a proper suggester)
+                                        const matches = files.filter(f => 
+                                            f.basename.toLowerCase().includes(query)
+                                        );
+                                        // For now, just take first match on Enter
+                                        text.inputEl.addEventListener('keydown', (e) => {
+                                            if (e.key === 'Enter' && matches.length > 0) {
+                                                this.selectedNote = matches[0];
+                                                this.refresh();
+                                                suggestSetting.settingEl.remove();
+                                            }
+                                        });
+                                    });
+                                });
+                        });
+                });
+        }
+
+        // Format option
+        new Setting(contentEl)
+            .setName(t.formatLabel)
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('links', t.linksOnly)
+                    .addOption('excerpts', t.linksWithExcerpts)
+                    .setValue(this.includeExcerpts ? 'excerpts' : 'links')
+                    .onChange(value => {
+                        this.includeExcerpts = value === 'excerpts';
+                    });
+            });
+
+        // Export button
+        const buttonContainer = contentEl.createDiv({ cls: 'export-button-container' });
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.justifyContent = 'flex-end';
+        buttonContainer.style.marginTop = '20px';
+        buttonContainer.style.gap = '8px';
+
+        new ButtonComponent(buttonContainer)
+            .setButtonText('Cancel')
+            .onClick(() => this.close());
+
+        new ButtonComponent(buttonContainer)
+            .setButtonText(t.exportButton)
+            .setCta()
+            .onClick(async () => {
+                await this.performExport();
+            });
+    }
+
+    private async refresh(): Promise<void> {
+        await this.onOpen();
+    }
+
+    private async performExport(): Promise<void> {
+        const t = this.plugin.t.modals.exportSearchResults;
+
+        try {
+            let content = this.buildExportContent();
+
+            if (this.exportTarget === 'new') {
+                // Create new note
+                const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+                const filename = `Search Results ${timestamp}.md`;
+                const filePath = this.selectedFolder 
+                    ? `${this.selectedFolder}/${filename}` 
+                    : filename;
+
+                await this.app.vault.create(filePath, content);
+                new Notice(t.success.replace('{count}', this.results.length.toString()));
+                
+                // Open the new note
+                const file = this.app.vault.getFileByPath(filePath);
+                if (file) {
+                    await this.app.workspace.getLeaf().openFile(file);
+                }
+            } else {
+                // Append to existing note
+                if (!this.selectedNote) {
+                    new Notice(t.chooseNote);
+                    return;
+                }
+
+                const existingContent = await this.app.vault.read(this.selectedNote);
+                const newContent = existingContent + '\n\n' + content;
+                await this.app.vault.modify(this.selectedNote, newContent);
+                new Notice(t.success.replace('{count}', this.results.length.toString()));
+            }
+
+            this.close();
+        } catch (error) {
+            new Notice('Export failed: ' + (error as Error).message);
+            console.error('Export error:', error);
+        }
+    }
+
+    private buildExportContent(): string {
+        const lines: string[] = [];
+        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        
+        lines.push(`## Search Results — ${timestamp}\n`);
+
+        for (const result of this.results) {
+            const title = result.document.metadata?.title || 
+                         result.document.filePath.split('/').pop()?.replace('.md', '') || 
+                         'Untitled';
+            const wikilink = `[[${result.document.filePath.replace('.md', '')}]]`;
+            
+            if (this.includeExcerpts) {
+                const excerpt = result.highlightedText || 
+                              result.document.content.substring(0, 150);
+                const cleanExcerpt = excerpt.length > 150 
+                    ? excerpt.substring(0, 150).trim() + '...' 
+                    : excerpt.trim();
+                
+                lines.push(`- ${wikilink}`);
+                lines.push(`  > ${cleanExcerpt}\n`);
+            } else {
+                lines.push(`- ${wikilink}`);
+            }
+        }
+
+        return lines.join('\n');
     }
 
     onClose(): void {
