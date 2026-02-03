@@ -4,6 +4,14 @@
  */
 
 /**
+ * Current schema version for the vector index.
+ * Bump this when changing embedding models, chunking logic, or metadata structure.
+ * Dimension changes require a full rebuild (Build button) — lazy migration in upsert()
+ * only handles backward-compatible metadata additions.
+ */
+export const INDEX_SCHEMA_VERSION = '2.0.0';
+
+/**
  * Represents a chunked document stored in the vector database
  */
 export interface VectorDocument {

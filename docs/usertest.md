@@ -244,15 +244,15 @@ Pick at least ONE source type:
 - [x] Check frontmatter: `meeting_date`, `attendees` (clean names, no prefix)
 
 ### Output Folder Override (Folder Picker)
-- [ ] Minutes modal → "Output folder" button visible near bottom of form (not text input)
-- [ ] Click button → folder picker modal opens with tree view
-- [ ] Default folder shown or prefilled from settings (e.g., `AI-Organiser/Meetings`)
-- [ ] Search folders → filters correctly
-- [ ] Type non-existing folder → "+ Create" item appears
-- [ ] Resolved path preview shown inside picker before confirm
-- [ ] Select folder → display updates to show selected path
-- [ ] Generate minutes → file created in chosen folder
-- [ ] Leave default → generate minutes → file goes to default folder
+- [x] Minutes modal → "Output folder" button visible near bottom of form (not text input)
+- [x] Click button → folder picker modal opens with tree view
+- [x] Default folder shown or prefilled from settings (e.g., `AI-Organiser/Meetings`)
+- [x] Search folders → filters correctly
+- [x] Type non-existing folder → "+ Create" item appears
+- [x] Resolved path preview shown inside picker before confirm
+- [x] Select folder → display updates to show selected path
+- [x] Generate minutes → file created in chosen folder
+- [x] Leave default → generate minutes → file goes to default folder
 
 ### Context Documents
 - [x] Add agenda/presentation via "Add Document" button

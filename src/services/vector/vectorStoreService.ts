@@ -4,14 +4,14 @@
  */
 
 import { App, TFile, EventRef, Notice, Platform } from 'obsidian';
-import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker } from './types';
+import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker, INDEX_SCHEMA_VERSION } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings } from '../../core/settings';
 import { createContentHash } from './hashUtils';
 import { getTranslations } from '../../i18n';
 
-export const INDEX_SCHEMA_VERSION = '2.0.0';
+export { INDEX_SCHEMA_VERSION } from './types';
 
 /**
  * Search cache entry
@@ -339,7 +339,22 @@ export class VectorStoreService {
     }
 
     /**
-     * Index all notes in vault
+     * Shared indexing loop. Both indexVault() and rebuildVault() use this.
+     */
+    private async indexAllNotes(): Promise<{ indexed: number; failed: number }> {
+        const excludedFolders = this.getEffectiveExcludedFolders();
+        const files = this.app.vault.getMarkdownFiles();
+        let indexed = 0, failed = 0;
+        for (const file of files) {
+            if (excludedFolders.some((folder: string) => file.path.startsWith(folder))) continue;
+            const success = await this.indexNote(file);
+            if (success) indexed++; else failed++;
+        }
+        return { indexed, failed };
+    }
+
+    /**
+     * Incremental index — skips unchanged files via hash check.
      */
     public async indexVault(): Promise<{ indexed: number; failed: number }> {
         if (!this.vectorStore) {
@@ -352,31 +367,38 @@ export class VectorStoreService {
         }
 
         this.isIndexing = true;
-        let indexed = 0;
-        let failed = 0;
-
         try {
             await this.ensureIndexLoaded();
-            // Get excluded folders (shared with tagging or custom)
-            const excludedFolders = this.getEffectiveExcludedFolders();
+            return await this.indexAllNotes();
+        } finally {
+            this.isIndexing = false;
+        }
+    }
 
-            // Get all markdown files
-            const files = this.app.vault.getMarkdownFiles();
-            for (const file of files) {
-                // Skip excluded folders
-                if (excludedFolders.some((folder: string) => file.path.startsWith(folder))) {
-                    continue;
-                }
+    /**
+     * Full rebuild — clears index, re-embeds all files, stamps version.
+     */
+    public async rebuildVault(): Promise<{ indexed: number; failed: number }> {
+        if (!this.vectorStore || !this.embeddingService) {
+            return { indexed: 0, failed: 0 };
+        }
 
-                const success = await this.indexNote(file);
-                if (success) {
-                    indexed++;
-                } else {
-                    failed++;
-                }
-            }
+        if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
+            return { indexed: 0, failed: 0 };
+        }
 
-            return { indexed, failed };
+        this.isIndexing = true;
+        try {
+            // Must wait for any in-progress load (mobile deferred load) before clearing
+            await this.ensureIndexLoaded();
+            // Clear everything — index data, change tracker, version
+            await this.vectorStore.clear();
+            this.searchCache.clear();
+            // After clear(), FileChangeTracker is empty → every indexNote() re-embeds
+            const result = await this.indexAllNotes();
+            // Version is already stamped by upsert() inside indexNote()
+            this.hasWarnedIndexVersion = false;
+            return result;
         } finally {
             this.isIndexing = false;
         }

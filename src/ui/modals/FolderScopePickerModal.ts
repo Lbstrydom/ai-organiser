@@ -8,6 +8,33 @@ import AIOrganiserPlugin from '../../main';
 import { getAllFolders, buildFolderTree, FolderTreeNode } from '../../utils/folderContextUtils';
 import { ensureFolderExists } from '../../utils/minutesUtils';
 
+/**
+ * Normalize a raw search term for folder creation, preserving original casing.
+ * Strips leading/trailing slashes and trims whitespace.
+ * Returns undefined if the result is empty.
+ */
+export function normalizeCreatePath(rawSearchTerm: string): string | undefined {
+    const trimmed = rawSearchTerm.trim();
+    if (!trimmed) return undefined;
+    const normalized = trimmed.replaceAll(/(^\/+)|(\/+$)/g, '');
+    return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
+ * Determine whether a "Create folder" affordance should be shown.
+ * Only shows when allowNewFolder is enabled, there's a valid search term,
+ * and no existing folders match the search.
+ */
+export function shouldShowCreateFolder(
+    allowNewFolder: boolean,
+    rawSearchTerm: string,
+    matchingFolderCount: number
+): boolean {
+    if (!allowNewFolder) return false;
+    const createPath = normalizeCreatePath(rawSearchTerm);
+    return createPath !== undefined && matchingFolderCount === 0;
+}
+
 export interface FolderScopePickerOptions {
     /** Modal title (defaults to i18n key) */
     title?: string;
@@ -36,6 +63,7 @@ export class FolderScopePickerModal extends Modal {
     private allFolders: TFolder[] = [];
     private folderTree: FolderTreeNode[] = [];
     private searchTerm: string = '';
+    private searchTermRaw: string = '';
     private previewEl!: HTMLElement;
 
     constructor(
@@ -104,6 +132,7 @@ export class FolderScopePickerModal extends Modal {
         this.searchInput.style.backgroundColor = 'var(--background-primary)';
 
         this.searchInput.addEventListener('input', () => {
+            this.searchTermRaw = this.searchInput.value;
             this.searchTerm = this.searchInput.value.toLowerCase();
             this.renderFolderList();
         });
@@ -133,6 +162,7 @@ export class FolderScopePickerModal extends Modal {
             const exists = this.allFolders.some(f => f.path === this.options.defaultFolder);
             if (!exists) {
                 this.searchInput.value = this.options.defaultFolder;
+                this.searchTermRaw = this.options.defaultFolder;
                 this.searchTerm = this.options.defaultFolder.toLowerCase();
                 this.selectedFolder = null;
                 this.renderFolderList();
@@ -184,63 +214,57 @@ export class FolderScopePickerModal extends Modal {
         }
     }
 
+    private getFilteredFolders(): TFolder[] {
+        if (!this.searchTerm) return this.allFolders;
+        return this.allFolders.filter(folder =>
+            folder.path.toLowerCase().includes(this.searchTerm) ||
+            folder.name.toLowerCase().includes(this.searchTerm)
+        );
+    }
+
+    private getCreatePath(): string | undefined {
+        if (!this.options.allowNewFolder) return undefined;
+        return normalizeCreatePath(this.searchTermRaw);
+    }
+
     private renderFolderList(): void {
         this.folderListEl.empty();
 
         const t = this.plugin.t.modals?.folderScopePicker;
+        const filteredFolders = this.getFilteredFolders();
+        let createPath: string | undefined;
 
-        if (this.allFolders.length === 0) {
-            const emptyEl = this.folderListEl.createDiv({ cls: 'folder-list-empty' });
-            emptyEl.style.padding = '20px';
-            emptyEl.style.textAlign = 'center';
-            emptyEl.style.color = 'var(--text-muted)';
-            emptyEl.textContent = t?.noFoldersFound || 'No folders found';
-            return;
-        }
-
-        // Filter folders based on search term
-        let filteredFolders: TFolder[];
-        if (this.searchTerm) {
-            filteredFolders = this.allFolders.filter(folder =>
-                folder.path.toLowerCase().includes(this.searchTerm) ||
-                folder.name.toLowerCase().includes(this.searchTerm)
-            );
-        } else {
-            filteredFolders = this.allFolders;
-        }
-
-        // "Create new folder" item when allowNewFolder and search term doesn't match any existing folder
-        if (this.options.allowNewFolder && this.searchTerm) {
-            const normalizedSearch = this.searchTerm.trim().replaceAll(/(^\/+)|(\/+$)/g, '');
-            const exactMatch = this.allFolders.some(f => f.path.toLowerCase() === normalizedSearch);
-            if (!exactMatch && normalizedSearch.length > 0) {
-                this.renderCreateFolderItem(normalizedSearch);
-            }
-        }
-
-        if (filteredFolders.length === 0 && !this.options.allowNewFolder) {
-            const emptyEl = this.folderListEl.createDiv({ cls: 'folder-list-empty' });
-            emptyEl.style.padding = '20px';
-            emptyEl.style.textAlign = 'center';
-            emptyEl.style.color = 'var(--text-muted)';
-            emptyEl.textContent = t?.noFoldersFound || 'No folders found';
-            return;
-        }
-
+        // "Create new folder" item only when no folders match the search
+        // Uses searchTermRaw to preserve user casing (avoids lowercase path corruption)
         if (filteredFolders.length === 0) {
-            return;
+            createPath = this.getCreatePath();
+            if (createPath) {
+                this.renderCreateFolderItem(createPath);
+            }
         }
 
-        // Render folders
-        if (this.searchTerm) {
-            // Flat list when searching
-            for (const folder of filteredFolders) {
-                this.renderFolderItem(folder, 0);
-            }
-        } else {
-            // Tree view when not searching
-            this.renderFolderTreeNodes(this.folderTree);
+        // Show empty state if no folders and no create affordance
+        if (filteredFolders.length === 0 && !createPath) {
+            const emptyEl = this.folderListEl.createDiv({ cls: 'folder-list-empty' });
+            emptyEl.style.padding = '20px';
+            emptyEl.style.textAlign = 'center';
+            emptyEl.style.color = 'var(--text-muted)';
+            emptyEl.textContent = t?.noFoldersFound || 'No folders found';
         }
+
+        // Render matching folders
+        if (filteredFolders.length > 0) {
+            if (this.searchTerm) {
+                for (const folder of filteredFolders) {
+                    this.renderFolderItem(folder, 0);
+                }
+            } else {
+                this.renderFolderTreeNodes(this.folderTree);
+            }
+        }
+
+        // Always update preview to reflect current state (fixes stale preview on search change)
+        this.updatePreview(createPath);
     }
 
     private renderFolderTreeNodes(nodes: FolderTreeNode[]): void {
@@ -380,8 +404,6 @@ export class FolderScopePickerModal extends Modal {
                 // Folder creation failed silently — user can retry
             }
         });
-
-        this.updatePreview(folderName);
     }
 
     private selectFolder(folderPath: string): void {

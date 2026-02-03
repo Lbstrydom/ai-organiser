@@ -9,7 +9,11 @@ function formatPassages(passages: string[]): string {
         .join('\n\n');
 }
 
-function formatHistory(messages: HighlightChatMessage[]): string {
+function formatHistory(messages: HighlightChatMessage[] | string): string {
+    if (typeof messages === 'string') {
+        const trimmed = messages.trim();
+        return trimmed.length > 0 ? trimmed : 'None';
+    }
     if (messages.length === 0) return 'None';
     return messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
 }
@@ -18,7 +22,7 @@ export function buildHighlightChatPrompt(
     question: string,
     selectedPassages: string[],
     noteTitle: string,
-    conversationHistory: HighlightChatMessage[]
+    conversationHistory: HighlightChatMessage[] | string
 ): string {
     return `<task>
 You are helping the user understand specific passages from their note "${noteTitle}".

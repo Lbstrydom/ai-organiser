@@ -6,7 +6,7 @@
 
 import type { Voy as VoyClient } from 'voy-search';
 import { App } from 'obsidian';
-import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker } from './types';
+import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker, INDEX_SCHEMA_VERSION } from './types';
 import { cosineSimilarity } from './vectorMath';
 
 const voyWasm = require('voy-search/voy_search_bg.wasm') as Uint8Array;
@@ -79,7 +79,7 @@ export class VoyVectorStore implements IVectorStore {
         lastUpdated: Date.now(),
         embeddingDims: 1536, // Default OpenAI
         embeddingModel: 'unknown',
-        version: '2.0.0'
+        version: INDEX_SCHEMA_VERSION
     };
     private app: App;
     private storagePath: string;
@@ -111,6 +111,7 @@ export class VoyVectorStore implements IVectorStore {
         await this.initializeVoy();
         if (!this.voy) throw new Error('Voy not initialized');
 
+        let allIndexed = true;
         for (const doc of documents) {
             // Store document metadata
             this.documents.set(doc.id, doc);
@@ -128,14 +129,29 @@ export class VoyVectorStore implements IVectorStore {
                         }]
                     });
                 } catch (error) {
+                    allIndexed = false;
                     console.warn(`Failed to add document ${doc.id} to Voy:`, error);
                 }
+            } else {
+                // Document has no/empty embedding — it won't be searchable.
+                // This happens when batchGenerateEmbeddings partially fails.
+                allIndexed = false;
             }
         }
 
         this.metadata.totalDocuments = this.documents.size;
         this.metadata.totalNotes = new Set([...this.documents.values()].map(d => d.filePath)).size;
         this.metadata.lastUpdated = Date.now();
+        // Lazy Migration Strategy:
+        // Update version on partial updates so active users don't see "Index Outdated"
+        // warnings constantly. The index may contain mixed schema versions (old files
+        // vs newly-indexed files), which is acceptable for metadata additions but
+        // would be dangerous for dimension changes. Dimension changes are self-protecting:
+        // Voy WASM rejects vectors with mismatched dimensions at insert time.
+        // Skip version stamp if any document failed to index or had empty embeddings.
+        if (allIndexed) {
+            this.metadata.version = INDEX_SCHEMA_VERSION;
+        }
     }
 
     async remove(ids: string[]): Promise<void> {
@@ -295,7 +311,7 @@ export class VoyVectorStore implements IVectorStore {
             lastUpdated: Date.now(),
             embeddingDims: this.metadata.embeddingDims,
             embeddingModel: this.metadata.embeddingModel,
-            version: '2.0.0'
+            version: INDEX_SCHEMA_VERSION
         };
     }
 

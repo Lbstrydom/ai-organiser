@@ -2,7 +2,7 @@
  * Tests for chat conversation history formatting and export markdown generation.
  *
  * These test the production pure logic from chatExportUtils.ts — the same
- * functions used by ChatWithVaultModal.
+ * functions used by UnifiedChatModal.
  */
 
 import {
@@ -94,7 +94,12 @@ describe('formatExportMarkdown', () => {
 
     it('includes heading with date', () => {
         const result = formatExportMarkdown([msg('user', 'test')]);
-        expect(result).toMatch(/^# Chat with Vault — /);
+        expect(result).toMatch(/^# Chat — /);
+    });
+
+    it('uses provided title when supplied', () => {
+        const result = formatExportMarkdown([msg('user', 'test')], 'Chat with Vault — Jan 1, 2026');
+        expect(result).toMatch(/^# Chat with Vault — Jan 1, 2026/);
     });
 
     it('formats sources as wikilinks', () => {

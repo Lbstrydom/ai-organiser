@@ -436,6 +436,13 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
             // Import here to avoid circular dependency
             const { RELATED_NOTES_VIEW_TYPE } = await import('../ui/views/RelatedNotesView');
 
+            // Reuse existing leaf if one is already open (prevents duplicates)
+            const existing = plugin.app.workspace.getLeavesOfType(RELATED_NOTES_VIEW_TYPE);
+            if (existing.length > 0) {
+                plugin.app.workspace.revealLeaf(existing[0]);
+                return;
+            }
+
             const leaf = plugin.app.workspace.getRightLeaf(false);
             if (leaf) {
                 await leaf.setViewState({

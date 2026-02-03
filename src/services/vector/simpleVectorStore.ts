@@ -4,7 +4,7 @@
  * Can be upgraded to Voy WASM later for better performance
  */
 
-import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker } from './types';
+import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker, INDEX_SCHEMA_VERSION } from './types';
 import { cosineSimilarity } from './vectorMath';
 
 /**
@@ -49,7 +49,7 @@ export class SimpleVectorStore implements IVectorStore {
         lastUpdated: Date.now(),
         embeddingDims: 1536, // Default OpenAI
         embeddingModel: 'unknown',
-        version: '2.0.0'
+        version: INDEX_SCHEMA_VERSION
     };
 
     async upsert(documents: VectorDocument[]): Promise<void> {
@@ -62,6 +62,8 @@ export class SimpleVectorStore implements IVectorStore {
         this.metadata.totalDocuments = this.documents.size;
         this.metadata.totalNotes = new Set([...this.documents.values()].map(d => d.filePath)).size;
         this.metadata.lastUpdated = Date.now();
+        // Lazy Migration Strategy: see voyVectorStore.ts upsert() for rationale.
+        this.metadata.version = INDEX_SCHEMA_VERSION;
     }
 
     async remove(ids: string[]): Promise<void> {

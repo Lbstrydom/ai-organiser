@@ -1,6 +1,6 @@
 /**
  * Pure utility functions for chat conversation history and export formatting.
- * Shared between ChatWithVaultModal and tests.
+ * Shared between UnifiedChatModal and tests.
  */
 
 export const MAX_HISTORY_MESSAGES = 20;
@@ -36,11 +36,12 @@ export function formatConversationHistory(messages: ChatExportMessage[]): string
  * Format chat messages as markdown for file export.
  * Excludes system messages, adds timestamps and wikilink sources.
  */
-export function formatExportMarkdown(messages: ChatExportMessage[]): string {
+export function formatExportMarkdown(messages: ChatExportMessage[], title?: string): string {
     const nonSystemMessages = messages.filter(m => m.role !== 'system');
     const now = new Date();
     const dateLabel = now.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    const lines: string[] = [`# Chat with Vault — ${dateLabel}\n`];
+    const heading = title || `Chat — ${dateLabel}`;
+    const lines: string[] = [`# ${heading}\n`];
 
     for (const msg of nonSystemMessages) {
         const time = new Date(msg.timestamp).toLocaleTimeString();

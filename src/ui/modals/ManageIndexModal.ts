@@ -84,9 +84,14 @@ export class ManageIndexModal extends Modal {
             return;
         }
 
+        if (!this.plugin.embeddingService) {
+            new Notice(this.plugin.t.modals.unifiedChat.embeddingMissing);
+            return;
+        }
+
         const statusNotice = new Notice(this.plugin.t.messages.buildingIndex, 0);
         try {
-            const result = await this.plugin.vectorStoreService.indexVault();
+            const result = await this.plugin.vectorStoreService.rebuildVault();
             statusNotice.hide();
             new Notice(
                 this.plugin.t.messages.indexBuildComplete

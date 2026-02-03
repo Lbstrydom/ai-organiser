@@ -10,6 +10,7 @@ import { stripExistingHighlight } from '../src/commands/highlightCommands';
 import { splitIntoBlocks } from '../src/utils/highlightExtractor';
 import { en } from '../src/i18n/en';
 import { zhCN } from '../src/i18n/zh-cn';
+import { normalizeCreatePath, shouldShowCreateFolder } from '../src/ui/modals/FolderScopePickerModal';
 import type { FolderScopePickerOptions } from '../src/ui/modals/FolderScopePickerModal';
 
 // ─── Feature 2: stripExistingHighlight for context menu detection ───
@@ -221,6 +222,80 @@ describe('FolderScopePickerOptions interface', () => {
     });
 });
 
+// ─── FolderScopePickerModal: create path & create affordance logic ───
+
+describe('normalizeCreatePath', () => {
+    it('preserves user casing (no lowercase corruption)', () => {
+        expect(normalizeCreatePath('AI-Organiser/Chats')).toBe('AI-Organiser/Chats');
+    });
+
+    it('preserves mixed case folder names', () => {
+        expect(normalizeCreatePath('MyProject/SubFolder')).toBe('MyProject/SubFolder');
+    });
+
+    it('trims whitespace', () => {
+        expect(normalizeCreatePath('  Meetings  ')).toBe('Meetings');
+    });
+
+    it('strips leading slashes', () => {
+        expect(normalizeCreatePath('///Folder')).toBe('Folder');
+    });
+
+    it('strips trailing slashes', () => {
+        expect(normalizeCreatePath('Folder///')).toBe('Folder');
+    });
+
+    it('strips both leading and trailing slashes', () => {
+        expect(normalizeCreatePath('/Nested/Path/')).toBe('Nested/Path');
+    });
+
+    it('returns undefined for empty string', () => {
+        expect(normalizeCreatePath('')).toBeUndefined();
+    });
+
+    it('returns undefined for whitespace-only string', () => {
+        expect(normalizeCreatePath('   ')).toBeUndefined();
+    });
+
+    it('returns undefined for slashes-only string', () => {
+        expect(normalizeCreatePath('///')).toBeUndefined();
+    });
+});
+
+describe('shouldShowCreateFolder', () => {
+    it('shows create when allowNewFolder, valid search, and zero matches', () => {
+        expect(shouldShowCreateFolder(true, 'NewFolder', 0)).toBe(true);
+    });
+
+    it('does not show create when allowNewFolder is false', () => {
+        expect(shouldShowCreateFolder(false, 'NewFolder', 0)).toBe(false);
+    });
+
+    it('does not show create when search term is empty', () => {
+        expect(shouldShowCreateFolder(true, '', 0)).toBe(false);
+    });
+
+    it('does not show create when search term is whitespace', () => {
+        expect(shouldShowCreateFolder(true, '   ', 0)).toBe(false);
+    });
+
+    it('does not show create when matching folders exist', () => {
+        expect(shouldShowCreateFolder(true, 'Existing', 3)).toBe(false);
+        // Even 1 match should suppress create
+        expect(shouldShowCreateFolder(true, 'Existing', 1)).toBe(false);
+    });
+
+    it('shows create in empty vault (zero folders total, zero matches)', () => {
+        // This is the critical empty-vault scenario
+        expect(shouldShowCreateFolder(true, 'AI-Organiser/Chats', 0)).toBe(true);
+    });
+
+    it('preserves casing in the path check', () => {
+        // Verifying that the function uses normalizeCreatePath which preserves casing
+        expect(shouldShowCreateFolder(true, 'AI-Organiser/MyNotes', 0)).toBe(true);
+    });
+});
+
 // ─── i18n completeness ───
 
 describe('i18n completeness for UX fix keys', () => {
@@ -246,24 +321,24 @@ describe('i18n completeness for UX fix keys', () => {
         });
     });
 
-    describe('highlightChat new keys', () => {
-        const requiredKeys = ['noHighlightsFound', 'showAllPassages', 'showHighlightsOnly', 'showingCount'] as const;
+    describe('unifiedChat new keys', () => {
+        const requiredKeys = ['noHighlightsFound', 'showAll', 'showHighlightsOnly', 'showingCount'] as const;
 
         for (const key of requiredKeys) {
             it(`en has ${key}`, () => {
-                expect(en.highlightChat[key]).toBeTruthy();
+                expect(en.modals.unifiedChat[key]).toBeTruthy();
             });
 
             it(`zh-cn has ${key}`, () => {
-                expect(zhCN.highlightChat[key]).toBeTruthy();
+                expect(zhCN.modals.unifiedChat[key]).toBeTruthy();
             });
         }
 
         it('showingCount contains {visible} and {total} placeholders', () => {
-            expect(en.highlightChat.showingCount).toContain('{visible}');
-            expect(en.highlightChat.showingCount).toContain('{total}');
-            expect(zhCN.highlightChat.showingCount).toContain('{visible}');
-            expect(zhCN.highlightChat.showingCount).toContain('{total}');
+            expect(en.modals.unifiedChat.showingCount).toContain('{visible}');
+            expect(en.modals.unifiedChat.showingCount).toContain('{total}');
+            expect(zhCN.modals.unifiedChat.showingCount).toContain('{visible}');
+            expect(zhCN.modals.unifiedChat.showingCount).toContain('{total}');
         });
     });
 });
