@@ -481,11 +481,10 @@ Configuration        ← Advanced config
 
 **Command picker categories** (`CommandPickerModal.ts`):
 ```
-Create    ← Capture content (summarize URL, YouTube, audio, record audio)
-Enhance   ← Improve existing (rewrite, translate, diagram)
-Organize  ← Structure content (tag, clear tags)
-Discover  ← Find content (related notes, semantic search, vault chat)
-Integrate ← External tools (pending integration, NotebookLM)
+Active Note  ← Commands on the open file (maps, refine, pending, export)
+Capture      ← Bring external content in (summarize web, meeting minutes, record audio)
+Vault        ← Explore the knowledge base (chat, search, cluster, tag graph, dashboard)
+Tools        ← Specialized/bulk operations (NotebookLM, collect tags)
 ```
 
 **Modal sections:**
@@ -775,7 +774,7 @@ Settings UI: `CanvasSettingsSection.ts` (4 toggles, after Semantic Search sectio
 - `build-context-canvas`: Works without semantic search
 - `build-cluster-canvas`: Opens TagPickerModal, then builds canvas
 
-All in Command Picker → Discover → Canvas group.
+Investigation and Context boards are in Command Picker → Active Note → Connections & Maps. Cluster Board is in Command Picker → Vault Intelligence.
 
 ### Shared Utilities (DRY)
 
@@ -827,7 +826,7 @@ interface RecorderOptions {
 
 ### Integration Points
 
-- **Standalone command**: `record-audio` in Command Picker Create category
+- **Standalone command**: `record-audio` in Command Picker Capture category
 - **Minutes modal**: Record button rendered OUTSIDE `!Platform.isMobile` gate, transcript appended via callback
 - **Multi-Source modal**: Record button in BOTH `renderSourceSection()` AND `renderSectionContent()` (survives rerenders)
 - **Settings**: `autoTranscribeRecordings` (default: true), `embedAudioInNote` (default: true) in Audio Transcription section

@@ -2,22 +2,65 @@
 
 **Version:** 1.0.15
 **Last Updated:** February 3, 2026
-**Status:** Feature Complete - Unified Chat Modal Plan Handed Off
+**Status:** Feature Complete - Command Picker Restructured
 
 ---
 
 ## Recent Updates
 
-### Unified Chat Modal (2026-02-03) — PLANNED
+### Command Picker Restructuring (2026-02-03) — COMPLETE
 
-**Consolidate three separate chat interfaces into a single unified modal with mode tabs (Note/Vault/Highlight).**
+**Restructured Command Picker from functional grouping (Create, Enhance, Organize, Discover, Integrate) to context-based grouping (Active Note, Capture, Vault Intelligence, Tools & Workflows).**
+
+| Aspect | Status |
+|--------|--------|
+| Plan | Complete — `docs/menu-plan.md` (3 rounds of review) |
+| Implementation | Complete |
+| Tests | Complete — 9 tests covering structure, callbacks, leaf count |
+
+**Build Status**: 1066 tests passing (52 suites)
+
+**New Command Picker Structure:**
+| Category | Sub-groups | Leaf Commands |
+|----------|-----------|---------------|
+| Active Note (4 groups) | Connections & Maps (4), Refine Content (5), Pending Integration (3), Export (2) | 14 |
+| Capture (3 flat) | — | 3 |
+| Vault Intelligence (5 flat) | — | 5 |
+| Tools & Workflows (1 group + 1 flat) | NotebookLM (4) | 5 |
+| **Total** | | **27 entries, 26 unique** |
+
+**Key design decisions:**
+- Context-based grouping (Gestalt proximity — commands grouped by user's current focus)
+- `smart-summarize` in both Active Note ("Summarize Note") and Capture ("Summarize Web/YouTube") — same command, two user intents
+- "Refine Content" sub-group solves Active Note density (5 polishing actions under one sub-menu)
+- Strict i18n: no `?.` or `|| 'fallback'` patterns, all keys in `Translations` interface
+- Shared alias token arrays for fuzzy search consistency
+- Full CSS audit: only 4 `[data-category]` selectors remain
+
+**Files Modified:**
+- `src/ui/modals/CommandPickerModal.ts` — `buildCommandCategories()` rewritten
+- `src/i18n/types.ts` — 12 new keys added, 8 obsolete removed
+- `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — New translations added
+- `styles.css` — Category color selectors updated (blue/orange/green/gray)
+- `tests/commandPicker.test.ts` — Rewritten with exhaustive leaf command assertions
+- `CLAUDE.md`, `AGENTS.md` — Command Picker docs updated
+- `docs/usertest.md` — Command Picker test section updated
+
+**Documentation**: `docs/menu-plan.md`
+
+---
+
+### Unified Chat Modal (2026-02-03) — COMPLETE
+
+**Consolidated three separate chat interfaces into a single unified modal with mode tabs (Note/Vault/Highlight). Single "Chat with AI" command replaces three separate commands.**
 
 | Aspect | Status |
 |--------|--------|
 | Plan | Complete — 3 rounds of reviewer feedback incorporated |
-| Implementation | Not started — handed off to implementation team |
+| Implementation | Complete |
+| Command Consolidation | Complete — 3 commands → 1 "Chat with AI" |
 
-**Documentation**: `docs/completed/uni-plan.md`
+**Build Status**: 1067 tests passing (52 suites)
 
 **Key design decisions:**
 - Strategy pattern: `ChatModeHandler` interface with 3 implementations (Note, Vault, Highlight)
@@ -26,11 +69,37 @@
 - Request generation counter for race condition prevention
 - Action descriptors (data, not closures) to prevent handler boundary leak
 - Animated thinking indicator in chat area (CSS `@keyframes`)
-- Command intent fallback: Notice + best available mode, never silent switch
+- Auto-mode selection: selection → highlight, highlights in note → highlight, index available → vault, else → note
 - Session-only history (resets on modal reopen)
-- Soft guard policy: commands do minimal hard guards, modal handles unavailability internally
+- Single command entry point: `chat-with-ai` replaces `chat-with-vault`, `ask-about-current-note`, `chat-about-highlights`
 
-**Files to create/modify**: 14 files (6 new, 5 modified, 2 deleted, 1 new test)
+**New Files Created:**
+- `src/ui/chat/ChatModeHandler.ts` — Interface, types, ModalContext, ActionDescriptor
+- `src/ui/chat/NoteModeHandler.ts` — Note mode strategy (no RAG required)
+- `src/ui/chat/VaultModeHandler.ts` — Vault mode strategy (RAG search)
+- `src/ui/chat/HighlightModeHandler.ts` — Highlight mode strategy (passage selector)
+- `src/ui/modals/UnifiedChatModal.ts` — Unified chat shell (~700 lines)
+- `src/services/prompts/chatPrompts.ts` — Note + vault fallback prompts
+- `tests/unifiedChat.test.ts` — 12 tests: mode selection, handler availability, per-mode history, action descriptors
+
+**Key Files Modified:**
+- `src/commands/chatCommands.ts` — 3 commands replaced with single `chat-with-ai` command
+- `src/ui/modals/CommandPickerModal.ts` — Ask AI group replaced with single "Chat with AI" entry in Discover
+- `src/utils/chatExportUtils.ts` — `formatExportMarkdown()` accepts pre-computed mode-aware title
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — `modals.unifiedChat` section (58 keys), `chatWithAI` command, old chat sections removed
+- `styles.css` — Legacy chat styles replaced with unified `.ai-organiser-chat-*` namespace
+- `src/ui/modals/HighlightChatModal.ts` — Deprecated stub (no longer functional)
+
+**Command Picker Structure (After — superseded by Command Picker Restructuring above):**
+| Category | Top-level Items | Groups |
+|----------|----------------|--------|
+| Create (4) | Smart Summarize, Meeting Minutes, Export Note, Record Audio | — |
+| Enhance (3) | Enhance Note, Translate, **Highlight** group | Highlight (2 sub) |
+| Organize (2) | **Tags** group, **Bases** group | Tags (4 sub), Bases (4 sub incl. Manage Index) |
+| Discover (3) | **Chat with AI**, **Find Notes** group, **Canvas** group | Find Notes (3 sub), Canvas (3 sub) |
+| Integrate (2) | **Pending** group, **NotebookLM** group | Pending (3 sub), NotebookLM (4 sub) |
+
+**Documentation**: `docs/completed/uni-plan.md`
 
 ---
 
@@ -1231,7 +1300,7 @@ AI-Organiser/
 npm run dev        # Development (watch mode)
 npm run build      # Production build (includes tests)
 npm run build:quick # Production build (source type-check only)
-npm test           # Run 995+ unit tests (50+ suites)
+npm test           # Run 1067+ unit tests (52+ suites)
 npm run test:auto  # Run 17 automated integration tests
 ```
 

@@ -473,6 +473,12 @@ export interface Translations {
         notebookLMClear: string;
         notebookLMOpenFolder: string;
         exportNote: string;
+        mapRelatedConcepts: string;
+        mapAttachments: string;
+        summarizeNote: string;
+        summarizeWebYouTube: string;
+        groupNotesByTag: string;
+        visualizeTagGraph: string;
         createMeetingMinutes: string;
         addToPendingIntegration: string;
         integratePendingContent: string;
@@ -1360,18 +1366,15 @@ export interface Translations {
             navigateHint: string;
             selectHint: string;
             closeHint: string;
-            categoryCreate: string;
-            categoryEnhance: string;
-            categoryOrganize: string;
-            categoryDiscover: string;
+            categoryActiveNote: string;
+            categoryCapture: string;
+            categoryVault: string;
+            categoryTools: string;
+            groupMaps: string;
+            groupRefine: string;
             groupExport: string;
             groupPending: string;
             groupNotebookLM: string;
-            groupHighlight: string;
-            groupTags: string;
-            groupAskAI: string;
-            groupFindNotes: string;
-            groupCanvas: string;
         };
         tagPicker: {
             title: string;

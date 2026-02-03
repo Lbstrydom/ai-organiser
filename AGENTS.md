@@ -442,11 +442,10 @@ AI Provider → Tagging → Summarization (with YouTube/Audio subsections) → M
 
 **Command Picker Categories** (`CommandPickerModal.ts`):
 ```
-Create   ← Capture (summarize URL, YouTube, audio, record audio)
-Enhance  ← Improve (rewrite, translate, diagram)
-Organize ← Structure (tag, clear tags)
-Discover ← Find content (related notes, vault chat)
-Integrate← External tools (pending integration, NotebookLM)
+Active Note  ← Commands on the open file (maps, refine, pending, export)
+Capture      ← Bring external content in (summarize web, meeting minutes, record audio)
+Vault        ← Explore the knowledge base (chat, search, cluster, tag graph, dashboard)
+Tools        ← Specialized/bulk operations (NotebookLM, collect tags)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last
@@ -642,7 +641,7 @@ In-plugin audio recording using MediaRecorder API. Works on desktop and mobile (
 - `src/ui/modals/AudioRecorderModal.ts`: Recording modal with states (idle → recording → stopped → saving → transcribing → done), platform-aware transcription, close safety
 
 **Integration Points**:
-- Standalone `record-audio` command in Command Picker Create category
+- Standalone `record-audio` command in Command Picker Capture category
 - Minutes modal: Record button rendered OUTSIDE `!Platform.isMobile` gate
 - Multi-Source modal: Record button in BOTH render paths via shared helper (survives rerenders)
 - Settings: `autoTranscribeRecordings`, `embedAudioInNote` in Audio Transcription section
@@ -725,7 +724,7 @@ Settings UI: `src/ui/settings/CanvasSettingsSection.ts` (4 toggles, placed after
 - `build-context-canvas`: Context Board (works without semantic search)
 - `build-cluster-canvas`: Cluster Board with TagPickerModal
 
-All commands in Command Picker → Discover → Canvas group.
+Investigation and Context boards are in Command Picker → Active Note → Connections & Maps. Cluster Board is in Command Picker → Vault Intelligence.
 
 ### Shared Utilities (DRY)
 

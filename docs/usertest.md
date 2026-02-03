@@ -44,7 +44,7 @@
 
 ### i18n Verification (optional)
 - [x] Switch Language to 简体中文 → restart → UI shows Chinese
-- [x] Command Picker shows Chinese category names (创建, 增强, 整理, 发现, 集成)
+- [x] Command Picker shows Chinese category names (当前笔记, 采集, 知识库, 工具与流程)
 - [x] Switch back to English → restart → UI restored
 
 ---
@@ -92,11 +92,13 @@
 
 - [x] Ctrl+P → "AI Organiser" or ribbon icon → Command Picker opens
 - [x] Fuzzy search works (type "tag" → finds tagging commands)
-- [x] Categories visible: Create, Enhance, Organize, Discover, Integrate
+- [x] Categories visible: Active Note, Capture, Vault Intelligence, Tools & Workflows
 - [x] Each command has icon and category badge
 - [x] Keyboard navigation works (↑↓ to navigate, ↵ to select, Esc to close)
 - [x] No "undefined" or raw i18n keys visible in command names/categories
 - [x] "Generate from embedded" does NOT appear in picker (removed)
+- [x] Vault Intelligence category has "Chat with AI" as a top-level command
+- [x] "Chat with AI" has correct icon (message-circle)
 
 ---
 
@@ -172,7 +174,7 @@ Pick at least ONE source type:
 ### Audio Recording (NEW)
 
 #### Standalone Recording
-- [x] Command Picker → Create → "Record Audio" → modal opens
+- [x] Command Picker → Capture → "Record Audio" → modal opens
 - [x] Record button starts recording → timer + size display update live
 - [x] Stop button stops recording → can Play to preview
 - [x] "Insert at cursor" inserts transcript (with `![[recording.webm]]` embed if enabled)
@@ -301,12 +303,11 @@ Pick at least ONE source type:
 - [x] Mobile modal: "This folder" / "All notes" toggle works
 
 ### Search Commands
-- [ ] "Semantic Search" → search modal → finds semantically similar notes
-- [ ] "Find Related" → opens Related Notes sidebar
-- [ ] "Show Related Notes" modal → uses Related Notes Count setting
-- [ ] "Chat with Vault" → RAG-enhanced Q&A modal
-- [ ] "Ask about current note" → Q&A for active note
-- [ ] "Insert Related Notes" → inserts links to related notes
+- [x] "Semantic Search" → search modal → finds semantically similar notes
+- [x] "Find Related" → opens Related Notes sidebar
+- [x] "Show Related Notes" modal → uses Related Notes Count setting
+- [x] "Chat with AI" → unified chat modal (auto-selects mode based on context)
+- [x] "Insert Related Notes" → inserts links to related notes
 
 ### Wide Net Retrieval Verification (Enhanced Semantic Search)
 - [ ] Investigation Board → related note count matches Related Notes Count setting
@@ -358,7 +359,7 @@ Pick at least ONE source type:
 ## 10. Canvas Toolkit (5 min) - Desktop Only
 
 ### Investigation Board (requires Semantic Search enabled + indexed vault)
-- [ ] Open a note with content → Command Picker → Discover → Canvas → "Investigation Board"
+- [ ] Open a note with content -> Command Picker -> Active Note -> Connections & Maps -> "Map Related Concepts"
 - [ ] Canvas file created in `AI-Organiser/Canvas/` folder
 - [ ] Canvas opens automatically (if `openAfterCreate` enabled)
 - [ ] Center node is current note (cyan color)
@@ -372,7 +373,7 @@ Pick at least ONE source type:
 
 ### Context Board (no semantic search required)
 - [ ] Open note with embedded content (YouTube links, PDFs, audio, wikilinks)
-- [ ] Command Picker → Discover → Canvas → "Context Board"
+- [ ] Command Picker -> Active Note -> Connections & Maps -> "Map Attachments"
 - [ ] Center node is current note
 - [ ] YouTube links → purple link nodes
 - [ ] PDF embeds → green file nodes
@@ -382,7 +383,7 @@ Pick at least ONE source type:
 - [ ] Note with no embedded content → shows "No sources detected" notice
 
 ### Cluster Board (requires notes with tags)
-- [ ] Command Picker → Discover → Canvas → "Cluster Board"
+- [ ] Command Picker -> Vault Intelligence -> "Group Notes by Tag"
 - [ ] TagPickerModal opens → shows all vault tags
 - [ ] Select a tag → canvas generated with grouped nodes
 - [ ] Groups shown as labeled rectangles containing file nodes
@@ -400,91 +401,72 @@ Pick at least ONE source type:
 
 ---
 
-## 10b. Chat with Vault UX (4 min)
+## 10b. Unified Chat Modal (6 min)
+
+### Opening & Auto-Mode Selection
+- [ ] Command Picker -> Vault Intelligence -> "Chat with AI" -> unified modal opens
+- [ ] Modal has 3 tabs at top: **Note**, **Vault**, **Highlight**
+- [ ] With no note open → defaults to Vault mode (if index available) or shows empty state
+- [ ] With note open, no selection, no highlights → defaults to Vault or Note mode
+- [ ] With text selected → defaults to Highlight mode
+- [ ] With `==highlight==` markup in note → defaults to Highlight mode
+- [ ] Unavailable modes show disabled tab with tooltip explaining why
+
+### Mode Switching
+- [ ] Click each tab → mode switches, context panel updates
+- [ ] Switch Note → Vault → Note → previous Note chat history preserved
+- [ ] Switch modes during active request → stale response dropped, "Previous request cancelled" notice
+- [ ] Each mode has its own independent chat history
+- [ ] Close modal, reopen → all histories cleared (session-only)
+
+### Note Mode
+- [ ] Note tab shows "Discussing: {noteTitle}" in context panel
+- [ ] Ask question about note content → AI responds with context from note
+- [ ] Works without semantic search enabled (no RAG dependency)
+- [ ] Empty note → Note tab disabled with tooltip
+
+### Vault Mode
+- [ ] Vault tab shows index status: "Index: N docs (vX.X.X)" in context panel
+- [ ] Ask question → RAG retrieves relevant chunks → AI responds with sources
+- [ ] Sources shown as clickable wikilinks below assistant messages
+- [ ] Without semantic search enabled → Vault tab disabled with tooltip
+- [ ] Ask follow-up → conversation history preserved, AI references prior answers
+
+### Highlight Mode
+- [ ] With text selected → opens directly in chat (selection as context)
+- [ ] Without selection → passage selector shown (blocks with highlights pre-selected)
+- [ ] Passage selector: click blocks to toggle, "Start Chat" disabled if none selected
+- [ ] "Insert Summary" action available (not in Note/Vault modes)
+- [ ] "Insert Last Answer" works → inserts at cursor
 
 ### Markdown Rendering
-- [ ] Open Chat with Vault → ask a question that returns markdown (e.g., "List 3 key topics in my vault")
-- [ ] Assistant response renders **bold**, *italic*, headers, lists, and `code` properly
-- [ ] User messages stay plain text (no markdown rendering)
-- [ ] Code blocks in assistant response show with proper formatting
+- [ ] Assistant responses render **bold**, *italic*, headers, lists, `code` properly
+- [ ] User messages stay plain text
+- [ ] Code blocks show with proper formatting
 
-### Conversation History (Follow-ups)
-- [ ] Ask initial question → AI responds
-- [ ] Ask follow-up referencing previous answer (e.g., "Tell me more about the first point")
-- [ ] AI references prior answer correctly (conversation context preserved)
-- [ ] Ask 3-4 questions in sequence → conversation stays coherent
-- [ ] Close modal, reopen → history is cleared (fresh session)
+### Animated Thinking Indicator
+- [ ] Send message → animated dots appear in chat area ("Thinking...")
+- [ ] Dots auto-scroll into view
+- [ ] Send button and textarea disabled during processing
+- [ ] Indicator removed when response arrives
 
 ### Chat Export
-- [ ] Chat with Vault → have at least one Q/A exchange
-- [ ] Click "Export" button → folder picker modal opens (tree view, not text input)
-- [ ] Default path shown or prefilled: `AI-Organiser/Chats` (or custom chatExportFolder)
-- [ ] Search folders in picker → filters correctly
-- [ ] Type non-existing folder name → "+ Create" item appears at top with accent color
-- [ ] Click Create → folder created (including nested paths), export proceeds
-- [ ] Resolved path preview shown inside picker before confirm (e.g. "Destination: AI-Organiser/Chats/MyFolder")
-- [ ] Select existing folder → click Export → file created in chosen folder
-- [ ] Keep default → click Export → file created in `AI-Organiser/Chats/`
-- [ ] Click Cancel / ESC → no file created
-- [ ] First run (default folder doesn't exist) → search prefilled with default path, "+ Create" shown
-- [ ] Open exported file → proper markdown format:
-  - [ ] Heading with date: `# Chat with Vault — {date}`
-  - [ ] Messages with timestamps and role labels (**You** / **Assistant**)
-  - [ ] Sources as wikilinks: `[[Notes/Meeting.md]]`
-  - [ ] Messages separated by `---` horizontal rules
-- [ ] Export again within same minute → file gets ` (2)` suffix (collision-safe)
-- [ ] With no messages → click Export → "No messages to export" notice shown
+- [ ] Have at least one Q/A exchange → click "Export"
+- [ ] Folder picker opens (tree view with search, create folder support)
+- [ ] Exported file has mode-aware title (e.g., "Chat with Vault — {date}", "Chat about {noteTitle} — {date}")
+- [ ] Messages with timestamps, role labels, sources as wikilinks, `---` separators
+- [ ] Export again within same minute → collision-safe ` (2)` suffix
+- [ ] With no messages → "No messages to export" notice
 
-### Chat Export Settings
-- [ ] Settings → Semantic Search → "Chat export folder" text field visible
-- [ ] Change folder name → Chat with Vault export uses new folder
-- [ ] Clear field → defaults back to "Chats"
-
----
-
-## 10c. Highlight Chat (3 min) - Markdown + Chat
-
-### Path A: Quick Chat (with editor selection)
-- [ ] Select text in editor → Command Picker → Discover → Ask AI → "Chat about highlights"
-- [ ] Modal opens directly in **chat phase** (no block picker)
-- [ ] Selected text shown as context (collapsed, expandable)
-- [ ] Type a question → Send → AI responds about selected text
-- [ ] Multi-turn: ask follow-up → AI uses conversation history
-- [ ] "Insert Last Answer" → last AI response inserted at cursor
-- [ ] "Insert Summary" → AI generates standalone prose summary → inserted at cursor
-
-### Path B: Paragraph Picker (no editor selection)
-- [ ] Place cursor without selection → "Chat about highlights" command
-- [ ] Modal opens in **selection phase** showing note split into blocks
-- [ ] Blocks with `==highlight==` or `<mark>` are pre-selected (accent border)
-- [ ] Click blocks to toggle selection
-- [ ] Token estimate shown: "Selected: N passages (~Xk tokens)"
-- [ ] "Start Chat" disabled if nothing selected
-- [ ] Click "Start Chat" → enters chat phase
-
-### Highlight Scoping (NEW)
-- [ ] Note with highlights → only highlighted passages shown by default (not all blocks)
-- [ ] "Showing X of Y passages" count label visible next to toggle
-- [ ] Click "Show all passages" → all blocks visible, highlighted ones still selected
-- [ ] Select a non-highlighted block while "Show all" is on
-- [ ] Click "Show highlights only" → non-highlighted selections auto-cleared (hidden-selection bug prevention)
-- [ ] Token count always reflects actual selected passages (not hidden ones)
-- [ ] Verify correct passage text sent: highlight at paragraph #50 → "Show highlights only" → Start Chat → LLM receives paragraph #50 content (not #1)
-- [ ] Note with NO highlights and no editor selection → notice shown ("No highlights found..."), modal closes
-
-### Chat Features
-- [ ] "Back" button returns to selection phase (chat history preserved)
-- [ ] Role labels ("You" / "AI") on chat messages
-- [ ] Assistant messages render markdown (bold, lists, code blocks)
-- [ ] User messages stay plain text
-- [ ] "Insert Summary" disabled until at least one Q/A exchange
-- [ ] "Insert Last Answer" disabled until at least one Q/A exchange
-- [ ] No active editor → insert buttons disabled with tooltip
+### Actions Bar
+- [ ] "Clear" resets current mode's conversation only (other modes preserved)
+- [ ] "Insert Last Answer" disabled until Q/A exchange exists
+- [ ] "Export" works from all modes
+- [ ] "Insert Summary" only visible in Highlight mode
 
 ### Edge Cases
-- [ ] Empty note → notice shown, modal doesn't open
+- [ ] All modes unavailable (no note, no index) → explanatory empty state shown, no crash
 - [ ] Code block containing `==text==` → NOT detected as highlight (code-fence immunity)
-- [ ] Note with no highlights and no selection → notice shown, modal closes (changed from previous behavior)
 - [ ] Anti-hallucination: inserted summary uses standalone prose (no "[Passage 1]" references)
 
 ---
@@ -592,12 +574,12 @@ For rapid verification, test only sections marked with *:
 
 1. [ ] Pre-Test (build, deploy, restart)
 2. [ ] Settings UI (order correct, no visual issues, canvas section visible, chat export folder visible)
-3. [ ] Command Picker (opens, categories visible, Canvas group in Discover)
+3. [ ] Command Picker (opens, categories visible, Vault Intelligence has "Chat with AI")
 4. [ ] Tagging (generate + clear on one note)
 5. [ ] Summarization (one source type + preview modal + spinner visible)
 6. [ ] LLM Busy Indicator (spinner appears during any LLM call, pulses, stops before modal)
 7. [ ] Canvas (one board type — Context Board is fastest, no RAG needed)
-8. [ ] Chat with Vault (markdown renders, follow-up works, export creates file)
+8. [ ] Unified Chat (single "Chat with AI" command, mode tabs work, markdown renders, export works)
 9. [ ] Provider Test (connection + one operation)
 10. [ ] SecretStorage (Obsidian 1.11+ only): Key status badge visible
 

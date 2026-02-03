@@ -1,268 +1,163 @@
 /**
  * Tests for Command Picker Modal
- *
- * Integration tests to verify:
- * - All expected categories exist
- * - Each category contains expected commands
- * - Command-to-i18n key mappings are correct
  */
 
-import { buildCommandCategories } from '../src/ui/modals/CommandPickerModal';
-import type { Translations } from '../src/i18n/types';
+import { buildCommandCategories, type PickerCommand } from '../src/ui/modals/CommandPickerModal';
+import { en } from '../src/i18n/en';
 
-// Create a minimal mock translations object for testing
-function createMockTranslations(): Translations {
-    return {
-        commands: {
-            summarize: 'Summarize',
-            summarizeSmart: 'Smart Summarize',
-            summarizeFromUrl: 'Summarize from URL',
-            summarizeFromPdf: 'Summarize from PDF',
-            summarizeFromYouTube: 'Summarize from YouTube',
-            summarizeFromAudio: 'Summarize from Audio',
-            createMeetingMinutes: 'Create Meeting Minutes',
-            notebookLMExport: 'NotebookLM: Export Source Pack',
-            enhance: 'Enhance',
-            improveNote: 'Improve Note',
-            generateMermaidDiagram: 'Generate Mermaid Diagram',
-            findResources: 'Find Resources',
-            exportFlashcards: 'Export Flashcards',
-            translate: 'Translate',
-            translateNote: 'Translate Note',
-            translateSelection: 'Translate Selection',
-            highlightSelection: 'Highlight Selection',
-            removeHighlight: 'Remove Highlight',
-            tag: 'Tag',
-            generateTagsForCurrentNote: 'Generate Tags for Current Note',
-            generateTagsForCurrentFolder: 'Generate Tags for Folder',
-            generateTagsForVault: 'Generate Tags for Vault',
-            clearTags: 'Clear Tags',
-            clearTagsForCurrentNote: 'Clear Tags for Note',
-            clearTagsForCurrentFolder: 'Clear Tags for Folder',
-            clearTagsForVault: 'Clear Tags for Vault',
-            upgradeToBases: 'Upgrade to Bases metadata',
-            upgradeFolderToBases: 'Upgrade folder to Bases metadata',
-            createBasesDashboard: 'Create Bases Dashboard',
-            searchSemanticVault: 'Semantic Search',
-            showRelatedNotes: 'Show Related Notes',
-            chatWithAI: 'Chat with AI',
-            insertRelatedNotes: 'Insert Related Notes',
-            manageIndex: 'Manage Index',
-            buildSemanticIndex: 'Build Index',
-            updateSemanticIndex: 'Update Index',
-            clearSemanticIndex: 'Clear Index',
-            showTagNetwork: 'Show Tag Network',
-            collectAllTags: 'Collect All Tags',
-            addToPendingIntegration: 'Add to Pending Integration',
-            integratePendingContent: 'Integrate Pending Content',
-            resolvePendingEmbeds: 'Resolve Pending Embeds',
-            notebookLMToggle: 'NotebookLM: Toggle Selection',
-            notebookLMClear: 'NotebookLM: Clear Selection',
-            notebookLMOpenFolder: 'NotebookLM: Open Export Folder',
-            recordAudio: 'Record Audio',
-            buildInvestigationCanvas: 'Build Investigation Board',
-            buildContextCanvas: 'Build Context Board',
-            buildClusterCanvas: 'Build Cluster Board',
-        },
-        modals: {
-            commandPicker: {
-                placeholder: 'Search commands...',
-                navigateHint: 'to navigate',
-                selectHint: 'to select',
-                closeHint: 'to close',
-                categoryCreate: 'Create',
-                categoryEnhance: 'Enhance',
-                categoryOrganize: 'Organize',
-                categoryDiscover: 'Discover',
-                groupExport: 'Export',
-                groupPending: 'Pending Integration',
-                groupNotebookLM: 'NotebookLM',
-                groupHighlight: 'Highlight',
-                groupTags: 'Tags',
-                groupAskAI: 'Ask AI',
-                groupFindNotes: 'Find Notes',
-                groupCanvas: 'Canvas',
-            },
-        },
-    } as unknown as Translations;
+function countLeafCommands(commands: PickerCommand[]): number {
+    return commands.reduce((total, command) => {
+        if (!command.subCommands || command.subCommands.length === 0) {
+            return total + 1;
+        }
+        return total + countLeafCommands(command.subCommands);
+    }, 0);
+}
+
+function collectLeafCommands(commands: PickerCommand[]): PickerCommand[] {
+    return commands.flatMap((command) => {
+        if (!command.subCommands || command.subCommands.length === 0) {
+            return [command];
+        }
+        return collectLeafCommands(command.subCommands);
+    });
 }
 
 describe('Command Picker', () => {
     describe('buildCommandCategories', () => {
-        const mockTranslations = createMockTranslations();
+        const mockTranslations = en;
         const mockExecuteCommand = vi.fn();
 
         it('should return all expected categories', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-
             const categoryIds = categories.map(c => c.id);
-            expect(categoryIds).toEqual(['create', 'enhance', 'organize', 'discover']);
+            expect(categoryIds).toEqual(['active-note', 'capture', 'vault', 'tools']);
         });
 
         it('should have correct category names from i18n', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-
             const categoryNames = categories.map(c => c.name);
             expect(categoryNames).toEqual([
-                'Create',
-                'Enhance',
-                'Organize',
-                'Discover'
+                mockTranslations.modals.commandPicker.categoryActiveNote,
+                mockTranslations.modals.commandPicker.categoryCapture,
+                mockTranslations.modals.commandPicker.categoryVault,
+                mockTranslations.modals.commandPicker.categoryTools,
             ]);
         });
 
-        it('should have icons for all categories', () => {
+        it('active note should contain expected sub-groups', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const activeNote = categories.find(c => c.id === 'active-note');
 
-            for (const category of categories) {
-                expect(category.icon).toBeTruthy();
-                expect(typeof category.icon).toBe('string');
-            }
+            expect(activeNote).toBeDefined();
+            const ids = activeNote!.commands.map(c => c.id);
+            expect(ids).toEqual(['maps-group', 'refine-group', 'pending-group', 'export-group']);
+
+            const maps = activeNote!.commands.find(c => c.id === 'maps-group');
+            expect(maps?.subCommands?.map(c => c.id)).toEqual([
+                'build-investigation-canvas',
+                'build-context-canvas',
+                'find-related',
+                'insert-related-notes'
+            ]);
         });
 
-        describe('Create category', () => {
-            it('should contain expected commands', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const createCategory = categories.find(c => c.id === 'create');
-
-                expect(createCategory).toBeDefined();
-                const commandIds = createCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('smart-summarize');
-                expect(commandIds).toContain('create-meeting-minutes');
-                expect(commandIds).toContain('record-audio');
-                expect(commandIds).toContain('export-group');
-
-                // Verify Export group contains sub-commands
-                const exportGroup = createCategory!.commands.find(c => c.id === 'export-group');
-                expect(exportGroup).toBeDefined();
-                expect(exportGroup!.subCommands).toBeDefined();
-                const subIds = exportGroup!.subCommands!.map(c => c.id);
-                expect(subIds).toContain('export-note');
-                expect(subIds).toContain('export-flashcards');
-            });
-        });
-
-        describe('Enhance category', () => {
-            it('should contain expected commands', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const enhanceCategory = categories.find(c => c.id === 'enhance');
-
-                expect(enhanceCategory).toBeDefined();
-                const commandIds = enhanceCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('enhance-note');
-                expect(commandIds).toContain('smart-translate');
-                expect(commandIds).toContain('create-dashboard');
-                expect(commandIds).toContain('pending-group');
-
-                // Highlight group removed — highlight/unhighlight now accessible via right-click context menu
-                expect(commandIds).not.toContain('highlight-group');
-
-                // Verify Pending group contains sub-commands
-                const pendingGroup = enhanceCategory!.commands.find(c => c.id === 'pending-group');
-                expect(pendingGroup).toBeDefined();
-                expect(pendingGroup!.subCommands).toBeDefined();
-                const pendingSubIds = pendingGroup!.subCommands!.map(c => c.id);
-                expect(pendingSubIds).toContain('add-to-pending');
-                expect(pendingSubIds).toContain('integrate-pending');
-                expect(pendingSubIds).toContain('resolve-embeds');
-            });
-        });
-
-        describe('Organize category', () => {
-            it('should contain expected commands', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const organizeCategory = categories.find(c => c.id === 'organize');
-
-                expect(organizeCategory).toBeDefined();
-                const commandIds = organizeCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('tags-group');
-                expect(commandIds).toContain('notebooklm-group');
-                expect(commandIds).not.toContain('bases-group');
-
-                // Verify Tags group contains sub-commands
-                const tagsGroup = organizeCategory!.commands.find(c => c.id === 'tags-group');
-                expect(tagsGroup).toBeDefined();
-                expect(tagsGroup!.subCommands).toBeDefined();
-                const tagSubIds = tagsGroup!.subCommands!.map(c => c.id);
-                expect(tagSubIds).toContain('smart-tag');
-                expect(tagSubIds).toContain('clear-tags');
-                expect(tagSubIds).toContain('show-tag-network');
-                expect(tagSubIds).toContain('collect-all-tags');
-
-                // Verify NotebookLM group contains sub-commands
-                const nlmGroup = organizeCategory!.commands.find(c => c.id === 'notebooklm-group');
-                expect(nlmGroup).toBeDefined();
-                expect(nlmGroup!.subCommands).toBeDefined();
-                const nlmSubIds = nlmGroup!.subCommands!.map(c => c.id);
-                expect(nlmSubIds).toContain('notebooklm-export');
-                expect(nlmSubIds).toContain('notebooklm-toggle');
-                expect(nlmSubIds).toContain('notebooklm-clear');
-                expect(nlmSubIds).toContain('notebooklm-open-folder');
-            });
-        });
-
-        describe('Discover category', () => {
-            it('should contain expected groups', () => {
-                const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-                const discoverCategory = categories.find(c => c.id === 'discover');
-
-                expect(discoverCategory).toBeDefined();
-                const commandIds = discoverCategory!.commands.map(c => c.id);
-                expect(commandIds).toContain('chat-with-ai');
-                expect(commandIds).toContain('find-notes-group');
-                expect(commandIds).toContain('canvas-group');
-                expect(commandIds).toHaveLength(3); // Chat with AI, Find Notes group, Canvas group
-
-                // Verify Find Notes group
-                const findGroup = discoverCategory!.commands.find(c => c.id === 'find-notes-group');
-                expect(findGroup).toBeDefined();
-                expect(findGroup!.subCommands).toBeDefined();
-                const findSubIds = findGroup!.subCommands!.map(c => c.id);
-                expect(findSubIds).toContain('semantic-search');
-                expect(findSubIds).toContain('find-related');
-                expect(findSubIds).toContain('insert-related-notes');
-
-                // Verify Canvas group
-                const canvasGroup = discoverCategory!.commands.find(c => c.id === 'canvas-group');
-                expect(canvasGroup).toBeDefined();
-                expect(canvasGroup!.subCommands).toBeDefined();
-                const canvasSubIds = canvasGroup!.subCommands!.map(c => c.id);
-                expect(canvasSubIds).toContain('build-investigation-canvas');
-                expect(canvasSubIds).toContain('build-context-canvas');
-                expect(canvasSubIds).toContain('build-cluster-canvas');
-            });
-        });
-
-        it('should have callbacks that call executeCommand with correct command IDs', () => {
+        it('capture should contain expected commands', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-
-            // Find and execute a command
-            const createCategory = categories.find(c => c.id === 'create')!;
-            const summarizeCommand = createCategory.commands.find(c => c.id === 'smart-summarize')!;
-
-            summarizeCommand.callback();
-            expect(mockExecuteCommand).toHaveBeenCalledWith('ai-organiser:smart-summarize');
+            const capture = categories.find(c => c.id === 'capture');
+            const ids = capture!.commands.map(c => c.id);
+            expect(ids).toEqual(['summarize-web', 'create-meeting-minutes', 'record-audio']);
         });
 
-        it('all commands should have icons', () => {
+        it('vault should contain expected commands', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-
-            for (const category of categories) {
-                for (const command of category.commands) {
-                    expect(command.icon, `Command ${command.id} should have an icon`).toBeTruthy();
-                }
-            }
+            const vault = categories.find(c => c.id === 'vault');
+            const ids = vault!.commands.map(c => c.id);
+            expect(ids).toEqual([
+                'chat-with-ai',
+                'semantic-search',
+                'build-cluster-canvas',
+                'show-tag-network',
+                'create-dashboard'
+            ]);
         });
 
-        it('all commands should have names from i18n', () => {
+        it('tools should contain notebooklm group and collect all tags', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const tools = categories.find(c => c.id === 'tools');
+            const ids = tools!.commands.map(c => c.id);
+            expect(ids).toEqual(['notebooklm-group', 'collect-all-tags']);
 
-            for (const category of categories) {
-                for (const command of category.commands) {
-                    expect(command.name, `Command ${command.id} should have a name`).toBeTruthy();
-                    expect(typeof command.name).toBe('string');
-                }
-            }
+            const notebookGroup = tools!.commands.find(c => c.id === 'notebooklm-group');
+            expect(notebookGroup?.subCommands?.map(c => c.id)).toEqual([
+                'notebooklm-export',
+                'notebooklm-toggle',
+                'notebooklm-clear',
+                'notebooklm-open-folder'
+            ]);
+        });
+
+        it('should wire summarize in both Active Note and Capture to smart-summarize command', () => {
+            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const activeRefine = categories
+                .find(c => c.id === 'active-note')!
+                .commands.find(c => c.id === 'refine-group')!;
+            const summarizeNote = activeRefine.subCommands!.find(c => c.id === 'summarize-note')!;
+
+            const captureSummarize = categories
+                .find(c => c.id === 'capture')!
+                .commands.find(c => c.id === 'summarize-web')!;
+
+            summarizeNote.callback();
+            captureSummarize.callback();
+
+            expect(mockExecuteCommand).toHaveBeenNthCalledWith(1, 'ai-organiser:smart-summarize');
+            expect(mockExecuteCommand).toHaveBeenNthCalledWith(2, 'ai-organiser:smart-summarize');
+        });
+
+        it('should have expected total leaf command count', () => {
+            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
+            expect(leafCount).toBe(27);
+        });
+
+        it('should include the expected 26 unique command IDs across all leaf callbacks', () => {
+            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leafCommands = categories.flatMap(category => collectLeafCommands(category.commands));
+
+            mockExecuteCommand.mockClear();
+            leafCommands.forEach(command => command.callback());
+
+            const uniqueExecutedCommands = new Set(mockExecuteCommand.mock.calls.map(call => call[0]));
+            expect(Array.from(uniqueExecutedCommands).sort()).toEqual([
+                'ai-organiser:add-to-pending-integration',
+                'ai-organiser:build-cluster-canvas',
+                'ai-organiser:build-context-canvas',
+                'ai-organiser:build-investigation-canvas',
+                'ai-organiser:chat-with-ai',
+                'ai-organiser:clear-tags',
+                'ai-organiser:collect-all-tags',
+                'ai-organiser:create-bases-dashboard',
+                'ai-organiser:create-meeting-minutes',
+                'ai-organiser:enhance-note',
+                'ai-organiser:export-flashcards',
+                'ai-organiser:export-note',
+                'ai-organiser:find-related',
+                'ai-organiser:insert-related-notes',
+                'ai-organiser:integrate-pending-content',
+                'ai-organiser:notebooklm-clear-selection',
+                'ai-organiser:notebooklm-export',
+                'ai-organiser:notebooklm-open-export-folder',
+                'ai-organiser:notebooklm-toggle-selection',
+                'ai-organiser:record-audio',
+                'ai-organiser:resolve-pending-embeds',
+                'ai-organiser:semantic-search',
+                'ai-organiser:show-tag-network',
+                'ai-organiser:smart-summarize',
+                'ai-organiser:smart-tag',
+                'ai-organiser:smart-translate',
+            ]);
+            expect(uniqueExecutedCommands.size).toBe(26);
         });
     });
 });

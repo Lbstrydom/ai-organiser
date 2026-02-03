@@ -1637,60 +1637,24 @@
 }
 
 /* Category-specific colors */
-.command-picker-item[data-category="create"] .command-picker-category {
-    background-color: rgba(var(--color-orange-rgb), 0.15);
-    color: var(--color-orange);
-}
-
-.command-picker-item[data-category="enhance"] .command-picker-category {
-    background-color: rgba(var(--color-purple-rgb), 0.15);
-    color: var(--color-purple);
-}
-
-.command-picker-item[data-category="organize"] .command-picker-category {
+.command-picker-item[data-category="active-note"] .command-picker-category {
     background-color: rgba(var(--color-blue-rgb), 0.15);
     color: var(--color-blue);
 }
 
-.command-picker-item[data-category="search"] .command-picker-category {
-    background-color: rgba(var(--color-green-rgb), 0.15);
-    color: var(--color-green);
-}
-
-.command-picker-item[data-category="analyze"] .command-picker-category {
-    background-color: rgba(var(--color-cyan-rgb), 0.15);
-    color: var(--color-cyan);
-}
-
-.command-picker-item[data-category="integrate"] .command-picker-category {
-    background-color: rgba(var(--color-pink-rgb), 0.15);
-    color: var(--color-pink);
-}
-
-/* Fallback for legacy category names */
-.command-picker-item[data-category="tagging"] .command-picker-category {
-    background-color: rgba(var(--color-blue-rgb), 0.15);
-    color: var(--color-blue);
-}
-
-.command-picker-item[data-category="summarize"] .command-picker-category {
-    background-color: rgba(var(--color-green-rgb), 0.15);
-    color: var(--color-green);
-}
-
-.command-picker-item[data-category="smart-notes"] .command-picker-category {
-    background-color: rgba(var(--color-purple-rgb), 0.15);
-    color: var(--color-purple);
-}
-
-.command-picker-item[data-category="translate"] .command-picker-category {
+.command-picker-item[data-category="capture"] .command-picker-category {
     background-color: rgba(var(--color-orange-rgb), 0.15);
     color: var(--color-orange);
 }
 
-.command-picker-item[data-category="utilities"] .command-picker-category {
-    background-color: rgba(var(--color-cyan-rgb), 0.15);
-    color: var(--color-cyan);
+.command-picker-item[data-category="vault"] .command-picker-category {
+    background-color: rgba(var(--color-green-rgb), 0.15);
+    color: var(--color-green);
+}
+
+.command-picker-item[data-category="tools"] .command-picker-category {
+    background-color: rgba(var(--background-modifier-hover-rgb), 0.35);
+    color: var(--text-muted);
 }
 
 /* Hover and selected states */
