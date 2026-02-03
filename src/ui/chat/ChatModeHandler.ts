@@ -6,17 +6,20 @@
  * state must be released in dispose().
  */
 
+import type { App, TFile } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import type { AIOrganiserSettings } from '../../core/settings';
 import type { IEmbeddingService } from '../../services/embeddings/types';
 import type { IVectorStore } from '../../services/vector/types';
 import type { SummarizableLLMService } from '../../services/types';
+import type AIOrganiserPlugin from '../../main';
 
 export type ChatMode = 'note' | 'vault' | 'highlight';
 
 export interface UnifiedChatOptions {
     noteContent?: string;
     noteTitle?: string;
+    noteFile?: TFile;
     editorSelection?: string;
     initialMode?: ChatMode;
 }
@@ -30,7 +33,9 @@ export interface ChatPluginContext {
 }
 
 export interface ModalContext {
+    app: App;
     plugin: ChatPluginContext;
+    fullPlugin: AIOrganiserPlugin;
     options: UnifiedChatOptions;
     vaultDocCount: number;
     vaultIndexVersion: string;

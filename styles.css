@@ -1851,6 +1851,28 @@
     color: var(--text-muted);
 }
 
+/* Folder scope row in Vault chat mode */
+.ai-organiser-chat-scope-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-chat-scope-text {
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.ai-organiser-chat-scope-btn {
+    font-size: var(--font-ui-smaller);
+    padding: 2px 8px;
+}
+
 .ai-organiser-chat-area {
     flex: 1;
     overflow-y: auto;
@@ -1920,8 +1942,62 @@
 
 .ai-organiser-chat-input-row {
     display: flex;
-    gap: var(--size-2-2);
+    gap: var(--size-4-2);
     align-items: flex-end;
+    padding: var(--size-4-2);
+    background: var(--background-secondary);
+    border-radius: var(--radius-m);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-chat-input-row textarea {
+    flex: 1;
+    min-height: 60px;
+    max-height: 200px;
+    resize: vertical;
+    padding: var(--size-4-2);
+    font-size: var(--font-ui-medium);
+    line-height: 1.5;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-family: inherit;
+}
+
+.ai-organiser-chat-input-row textarea:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+.ai-organiser-chat-input-row textarea::placeholder {
+    color: var(--text-faint);
+}
+
+.ai-organiser-chat-input-row .clickable-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-m);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.ai-organiser-chat-input-row .clickable-icon:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.ai-organiser-chat-input-row .clickable-icon:disabled,
+.ai-organiser-chat-input-row .clickable-icon[disabled] {
+    background: var(--background-modifier-border);
+    color: var(--text-faint);
+    cursor: not-allowed;
 }
 
 .ai-organiser-chat-actions {

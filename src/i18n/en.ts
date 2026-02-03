@@ -1371,7 +1371,11 @@ export const en: Translations = {
             back: "Back",
             noHighlightsFound: "No highlights found in this note.",
             requestCancelled: "Previous request cancelled",
-            emptyState: "Open a note to chat about it, or enable semantic search for vault-wide chat."
+            emptyState: "Open a note to chat about it, or enable semantic search for vault-wide chat.",
+            scopeEntireVault: "Searching: Entire vault",
+            scopeFolder: "Searching in: {folder}/",
+            changeScopeButton: "Change",
+            scopeToFolderButton: "Scope to folder"
         },
         exportNote: {
             title: "Export Note",

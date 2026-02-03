@@ -84,13 +84,17 @@ function createMockTranslations(): Translations {
 
 function createMockContext(overrides: Partial<ModalContext> = {}): ModalContext {
     const t = createMockTranslations();
+    const mockApp = {} as any;
+    const mockFullPlugin = { t } as any;
     return {
+        app: mockApp,
         plugin: {
             t,
             settings: { enableSemanticSearch: true },
             vectorStore: {},
             embeddingService: {},
         } as unknown as ModalContext['plugin'],
+        fullPlugin: mockFullPlugin,
         options: {},
         vaultDocCount: 1,
         vaultIndexVersion: '2.0.0',

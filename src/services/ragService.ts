@@ -49,25 +49,33 @@ export class RAGService {
 
     /**
      * Retrieve relevant context for a query
+     * @param options.folderScope Restrict results to this folder (and subfolders). null = whole vault.
      */
     public async retrieveContext(
         query: string,
         currentFile?: TFile,
-        options: RAGOptions = {}
+        options: RAGOptions & { folderScope?: string | null } = {}
     ): Promise<RAGContext> {
         const {
             maxChunks = this.settings.ragContextChunks || 5,
             includeMetadata = this.settings.ragIncludeMetadata ?? true,
             minSimilarity = DEFAULT_MIN_SIMILARITY,
-            excludeCurrentFile = false
+            excludeCurrentFile = false,
+            folderScope
         } = options;
 
         try {
+            // Build folder filter predicate if needed
+            const filter = (folderScope && folderScope !== '' && folderScope !== '/')
+                ? (doc: VectorDocument) => doc.filePath.startsWith(folderScope + '/')
+                : undefined;
+
             // Get embedding service from vector store and search
             const results = await this.vectorStore.searchByContent(
                 query,
                 this.embeddingService,
-                maxChunks * 2 // Get more results for filtering
+                maxChunks * 2, // Get more results for filtering
+                filter
             );
 
             // Filter results

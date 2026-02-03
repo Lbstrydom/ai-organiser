@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Component, MarkdownRenderer, Modal, Notice, TextAreaComponent } from 'obsidian';
+import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Modal, Notice, TextAreaComponent } from 'obsidian';
 import { ensureNoteStructureIfEnabled } from '../../utils/noteStructure';
 import { formatConversationHistory, formatExportMarkdown } from '../../utils/chatExportUtils';
 import { getChatExportFullPath, resolvePluginPath } from '../../core/settings';
@@ -91,6 +91,7 @@ export class UnifiedChatModal extends Modal {
     private thinkingEl?: HTMLElement;
 
     private component?: Component;
+    private cachedEditor?: Editor;
 
     constructor(app: App, plugin: ChatPluginContext, options: UnifiedChatOptions) {
         super(app);
@@ -107,6 +108,9 @@ export class UnifiedChatModal extends Modal {
         this.contentEl.empty();
         this.modalEl.addClass('ai-organiser-chat-modal');
         this.contentEl.addClass('ai-organiser-chat-modal-content');
+
+        // Cache editor reference before modal takes focus
+        this.cachedEditor = this.app.workspace.activeEditor?.editor;
 
         this.ctx = await this.buildContext();
         this.handlers = new Map<ChatMode, ChatModeHandler>([
@@ -143,9 +147,15 @@ export class UnifiedChatModal extends Modal {
 
     private async buildContext(): Promise<ModalContext> {
         const metadata = await this.plugin.vectorStore?.getMetadata();
+        const activeFile = this.app.workspace.getActiveFile();
         return {
+            app: this.app,
             plugin: this.plugin,
-            options: this.options,
+            fullPlugin: this.plugin as any, // Cast to full plugin type
+            options: {
+                ...this.options,
+                noteFile: activeFile || undefined
+            },
             vaultDocCount: metadata?.totalDocuments ?? 0,
             vaultIndexVersion: metadata?.version ?? 'unknown',
             hasEmbeddingService: !!this.plugin.embeddingService,
@@ -161,7 +171,17 @@ export class UnifiedChatModal extends Modal {
         const inputRow = this.contentEl.createDiv({ cls: 'ai-organiser-chat-input-row' });
         this.inputArea = new TextAreaComponent(inputRow);
         this.inputArea.setPlaceholder(this.getActiveHandler().getPlaceholder(this.plugin.t));
-        this.inputArea.inputEl.rows = 3;
+        this.inputArea.inputEl.rows = 4;
+        
+        // Auto-expand textarea as user types (up to max-height in CSS)
+        this.inputArea.inputEl.addEventListener('input', () => {
+            const textarea = this.inputArea?.inputEl;
+            if (textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            }
+        });
+        
         this.inputArea.inputEl.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -296,7 +316,7 @@ export class UnifiedChatModal extends Modal {
         this.actionsEl.empty();
 
         const t = this.plugin.t.modals.unifiedChat;
-        const hasEditor = !!this.app.workspace.activeEditor?.editor;
+        const hasEditor = !!this.cachedEditor;
         const lastAnswer = this.getLastAssistantMessage();
 
         const clearButton = new ButtonComponent(this.actionsEl)
@@ -415,6 +435,8 @@ export class UnifiedChatModal extends Modal {
         if (!query) return;
 
         this.inputArea.setValue('');
+        // Reset textarea height after clearing
+        this.inputArea.inputEl.style.height = 'auto';
 
         this.isProcessing = true;
         this.updateInputState();
@@ -485,6 +507,7 @@ export class UnifiedChatModal extends Modal {
                 this.isProcessing = false;
                 this.hideThinkingIndicator();
                 this.updateInputState();
+                this.renderActionsBar();
             }
         }
     }

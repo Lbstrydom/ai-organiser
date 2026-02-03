@@ -434,88 +434,99 @@ Pick at least ONE source type:
 ## 10b. Unified Chat Modal (6 min)
 
 ### Opening & Auto-Mode Selection
-- [ ] Command Picker -> Vault Intelligence -> Ask & Search -> "Chat with AI" -> unified modal opens
-- [ ] Modal has 3 tabs at top: **Note**, **Vault**, **Highlight**
-- [ ] With no note open → defaults to Vault mode (if index available) or shows empty state
-- [ ] With note open, no selection, no highlights → defaults to Vault or Note mode
-- [ ] With text selected → defaults to Highlight mode
-- [ ] With `==highlight==` markup in note → defaults to Highlight mode
-- [ ] Unavailable modes show disabled tab with tooltip explaining why
+- [x] Command Picker -> Vault Intelligence -> Ask & Search -> "Chat with AI" -> unified modal opens
+- [x] Modal has 3 tabs at top: **Note**, **Vault**, **Highlight**
+- [x] With no note open → defaults to Vault mode (if index available) or shows empty state
+- [x] With note open, no selection, no highlights → defaults to Vault or Note mode
+- [x] With text selected → defaults to Highlight mode
+- [x] With `==highlight==` markup in note → defaults to Highlight mode
+- [x] Unavailable modes show disabled tab with tooltip explaining why
 
 ### Mode Switching
-- [ ] Click each tab → mode switches, context panel updates
-- [ ] Switch Note → Vault → Note → previous Note chat history preserved
-- [ ] Switch modes during active request → stale response dropped, "Previous request cancelled" notice
-- [ ] Each mode has its own independent chat history
-- [ ] Close modal, reopen → all histories cleared (session-only)
+- [x] Click each tab → mode switches, context panel updates
+- [x] Switch Note → Vault → Note → previous Note chat history preserved
+- [x] Switch modes during active request → stale response dropped, "Previous request cancelled" notice
+- [x] Each mode has its own independent chat history
+- [x] Close modal, reopen → all histories cleared (session-only)
 
 ### Note Mode
-- [ ] Note tab shows "Discussing: {noteTitle}" in context panel
-- [ ] Ask question about note content → AI responds with context from note
-- [ ] Works without semantic search enabled (no RAG dependency)
-- [ ] Empty note → Note tab disabled with tooltip
+- [x] Note tab shows "Discussing: {noteTitle}" in context panel
+- [x] Ask question about note content → AI responds with context from note
+- [x] Works without semantic search enabled (no RAG dependency)
+- [x] Empty note → Note tab disabled with tooltip
 
 ### Vault Mode
-- [ ] Vault tab shows index status: "Index: N docs (vX.X.X)" in context panel
-- [ ] Ask question → RAG retrieves relevant chunks → AI responds with sources
-- [ ] Sources shown as clickable wikilinks below assistant messages
-- [ ] Without semantic search enabled → Vault tab disabled with tooltip
-- [ ] Ask follow-up → conversation history preserved, AI references prior answers
+- [x] Vault tab shows index status: "Index: N docs (vX.X.X)" in context panel
+- [x] Ask question → RAG retrieves relevant chunks → AI responds with sources
+- [x] Sources shown as clickable wikilinks below assistant messages
+- [x] Without semantic search enabled → Vault tab disabled with tooltip
+- [x] Ask follow-up → conversation history preserved, AI references prior answers
+
+### Vault Mode - Folder Scope (NEW)
+- [x] Open note in subfolder → Vault mode → scope defaults to current folder
+- [x] Context panel shows "Searching in: FolderName" below index status
+- [x] Click folder scope button → folder picker opens → select different folder
+- [x] Select folder → scope updates, context panel reflects change
+- [x] "Entire vault" option in folder picker → removes scope filter
+- [x] Ask question with folder scope → results only from that folder
+- [x] Root-level note → defaults to entire vault (no folder shown)
+- [x] Switch between notes → folder scope follows active note (when not manually set)
+- [x] Manually set scope → stays fixed when switching notes (pinned behavior)
 
 ### Highlight Mode
-- [ ] With text selected → opens directly in chat (selection as context)
-- [ ] Without selection → passage selector shown (blocks with highlights pre-selected)
-- [ ] Passage selector: click blocks to toggle, "Start Chat" disabled if none selected
-- [ ] "Insert Summary" action available (not in Note/Vault modes)
-- [ ] "Insert Last Answer" works → inserts at cursor
+- [x] With text selected → opens directly in chat (selection as context)
+- [x] Without selection → passage selector shown (blocks with highlights pre-selected)
+- [x] Passage selector: click blocks to toggle, "Start Chat" disabled if none selected
+- [x] "Insert Summary" action available (not in Note/Vault modes)
+- [x] "Insert Last Answer" works → inserts at cursor
 
 ### Markdown Rendering
-- [ ] Assistant responses render **bold**, *italic*, headers, lists, `code` properly
-- [ ] User messages stay plain text
-- [ ] Code blocks show with proper formatting
+- [x] Assistant responses render **bold**, *italic*, headers, lists, `code` properly
+- [x] User messages stay plain text
+- [x] Code blocks show with proper formatting
 
 ### Animated Thinking Indicator
-- [ ] Send message → animated dots appear in chat area ("Thinking...")
-- [ ] Dots auto-scroll into view
-- [ ] Send button and textarea disabled during processing
-- [ ] Indicator removed when response arrives
+- [x] Send message → animated dots appear in chat area ("Thinking...")
+- [x] Dots auto-scroll into view
+- [x] Send button and textarea disabled during processing
+- [x] Indicator removed when response arrives
 
 ### Chat Export
-- [ ] Have at least one Q/A exchange → click "Export"
-- [ ] Folder picker opens (tree view with search, create folder support)
-- [ ] Exported file has mode-aware title (e.g., "Chat with Vault — {date}", "Chat about {noteTitle} — {date}")
-- [ ] Messages with timestamps, role labels, sources as wikilinks, `---` separators
-- [ ] Export again within same minute → collision-safe ` (2)` suffix
-- [ ] With no messages → "No messages to export" notice
+- [x] Have at least one Q/A exchange → click "Export"
+- [x] Folder picker opens (tree view with search, create folder support)
+- [x] Exported file has mode-aware title (e.g., "Chat with Vault — {date}", "Chat about {noteTitle} — {date}")
+- [x] Messages with timestamps, role labels, sources as wikilinks, `---` separators
+- [x] Export again within same minute → collision-safe ` (2)` suffix
+- [x] With no messages → "No messages to export" notice
 
 ### Actions Bar
-- [ ] "Clear" resets current mode's conversation only (other modes preserved)
-- [ ] "Insert Last Answer" disabled until Q/A exchange exists
-- [ ] "Export" works from all modes
-- [ ] "Insert Summary" only visible in Highlight mode
+- [x] "Clear" resets current mode's conversation only (other modes preserved)
+- [x] "Insert Last Answer" disabled until Q/A exchange exists
+- [x] "Export" works from all modes
+- [x] "Insert Summary" only visible in Highlight mode
 
 ### Edge Cases
-- [ ] All modes unavailable (no note, no index) → explanatory empty state shown, no crash
-- [ ] Code block containing `==text==` → NOT detected as highlight (code-fence immunity)
-- [ ] Anti-hallucination: inserted summary uses standalone prose (no "[Passage 1]" references)
+- [x] All modes unavailable (no note, no index) → explanatory empty state shown, no crash
+- [x] Code block containing `==text==` → NOT detected as highlight (code-fence immunity)
+- [x] Anti-hallucination: inserted summary uses standalone prose (no "[Passage 1]" references)
 
 ---
 
 ## 10d. Highlights (2 min)
 
 ### Command Palette
-- [ ] Select text → "Highlight selection" → color picker → text highlighted
-- [ ] Select highlighted text → "Remove highlight" → highlight removed
-- [ ] Multiple highlight colors available (if configured)
+- [x] Select text → "Highlight selection" → color picker → text highlighted
+- [x] Select highlighted text → "Remove highlight" → highlight removed
+- [x] Multiple highlight colors available (if configured)
 
 ### Right-Click Context Menu (NEW)
-- [ ] Select text → right-click → "Highlight" visible in context menu
-- [ ] Click "Highlight" → color picker opens → highlights text
-- [ ] Select highlighted text (`==text==` or `<mark>`) → right-click → "Remove highlight" also visible
-- [ ] Click "Remove highlight" → markup removed, plain text remains
-- [ ] Right-click without any selection → no highlight items in menu
-- [ ] Select `==A== plain ==B==` → right-click → "Remove highlight" → both highlights removed correctly
-- [ ] Select very large text (>5000 chars) → right-click → "Highlight" still visible, "Remove highlight" absent (performance guard)
+- [x] Select text → right-click → "Highlight" visible in context menu
+- [x] Click "Highlight" → color picker opens → highlights text
+- [x] Select highlighted text (`==text==` or `<mark>`) → right-click → "Remove highlight" also visible
+- [x] Click "Remove highlight" → markup removed, plain text remains
+- [x] Right-click without any selection → no highlight items in menu
+- [x] Select `==A== plain ==B==` → right-click → "Remove highlight" → both highlights removed correctly
+- [x] Select very large text (>5000 chars) → right-click → "Highlight" still visible, "Remove highlight" absent (performance guard)
 
 ---
 
