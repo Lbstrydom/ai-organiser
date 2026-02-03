@@ -1,12 +1,124 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** February 2, 2026
-**Status:** Feature Complete - Semantic Search Stability & Quality Overhaul
+**Last Updated:** February 3, 2026
+**Status:** Feature Complete - Unified Chat Modal Plan Handed Off
 
 ---
 
 ## Recent Updates
+
+### Unified Chat Modal (2026-02-03) — PLANNED
+
+**Consolidate three separate chat interfaces into a single unified modal with mode tabs (Note/Vault/Highlight).**
+
+| Aspect | Status |
+|--------|--------|
+| Plan | Complete — 3 rounds of reviewer feedback incorporated |
+| Implementation | Not started — handed off to implementation team |
+
+**Documentation**: `docs/completed/uni-plan.md`
+
+**Key design decisions:**
+- Strategy pattern: `ChatModeHandler` interface with 3 implementations (Note, Vault, Highlight)
+- Preloaded `ModalContext` for sync availability checks
+- Per-mode chat history (`Map<ChatMode, ChatMessage[]>`) — no data loss on tab switch
+- Request generation counter for race condition prevention
+- Action descriptors (data, not closures) to prevent handler boundary leak
+- Animated thinking indicator in chat area (CSS `@keyframes`)
+- Command intent fallback: Notice + best available mode, never silent switch
+- Session-only history (resets on modal reopen)
+- Soft guard policy: commands do minimal hard guards, modal handles unavailability internally
+
+**Files to create/modify**: 14 files (6 new, 5 modified, 2 deleted, 1 new test)
+
+---
+
+### Index Version Persistence (2026-02-02)
+
+**Fix index version persisting as `1.0.0` after clear+rebuild. Add distinct Build (full rebuild) vs Update (incremental) semantics.**
+
+| Area | Fix | Status |
+|------|-----|--------|
+| Lazy Migration | Version stamp on every `upsert()` — active users don't see false "outdated" warning | Complete |
+| Full Rebuild | `rebuildVault()` — clear + reindex all, distinct from incremental `indexVault()` | Complete |
+| DRY Extraction | `indexAllNotes()` shared by both `indexVault()` and `rebuildVault()` | Complete |
+| Centralized Constant | `INDEX_SCHEMA_VERSION` in `types.ts`, re-exported from `vectorStoreService.ts` | Complete |
+| ManageIndexModal | Build button wired to `rebuildVault()`, re-renders after operations | Complete |
+| Embedding Guard | `rebuildVault()` early-returns `{0,0}` when embedding service is null | Complete |
+| Search Cache | `rebuildVault()` clears search cache during rebuild | Complete |
+| Load Ordering | `rebuildVault()` awaits `loadPromise` before calling `clear()` | Complete |
+| Tests | 10 new tests: version stamp, rebuild semantics, warning flag, load ordering, cache clear, embedding guard | Complete |
+
+**Build Status**: 1054 tests passing (52 suites)
+
+**Root Cause**: `load()` overwrites default metadata (including version `2.0.0`) from persisted `meta.json` containing `1.0.0`. `clear()` only reset counts but left the stale version. After clear+rebuild, old version persisted.
+
+**Expert Review**: 3 rounds — synthesized architectural purity (full rebuild path) with pragmatic UX (lazy migration). See `docs/completed/index-plan.md` for full review analysis.
+
+**Key Files Modified:**
+- `src/services/vector/types.ts` — `INDEX_SCHEMA_VERSION` constant with JSDoc
+- `src/services/vector/vectorStoreService.ts` — Re-export, `indexAllNotes()`, `rebuildVault()`, `hasWarnedIndexVersion` reset
+- `src/services/vector/voyVectorStore.ts` — Import constant, version stamp in `upsert()` with trade-off comment
+- `src/services/vector/simpleVectorStore.ts` — Import constant, version stamp in `upsert()`
+- `src/ui/modals/ManageIndexModal.ts` — Build → `rebuildVault()`, embedding service guard
+- `tests/semanticSearchPlan.test.ts` — 10 new tests
+
+**Documentation**: `docs/completed/index-plan.md`
+
+---
+
+### UX Fixes: Export Folder Picker, Highlight Context Menu, Highlight Chat Scoping (2026-02-02)
+
+**Three UX improvements addressing user friction in export workflows, highlight interactions, and highlight chat modal.**
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Export Folder Picker | Replace plain text folder inputs with `FolderScopePickerModal` in chat export and minutes output | Complete |
+| Search-to-Create | Type non-existing folder name → "+" Create" affordance with safe recursive creation via `ensureFolderExists()` | Complete |
+| Resolved Path Preview | Inline preview of destination path inside picker before confirm (`resolvePreview` callback) | Complete |
+| Default Folder Prefill | If `defaultFolder` doesn't exist in vault, prefill search input and show Create affordance | Complete |
+| Confirm Button Text | `confirmButtonText` option (e.g. "Export" instead of "Select") | Complete |
+| Right-Click Highlight | `editor-menu` registration: "Highlight" always visible, "Remove highlight" conditional on markup detection | Complete |
+| Performance Guard | Strip check skipped for selections >5000 chars; "Highlight" still shown | Complete |
+| Highlight Chat Scoping | Default to showing only highlighted blocks; toggle with "Show all passages" / "Show highlights only" | Complete |
+| Auto-Deselect | Non-highlighted block selections auto-cleared on toggle-back (prevents hidden-selection bug) | Complete |
+| No Highlights Early Exit | Notice + modal close when note has no highlights and no editor selection | Complete |
+| originalIndex Tracking | Selection indices reference `this.blocks` positions, not filtered-array loop indices | Complete |
+| Showing Count | "Showing {visible} of {total} passages" label on toggle button | Complete |
+| Duplicate Related Notes Fix | `getLeavesOfType()` check before `getRightLeaf(false)` prevents duplicate sidebar views | Complete |
+| Highlight Group Removed | Removed Highlight sub-group from Command Picker Enhance category (right-click replaces it) | Complete |
+| i18n | 6 new keys: 4 highlightChat + 2 folderScopePicker (EN + ZH-CN) | Complete |
+| Tests | 33 new tests in `uxFixes.test.ts` covering all three features + i18n completeness | Complete |
+
+**Expert Review Findings Addressed:**
+
+| Finding | Severity | Resolution |
+|---------|----------|------------|
+| >5000 guard hides all context actions | Blocker | Guard only applies to "Remove highlight" detection; "Highlight" always visible |
+| `vault.createFolder()` risky for nested/invalid paths | Blocker | Use `ensureFolderExists()` (recursive) + path normalization/validation |
+| Resolved path preview should be inside picker, not second step | High | Added `resolvePreview` callback to `FolderScopePickerModal` |
+| Hidden-selection bug on toggle-back | High | Auto-deselect non-highlighted blocks when filtering back |
+| Default folder may not exist on first run | Medium | Prefill search + show Create affordance |
+| DRY highlight detection | Medium | Reuse `stripExistingHighlight` instead of separate regex |
+| Unused `Menu` import may fail strict builds | Medium | No explicit import — Obsidian event callback types are inferred |
+
+**Build Status**: 1028 tests passing (51 suites)
+
+**Key Files Modified:**
+- `src/commands/highlightCommands.ts` — `editor-menu` registration with conditional "Remove highlight", `stripExistingHighlight` exported
+- `src/ui/modals/HighlightChatModal.ts` — `showAllBlocks` toggle, `originalIndex` tracking, auto-deselect, no-highlights early exit, count label
+- `src/commands/chatCommands.ts` — `promptExportFolder()` replaced with `FolderScopePickerModal`
+- `src/ui/modals/FolderScopePickerModal.ts` — `confirmButtonText`, `allowNewFolder`, `resolvePreview`, `normalizeCreatePath()`, `shouldShowCreateFolder()` (exported for testing)
+- `src/ui/modals/MinutesCreationModal.ts` — Output folder text input replaced with folder picker button
+- `src/commands/semanticSearchCommands.ts` — `getLeavesOfType()` duplicate view prevention
+- `src/ui/modals/CommandPickerModal.ts` — Removed Highlight sub-group from Enhance category
+- `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — 6 new keys (highlightChat + folderScopePicker)
+- `tests/uxFixes.test.ts` — 33 tests: stripExistingHighlight, highlight chat scoping, FolderScopePickerOptions, normalizeCreatePath, shouldShowCreateFolder, i18n completeness
+
+**Documentation**: `docs/completed/uxfix-plan.md`
+
+---
 
 ### Chat UX Improvements + Minutes Folder Selection (2026-02-02)
 
@@ -39,19 +151,19 @@
 **Build Status**: 995 tests passing (50 suites)
 
 **Key Files Modified:**
-- `src/commands/chatCommands.ts` — Component lifecycle, markdown rendering, conversation history, export button + handler + folder prompt modal
+- `src/commands/chatCommands.ts` — Unified chat modal entrypoints, export handler + folder prompt modal
 - `src/utils/chatExportUtils.ts` — Shared pure functions: `formatConversationHistory()`, `formatExportMarkdown()`, constants, `ChatExportMessage` interface
-- `src/ui/modals/HighlightChatModal.ts` — Component lifecycle, markdown rendering with `.ai-organiser-hc-message-content` wrapper div
+- `src/ui/modals/UnifiedChatModal.ts` — Unified chat shell and markdown rendering with `.ai-organiser-chat-msg-content`
 - `src/core/settings.ts` — `chatExportFolder` setting + default + `getChatExportFullPath()` resolver; `resolvePluginPath()` exported
 - `src/ui/settings/SemanticSearchSettingsSection.ts` — Chat export folder text field in RAG subsection
 - `src/ui/modals/MinutesCreationModal.ts` — `outputFolder` state field, editable text field, `resolvePluginPath()` in `handleSubmit()`
 - `src/i18n/types.ts`, `en.ts`, `zh-cn.ts` — Chat export keys (incl. `exportFailed`), minutes outputFolderLabel, semanticSearch chatExportFolder
-- `styles.css` — Markdown margin fixes for chat assistant bubbles
+- `styles.css` — Unified chat modal layout, chat bubbles, and markdown margin fixes
 - `tests/chatExport.test.ts` — Imports from production `chatExportUtils.ts` (10 tests)
 - `tests/pathUtils.test.ts` — `getChatExportFullPath()` tests (3 tests)
 
 **Design Decisions:**
-- Export only in ChatWithVault — HighlightChat already has "Insert Summary" / "Insert Answer" as output mechanisms
+- Export in unified chat; Insert Summary is available only in Highlight mode
 - Folder overrides are one-off — consistent with no other feature persisting modal-level folder changes
 - History excludes system messages and the just-added user query (`.slice(0, -1)`) to avoid duplication
 - RAG retrieval still uses only the latest query — correct since we search for the new topic
