@@ -3034,29 +3034,66 @@
 }
 
 /* ============================================
-   AI Suggestions Modal - Wider text inputs
+   AI Suggestions Modal - Gestalt Card Layout
+   Uses proximity, common region, and visual hierarchy
    ============================================ */
 
-.ai-organiser-suggestion-item .setting-item {
-    align-items: flex-start;
+/* Each suggestion is a distinct card (common region) */
+.ai-organiser-modal-content .ai-organiser-suggestion-item {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--background-modifier-border);
 }
 
-.ai-organiser-suggestion-item .setting-item-control {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+/* Setting row layout - label left, controls right */
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
-.ai-organiser-suggestion-item .setting-item-control .checkbox-container {
-    flex-shrink: 0;
+/* Label area with name and current value */
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-info {
+    flex: 0 0 140px;
+    min-width: 140px;
 }
 
-.ai-organiser-suggestion-item .setting-item-control input[type="text"] {
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-name {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-description {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+/* Controls area - toggle + input inline (proximity) */
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-control {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
     flex: 1;
-    min-width: 280px;
-    max-width: 400px;
+    justify-content: flex-start;
+}
+
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-control > .checkbox-container {
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+}
+
+.ai-organiser-modal-content .ai-organiser-suggestion-item .setting-item-control > input[type="text"] {
+    flex: 1 !important;
+    min-width: 200px !important;
+    max-width: 320px !important;
+    margin: 0 !important;
 }
 
 /* ============================================

@@ -462,12 +462,24 @@ export default class AIOrganiserPlugin extends Plugin {
             }
 
             let leaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
+            let needsNewLeaf = false;
 
             if (leaf) {
                 // Leaf exists — push fresh data and re-render
                 const view = leaf.view as TagNetworkView;
-                view.updateNetworkData(networkData);
+                if (view && 'updateNetworkData' in view) {
+                    view.updateNetworkData(networkData);
+                    this.app.workspace.revealLeaf(leaf);
+                } else {
+                    // View is invalid, close it and recreate
+                    await leaf.detach();
+                    needsNewLeaf = true;
+                }
             } else {
+                needsNewLeaf = true;
+            }
+            
+            if (needsNewLeaf) {
                 const newLeaf = await this.app.workspace.getRightLeaf(false);
                 if (!newLeaf) {
                     throw new Error('Failed to create new workspace leaf');
@@ -478,9 +490,13 @@ export default class AIOrganiserPlugin extends Plugin {
                     active: true
                 });
 
-                leaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
-                if (!leaf) {
-                    throw new Error('Failed to initialize tag network view');
+                // After creating the view, pass the network data
+                const createdLeaf = this.app.workspace.getLeavesOfType(TAG_NETWORK_VIEW_TYPE)[0];
+                if (createdLeaf) {
+                    const view = createdLeaf.view as TagNetworkView;
+                    if (view && 'updateNetworkData' in view) {
+                        view.updateNetworkData(networkData);
+                    }
                 }
             }
 
