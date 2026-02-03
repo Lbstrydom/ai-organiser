@@ -3039,17 +3039,24 @@
 
 .ai-organiser-suggestion-item .setting-item {
     flex-wrap: wrap;
+    align-items: flex-start;
 }
 
 .ai-organiser-suggestion-item .setting-item-control {
-    flex-wrap: wrap;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
+    width: 100%;
+}
+
+.ai-organiser-suggestion-item .setting-item-control > * {
+    width: 100%;
 }
 
 .ai-organiser-suggestion-item .setting-item-control input[type="text"] {
     min-width: 280px;
-    width: 100%;
-    max-width: 350px;
+    max-width: 400px;
+    margin-top: 4px;
 }
 
 /* ============================================

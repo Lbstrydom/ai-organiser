@@ -392,6 +392,9 @@ export class VoyVectorStore implements IVectorStore {
                 this.fileChangeTracker.updateHash(path, hash as string);
             }
 
+            // Initialize WebAssembly before deserializing
+            await ensureVoyWasmReady();
+            
             // Deserialize Voy index
             this.voy = VoyClass.deserialize(serialized);
 
