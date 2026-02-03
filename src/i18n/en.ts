@@ -454,7 +454,7 @@ export const en: Translations = {
         summarizeFromYouTube: "Summarize YouTube",
         summarizeFromAudio: "Summarize audio",
         summarizeSmart: "Smart summarize",
-        translate: "Translate",
+        translate: "Translate Note",
         translateNote: "Translate note",
         translateSelection: "Translate selection",
         tag: "Tag",
@@ -504,6 +504,12 @@ export const en: Translations = {
         buildInvestigationCanvas: "Build Investigation Board",
         buildContextCanvas: "Build Context Board",
         buildClusterCanvas: "Build Cluster Board"
+    },
+
+    contextMenu: {
+        askAI: "Ask AI",
+        translate: "Translate",
+        addToPending: "Add to Pending",
     },
 
     canvas: {

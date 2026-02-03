@@ -493,6 +493,13 @@ export interface Translations {
         buildClusterCanvas: string;
     };
 
+    // Context Menu (right-click)
+    contextMenu: {
+        askAI: string;
+        translate: string;
+        addToPending: string;
+    };
+
     // Canvas
     canvas: {
         settingsTitle: string;
@@ -1371,6 +1378,10 @@ export interface Translations {
             noHighlightsFound: string;
             requestCancelled: string;
             emptyState: string;
+            scopeEntireVault: string;
+            scopeFolder: string;
+            changeScopeButton: string;
+            scopeToFolderButton: string;
         };
         exportNote: {
             title: string;

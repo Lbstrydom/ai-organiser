@@ -449,7 +449,7 @@ export const zhCN: Translations = {
         aiTagSelectedNotes: "AI 标记选中的笔记",
         aiTagThisNote: "AI 标记这篇笔记",
         summarize: "总结",
-        translate: "翻译",
+        translate: "翻译笔记",
         tag: "标签",
         clearTags: "清除标签",
         enhance: "增强",
@@ -504,6 +504,12 @@ export const zhCN: Translations = {
         buildInvestigationCanvas: "生成调查画板",
         buildContextCanvas: "生成上下文画板",
         buildClusterCanvas: "生成聚类画板"
+    },
+
+    contextMenu: {
+        askAI: "问 AI",
+        translate: "翻译",
+        addToPending: "添加到待处理",
     },
 
     canvas: {
@@ -1371,7 +1377,11 @@ export const zhCN: Translations = {
             back: "返回",
             noHighlightsFound: "此笔记中未找到高亮内容。",
             requestCancelled: "已取消上一条请求",
-            emptyState: "打开一篇笔记聊天，或启用语义搜索进行全库聊天。"
+            emptyState: "打开一篇笔记聊天，或启用语义搜索进行全库聊天。",
+            scopeEntireVault: "搜索范围：整个知识库",
+            scopeFolder: "搜索范围：{folder}/",
+            changeScopeButton: "更改",
+            scopeToFolderButton: "限定到文件夹"
         },
         exportNote: {
             title: "导出笔记",

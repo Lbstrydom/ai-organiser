@@ -49,6 +49,27 @@ interface TranslatedSource {
     error?: string;
 }
 
+/**
+ * Open TranslateModal for the current editor selection.
+ * Called from the right-click context menu.
+ */
+export function translateSelectionFromMenu(plugin: AIOrganiserPlugin, editor: Editor): void {
+    const selection = editor.getSelection();
+    if (!selection || !selection.trim()) {
+        new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
+        return;
+    }
+
+    const modal = new TranslateModal(
+        plugin.app,
+        plugin.t,
+        async (result) => {
+            await translateSelection(plugin, editor, selection, result.targetLanguageName);
+        }
+    );
+    modal.open();
+}
+
 export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Command: Translate (smart dispatcher)
     // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById

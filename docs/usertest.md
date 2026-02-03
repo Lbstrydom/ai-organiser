@@ -470,7 +470,7 @@ Pick at least ONE source type:
 - [x] "Entire vault" option in folder picker → removes scope filter
 - [x] Ask question with folder scope → results only from that folder
 - [x] Root-level note → defaults to entire vault (no folder shown)
-- [x] Switch between notes → folder scope follows active note (when not manually set)
+- [x] Scope derived from active note at modal open (fixed for session; does not auto-follow when switching notes)
 - [x] Manually set scope → stays fixed when switching notes (pinned behavior)
 
 ### Highlight Mode
@@ -527,6 +527,23 @@ Pick at least ONE source type:
 - [x] Right-click without any selection → no highlight items in menu
 - [x] Select `==A== plain ==B==` → right-click → "Remove highlight" → both highlights removed correctly
 - [x] Select very large text (>5000 chars) → right-click → "Highlight" still visible, "Remove highlight" absent (performance guard)
+
+### Right-Click Context Menu: AI & Workflow (NEW)
+- [ ] Select text → right-click → separator visible between Highlight group and AI group
+- [ ] "Ask AI" visible with sparkles icon → opens Chat modal with selection locked
+- [ ] "Translate" visible with languages icon → opens Translate modal with selection pre-loaded
+- [ ] Separator visible between AI group and Workflow group
+- [ ] "Add to Pending" visible with inbox icon → instant action, Notice toast shown
+- [ ] Select URL → right-click → "Add to Pending" → auto-detects as 'web' type
+- [ ] Select `[[wikilink]]` → right-click → "Add to Pending" → auto-detects as 'note' type
+- [ ] Right-click without any selection → no AI/Workflow items in menu
+- [ ] All 5 items visible when selecting highlighted text (Highlight, Remove Highlight, Ask AI, Translate, Add to Pending)
+
+### Command Picker: Translate Rename
+- [ ] Open Command Picker → Refine Content → verify label shows "Translate Note" (not "Translate")
+- [ ] Search "translate" in picker → "Translate Note" appears
+- [ ] Invoke "Translate Note" with selection → still translates selection (smart dispatch)
+- [ ] Invoke "Translate Note" without selection → translates note or opens multi-source
 
 ---
 

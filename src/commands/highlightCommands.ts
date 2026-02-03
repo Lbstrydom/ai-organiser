@@ -69,39 +69,7 @@ export function registerHighlightCommands(plugin: AIOrganiserPlugin): void {
         }
     });
 
-    // Right-click context menu for highlight/unhighlight
-    plugin.registerEvent(
-        plugin.app.workspace.on('editor-menu', (menu, editor, view) => {
-            const selection = editor.getSelection();
-            if (!selection || selection.trim().length === 0) return;
-
-            // "Highlight" always shown when text is selected
-            menu.addItem((item) => {
-                item.setTitle(plugin.t.commands.highlightSelection || 'Highlight')
-                    .setIcon('highlighter')
-                    .onClick(() => {
-                        const modal = new HighlightColorModal(
-                            plugin.app, plugin.t,
-                            (color) => applyHighlight(editor, selection, color)
-                        );
-                        modal.open();
-                    });
-            });
-
-            // "Remove highlight" only when markup detected
-            // Performance guard: skip expensive strip check on huge selections
-            if (selection.length <= 5000) {
-                const stripped = stripExistingHighlight(selection);
-                if (stripped !== selection) {
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
-                            .setIcon('eraser')
-                            .onClick(() => removeHighlight(editor, selection));
-                    });
-                }
-            }
-        })
-    );
+    // Context menu registration moved to src/ui/contextMenu.ts
 }
 
 /**

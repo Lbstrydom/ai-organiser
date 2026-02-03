@@ -3,7 +3,7 @@
  * Single unified chat command + related notes insertion
  */
 
-import { Notice } from 'obsidian';
+import { Editor, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
@@ -11,6 +11,23 @@ import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
 
 function notify(message: string, duration?: number): Notice {
     return new Notice(message, duration);
+}
+
+/**
+ * Open UnifiedChatModal with the current editor selection locked.
+ * Called from the right-click context menu.
+ */
+export function openChatWithSelection(plugin: AIOrganiserPlugin, editor: Editor): void {
+    const activeFile = plugin.app.workspace.getActiveFile();
+    const content = editor.getValue() || undefined;
+    const selection = editor.getSelection() || undefined;
+
+    const modal = new UnifiedChatModal(plugin.app, plugin, {
+        noteContent: content,
+        noteTitle: activeFile?.basename,
+        editorSelection: selection,
+    });
+    modal.open();
 }
 
 /**

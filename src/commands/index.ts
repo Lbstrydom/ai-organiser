@@ -14,6 +14,7 @@ import { registerDashboardCommands } from './dashboardCommands';
 import { registerNotebookLMCommands } from './notebookLMCommands';
 import { registerExportCommands } from './exportCommands';
 import { registerCanvasCommands } from './canvasCommands';
+import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 
 export function registerCommands(plugin: AIOrganiserPlugin) {
@@ -33,4 +34,5 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerNotebookLMCommands(plugin);
     registerExportCommands(plugin);
     registerCanvasCommands(plugin);
+    registerContextMenu(plugin);
 }

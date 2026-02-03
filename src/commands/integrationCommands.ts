@@ -38,6 +38,48 @@ import { getPdfProviderConfig } from '../services/pdfTranslationService';
 import { ensurePrivacyConsent } from '../services/privacyNotice';
 import { getMaxContentChars } from '../services/tokenLimits';
 
+/**
+ * Drop the current editor selection into the Pending Integration section.
+ * Called from the right-click context menu. Instant (no modal).
+ */
+export function dropSelectionToPending(plugin: AIOrganiserPlugin, editor: Editor): void {
+    const selection = editor.getSelection();
+
+    if (!selection || !selection.trim()) {
+        new Notice(plugin.t.messages.selectTextFirst);
+        return;
+    }
+
+    const contentType = detectContentType(selection.trim(), plugin.t);
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const defaultTitle = contentType.type === 'manual'
+        ? plugin.t.messages.addedTimestamp.replace('{time}', timestamp)
+        : getDefaultSourceTitle(plugin.t, contentType.type);
+
+    const source: PendingSource = {
+        type: contentType.type,
+        title: contentType.title || defaultTitle,
+        date: getTodayDate(),
+        content: selection.trim(),
+        link: contentType.link
+    };
+
+    addToPendingIntegration(editor, source);
+
+    if (contentType.link) {
+        const sourceRef: SourceReference = {
+            type: contentType.type,
+            title: contentType.title || defaultTitle,
+            link: contentType.link,
+            date: getTodayDate(),
+            isInternal: contentType.isInternal || false
+        };
+        addToReferencesSection(editor, sourceRef);
+    }
+
+    new Notice(plugin.t.messages.selectionAddedToPending);
+}
+
 export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
     plugin.addCommand({
@@ -287,43 +329,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         name: plugin.t.commands.dropSelectionPending,
         icon: 'arrow-down-to-line',
         editorCallback: (editor: Editor) => {
-            const selection = editor.getSelection();
-
-            if (!selection || !selection.trim()) {
-                new Notice(plugin.t.messages.selectTextFirst);
-                return;
-            }
-
-            // Detect content type from selection
-            const contentType = detectContentType(selection.trim(), plugin.t);
-            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const defaultTitle = contentType.type === 'manual'
-                ? plugin.t.messages.addedTimestamp.replace('{time}', timestamp)
-                : getDefaultSourceTitle(plugin.t, contentType.type);
-
-            const source: PendingSource = {
-                type: contentType.type,
-                title: contentType.title || defaultTitle,
-                date: getTodayDate(),
-                content: selection.trim(),
-                link: contentType.link
-            };
-
-            addToPendingIntegration(editor, source);
-
-            // If it's a URL or link, add to references too
-            if (contentType.link) {
-                const sourceRef: SourceReference = {
-                    type: contentType.type,
-                    title: contentType.title || defaultTitle,
-                    link: contentType.link,
-                    date: getTodayDate(),
-                    isInternal: contentType.isInternal || false
-                };
-                addToReferencesSection(editor, sourceRef);
-            }
-
-            new Notice(plugin.t.messages.selectionAddedToPending);
+            dropSelectionToPending(plugin, editor);
         }
     });
 }
