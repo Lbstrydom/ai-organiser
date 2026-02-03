@@ -22,7 +22,6 @@ Commands that act on the file currently open in the editor.
 2. **Refine Content** (sub-group, icon: `sparkles`)
    - Auto-Tag Note — `smart-tag`
    - Improve Writing — `enhance-note`
-   - Summarize Note — `smart-summarize` *(Intent: consumption/TL;DR of what's in front of me)*
    - Translate — `smart-translate`
    - Clear Tags — `clear-tags`
 3. **Pending Integration** (sub-group, icon: `inbox`)
@@ -67,17 +66,17 @@ Specialized or bulk operations.
 
 ---
 
-## Command Inventory (26 entries, 25 unique commands)
+## Command Inventory (25 entries, 25 unique commands)
 
-`smart-summarize` appears in both Active Note ("Summarize Note") and Capture ("Smart Summarize"). This is intentional — the same command serves two user intents and should be findable where each intent arises. "Collect All Tags" removed from picker (rare maintenance utility, still accessible via Ctrl+P).
+"Collect All Tags" removed from picker (rare maintenance utility, still accessible via Ctrl+P). "Summarize Note" removed from Refine Content (redundant with Capture's "Smart Summarize" — same command, same modal, confusing duplication).
 
 | Category | Leaf Commands | Count |
 |----------|---------------|-------|
-| Active Note | investigation, context, find-related, insert-related, smart-tag, enhance, smart-summarize, translate, clear-tags, add-pending, integrate-pending, resolve-embeds, export-note, export-flashcards | 14 |
+| Active Note | investigation, context, find-related, insert-related, smart-tag, enhance, translate, clear-tags, add-pending, integrate-pending, resolve-embeds, export-note, export-flashcards | 13 |
 | Capture | smart-summarize, meeting-minutes, record-audio | 3 |
 | Vault | chat, search, cluster-canvas, tag-network, dashboard | 5 |
 | Tools | 4x notebooklm | 4 |
-| **Total unique** | | **25** |
+| **Total** | | **25** |
 
 ---
 
@@ -85,9 +84,9 @@ Specialized or bulk operations.
 
 | Decision | Rationale |
 |----------|-----------|
-| `smart-summarize` in both Active Note + Capture | Same command, two intents. In Active Note = "TL;DR this note". In Capture = "Ingest from URL/YouTube". Users look where their intent is. |
+| `smart-summarize` in Capture only (not Active Note) | Previously duplicated in both. Same command, same modal — confusing to users. Capture is the natural home (ingest from any source). Removed from Refine Content to eliminate function creep. |
 | Pending Integration in Active Note (not Capture) | "Integrate" and "Resolve" operate ON the active note. Only "Add to pending" is inbound, but keeping the group together avoids splitting a workflow. |
-| "Refine Content" sub-group | Structural fix for Active Note density. Groups polishing actions (tag, improve, summarize, translate, clear) under one sub-menu instead of 5 top-level items. Respects Gestalt Common Region. |
+| "Refine Content" sub-group | Groups in-place note transformations (tag, improve, translate, clear) under one sub-menu. No external sources, no summarization — purely transform what's already there. |
 | Canvas split: Investigation/Context in Active Note, Cluster in Vault | Investigation and Context boards visualize the current note's relationships/attachments. Cluster Board operates on a vault-wide tag — different scope. |
 | `brain` icon (not `brain-circuit`) | `brain-circuit` is a newer Lucide icon not reliably in Obsidian's bundled set. |
 | `settings` icon for Tools (not `wrench`) | `wrench` is used for the Utilities sub-group inside Active Note — avoids icon collision. |

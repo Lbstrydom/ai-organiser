@@ -106,28 +106,23 @@ describe('Command Picker', () => {
             ]);
         });
 
-        it('should wire summarize in both Active Note and Capture to smart-summarize command', () => {
+        it('refine group should contain tag, enhance, translate, clear (no summarize)', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const activeRefine = categories
+            const refine = categories
                 .find(c => c.id === 'active-note')!
                 .commands.find(c => c.id === 'refine-group')!;
-            const summarizeNote = activeRefine.subCommands!.find(c => c.id === 'summarize-note')!;
-
-            const captureSummarize = categories
-                .find(c => c.id === 'capture')!
-                .commands.find(c => c.id === 'smart-summarize')!;
-
-            summarizeNote.callback();
-            captureSummarize.callback();
-
-            expect(mockExecuteCommand).toHaveBeenNthCalledWith(1, 'ai-organiser:smart-summarize');
-            expect(mockExecuteCommand).toHaveBeenNthCalledWith(2, 'ai-organiser:smart-summarize');
+            expect(refine.subCommands?.map(c => c.id)).toEqual([
+                'smart-tag',
+                'enhance-note',
+                'smart-translate',
+                'clear-tags'
+            ]);
         });
 
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            expect(leafCount).toBe(26);
+            expect(leafCount).toBe(25);
         });
 
         it('should include the expected 25 unique command IDs across all leaf callbacks', () => {

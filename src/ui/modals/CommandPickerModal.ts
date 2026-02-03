@@ -216,7 +216,7 @@ export function buildCommandCategories(
                     id: 'refine-group',
                     name: t.modals.commandPicker.groupRefine,
                     icon: 'sparkles',
-                    aliases: ['refine', 'improve', 'translate', 'tag', 'summarize'],
+                    aliases: ['refine', 'improve', 'translate', 'tag'],
                     callback: () => {},
                     subCommands: [
                         {
@@ -232,13 +232,6 @@ export function buildCommandCategories(
                             icon: 'wand-2',
                             aliases: [t.commands.enhance, t.commands.findResources, t.commands.generateMermaidDiagram, 'rewrite'],
                             callback: () => executeCommand('ai-organiser:enhance-note')
-                        },
-                        {
-                            id: 'summarize-note',
-                            name: t.commands.summarizeNote,
-                            icon: 'file-text',
-                            aliases: summarizeAliases,
-                            callback: () => executeCommand('ai-organiser:smart-summarize')
                         },
                         {
                             id: 'smart-translate',

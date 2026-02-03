@@ -23,17 +23,17 @@
 **New Command Picker Structure:**
 | Category | Sub-groups | Leaf Commands |
 |----------|-----------|---------------|
-| Active Note (4 groups) | Connections & Maps (4), Refine Content (5), Pending Integration (3), Export (2) | 14 |
+| Active Note (4 groups) | Connections & Maps (4), Refine Content (4), Pending Integration (3), Export (2) | 13 |
 | Capture (3 flat) | — | 3 |
 | Vault Intelligence (2 groups) | Ask & Search (2), Visualize (3) | 5 |
 | Tools & Workflows (1 group) | NotebookLM (4) | 4 |
-| **Total** | | **26 entries, 25 unique** |
+| **Total** | | **25 entries, 25 unique** |
 
 **Key design decisions:**
 - Context-based grouping (Gestalt proximity — commands grouped by user's current focus)
-- `smart-summarize` in both Active Note ("Summarize Note") and Capture ("Smart Summarize") — same command, two user intents
-- "Refine Content" sub-group solves Active Note density (5 polishing actions under one sub-menu)
-- Vault sub-grouped into "Ask & Search" (chat, semantic search) and "Visualize" (cluster, tag graph, dashboard) — reduces root items from 14 to 10
+- `smart-summarize` in Capture only — removed from Refine Content to eliminate duplicate command with confusing labels
+- "Refine Content" contains only in-place note transforms (tag, improve, translate, clear) — no external sources
+- Vault sub-grouped into "Ask & Search" (chat, semantic search) and "Visualize" (cluster, tag graph, dashboard) — reduces root items
 - "Collect All Tags" removed from picker (rare maintenance utility, still in Ctrl+P)
 - "Summarize Web / YouTube" renamed to "Smart Summarize" (covers all 7 source types)
 - Strict i18n: no `?.` or `|| 'fallback'` patterns, all keys in `Translations` interface
