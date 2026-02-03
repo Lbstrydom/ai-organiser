@@ -26,6 +26,7 @@ import { withBusyIndicator } from '../../utils/busyIndicator';
 import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
 import { ParticipantListService, ParticipantList } from '../../services/participantListService';
 import { FolderScopePickerModal } from './FolderScopePickerModal';
+import { enableAutoExpand } from '../../utils/uiUtils';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
 
@@ -379,6 +380,7 @@ export class MinutesCreationModal extends Modal {
                 text.setValue(this.state.transcript);
                 text.onChange(value => this.state.transcript = value);
                 text.inputEl.addClass('minutes-textarea');
+                enableAutoExpand(text.inputEl, 300);
                 this.transcriptTextArea = text.inputEl;
             });
 
@@ -507,6 +509,7 @@ export class MinutesCreationModal extends Modal {
                 text.setValue(this.state.customInstructions);
                 text.onChange(value => this.state.customInstructions = value);
                 text.inputEl.addClass('minutes-textarea');
+                enableAutoExpand(text.inputEl);
             });
     }
 

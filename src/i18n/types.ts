@@ -1001,6 +1001,17 @@ export interface Translations {
             queryDesc: string;
             queryPlaceholder: string;
             submitButton: string;
+            placementLabel: string;
+            placementDesc: string;
+            placementReplace: string;
+            placementCursor: string;
+            placementNewNote: string;
+            previewTitle: string;
+            previewReplace: string;
+            previewInsert: string;
+            previewCreate: string;
+            previewCopy: string;
+            previewDiscard: string;
         };
         findResources: {
             title: string;

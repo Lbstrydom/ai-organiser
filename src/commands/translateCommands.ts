@@ -13,6 +13,7 @@ import {
     replaceMainContent,
     ensureNoteStructureIfEnabled,
     addToReferencesSection,
+    stripTrailingSections,
     SourceReference,
     SourceType,
     getTodayDate
@@ -270,7 +271,7 @@ async function handleMultiSourceTranslate(
 
     // Single-source optimization: note-only → use existing translateNote()
     if (totalSources === 1 && result.summarizeNote) {
-        const content = editor.getValue();
+        const content = stripTrailingSections(editor.getValue());
         await translateNote(plugin, editor, content, targetLanguage, plugin.t.messages.translatingFullNote);
         return;
     }
@@ -317,7 +318,8 @@ async function handleMultiSourceTranslate(
         showProgress();
         try {
             // Use editor buffer (not vault.read) to capture unsaved edits
-            const noteContent = editor.getValue();
+            // Strip References/Pending sections to prevent duplication via replaceMainContent
+            const noteContent = stripTrailingSections(editor.getValue());
             new Notice(plugin.t.messages.translatingFullNote || 'Translating note...', 5000);
             const translated = await translateSourceContent(plugin, noteContent, targetLanguage, serviceType);
             allSources.push({

@@ -8,10 +8,13 @@ import type AIOrganiserPlugin from '../main';
 import { getLanguageNameForPrompt } from '../services/languages';
 import { ensurePrivacyConsent } from '../services/privacyNotice';
 // BUILTIN_PERSONAS no longer imported - using configurationService for summary personas
-import { ImproveNoteModal } from '../ui/modals/ImproveNoteModal';
+import { ImproveNoteModal, ImproveNotePlacement } from '../ui/modals/ImproveNoteModal';
+import { ImprovePreviewModal, ImprovePreviewAction } from '../ui/modals/ImprovePreviewModal';
 import { FindResourcesModal } from '../ui/modals/FindResourcesModal';
 import { searchResources } from '../services/resourceSearchService';
-import { replaceMainContent, ensureNoteStructureIfEnabled } from '../utils/noteStructure';
+import { replaceMainContent, ensureNoteStructureIfEnabled, stripTrailingSections } from '../utils/noteStructure';
+import { insertAtCursor } from '../utils/editorUtils';
+import { getAvailableFilePath } from '../utils/minutesUtils';
 import { MermaidDiagramModal, MermaidDiagramResult } from '../ui/modals/MermaidDiagramModal';
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
@@ -79,8 +82,9 @@ async function executeImproveNote(plugin: AIOrganiserPlugin): Promise<void> {
         return;
     }
 
-    const content = await plugin.app.vault.read(view.file);
-    if (!content.trim()) {
+    // Check content exists (read from editor buffer, not disk)
+    const currentContent = view.editor.getValue();
+    if (!currentContent.trim()) {
         new Notice(plugin.t.messages.noContent);
         return;
     }
@@ -95,11 +99,14 @@ async function executeImproveNote(plugin: AIOrganiserPlugin): Promise<void> {
         personas,
         defaultPersona,
         async (result) => {
+            // Read from editor buffer inside callback to capture latest edits
+            const content = view.editor.getValue();
+
             const personaPrompt = result.personaId
                 ? await configService.getPersonaPrompt(result.personaId)
                 : await configService.getPersonaPrompt();
 
-            await improveNoteWithQuery(plugin, view.editor, content, result.query, personaPrompt);
+            await improveNoteWithQuery(plugin, view, content, result.query, personaPrompt, result.placement);
         }
     );
     modal.open();
@@ -210,11 +217,13 @@ async function generateMermaidDiagram(
  */
 async function improveNoteWithQuery(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
+    view: MarkdownView,
     noteContent: string,
     query: string,
-    personaPrompt?: string
+    personaPrompt?: string,
+    placement: ImproveNotePlacement = 'replace'
 ): Promise<void> {
+    const editor = view.editor;
     const { provider: serviceType } = getServiceType(pluginContext(plugin));
 
     // Privacy notice gating (centralized)
@@ -230,20 +239,35 @@ async function improveNoteWithQuery(
     const frontmatter = frontmatterMatch ? frontmatterMatch[1] : '';
     const bodyContent = frontmatter ? noteContent.slice(frontmatter.length) : noteContent;
 
-    const prompt = buildImprovePrompt(bodyContent, query, plugin.settings.summaryLanguage, personaPrompt);
+    // Strip References/Pending sections before sending to LLM to prevent duplication
+    const strippedBody = stripTrailingSections(bodyContent);
+
+    const prompt = buildImprovePrompt(strippedBody, query, plugin.settings.summaryLanguage, personaPrompt, placement);
 
     try {
         const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
 
         if (response.success && response.content) {
-            // Replace main content while preserving References and Pending Integration sections
-            const improvedContent = frontmatter + response.content;
-            replaceMainContent(editor, improvedContent);
-
-            // Ensure standard structure exists after improvement
-            ensureNoteStructureIfEnabled(editor, plugin.settings);
-
-            new Notice(plugin.t.messages.noteImproved, 3000);
+            // Show preview modal and let user confirm
+            await new Promise<void>((resolve) => {
+                const previewModal = new ImprovePreviewModal(
+                    plugin.app,
+                    plugin,
+                    response.content!,
+                    placement,
+                    async (action: ImprovePreviewAction) => {
+                        if (action === 'confirm') {
+                            await applyImprovement(plugin, view, editor, response.content!, frontmatter, placement);
+                        } else if (action === 'copy') {
+                            await navigator.clipboard.writeText(response.content!);
+                            new Notice(plugin.t.messages.copiedToClipboard || 'Copied to clipboard', 3000);
+                        }
+                        // 'discard' — do nothing
+                        resolve();
+                    }
+                );
+                previewModal.open();
+            });
         } else {
             new Notice(`${plugin.t.messages.improvementFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
         }
@@ -254,9 +278,55 @@ async function improveNoteWithQuery(
 }
 
 /**
+ * Apply the improved content based on the chosen placement strategy
+ */
+async function applyImprovement(
+    plugin: AIOrganiserPlugin,
+    view: MarkdownView,
+    editor: Editor,
+    content: string,
+    frontmatter: string,
+    placement: ImproveNotePlacement
+): Promise<void> {
+    switch (placement) {
+        case 'replace': {
+            const improvedContent = frontmatter + content;
+            replaceMainContent(editor, improvedContent);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
+            new Notice(plugin.t.messages.noteImproved, 3000);
+            break;
+        }
+        case 'cursor': {
+            insertAtCursor(editor, content);
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
+            new Notice(plugin.t.messages.noteImproved, 3000);
+            break;
+        }
+        case 'new-note': {
+            const file = view.file;
+            const folder = file?.parent?.path || '';
+            const baseName = file?.basename || 'Note';
+            const fileName = `${baseName} (improved).md`;
+            const safePath = await getAvailableFilePath(plugin.app.vault, folder, fileName);
+            const newContent = frontmatter + content;
+            const newFile = await plugin.app.vault.create(safePath, newContent);
+            await plugin.app.workspace.getLeaf(true).openFile(newFile);
+            new Notice(plugin.t.messages.noteImproved, 3000);
+            break;
+        }
+    }
+}
+
+/**
  * Build prompt for note improvement
  */
-function buildImprovePrompt(noteContent: string, query: string, language?: string, personaPrompt?: string): string {
+function buildImprovePrompt(
+    noteContent: string,
+    query: string,
+    language?: string,
+    personaPrompt?: string,
+    placement: ImproveNotePlacement = 'replace'
+): string {
     const languageInstruction = language
         ? `Write your response in ${getLanguageNameForPrompt(language)}.`
         : 'Write your response in the same language as the note.';
@@ -264,8 +334,18 @@ function buildImprovePrompt(noteContent: string, query: string, language?: strin
     // Include persona if provided
     const personaSection = personaPrompt ? `\n${personaPrompt}\n` : '';
 
+    // Placement-specific return instructions
+    const returnInstruction = placement === 'cursor'
+        ? '- Return ONLY the new or improved content to be inserted — do NOT return the entire note'
+        : '- Return the COMPLETE note with your improvements integrated in the appropriate location(s)';
+
+    const fullNoteInstructions = placement === 'cursor'
+        ? ''
+        : `
+- Do NOT just return the new content - return the entire note with changes woven in`;
+
     return `<task>
-You are helping to improve and enhance a study note based on the user's request. You must return the COMPLETE improved note with your changes integrated into the relevant sections.
+You are helping to improve and enhance a study note based on the user's request.${placement === 'cursor' ? '' : ' You must return the COMPLETE improved note with your changes integrated into the relevant sections.'}
 </task>
 ${personaSection}
 <current_note>
@@ -277,8 +357,7 @@ ${query}
 </user_request>
 
 <instructions>
-- Return the COMPLETE note with your improvements integrated in the appropriate location(s)
-- Do NOT just return the new content - return the entire note with changes woven in
+${returnInstruction}${fullNoteInstructions}
 - Place new content in the most relevant section of the note
 - If adding an analogy, place it right after the concept it explains
 - If expanding a section, integrate the expansion naturally within that section
@@ -288,6 +367,7 @@ ${query}
 - Format your response in markdown
 - ${languageInstruction}
 - Do NOT include any frontmatter (---) in your response
+- Do NOT include References or Pending Integration sections in your response
 - Do NOT add explanations before or after the note - just output the improved note content
 </instructions>`;
 }

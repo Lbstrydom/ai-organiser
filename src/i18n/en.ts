@@ -1000,7 +1000,18 @@ export const en: Translations = {
             queryLabel: "Your request",
             queryDesc: "What would you like to improve or add to this note?",
             queryPlaceholder: "Type your request here...",
-            submitButton: "Improve"
+            submitButton: "Improve",
+            placementLabel: "Output placement",
+            placementDesc: "Where to put the improved content",
+            placementReplace: "Replace note content",
+            placementCursor: "Insert at cursor",
+            placementNewNote: "Create new note",
+            previewTitle: "Preview",
+            previewReplace: "Replace note",
+            previewInsert: "Insert at cursor",
+            previewCreate: "Create note",
+            previewCopy: "Copy to clipboard",
+            previewDiscard: "Discard"
         },
         findResources: {
             title: "Find Resources",

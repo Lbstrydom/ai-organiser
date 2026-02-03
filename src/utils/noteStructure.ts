@@ -585,6 +585,47 @@ export function ensureReferencesExists(editor: Editor): boolean {
 }
 
 /**
+ * Strip trailing References and Pending Integration sections from text content.
+ * Used to prevent duplication when sending content to LLM (since replaceMainContent
+ * re-appends these sections from the editor).
+ *
+ * Strips from the earliest section boundary, including any preceding `---` divider
+ * and blank lines.
+ */
+export function stripTrailingSections(content: string): string {
+    const refsLocation = findSectionInText(content, REFERENCES_HEADER);
+    const pendingLocation = findSectionInText(content, PENDING_INTEGRATION_HEADER);
+
+    if (!refsLocation.found && !pendingLocation.found) {
+        return content;
+    }
+
+    // Find the earliest section header line
+    let cutLine = -1;
+    if (refsLocation.found && pendingLocation.found) {
+        cutLine = Math.min(refsLocation.headerLine, pendingLocation.headerLine);
+    } else if (refsLocation.found) {
+        cutLine = refsLocation.headerLine;
+    } else {
+        cutLine = pendingLocation.headerLine;
+    }
+
+    const lines = content.split('\n');
+
+    // Walk back past any `---` dividers and blank lines before the section header
+    while (cutLine > 0) {
+        const prev = lines[cutLine - 1].trim();
+        if (prev === '---' || prev === '') {
+            cutLine--;
+        } else {
+            break;
+        }
+    }
+
+    return lines.slice(0, cutLine).join('\n');
+}
+
+/**
  * Replace the main content while preserving References and Pending Integration sections
  */
 export function replaceMainContent(editor: Editor, newContent: string): void {

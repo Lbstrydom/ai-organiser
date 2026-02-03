@@ -2,11 +2,80 @@
 
 **Version:** 1.0.15
 **Last Updated:** February 3, 2026
-**Status:** Feature Complete - Multimodal PDF Integration
+**Status:** Feature Complete - Context Menu & UX Polish
 
 ---
 
 ## Recent Updates
+
+### Right-Click Context Menu, Spellcheck & Folder Reorganization (2026-02-03) — COMPLETE
+
+**Added 3 new right-click context menu items, enabled OS spellcheck on text inputs, and reorganized plugin folder structure.**
+
+| Aspect | Status |
+|--------|--------|
+| Context menu: Ask AI | Complete — opens UnifiedChatModal with selection locked, sparkles icon |
+| Context menu: Translate | Complete — opens TranslateModal with selection pre-loaded, languages icon |
+| Context menu: Add to Pending | Complete — instant action with Notice feedback, inbox icon |
+| Centralized context menu handler | Complete — `src/ui/contextMenu.ts` replaces per-command registration |
+| Context menu Gestalt layout | Complete — single separator before Add to Pending (actions + workflow groups) |
+| Command Picker rename | Complete — "Translate" → "Translate Note" (macro/micro disambiguation) |
+| OS spellcheck on textareas | Complete — `spellcheck = true` on 10 freeform textareas across 7 modals |
+| Participants folder move | Complete — from Config/ to Meetings/participants/ |
+| Build | 1108 tests passing (2 pre-existing parallel-only failures unrelated) |
+
+**Architecture: Centralized Context Menu Handler**
+
+Created dedicated `src/ui/contextMenu.ts` instead of adding items to individual command files. Single `editor-menu` event registration orchestrates all plugin context menu items. Exported helper functions from command modules use dependency injection (plugin parameter) to prevent circular imports.
+
+```
+main.ts → contextMenu.ts → translateCommands.ts (logic only)
+                          → chatCommands.ts (logic only)
+                          → integrationCommands.ts (logic only)
+                          → highlightCommands.ts (logic only)
+```
+
+**Context Menu Layout (when text selected):**
+```
+  Highlight               (highlighter)     ← always
+  Remove Highlight        (eraser)          ← conditional: markup detected, ≤5000 chars
+  Ask AI                  (sparkles)        ← always
+  Translate               (languages)       ← always
+  ─────────────────────────                 ← single separator
+  Add to Pending          (inbox)           ← always (instant, no modal)
+```
+
+**Macro/Micro Disambiguation:**
+- Right-click "Translate" = micro (selection-scoped)
+- Command Picker "Translate Note" = macro (note/vault-scoped)
+- Smart dispatch preserved: "Translate Note" still translates selection when present
+
+**Spellcheck:** Enabled native OS spellcheck on freeform text inputs in UnifiedChatModal, FindResourcesModal, ImproveNoteModal, AudioSelectModal, FlashcardExportModal, MermaidDiagramModal, and MinutesCreationModal (4 textareas).
+
+**Files Created:**
+- `src/ui/contextMenu.ts` — Centralized right-click context menu handler
+
+**Files Modified:**
+- `src/commands/highlightCommands.ts` — Removed editor-menu registration (moved to contextMenu.ts)
+- `src/commands/translateCommands.ts` — Exported `translateSelectionFromMenu()` helper
+- `src/commands/chatCommands.ts` — Exported `openChatWithSelection()` helper, added `Editor` import
+- `src/commands/integrationCommands.ts` — Exported `dropSelectionToPending()` helper, refactored command
+- `src/commands/index.ts` — Import and register contextMenu
+- `src/i18n/types.ts` — Added `contextMenu` section to Translations interface
+- `src/i18n/en.ts` — Added contextMenu labels, renamed `commands.translate` → "Translate Note"
+- `src/i18n/zh-cn.ts` — Chinese translations for contextMenu + translate rename
+- `src/services/participantListService.ts` — Updated doc comment for new folder location
+- `src/ui/modals/MinutesCreationModal.ts` — Changed participants base to Meetings folder
+- `src/ui/modals/UnifiedChatModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/FindResourcesModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/ImproveNoteModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/AudioSelectModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/FlashcardExportModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/MermaidDiagramModal.ts` — Added spellcheck to textarea
+- `src/ui/modals/MinutesCreationModal.ts` — Added spellcheck to 4 textareas
+- `docs/usertest.md` — Added test cases for context menu + translate rename
+
+---
 
 ### Command Picker Naming & Canvas Folder Picker (2026-02-03) — COMPLETE
 
@@ -1257,6 +1326,7 @@ All plugin files under `AI-Organiser/` (configurable):
 
 ```
 AI-Organiser/
+├── Canvas/                   # Investigation, Context, Cluster boards
 ├── Chats/                    # Exported chat conversations
 ├── Config/
 │   ├── taxonomy.md           # Tagging themes/disciplines
@@ -1264,10 +1334,12 @@ AI-Organiser/
 │   ├── writing-personas.md   # Note improvement personas
 │   ├── summary-personas.md   # Summarization personas
 │   ├── minutes-personas.md   # Meeting minutes personas
+│   ├── bases-templates.md    # Obsidian Bases dashboard templates
 │   └── dictionaries/         # Terminology dictionaries (syncs across devices)
 ├── Exports/                  # NotebookLM exports, note exports
 ├── Flashcards/               # Exported flashcards
 ├── Meetings/                 # Meeting minutes output
+│   └── participants/         # Reusable participant lists
 ├── NotebookLM/               # NotebookLM source packs
 ├── Recordings/               # Audio recordings
 └── Transcripts/              # Audio/YouTube transcripts

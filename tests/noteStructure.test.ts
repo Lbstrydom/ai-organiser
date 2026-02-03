@@ -1,8 +1,8 @@
 /**
- * Tests for noteStructure utilities: extractSourcesFromPending, getReferencesContent
+ * Tests for noteStructure utilities: extractSourcesFromPending, getReferencesContent, stripTrailingSections
  */
 
-import { extractSourcesFromPending, getReferencesContent } from '../src/utils/noteStructure';
+import { extractSourcesFromPending, getReferencesContent, stripTrailingSections } from '../src/utils/noteStructure';
 
 describe('extractSourcesFromPending', () => {
     it('should extract a web source with title, date, and URL', () => {
@@ -294,5 +294,141 @@ describe('getReferencesContent', () => {
         const editor = createMockEditor(lines);
         const content = getReferencesContent(editor);
         expect(content).toBe('');
+    });
+});
+
+describe('stripTrailingSections', () => {
+    it('should strip both References and Pending Integration sections', () => {
+        const content = `# My Note
+
+Some content here.
+
+---
+
+## References
+
+> **Web:** [Example](https://example.com)
+
+---
+
+## Pending Integration
+
+### Source: Article (2026-01-15)
+
+Some pending content.`;
+
+        const result = stripTrailingSections(content);
+        expect(result).toBe(`# My Note
+
+Some content here.`);
+    });
+
+    it('should strip only References section when present', () => {
+        const content = `# My Note
+
+Body text.
+
+---
+
+## References
+
+> **Web:** [Link](https://example.com)`;
+
+        const result = stripTrailingSections(content);
+        expect(result).toBe(`# My Note
+
+Body text.`);
+    });
+
+    it('should strip only Pending Integration section when present', () => {
+        const content = `# My Note
+
+Body text.
+
+---
+
+## Pending Integration
+
+Some pending content.`;
+
+        const result = stripTrailingSections(content);
+        expect(result).toBe(`# My Note
+
+Body text.`);
+    });
+
+    it('should return content unchanged when neither section exists', () => {
+        const content = `# My Note
+
+Just regular content here.
+
+## Another Section
+
+More content.`;
+
+        const result = stripTrailingSections(content);
+        expect(result).toBe(content);
+    });
+
+    it('should strip divider (---) before section', () => {
+        const content = `Main content here.\n\n---\n\n## References\n\nRef content.`;
+        const result = stripTrailingSections(content);
+        expect(result).toBe('Main content here.');
+    });
+
+    it('should strip blank lines between content and divider', () => {
+        const content = `Main content.\n\n\n---\n\n## Pending Integration\n\nPending stuff.`;
+        const result = stripTrailingSections(content);
+        expect(result).toBe('Main content.');
+    });
+
+    it('should handle case-insensitive section headers', () => {
+        const content = `Body.\n\n---\n\n## references\n\nSome refs.`;
+        const result = stripTrailingSections(content);
+        expect(result).toBe('Body.');
+    });
+
+    it('should handle empty content', () => {
+        const result = stripTrailingSections('');
+        expect(result).toBe('');
+    });
+
+    it('should handle content that is just a section', () => {
+        const content = `## References\n\nSome refs.`;
+        const result = stripTrailingSections(content);
+        expect(result).toBe('');
+    });
+
+    it('should preserve frontmatter before sections', () => {
+        const content = `---
+title: My Note
+tags: [test]
+---
+
+# My Note
+
+Content here.
+
+---
+
+## References
+
+Ref content.`;
+
+        const result = stripTrailingSections(content);
+        expect(result).toBe(`---
+title: My Note
+tags: [test]
+---
+
+# My Note
+
+Content here.`);
+    });
+
+    it('should strip from the earliest section when Pending comes before References', () => {
+        const content = `Content.\n\n---\n\n## Pending Integration\n\nPending.\n\n---\n\n## References\n\nRefs.`;
+        const result = stripTrailingSections(content);
+        expect(result).toBe('Content.');
     });
 });

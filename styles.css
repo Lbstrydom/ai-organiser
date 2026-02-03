@@ -973,6 +973,13 @@
     border-radius: var(--radius-s);
 }
 
+.improve-note-examples summary {
+    cursor: pointer;
+    font-weight: var(--font-medium);
+    color: var(--text-muted);
+    margin-bottom: var(--size-4-1);
+}
+
 .improve-note-examples-title {
     font-weight: var(--font-medium);
     margin-bottom: var(--size-4-1);

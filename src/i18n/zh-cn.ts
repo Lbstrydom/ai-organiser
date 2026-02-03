@@ -1000,7 +1000,18 @@ export const zhCN: Translations = {
             queryLabel: "您的请求",
             queryDesc: "您想改进或添加什么内容？",
             queryPlaceholder: "在此输入您的请求...",
-            submitButton: "改进"
+            submitButton: "改进",
+            placementLabel: "输出位置",
+            placementDesc: "改进内容的放置位置",
+            placementReplace: "替换笔记内容",
+            placementCursor: "在光标处插入",
+            placementNewNote: "创建新笔记",
+            previewTitle: "预览",
+            previewReplace: "替换笔记",
+            previewInsert: "在光标处插入",
+            previewCreate: "创建笔记",
+            previewCopy: "复制到剪贴板",
+            previewDiscard: "放弃"
         },
         findResources: {
             title: "查找资源",

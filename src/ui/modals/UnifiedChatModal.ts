@@ -1,4 +1,5 @@
 import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Modal, Notice, TextAreaComponent } from 'obsidian';
+import { enableAutoExpand } from '../../utils/uiUtils';
 import { ensureNoteStructureIfEnabled } from '../../utils/noteStructure';
 import { formatConversationHistory, formatExportMarkdown } from '../../utils/chatExportUtils';
 import { getChatExportFullPath, resolvePluginPath } from '../../core/settings';
@@ -175,13 +176,7 @@ export class UnifiedChatModal extends Modal {
         this.inputArea.inputEl.spellcheck = true;
         
         // Auto-expand textarea as user types (up to max-height in CSS)
-        this.inputArea.inputEl.addEventListener('input', () => {
-            const textarea = this.inputArea?.inputEl;
-            if (textarea) {
-                textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-            }
-        });
+        enableAutoExpand(this.inputArea.inputEl);
         
         this.inputArea.inputEl.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {

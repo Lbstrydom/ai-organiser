@@ -1,22 +1,35 @@
 /**
  * Improve Note Modal
- * Modal for entering a query to improve/enhance the current note
+ * Modal for entering a query to improve/enhance the current note.
+ *
+ * Layout (Gestalt: configuration-first, focal-point textarea):
+ *   1. Title + description
+ *   2. Persona dropdown (set once)
+ *   3. Placement dropdown (set once)
+ *   4. Textarea (focal point, auto-expand)
+ *   5. Collapsible examples (progressive disclosure)
+ *   6. Buttons
  */
 
 import { App, Modal, Notice, Setting, TextAreaComponent } from 'obsidian';
 import { Translations } from '../../i18n/types';
 import { Persona } from '../../services/configurationService';
 import { PersonaSelectModal, createPersonaButton } from './PersonaSelectModal';
+import { enableAutoExpand } from '../../utils/uiUtils';
+
+export type ImproveNotePlacement = 'replace' | 'cursor' | 'new-note';
 
 export interface ImproveNoteResult {
     query: string;
     personaId?: string;
+    placement: ImproveNotePlacement;
 }
 
 export class ImproveNoteModal extends Modal {
     private t: Translations;
     private onSubmit: (result: ImproveNoteResult) => void | Promise<void>;
     private query: string = '';
+    private placement: ImproveNotePlacement = 'replace';
     private textAreaComponent: TextAreaComponent | null = null;
     private personas: Persona[];
     private selectedPersona: Persona;
@@ -67,13 +80,58 @@ export class ImproveNoteModal extends Modal {
             );
         }
 
-        // Examples
-        const examplesEl = contentEl.createEl('div', { cls: 'improve-note-examples' });
-        examplesEl.createEl('p', {
-            text: this.t.modals.improveNote?.examplesTitle || 'Examples:',
-            cls: 'improve-note-examples-title'
-        });
-        const examplesList = examplesEl.createEl('ul');
+        // Placement dropdown
+        new Setting(contentEl)
+            .setName(this.t.modals.improveNote?.placementLabel || 'Output placement')
+            .setDesc(this.t.modals.improveNote?.placementDesc || 'Where to put the improved content')
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('replace', this.t.modals.improveNote?.placementReplace || 'Replace note content')
+                    .addOption('cursor', this.t.modals.improveNote?.placementCursor || 'Insert at cursor')
+                    .addOption('new-note', this.t.modals.improveNote?.placementNewNote || 'Create new note')
+                    .setValue(this.placement)
+                    .onChange(value => {
+                        this.placement = value as ImproveNotePlacement;
+                    });
+            });
+
+        // Text area for query (focal point)
+        const textAreaContainer = contentEl.createEl('div', { cls: 'improve-note-input' });
+        new Setting(textAreaContainer)
+            .setName(this.t.modals.improveNote?.queryLabel || 'Your request')
+            .setDesc(this.t.modals.improveNote?.queryDesc || 'What would you like to improve or add to this note?')
+            .addTextArea(text => {
+                this.textAreaComponent = text;
+                text
+                    .setPlaceholder(this.t.modals.improveNote?.queryPlaceholder || 'Type your request here...')
+                    .setValue(this.query)
+                    .onChange(value => {
+                        this.query = value;
+                    });
+                text.inputEl.rows = 4;
+                text.inputEl.spellcheck = true;
+                text.inputEl.addClass('improve-note-textarea');
+                enableAutoExpand(text.inputEl);
+
+                // Focus the textarea
+                setTimeout(() => text.inputEl.focus(), 50);
+
+                // Submit on Ctrl/Cmd + Enter
+                text.inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        this.submit();
+                    }
+                });
+            });
+
+        // Collapsible examples (progressive disclosure)
+        const detailsEl = contentEl.createEl('details', { cls: 'improve-note-examples' });
+        detailsEl.setAttribute('open', '');
+        const summaryEl = detailsEl.createEl('summary');
+        summaryEl.setText(this.t.modals.improveNote?.examplesTitle || 'Examples:');
+
+        const examplesList = detailsEl.createEl('ul');
         const examples = [
             this.t.modals.improveNote?.example1 || 'Give me an analogy to understand this concept',
             this.t.modals.improveNote?.example2 || 'Explain the second section in more detail',
@@ -90,35 +148,6 @@ export class ImproveNoteModal extends Modal {
                 this.textAreaComponent?.setValue(example);
             });
         });
-
-        // Text area for query
-        const textAreaContainer = contentEl.createEl('div', { cls: 'improve-note-input' });
-        new Setting(textAreaContainer)
-            .setName(this.t.modals.improveNote?.queryLabel || 'Your request')
-            .setDesc(this.t.modals.improveNote?.queryDesc || 'What would you like to improve or add to this note?')
-            .addTextArea(text => {
-                this.textAreaComponent = text;
-                text
-                    .setPlaceholder(this.t.modals.improveNote?.queryPlaceholder || 'Type your request here...')
-                    .setValue(this.query)
-                    .onChange(value => {
-                        this.query = value;
-                    });
-                text.inputEl.rows = 4;
-                text.inputEl.spellcheck = true;
-                text.inputEl.addClass('improve-note-textarea');
-
-                // Focus the textarea
-                setTimeout(() => text.inputEl.focus(), 50);
-
-                // Submit on Ctrl/Cmd + Enter
-                text.inputEl.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        this.submit();
-                    }
-                });
-            });
 
         // Buttons
         const buttonContainer = contentEl.createEl('div', { cls: 'improve-note-buttons' });
@@ -142,7 +171,8 @@ export class ImproveNoteModal extends Modal {
         try {
             await this.onSubmit({
                 query: query || 'Improve and enhance this note',
-                personaId: this.selectedPersona.id
+                personaId: this.selectedPersona.id,
+                placement: this.placement
             });
         } catch (error) {
             console.error('[AI Organiser] Improve note error:', error);

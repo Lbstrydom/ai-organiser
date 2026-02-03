@@ -238,6 +238,55 @@ Pick at least ONE source type:
   - [x] **Resources**: Suggests related resources
   - [x] **Flashcards**: Exports to Anki format
 
+### Improve Note — Placement & Preview
+
+#### Duplication Fix (References/Pending)
+- [ ] Open note with `## References` and `## Pending Integration` sections
+- [ ] Run Improve Note → verify improved output does NOT contain duplicate References/Pending sections
+- [ ] Open note with References only → Improve Note → verify NO duplicate References
+- [ ] Translate Note (single note) on note with References → verify NO duplicate sections
+- [ ] Multi-source Translate on note with References → verify NO duplicate sections
+
+#### Editor Buffer (Unsaved Edits)
+- [ ] Open a note, make an unsaved edit (type something without saving)
+- [ ] Run Improve Note → verify the unsaved edit appears in the improved content
+
+#### Placement: Replace (default)
+- [ ] Improve Note → select "Replace note content" (default)
+- [ ] Preview modal shows with "Replace note" button (warning/red style)
+- [ ] Click "Replace note" → main body replaced, References/Pending preserved
+
+#### Placement: Insert at Cursor
+- [ ] Place cursor in middle of note
+- [ ] Improve Note → select "Insert at cursor" → submit
+- [ ] Preview modal shows with "Insert at cursor" button (CTA/blue style)
+- [ ] Click "Insert at cursor" → only new content inserted at cursor position
+
+#### Placement: Create New Note
+- [ ] Improve Note → select "Create new note" → submit
+- [ ] Preview modal shows with "Create note" button (CTA/blue style)
+- [ ] Click "Create note" → new file created (e.g., "MyNote (improved).md"), original untouched
+- [ ] Run again → second file gets suffix ("MyNote (improved) 2.md")
+
+#### Preview Modal Actions
+- [ ] Preview shows rendered markdown (scrollable)
+- [ ] "Copy to clipboard" → content copied, notice shown
+- [ ] "Discard" → nothing inserted, no side effects
+- [ ] Close with ESC or X → treated as discard, no side effects
+
+### Improve Note — Modal Layout
+- [ ] Examples section is collapsible (click triangle to toggle)
+- [ ] Placement dropdown appears between persona and textarea
+- [ ] Textarea has auto-expand (type long text → grows up to ~200px)
+
+### Textarea Auto-Expand
+- [ ] Improve Note modal → type long request → textarea grows
+- [ ] Find Resources modal → type long query → textarea grows
+- [ ] Mermaid Diagram modal → type long instruction → textarea grows
+- [ ] Minutes modal → paste long transcript → textarea grows (up to ~300px)
+- [ ] Minutes modal → type long custom instructions → textarea grows
+- [ ] Unified Chat → type long message → textarea grows (existing behavior preserved)
+
 ---
 
 ## 7. Meeting Minutes (4 min)
@@ -529,36 +578,36 @@ Pick at least ONE source type:
 - [x] Select very large text (>5000 chars) → right-click → "Highlight" still visible, "Remove highlight" absent (performance guard)
 
 ### Right-Click Context Menu: AI & Workflow (NEW)
-- [ ] Select text → right-click → separator visible between Highlight group and AI group
-- [ ] "Ask AI" visible with sparkles icon → opens Chat modal with selection locked
-- [ ] "Translate" visible with languages icon → opens Translate modal with selection pre-loaded
-- [ ] Separator visible between AI group and Workflow group
-- [ ] "Add to Pending" visible with inbox icon → instant action, Notice toast shown
-- [ ] Select URL → right-click → "Add to Pending" → auto-detects as 'web' type
-- [ ] Select `[[wikilink]]` → right-click → "Add to Pending" → auto-detects as 'note' type
-- [ ] Right-click without any selection → no AI/Workflow items in menu
-- [ ] All 5 items visible when selecting highlighted text (Highlight, Remove Highlight, Ask AI, Translate, Add to Pending)
+- [x] Select text → right-click → Ask AI and Translate visible alongside Highlight group (no separator between them)
+- [x] "Ask AI" visible with sparkles icon → opens Chat modal with selection locked
+- [x] "Translate" visible with languages icon → opens Translate modal with selection pre-loaded
+- [x] Single separator visible before "Add to Pending" (workflow group)
+- [x] "Add to Pending" visible with inbox icon → instant action, Notice toast shown
+- [x] Select URL → right-click → "Add to Pending" → auto-detects as 'web' type
+- [x] Select `[[wikilink]]` → right-click → "Add to Pending" → auto-detects as 'note' type
+- [x] Right-click without any selection → no AI/Workflow items in menu
+- [x] All 5 items visible when selecting highlighted text (Highlight, Remove Highlight, Ask AI, Translate, Add to Pending)
 
 ### Command Picker: Translate Rename
-- [ ] Open Command Picker → Refine Content → verify label shows "Translate Note" (not "Translate")
-- [ ] Search "translate" in picker → "Translate Note" appears
-- [ ] Invoke "Translate Note" with selection → still translates selection (smart dispatch)
-- [ ] Invoke "Translate Note" without selection → translates note or opens multi-source
+- [x] Open Command Picker → Refine Content → verify label shows "Translate Note" (not "Translate")
+- [x] Search "translate" in picker → "Translate Note" appears
+- [x] Invoke "Translate Note" with selection → still translates selection (smart dispatch)
+- [x] Invoke "Translate Note" without selection → translates note or opens multi-source
 
 ---
 
 ## 11. Tag Analysis (2 min)
 
 ### Tag Network
-- [ ] "Show Tag Network" → visualization opens
-- [ ] Nodes represent tags, edges show co-occurrence
-- [ ] Search/filter works
-- [ ] Hover shows tag details
-- [ ] Nodes draggable
+- [x] "Show Tag Network" → visualization opens
+- [x] Nodes represent tags, edges show co-occurrence
+- [x] Search/filter works
+- [x] Hover shows tag details
+- [x] Nodes draggable
 
 ### Collect Tags
-- [ ] "Collect all tags" → creates file with all vault tags
-- [ ] Tags sorted and deduplicated
+- [x] "Collect all tags" → creates file with all vault tags
+- [x] Tags sorted and deduplicated
 
 ---
 

@@ -5,6 +5,7 @@
 
 import { App, Modal, Notice, Setting, TextAreaComponent } from 'obsidian';
 import { Translations } from '../../i18n/types';
+import { enableAutoExpand } from '../../utils/uiUtils';
 
 export class FindResourcesModal extends Modal {
     private t: Translations;
@@ -78,6 +79,7 @@ export class FindResourcesModal extends Modal {
                 text.inputEl.rows = 3;
                 text.inputEl.spellcheck = true;
                 text.inputEl.addClass('find-resources-textarea');
+                enableAutoExpand(text.inputEl);
 
                 // Focus the textarea
                 setTimeout(() => text.inputEl.focus(), 50);

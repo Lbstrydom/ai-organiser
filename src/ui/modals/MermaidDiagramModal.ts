@@ -5,6 +5,7 @@
 
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type { Translations } from '../../i18n/types';
+import { enableAutoExpand } from '../../utils/uiUtils';
 
 export type DiagramType =
     | 'auto'
@@ -94,6 +95,7 @@ export class MermaidDiagramModal extends Modal {
                 text.inputEl.rows = 4;
                 text.inputEl.spellcheck = true;
                 text.inputEl.style.width = '100%';
+                enableAutoExpand(text.inputEl);
             });
 
         // Examples section
