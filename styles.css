@@ -967,17 +967,18 @@
 }
 
 .improve-note-examples {
-    margin-bottom: var(--size-4-4);
-    padding: var(--size-4-2);
+    margin-bottom: var(--size-4-3);
+    padding: var(--size-2-3) var(--size-4-2);
     background-color: var(--background-secondary);
     border-radius: var(--radius-s);
+    font-size: var(--font-ui-smaller);
 }
 
 .improve-note-examples summary {
     cursor: pointer;
     font-weight: var(--font-medium);
     color: var(--text-muted);
-    margin-bottom: var(--size-4-1);
+    font-size: var(--font-ui-smaller);
 }
 
 .improve-note-examples-title {
@@ -987,15 +988,16 @@
 }
 
 .improve-note-examples ul {
-    margin: 0;
-    padding-left: var(--size-4-4);
+    margin: var(--size-2-1) 0 0 0;
+    padding-left: var(--size-4-3);
 }
 
 .improve-note-examples li {
     cursor: pointer;
-    padding: var(--size-2-1) 0;
+    padding: 1px 0;
     color: var(--text-accent);
     transition: color 0.1s ease;
+    line-height: 1.4;
 }
 
 .improve-note-examples li:hover {

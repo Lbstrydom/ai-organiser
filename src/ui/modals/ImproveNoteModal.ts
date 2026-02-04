@@ -108,7 +108,7 @@ export class ImproveNoteModal extends Modal {
                     .onChange(value => {
                         this.query = value;
                     });
-                text.inputEl.rows = 4;
+                text.inputEl.rows = 6;
                 text.inputEl.spellcheck = true;
                 text.inputEl.addClass('improve-note-textarea');
                 enableAutoExpand(text.inputEl);

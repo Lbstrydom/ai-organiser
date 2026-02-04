@@ -241,20 +241,20 @@ Pick at least ONE source type:
 ### Improve Note — Placement & Preview
 
 #### Duplication Fix (References/Pending)
-- [ ] Open note with `## References` and `## Pending Integration` sections
-- [ ] Run Improve Note → verify improved output does NOT contain duplicate References/Pending sections
-- [ ] Open note with References only → Improve Note → verify NO duplicate References
-- [ ] Translate Note (single note) on note with References → verify NO duplicate sections
-- [ ] Multi-source Translate on note with References → verify NO duplicate sections
+- [x] Open note with `## References` and `## Pending Integration` sections
+- [x] Run Improve Note → verify improved output does NOT contain duplicate References/Pending sections
+- [x] Open note with References only → Improve Note → verify NO duplicate References
+- [x] Translate Note (single note) on note with References → verify NO duplicate sections
+- [x] Multi-source Translate on note with References → verify NO duplicate sections
 
 #### Editor Buffer (Unsaved Edits)
-- [ ] Open a note, make an unsaved edit (type something without saving)
-- [ ] Run Improve Note → verify the unsaved edit appears in the improved content
+- [x] Open a note, make an unsaved edit (type something without saving)
+- [x] Run Improve Note → verify the unsaved edit appears in the improved content
 
 #### Placement: Replace (default)
-- [ ] Improve Note → select "Replace note content" (default)
-- [ ] Preview modal shows with "Replace note" button (warning/red style)
-- [ ] Click "Replace note" → main body replaced, References/Pending preserved
+- [x] Improve Note → select "Replace note content" (default)
+- [x] Preview modal shows with "Replace note" button (warning/red style)
+- [x] Click "Replace note" → main body replaced, References/Pending preserved
 
 #### Placement: Insert at Cursor
 - [ ] Place cursor in middle of note
