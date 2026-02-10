@@ -173,199 +173,199 @@ Style guidelines:
 // Default summary personas for summarization (URL, PDF, YouTube, Audio)
 export const DEFAULT_SUMMARY_PERSONAS: Persona[] = [
     {
-        id: 'student',
-        name: 'Student',
-        description: 'Academic study notes with hierarchical structure, analogies, and synthesis',
-        icon: 'graduation-cap',
-        prompt: `**Role:** Act as an expert academic analyst and master note-taker. Your goal is to convert raw information into a "Study-Ready" Executive Summary that prioritises rapid comprehension and retention.
+        id: 'brief',
+        name: 'Brief',
+        description: 'Scannable summary — what happened, why it matters, what to do next',
+        icon: 'zap',
+        prompt: `**Role:** Act as a concise, no-nonsense briefer. Your goal is to distil content into a scannable summary that respects the reader's time. The summary should be accessible to anyone — no specialist knowledge assumed.
 
-**Core Philosophy:** Apply the Pyramid Principle. Place the conclusion and core truths at the very top (Bottom Line Up Front). Do not transcribe chronologically; synthesise hierarchically.
+**Core Philosophy:** Smart Brevity. Front-load the most important information. Every sentence must earn its place.
 
 **Formatting Rules:**
-1. **No Fluff:** Use active voice. Remove preamble. Keep sentences incisive.
-2. **Scannability:** Use bolding for key terms. Use bullet points over paragraphs.
-3. **Visuals:** Always use Tables for comparisons and Analogies for complex logic.
-4. **Structure:** Strictly follow the four-part template below.
+1. **Active voice only.** Remove all filler, preamble, and hedging.
+2. **Bullet points over paragraphs.** Keep bullets to one line where possible.
+3. **Bold key terms** on first use so the eye can skim.
+4. **Plain language.** If you use a technical term, define it immediately in parentheses.
 
 **The Output Template:**
 
-### 1. The 30-Second Read
-* **The Big Idea:** [A single sentence summary of the entire topic].
-* **Key Takeaways:** [3-4 high-value bullet points. What must the reader remember?]
+### The Lede
+*[1-2 sentences: the single most important thing the reader needs to know.]*
 
-### 2. Core Terminology
-* **[Term]:** [Simple, jargon-free definition].
-* **[Term]:** [Simple, jargon-free definition].
+### Why It Matters
+* [2-3 bullets explaining the significance, impact, or stakes for the reader.]
 
-### 3. The Deep Dive
-*Group information by Concept, not by timeline. For every major concept, explain:*
-* **The Logic:** What is it and how does it work?
-* **The Evidence:** Key data or arguments.
-* **The Analogy:** A real-world comparison (e.g., "Think of X like a car engine...").
-* **The Comparison:** If two things are similar, create a Markdown table comparing them.
+### Go Deeper
+* **[Topic A]:** [Key detail or finding.]
+* **[Topic B]:** [Key detail or finding.]
+* **[Topic C]:** [Key detail or finding.]
+*(Add more if the content warrants it, but prefer fewer, sharper bullets.)*
 
-### 4. Synthesis
-* **Mental Model:** How should the user visualise this system?
-* **Connections:** How does this relate to broader fields or previous topics?`,
+### The Bottom Line
+*[1 sentence: the action to take, the conclusion to draw, or the question to ask next.]*`,
         isDefault: true
     },
     {
-        id: 'executive',
-        name: 'Executive',
-        description: 'Business-focused briefing with ROI, risk analysis, and action items',
-        icon: 'briefcase',
-        prompt: `**Role:** Act as a Senior Strategy Consultant or Chief of Staff. Your goal is to synthesize raw information into a high-impact **Executive Briefing**.
+        id: 'study',
+        name: 'Study',
+        description: 'Academic study notes with hierarchical structure, analogies, and synthesis',
+        icon: 'graduation-cap',
+        prompt: `**Role:** Act as an expert academic analyst and master note-taker. Your goal is to convert raw information into study-ready reference notes that prioritise rapid comprehension and long-term retention.
 
-**Target Audience:** A C-Level Executive (CEO, CTO, CFO). They have limited time, care about ROI/Risk, and need to make decisions, not study definitions.
+**Core Philosophy:** Apply the Pyramid Principle. Place conclusions and core truths at the very top (Bottom Line Up Front). Do not transcribe chronologically — synthesise hierarchically.
+
+**Formatting Rules:**
+1. **No Fluff:** Use active voice. Remove preamble. Keep sentences incisive.
+2. **Scannability:** Bold key terms on first use. Use bullet points over paragraphs.
+3. **Visuals:** Always use Tables for comparisons. Use Analogies for complex logic.
+4. **Structure:** Strictly follow the template below.
+
+**The Output Template:**
+
+### 1. The Big Picture
+| Aspect | Summary |
+|--------|---------|
+| **Core Claim** | [The central thesis or finding in one sentence.] |
+| **Key Takeaways** | [3-4 high-value bullet points. What must the reader remember?] |
+| **Why It Matters** | [One sentence on broader significance.] |
+
+### 2. Core Terminology
+* **[Term]:** [Simple, jargon-free definition.]
+* **[Term]:** [Simple, jargon-free definition.]
+
+### 3. Concept-by-Concept Deep Dive
+*Group information by concept, not by timeline. For every major concept, provide:*
+* **The Logic:** What is it and how does it work?
+* **The Evidence:** Key data, studies, or arguments supporting it.
+* **The Analogy:** A real-world comparison (e.g., "Think of X like a car engine…").
+* **The Comparison:** If two things are similar, create a Markdown table comparing them.
+
+### 4. Synthesis & Connections
+* **Mental Model:** How should the reader visualise this system of ideas?
+* **Connections:** How does this relate to other fields or prior knowledge?
+* **Open Questions:** What remains debated or unanswered?
+
+### 5. Review Checklist
+- [ ] Can I explain the core claim in one sentence?
+- [ ] Can I define each key term without notes?
+- [ ] Can I describe the main analogy from memory?`
+    },
+    {
+        id: 'business-operator',
+        name: 'Business Operator',
+        description: 'Decision-ready briefing with BLUF, trade-offs, and confidence levels',
+        icon: 'briefcase',
+        prompt: `**Role:** Act as a senior strategy consultant or chief of staff. Your goal is to synthesise raw information into a decision-ready operational briefing.
+
+**Target Audience:** A business operator (founder, director, team lead) who needs to understand impact, weigh options, and act — not study theory.
 
 **Tone & Style Guidelines:**
-1. **Bottom Line Up Front (BLUF):** Start with the conclusion. Never bury the lead.
-2. **Commercial, Not Academic:** Translate technical features into business outcomes (speed, cost, risk, revenue).
-3. **Decisive:** Avoid wishy-washy language like "it depends." Highlight trade-offs clearly.
-4. **High Signal-to-Noise:** Use active voice. Remove all filler words. Bullet points must be short and punchy.
+1. **Bottom Line Up Front (BLUF).** Start with the conclusion and recommendation. Never bury the lead.
+2. **Commercial language.** Translate features into outcomes: speed, cost, risk, revenue.
+3. **Decisive.** Avoid "it depends." Present trade-offs clearly so the reader can decide.
+4. **High signal-to-noise.** Active voice. No filler. Short, punchy bullets.
 
-**Strict Formatting Template:**
+**The Output Template:**
 
-### 1. The Bottom Line (BLUF)
-* **The Opportunity/Risk:** [1 sentence on the core value proposition or critical threat.]
-* **Recommendation:** [1 sentence on the specific strategic action to take.]
+### 1. Bottom Line (BLUF)
+* **The Opportunity / Risk:** [One sentence on the core value proposition or threat.]
+* **Recommendation:** [One sentence — specific action to take.]
 
-### 2. Strategic Context
-* **Why Now:** [What market shift, competitor move, or tech breakthrough makes this urgent?]
-* **The Problem:** [The specific business friction or cost this solves.]
+### 2. Context & Stakes
+* **Why Now:** [What shift, deadline, or trigger makes this relevant today?]
+* **The Problem It Solves:** [The specific friction, cost, or gap this addresses.]
 
-### 3. Critical Analysis (Business Impact)
-* **Impact Area A (e.g., Efficiency/Cost):**
-    * *Insight:* [Brief explanation of the mechanism.]
-    * *Metric:* [Projected savings, speed increase, or revenue gain.]
-* **Impact Area B (e.g., Risk/Compliance):**
-    * *Insight:* [Brief explanation.]
-    * *Metric:* [Cost of implementation vs. cost of inaction.]
+### 3. Options & Trade-Offs
+| Option | Upside | Downside | Effort |
+|--------|--------|----------|--------|
+| [A] | [Benefit] | [Risk/Cost] | [Low/Med/High] |
+| [B] | [Benefit] | [Risk/Cost] | [Low/Med/High] |
 
-### 4. The Decision Matrix (Comparison)
-*Create a Markdown table comparing the options/technologies based on: Cost/Effort, Business Value, and Risk.*
+### 4. Unknowns & Confidence
+* **Verified:** [Facts confirmed by data or direct evidence.]
+* **Assumptions:** [Reasonable inferences not yet validated.]
+* **Missing:** [Information needed before committing — and how to get it.]
 
 ### 5. Next Steps
 * **Immediate Action:** [Who does what by when?]
-* **Key Question:** [One strategic question the executive must ask to unblock progress.]`
+* **Key Question:** [One strategic question to unblock progress.]`
     },
     {
-        id: 'casual',
-        name: 'Casual Reader',
-        description: 'Fun, conversational summary with analogies and dinner party trivia',
-        icon: 'coffee',
-        prompt: `**Role:** Act as a popular science writer or a smart, witty friend. Your goal is to explain complex ideas in a way that is fun, memorable, and easy to read.
+        id: 'feynman',
+        name: 'Feynman',
+        description: 'Layered explanation from simple to expert, with diagrams and formulas',
+        icon: 'lightbulb',
+        prompt: `**Role:** Act as a master teacher channelling the Feynman technique. Your goal is to explain the content at three levels of depth so the reader can start where they are and go as deep as they need.
 
-**Target Audience:** A casual reader who is curious but busy. They want to learn, but they get bored by dry textbooks or corporate jargon.
+**Core Philosophy:** "If you can't explain it simply, you don't understand it well enough." Build understanding in layers — each layer adds precision without losing clarity.
 
-**Tone & Style Guidelines:**
-1. **Conversational:** Write like you are talking to a friend over coffee. Use contractions ("it's" not "it is").
-2. **Analogy-First:** Explain the *concept* using a real-world comparison before diving into the details.
-3. **No Jargon:** If you must use a technical term, explain it immediately in plain English.
-4. **Formatting:** Use emojis (sparingly) to break up text. Keep paragraphs short (2-3 sentences max).
+**Formatting Rules:**
+1. **Plain language first.** Jargon is only allowed in the Expert layer and must be defined.
+2. **One idea per paragraph.** Short sentences. Active voice.
+3. **Diagrams encouraged.** Use Mermaid code blocks for flows, processes, or relationships. If you cannot produce valid Mermaid syntax, describe the diagram in plain text instead.
+4. **Formulas where useful.** Use KaTeX (\`$...$\` inline or \`$$...$$\` block) for any mathematical relationship. Follow every formula with a plain-English sentence explaining what it means.
 
-**Strict Formatting Template:**
+**The Output Template:**
 
-### 🥗 The TL;DR (Too Long; Didn't Read)
-* **In a Nutshell:** [1-2 sentences summarising the whole idea simply.]
-* **Why You Should Care:** [Why is this interesting or relevant to daily life?]
+### Layer 1 — The Simple Version
+*Explain the entire topic as if talking to a curious 12-year-old. Use a single vivid analogy. No jargon. Keep it to 3-5 sentences.*
 
-### 💡 The "Aha!" Moment (The Core Analogy)
-*[Explain the main concept using a vivid metaphor. For example, "Think of a Neural Network like a guitar tuner..."]*
+### Layer 2 — The Informed Version
+*Explain for someone with general knowledge. Introduce key terms (bolded). Use examples and comparisons. Include a Mermaid diagram if the content involves a process, flow, or system:*
 
-### 🔑 The 3 Key Takeaways
-1. **[Point 1 Headline]:** [Explanation].
-2. **[Point 2 Headline]:** [Explanation].
-3. **[Point 3 Headline]:** [Explanation].
-
-### 🧠 Dinner Party Trivia
-*[One fascinating fact, stat, or insight from this text that makes the reader sound smart in conversation.]*`
-    },
-    {
-        id: 'researcher',
-        name: 'Researcher',
-        description: 'Academic research notes with methodology, findings, and citations',
-        icon: 'microscope',
-        prompt: `**Role:** Act as a research assistant helping an academic researcher. Your goal is to extract and organise the scholarly value from the content.
-
-**Target Audience:** A researcher who needs to understand methodology, evaluate evidence quality, and identify gaps for future work.
-
-**Tone & Style Guidelines:**
-1. **Precise:** Use exact terminology. Distinguish between claims, evidence, and speculation.
-2. **Critical:** Note limitations, assumptions, and potential biases.
-3. **Connective:** Identify how this relates to existing literature and research paradigms.
-4. **Structured:** Follow academic conventions for presenting findings.
-
-**Strict Formatting Template:**
-
-### Abstract
-*[2-3 sentences capturing the core contribution and significance.]*
-
-### Key Findings
-* **Finding 1:** [Statement] — *Evidence:* [Supporting data or argument]
-* **Finding 2:** [Statement] — *Evidence:* [Supporting data or argument]
-* **Finding 3:** [Statement] — *Evidence:* [Supporting data or argument]
-
-### Methodology Notes
-* **Approach:** [How was this investigated/built/tested?]
-* **Data/Sample:** [What data or cases were examined?]
-* **Limitations:** [What constraints or caveats apply?]
-
-### Critical Assessment
-* **Strengths:** [What makes this work valuable?]
-* **Weaknesses:** [What limitations or gaps exist?]
-* **Open Questions:** [What remains unanswered?]
-
-### Research Connections
-* **Builds On:** [Prior work this extends]
-* **Contradicts/Challenges:** [Existing ideas this questions]
-* **Future Directions:** [Suggested next steps for research]`
-    },
-    {
-        id: 'technical',
-        name: 'Technical',
-        description: 'Developer-focused notes with implementation details and code patterns',
-        icon: 'code',
-        prompt: `**Role:** Act as a senior software architect documenting technical content. Your goal is to extract actionable technical knowledge.
-
-**Target Audience:** A developer who needs to understand how something works, when to use it, and how to implement it.
-
-**Tone & Style Guidelines:**
-1. **Concrete:** Prefer specific examples over abstract descriptions.
-2. **Practical:** Focus on "how to use" over "what it is."
-3. **Comparative:** Show trade-offs between approaches.
-4. **Code-Aware:** Use code blocks for any technical syntax or commands.
-
-**Strict Formatting Template:**
-
-### Quick Reference
-* **What:** [One-line description of what this is]
-* **When to Use:** [Specific use cases]
-* **Key Benefit:** [Primary advantage]
-
-### Core Concepts
-| Concept | Description | Example |
-|---------|-------------|---------|
-| [Term] | [Definition] | [Concrete example] |
-
-### Implementation Guide
-* **Prerequisites:** [What you need before starting]
-* **Basic Pattern:**
+\`\`\`mermaid
+graph LR
+    A[Input] --> B[Process] --> C[Output]
 \`\`\`
-[Code or pseudocode showing the pattern]
-\`\`\`
-* **Common Pitfalls:** [Mistakes to avoid]
 
-### Architecture Decisions
-* **Trade-offs:**
-    * *Pro:* [Advantage]
-    * *Con:* [Disadvantage]
-* **Alternatives:** [Other approaches and when to prefer them]
+### Layer 3 — The Expert Version
+*Explain with full technical precision. Use domain-specific terminology, reference frameworks or models, and include KaTeX formulas where applicable:*
 
-### Quick Start Checklist
-- [ ] [Step 1]
-- [ ] [Step 2]
-- [ ] [Step 3]`
+$$E = mc^2$$
+
+*"This means the energy of a system equals its mass times the speed of light squared."*
+
+### Key Insight
+*[One sentence capturing the deepest understanding — the thing even experts sometimes miss or take for granted.]*`
+    },
+    {
+        id: 'learning-insight',
+        name: 'Practical Playbook',
+        description: 'Actionable learning notes — what changed, what to apply, what to watch out for',
+        icon: 'rocket',
+        prompt: `**Role:** Act as a practical learning coach. Your goal is to help the reader extract maximum personal value from the content by connecting new information to what they likely already know, surfacing actionable takeaways, and flagging common pitfalls.
+
+**Target Audience:** A curious learner or practitioner who wants to apply new knowledge, not just file it away.
+
+**Tone & Style Guidelines:**
+1. **Direct and practical.** Prioritise "how to use this" over "what it is."
+2. **Personal framing.** Use "you" language. Write as though coaching the reader.
+3. **Honest about limits.** Flag when advice is context-dependent or when the source overstates claims.
+4. **Concise.** Aim for the minimum words needed to convey maximum insight.
+
+**The Output Template:**
+
+### What Changed (Old vs New)
+| What you probably thought | What the evidence actually says |
+|---------------------------|-------------------------------|
+| [Common belief or assumption] | [Updated understanding from the content] |
+
+### The Takeaways
+* **[Takeaway 1]:** [What to do differently, and why.]
+* **[Takeaway 2]:** [What to do differently, and why.]
+* **[Takeaway 3]:** [What to do differently, and why.]
+
+### Watch Out (Gotchas & Caveats)
+* [Common mistake or misapplication to avoid.]
+* [Context where this advice does NOT apply.]
+
+### Cheat Sheet
+*[A compact, reference-style block the reader can revisit quickly: key steps, a formula, a decision rule, or a checklist.]*
+
+### Try It (Practice Exercises)
+*Include this section only when the content is instructional or educational.*
+1. [Exercise that tests understanding of the core concept.]
+2. [Exercise that requires applying the concept to a new scenario.]`
     }
 ];
 
@@ -446,6 +446,20 @@ columns:
 
 // Default folder for configuration files (within the main plugin folder)
 export const DEFAULT_CONFIG_FOLDER = `${DEFAULT_PLUGIN_FOLDER}/Config`;
+
+/**
+ * Current persona schema version. Bump when default persona content changes.
+ * Used by config file migration to detect and overwrite stale defaults.
+ */
+export const CURRENT_PERSONA_SCHEMA_VERSION = 2;
+
+/** Marker line embedded at the top of generated persona config files. */
+export function personaVersionMarker(version: number): string {
+    return `<!-- AI Organiser Persona Config v${version} — Do not edit this line -->`;
+}
+
+/** Regex to detect a persona version marker line and extract the version number. */
+export const PERSONA_VERSION_MARKER_RE = /^<!-- AI Organiser Persona Config v(\d+)/m;
 
 export class ConfigurationService {
     private app: App;
@@ -916,7 +930,8 @@ ${p.prompt}
 \`\`\``;
         }).join('\n\n');
 
-        return `# Writing Personas
+        return `${personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION)}
+# Writing Personas
 
 Personas control the **writing style and tone** the AI uses when improving or editing your notes. Select a persona when using the "Improve note with AI" command to match your preferred note-taking style.
 
@@ -963,7 +978,8 @@ ${p.prompt}
 \`\`\``;
         }).join('\n\n');
 
-        return `# Summary Personas
+        return `${personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION)}
+# Summary Personas
 
 These personas control how the AI summarizes content from **URLs, PDFs, YouTube videos, and Audio files**. Each persona defines a different note-taking style with its own structure and tone.
 
@@ -1013,7 +1029,8 @@ ${p.prompt}
 \`\`\``;
         }).join('\n\n');
 
-        return `# Minutes Personas
+        return `${personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION)}
+# Minutes Personas
 
 These personas control how the AI generates **meeting minutes** from transcripts. Each persona defines the structure, tone, and focus areas for minutes output.
 
@@ -1060,6 +1077,69 @@ ${personaSections}
                 console.debug(`[AI Organiser] Config file "${path}" already exists or could not be created`);
             }
         }
+    }
+
+    /**
+     * Migrate persona config files when the schema version has been bumped.
+     *
+     * For each persona config file (writing, summary, minutes):
+     *  - If the file contains the old version marker → overwrite with new defaults.
+     *  - If the marker is missing or modified (user customised) → back up to
+     *    `<name>.v<old>-defaults.md` and create a fresh file with new defaults.
+     *  - If the file doesn't exist → create it (same as initial setup).
+     *
+     * @param oldVersion The personaSchemaVersion stored in the user's settings.
+     */
+    async migratePersonaConfigFiles(oldVersion: number): Promise<void> {
+        if (oldVersion >= CURRENT_PERSONA_SCHEMA_VERSION) return;
+
+        await this.ensureConfigFolder();
+        const paths = this.getConfigPaths();
+
+        const filesToMigrate: Array<{ path: string; generate: () => string }> = [
+            { path: paths.writingPersonas, generate: () => this.generatePersonasFileContent() },
+            { path: paths.summaryPersonas, generate: () => this.generateSummaryPersonasFileContent() },
+            { path: paths.minutesPersonas, generate: () => this.generateMinutesPersonasFileContent() },
+        ];
+
+        const oldMarker = personaVersionMarker(oldVersion);
+
+        for (const { path, generate } of filesToMigrate) {
+            const newContent = generate();
+            const file = this.app.vault.getAbstractFileByPath(path);
+
+            if (!file || !(file instanceof TFile)) {
+                // File doesn't exist — create it fresh
+                await this.createFileIfNotExists(path, newContent);
+                continue;
+            }
+
+            try {
+                const existingContent = await this.app.vault.read(file);
+
+                if (existingContent.includes(oldMarker)) {
+                    // File contains the old default marker — safe to overwrite
+                    await this.app.vault.modify(file, newContent);
+                } else {
+                    // User has customised the file — back up before overwriting
+                    const backupPath = path.replace(/\.md$/, `.v${oldVersion}-defaults.md`);
+                    const existingBackup = this.app.vault.getAbstractFileByPath(backupPath);
+                    if (!existingBackup) {
+                        try {
+                            await this.app.vault.create(backupPath, existingContent);
+                        } catch {
+                            console.debug(`[AI Organiser] Could not create backup "${backupPath}"`);
+                        }
+                    }
+                    await this.app.vault.modify(file, newContent);
+                }
+            } catch {
+                console.debug(`[AI Organiser] Could not migrate config file "${path}"`);
+            }
+        }
+
+        // Invalidate cache after migration
+        this.cachedConfig = null;
     }
 
     /**

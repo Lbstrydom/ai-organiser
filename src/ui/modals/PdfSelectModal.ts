@@ -12,16 +12,20 @@ export interface PdfSelectResult {
     externalPath?: string;  // For files outside the vault
     personaId: string;
     context?: string;  // Optional user context to guide summarization
+    includeCompanion?: boolean;  // Study companion toggle state
 }
 
 export class PdfSelectModal extends Modal {
     private readonly files: TFile[];
     private onSelect: (result: PdfSelectResult) => void;
-    private onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string }) => void;
+    private onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string; includeCompanion?: boolean }) => void;
     private t: Translations;
     private personaId: string;
     private context: string = '';
+    private includeCompanion = true;
     private readonly personas: Persona[];
+    private readonly enableStudyCompanion: boolean;
+    private companionToggleEl!: HTMLElement;
 
     constructor(
         app: App,
@@ -29,8 +33,9 @@ export class PdfSelectModal extends Modal {
         files: TFile[],
         defaultPersonaId: string,
         personas: Persona[],
+        enableStudyCompanion: boolean,
         onSelect: (result: PdfSelectResult) => void,
-        onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string }) => void
+        onExternalSelect?: (result: { externalPath: string; personaId: string; context?: string; includeCompanion?: boolean }) => void
     ) {
         super(app);
         this.t = translations;
@@ -39,6 +44,7 @@ export class PdfSelectModal extends Modal {
         this.onSelect = onSelect;
         this.onExternalSelect = onExternalSelect;
         this.personas = personas;
+        this.enableStudyCompanion = enableStudyCompanion;
     }
 
     onOpen(): void {
@@ -61,8 +67,23 @@ export class PdfSelectModal extends Modal {
                     dropdown.addOption(persona.id, persona.name);
                 }
                 dropdown.setValue(this.personaId);
-                dropdown.onChange(value => this.personaId = value);
+                dropdown.onChange(value => {
+                    this.personaId = value;
+                    this.companionToggleEl.style.display =
+                        (this.enableStudyCompanion && value === 'study') ? '' : 'none';
+                });
             });
+
+        // Companion toggle (visible only when Study persona is selected)
+        const companionSetting = new Setting(contentEl)
+            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
+            .addToggle(toggle => toggle
+                .setValue(this.includeCompanion)
+                .onChange(value => this.includeCompanion = value));
+        this.companionToggleEl = companionSetting.settingEl;
+        this.companionToggleEl.style.display =
+            (this.enableStudyCompanion && this.personaId === 'study') ? '' : 'none';
 
         // Optional context field
         new Setting(contentEl)
@@ -99,7 +120,8 @@ export class PdfSelectModal extends Modal {
                 this.onSelect({
                     file,
                     personaId: this.personaId,
-                    context: this.context.trim() || undefined
+                    context: this.context.trim() || undefined,
+                    includeCompanion: (this.enableStudyCompanion && this.personaId === 'study') ? this.includeCompanion : undefined
                 });
             };
         });
@@ -143,7 +165,8 @@ export class PdfSelectModal extends Modal {
                     this.onExternalSelect({
                         externalPath: filePath,
                         personaId: this.personaId,
-                        context: this.context.trim() || undefined
+                        context: this.context.trim() || undefined,
+                        includeCompanion: (this.enableStudyCompanion && this.personaId === 'study') ? this.includeCompanion : undefined
                     });
                 }
             }

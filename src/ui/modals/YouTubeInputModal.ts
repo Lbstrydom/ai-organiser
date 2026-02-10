@@ -11,21 +11,26 @@ export interface YouTubeInputResult {
     url: string;
     personaId: string;
     context?: string;  // Optional user context to guide summarization
+    includeCompanion?: boolean;  // Study companion toggle state
 }
 
 export class YouTubeInputModal extends Modal {
     private url: string = '';
     private personaId: string;
     private context: string = '';
+    private includeCompanion = true;
     private readonly onSubmit: (result: YouTubeInputResult) => void;
     private readonly t: Translations;
     private readonly personas: Persona[];
+    private readonly enableStudyCompanion: boolean;
+    private companionToggleEl!: HTMLElement;
 
     constructor(
         app: App,
         translations: Translations,
         defaultPersonaId: string,
         personas: Persona[],
+        enableStudyCompanion: boolean,
         onSubmit: (result: YouTubeInputResult) => void
     ) {
         super(app);
@@ -33,6 +38,7 @@ export class YouTubeInputModal extends Modal {
         this.personaId = defaultPersonaId;
         this.onSubmit = onSubmit;
         this.personas = personas;
+        this.enableStudyCompanion = enableStudyCompanion;
     }
 
     onOpen(): void {
@@ -77,8 +83,23 @@ export class YouTubeInputModal extends Modal {
                     dropdown.addOption(persona.id, persona.name);
                 }
                 dropdown.setValue(this.personaId);
-                dropdown.onChange(value => this.personaId = value);
+                dropdown.onChange(value => {
+                    this.personaId = value;
+                    this.companionToggleEl.style.display =
+                        (this.enableStudyCompanion && value === 'study') ? '' : 'none';
+                });
             });
+
+        // Companion toggle (visible only when Study persona is selected)
+        const companionSetting = new Setting(contentEl)
+            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
+            .addToggle(toggle => toggle
+                .setValue(this.includeCompanion)
+                .onChange(value => this.includeCompanion = value));
+        this.companionToggleEl = companionSetting.settingEl;
+        this.companionToggleEl.style.display =
+            (this.enableStudyCompanion && this.personaId === 'study') ? '' : 'none';
 
         // Optional context field
         new Setting(contentEl)
@@ -110,7 +131,8 @@ export class YouTubeInputModal extends Modal {
             this.onSubmit({
                 url: trimmedUrl,
                 personaId: this.personaId,
-                context: this.context.trim() || undefined
+                context: this.context.trim() || undefined,
+                includeCompanion: (this.enableStudyCompanion && this.personaId === 'study') ? this.includeCompanion : undefined
             });
         }
     }

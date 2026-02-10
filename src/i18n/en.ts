@@ -115,7 +115,9 @@ export const en: Translations = {
             advancedOptions: "Advanced",
             timeout: "Request Timeout",
             timeoutDesc: "Seconds to wait for AI response. Increase for slow models or large content (30-600s).",
-            resetToDefault: "Reset to default (120s)"
+            resetToDefault: "Reset to default (120s)",
+            enableCompanion: "Study Companion Notes",
+            enableCompanionDesc: "When using the Study persona, also create a companion note that explains the material in conversational language"
         },
         minutes: {
             title: "Meeting Minutes",
@@ -624,6 +626,8 @@ export const en: Translations = {
         noPdfsFound: "No PDFs found",
         readingPdf: "Reading PDF...",
         summaryInserted: "Summary added",
+        companionCreated: "Study companion note created",
+        companionCreateFailed: "Could not create companion note",
         copiedToClipboard: "Copied to clipboard",
         summarizingChunk: "Section {current}/{total}...",
         combiningChunks: "Combining...",

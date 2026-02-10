@@ -4,6 +4,7 @@
  */
 
 import { StructuredSummaryResponse } from '../services/prompts/structuredPrompts';
+import { STUDY_COMPANION_DELIMITER } from '../services/prompts/summaryPrompts';
 import { SUMMARY_HOOK_MAX_LENGTH } from '../core/constants';
 
 // ── Generic JSON extraction (used by canvas boards, structured responses, etc.) ──
@@ -115,6 +116,11 @@ function isValidStructuredResponse(obj: any): obj is StructuredSummaryResponse {
         obj.content_type = 'note';
     }
 
+    // Pass through companion_content if present and valid; strip if wrong type
+    if ('companion_content' in obj && typeof obj.companion_content !== 'string') {
+        delete obj.companion_content;
+    }
+
     // Sanitize content
     obj.summary_hook = sanitizeSummaryHookContent(obj.summary_hook);
     obj.body_content = sanitizeBodyContent(obj.body_content);
@@ -219,6 +225,29 @@ function createFallbackResponse(text: string): StructuredSummaryResponse {
  */
 export function extractPlainText(response: StructuredSummaryResponse): string {
     return response.body_content;
+}
+
+/**
+ * Split a traditional (non-JSON) LLM response into main summary and optional companion content.
+ * The companion section, if present, follows the STUDY_COMPANION_DELIMITER on its own line.
+ * Returns { summary, companion } where companion is undefined when not present.
+ *
+ * Empty strings return `{ summary: '' }` (no companion). The falsy guard is defensive
+ * only — callers should always pass a string.
+ */
+export function splitCompanionContent(text: string): { summary: string; companion?: string } {
+    if (!text) return { summary: '' };
+
+    const idx = text.indexOf(STUDY_COMPANION_DELIMITER);
+    if (idx === -1) return { summary: text };
+
+    const summary = text.substring(0, idx).trimEnd();
+    const companion = text.substring(idx + STUDY_COMPANION_DELIMITER.length).trim();
+
+    return {
+        summary,
+        companion: companion.length > 0 ? companion : undefined,
+    };
 }
 
 /**

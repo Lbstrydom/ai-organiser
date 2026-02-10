@@ -7,6 +7,7 @@ import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import type { Persona } from '../../services/configurationService';
+import { DEFAULT_SUMMARY_PERSONA_ID } from '../../core/settings';
 
 export class SummarizationSettingsSection extends BaseSettingSection {
   private personas: Persona[] = [];
@@ -53,7 +54,7 @@ export class SummarizationSettingsSection extends BaseSettingSection {
         for (const persona of this.personas) {
           dropdown.addOption(persona.id, `${persona.name} - ${persona.description}`);
         }
-        dropdown.setValue(plugin.settings.defaultSummaryPersona || 'student');
+        dropdown.setValue(plugin.settings.defaultSummaryPersona || DEFAULT_SUMMARY_PERSONA_ID);
         dropdown.onChange(async value => {
           plugin.settings.defaultSummaryPersona = value;
           await plugin.saveSettings();
@@ -97,6 +98,19 @@ export class SummarizationSettingsSection extends BaseSettingSection {
           .setValue(plugin.settings.includeSummaryMetadata)
           .onChange(async value => {
             plugin.settings.includeSummaryMetadata = value;
+            await plugin.saveSettings();
+          })
+      );
+
+    // Study companion notes toggle
+    new Setting(containerEl)
+      .setName(t.enableCompanion || 'Study Companion Notes')
+      .setDesc(t.enableCompanionDesc || 'Create companion notes when using the Study persona')
+      .addToggle(toggle =>
+        toggle
+          .setValue(plugin.settings.enableStudyCompanion)
+          .onChange(async value => {
+            plugin.settings.enableStudyCompanion = value;
             await plugin.saveSettings();
           })
       );

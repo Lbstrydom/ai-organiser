@@ -24,7 +24,7 @@ import { RelatedNotesView, RELATED_NOTES_VIEW_TYPE } from './ui/views/RelatedNot
 import { TagOperations } from './utils/tagOperations';
 import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
-import { ConfigurationService } from './services/configurationService';
+import { ConfigurationService, CURRENT_PERSONA_SCHEMA_VERSION } from './services/configurationService';
 import { VectorStoreService, IVectorStore } from './services/vector';
 import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
 import { AdapterType } from './services/adapters';
@@ -288,6 +288,16 @@ export default class AIOrganiserPlugin extends Plugin {
         const configExists = await this.configService.configFilesExist();
         if (!configExists) {
             await this.configService.createDefaultConfigFiles();
+            // Fresh install — stamp current version so migration doesn't fire
+            this.settings.personaSchemaVersion = CURRENT_PERSONA_SCHEMA_VERSION;
+            await this.saveSettings();
+        }
+
+        // Migrate persona config files if schema version has been bumped
+        if ((this.settings.personaSchemaVersion ?? 0) < CURRENT_PERSONA_SCHEMA_VERSION) {
+            await this.configService.migratePersonaConfigFiles(this.settings.personaSchemaVersion ?? 0);
+            this.settings.personaSchemaVersion = CURRENT_PERSONA_SCHEMA_VERSION;
+            await this.saveSettings();
         }
 
         setSettings(this.settings);

@@ -12,6 +12,7 @@
 import { App, Modal, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { Persona } from '../../services/configurationService';
+import { DEFAULT_SUMMARY_PERSONA_ID } from '../../core/settings';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { isRecordingSupported } from '../../services/audioRecordingService';
 import { AudioRecorderModal } from './AudioRecorderModal';
@@ -44,6 +45,7 @@ export interface MultiSourceModalResult {
     summarizeNote: boolean;
     focusContext?: string;
     personaId?: string;
+    includeCompanion?: boolean;  // Study companion toggle state
     targetLanguage?: string;
     targetLanguageName?: string;
 }
@@ -72,6 +74,7 @@ export class MultiSourceModal extends Modal {
     private selectedAudio = new Set<string>();
     private summarizeNote: boolean;
     private focusContext = '';
+    private includeCompanion = true;
     private selectedPersonaId: string;
     private selectedTargetLanguage: string;
 
@@ -131,7 +134,7 @@ export class MultiSourceModal extends Modal {
         }
 
         // Initialize persona to default
-        this.selectedPersonaId = plugin.settings.defaultSummaryPersona || 'student';
+        this.selectedPersonaId = plugin.settings.defaultSummaryPersona || DEFAULT_SUMMARY_PERSONA_ID;
 
         // Initialize target language
         this.selectedTargetLanguage = 'en';
@@ -496,6 +499,7 @@ export class MultiSourceModal extends Modal {
         }
 
         // Persona selection dropdown (Summarize Mode)
+        let companionToggleEl: HTMLElement | null = null;
         if (!this.config.hidePersona && this.personas.length > 0) {
             new Setting(settingsSection)
                 .setName(t?.persona || 'Summary Style')
@@ -507,8 +511,23 @@ export class MultiSourceModal extends Modal {
                     dropdown.setValue(this.selectedPersonaId);
                     dropdown.onChange(value => {
                         this.selectedPersonaId = value;
+                        if (companionToggleEl) {
+                            companionToggleEl.style.display =
+                                (this.plugin.settings.enableStudyCompanion && value === 'study') ? '' : 'none';
+                        }
                     });
                 });
+
+            // Companion toggle (visible only when Study persona is selected)
+            const companionSetting = new Setting(settingsSection)
+                .setName(this.plugin.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+                .setDesc(this.plugin.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
+                .addToggle(toggle => toggle
+                    .setValue(this.includeCompanion)
+                    .onChange(value => this.includeCompanion = value));
+            companionToggleEl = companionSetting.settingEl;
+            companionToggleEl.style.display =
+                (this.plugin.settings.enableStudyCompanion && this.selectedPersonaId === 'study') ? '' : 'none';
         }
 
         // Focus context input (Summarize Mode)
@@ -820,7 +839,8 @@ export class MultiSourceModal extends Modal {
             },
             summarizeNote: this.summarizeNote,
             focusContext: this.focusContext.trim() || undefined,
-            personaId: this.selectedPersonaId
+            personaId: this.selectedPersonaId,
+            includeCompanion: (this.plugin.settings.enableStudyCompanion && this.selectedPersonaId === 'study') ? this.includeCompanion : undefined
         };
 
         if (this.config.mode === 'translate') {
@@ -829,6 +849,7 @@ export class MultiSourceModal extends Modal {
              result.targetLanguageName = lang ? lang.name : this.selectedTargetLanguage;
              delete result.personaId;
              delete result.focusContext;
+             delete result.includeCompanion;
         }
 
         this.close();

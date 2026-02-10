@@ -103,6 +103,8 @@ export interface Translations {
             timeout: string;
             timeoutDesc: string;
             resetToDefault: string;
+            enableCompanion: string;
+            enableCompanionDesc: string;
         };
         minutes: {
             title: string;
@@ -613,6 +615,8 @@ export interface Translations {
         noPdfsFound: string;
         readingPdf: string;
         summaryInserted: string;
+        companionCreated: string;
+        companionCreateFailed: string;
         copiedToClipboard: string;
         summarizingChunk: string;
         combiningChunks: string;

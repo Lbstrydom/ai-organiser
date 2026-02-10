@@ -7,6 +7,7 @@
 
 import { App, Modal, TFile, setIcon, Setting, Platform } from 'obsidian';
 import { Translations } from '../../i18n/types';
+import type { Persona } from '../../services/configurationService';
 import {
     getAllAudioFiles,
     formatFileSize,
@@ -21,6 +22,8 @@ export interface AudioSelectResult {
     language: string;
     context: string;
     needsCompression: boolean;
+    personaId: string;
+    includeCompanion?: boolean;  // Study companion toggle state
 }
 
 export class AudioSelectModal extends Modal {
@@ -32,14 +35,25 @@ export class AudioSelectModal extends Modal {
     private selectedLanguage: string = 'auto';
     private contextPrompt: string = '';
     private compressionNotice: HTMLElement | null = null;
+    private personaId: string;
+    private includeCompanion = true;
+    private readonly personas: Persona[];
+    private readonly enableStudyCompanion: boolean;
+    private companionToggleEl!: HTMLElement;
 
     constructor(
         app: App,
         t: Translations,
+        defaultPersonaId: string,
+        personas: Persona[],
+        enableStudyCompanion: boolean,
         onSelect: (result: AudioSelectResult) => void
     ) {
         super(app);
         this.t = t;
+        this.personaId = defaultPersonaId;
+        this.personas = personas;
+        this.enableStudyCompanion = enableStudyCompanion;
         this.onSelect = onSelect;
         this.audioFiles = getAllAudioFiles(app);
     }
@@ -105,6 +119,33 @@ export class AudioSelectModal extends Modal {
 
         // Transcription options section
         const optionsSection = contentEl.createEl('div', { cls: 'audio-select-options' });
+
+        // Persona selection dropdown
+        new Setting(optionsSection)
+            .setName(this.t.modals.pdfSelect?.personaLabel || 'Summary Style')
+            .setDesc(this.t.modals.pdfSelect?.personaDesc || 'Choose how to format the summary')
+            .addDropdown(dropdown => {
+                for (const persona of this.personas) {
+                    dropdown.addOption(persona.id, persona.name);
+                }
+                dropdown.setValue(this.personaId);
+                dropdown.onChange(value => {
+                    this.personaId = value;
+                    this.companionToggleEl.style.display =
+                        (this.enableStudyCompanion && value === 'study') ? '' : 'none';
+                });
+            });
+
+        // Companion toggle (visible only when Study persona is selected)
+        const companionSetting = new Setting(optionsSection)
+            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
+            .addToggle(toggle => toggle
+                .setValue(this.includeCompanion)
+                .onChange(value => this.includeCompanion = value));
+        this.companionToggleEl = companionSetting.settingEl;
+        this.companionToggleEl.style.display =
+            (this.enableStudyCompanion && this.personaId === 'study') ? '' : 'none';
 
         // Language dropdown
         new Setting(optionsSection)
@@ -188,7 +229,9 @@ export class AudioSelectModal extends Modal {
                         externalPath: filePath,
                         language: this.selectedLanguage === 'auto' ? '' : this.selectedLanguage,
                         context: this.contextPrompt.trim(),
-                        needsCompression: file.size > MAX_FILE_SIZE_MB * 1024 * 1024
+                        needsCompression: file.size > MAX_FILE_SIZE_MB * 1024 * 1024,
+                        personaId: this.personaId,
+                        includeCompanion: (this.enableStudyCompanion && this.personaId === 'study') ? this.includeCompanion : undefined
                     });
                 }
             }
@@ -341,7 +384,9 @@ export class AudioSelectModal extends Modal {
                 file: this.selectedFile,
                 language: this.selectedLanguage === 'auto' ? '' : this.selectedLanguage,
                 context: this.contextPrompt.trim(),
-                needsCompression: requiresCompression
+                needsCompression: requiresCompression,
+                personaId: this.personaId,
+                includeCompanion: (this.enableStudyCompanion && this.personaId === 'study') ? this.includeCompanion : undefined
             });
         }
     }

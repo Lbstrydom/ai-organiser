@@ -9,6 +9,7 @@ import {
   insertContentIntoPrompt,
   insertSectionsIntoPrompt,
   SummaryPromptOptions,
+  STUDY_COMPANION_DELIMITER,
 } from '../src/services/prompts/summaryPrompts';
 
 describe('buildSummaryPrompt', () => {
@@ -249,5 +250,93 @@ describe('insertSectionsIntoPrompt', () => {
     // Each section should be separated by \n\n
     const sectionMatches = result.match(/\[Section \d+\/\d+\]/g);
     expect(sectionMatches?.length).toBe(3);
+  });
+});
+
+describe('companion content prompt injection', () => {
+  describe('buildSummaryPrompt with includeCompanion', () => {
+    it('should inject companion instructions when includeCompanion is true', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        personaPrompt: 'Study persona prompt',
+        includeCompanion: true,
+      };
+      const prompt = buildSummaryPrompt(options);
+
+      expect(prompt).toContain('<companion_instructions>');
+      expect(prompt).toContain(STUDY_COMPANION_DELIMITER);
+      expect(prompt).toContain('Explain Like a Friend');
+    });
+
+    it('should NOT inject companion instructions when includeCompanion is false', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        personaPrompt: 'Some persona prompt',
+        includeCompanion: false,
+      };
+      const prompt = buildSummaryPrompt(options);
+
+      expect(prompt).not.toContain('<companion_instructions>');
+      expect(prompt).not.toContain(STUDY_COMPANION_DELIMITER);
+    });
+
+    it('should NOT inject companion instructions when includeCompanion is omitted', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        personaPrompt: 'Some persona prompt',
+      };
+      const prompt = buildSummaryPrompt(options);
+
+      expect(prompt).not.toContain('<companion_instructions>');
+      expect(prompt).not.toContain(STUDY_COMPANION_DELIMITER);
+    });
+
+    it('should NOT inject companion instructions for basic prompts (no persona)', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        includeCompanion: true,
+      };
+      const prompt = buildSummaryPrompt(options);
+
+      // Basic prompt path does not support companion — only persona path does
+      expect(prompt).not.toContain('<companion_instructions>');
+      expect(prompt).not.toContain(STUDY_COMPANION_DELIMITER);
+    });
+  });
+
+  describe('buildChunkCombinePrompt with includeCompanion', () => {
+    it('should inject companion instructions when persona + includeCompanion', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        personaPrompt: 'Study persona prompt',
+        includeCompanion: true,
+      };
+      const prompt = buildChunkCombinePrompt(options);
+
+      expect(prompt).toContain('<companion_instructions>');
+      expect(prompt).toContain(STUDY_COMPANION_DELIMITER);
+    });
+
+    it('should NOT inject companion in combine prompt without persona', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        includeCompanion: true,
+      };
+      const prompt = buildChunkCombinePrompt(options);
+
+      // Combine prompt without persona uses basic path — no companion
+      expect(prompt).not.toContain('<companion_instructions>');
+    });
+
+    it('should NOT inject companion in combine prompt when includeCompanion is false', () => {
+      const options: SummaryPromptOptions = {
+        length: 'detailed',
+        personaPrompt: 'Study persona prompt',
+        includeCompanion: false,
+      };
+      const prompt = buildChunkCombinePrompt(options);
+
+      expect(prompt).not.toContain('<companion_instructions>');
+    });
   });
 });

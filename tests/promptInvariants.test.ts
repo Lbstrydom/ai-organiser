@@ -35,10 +35,8 @@ import {
     buildTermExtractionPrompt
 } from '../src/services/prompts/dictionaryPrompts';
 import {
-    BUILTIN_PERSONAS,
-    getPersonaById,
-    getAllPersonas
-} from '../src/services/prompts/summaryPersonas';
+    DEFAULT_SUMMARY_PERSONAS
+} from '../src/services/configurationService';
 import {
     buildSummaryPrompt,
     buildChunkCombinePrompt,
@@ -105,6 +103,22 @@ describe('Structured Prompts - Invariants', () => {
             const prompt = buildStructuredSummaryPrompt({});
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(200);
+        });
+
+        it('should include companion_content field when includeCompanion is true', () => {
+            const prompt = buildStructuredSummaryPrompt({ includeCompanion: true });
+            expect(prompt).toContain('"companion_content"');
+            expect(prompt).toContain('companion_content');
+        });
+
+        it('should NOT include companion_content field when includeCompanion is false', () => {
+            const prompt = buildStructuredSummaryPrompt({ includeCompanion: false });
+            expect(prompt).not.toContain('"companion_content"');
+        });
+
+        it('should NOT include companion_content field when includeCompanion is omitted', () => {
+            const prompt = buildStructuredSummaryPrompt();
+            expect(prompt).not.toContain('"companion_content"');
         });
     });
 
@@ -408,74 +422,41 @@ describe('Dictionary Prompts - Invariants', () => {
 // ============================================================================
 
 describe('Summary Personas - Invariants', () => {
-    describe('BUILTIN_PERSONAS', () => {
-        it('should have at least 3 builtin personas', () => {
-            expect(BUILTIN_PERSONAS.length).toBeGreaterThanOrEqual(3);
+    describe('DEFAULT_SUMMARY_PERSONAS', () => {
+        it('should have exactly 5 summary personas', () => {
+            expect(DEFAULT_SUMMARY_PERSONAS.length).toBe(5);
         });
 
         it('each persona should have required properties', () => {
-            BUILTIN_PERSONAS.forEach(persona => {
+            DEFAULT_SUMMARY_PERSONAS.forEach(persona => {
                 expect(persona.id).toBeTruthy();
                 expect(persona.name).toBeTruthy();
                 expect(persona.description).toBeTruthy();
-                expect(persona.icon).toBeTruthy();
                 expect(persona.prompt).toBeTruthy();
             });
         });
 
         it('each persona prompt should be substantive', () => {
-            BUILTIN_PERSONAS.forEach(persona => {
+            DEFAULT_SUMMARY_PERSONAS.forEach(persona => {
                 expect(persona.prompt.length).toBeGreaterThan(200);
             });
         });
 
         it('persona IDs should be unique', () => {
-            const ids = BUILTIN_PERSONAS.map(p => p.id);
+            const ids = DEFAULT_SUMMARY_PERSONAS.map(p => p.id);
             const uniqueIds = new Set(ids);
             expect(uniqueIds.size).toBe(ids.length);
         });
-    });
 
-    describe('getPersonaById', () => {
-        it('should retrieve persona by valid ID', () => {
-            if (BUILTIN_PERSONAS.length > 0) {
-                const persona = getPersonaById(BUILTIN_PERSONAS[0].id);
-                expect(persona).toBeDefined();
-                expect(persona?.id).toBe(BUILTIN_PERSONAS[0].id);
-            }
+        it('exactly one persona should be marked as default', () => {
+            const defaults = DEFAULT_SUMMARY_PERSONAS.filter(p => p.isDefault);
+            expect(defaults.length).toBe(1);
         });
 
-        it('should return undefined for invalid ID', () => {
-            const persona = getPersonaById('non-existent-persona-id-xyz');
-            expect(persona).toBeUndefined();
-        });
-    });
-
-    describe('getAllPersonas', () => {
-        it('should include all builtin personas by default', () => {
-            const all = getAllPersonas();
-            expect(all.length).toBeGreaterThanOrEqual(BUILTIN_PERSONAS.length);
-        });
-
-        it('should merge custom personas with builtin', () => {
-            const custom = [{
-                id: 'custom-test-xyz',
-                name: 'Custom Persona',
-                description: 'A test persona',
-                icon: 'test-icon',
-                prompt: 'Custom prompt for testing'
-            }];
-            
-            const all = getAllPersonas(custom);
-            const customIds = all.map(p => p.id);
-            expect(customIds).toContain('custom-test-xyz');
-        });
-
-        it('should not duplicate personas', () => {
-            const all = getAllPersonas();
-            const ids = all.map(p => p.id);
-            const uniqueIds = new Set(ids);
-            expect(ids.length).toBe(uniqueIds.size);
+        it('persona IDs should be kebab-case', () => {
+            DEFAULT_SUMMARY_PERSONAS.forEach(persona => {
+                expect(persona.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+            });
         });
     });
 });

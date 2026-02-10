@@ -11,18 +11,21 @@ import { getLanguageNameForPrompt } from '../languages';
 export interface StructuredSummaryResponse {
     /** 280-character summary hook for Bases preview */
     summary_hook: string;
-    
+
     /** Full formatted summary for note body */
     body_content: string;
-    
+
     /** 3-7 relevant tags */
     suggested_tags: string[];
-    
+
     /** Content type classification */
     content_type: 'note' | 'research' | 'meeting' | 'project' | 'reference';
-    
+
     /** Detected language (optional) */
     detected_language?: string;
+
+    /** Optional narrative companion content (Study persona dual-output) */
+    companion_content?: string;
 }
 
 export interface StructuredSummaryOptions {
@@ -30,6 +33,8 @@ export interface StructuredSummaryOptions {
     language?: string;
     personaPrompt?: string;
     userContext?: string;
+    /** When true, request a narrative companion section alongside the structured summary */
+    includeCompanion?: boolean;
 }
 
 /**
@@ -50,6 +55,21 @@ export function buildStructuredSummaryPrompt(options: StructuredSummaryOptions =
     
     const lengthInstruction = lengthInstructions[length];
     
+    const includeCompanion = options.includeCompanion === true;
+
+    // Companion JSON field and instructions — only injected when requested (no prompt bloat)
+    const companionJsonField = includeCompanion
+        ? ',\n  "companion_content": "A narrative explanation written as if teaching a friend..."'
+        : '';
+    const companionInstructions = includeCompanion
+        ? `\n- companion_content (optional): a narrative "Explain Like a Friend" companion — restate the material in conversational prose, using analogies and examples. This goes into a separate companion note. Include only when a useful narrative can be added; omit the field entirely otherwise.`
+        : '';
+
+    // Soften "exact structure" when companion is included, since companion_content is optional
+    const structureNote = includeCompanion
+        ? 'You MUST return valid JSON matching this structure (companion_content is optional; no additional text before or after):'
+        : 'You MUST return valid JSON with this exact structure (no additional text before or after):';
+
     return `<task>
 You are a professional note-taker creating structured summaries. You must return your response as valid JSON.
 </task>
@@ -68,14 +88,14 @@ ${userContext ? `<user_context>\n${userContext}\n</user_context>\n` : ''}
 </instructions>
 
 <output_format>
-You MUST return valid JSON with this exact structure (no additional text before or after):
+${structureNote}
 
 {
   "summary_hook": "A concise 280-character preview...",
   "body_content": "## Main heading\\n\\nFull formatted summary with markdown...",
   "suggested_tags": ["tag1", "tag2", "tag3"],
   "content_type": "research",
-  "detected_language": "en"
+  "detected_language": "en"${companionJsonField}
 }
 
 CRITICAL:
@@ -84,7 +104,7 @@ CRITICAL:
 - body_content must NOT start with a link to the source URL - jump straight into the summary content
 - Do NOT include any reference to the source URL in body_content (it's stored separately in metadata)
 - suggested_tags: array of 3-7 relevant tags
-- content_type: exactly one of: note, research, meeting, project, reference
+- content_type: exactly one of: note, research, meeting, project, reference${companionInstructions}
 - Return ONLY the JSON object, no explanations or wrapper text
 </output_format>
 

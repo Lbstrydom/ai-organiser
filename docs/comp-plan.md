@@ -10,35 +10,40 @@
 
 > Teams should tick each item as completed. Phases are ordered by dependency.
 
-- [ ] **Phase 1 — Delete Dead Code & Clean Slate**
-  - [ ] Delete `src/services/prompts/summaryPersonas.ts`
-  - [ ] Update `tests/promptInvariants.test.ts` imports (lines 38-41)
-  - [ ] Update `tests/configurationService.test.ts` if it references old persona IDs
-  - [ ] Add `personaSchemaVersion` to `AIOrganiserSettings` interface and `DEFAULT_SETTINGS`
-  - [ ] Implement hash-based config file overwrite in `main.ts` `loadSettings()`
-  - [ ] Test: old default files overwritten, custom files preserved with `.v1-defaults.md`
-- [ ] **Phase 2 — New Summary Personas**
-  - [ ] Replace `DEFAULT_SUMMARY_PERSONAS` in `configurationService.ts:174`
-  - [ ] Write full prompts for all 5 personas (brief, study, business-operator, feynman, learning-insight)
-  - [ ] Rewrite `generateSummaryPersonasFileContent()` for new personas
-  - [ ] Write `summary-personas.md` config file content
-  - [ ] Test: personas load correctly, dropdown shows 5 options
-- [ ] **Phase 3 — Study Dual-Output Schema Extension**
-  - [ ] Add `companion_content?: string` to `StructuredSummaryResponse` in `structuredPrompts.ts:11`
-  - [ ] Add `includeCompanion?: boolean` to `StructuredSummaryOptions` in `structuredPrompts.ts:28`
-  - [ ] Update `buildStructuredSummaryPrompt()` to conditionally include companion JSON field
-  - [ ] Update `isValidStructuredResponse()` in `responseParser.ts` to pass through `companion_content`
-  - [ ] Define `STUDY_COMPANION_DELIMITER` constant for traditional path
-  - [ ] Update `buildSummaryPrompt()` in `summaryPrompts.ts` for traditional companion
-  - [ ] Test: JSON parsing with/without companion_content, delimiter parsing
-- [ ] **Phase 4 — Companion in All Pipelines**
-  - [ ] Create `processCompanionOutput()` shared utility
-  - [ ] Wire into `summarizeAndInsert()` (URL pipeline, both structured and traditional paths)
-  - [ ] Wire into `handleYouTubeSummarization()` (YouTube pipeline)
-  - [ ] Wire into `handlePdfSummarization()` (PDF pipeline)
-  - [ ] Wire into multi-source final assembly (~line 983)
-  - [ ] Wire into audio pipeline
-  - [ ] Test: companion file creation, collision handling, empty companion no-op
+- [x] **Phase 1 — Delete Dead Code & Clean Slate**
+  - [x] Delete `src/services/prompts/summaryPersonas.ts`
+  - [x] Update `tests/promptInvariants.test.ts` imports (lines 38-41)
+  - [x] Update `tests/configurationService.test.ts` if it references old persona IDs
+  - [x] Add `personaSchemaVersion` to `AIOrganiserSettings` interface and `DEFAULT_SETTINGS`
+  - [x] Implement marker-based config file migration in `configurationService.ts` + `main.ts` `onload()` (adopted recommendation #5: version comment marker instead of hashing)
+  - [x] Test: old default files overwritten, custom files backed up as `.v1-defaults.md`
+- [x] **Phase 2 — New Summary Personas**
+  - [x] Replace `DEFAULT_SUMMARY_PERSONAS` in `configurationService.ts:174`
+  - [x] Write full prompts for all 5 personas (brief, study, business-operator, feynman, learning-insight)
+  - [x] Rewrite `generateSummaryPersonasFileContent()` for new personas
+  - [x] Write `summary-personas.md` config file content
+  - [x] Test: personas load correctly, dropdown shows 5 options
+- [x] **Phase 3 — Study Dual-Output Schema Extension**
+  - [x] Add `companion_content?: string` to `StructuredSummaryResponse` in `structuredPrompts.ts:11`
+  - [x] Add `includeCompanion?: boolean` to `StructuredSummaryOptions` in `structuredPrompts.ts:28`
+  - [x] Update `buildStructuredSummaryPrompt()` to conditionally include companion JSON field
+  - [x] Update `isValidStructuredResponse()` in `responseParser.ts` to pass through `companion_content`
+  - [x] Define `STUDY_COMPANION_DELIMITER` constant for traditional path
+  - [x] Update `buildSummaryPrompt()` in `summaryPrompts.ts` for traditional companion
+  - [x] Test: JSON parsing with/without companion_content, delimiter parsing
+- [x] **Phase 4 — Companion in All Pipelines**
+  - [x] Create `processCompanionOutput()` + `shouldIncludeCompanion()` shared utility (`src/utils/companionUtils.ts`)
+  - [x] Wire into `summarizeAndInsert()` (URL pipeline, both structured and traditional paths)
+  - [x] Wire into `summarizeInChunks()` (URL chunked pipeline)
+  - [x] Wire into `handleYouTubeSummarization()`, `summarizeYouTubeAndInsert()`, `summarizeYouTubeInChunks()`
+  - [x] Wire into `handlePdfSummarization()` + `handleExternalPdfSummarization()` (PDF pipeline)
+  - [x] Wire into `summarizeAudioAndInsert()` + `summarizeAudioInChunks()` (audio pipeline)
+  - [x] Wire into multi-source synthesis (`handleMultiSourceResult` + `buildSynthesisPrompt`)
+  - [x] Wire into `summarizePlainTextAndInsert()` + `summarizePlainTextInChunks()` (plain text)
+  - [x] Add structured fallback safety net (delimiter leak in body_content)
+  - [x] Add i18n strings (types.ts, en.ts, zh-cn.ts)
+  - [x] Thread `includeCompanion` from all callers (defaults undefined until Phase 5)
+  - [x] Test: 15 tests in `tests/companionUtils.test.ts` (companion file creation, collision handling, empty no-op, shouldIncludeCompanion predicate, fallback safety)
 - [ ] **Phase 5 — Companion UI Toggle**
   - [ ] Add `includeNarrativeCompanion` to `AIOrganiserSettings` and `DEFAULT_SETTINGS`
   - [ ] Add conditional toggle to `UrlInputModal.ts`
@@ -65,9 +70,10 @@
   - [ ] Write `minutes-personas.md` config file content
   - [ ] Test: GTD rendering, prompt injection, persona counts
 - [ ] **Phase 8 — Settings Migration & Hardcoded Fallbacks**
-  - [ ] Export `DEFAULT_SUMMARY_PERSONA_ID = 'brief'` from `settings.ts`
-  - [ ] Replace hardcoded `'student'` in `settings.ts:215`, `SummarizationSettingsSection.ts:56`, `MultiSourceModal.ts:134`
-  - [ ] Add `student` -> `brief` migration in `main.ts loadSettings()`
+  - [x] Export `DEFAULT_SUMMARY_PERSONA_ID = 'brief'` from `settings.ts` (pulled forward — reviewer finding #1)
+  - [x] Replace hardcoded `'student'` in `settings.ts`, `SummarizationSettingsSection.ts`, `MultiSourceModal.ts` (pulled forward)
+  - [x] Update `constants.ts` comment referencing old persona names (pulled forward)
+  - [ ] Add `student` -> `brief` migration in `main.ts loadSettings()` (for existing users with stored `'student'`)
   - [ ] Add `corporate-minutes` -> `internal` migration in `main.ts loadSettings()`
   - [ ] Test: migration runs, old settings map to new IDs
 - [ ] **Phase 9 — i18n & Settings UI**
@@ -126,7 +132,7 @@ This distinction is subtle. A non-specialist user choosing between "Study" and "
 
 ### Can users edit personas later?
 
-Yes — the existing infrastructure (`summary-personas.md`, `writing-personas.md`, `minutes-personas.md` config files) already supports user customisation. The plan correctly preserves this. The hash-based migration in Phase 1/8 is a sensible approach to overwriting defaults while respecting custom edits.
+Yes — the existing infrastructure (`summary-personas.md`, `writing-personas.md`, `minutes-personas.md` config files) already supports user customisation. The plan correctly preserves this. The marker-based migration (adopted from recommendation #5 — version comment line instead of hashing) is a sensible approach to overwriting defaults while respecting custom edits.
 
 **However, the plan should explicitly document** how a user adds a specialist persona (e.g., "Legal Brief", "Medical SOAP Notes") after migration. A brief section in the persona config file header explaining the format would help. Currently the generated config files have instructions — ensure the new versions do too.
 
@@ -262,13 +268,7 @@ These are areas where a coding team would be stuck or would have to make unguide
 
 **Gap 1: Full persona prompt text is missing.** The plan provides structure descriptions (e.g., "Brief: Scannable summary — what happened, why it matters, what's next") but not the actual prompt text that goes into the `prompt` field of each persona. The current personas have 20-40 line prompts each. A team cannot implement without these. **The plan must include the complete prompt text for all 12 personas** (5 summary + 5 writing + 2 minutes), or reference a separate document containing them.
 
-**Gap 2: `forceOverwritePersonas()` implementation detail.** The plan says "Add a forceOverwritePersonas() method that deletes and recreates persona files" but doesn't specify:
-- Where this method lives (on `ConfigurationService`? In `main.ts`?)
-- How to compute the hash of old defaults (MD5? SHA256? The plan says "hash" without specifying algorithm)
-- Whether the hash comparison is on the full file content or just the persona definitions
-- What "known previous default version" means — do we store a single hash per file, or a list of hashes for all historical versions?
-
-**Recommended approach:** Store the SHA-256 hash of the v0 default file content as a constant in `configurationService.ts`. On migration, read the file, hash it, compare. Use Node's `crypto` module (available in Obsidian's Node environment on desktop). On mobile, use `window.crypto.subtle.digest()` or a simpler approach: store the exact string content of the old defaults and do a string comparison (no hashing needed — the files are small).
+**Gap 2: ~~`forceOverwritePersonas()` implementation detail~~ — RESOLVED.** Implemented as `migratePersonaConfigFiles(oldVersion)` on `ConfigurationService`, using the marker-based approach (recommendation #5 below) instead of hashing. Each generated config file includes `<!-- AI Organiser Persona Config v{N} — Do not edit this line -->` at the top. On migration: if old marker found → overwrite; if marker missing (user customised) → backup to `.v{old}-defaults.md` then overwrite. Called from `main.ts` `onload()` when `settings.personaSchemaVersion < CURRENT_PERSONA_SCHEMA_VERSION`. Test coverage added in `configurationService.test.ts`.
 
 **Gap 3: `MinutesGenerationInput` threading of `useGTD`.** The plan says to update `generateMinutes()` in `minutesService.ts` to accept `useGTD`, but doesn't trace the full call chain:
 1. `MinutesCreationModal` → sets `state.useGTD`
@@ -346,12 +346,9 @@ The plan says `{activeFileName} - Companion.md`. Consider using `{activeFileName
 ### 4. GTD horizon-of-focus — value validation
 The plan defines `horizon_of_focus: string` with values like "Runway/10K/20K/30K/40K/50K" but doesn't validate the LLM output. Add validation in `renderMinutesFromJson()` to handle unknown/malformed values gracefully (just render whatever string the LLM provides).
 
-### 5. Config file overwrite — simpler alternative to hashing
-Instead of hashing, consider adding a comment line at the top of generated config files:
-```markdown
-<!-- AI Organiser Default Config v1 — Do not edit this line -->
-```
-On migration, check for this line. If present with v0 → overwrite. If line is missing or modified → user has customised. This is simpler than crypto hashing and equally reliable.
+### 5. Config file overwrite — simpler alternative to hashing ✅ ADOPTED
+~~Instead of hashing, consider adding a comment line at the top of generated config files.~~
+**Implemented** as `personaVersionMarker(version)` in `configurationService.ts`. Each generated config file includes `<!-- AI Organiser Persona Config v{N} — Do not edit this line -->`. On migration: old marker present → overwrite; marker missing → backup + overwrite. See `migratePersonaConfigFiles()` for full implementation.
 
 ### 6. `buildMinutesSystemPrompt` — use options object pattern
 As noted in point 8, the current positional parameters pattern will keep breaking as features are added. Convert to an options object now:

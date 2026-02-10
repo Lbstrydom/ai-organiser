@@ -115,7 +115,9 @@ export const zhCN: Translations = {
             advancedOptions: "高级选项",
             timeout: "请求超时",
             timeoutDesc: "等待 AI 响应的秒数。对于较慢的模型或大内容，可增加此值（30-600秒）。",
-            resetToDefault: "重置为默认值 (120秒)"
+            resetToDefault: "重置为默认值 (120秒)",
+            enableCompanion: "学习伴侣笔记",
+            enableCompanionDesc: "使用学习角色时，同时创建一个用对话式语言解释内容的伴侣笔记"
         },
         configuration: {
             title: "配置",
@@ -624,6 +626,8 @@ export const zhCN: Translations = {
         noPdfsFound: "附件文件夹中未找到 PDF",
         readingPdf: "正在读取 PDF 内容...",
         summaryInserted: "总结已插入笔记",
+        companionCreated: "学习伴侣笔记已创建",
+        companionCreateFailed: "无法创建学习伴侣笔记",
         copiedToClipboard: "已复制到剪贴板",
         summarizingChunk: "正在总结第 {current}/{total} 部分...",
         combiningChunks: "正在合并总结...",

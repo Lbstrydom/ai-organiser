@@ -5,8 +5,9 @@
  * These tests verify the parsing logic that handles various LLM response formats
  */
 
-import { parseStructuredResponse, sanitizeSummaryHook, extractPlainText, tryParseJson, tryParseJsonFromFence, tryParseJsonFromObject, tryExtractJson } from '../src/utils/responseParser';
+import { parseStructuredResponse, sanitizeSummaryHook, extractPlainText, tryParseJson, tryParseJsonFromFence, tryParseJsonFromObject, tryExtractJson, splitCompanionContent } from '../src/utils/responseParser';
 import { SUMMARY_HOOK_MAX_LENGTH } from '../src/core/constants';
+import { STUDY_COMPANION_DELIMITER } from '../src/services/prompts/summaryPrompts';
 
 describe('Response Parser - parseStructuredResponse', () => {
 
@@ -610,5 +611,141 @@ describe('Response Parser - Generic JSON Extraction', () => {
         it('should return null when nothing works', () => {
             expect(tryExtractJson('completely plain text')).toBeNull();
         });
+    });
+});
+
+describe('Response Parser - companion_content in structured JSON', () => {
+    it('should pass through companion_content when present and valid', () => {
+        const response = JSON.stringify({
+            summary_hook: 'Hook',
+            body_content: '## Summary\n\nMain content.',
+            suggested_tags: ['ai'],
+            content_type: 'research',
+            companion_content: 'Think of it like cooking a recipe...',
+        });
+
+        const result = parseStructuredResponse(response);
+
+        expect(result).not.toBeNull();
+        expect(result?.companion_content).toBe('Think of it like cooking a recipe...');
+        expect(result?.body_content).toContain('## Summary');
+    });
+
+    it('should parse normally when companion_content is absent', () => {
+        const response = JSON.stringify({
+            summary_hook: 'Hook',
+            body_content: 'Content',
+            suggested_tags: ['tag'],
+            content_type: 'note',
+        });
+
+        const result = parseStructuredResponse(response);
+
+        expect(result).not.toBeNull();
+        expect(result?.companion_content).toBeUndefined();
+        expect(result?.body_content).toBe('Content');
+    });
+
+    it('should strip companion_content when it is not a string', () => {
+        const response = JSON.stringify({
+            summary_hook: 'Hook',
+            body_content: 'Content',
+            suggested_tags: [],
+            content_type: 'note',
+            companion_content: 42,
+        });
+
+        const result = parseStructuredResponse(response);
+
+        expect(result).not.toBeNull();
+        expect(result?.companion_content).toBeUndefined();
+    });
+
+    it('should pass through companion_content from code fence JSON', () => {
+        const response = `Here is the result:
+
+\`\`\`json
+{
+    "summary_hook": "Fenced hook",
+    "body_content": "Fenced body",
+    "suggested_tags": ["test"],
+    "content_type": "note",
+    "companion_content": "Imagine you're explaining to a friend..."
+}
+\`\`\``;
+
+        const result = parseStructuredResponse(response);
+
+        expect(result?.companion_content).toBe("Imagine you're explaining to a friend...");
+    });
+
+    it('should pass through empty string companion_content', () => {
+        const response = JSON.stringify({
+            summary_hook: 'Hook',
+            body_content: 'Content',
+            suggested_tags: [],
+            content_type: 'note',
+            companion_content: '',
+        });
+
+        const result = parseStructuredResponse(response);
+
+        // Empty string is a valid string — passed through
+        expect(result?.companion_content).toBe('');
+    });
+});
+
+describe('Response Parser - splitCompanionContent', () => {
+    it('should return summary only when no delimiter present', () => {
+        const text = '## Summary\n\nMain content here.';
+        const result = splitCompanionContent(text);
+
+        expect(result.summary).toBe(text);
+        expect(result.companion).toBeUndefined();
+    });
+
+    it('should split on delimiter into summary and companion', () => {
+        const main = '## Summary\n\nKey points about the topic.';
+        const companion = '## Explain Like a Friend\n\nThink of it like building blocks...';
+        const text = `${main}\n${STUDY_COMPANION_DELIMITER}\n${companion}`;
+
+        const result = splitCompanionContent(text);
+
+        expect(result.summary).toBe(main);
+        expect(result.companion).toBe(companion);
+    });
+
+    it('should return undefined companion when delimiter is at the end with no content after', () => {
+        const text = `## Summary\n\nContent.\n${STUDY_COMPANION_DELIMITER}\n`;
+
+        const result = splitCompanionContent(text);
+
+        expect(result.summary).toBe('## Summary\n\nContent.');
+        expect(result.companion).toBeUndefined();
+    });
+
+    it('should handle delimiter with extra whitespace around it', () => {
+        const text = `Main summary text.\n\n${STUDY_COMPANION_DELIMITER}\n\nCompanion text here.`;
+
+        const result = splitCompanionContent(text);
+
+        expect(result.summary).toBe('Main summary text.');
+        expect(result.companion).toBe('Companion text here.');
+    });
+
+    it('should handle empty string input', () => {
+        const result = splitCompanionContent('');
+        expect(result.summary).toBe('');
+        expect(result.companion).toBeUndefined();
+    });
+
+    it('should only split on first occurrence of delimiter', () => {
+        const text = `Part 1\n${STUDY_COMPANION_DELIMITER}\nPart 2\n${STUDY_COMPANION_DELIMITER}\nPart 3`;
+
+        const result = splitCompanionContent(text);
+
+        expect(result.summary).toBe('Part 1');
+        expect(result.companion).toContain('Part 2');
+        expect(result.companion).toContain('Part 3');
     });
 });

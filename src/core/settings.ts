@@ -70,6 +70,7 @@ export interface AIOrganiserSettings {
     summaryLanguage: string;
     includeSummaryMetadata: boolean;
     defaultSummaryPersona: string;       // Default persona ID for summarization
+    enableStudyCompanion: boolean;       // Create study companion notes alongside summaries
     // Transcript Settings
     saveTranscripts: 'none' | 'file';    // Whether to save full transcripts
     transcriptFolder: string;            // Subfolder for transcript files (under pluginFolder)
@@ -176,6 +177,11 @@ export interface AIOrganiserSettings {
     recordingQuality: 'speech' | 'high'; // 64kbps (speech) or 128kbps (high quality)
     postRecordingStorage: 'ask' | 'keep-original' | 'keep-compressed' | 'delete'; // What to do with raw audio after transcription
 
+    // === PERSONA SCHEMA VERSION ===
+    // Tracks which generation of default persona config files the user has.
+    // Bumped when default personas change — triggers config file migration on next load.
+    personaSchemaVersion: number;
+
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
     secretStorageMigrated: boolean;      // Whether keys have been migrated to SecretStorage
@@ -183,6 +189,10 @@ export interface AIOrganiserSettings {
 
 // Main plugin folder - all subfolders are relative to this
 export const DEFAULT_PLUGIN_FOLDER = 'AI-Organiser';
+
+// Default persona IDs — single source of truth for fallback values
+export const DEFAULT_SUMMARY_PERSONA_ID = 'brief';
+export const DEFAULT_MINUTES_PERSONA_ID = 'corporate-minutes';
 
 function getDefaultTimezone(): string {
     try {
@@ -212,7 +222,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     summaryLength: 'detailed',
     summaryLanguage: '',
     includeSummaryMetadata: true,
-    defaultSummaryPersona: 'student',
+    defaultSummaryPersona: DEFAULT_SUMMARY_PERSONA_ID,
+    enableStudyCompanion: false,
     saveTranscripts: 'file',
     transcriptFolder: 'Transcripts',
     summarizeTimeoutSeconds: 120,        // 2 minutes default, power users can increase
@@ -299,6 +310,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     embedAudioInNote: true,                            // Embed audio link in note
     recordingQuality: 'speech' as const,               // Speech optimized (64kbps)
     postRecordingStorage: 'ask' as const,              // Ask user after transcription
+
+    // Persona Schema Version
+    personaSchemaVersion: 1,                             // Intentionally 1 (not CURRENT): existing users start here so migration fires on first load after upgrade
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

@@ -9,7 +9,9 @@ import {
     ConfigurationService,
     DEFAULT_PERSONAS,
     DEFAULT_SUMMARY_PERSONAS,
-    DEFAULT_MINUTES_PERSONAS
+    DEFAULT_MINUTES_PERSONAS,
+    CURRENT_PERSONA_SCHEMA_VERSION,
+    personaVersionMarker,
 } from '../src/services/configurationService';
 
 describe('ConfigurationService', () => {
@@ -182,6 +184,148 @@ Line 3
             await service.getMinutesPersonas();
 
             expect(readCount).toBeLessThanOrEqual(firstReadCount + 1);
+        });
+    });
+
+    describe('migratePersonaConfigFiles', () => {
+        const paths = {
+            writingPersonas: 'AI-Organiser/Config/writing-personas.md',
+            summaryPersonas: 'AI-Organiser/Config/summary-personas.md',
+            minutesPersonas: 'AI-Organiser/Config/minutes-personas.md',
+        };
+
+        it('skips migration when version is already current', async () => {
+            const modifyCalls: string[] = [];
+            app.vault.modify = async (file: any) => { modifyCalls.push(file.path); };
+
+            await service.migratePersonaConfigFiles(CURRENT_PERSONA_SCHEMA_VERSION);
+
+            expect(modifyCalls).toHaveLength(0);
+        });
+
+        it('creates missing persona files during migration', async () => {
+            const created: string[] = [];
+            app.vault.getAbstractFileByPath = () => null;
+            app.vault.create = async (path: string, _content: string) => {
+                created.push(path);
+                return new TFile(path);
+            };
+
+            await service.migratePersonaConfigFiles(1);
+
+            expect(created).toContain(paths.writingPersonas);
+            expect(created).toContain(paths.summaryPersonas);
+            expect(created).toContain(paths.minutesPersonas);
+        });
+
+        it('overwrites file when old version marker is present', async () => {
+            const oldMarker = personaVersionMarker(1);
+            const oldContent = `${oldMarker}\n# Old defaults`;
+            const modified: Array<{ path: string; content: string }> = [];
+
+            // All three files exist with old marker
+            app.vault.getAbstractFileByPath = (path: string) => {
+                if (path.endsWith('-personas.md')) return new TFile(path);
+                return null;
+            };
+            app.vault.read = async () => oldContent;
+            app.vault.modify = async (file: any, content: string) => {
+                modified.push({ path: file.path, content });
+            };
+
+            await service.migratePersonaConfigFiles(1);
+
+            expect(modified).toHaveLength(3);
+            // New content should have the current version marker
+            for (const { content } of modified) {
+                expect(content).toContain(personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION));
+                expect(content).not.toContain(oldMarker);
+            }
+        });
+
+        it('backs up customised file before overwriting', async () => {
+            const customContent = '# My Custom Personas\n\nI edited this myself.';
+            const created: Array<{ path: string; content: string }> = [];
+            const modified: Array<{ path: string; content: string }> = [];
+
+            app.vault.getAbstractFileByPath = (path: string) => {
+                // Persona files exist but backup files do not
+                if (path.endsWith('-personas.md') && !path.includes('.v1-defaults')) {
+                    return new TFile(path);
+                }
+                return null;
+            };
+            app.vault.read = async () => customContent;
+            app.vault.create = async (path: string, content: string) => {
+                created.push({ path, content });
+                return new TFile(path);
+            };
+            app.vault.modify = async (file: any, content: string) => {
+                modified.push({ path: file.path, content });
+            };
+
+            await service.migratePersonaConfigFiles(1);
+
+            // Should create 3 backup files with old content
+            const backups = created.filter(c => c.path.includes('.v1-defaults'));
+            expect(backups).toHaveLength(3);
+            for (const backup of backups) {
+                expect(backup.content).toBe(customContent);
+            }
+
+            // Should overwrite the 3 originals with new defaults
+            expect(modified).toHaveLength(3);
+            for (const { content } of modified) {
+                expect(content).toContain(personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION));
+            }
+        });
+
+        it('does not create backup if one already exists', async () => {
+            const customContent = '# Custom content without marker';
+            const created: string[] = [];
+
+            app.vault.getAbstractFileByPath = (path: string) => {
+                // Both persona files AND backup files exist
+                if (path.endsWith('-personas.md') || path.includes('.v1-defaults')) {
+                    return new TFile(path);
+                }
+                return null;
+            };
+            app.vault.read = async () => customContent;
+            app.vault.create = async (path: string) => {
+                created.push(path);
+                return new TFile(path);
+            };
+            app.vault.modify = async () => {};
+
+            await service.migratePersonaConfigFiles(1);
+
+            // No backup files should be created (they already exist)
+            const backups = created.filter(c => c.includes('.v1-defaults'));
+            expect(backups).toHaveLength(0);
+        });
+
+        it('continues migrating other files when one fails', async () => {
+            let callIndex = 0;
+            const modified: string[] = [];
+
+            app.vault.getAbstractFileByPath = (path: string) => {
+                if (path.endsWith('-personas.md')) return new TFile(path);
+                return null;
+            };
+            app.vault.read = async () => {
+                callIndex++;
+                if (callIndex === 1) throw new Error('disk error');
+                return personaVersionMarker(1) + '\n# Old defaults';
+            };
+            app.vault.modify = async (file: any) => {
+                modified.push(file.path);
+            };
+
+            await service.migratePersonaConfigFiles(1);
+
+            // First file fails, but the other two should still be migrated
+            expect(modified.length).toBeGreaterThanOrEqual(2);
         });
     });
 });

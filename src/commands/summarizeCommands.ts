@@ -9,7 +9,9 @@ import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../servic
 import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
-import { parseStructuredResponse } from '../utils/responseParser';
+import { parseStructuredResponse, splitCompanionContent } from '../utils/responseParser';
+import { STUDY_COMPANION_DELIMITER } from '../services/prompts/summaryPrompts';
+import { processCompanionOutput, shouldIncludeCompanion } from '../utils/companionUtils';
 import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils';
 import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { getTranscriptFullPath } from '../core/settings';
@@ -293,7 +295,7 @@ function openMultiSourceModal(
         noteContent,
         async (result: MultiSourceModalResult) => {
             try {
-                await handleMultiSourceResult(plugin, pdfService, editor, view, result);
+                await handleMultiSourceResult(plugin, pdfService, editor, view, result, result.includeCompanion);
             } catch (e) {
                 console.error('Error in handleMultiSourceResult:', e);
                 new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -312,7 +314,8 @@ async function handleMultiSourceResult(
     pdfService: PdfService,
     editor: Editor,
     view: MarkdownView,
-    result: MultiSourceModalResult
+    result: MultiSourceModalResult,
+    includeCompanion?: boolean
 ): Promise<void> {
     // Debug: Log what we received
     if (plugin.settings.debugMode) {
@@ -330,6 +333,9 @@ async function handleMultiSourceResult(
     // Use persona from modal result, fallback to settings default
     const personaId = result.personaId || plugin.settings.defaultSummaryPersona;
     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(personaId);
+
+    // Hard-guard companion to study persona (Phase 4 safety net)
+    const effectiveCompanion = shouldIncludeCompanion(personaId, includeCompanion, plugin.settings.enableStudyCompanion);
 
     // Count total sources to process
     const totalSources =
@@ -354,7 +360,7 @@ async function handleMultiSourceResult(
         if (result.sources.urls.length === 1) {
             const url = result.sources.urls[0];
             try {
-                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, personaId);
+                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, personaId, effectiveCompanion);
                 // Remove URL from note body after processing
                 removeSourceFromEditor(editor, url);
             } catch (e) {
@@ -366,7 +372,7 @@ async function handleMultiSourceResult(
         if (result.sources.youtube.length === 1) {
             const url = result.sources.youtube[0];
             try {
-                await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, personaId);
+                await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, personaId, effectiveCompanion);
                 // Remove YouTube URL from note body after processing
                 removeSourceFromEditor(editor, url);
             } catch (e) {
@@ -393,7 +399,7 @@ async function handleMultiSourceResult(
 
                 if (file instanceof TFile) {
                     try {
-                        await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, personaId);
+                        await handlePdfSummarization(plugin, pdfService, editor, file, personaPrompt, result.focusContext, personaId, effectiveCompanion);
                     } catch (e) {
                         console.error('Error in handlePdfSummarization:', e);
                         new Notice(plugin.t.messages.errorProcessingPdf.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -403,7 +409,7 @@ async function handleMultiSourceResult(
                 }
             } else {
                 try {
-                    await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, personaId);
+                    await handleExternalPdfSummarization(plugin, pdfService, editor, pdf.path, personaPrompt, result.focusContext, personaId, effectiveCompanion);
                 } catch (e) {
                     console.error('Error in handleExternalPdfSummarization:', e);
                     new Notice(plugin.t.messages.errorProcessingExternalPdf.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -414,7 +420,7 @@ async function handleMultiSourceResult(
         if (result.sources.documents.length === 1) {
             const document = result.sources.documents[0];
             try {
-                await handleDocumentSummarization(plugin, editor, view, document, personaPrompt, result.focusContext, personaId);
+                await handleDocumentSummarization(plugin, editor, view, document, personaPrompt, result.focusContext, personaId, effectiveCompanion);
             } catch (e) {
                 console.error('Error in handleDocumentSummarization:', e);
                 new Notice(plugin.t.messages.errorProcessingDocument.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -923,15 +929,23 @@ async function handleMultiSourceResult(
     // Create combined summary section
     let combinedOutput = '\n\n## Summary\n\n';
 
+    let synthCompanion: string | undefined;
+
     if (summaries.length === 1) {
         combinedOutput += summaries[0];
     } else {
         // Synthesize multiple summaries
-        const synthesisPrompt = buildSynthesisPrompt(summaries, sourceLabels, result.focusContext, personaPrompt);
+        const synthesisPrompt = buildSynthesisPrompt(summaries, sourceLabels, result.focusContext, personaPrompt, effectiveCompanion);
         try {
             const synthesisResult = await callSummarizeService(plugin, synthesisPrompt, '', undefined, true);
             if (synthesisResult) {
-                combinedOutput += synthesisResult;
+                if (effectiveCompanion) {
+                    const synthSplit = splitCompanionContent(synthesisResult);
+                    combinedOutput += synthSplit.summary;
+                    synthCompanion = synthSplit.companion;
+                } else {
+                    combinedOutput += synthesisResult;
+                }
             } else {
                 // Fallback: just combine with headers
                 for (let i = 0; i < summaries.length; i++) {
@@ -980,7 +994,7 @@ async function handleMultiSourceResult(
     ];
 
     // Show preview modal — all editor mutations deferred to doInsert callback
-    await showSummaryPreviewOrInsert(plugin, combinedOutput, () => {
+    const multiAction = await showSummaryPreviewOrInsert(plugin, combinedOutput, () => {
         // 1. Remove processed sources
         let fullContent = editor.getValue();
         if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
@@ -1010,6 +1024,13 @@ async function handleMultiSourceResult(
         // 4. Ensure note structure
         ensureNoteStructureIfEnabled(editor, plugin.settings);
     }, true, `Summarized ${summaries.length} source(s)`);
+
+    // Companion note — cursor-only (multi-source uses 'cursor' action from showSummaryPreviewOrInsert)
+    if (includeCompanion && synthCompanion && (!multiAction || multiAction === 'cursor')) {
+        if (view.file) {
+            await processCompanionOutput(plugin, synthCompanion, view.file);
+        }
+    }
 }
 
 /**
@@ -1069,8 +1090,17 @@ function buildSynthesisPrompt(
     summaries: string[],
     sourceLabels: string[],
     focusContext: string | undefined,
-    personaPrompt: string
+    personaPrompt: string,
+    includeCompanion?: boolean
 ): string {
+    const companionBlock = includeCompanion ? `
+
+<companion_instructions>
+After your unified summary, output the following delimiter on its own line:
+${STUDY_COMPANION_DELIMITER}
+Then write a narrative "Explain Like a Friend" companion — restate the material in conversational prose, using analogies and everyday examples. This companion goes into a separate note, so it should stand on its own. If the content is too short or simple for a useful companion, omit the delimiter and companion entirely.
+</companion_instructions>` : '';
+
     let prompt = `<task>
 Synthesize the following ${summaries.length} summaries into a single, coherent summary.
 Combine related information, eliminate redundancy, and organize the content logically.
@@ -1094,7 +1124,7 @@ Provide a unified summary that:
 2. Highlights common themes and connections
 3. Notes any contrasting perspectives
 4. Is well-structured with clear organization
-</output_format>`;
+</output_format>${companionBlock}`;
 
     return prompt;
 }
@@ -1213,9 +1243,11 @@ async function openUrlSummarizeModal(
         plugin.t,
         plugin.settings.defaultSummaryPersona,
         personas,
+        plugin.settings.enableStudyCompanion,
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context, result.personaId);
+            const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+            await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context, result.personaId, companion);
         }
     );
     modal.open();
@@ -1278,15 +1310,18 @@ async function openPdfSummarizeModal(
         orderedPdfs,
         defaultPersona,
         personas,
+        plugin.settings.enableStudyCompanion,
         async (result) => {
             if (result.file) {
                 const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context, result.personaId);
+                const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+                await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context, result.personaId, companion);
             }
         },
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context, result.personaId);
+            const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+            await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context, result.personaId, companion);
         }
     );
     modal.open();
@@ -1302,9 +1337,11 @@ async function openYouTubeSummarizeModal(
         plugin.t,
         plugin.settings.defaultSummaryPersona,
         personas,
+        plugin.settings.enableStudyCompanion,
         async (result) => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
-            await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context, result.personaId);
+            const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+            await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context, result.personaId, companion);
         }
     );
     modal.open();
@@ -1325,11 +1362,16 @@ async function openAudioSummarizeModal(
         return;
     }
 
+    const personas = await plugin.configService.getSummaryPersonas();
     const modal = new AudioSelectModal(
         plugin.app,
         plugin.t,
+        plugin.settings.defaultSummaryPersona,
+        personas,
+        plugin.settings.enableStudyCompanion,
         async (result: AudioSelectResult) => {
-            await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key);
+            const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+            await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key, companion);
         }
     );
     modal.open();
@@ -1506,7 +1548,8 @@ async function handleUrlSummarization(
     url: string,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -1527,7 +1570,7 @@ async function handleUrlSummarization(
         const pdfFile = await pdfService.downloadPdfToVault(url, fileName);
 
         if (pdfFile && await canSummarizePdf(plugin)) {
-            await handlePdfSummarization(plugin, pdfService, editor, pdfFile, personaPrompt);
+            await handlePdfSummarization(plugin, pdfService, editor, pdfFile, personaPrompt, userContext, personaId, includeCompanion);
             return;
         } else if (!await canSummarizePdf(plugin)) {
             new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
@@ -1581,13 +1624,13 @@ async function handleUrlSummarization(
                 return;
             } else if (choice === 'truncate') {
                 const truncatedContent = truncateContent(content, serviceType);
-                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext, personaId);
+                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext, personaId, includeCompanion);
                 new Notice(plugin.t.messages.contentTruncated);
             } else if (choice === 'chunk') {
-                await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext);
+                await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext, includeCompanion);
             }
         } else {
-            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId);
+            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId, includeCompanion);
         }
 
     } else if (result.requiresPdfFallback) {
@@ -1652,7 +1695,8 @@ async function handlePdfSummarization(
     file: TFile,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -1672,7 +1716,7 @@ async function handlePdfSummarization(
         pdfService,
         file.path,
         true, // isVaultFile
-        { personaPrompt, userContext }
+        { personaPrompt, userContext, includeCompanion }
     ));
 
     if (!result.success || !result.summary || !result.pdfContent) {
@@ -1680,11 +1724,23 @@ async function handlePdfSummarization(
         return;
     }
 
+    // Split companion content from summary (handles traditional delimiter in response)
+    const pdfSplit = splitCompanionContent(result.summary);
+    const pdfSummary = pdfSplit.summary;
+
     // Preview modal + metadata — outside busy indicator
-    const action = await insertPdfSummary(editor, result.summary, result.pdfContent, plugin, true, true);
+    const action = await insertPdfSummary(editor, pdfSummary, result.pdfContent, plugin, true, true);
 
     // Only skip metadata if user actively chose NOT to insert (copy/discard)
     if (action && action !== 'cursor') return;
+
+    // Companion note — cursor-only
+    if (includeCompanion && pdfSplit.companion) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, pdfSplit.companion, view.file);
+        }
+    }
 
     // Update metadata if structured metadata is enabled
     if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -1693,7 +1749,7 @@ async function handlePdfSummarization(
             await updateNoteMetadataAfterSummary(
                 plugin,
                 view,
-                createSummaryHook(result.summary),
+                createSummaryHook(pdfSummary),
                 [],
                 'reference',
                 'pdf',
@@ -1714,7 +1770,8 @@ async function handleExternalPdfSummarization(
     filePath: string,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
@@ -1734,7 +1791,7 @@ async function handleExternalPdfSummarization(
         pdfService,
         filePath,
         false, // isVaultFile (external)
-        { personaPrompt, userContext }
+        { personaPrompt, userContext, includeCompanion }
     ));
 
     if (!result.success || !result.summary || !result.pdfContent) {
@@ -1742,11 +1799,23 @@ async function handleExternalPdfSummarization(
         return;
     }
 
+    // Split companion content from summary
+    const extPdfSplit = splitCompanionContent(result.summary);
+    const extPdfSummary = extPdfSplit.summary;
+
     // Preview modal + metadata — outside busy indicator
-    const action = await insertPdfSummary(editor, result.summary, result.pdfContent, plugin, false, true);
+    const action = await insertPdfSummary(editor, extPdfSummary, result.pdfContent, plugin, false, true);
 
     // Only skip metadata if user actively chose NOT to insert (copy/discard)
     if (action && action !== 'cursor') return;
+
+    // Companion note — cursor-only
+    if (includeCompanion && extPdfSplit.companion) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, extPdfSplit.companion, view.file);
+        }
+    }
 
     // Update metadata if structured metadata is enabled
     if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -1755,7 +1824,7 @@ async function handleExternalPdfSummarization(
             await updateNoteMetadataAfterSummary(
                 plugin,
                 view,
-                createSummaryHook(result.summary),
+                createSummaryHook(extPdfSummary),
                 [],
                 'reference',
                 'pdf',
@@ -1776,7 +1845,8 @@ async function handleDocumentSummarization(
     document: { path: string; isVaultFile: boolean },
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const result = await extractDocumentTextForMultiSource(plugin, view, document);
     if (!result.success || !result.text) {
@@ -1784,7 +1854,7 @@ async function handleDocumentSummarization(
         return;
     }
 
-    await summarizePlainTextAndInsert(plugin, editor, result.text, personaPrompt, userContext);
+    await summarizePlainTextAndInsert(plugin, editor, result.text, personaPrompt, userContext, includeCompanion);
 }
 
 async function extractDocumentTextForMultiSource(
@@ -1866,7 +1936,8 @@ async function handleAudioSummarization(
     editor: Editor,
     result: AudioSelectResult,
     provider: 'openai' | 'groq',
-    apiKey: string
+    apiKey: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const { file, externalPath, language, context, needsCompression } = result;
     const serviceType = plugin.settings.serviceType === 'cloud'
@@ -2017,6 +2088,11 @@ async function handleAudioSummarization(
     // Now summarize the transcript
     new Notice(plugin.t.messages.summarizingTranscript || 'Summarizing transcript...');
 
+    // Get persona prompt from modal selection
+    const personaPrompt = result.personaId
+        ? await plugin.configService.getSummaryPersonaPrompt(result.personaId)
+        : undefined;
+
     // Check content size against limits
     const maxChars = getMaxContentChars(serviceType);
 
@@ -2035,13 +2111,13 @@ async function handleAudioSummarization(
             return;
         } else if (choice === 'truncate') {
             const truncatedContent = truncateContent(transcript, serviceType);
-            await summarizeAudioAndInsert(plugin, editor, truncatedContent, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
+            await summarizeAudioAndInsert(plugin, editor, truncatedContent, audioFileInfo, transcriptionResult.duration, personaPrompt, transcriptPath, includeCompanion);
             new Notice(plugin.t.messages.contentTruncated);
         } else if (choice === 'chunk') {
-            await summarizeAudioInChunks(plugin, editor, transcript, audioFileInfo, serviceType, transcriptionResult.duration, transcriptPath);
+            await summarizeAudioInChunks(plugin, editor, transcript, audioFileInfo, serviceType, transcriptionResult.duration, transcriptPath, includeCompanion);
         }
     } else {
-        await summarizeAudioAndInsert(plugin, editor, transcript, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
+        await summarizeAudioAndInsert(plugin, editor, transcript, audioFileInfo, transcriptionResult.duration, personaPrompt, transcriptPath, includeCompanion);
     }
 }
 
@@ -2055,7 +2131,8 @@ async function summarizeAudioAndInsert(
     file: AudioFileInfo,
     duration?: number,
     personaPrompt?: string,
-    transcriptPath?: string | null
+    transcriptPath?: string | null,
+    includeCompanion?: boolean
 ): Promise<void> {
     if (plugin.settings.debugMode) {
         console.log('[AI Organiser] Transcript length:', transcript.length);
@@ -2069,6 +2146,7 @@ async function summarizeAudioAndInsert(
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: actualPersonaPrompt,
+        includeCompanion,
     };
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -2086,7 +2164,16 @@ async function summarizeAudioAndInsert(
         }
 
         if (response.success && response.content) {
-            await insertAudioSummary(editor, response.content, file, duration, plugin, transcriptPath, true);
+            const audioSplit = splitCompanionContent(response.content);
+            const audioAction = await insertAudioSummary(editor, audioSplit.summary, file, duration, plugin, transcriptPath, true);
+
+            // Companion note — cursor-only
+            if (includeCompanion && audioSplit.companion && (!audioAction || audioAction === 'cursor')) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view?.file) {
+                    await processCompanionOutput(plugin, audioSplit.companion, view.file);
+                }
+            }
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
             await insertAudioSummary(editor, `[Summarization failed: ${response.error || 'No content returned'}]`, file, duration, plugin, transcriptPath);
@@ -2108,7 +2195,8 @@ async function summarizeAudioInChunks(
     file: AudioFileInfo,
     provider: string,
     duration?: number,
-    transcriptPath?: string | null
+    transcriptPath?: string | null,
+    includeCompanion?: boolean
 ): Promise<void> {
     const limits = getProviderLimits(provider);
     const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
@@ -2126,7 +2214,7 @@ async function summarizeAudioInChunks(
     };
 
     // Map phase: summarize each chunk, then reduce — all LLM work wrapped in busy indicator
-    const { finalContent } = await withBusyIndicator(plugin, async () => {
+    const { finalContent, companionContent } = await withBusyIndicator(plugin, async () => {
         for (let i = 0; i < chunks.length; i++) {
             new Notice(
                 plugin.t.messages.summarizingChunk
@@ -2157,6 +2245,7 @@ async function summarizeAudioInChunks(
             length: plugin.settings.summaryLength,
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
+            includeCompanion,
         };
 
         const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
@@ -2166,17 +2255,26 @@ async function summarizeAudioInChunks(
             const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
             if (response.success && response.content) {
-                return { finalContent: response.content };
+                const split = splitCompanionContent(response.content);
+                return { finalContent: split.summary, companionContent: split.companion };
             } else {
-                return { finalContent: chunkSummaries.join('\n\n') };
+                return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
             }
         } catch (error) {
-            return { finalContent: chunkSummaries.join('\n\n') };
+            return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
         }
     });
 
     // Preview modal outside busy indicator
-    await insertAudioSummary(editor, finalContent, file, duration, plugin, transcriptPath, true);
+    const audioChunkAction = await insertAudioSummary(editor, finalContent, file, duration, plugin, transcriptPath, true);
+
+    // Companion note — cursor-only
+    if (includeCompanion && companionContent && (!audioChunkAction || audioChunkAction === 'cursor')) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, companionContent, view.file);
+        }
+    }
 }
 
 /**
@@ -2233,7 +2331,8 @@ async function handleYouTubeSummarization(
     url: string,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     // Validate YouTube URL
     if (!isYouTubeUrl(url)) {
@@ -2262,6 +2361,7 @@ async function handleYouTubeSummarization(
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
         userContext: userContext,
+        includeCompanion,
     };
     const prompt = buildSummaryPrompt(promptOptions);
 
@@ -2280,7 +2380,8 @@ async function handleYouTubeSummarization(
         }
 
         const videoInfo = result.videoInfo;
-        const summary = result.content;
+        const ytSplit = splitCompanionContent(result.content);
+        const summary = ytSplit.summary;
 
         // Generate and save transcript using Gemini (more reliable than caption scraping)
         let transcriptPath: string | null = null;
@@ -2319,7 +2420,15 @@ async function handleYouTubeSummarization(
         }
 
         // Insert summary into editor with transcript link if available
-        await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
+        const ytAction = await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
+
+        // Create companion note only on cursor insert
+        if ((!ytAction || ytAction === 'cursor') && ytSplit.companion) {
+            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view?.file) {
+                await processCompanionOutput(plugin, ytSplit.companion, view.file);
+            }
+        }
 
         // Update metadata with persona if structured metadata is enabled
         if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
@@ -2357,13 +2466,15 @@ async function summarizeYouTubeAndInsert(
     personaPrompt: string,
     transcriptPath?: string | null,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
         userContext: userContext,
+        includeCompanion,
     };
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -2373,7 +2484,16 @@ async function summarizeYouTubeAndInsert(
         const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
         if (response.success && response.content) {
-            await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
+            const split = splitCompanionContent(response.content);
+            const ytAction = await insertYouTubeSummary(editor, split.summary, videoInfo, plugin, transcriptPath, true);
+
+            // Create companion note only on cursor insert
+            if ((!ytAction || ytAction === 'cursor') && split.companion) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view?.file) {
+                    await processCompanionOutput(plugin, split.companion, view.file);
+                }
+            }
 
             // Update metadata with persona if structured metadata is enabled
             if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -2382,7 +2502,7 @@ async function summarizeYouTubeAndInsert(
                     await updateNoteMetadataAfterSummary(
                         plugin,
                         view,
-                        createSummaryHook(response.content),
+                        createSummaryHook(split.summary),
                         [],
                         'research',
                         'youtube',
@@ -2412,7 +2532,8 @@ async function summarizeYouTubeInChunks(
     personaPrompt: string,
     transcriptPath?: string | null,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const limits = getProviderLimits(provider);
     const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
@@ -2428,7 +2549,7 @@ async function summarizeYouTubeInChunks(
     };
 
     // Map phase: summarize each chunk, then reduce — all LLM work wrapped in busy indicator
-    const { finalContent } = await withBusyIndicator(plugin, async () => {
+    const { finalContent, companionContent } = await withBusyIndicator(plugin, async () => {
         for (let i = 0; i < chunks.length; i++) {
             new Notice(
                 plugin.t.messages.summarizingChunk
@@ -2460,6 +2581,7 @@ async function summarizeYouTubeInChunks(
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
             userContext: userContext,
+            includeCompanion,
         };
 
         const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
@@ -2469,17 +2591,26 @@ async function summarizeYouTubeInChunks(
             const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
             if (response.success && response.content) {
-                return { finalContent: response.content };
+                const split = splitCompanionContent(response.content);
+                return { finalContent: split.summary, companionContent: split.companion };
             } else {
-                return { finalContent: chunkSummaries.join('\n\n') };
+                return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
             }
         } catch (error) {
-            return { finalContent: chunkSummaries.join('\n\n') };
+            return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
         }
     });
 
     // Preview modal + metadata outside busy indicator
-    await insertYouTubeSummary(editor, finalContent, videoInfo, plugin, transcriptPath, true);
+    const ytChunkAction = await insertYouTubeSummary(editor, finalContent, videoInfo, plugin, transcriptPath, true);
+
+    // Create companion note only on cursor insert
+    if ((!ytChunkAction || ytChunkAction === 'cursor') && companionContent) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, companionContent, view.file);
+        }
+    }
 
     // Update metadata with persona if structured metadata is enabled
     if (plugin.settings.enableStructuredMetadata && personaId) {
@@ -2573,7 +2704,8 @@ async function summarizeAndInsert(
     webContent: WebContent,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    personaId?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     // Debug logging for summarizeAndInsert
     if (plugin.settings.debugMode) {
@@ -2593,6 +2725,7 @@ async function summarizeAndInsert(
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
             userContext: userContext,
+            includeCompanion,
         };
 
         const promptTemplate = buildStructuredSummaryPrompt(promptOptions);
@@ -2616,13 +2749,25 @@ async function summarizeAndInsert(
                 const structured = parseStructuredResponse(response.content);
 
                 if (structured) {
+                    // Safety net: if structured fallback leaked delimiter into body_content
+                    if (!structured.companion_content && structured.body_content.includes(STUDY_COMPANION_DELIMITER)) {
+                        const split = splitCompanionContent(structured.body_content);
+                        structured.body_content = split.summary;
+                        structured.companion_content = split.companion;
+                    }
+
                     // Insert body content — only update metadata if user chose to insert
                     const action = await insertWebSummary(editor, structured.body_content, webContent, plugin, true);
 
                     if (action !== 'cursor') return;
 
-                    // Update metadata - must save editor first to prevent race condition
+                    // Create companion note if present (cursor-gated)
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (view?.file && structured.companion_content) {
+                        await processCompanionOutput(plugin, structured.companion_content, view.file);
+                    }
+
+                    // Update metadata - must save editor first to prevent race condition
                     if (view && view.file) {
                         // Force save editor changes to disk before updating frontmatter
                         // This prevents processFrontMatter from reading stale file content
@@ -2656,6 +2801,7 @@ async function summarizeAndInsert(
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
             userContext: userContext,
+            includeCompanion,
         };
 
         const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -2665,7 +2811,16 @@ async function summarizeAndInsert(
             const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
             if (response.success && response.content) {
-                await insertWebSummary(editor, response.content, webContent, plugin, true);
+                const split = splitCompanionContent(response.content);
+                const action = await insertWebSummary(editor, split.summary, webContent, plugin, true);
+
+                // Create companion note only on cursor insert
+                if ((!action || action === 'cursor') && split.companion) {
+                    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (view?.file) {
+                        await processCompanionOutput(plugin, split.companion, view.file);
+                    }
+                }
             } else {
                 new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
             }
@@ -2686,10 +2841,11 @@ async function summarizeInChunks(
     webContent: WebContent,
     provider: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     // LLM work: chunk loop + combine — wrapped with busy indicator
-    const { finalContent } = await withBusyIndicator(plugin, async () => {
+    const { finalContent, companionContent } = await withBusyIndicator(plugin, async () => {
         const limits = getProviderLimits(provider);
         const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
 
@@ -2733,6 +2889,7 @@ async function summarizeInChunks(
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
             userContext: userContext,
+            includeCompanion,
         };
 
         const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
@@ -2742,17 +2899,26 @@ async function summarizeInChunks(
             const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
             if (response.success && response.content) {
-                return { finalContent: response.content };
+                const split = splitCompanionContent(response.content);
+                return { finalContent: split.summary, companionContent: split.companion };
             } else {
-                return { finalContent: chunkSummaries.join('\n\n') };
+                return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
             }
         } catch (error) {
-            return { finalContent: chunkSummaries.join('\n\n') };
+            return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
         }
     });
 
     // Preview modal — outside busy indicator
-    await insertWebSummary(editor, finalContent, webContent, plugin, true);
+    const action = await insertWebSummary(editor, finalContent, webContent, plugin, true);
+
+    // Create companion note only on cursor insert
+    if ((!action || action === 'cursor') && companionContent) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, companionContent, view.file);
+        }
+    }
 }
 
 /**
@@ -2763,13 +2929,15 @@ async function summarizePlainTextAndInsert(
     editor: Editor,
     content: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const promptOptions: SummaryPromptOptions = {
         length: plugin.settings.summaryLength,
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: personaPrompt,
         userContext: userContext,
+        includeCompanion,
     };
 
     const promptTemplate = buildSummaryPrompt(promptOptions);
@@ -2780,7 +2948,16 @@ async function summarizePlainTextAndInsert(
         const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
         if (response.success && response.content) {
-            await insertTextSummary(editor, response.content, plugin, title, true);
+            const textSplit = splitCompanionContent(response.content);
+            const textAction = await insertTextSummary(editor, textSplit.summary, plugin, title, true);
+
+            // Companion note — cursor-only
+            if (includeCompanion && textSplit.companion && (!textAction || textAction === 'cursor')) {
+                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+                if (view?.file) {
+                    await processCompanionOutput(plugin, textSplit.companion, view.file);
+                }
+            }
         } else {
             new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
         }
@@ -2799,13 +2976,14 @@ async function summarizePlainTextInChunks(
     content: string,
     provider: string,
     personaPrompt: string,
-    userContext?: string
+    userContext?: string,
+    includeCompanion?: boolean
 ): Promise<void> {
     const title = plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summary';
     const combinedNotice = plugin.t.messages.summaryCombinedFromSections;
 
     // LLM work: chunk loop + combine — wrapped with busy indicator
-    const { finalContent } = await withBusyIndicator(plugin, async () => {
+    const { finalContent, companionContent } = await withBusyIndicator(plugin, async () => {
         const limits = getProviderLimits(provider);
         const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
 
@@ -2849,6 +3027,7 @@ async function summarizePlainTextInChunks(
             language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
             personaPrompt: personaPrompt,
             userContext: userContext,
+            includeCompanion,
         };
 
         const combinePromptTemplate = buildChunkCombinePrompt(combinePromptOptions);
@@ -2858,17 +3037,26 @@ async function summarizePlainTextInChunks(
             const response = await summarizeTextWithLLM(plugin, combinePrompt);
 
             if (response.success && response.content) {
-                return { finalContent: response.content };
+                const split = splitCompanionContent(response.content);
+                return { finalContent: split.summary, companionContent: split.companion };
             } else {
-                return { finalContent: chunkSummaries.join('\n\n') };
+                return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
             }
         } catch (error) {
-            return { finalContent: chunkSummaries.join('\n\n') };
+            return { finalContent: chunkSummaries.join('\n\n'), companionContent: undefined };
         }
     });
 
     // Preview modal — outside busy indicator (spinner already stopped)
-    await insertTextSummary(editor, finalContent, plugin, title, true, combinedNotice);
+    const textChunkAction = await insertTextSummary(editor, finalContent, plugin, title, true, combinedNotice);
+
+    // Companion note — cursor-only
+    if (includeCompanion && companionContent && (!textChunkAction || textChunkAction === 'cursor')) {
+        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file) {
+            await processCompanionOutput(plugin, companionContent, view.file);
+        }
+    }
 }
 
 /**
@@ -3011,6 +3199,8 @@ export interface PdfSummarizationOptions {
     userContext?: string;
     /** Current file for resolving vault links */
     currentFilePath?: string;
+    /** Whether to include companion content in the prompt */
+    includeCompanion?: boolean;
 }
 
 /**
@@ -3083,6 +3273,7 @@ export async function summarizePdfWithFullWorkflow(
         language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
         personaPrompt: options.personaPrompt,
         userContext: options.userContext,
+        includeCompanion: options.includeCompanion,
     };
     const prompt = buildSummaryPrompt(promptOptions);
 
