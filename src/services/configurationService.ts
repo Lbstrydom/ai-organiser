@@ -451,50 +451,35 @@ $$E = mc^2$$
 // Default minutes personas for meeting minutes
 export const DEFAULT_MINUTES_PERSONAS: Persona[] = [
     {
-        id: 'corporate-minutes',
-        name: 'Corporate minutes',
-        description: 'Standard corporate minutes with decisions, actions, and key discussion points',
-        prompt: `Create professional corporate meeting minutes with clear decisions, actions, and key discussion points.
+        id: 'standard',
+        name: 'Standard',
+        icon: 'file-text',
+        description: 'Concise, action-oriented minutes with decisions, actions, and key points',
+        prompt: `Create professional meeting minutes focused on outcomes.
 
 Focus on:
-- Decisions and approvals
+- Decisions and approvals with owners
 - Action items with owners and due dates (use TBC if missing)
+- Key discussion points and notable outcomes
 - Risks and open questions
-- Neutral, factual tone`
-        ,
+- Neutral, factual, concise tone`,
         isDefault: true
     },
     {
-        id: 'board-governance',
-        name: 'Board governance',
-        description: 'Governance-focused minutes with resolutions, quorum, and fiduciary matters',
-        prompt: `Emphasize governance items such as resolutions, approvals, delegations, risk appetite, and fiduciary matters.
-Record conflicts of interest, abstentions, and quorum if mentioned.
-Use formal resolution language when applicable.`
-    },
-    {
-        id: 'action-register-only',
-        name: 'Action register only',
-        description: 'Minimal output focused on actions and decisions only',
-        prompt: `Keep minutes minimal and operational.
-Focus on actions and decisions only.
-Skip detailed discussion summaries unless needed for context.`
-    },
-    {
-        id: 'client-mom-short',
-        name: 'Client MoM short',
-        description: 'Brief client-facing minutes focusing on commitments and next steps',
-        prompt: `Create a brief meeting summary for client circulation.
-Focus on agreed commitments and next steps.
-Omit internal context and detailed discussion.`
-    },
-    {
-        id: 'technical-review',
-        name: 'Technical review',
-        description: 'Detailed technical minutes with architecture decisions and trade-offs',
-        prompt: `Capture technical decisions, trade-offs, and risks.
-Include architecture choices, dependencies, and technical debt items.
-Use precise technical language where appropriate.`
+        id: 'governance',
+        name: 'Governance',
+        icon: 'landmark',
+        description: 'Formal governance minutes with resolutions, quorum, and fiduciary matters',
+        prompt: `Create formal governance meeting minutes suitable for board records.
+
+Focus on:
+- Resolutions with precise wording (use verbatim_quote when chair reads resolution aloud)
+- Approvals, delegations, and risk appetite decisions
+- Conflicts of interest and abstentions
+- Quorum status and attendance
+- Fiduciary matters and compliance items
+- Formal resolution language: "RESOLVED THAT..."
+- Actions arising from resolutions with owners`
     }
 ];
 
@@ -530,7 +515,7 @@ export const DEFAULT_CONFIG_FOLDER = `${DEFAULT_PLUGIN_FOLDER}/Config`;
  * Current persona schema version. Bump when default persona content changes.
  * Used by config file migration to detect and overwrite stale defaults.
  */
-export const CURRENT_PERSONA_SCHEMA_VERSION = 3;
+export const CURRENT_PERSONA_SCHEMA_VERSION = 4;
 
 /** Marker line embedded at the top of generated persona config files. */
 export function personaVersionMarker(version: number): string {
@@ -1100,7 +1085,8 @@ The AI will follow your template exactly, so be specific about what sections and
     private generateMinutesPersonasFileContent(): string {
         const personaSections = DEFAULT_MINUTES_PERSONAS.map(p => {
             const defaultMarker = p.isDefault ? ' (default)' : '';
-            return `### ${p.name}${defaultMarker}
+            const iconMarker = p.icon ? ` [icon: ${p.icon}]` : '';
+            return `### ${p.name}${defaultMarker}${iconMarker}
 
 > ${p.description}
 
@@ -1112,19 +1098,20 @@ ${p.prompt}
         return `${personaVersionMarker(CURRENT_PERSONA_SCHEMA_VERSION)}
 # Minutes Personas
 
-These personas control how the AI generates **meeting minutes** from transcripts. Each persona defines the structure, tone, and focus areas for minutes output.
+These personas control how the AI generates **meeting minutes** from transcripts.
 
 ## How to Use
 
-1. **When creating minutes**: Select a persona from the dropdown in the minutes modal
-2. **Set default**: Add \`(default)\` after the persona name to make it the default
-3. **Edit existing**: Modify the prompt in the code block to customize behavior
-4. **Add new**: Create a new \`### Section\` following the format below
+1. **When creating minutes**: Select a persona from the dropdown
+2. **Set default**: Add \`(default)\` after the persona name
+3. **Add icon**: Add \`[icon: icon-name]\` after the name for a Lucide icon
+4. **Edit existing**: Modify the prompt in the code block
+5. **Add new**: Create a new \`### Section\` following the format below
 
 ## Format
 
 Each persona needs:
-- A \`### Name\` header (add \`(default)\` to mark as default)
+- A \`### Name\` header (add \`(default)\` to mark as default, optionally \`[icon: icon-name]\` for icon)
 - A description line starting with \`>\` (shown in the selection dropdown)
 - A code block with the full prompt/instructions for the AI
 
@@ -1136,9 +1123,9 @@ ${personaSections}
 
 ## Tips for Custom Personas
 
-- **Role**: Define the role and audience (e.g., board secretary, client-facing consultant)
-- **Structure**: Specify which sections must appear in the minutes
-- **Tone**: Set the desired formality and level of detail
+- **Role**: Define the role and audience (e.g., board secretary, project lead)
+- **Structure**: Specify which sections must appear
+- **Tone**: Set formality and detail level
 - **Constraints**: Reinforce accuracy rules (no invented decisions or owners)
 `;
     }

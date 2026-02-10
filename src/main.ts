@@ -15,7 +15,7 @@ import { SuggestionModal, SuggestionResult } from './ui/modals/SuggestionModal';
 import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandPickerModal';
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { registerCommands } from './commands/index';
-import { AIOrganiserSettings, DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath } from './core/settings';
+import { AIOrganiserSettings, DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
@@ -75,24 +75,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public async loadSettings(): Promise<void> {
         const oldSettings = await this.loadData();
-
-        // Migrate old settings
-        if (oldSettings?.serviceType === 'ollama') {
-            oldSettings.serviceType = 'local';
-            oldSettings.localEndpoint = oldSettings.ollamaEndpoint;
-            oldSettings.localModel = oldSettings.ollamaModel;
-            delete oldSettings.ollamaEndpoint;
-            delete oldSettings.ollamaModel;
-        }
-
-        // Migrate old tag range settings to maxTags
-        if (oldSettings && !oldSettings.maxTags) {
-            oldSettings.maxTags = oldSettings.tagRangeGenerateMax ||
-                                  oldSettings.tagRangePredefinedMax ||
-                                  DEFAULT_SETTINGS.maxTags;
-        }
-
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, oldSettings);
+        const migrated = migrateOldSettings(oldSettings);
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, migrated);
         this.t = getTranslations(this.settings.interfaceLanguage);
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,

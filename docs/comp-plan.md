@@ -56,55 +56,56 @@
   - [x] Rewrite `generatePersonasFileContent()` for new writing personas
   - [x] Bump `CURRENT_PERSONA_SCHEMA_VERSION` to 3 for config file migration
   - [x] Test: writing personas load, invariants (count, IDs, kebab-case, icons, mirror summary IDs)
-- [ ] **Phase 7 — Minutes: 2 Personas + GTD**
-  - [ ] Replace `DEFAULT_MINUTES_PERSONAS` in `configurationService.ts:373` with 2 new
-  - [ ] Define `GTDProcessing`, `GTDAction`, `GTDWaitingItem` interfaces in `minutesPrompts.ts`
-  - [ ] Add optional `gtd_processing` to `MinutesJSON` interface
-  - [ ] Extend `renderMinutesFromJson()` in `minutesUtils.ts` for GTD sections
-  - [ ] Add `useGTD: boolean` parameter to `buildMinutesSystemPrompt()`
-  - [ ] Update `buildConsolidationPrompt()` to pass `useGTD` through
-  - [ ] Update `MinutesService.generateMinutes()` to accept and pass `useGTD`
-  - [ ] Add `minutesGTDOverlay` to `AIOrganiserSettings` and `DEFAULT_SETTINGS`
-  - [ ] Add GTD toggle to `MinutesCreationModal.ts`
-  - [ ] Rewrite `generateMinutesPersonasFileContent()` for 2 personas
-  - [ ] Write `minutes-personas.md` config file content
-  - [ ] Test: GTD rendering, prompt injection, persona counts
-- [ ] **Phase 8 — Settings Migration & Hardcoded Fallbacks**
+- [x] **Phase 7 — Minutes: 2 Personas + GTD**
+  - [x] Replace `DEFAULT_MINUTES_PERSONAS` in `configurationService.ts` with 2 new (standard + governance)
+  - [x] Define `GTDProcessing`, `GTDAction`, `GTDWaitingItem` interfaces in `minutesPrompts.ts`
+  - [x] Add optional `gtd_processing` to `MinutesJSON` interface
+  - [x] Extend `renderMinutesFromJson()` in `minutesUtils.ts` for GTD sections (sorted context keys, checkbox support)
+  - [x] Add `useGTD: boolean` parameter to `buildMinutesSystemPrompt()` (options object pattern)
+  - [x] Update `buildConsolidationPrompt()` to pass `useGTD` through (options object pattern)
+  - [x] Update `MinutesService.generateMinutes()` to accept and pass `useGTD`
+  - [x] Add `minutesGTDOverlay` to `AIOrganiserSettings` and `DEFAULT_SETTINGS`
+  - [x] Add GTD toggle to `MinutesCreationModal.ts` (after detail-level dropdown)
+  - [x] Rewrite `generateMinutesPersonasFileContent()` for 2 personas (with icon support)
+  - [x] Bump `CURRENT_PERSONA_SCHEMA_VERSION` to 4 for config file migration
+  - [x] Test: GTD rendering (11 tests), prompt injection (6 tests), persona counts (6 tests)
+- [x] **Phase 8 — Settings Migration & Hardcoded Fallbacks**
   - [x] Export `DEFAULT_SUMMARY_PERSONA_ID = 'brief'` from `settings.ts` (pulled forward — reviewer finding #1)
   - [x] Replace hardcoded `'student'` in `settings.ts`, `SummarizationSettingsSection.ts`, `MultiSourceModal.ts` (pulled forward)
   - [x] Update `constants.ts` comment referencing old persona names (pulled forward)
-  - [ ] Add `student` -> `brief` migration in `main.ts loadSettings()` (for existing users with stored `'student'`)
-  - [ ] Add `corporate-minutes` -> `internal` migration in `main.ts loadSettings()`
-  - [ ] Test: migration runs, old settings map to new IDs
-- [ ] **Phase 9 — i18n & Settings UI**
-  - [ ] Add/update persona names/descriptions in `en.ts`
-  - [ ] Add/update persona names/descriptions in `zh-cn.ts`
-  - [ ] Add companion toggle labels
-  - [ ] Add GTD overlay labels
-  - [ ] Remove retired persona references
-  - [ ] Update `SummarizationSettingsSection.ts` dropdown (5 options)
-  - [ ] Update `MinutesSettingsSection.ts` dropdown (2 options)
-  - [ ] Test: UI renders correctly in both languages
-- [ ] **Phase 10 — Tests**
-  - [ ] Delete/rewrite `summaryPersonas` test imports in `promptInvariants.test.ts`
-  - [ ] Update `configurationService.test.ts` persona counts
-  - [ ] Update `minutesPrompts.test.ts` for `useGTD` parameter
-  - [ ] Update `minutesService.test.ts` for `useGTD` passthrough
-  - [ ] Update `minutesAutoFill.test.ts` (references `corporate-minutes`)
-  - [ ] Add companion schema tests
-  - [ ] Add companion file creation tests
-  - [ ] Add traditional companion delimiter tests
-  - [ ] Add GTD schema rendering tests
-  - [ ] Add GTD prompt injection tests
-  - [ ] Add settings migration tests
-  - [ ] Add config file migration tests
-  - [ ] Run full suite: `npm test` passes
-- [ ] **Phase 11 — Documentation**
-  - [ ] Update `CLAUDE.md` persona system description
-  - [ ] Update `AGENTS.md` persona system description
-  - [ ] Update `docs/usertest.md` with new test checklist
-  - [ ] Create `docs/retired-personas.md`
-  - [ ] Run `npm run build` — clean build
+  - [x] Extract `migrateOldSettings()` pure function in `settings.ts` (all migrations in one testable function)
+  - [x] Add `student` -> `brief` migration + all 5 retired minutes persona ID migrations
+  - [x] Simplify `main.ts loadSettings()` to call `migrateOldSettings()`
+  - [x] Test: 14 migration tests (ollama, tagRange, student->brief, all 5 retired minutes IDs, custom IDs unchanged)
+- [x] **Phase 9 — i18n & Settings UI**
+  - [x] Add/update persona names/descriptions in `en.ts`
+  - [x] Add/update persona names/descriptions in `zh-cn.ts`
+  - [x] Add companion toggle labels
+  - [x] Add GTD overlay labels (settings + modal, both EN and ZH-CN)
+  - [x] Remove retired persona references (DEFAULT_MINUTES_PERSONA_ID -> 'standard')
+  - [x] Update `SummarizationSettingsSection.ts` dropdown (5 options — dynamic from config)
+  - [x] Update `MinutesSettingsSection.ts` dropdown (2 options — dynamic from config) + GTD toggle
+  - [x] Test: UI renders correctly in both languages
+- [x] **Phase 10 — Tests**
+  - [x] Add `DEFAULT_MINUTES_PERSONAS` invariant tests in `promptInvariants.test.ts`
+  - [x] Update `configurationService.test.ts` persona counts (dynamic — auto-passes)
+  - [x] Update `minutesPrompts.test.ts` for options object + GTD injection tests
+  - [x] Update `minutesService.test.ts` for `useGTD` passthrough (auto-passes)
+  - [x] Update `minutesAutoFill.test.ts` (`corporate-minutes` -> `standard`)
+  - [x] Add companion schema tests (completed in Phase 3-6)
+  - [x] Add companion file creation tests (completed in Phase 3-6)
+  - [x] Add traditional companion delimiter tests (completed in Phase 3-6)
+  - [x] Add GTD schema rendering tests (`minutesGTDRendering.test.ts` — 11 tests)
+  - [x] Add GTD prompt injection tests (6 tests in `minutesPrompts.test.ts`)
+  - [x] Add settings migration tests (`settingsMigration.test.ts` — 14 tests)
+  - [x] Add config file migration tests (schema version bump 3->4 triggers migration)
+  - [x] Run full suite: `npm test` passes (1183 tests, 55 suites)
+- [x] **Phase 11 — Documentation**
+  - [x] Update `CLAUDE.md` — meeting minutes section (personas, GTD overlay, options object, settings migration, test counts), settings section (full section list, migration function)
+  - [x] Update `AGENTS.md` — synced with CLAUDE.md (same meeting minutes, settings, test sections)
+  - [x] Update `docs/usertest.md` — fresh checklist with GTD tests, cleaned legacy items, persona count verification
+  - [x] Create `docs/retired-personas.md` — migration reference for all retired persona IDs + schema version history
+  - [x] Run `npm run build` — clean build
 
 ---
 

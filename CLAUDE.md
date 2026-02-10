@@ -80,15 +80,30 @@ Mode selection affects prompt structure and tag merging logic in `analyzeAndTagN
 **Settings schema** (`src/core/settings.ts`):
 - `AIOrganiserSettings` interface with 35+ configuration options
 - Key settings: `serviceType`, `cloudServiceType`, `interfaceLanguage`, `enableSemanticSearch`, `embeddingProvider`
-- Settings UI split into modular sections (`src/ui/settings/`):
+- Settings UI split into modular sections (`src/ui/settings/`), wrapped in 10 collapsible `<details>/<summary>` groups (see Settings layout below):
   - `LLMSettingsSection`: Service provider configuration, API keys
-  - `TaggingSettingsSection`: Max tags, folder exclusions
-  - `ConfigurationSettingsSection`: Config files management
-  - `InterfaceSettingsSection`: Interface language, tag output language, summary language (consolidated)
-  - `SemanticSearchSettingsSection`: Embeddings, indexing, RAG settings (Phase 4.4)
+  - `SpecialistProvidersSettingsSection`: Dedicated providers for YouTube, PDF, Audio, Flashcards
+  - `TaggingSettingsSection`: Max tags, folder exclusions, note structure toggle, taxonomy guardrail
   - `SummarizationSettingsSection`: Summary style, personas, transcript options
+  - `AudioTranscriptionSettingsSection`: Audio recording, transcription settings
+  - `DigitisationSettingsSection`: Smart digitisation mode, image quality
+  - `SketchSettingsSection`: Sketch pad output, auto-digitise, pen defaults
+  - `MinutesSettingsSection`: Meeting minutes output, timezone, personas, GTD overlay
+  - `SemanticSearchSettingsSection`: Embeddings, indexing, RAG settings
+  - `CanvasSettingsSection`: Canvas output, edge labels, LLM clustering
+  - `BasesSettingsSection`: Structured metadata, migration
+  - `NotebookLMSettingsSection`: NotebookLM export settings
+  - `ExportSettingsSection`: Document export (Anki/Brainscape flashcards)
+  - `InterfaceSettingsSection`: Interface language, tag output language, summary language
+  - `MobileSettingsSection`: Mobile provider mode, fallback settings
+  - `ConfigurationSettingsSection`: Config files management
 
 **Settings persistence**: Loaded in `loadSettings()`, saved via `saveSettings()`, triggers service reinitialization.
+
+**Settings migration** (`src/core/settings.ts`):
+- `migrateOldSettings()`: Pure function migrating old settings to current schema
+- Called from `loadSettings()` in `main.ts` — all migrations in one testable function
+- Handles: `ollama`→`local`, tag range→`maxTags`, `student`→`brief`, 5 retired minutes persona IDs→`standard`/`governance`
 
 ### Internationalization (i18n)
 
@@ -849,12 +864,43 @@ interface RecorderOptions {
 
 ### Overview
 
-Generate structured meeting minutes from transcripts with persona-based output styles, terminology dictionaries for transcription accuracy, and context document support.
+Generate structured meeting minutes from transcripts with persona-based output styles, GTD action classification overlay, terminology dictionaries for transcription accuracy, and context document support.
+
+### Personas (2 built-in)
+
+| ID | Name | Icon | Description |
+|----|------|------|-------------|
+| `standard` | Standard | `file-text` | Concise, action-oriented minutes (default) |
+| `governance` | Governance | `landmark` | Formal governance minutes with resolutions and fiduciary matters |
+
+Personas stored in `AI-Organiser/Config/minutes-personas.md`. Users can add custom personas following the same `### Name [icon: icon-name]` format.
+
+### GTD Overlay
+
+Optional GTD (Getting Things Done) action classification. When enabled (`minutesGTDOverlay` setting or per-session toggle in modal):
+- **Next Actions**: Classified by context (`@office`, `@home`, `@call`, `@computer`, `@agenda`, `@errand`) with energy tags (`low`/`high` — `medium` omitted to reduce noise)
+- **Waiting For**: Items with `waiting_on` person and optional `chase_date`
+- **Projects**: Multi-step commitments (project names only)
+- **Someday/Maybe**: Ideas not yet committed to
+
+GTD schema injected conditionally into `buildMinutesSystemPrompt()` only when `useGTD: true`. Chunk extraction is excluded from GTD — classification needs full meeting context.
+
+**GTD interfaces** (`src/services/prompts/minutesPrompts.ts`):
+- `GTDAction`: `{ text, context: string, owner?, energy?: 'low'|'medium'|'high' }`
+- `GTDWaitingItem`: `{ text, waiting_on, chase_date? }`
+- `GTDProcessing`: `{ next_actions, waiting_for, projects, someday_maybe }`
+- `MinutesJSON.gtd_processing?: GTDProcessing` (optional field)
+
+**GTD rendering** (`src/utils/minutesUtils.ts`):
+- `renderMinutesFromJson(json, detailLevel, obsidianTasksFormat?)` — 3rd param enables `- [ ]` checkboxes for next-actions
+- Context keys sorted alphabetically for deterministic output
+- GTD renders regardless of `detailLevel` when `gtd_processing` is present
 
 ### Core Components
 
 **Minutes Service** (`src/services/minutesService.ts`):
 - `generateMinutes()`: Main generation function with transcript chunking
+- `MinutesGenerationInput` includes `useGTD?: boolean`
 - Supports transcripts over 5000 tokens via chunked processing
 - Context chaining between chunks for coherent output
 - Consolidation pass for final unified minutes
@@ -876,10 +922,9 @@ Generate structured meeting minutes from transcripts with persona-based output s
 - `organization`: Company/team names
 
 **Minutes Prompts** (`src/services/prompts/minutesPrompts.ts`):
-- `buildMinutesPrompt()`: XML-structured prompt for LLM
-- Includes meeting metadata, participants, agenda, transcript
-- Persona-based tone and style instructions
-- Obsidian Tasks format support for action items
+- `buildMinutesSystemPrompt(options: MinutesSystemPromptOptions)`: Options object pattern with `{ outputLanguage, personaInstructions, useGTD? }`
+- `buildConsolidationPrompt(options)`: Same options pattern for chunked consolidation
+- Conditional GTD schema injection and self-check item #9
 - Dictionary injection for name/term consistency
 
 **Minutes Modal** (`src/ui/modals/MinutesCreationModal.ts`):
@@ -890,6 +935,7 @@ Generate structured meeting minutes from transcripts with persona-based output s
 - Audio Transcription section: transcribe embedded audio files
 - UX flow: Documents → Dictionary → Audio (dependency-first ordering)
 - Persona selector from `minutes-personas.md`
+- GTD overlay toggle (after detail-level dropdown)
 - Dual output toggle (internal + public versions)
 - Obsidian Tasks format toggle
 
@@ -898,11 +944,12 @@ Generate structured meeting minutes from transcripts with persona-based output s
 - Default timezone (IANA format)
 - Default persona selection
 - Obsidian Tasks format toggle
+- GTD overlay default toggle (`minutesGTDOverlay`)
 
 **Minutes Utilities** (`src/utils/minutesUtils.ts`):
-- `formatMinutesFilename()`: Generate standardized filenames
-- `parseMinutesResponse()`: Extract structured data from LLM response
-- `formatMinutesMarkdown()`: Convert to final markdown output
+- `renderMinutesFromJson()`: JSON → markdown renderer with GTD support
+- `buildMinutesFrontmatter()`: YAML frontmatter generation
+- `buildMinutesMarkdown()`: Final markdown assembly with optional Obsidian Tasks block
 
 **Text Chunker** (`src/utils/textChunker.ts`):
 - `chunkText()`: Split long transcripts by token count
@@ -913,9 +960,8 @@ Generate structured meeting minutes from transcripts with persona-based output s
 
 **Minutes Personas** (`AI-Organiser/Config/minutes-personas.md`):
 ```markdown
-## Executive Summary
-- **Description**: Brief, action-focused minutes for executives
-- **Tone**: Professional, concise, results-oriented
+### Standard (default) [icon: file-text]
+> Concise, action-oriented minutes with decisions, actions, and key points
 ```
 
 **Terminology Dictionaries** (`AI-Organiser/Config/dictionaries/`):
@@ -927,7 +973,10 @@ Generate structured meeting minutes from transcripts with persona-based output s
 
 - **Transcript Chunking**: Long meetings split into 5000-token chunks
 - **Context Chaining**: Each chunk receives previous chunk's summary
-- **Persona System**: Reuses existing persona infrastructure
+- **Persona System**: 2 built-in personas (`standard`, `governance`) + custom via config file
+- **GTD Overlay**: Optional action classification by GTD context, renders as separate sections
+- **Obsidian Tasks + GTD**: When both enabled, GTD next-actions render as `- [ ]` checkboxes
+- **Options Object Pattern**: `MinutesSystemPromptOptions` for extensible prompt configuration
 - **Obsidian Tasks**: Actions formatted as `- [ ] Task @due(date)`
 - **Dual Output**: Optional public version with confidential info redacted
 - **Dictionary-First Workflow**: Extract terms from documents before transcription
@@ -1084,8 +1133,9 @@ onOpen() {
 **Component tests**: `tests/components/truncationControls.test.ts`
 **Prompt tests**: `tests/promptInvariants.test.ts`, `tests/minutesPrompts.test.ts`
 **Utility tests**: `tests/responseParser.test.ts`, `tests/textChunker.test.ts`, `tests/sourceDetection.test.ts`, `tests/frontmatterUtils.test.ts`, `tests/dashboardService.test.ts`
+**GTD & migration tests**: `tests/minutesGTDRendering.test.ts` (11 tests), `tests/settingsMigration.test.ts` (14 tests)
 
-Total: 1108 unit tests (54 suites) + 22 automated integration tests
+Total: 1218 unit tests (57 suites) + 22 automated integration tests
 
 ## Multi-Source Translation
 

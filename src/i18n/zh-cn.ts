@@ -431,7 +431,9 @@ export const zhCN: Translations = {
             detailLevelDesc: "输出中包含多少细节",
             detailConcise: "简洁 — 仅决议和行动项",
             detailStandard: "标准 — 议程、要点、决议、行动项、风险",
-            detailDetailed: "详细 — 包括延期事项和置信度"
+            detailDetailed: "详细 — 包括延期事项和置信度",
+            gtdOverlay: "GTD 行动分类",
+            gtdOverlayDesc: "按照 GTD 上下文分类会议行动（@办公室、@家、@电话等）"
         }
     },
 
@@ -1513,6 +1515,8 @@ export const zhCN: Translations = {
         fieldObsidianTasksDesc: "\u5C06\u884C\u52A8\u9879\u4EE5 - [ ] \u590D\u9009\u6846\u6DFB\u52A0",
         fieldDetailLevel: "\u8BE6\u7EC6\u7A0B\u5EA6",
         fieldDetailLevelDesc: "\u4F1A\u8BAE\u7EAA\u8981\u8F93\u51FA\u7684\u8BE6\u7EC6\u7A0B\u5EA6",
+        fieldGTDOverlay: "GTD \u884C\u52A8\u5206\u7C7B",
+        fieldGTDOverlayDesc: "\u6309\u7167 GTD \u4E0A\u4E0B\u6587\u5206\u7C7B\u4F1A\u8BAE\u884C\u52A8\uFF08@\u529E\u516C\u5BA4\u3001@\u5BB6\u7B49\uFF09",
         privacyWarning: "\u4F1A\u8BAE\u8BB0\u5F55\u53EF\u80FD\u5305\u542B\u673A\u5BC6\u4FE1\u606F\u3002\u5916\u90E8\u8F93\u51FA\u5C06\u88AB\u8131\u654F\u5904\u7406\uFF0C\u4F46\u5206\u4EAB\u524D\u5E94\u8FDB\u884C\u5BA1\u6838\u3002",
         participantsSection: "\u53C2\u4F1A\u4EBA\u5458",
         fieldParticipants: "\u53C2\u4F1A\u4EBA\u5458",

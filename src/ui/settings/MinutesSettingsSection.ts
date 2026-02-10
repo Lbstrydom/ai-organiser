@@ -83,6 +83,16 @@ export class MinutesSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
+            .setName(t.settings.minutes?.gtdOverlay || 'GTD action classification')
+            .setDesc(t.settings.minutes?.gtdOverlayDesc || 'Classify actions by GTD context (@office, @home, @call, etc.)')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.minutesGTDOverlay)
+                .onChange(async (value) => {
+                    this.plugin.settings.minutesGTDOverlay = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
             .setName(t.settings.minutes?.maxDocumentChars || 'Maximum document size')
             .setDesc(t.settings.minutes?.maxDocumentCharsDesc || 'Documents larger than this will trigger truncation options (default: 50000)')
             .addText(text => text

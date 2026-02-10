@@ -141,7 +141,9 @@ export const en: Translations = {
             detailLevelDesc: "How much detail to include in the output",
             detailConcise: "Concise — decisions & actions only",
             detailStandard: "Standard — agenda, key points, decisions, actions, risks",
-            detailDetailed: "Detailed — everything including deferred items & confidence"
+            detailDetailed: "Detailed — everything including deferred items & confidence",
+            gtdOverlay: "GTD action classification",
+            gtdOverlayDesc: "Classify meeting actions by GTD context (@office, @home, @call, etc.)"
         },
         configuration: {
             title: "Advanced",
@@ -1513,6 +1515,8 @@ export const en: Translations = {
         fieldObsidianTasksDesc: "Add actions as - [ ] checkboxes",
         fieldDetailLevel: "Detail level",
         fieldDetailLevelDesc: "How much detail to include in the minutes output",
+        fieldGTDOverlay: "GTD action classification",
+        fieldGTDOverlayDesc: "Classify actions by GTD context (@office, @home, etc.)",
         privacyWarning: "Transcripts may contain confidential information. External output will be sanitized but should be reviewed before sharing.",
         participantsSection: "Participants",
         fieldParticipants: "Participants",

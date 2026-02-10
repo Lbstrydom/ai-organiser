@@ -1,5 +1,5 @@
 import { normalizePath, TAbstractFile, TFile, Vault } from 'obsidian';
-import { Action, MinutesJSON } from '../services/prompts/minutesPrompts';
+import { Action, GTDAction, MinutesJSON } from '../services/prompts/minutesPrompts';
 import { MinutesDetailLevel } from '../core/constants';
 
 export interface MinutesFrontmatterInput {
@@ -141,7 +141,7 @@ export function buildMinutesMarkdown(
  * Used as primary rendering when LLM produces JSON-only output,
  * and as fallback when LLM markdown is empty/truncated.
  */
-export function renderMinutesFromJson(json: MinutesJSON, detailLevel: MinutesDetailLevel): string {
+export function renderMinutesFromJson(json: MinutesJSON, detailLevel: MinutesDetailLevel, obsidianTasksFormat?: boolean): string {
     const sections: string[] = [];
     const meta = json.metadata;
 
@@ -275,6 +275,47 @@ export function renderMinutesFromJson(json: MinutesJSON, detailLevel: MinutesDet
             return line;
         });
         sections.push(`## Deferred Items\n\n${dLines.join('\n')}`);
+    }
+
+    // GTD Processing (overlay — renders when present, ignores detailLevel)
+    const gtd = json.gtd_processing;
+    if (gtd) {
+        if (gtd.next_actions?.length > 0) {
+            // Group by context, sort keys alphabetically for deterministic output
+            const byContext = new Map<string, GTDAction[]>();
+            for (const a of gtd.next_actions) {
+                const ctx = a.context || '@uncategorized';
+                if (!byContext.has(ctx)) byContext.set(ctx, []);
+                byContext.get(ctx)!.push(a);
+            }
+            const sortedKeys = [...byContext.keys()].sort((a, b) => a.localeCompare(b));
+            const actionLines: string[] = [];
+            for (const ctx of sortedKeys) {
+                actionLines.push(`**${ctx}**`);
+                for (const a of byContext.get(ctx)!) {
+                    const bullet = obsidianTasksFormat ? '- [ ] ' : '- ';
+                    let line = `${bullet}${a.text}`;
+                    if (a.owner) line += ` (${a.owner})`;
+                    if (a.energy && a.energy !== 'medium') line += ` [${a.energy}]`;
+                    actionLines.push(line);
+                }
+            }
+            sections.push(`## GTD: Next Actions\n\n${actionLines.join('\n')}`);
+        }
+        if (gtd.waiting_for?.length > 0) {
+            const wLines = gtd.waiting_for.map(w => {
+                let line = `- ${w.text} — waiting on: ${w.waiting_on}`;
+                if (w.chase_date) line += ` (chase: ${w.chase_date})`;
+                return line;
+            });
+            sections.push(`## GTD: Waiting For\n\n${wLines.join('\n')}`);
+        }
+        if (gtd.projects?.length > 0) {
+            sections.push(`## GTD: Projects\n\n${gtd.projects.map(p => `- ${p}`).join('\n')}`);
+        }
+        if (gtd.someday_maybe?.length > 0) {
+            sections.push(`## GTD: Someday / Maybe\n\n${gtd.someday_maybe.map(s => `- ${s}`).join('\n')}`);
+        }
     }
 
     return sections.join('\n\n');

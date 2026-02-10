@@ -129,6 +129,8 @@ export interface Translations {
             detailConcise: string;
             detailStandard: string;
             detailDetailed: string;
+            gtdOverlay: string;
+            gtdOverlayDesc: string;
         };
         configuration: {
             title: string;
@@ -1514,6 +1516,8 @@ export interface Translations {
         fieldObsidianTasksDesc: string;
         fieldDetailLevel: string;
         fieldDetailLevelDesc: string;
+        fieldGTDOverlay: string;
+        fieldGTDOverlayDesc: string;
         privacyWarning: string;
         participantsSection: string;
         fieldParticipants: string;

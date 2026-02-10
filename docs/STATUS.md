@@ -1,12 +1,55 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** February 8, 2026
-**Status:** Companion Personas — Phases 1-6 Complete
+**Last Updated:** February 10, 2026
+**Status:** Companion Personas — All 11 Phases Complete
 
 ---
 
 ## Recent Updates
+
+### Companion Personas: Phases 7-11 (2026-02-10) — COMPLETE
+
+**Completed minutes persona simplification (6→2), GTD action classification overlay, settings migration, i18n, tests, and documentation.**
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 7 — Minutes Personas + GTD | 2 minutes personas (standard + governance), GTD overlay with context/energy classification | Complete |
+| Phase 8 — Settings Migration | `migrateOldSettings()` pure function, 5 retired minutes persona ID migrations, `student`→`brief` | Complete |
+| Phase 9 — i18n & Settings UI | GTD overlay labels (EN + ZH-CN), dynamic persona dropdowns, retired reference cleanup | Complete |
+| Phase 10 — Tests | GTD rendering (11), prompt injection (6), migration (14), config migration, 1218 tests total | Complete |
+| Phase 11 — Documentation | CLAUDE.md, AGENTS.md, usertest.md refreshed, retired-personas.md created | Complete |
+| Build | 1218 tests passing (57 suites) |
+
+**Key Architecture Decisions:**
+- **Options object pattern**: `buildMinutesSystemPrompt({ outputLanguage, personaInstructions, useGTD })` — extensible without breaking changes
+- **GTD conditional injection**: Schema only injected when `useGTD: true`, not on chunk extraction (needs full meeting context)
+- **GTD rendering**: Context keys sorted alphabetically for deterministic output; `- [ ]` checkboxes when Obsidian Tasks format enabled
+- **Pure migration function**: `migrateOldSettings()` in `settings.ts` — all migrations in one testable function, called from `loadSettings()`
+- **Schema version 4**: Config file migration bumps `v3`→`v4`, triggers rewrite of minutes-personas.md with icon support
+
+**Files Created:**
+- `tests/minutesGTDRendering.test.ts` — 11 tests for GTD rendering, context sorting, checkbox integration
+- `tests/settingsMigration.test.ts` — 14 tests for `migrateOldSettings()` pure function
+- `docs/retired-personas.md` — Migration reference for all retired persona IDs + schema version history
+
+**Files Modified:**
+- `src/core/settings.ts` — `minutesGTDOverlay` setting, `DEFAULT_MINUTES_PERSONA_ID`→`standard`, `migrateOldSettings()` function
+- `src/services/configurationService.ts` — 2 new DEFAULT_MINUTES_PERSONAS (standard + governance), schema version 4
+- `src/services/minutesService.ts` — `useGTD` passthrough in `generateMinutes()`
+- `src/services/prompts/minutesPrompts.ts` — Options object pattern, conditional GTD schema injection, self-check item #9
+- `src/utils/minutesUtils.ts` — GTD rendering in `renderMinutesFromJson()`, sorted context keys, checkbox support
+- `src/ui/modals/MinutesCreationModal.ts` — GTD overlay toggle after detail-level dropdown
+- `src/ui/settings/MinutesSettingsSection.ts` — GTD overlay default toggle
+- `src/main.ts` — Simplified `loadSettings()` to call `migrateOldSettings()`
+- `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — GTD overlay labels
+- `tests/minutesPrompts.test.ts` — Options object + GTD injection tests
+- `tests/promptInvariants.test.ts` — Minutes persona invariant tests
+- `tests/minutesAutoFill.test.ts` — `corporate-minutes`→`standard`
+- `docs/comp-plan.md` — All 11 phases checked off
+- `docs/usertest.md` — Fresh checklist with GTD tests
+
+---
 
 ### Companion Personas: Phases 1-6 (2026-02-08) — COMPLETE
 
@@ -50,8 +93,6 @@
 - `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — Companion messages + settings labels
 - `tests/promptInvariants.test.ts` — Writing persona invariant tests (8 new)
 - `docs/comp-plan.md` — Phases 1-6 checked off
-
-**Remaining Phases:** 7 (Minutes personas + GTD), 8 (Settings migration), 9 (i18n cleanup), 10 (Tests), 11 (Documentation)
 
 ---
 

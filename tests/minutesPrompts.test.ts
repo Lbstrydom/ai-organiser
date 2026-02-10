@@ -25,17 +25,17 @@ describe('Minutes Prompts - buildMinutesSystemPrompt', () => {
 
     describe('Language Handling', () => {
         it('should include specified output language', () => {
-            const prompt = buildMinutesSystemPrompt('English', 'Be professional.');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: 'Be professional.' });
             expect(prompt).toContain('English');
         });
 
         it('should handle Chinese language', () => {
-            const prompt = buildMinutesSystemPrompt('Chinese (Simplified)', 'Be professional.');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'Chinese (Simplified)', personaInstructions: 'Be professional.' });
             expect(prompt).toContain('Chinese (Simplified)');
         });
 
         it('should handle German language', () => {
-            const prompt = buildMinutesSystemPrompt('German', 'Be professional.');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'German', personaInstructions: 'Be professional.' });
             expect(prompt).toContain('German');
         });
     });
@@ -43,12 +43,12 @@ describe('Minutes Prompts - buildMinutesSystemPrompt', () => {
     describe('Persona Instructions', () => {
         it('should include persona instructions', () => {
             const persona = 'Focus on action items and decisions. Be concise.';
-            const prompt = buildMinutesSystemPrompt('English', persona);
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: persona });
             expect(prompt).toContain(persona);
         });
 
         it('should handle empty persona instructions', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('PERSONA INSTRUCTIONS');
             // Should not break even with empty persona
         });
@@ -57,7 +57,7 @@ describe('Minutes Prompts - buildMinutesSystemPrompt', () => {
             const persona = `Line 1
 Line 2
 Line 3`;
-            const prompt = buildMinutesSystemPrompt('English', persona);
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: persona });
             expect(prompt).toContain('Line 1');
             expect(prompt).toContain('Line 3');
         });
@@ -65,22 +65,22 @@ Line 3`;
 
     describe('Required Sections', () => {
         it('should include response format section', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('RESPONSE FORMAT');
         });
 
         it('should include JSON delimiter', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain(MINUTES_JSON_DELIMITER);
         });
 
         it('should include accuracy rules', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('ACCURACY RULES');
         });
 
         it('should include meeting context behavior', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('MEETING CONTEXT BEHAVIOR');
             expect(prompt).toContain('internal');
             expect(prompt).toContain('external');
@@ -88,23 +88,23 @@ Line 3`;
         });
 
         it('should include output schema', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('OUTPUT SCHEMA');
             expect(prompt).toContain('MinutesJSON');
         });
 
         it('should include self-check section', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('SELF-CHECK');
         });
 
         it('should include dictionary instructions', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('TERMINOLOGY DICTIONARY');
         });
 
         it('should include context documents instructions', () => {
-            const prompt = buildMinutesSystemPrompt('English', '');
+            const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(prompt).toContain('CONTEXT DOCUMENTS');
         });
     });
@@ -468,6 +468,42 @@ describe('Minutes Prompts - MINUTES_JSON_DELIMITER', () => {
     });
 });
 
+describe('Minutes Prompts - GTD Schema Injection', () => {
+    it('should NOT include gtd_processing schema when useGTD is false', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '', useGTD: false });
+        expect(prompt).not.toContain('gtd_processing');
+    });
+
+    it('should NOT include gtd_processing schema when useGTD is undefined', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '' });
+        expect(prompt).not.toContain('gtd_processing');
+    });
+
+    it('should include gtd_processing schema when useGTD is true', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '', useGTD: true });
+        expect(prompt).toContain('gtd_processing');
+        expect(prompt).toContain('next_actions');
+        expect(prompt).toContain('waiting_for');
+        expect(prompt).toContain('someday_maybe');
+    });
+
+    it('should include GTD context instructions when useGTD is true', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '', useGTD: true });
+        expect(prompt).toContain('@office');
+        expect(prompt).toContain('@home');
+    });
+
+    it('should include GTD self-check when useGTD is true', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '', useGTD: true });
+        expect(prompt).toContain('GTD context');
+    });
+
+    it('should NOT include GTD self-check when useGTD is false', () => {
+        const prompt = buildMinutesSystemPrompt({ outputLanguage: 'English', personaInstructions: '', useGTD: false });
+        expect(prompt).not.toContain('GTD OVERLAY');
+    });
+});
+
 describe('Minutes Prompts - Chunk Extraction Invariants', () => {
     describe('buildChunkExtractionPrompt', () => {
         it('should include required task section', () => {
@@ -507,34 +543,34 @@ describe('Minutes Prompts - Chunk Extraction Invariants', () => {
 describe('Minutes Prompts - Consolidation Invariants', () => {
     describe('buildConsolidationPrompt', () => {
         it('should include required task section', () => {
-            const prompt = buildConsolidationPrompt('English', 'Be professional');
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: 'Be professional' });
             // Task defined in prose, not XML
             expect(prompt).toContain('consolidating meeting items');
             expect(prompt).toContain('Deduplicate');
         });
 
         it('should include output language in consolidation rules', () => {
-            const engPrompt = buildConsolidationPrompt('English', '');
+            const engPrompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(engPrompt).toContain('English');
 
-            const frPrompt = buildConsolidationPrompt('French', '');
+            const frPrompt = buildConsolidationPrompt({ outputLanguage: 'French', personaInstructions: '' });
             expect(frPrompt).toContain('French');
         });
 
         it('should include persona instructions in output', () => {
             const persona = 'Focus on action items and risks';
-            const prompt = buildConsolidationPrompt('English', persona);
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: persona });
             expect(prompt).toContain(persona);
         });
 
         it('should include deduplication guidance for combining chunks', () => {
-            const prompt = buildConsolidationPrompt('English', '');
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: '' });
             // Should mention merging, combining, or deduplication
             expect(prompt.toLowerCase()).toMatch(/merge|combine|dedup|duplicate/);
         });
 
         it('should specify expected JSON structure for output', () => {
-            const prompt = buildConsolidationPrompt('English', '');
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: '' });
             // Should reference MinutesJSON structure
             expect(prompt).toContain('participants');
             expect(prompt).toContain('decisions');
@@ -542,7 +578,7 @@ describe('Minutes Prompts - Consolidation Invariants', () => {
         });
 
         it('should handle empty persona gracefully', () => {
-            const prompt = buildConsolidationPrompt('English', '');
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: '' });
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(500);
         });
@@ -551,13 +587,13 @@ describe('Minutes Prompts - Consolidation Invariants', () => {
             const persona = `Line 1
 Line 2
 Line 3`;
-            const prompt = buildConsolidationPrompt('English', persona);
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: persona });
             expect(prompt).toContain('Line 1');
             expect(prompt).toContain('Line 3');
         });
 
         it('should be a valid string with reasonable length', () => {
-            const prompt = buildConsolidationPrompt('English', 'Be concise');
+            const prompt = buildConsolidationPrompt({ outputLanguage: 'English', personaInstructions: 'Be concise' });
             expect(typeof prompt).toBe('string');
             expect(prompt.length).toBeGreaterThan(500);
         });

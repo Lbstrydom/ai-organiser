@@ -13,7 +13,7 @@ import { MinutesCreationModal } from '../src/ui/modals/MinutesCreationModal';
 function createPlugin(overrides: Partial<any> = {}) {
     return {
         settings: {
-            minutesDefaultPersona: 'corporate-minutes',
+            minutesDefaultPersona: 'standard',
             minutesObsidianTasksFormat: true,
             pluginFolder: 'AI-Organiser',
             minutesDefaultTimezone: 'UTC',

@@ -36,7 +36,8 @@ import {
 } from '../src/services/prompts/dictionaryPrompts';
 import {
     DEFAULT_PERSONAS,
-    DEFAULT_SUMMARY_PERSONAS
+    DEFAULT_SUMMARY_PERSONAS,
+    DEFAULT_MINUTES_PERSONAS
 } from '../src/services/configurationService';
 import {
     buildSummaryPrompt,
@@ -514,6 +515,51 @@ describe('Writing Personas - Invariants', () => {
             DEFAULT_PERSONAS.forEach(persona => {
                 expect(persona.icon).toBeTruthy();
             });
+        });
+    });
+});
+
+// ============================================================================
+// MINUTES PERSONAS INVARIANTS
+// ============================================================================
+
+describe('Minutes Personas - Invariants', () => {
+    describe('DEFAULT_MINUTES_PERSONAS', () => {
+        it('should have exactly 2 personas', () => {
+            expect(DEFAULT_MINUTES_PERSONAS.length).toBe(2);
+        });
+
+        it('all personas should have required fields', () => {
+            DEFAULT_MINUTES_PERSONAS.forEach(persona => {
+                expect(persona.id).toBeTruthy();
+                expect(persona.name).toBeTruthy();
+                expect(persona.prompt).toBeTruthy();
+                expect(persona.description).toBeTruthy();
+            });
+        });
+
+        it('persona IDs should be kebab-case', () => {
+            DEFAULT_MINUTES_PERSONAS.forEach(persona => {
+                expect(persona.id).toMatch(/^[a-z][a-z0-9-]*$/);
+            });
+        });
+
+        it('exactly one persona should be default', () => {
+            const defaults = DEFAULT_MINUTES_PERSONAS.filter(p => p.isDefault);
+            expect(defaults.length).toBe(1);
+            expect(defaults[0].id).toBe('standard');
+        });
+
+        it('all personas should have icons', () => {
+            DEFAULT_MINUTES_PERSONAS.forEach(persona => {
+                expect(persona.icon).toBeTruthy();
+            });
+        });
+
+        it('persona IDs should be unique', () => {
+            const ids = DEFAULT_MINUTES_PERSONAS.map(p => p.id);
+            const uniqueIds = new Set(ids);
+            expect(uniqueIds.size).toBe(ids.length);
         });
     });
 });

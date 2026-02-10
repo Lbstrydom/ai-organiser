@@ -47,6 +47,7 @@ interface MinutesModalState {
     dualOutput: boolean;
     obsidianTasks: boolean;
     detailLevel: string;
+    useGTD: boolean;
     languageOverride: string;
     customInstructions: string;
     // Audio transcription
@@ -133,6 +134,7 @@ export class MinutesCreationModal extends Modal {
             dualOutput: false,
             obsidianTasks: plugin.settings.minutesObsidianTasksFormat,
             detailLevel: plugin.settings.minutesDetailLevel || 'standard',
+            useGTD: plugin.settings.minutesGTDOverlay,
             languageOverride: 'auto',
             customInstructions: '',
             // Audio transcription
@@ -415,6 +417,14 @@ export class MinutesCreationModal extends Modal {
                 dropdown.onChange(value => this.state.detailLevel = value);
             });
 
+        new Setting(topSection)
+            .setName(t?.fieldGTDOverlay || 'GTD action classification')
+            .setDesc(t?.fieldGTDOverlayDesc || 'Classify actions by GTD context (@office, @home, etc.)')
+            .addToggle(toggle => {
+                toggle.setValue(this.state.useGTD);
+                toggle.onChange(value => this.state.useGTD = value);
+            });
+
         const warning = this.plugin.t.minutes?.privacyWarning;
         if (warning) {
             this.privacyWarningEl = topSection.createDiv({ cls: 'minutes-warning' });
@@ -572,7 +582,8 @@ export class MinutesCreationModal extends Modal {
                 languageOverride: this.state.languageOverride,
                 contextDocuments: contextDocuments || undefined,
                 dictionaryContent: dictionaryContent || undefined,
-                detailLevel: this.state.detailLevel as import('../../core/constants').MinutesDetailLevel
+                detailLevel: this.state.detailLevel as import('../../core/constants').MinutesDetailLevel,
+                useGTD: this.state.useGTD
             });
 
             this.close();

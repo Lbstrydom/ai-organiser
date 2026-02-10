@@ -83,6 +83,28 @@ export interface DeferredItem {
     reason?: string;
 }
 
+export interface GTDAction {
+    text: string;
+    /** Prompt-guided context, e.g. @office, @home, @call, @computer, @agenda, @errand */
+    context: string;
+    owner?: string;
+    /** 'medium' intentionally omitted during rendering — only low/high annotated */
+    energy?: 'low' | 'medium' | 'high';
+}
+
+export interface GTDWaitingItem {
+    text: string;
+    waiting_on: string;
+    chase_date?: string;
+}
+
+export interface GTDProcessing {
+    next_actions: GTDAction[];
+    waiting_for: GTDWaitingItem[];
+    projects: string[];
+    someday_maybe: string[];
+}
+
 export interface MinutesJSON {
     metadata: {
         title: string;
@@ -106,6 +128,7 @@ export interface MinutesJSON {
     notable_points: NotablePoint[];
     open_questions: OpenQuestion[];
     deferred_items: DeferredItem[];
+    gtd_processing?: GTDProcessing;
 }
 
 export interface ParsedMinutes {
@@ -116,7 +139,38 @@ export interface ParsedMinutes {
 
 export const MINUTES_JSON_DELIMITER = '<<AIO_MINUTES_JSON_END>>';
 
-export function buildMinutesSystemPrompt(outputLanguage: string, personaInstructions: string): string {
+export interface MinutesSystemPromptOptions {
+    outputLanguage: string;
+    personaInstructions: string;
+    useGTD?: boolean;
+}
+
+export function buildMinutesSystemPrompt(options: MinutesSystemPromptOptions): string {
+    const { outputLanguage, personaInstructions, useGTD } = options;
+
+    const gtdSchemaFragment = useGTD ? `,
+  "gtd_processing": {
+      "next_actions": [{ "text": "", "context": "@office|@home|@call|@computer|@agenda|@errand", "owner": "", "energy": "low|medium|high" }],
+      "waiting_for": [{ "text": "", "waiting_on": "", "chase_date": "" }],
+      "projects": [""],
+      "someday_maybe": [""]
+  }` : '';
+
+    const gtdOverlaySection = useGTD ? `
+
+<<< GTD OVERLAY >>>
+
+Classify each action into a GTD context:
+- @office, @home, @call, @computer, @agenda (waiting for next meeting), @errand
+Set energy: low (admin), medium (routine), high (complex/creative)
+
+Identify items where we are waiting on someone else - add to waiting_for.
+Identify multi-step commitments - add to projects (just the project name).
+Identify suggestions/ideas not committed to - add to someday_maybe.` : '';
+
+    const gtdSelfCheck = useGTD ? `
+9. Every action is classified with a GTD context.` : '';
+
     return `You are a corporate minute taker for professional meetings.
 
 <<< RESPONSE FORMAT - CRITICAL >>>
@@ -261,13 +315,14 @@ MinutesJSON (valid JSON, no markdown fences, must be first in response):
   ],
   "deferred_items": [
     { "id": "P1", "text": "", "reason": "" }
-  ]
+  ]${gtdSchemaFragment}
 }
 
 IMPORTANT: The JSON is the primary output. Ensure all notable_points, decisions, actions,
 risks, open_questions, and deferred_items are complete in the JSON. Markdown is rendered
 from the JSON automatically. Only output markdown after the delimiter if you have
 sufficient output tokens remaining.
+${gtdOverlaySection}
 
 <<< SELF-CHECK (run before returning) >>>
 
@@ -278,7 +333,7 @@ sufficient output tokens remaining.
 5. No invented names, numbers, or dates.
 6. Confidence is set for every item.
 7. open_questions includes anything marked TBC.
-8. verbatim_quote is empty unless resolution was explicitly read aloud.
+8. verbatim_quote is empty unless resolution was explicitly read aloud.${gtdSelfCheck}
 
 <<< EDGE CASES >>>
 
@@ -356,7 +411,7 @@ Rules:
 - If this chunk has no relevant items, return empty arrays.`;
 }
 
-export function buildConsolidationPrompt(outputLanguage: string, personaInstructions: string): string {
+export function buildConsolidationPrompt(options: MinutesSystemPromptOptions): string {
     return `You are consolidating meeting items extracted from multiple transcript chunks into final minutes.
 
 You will receive:
@@ -369,7 +424,7 @@ Your task:
 2. Renumber IDs sequentially (A1, A2... D1, D2...)
 3. Produce final MinutesJSON and markdown minutes
 
-${buildMinutesSystemPrompt(outputLanguage, personaInstructions)}`;
+${buildMinutesSystemPrompt(options)}`;
 }
 
 export function parseMinutesResponse(response: string): ParsedMinutes {

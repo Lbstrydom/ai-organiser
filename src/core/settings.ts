@@ -85,6 +85,7 @@ export interface AIOrganiserSettings {
     minutesDefaultPersona: string;       // Default minutes persona ID
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
     minutesDetailLevel: MinutesDetailLevel; // Minutes output detail: concise, standard, detailed
+    minutesGTDOverlay: boolean;              // GTD-style action classification overlay
     maxDocumentChars: number;            // Minutes: max document size before truncation
     oversizedDocumentBehavior: 'truncate' | 'full' | 'ask'; // Minutes: oversized behavior
     // Export Settings (DOCX/PPTX)
@@ -192,7 +193,7 @@ export const DEFAULT_PLUGIN_FOLDER = 'AI-Organiser';
 
 // Default persona IDs — single source of truth for fallback values
 export const DEFAULT_SUMMARY_PERSONA_ID = 'brief';
-export const DEFAULT_MINUTES_PERSONA_ID = 'corporate-minutes';
+export const DEFAULT_MINUTES_PERSONA_ID = 'standard';
 
 function getDefaultTimezone(): string {
     try {
@@ -231,9 +232,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     multiSourceOversizedBehavior: 'full' as OversizedBehavior,
     minutesOutputFolder: 'Meetings',
     minutesDefaultTimezone: getDefaultTimezone(),
-    minutesDefaultPersona: 'corporate-minutes',
+    minutesDefaultPersona: DEFAULT_MINUTES_PERSONA_ID,
     minutesObsidianTasksFormat: false,
     minutesDetailLevel: DEFAULT_MINUTES_DETAIL_LEVEL,
+    minutesGTDOverlay: false,
     maxDocumentChars: DEFAULT_MAX_DOCUMENT_CHARS,
     oversizedDocumentBehavior: 'ask' as OversizedBehavior,
     exportOutputFolder: 'Exports',
@@ -402,4 +404,48 @@ export function getPluginManagedFolders(settings: AIOrganiserSettings): string[]
     return [
         settings.pluginFolder, // Exclude the entire plugin folder
     ];
+}
+
+/**
+ * Pure function: migrates old settings to current schema.
+ * Called from loadSettings() in main.ts.
+ * All migration logic lives here for testability.
+ */
+export function migrateOldSettings(oldSettings: Record<string, any> | null): Record<string, any> | null {
+    if (!oldSettings) return oldSettings;
+
+    // Migrate old Ollama settings to local
+    if (oldSettings.serviceType === 'ollama') {
+        oldSettings.serviceType = 'local';
+        oldSettings.localEndpoint = oldSettings.ollamaEndpoint;
+        oldSettings.localModel = oldSettings.ollamaModel;
+        delete oldSettings.ollamaEndpoint;
+        delete oldSettings.ollamaModel;
+    }
+
+    // Migrate old tag range settings to maxTags
+    if (!oldSettings.maxTags) {
+        oldSettings.maxTags = oldSettings.tagRangeGenerateMax ||
+                              oldSettings.tagRangePredefinedMax ||
+                              DEFAULT_SETTINGS.maxTags;
+    }
+
+    // Migrate old summary persona ID
+    if (oldSettings.defaultSummaryPersona === 'student') {
+        oldSettings.defaultSummaryPersona = 'brief';
+    }
+
+    // Migrate ALL retired minutes persona IDs
+    const RETIRED_MINUTES_MAP: Record<string, string> = {
+        'corporate-minutes': 'standard',
+        'action-register-only': 'standard',
+        'client-mom-short': 'standard',
+        'technical-review': 'standard',
+        'board-governance': 'governance',
+    };
+    if (oldSettings.minutesDefaultPersona && RETIRED_MINUTES_MAP[oldSettings.minutesDefaultPersona]) {
+        oldSettings.minutesDefaultPersona = RETIRED_MINUTES_MAP[oldSettings.minutesDefaultPersona];
+    }
+
+    return oldSettings;
 }

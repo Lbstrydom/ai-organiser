@@ -41,6 +41,8 @@ export interface MinutesGenerationInput {
     dictionaryContent?: string;
     /** Minutes output detail level */
     detailLevel?: MinutesDetailLevel;
+    /** GTD action classification overlay */
+    useGTD?: boolean;
 }
 
 export interface MinutesGenerationResult {
@@ -74,13 +76,14 @@ export class MinutesService {
             ? `${personaPrompt}\n\nAdditional instructions:\n${input.customInstructions}`
             : personaPrompt;
 
+        const useGTD = input.useGTD ?? false;
         let parsed: ParsedMinutes;
 
         if (this.needsChunking(input.transcript)) {
-            parsed = await this.generateMinutesChunked(input, outputLanguage, personaInstructions);
+            parsed = await this.generateMinutesChunked(input, outputLanguage, personaInstructions, useGTD);
         } else {
             const prompt = [
-                buildMinutesSystemPrompt(outputLanguage, personaInstructions),
+                buildMinutesSystemPrompt({ outputLanguage, personaInstructions, useGTD }),
                 buildMinutesUserPrompt(
                     input.metadata,
                     this.parseParticipants(input.participantsRaw),
@@ -106,7 +109,7 @@ export class MinutesService {
         // LLM markdown is used only if it looks like actual markdown (has headings),
         // is substantial (>200 chars), and doesn't look like leftover JSON.
         const llmMarkdown = parsed.markdown.trim();
-        const renderedMarkdown = renderMinutesFromJson(parsed.json, detailLevel);
+        const renderedMarkdown = renderMinutesFromJson(parsed.json, detailLevel, input.metadata.obsidianTasksFormat);
         const baseMarkdown = this.isUsableMarkdown(llmMarkdown) ? llmMarkdown : renderedMarkdown;
 
         const markdown = buildMinutesMarkdown(baseMarkdown, parsed.markdownExternal, {
@@ -159,7 +162,8 @@ export class MinutesService {
     private async generateMinutesChunked(
         input: MinutesGenerationInput,
         outputLanguage: string,
-        personaInstructions: string
+        personaInstructions: string,
+        useGTD: boolean
     ): Promise<ParsedMinutes> {
         const chunks = typeof input.transcript === 'string'
             ? await chunkPlainTextAsync(input.transcript, { maxTokens: CHUNK_TOKEN_LIMIT, overlapChars: 500 })
@@ -218,7 +222,7 @@ export class MinutesService {
         new Notice(this.plugin.t.minutes?.consolidating || 'Consolidating minutes...', 2000);
 
         const consolidationPrompt = [
-            buildConsolidationPrompt(outputLanguage, personaInstructions),
+            buildConsolidationPrompt({ outputLanguage, personaInstructions, useGTD }),
             JSON.stringify(consolidationPayload, null, 2)
         ].join('\n\n');
 
