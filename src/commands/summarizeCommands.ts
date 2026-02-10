@@ -429,7 +429,8 @@ async function handleMultiSourceResult(
         }
         if (result.sources.audio.length === 1) {
             // Audio requires the AudioSelectModal for transcription options
-            void openAudioSummarizeModal(plugin, editor);
+            // Pass through persona/companion from multi-source selection
+            void openAudioSummarizeModal(plugin, editor, personaId, effectiveCompanion);
             return;
         }
     }
@@ -1349,7 +1350,9 @@ async function openYouTubeSummarizeModal(
 
 async function openAudioSummarizeModal(
     plugin: AIOrganiserPlugin,
-    editor: Editor
+    editor: Editor,
+    preselectedPersonaId?: string,
+    preselectedCompanion?: boolean
 ): Promise<void> {
     // Use the new helper that checks dedicated key, main provider, and provider settings
     const transcriptionConfig = await getAudioTranscriptionApiKey(plugin);
@@ -1366,11 +1369,15 @@ async function openAudioSummarizeModal(
     const modal = new AudioSelectModal(
         plugin.app,
         plugin.t,
-        plugin.settings.defaultSummaryPersona,
+        preselectedPersonaId || plugin.settings.defaultSummaryPersona,
         personas,
         plugin.settings.enableStudyCompanion,
         async (result: AudioSelectResult) => {
-            const companion = shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
+            // If caller pre-resolved companion (e.g. multi-source), honour it;
+            // otherwise compute from modal selections.
+            const companion = preselectedCompanion !== undefined
+                ? preselectedCompanion
+                : shouldIncludeCompanion(result.personaId, result.includeCompanion, plugin.settings.enableStudyCompanion);
             await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key, companion);
         }
     );

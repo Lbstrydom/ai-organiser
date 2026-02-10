@@ -122,8 +122,8 @@ export class AudioSelectModal extends Modal {
 
         // Persona selection dropdown
         new Setting(optionsSection)
-            .setName(this.t.modals.pdfSelect?.personaLabel || 'Summary Style')
-            .setDesc(this.t.modals.pdfSelect?.personaDesc || 'Choose how to format the summary')
+            .setName(this.t.modals.audioSelect?.personaLabel || 'Summary Style')
+            .setDesc(this.t.modals.audioSelect?.personaDesc || 'Choose how to format the summary')
             .addDropdown(dropdown => {
                 for (const persona of this.personas) {
                     dropdown.addOption(persona.id, persona.name);

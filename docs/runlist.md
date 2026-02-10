@@ -1,2 +1,2 @@
 Issues:
-1. Related Notes appears twice in the right window top bar
+1. email forqarding to obsidian

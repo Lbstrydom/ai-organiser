@@ -44,18 +44,18 @@
   - [x] Add i18n strings (types.ts, en.ts, zh-cn.ts)
   - [x] Thread `includeCompanion` from all callers (defaults undefined until Phase 5)
   - [x] Test: 15 tests in `tests/companionUtils.test.ts` (companion file creation, collision handling, empty no-op, shouldIncludeCompanion predicate, fallback safety)
-- [ ] **Phase 5 — Companion UI Toggle**
-  - [ ] Add `includeNarrativeCompanion` to `AIOrganiserSettings` and `DEFAULT_SETTINGS`
-  - [ ] Add conditional toggle to `UrlInputModal.ts`
-  - [ ] Add conditional toggle to `YouTubeInputModal.ts`
-  - [ ] Add conditional toggle to `MultiSourceModal.ts`
-  - [ ] Add conditional toggle to PDF/Audio persona selection
-  - [ ] Test: toggle visibility conditional on study persona, state flows through
-- [ ] **Phase 6 — Writing Personas Mirror**
-  - [ ] Replace `DEFAULT_PERSONAS` (writing, 8 current) in `configurationService.ts:89` with 5 new
-  - [ ] Rewrite `generatePersonasFileContent()` for new writing personas
-  - [ ] Write `writing-personas.md` config file content
-  - [ ] Test: writing personas load, "Improve Note" uses correct styles
+- [x] **Phase 5 — Companion UI Toggle**
+  - [x] Add `enableStudyCompanion` to `AIOrganiserSettings` and `DEFAULT_SETTINGS`
+  - [x] Add conditional toggle to `UrlInputModal.ts`
+  - [x] Add conditional toggle to `YouTubeInputModal.ts`
+  - [x] Add conditional toggle to `MultiSourceModal.ts`
+  - [x] Add conditional toggle to PDF/Audio persona selection
+  - [x] Test: toggle visibility conditional on study persona, state flows through
+- [x] **Phase 6 — Writing Personas Mirror**
+  - [x] Replace `DEFAULT_PERSONAS` (writing, 6 current) in `configurationService.ts:87` with 5 new
+  - [x] Rewrite `generatePersonasFileContent()` for new writing personas
+  - [x] Bump `CURRENT_PERSONA_SCHEMA_VERSION` to 3 for config file migration
+  - [x] Test: writing personas load, invariants (count, IDs, kebab-case, icons, mirror summary IDs)
 - [ ] **Phase 7 — Minutes: 2 Personas + GTD**
   - [ ] Replace `DEFAULT_MINUTES_PERSONAS` in `configurationService.ts:373` with 2 new
   - [ ] Define `GTDProcessing`, `GTDAction`, `GTDWaitingItem` interfaces in `minutesPrompts.ts`

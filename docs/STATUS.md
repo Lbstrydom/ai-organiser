@@ -1,12 +1,59 @@
 # AI Organiser - Development Status
 
 **Version:** 1.0.15
-**Last Updated:** February 3, 2026
-**Status:** Feature Complete - Context Menu & UX Polish
+**Last Updated:** February 8, 2026
+**Status:** Companion Personas — Phases 1-6 Complete
 
 ---
 
 ## Recent Updates
+
+### Companion Personas: Phases 1-6 (2026-02-08) — COMPLETE
+
+**Simplified personas from 6 to 5 across all persona types, added Study Companion dual-output, and wired companion into all summarization pipelines.**
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| Phase 1 — Clean Slate | Delete dead code, marker-based config migration | Complete |
+| Phase 2 — Summary Personas | 5 new summary personas (brief, study, business-operator, feynman, learning-insight) | Complete |
+| Phase 3 — Companion Schema | `companion_content` JSON field, `STUDY_COMPANION_DELIMITER`, `splitCompanionContent()` | Complete |
+| Phase 4 — Companion Pipelines | Wired companion into all 11 summarization pipelines (URL, YouTube, PDF, Audio, multi-source, plain text) | Complete |
+| Phase 5 — Companion UI Toggle | `enableStudyCompanion` setting, conditional toggle in URL/YouTube/PDF/Audio/MultiSource modals | Complete |
+| Phase 6 — Writing Personas Mirror | 5 writing personas mirroring summary IDs, schema version bump to 3 | Complete |
+| Build | 1181 tests passing (55 suites) |
+
+**Key Architecture Decisions:**
+- **Companion guard**: `shouldIncludeCompanion(personaId, includeCompanion, enableStudyCompanion)` — centralized predicate in `companionUtils.ts`
+- **Cursor-only gating**: Companion file created ONLY when user chooses "Insert at cursor" (never on copy/discard)
+- **Structured + traditional paths**: JSON `companion_content` field for structured; `STUDY_COMPANION_DELIMITER` for traditional; `splitCompanionContent()` safety net for fallback
+- **Multi-source**: Companion only on final synthesis, not per-source
+- **Persona mirroring**: Writing persona IDs exactly match summary persona IDs for consistency
+- **Config migration**: Marker-based versioning (`v3`) with backup of customized files
+
+**Files Created:**
+- `src/utils/companionUtils.ts` — `processCompanionOutput()` + `shouldIncludeCompanion()`
+- `tests/companionUtils.test.ts` — 15 tests for companion utility + predicate + edge cases
+
+**Files Modified:**
+- `src/services/configurationService.ts` — New DEFAULT_PERSONAS (5 writing), DEFAULT_SUMMARY_PERSONAS (5 summary), schema version 3, icon markers in config file generation
+- `src/commands/summarizeCommands.ts` — Companion threading in all 11 pipeline functions, multi-source single-audio persona passthrough
+- `src/services/prompts/structuredPrompts.ts` — `companion_content` in structured schema
+- `src/services/prompts/summaryPrompts.ts` — `STUDY_COMPANION_DELIMITER` for traditional path
+- `src/utils/responseParser.ts` — `splitCompanionContent()`, companion passthrough in structured parsing
+- `src/core/settings.ts` — `enableStudyCompanion` setting
+- `src/ui/modals/UrlInputModal.ts` — Companion toggle (study persona conditional)
+- `src/ui/modals/YouTubeInputModal.ts` — Companion toggle
+- `src/ui/modals/MultiSourceModal.ts` — Companion toggle + result field
+- `src/ui/modals/PdfSelectModal.ts` — Companion toggle
+- `src/ui/modals/AudioSelectModal.ts` — Companion toggle, fixed i18n keys
+- `src/ui/settings/SummarizationSettingsSection.ts` — `enableStudyCompanion` settings toggle
+- `src/i18n/types.ts`, `src/i18n/en.ts`, `src/i18n/zh-cn.ts` — Companion messages + settings labels
+- `tests/promptInvariants.test.ts` — Writing persona invariant tests (8 new)
+- `docs/comp-plan.md` — Phases 1-6 checked off
+
+**Remaining Phases:** 7 (Minutes personas + GTD), 8 (Settings migration), 9 (i18n cleanup), 10 (Tests), 11 (Documentation)
+
+---
 
 ### Right-Click Context Menu, Spellcheck & Folder Reorganization (2026-02-03) — COMPLETE
 

@@ -35,6 +35,7 @@ import {
     buildTermExtractionPrompt
 } from '../src/services/prompts/dictionaryPrompts';
 import {
+    DEFAULT_PERSONAS,
     DEFAULT_SUMMARY_PERSONAS
 } from '../src/services/configurationService';
 import {
@@ -456,6 +457,62 @@ describe('Summary Personas - Invariants', () => {
         it('persona IDs should be kebab-case', () => {
             DEFAULT_SUMMARY_PERSONAS.forEach(persona => {
                 expect(persona.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+            });
+        });
+    });
+});
+
+// ============================================================================
+// WRITING PERSONAS INVARIANTS
+// ============================================================================
+
+describe('Writing Personas - Invariants', () => {
+    describe('DEFAULT_PERSONAS', () => {
+        it('should have exactly 5 writing personas', () => {
+            expect(DEFAULT_PERSONAS.length).toBe(5);
+        });
+
+        it('each persona should have required properties', () => {
+            DEFAULT_PERSONAS.forEach(persona => {
+                expect(persona.id).toBeTruthy();
+                expect(persona.name).toBeTruthy();
+                expect(persona.description).toBeTruthy();
+                expect(persona.prompt).toBeTruthy();
+            });
+        });
+
+        it('each persona prompt should be substantive', () => {
+            DEFAULT_PERSONAS.forEach(persona => {
+                expect(persona.prompt.length).toBeGreaterThan(200);
+            });
+        });
+
+        it('persona IDs should be unique', () => {
+            const ids = DEFAULT_PERSONAS.map(p => p.id);
+            const uniqueIds = new Set(ids);
+            expect(uniqueIds.size).toBe(ids.length);
+        });
+
+        it('exactly one persona should be marked as default', () => {
+            const defaults = DEFAULT_PERSONAS.filter(p => p.isDefault);
+            expect(defaults.length).toBe(1);
+        });
+
+        it('persona IDs should be kebab-case', () => {
+            DEFAULT_PERSONAS.forEach(persona => {
+                expect(persona.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+            });
+        });
+
+        it('writing persona IDs mirror summary persona IDs', () => {
+            const writingIds = DEFAULT_PERSONAS.map(p => p.id).sort();
+            const summaryIds = DEFAULT_SUMMARY_PERSONAS.map(p => p.id).sort();
+            expect(writingIds).toEqual(summaryIds);
+        });
+
+        it('each persona should have an icon', () => {
+            DEFAULT_PERSONAS.forEach(persona => {
+                expect(persona.icon).toBeTruthy();
             });
         });
     });
