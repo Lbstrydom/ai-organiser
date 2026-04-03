@@ -1,9 +1,9 @@
 {
   "id": "ai-organiser",
   "name": "AI Organiser",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "minAppVersion": "1.4.0",
-  "description": "AI-powered note organization, tagging, summarization, and research for Obsidian",
+  "description": "AI-powered note organization with 37+ commands: tagging, summarization, web research, meeting minutes, presentations, semantic search, Kindle sync, and more. Supports 14 cloud providers and local LLMs.",
   "author": "L Strydom",
   "authorUrl": "https://github.com/Lbstrydom",
   "isDesktopOnly": false
