@@ -1,0 +1,217 @@
+import { App, Modal, setIcon, TFile } from 'obsidian';
+import type { AIOrganiserSettings } from '../../core/settings';
+import type { ConversationSummary } from '../../utils/chatExportUtils';
+import type { ConversationPersistenceService } from '../../services/chat/conversationPersistenceService';
+import type { ProjectConfig } from '../../services/chat/projectService';
+import type { ProjectService } from '../../services/chat/projectService';
+import type { Translations } from '../../i18n/types';
+
+export type ResumePickerResult =
+    | { action: 'resume'; filePath: string; projectId?: string }
+    | { action: 'new' }
+    | { action: 'new-in-project'; projectId: string }
+    | { action: 'create-project'; name: string }
+    | null;
+
+/** Action returned when user makes a selection in the resume picker. */
+export type ResumeAction =
+    | { type: 'new' }
+    | { type: 'cancel' }
+    | { type: 'resume'; filePath: string; state: import('../../utils/chatExportUtils').ConversationState }
+    | { type: 'new-in-project'; projectId: string }
+    | { type: 'new-project' };
+
+export class ChatResumePickerModal extends Modal {
+    private result: ResumePickerResult = null;
+    private resolvePromise: ((result: ResumePickerResult) => void) | null = null;
+
+    constructor(
+        app: App,
+        private readonly persistenceService: ConversationPersistenceService,
+        private readonly projectService: ProjectService,
+        private readonly settings: AIOrganiserSettings,
+        private readonly t: Translations['modals']['unifiedChat'],
+    ) {
+        super(app);
+    }
+
+    async onOpen(): Promise<void> {
+        const { contentEl, titleEl } = this;
+        titleEl.setText(this.t.resumeTitle);
+        contentEl.addClass('ai-organiser-resume-picker-modal');
+        contentEl.empty();
+
+        const [projects, conversations] = await Promise.all([
+            this.projectService.listProjects(),
+            this.persistenceService.listRecent(20),
+        ]);
+
+        if (projects.length === 0 && conversations.length === 0) {
+            // Nothing to show — resolve immediately with new
+            this.resolve({ action: 'new' });
+            this.close();
+            return;
+        }
+
+        // Projects section
+        if (projects.length > 0) {
+            contentEl.createEl('div', { cls: 'ai-organiser-resume-section-header', text: this.t.resumeProjects });
+            for (const project of projects) {
+                await this.renderProjectRow(contentEl, project);
+            }
+            contentEl.createEl('div', { cls: 'ai-organiser-resume-divider' });
+        }
+
+        // Recent conversations section
+        const unfiled = conversations.filter(c => !c.projectId);
+        if (unfiled.length > 0) {
+            contentEl.createEl('div', { cls: 'ai-organiser-resume-section-header', text: this.t.resumeRecent });
+            for (const conv of unfiled) {
+                this.renderConversationRow(contentEl, conv);
+            }
+            contentEl.createEl('div', { cls: 'ai-organiser-resume-divider' });
+        }
+
+        // New / Create project actions
+        const newBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
+        setIcon(newBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'message-square-plus');
+        newBtn.createSpan({ text: this.t.resumeNewConversation });
+        newBtn.addEventListener('click', () => {
+            this.resolve({ action: 'new' });
+            this.close();
+        });
+
+        const newProjectBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
+        setIcon(newProjectBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'folder-plus');
+        newProjectBtn.createSpan({ text: this.t.resumeNewProject });
+        newProjectBtn.addEventListener('click', () => this.handleCreateProject());
+
+        // Keyboard navigation
+        this.setupKeyboardNav(contentEl);
+    }
+
+    waitForResult(): Promise<ResumePickerResult> {
+        return new Promise(resolve => { this.resolvePromise = resolve; });
+    }
+
+    onClose(): void {
+        // ESC = new conversation
+        if (!this.result) {
+            this.resolvePromise?.({ action: 'new' });
+        }
+        this.contentEl.empty();
+    }
+
+    private async renderProjectRow(container: HTMLElement, project: ProjectConfig): Promise<void> {
+        const count = await this.projectService.countConversations(project.id);
+        const row = container.createDiv({ cls: 'ai-organiser-resume-project-row' });
+
+        const iconEl = row.createSpan({ cls: 'ai-organiser-resume-row-icon' });
+        setIcon(iconEl, 'folder');
+        row.createSpan({ cls: 'ai-organiser-resume-row-title', text: project.name });
+        row.createSpan({
+            cls: 'ai-organiser-resume-row-meta',
+            text: this.t.resumeProjectChats.replace('{count}', String(count)),
+        });
+
+        row.addEventListener('click', () => {
+            this.resolve({ action: 'new-in-project', projectId: project.id });
+            this.close();
+        });
+    }
+
+    private renderConversationRow(container: HTMLElement, conv: ConversationSummary): void {
+        const row = container.createDiv({ cls: 'ai-organiser-resume-conv-row' });
+
+        const iconEl = row.createSpan({ cls: 'ai-organiser-resume-row-icon' });
+        setIcon(iconEl, 'message-square');
+        row.createSpan({ cls: 'ai-organiser-resume-row-title', text: conv.title });
+
+        const meta = this.formatTimeAgo(conv.updatedAt ?? conv.lastActiveAt ?? new Date().toISOString());
+        row.createSpan({
+            cls: 'ai-organiser-resume-row-meta',
+            text: `${this.t.resumeMessages.replace('{count}', String(conv.messageCount))} · ${meta}`,
+        });
+
+        row.addEventListener('click', () => {
+            this.resolve({ action: 'resume', filePath: conv.filePath, projectId: conv.projectId });
+            this.close();
+        });
+    }
+
+    private async handleCreateProject(): Promise<void> {
+        const name = await this.promptProjectName();
+        if (!name) return;
+        this.resolve({ action: 'create-project', name });
+        this.close();
+    }
+
+    private promptProjectName(): Promise<string | null> {
+        return new Promise(resolve => {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = this.t.resumeProjectName;
+            // Simple inline prompt in modal footer
+            const footer = this.contentEl.createDiv({ cls: 'ai-organiser-resume-project-name-row' });
+            footer.appendChild(input);
+
+            const createBtn = footer.createEl('button', { text: this.t.resumeProjectCreate, cls: 'mod-cta' });
+            const cancelBtn = footer.createEl('button', { text: this.t.resumeProjectCancel });
+
+            const done = (value: string | null) => {
+                footer.remove();
+                resolve(value);
+            };
+
+            createBtn.addEventListener('click', () => done(input.value.trim() || null));
+            cancelBtn.addEventListener('click', () => done(null));
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') done(input.value.trim() || null);
+                if (e.key === 'Escape') done(null);
+            });
+            input.focus();
+        });
+    }
+
+    private resolve(result: ResumePickerResult): void {
+        this.result = result;
+        this.resolvePromise?.(result);
+    }
+
+    private formatTimeAgo(isoString: string): string {
+        const diff = Date.now() - new Date(isoString).getTime();
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+        let time = '';
+        if (days > 0) time = `${days}d`;
+        else if (hours > 0) time = `${hours}h`;
+        else time = `${minutes}m`;
+        return this.t.resumeTimeAgo.replace('{time}', time);
+    }
+
+    private setupKeyboardNav(container: HTMLElement): void {
+        const rows = () => Array.from(container.querySelectorAll<HTMLElement>(
+            '.ai-organiser-resume-project-row, .ai-organiser-resume-conv-row, .ai-organiser-resume-action-row'
+        ));
+
+        container.addEventListener('keydown', (e) => {
+            const all = rows();
+            const focused = document.activeElement as HTMLElement;
+            const idx = all.indexOf(focused);
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                all[Math.min(idx + 1, all.length - 1)]?.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                all[Math.max(idx - 1, 0)]?.focus();
+            } else if (e.key === 'Enter' && idx >= 0) {
+                e.preventDefault();
+                all[idx].click();
+            }
+        });
+
+        rows().forEach(row => row.setAttribute('tabindex', '0'));
+    }
+}

@@ -1,0 +1,55 @@
+main.js
+data.json
+*.map
+.DS_Store
+node_modules
+.vscode/
+dist/
+build/
+Library/
+*.js
+!test-*.js
+*.js.map
+*.d.ts
+!src/types/*.d.ts
+
+.roo/
+.claude/
+.env
+.env.local
+CLAUDE.local.md
+AGENTS.local.md
+.vercel/
+*.log
+
+# Problematic files created by Windows
+nul
+--db-path
+
+# Internal documentation (dev-only)
+docs/STATUS.md
+docs/usertest.md
+docs/plans/
+docs/completed/
+docs/mobile/
+docs/sert/
+CHANGES_SUMMARY.md
+DEBUG_INSTRUCTIONS.md
+NESTED_TAGS_IMPLEMENTATION_PLAN.md
+NESTED_TAGS_IMPLEMENTATION_PLAN_CN.md
+TEST_INSTRUCTIONS.md
+coverage/
+
+# Internal dev tools
+scripts/openai-audit.mjs
+.github/skills/
+.github/appmod/
+.githooks/
+
+# Test output files (manual test runs)
+*-output.txt
+test-*.txt
+test*.txt
+
+# Brand guidelines (local only — not pushed to public repo)
+AI-Organiser/Config/brand-guidelines.md

@@ -1,0 +1,10 @@
+{
+  "id": "ai-organiser",
+  "name": "AI Organiser",
+  "version": "1.0.15",
+  "minAppVersion": "1.4.0",
+  "description": "AI-powered note organization, tagging, summarization, and research for Obsidian",
+  "author": "L Strydom",
+  "authorUrl": "https://github.com/Lbstrydom",
+  "isDesktopOnly": false
+}

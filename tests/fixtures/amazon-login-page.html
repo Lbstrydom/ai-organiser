@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Amazon Sign-In</title>
+</head>
+<body>
+  <div id="authportal-main-section">
+    <form name="signIn" method="post" action="https://www.amazon.com/ap/signin">
+      <div class="a-section">
+        <label for="ap_email">Email or mobile phone number</label>
+        <input type="email" id="ap_email" name="email" autocomplete="username">
+      </div>
+      <div class="a-section">
+        <label for="ap_password">Password</label>
+        <input type="password" id="ap_password" name="password" autocomplete="current-password">
+      </div>
+      <div class="a-section">
+        <input id="signInSubmit" type="submit" value="Sign-In">
+      </div>
+      <div class="a-section">
+        <a id="createAccountSubmit" href="https://www.amazon.com/ap/register">Create your Amazon account</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>
