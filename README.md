@@ -251,8 +251,6 @@ See `AGENTS.md` for detailed architecture documentation.
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-Originally based on work by [Nie Hu](https://github.com/niehu2018). Current development and maintenance by [L Strydom](https://github.com/Lbstrydom).
-
 ## Support
 
 If you find this plugin useful:
