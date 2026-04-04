@@ -1,8 +1,9 @@
-import { App, Modal, Notice, setIcon } from 'obsidian';
+import { App, Modal } from 'obsidian';
 import type { ProjectConfig } from '../../services/chat/projectService';
 import type { ProjectService } from '../../services/chat/projectService';
 import type { Translations } from '../../i18n/types';
 import { listen } from '../utils/domUtils';
+import { ConfirmationModal } from './ConfirmationModal';
 
 export class ProjectSettingsModal extends Modal {
     private localConfig: ProjectConfig;
@@ -35,7 +36,7 @@ export class ProjectSettingsModal extends Modal {
         const instrArea = contentEl.createEl('textarea', {
             cls: 'ai-organiser-project-settings-textarea',
             attr: { rows: '6', placeholder: this.t.projectInstructionsDesc },
-        }) as HTMLTextAreaElement;
+        });
         instrArea.value = this.localConfig.instructions;
         this.cleanups.push(listen(instrArea, 'input', () => {
             this.localConfig.instructions = instrArea.value;
@@ -58,14 +59,19 @@ export class ProjectSettingsModal extends Modal {
         const deleteBtn = actions.createEl('button', { text: this.t.projectDelete, cls: 'mod-warning' });
         const saveBtn = actions.createEl('button', { text: 'Save', cls: 'mod-cta' });
 
-        this.cleanups.push(listen(deleteBtn, 'click', async () => {
-            if (confirm(this.t.projectDeleteConfirm.replace('{name}', this.localConfig.name))) {
-                await this.projectService.deleteProject(this.localConfig.id);
-                this.close();
-            }
+        this.cleanups.push(listen(deleteBtn, 'click', () => {
+            new ConfirmationModal(
+                this.app,
+                'Delete Project',
+                this.t.projectDeleteConfirm.replace('{name}', this.localConfig.name),
+                () => { void (async () => {
+                    await this.projectService.deleteProject(this.localConfig.id);
+                    this.close();
+                })(); }
+            ).open();
         }));
 
-        this.cleanups.push(listen(saveBtn, 'click', async () => {
+        this.cleanups.push(listen(saveBtn, 'click', () => { void (async () => {
             await this.projectService.updateProject(this.localConfig.id, {
                 instructions: this.localConfig.instructions,
                 memory: this.localConfig.memory,
@@ -73,7 +79,7 @@ export class ProjectSettingsModal extends Modal {
             });
             this.onSaved(this.localConfig);
             this.close();
-        }));
+        })(); }));
     }
 
     private renderMemoryList(container: HTMLElement): void {
@@ -98,7 +104,7 @@ export class ProjectSettingsModal extends Modal {
         const addRow = container.createDiv({ cls: 'ai-organiser-project-settings-add-row' });
         const input = addRow.createEl('input', {
             attr: { type: 'text', placeholder: this.t.projectMemoryAdd },
-        }) as HTMLInputElement;
+        });
         const addBtn = addRow.createEl('button', { text: '+' });
         const doAdd = () => {
             const val = input.value.trim();
@@ -131,8 +137,8 @@ export class ProjectSettingsModal extends Modal {
 
         const addRow = container.createDiv({ cls: 'ai-organiser-project-settings-add-row' });
         const input = addRow.createEl('input', {
-            attr: { type: 'text', placeholder: '[[Note title]]' },
-        }) as HTMLInputElement;
+            attr: { type: 'text', placeholder: '[[Note title]]' }, // eslint-disable-line obsidianmd/ui/sentence-case -- wikilink syntax
+        });
         const addBtn = addRow.createEl('button', { text: '+' });
         const doAdd = () => {
             const val = input.value.replace(/^\[\[|\]\]$/g, '').trim();

@@ -153,7 +153,7 @@ export class PdfSelectModal extends Modal {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.pdf,application/pdf';
-        input.style.display = 'none';
+        input.addClass('ai-organiser-hidden');
 
         input.onchange = () => {
             const file = input.files?.[0];

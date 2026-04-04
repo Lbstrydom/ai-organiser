@@ -169,7 +169,10 @@ function splitAtBoundaries(text: string, maxChars: number): string[] {
  * falling back to boundary-aware splitting for oversized sentences.
  */
 function splitOversizedParagraph(paragraph: string, maxChars: number, chunks: string[]): string {
-    const sentences = paragraph.split(/(?<=[.!?])\s+/);
+    const sentences = paragraph.split(/([.!?])\s+/).reduce<string[]>((acc, part, i, arr) => {
+        if (i % 2 === 0) acc.push(part + (arr[i + 1] ?? ''));
+        return acc;
+    }, []);
     let currentChunk = '';
 
     for (const sentence of sentences) {

@@ -88,11 +88,11 @@ export class NotebookLMExportModal extends Modal {
 
         // Latin-only warning
         const latinWarningDiv = contentEl.createDiv({ cls: 'notebooklm-latin-warning' });
-        latinWarningDiv.style.backgroundColor = 'var(--background-modifier-message)';
-        latinWarningDiv.style.padding = '8px 12px';
-        latinWarningDiv.style.borderRadius = '4px';
-        latinWarningDiv.style.marginTop = '12px';
-        latinWarningDiv.style.borderLeft = '3px solid var(--text-warning)';
+        latinWarningDiv.setCssProps({ '--bg': 'var(--background-modifier-message)' }); latinWarningDiv.addClass('ai-organiser-bg-custom');
+        latinWarningDiv.setCssProps({ '--pad': '8px 12px' }); latinWarningDiv.addClass('ai-organiser-pad-custom');
+        latinWarningDiv.addClass('ai-organiser-rounded');
+        latinWarningDiv.addClass('ai-organiser-mt-12');
+        latinWarningDiv.setCssProps({ '--border-left': '3px solid var(--text-warning)' }); latinWarningDiv.addClass('ai-organiser-border-left-custom');
 
         const warningText = this.t.notebooklm?.latinOnlyWarning ||
             'Note: PDF export currently supports Latin characters only. Non-Latin text (CJK, Arabic, Cyrillic, etc.) may not render correctly.';
@@ -104,10 +104,10 @@ export class NotebookLMExportModal extends Modal {
         // Source count / size warnings
         if (this.preview.warnings.sourceCountWarning || this.preview.warnings.totalSizeWarning) {
             const warningsDiv = contentEl.createDiv({ cls: 'notebooklm-warnings' });
-            warningsDiv.style.backgroundColor = 'var(--background-modifier-error)';
-            warningsDiv.style.padding = '8px 12px';
-            warningsDiv.style.borderRadius = '4px';
-            warningsDiv.style.marginTop = '12px';
+            warningsDiv.addClass('ai-organiser-bg-error');
+            warningsDiv.setCssProps({ '--pad': '8px 12px' }); warningsDiv.addClass('ai-organiser-pad-custom');
+            warningsDiv.addClass('ai-organiser-rounded');
+            warningsDiv.addClass('ai-organiser-mt-12');
 
             if (this.preview.warnings.sourceCountWarning) {
                 warningsDiv.createEl('p', { text: this.preview.warnings.sourceCountWarning });
@@ -119,7 +119,7 @@ export class NotebookLMExportModal extends Modal {
 
         // Post-export action setting
         const settingsDiv = contentEl.createDiv({ cls: 'notebooklm-settings' });
-        settingsDiv.style.marginTop = '16px';
+        settingsDiv.addClass('ai-organiser-mt-16');
 
         new Setting(settingsDiv)
             .setName(mt.postExportLabel)
@@ -136,8 +136,8 @@ export class NotebookLMExportModal extends Modal {
 
         // Progress container (hidden initially)
         this.progressContainer = contentEl.createDiv({ cls: 'notebooklm-progress' });
-        this.progressContainer.style.marginTop = '16px';
-        this.progressContainer.style.display = 'none';
+        this.progressContainer.addClass('ai-organiser-mt-16');
+        this.progressContainer.addClass('ai-organiser-hidden');
 
         this.progressMessage = this.progressContainer.createEl('p', {
             text: '',
@@ -150,7 +150,7 @@ export class NotebookLMExportModal extends Modal {
 
         // Buttons
         const buttonsDiv = contentEl.createDiv({ cls: 'modal-button-container' });
-        buttonsDiv.style.marginTop = '20px';
+        buttonsDiv.addClass('ai-organiser-mt-20');
 
         new Setting(buttonsDiv)
             .addButton(btn => {
@@ -183,7 +183,7 @@ export class NotebookLMExportModal extends Modal {
 
         // Show progress UI
         if (this.progressContainer) {
-            this.progressContainer.style.display = 'block';
+            this.progressContainer.addClass('ai-organiser-block');
         }
 
         // Disable buttons
@@ -244,7 +244,7 @@ export class NotebookLMExportModal extends Modal {
 
         // Hide export button
         if (this.exportButton) {
-            this.exportButton.style.display = 'none';
+            this.exportButton.addClass('ai-organiser-hidden');
         }
     }
 

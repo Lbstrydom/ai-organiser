@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Kindle, Amazon are brand names; placeholders contain email/URL formats */
 /**
  * Kindle Settings Section
  *

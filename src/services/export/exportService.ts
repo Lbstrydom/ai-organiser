@@ -5,7 +5,7 @@
  * Handles frontmatter stripping, content concatenation, and vault file creation.
  */
 
-import { normalizePath, TFile, Vault } from 'obsidian';
+import { TFile, Vault } from 'obsidian';
 import { generateDocx } from './markdownDocxGenerator';
 import type { DocxOptions } from './markdownDocxGenerator';
 import { generatePptx } from './markdownPptxGenerator';

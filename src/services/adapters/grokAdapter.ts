@@ -1,7 +1,7 @@
 import { BaseAdapter } from './baseAdapter';
 import { BaseResponse, RequestBody, AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
-import { SYSTEM_PROMPT } from '../../utils/constants';
+// SYSTEM_PROMPT available if needed for future use
 
 export class GrokAdapter extends BaseAdapter {
     private readonly defaultConfig = {

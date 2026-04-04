@@ -119,7 +119,7 @@ export class TagNetworkView extends ItemView {
         this.contentEl.empty();
     }
 
-    public async onResize(): Promise<void> {
+    public onResize(): void {
         if (Platform.isMobile) return;
         this.render();
     }
@@ -159,7 +159,7 @@ export class TagNetworkView extends ItemView {
         }
 
         statusEl.setText(t.loadingVisualization);
-        this.loadD3AndRender(container, searchState, tooltip, statusEl, (handler) => { onSelectionChange = handler; });
+        void this.loadD3AndRender(container, searchState, tooltip, statusEl, (handler) => { onSelectionChange = handler; });
     }
 
     // ── UI building helpers ─────────────────────────────────────
@@ -181,7 +181,7 @@ export class TagNetworkView extends ItemView {
         input.setAttr('aria-label', t.searchPlaceholder);
 
         const dropdown = searchContainer.createDiv({ cls: 'ai-organiser-tag-network-dropdown' });
-        dropdown.style.display = 'none';
+        dropdown.addClass('ai-organiser-hidden');
 
         const nodeById = new Map(nodes.map(node => [node.id, node]));
         const selectedIds = new Set<string>();
@@ -198,7 +198,7 @@ export class TagNetworkView extends ItemView {
         };
 
         const hideDropdown = () => {
-            dropdown.style.display = 'none';
+            dropdown.addClass('ai-organiser-hidden');
             dropdown.empty();
         };
 
@@ -210,7 +210,7 @@ export class TagNetworkView extends ItemView {
                 if (input.value.trim().length > 0) {
                     const emptyItem = dropdown.createDiv({ cls: 'ai-organiser-tag-network-dropdown-item ai-organiser-tag-network-dropdown-empty' });
                     emptyItem.setText(t.noMatchingTags);
-                    dropdown.style.display = 'block';
+                    dropdown.addClass('ai-organiser-block');
                 } else {
                     hideDropdown();
                 }
@@ -230,7 +230,7 @@ export class TagNetworkView extends ItemView {
                 });
             });
 
-            dropdown.style.display = 'block';
+            dropdown.addClass('ai-organiser-block');
             return { suggestions, activeIndex: Math.max(0, Math.min(activeIndex, suggestions.length - 1)) };
         };
 
@@ -262,7 +262,7 @@ export class TagNetworkView extends ItemView {
             const index = selectedOrder.indexOf(id);
             if (index >= 0) selectedOrder.splice(index, 1);
 
-            const chip = chipContainer.querySelector(`[data-chip-id="${id}"]`) as HTMLElement | null;
+            const chip = chipContainer.querySelector(`[data-chip-id="${id}"]`);
             if (chip) {
                 chip.remove();
             } else {
@@ -563,8 +563,8 @@ export class TagNetworkView extends ItemView {
             );
 
             tooltip.addClass('visible');
-            tooltip.style.left = `${event.pageX + 5}px`;
-            tooltip.style.top = `${event.pageY + 5}px`;
+            tooltip.setCssProps({ '--popup-left': `${event.pageX + 5}px` });
+            tooltip.setCssProps({ '--popup-top': `${event.pageY + 5}px` });
 
             const content = tooltip.querySelector('.tag-tooltip-content');
             if (content) {
@@ -572,11 +572,10 @@ export class TagNetworkView extends ItemView {
                     getId(l.source) === d.id || getId(l.target) === d.id
                 ).length;
                 const connectionText = t.tooltipConnections.replace('{count}', String(connectionCount));
-                content.innerHTML = `
-                    <div class="tag-tooltip-title">${d.label}</div>
-                    <div class="tag-tooltip-info">${t.tooltipFrequency}: ${d.frequency}</div>
-                    <div class="tag-tooltip-info">${connectionText}</div>
-                `;
+                content.empty();
+                content.createDiv({ cls: 'tag-tooltip-title', text: d.label });
+                content.createDiv({ cls: 'tag-tooltip-info', text: `${t.tooltipFrequency}: ${d.frequency}` });
+                content.createDiv({ cls: 'tag-tooltip-info', text: connectionText });
             }
         }).on('mouseout', () => {
             applyFilterState();
@@ -621,7 +620,7 @@ export class TagNetworkView extends ItemView {
         });
 
         this.cleanup.push(() => simulation.stop());
-        statusEl.style.display = 'none';
+        statusEl.addClass('ai-organiser-hidden');
         return handleSearch;
     }
 
@@ -688,7 +687,7 @@ export class TagNetworkView extends ItemView {
                     cls: 'ai-organiser-tag-network-list-button',
                     text: `#${n.label}`
                 });
-                button.addEventListener('click', async () => {
+                button.addEventListener('click', () => { void (async () => {
                     const leaf = this.app.workspace.getLeaf('tab');
                     if (leaf) {
                         await leaf.setViewState({
@@ -696,9 +695,9 @@ export class TagNetworkView extends ItemView {
                             state: { query: `tag:#${n.label}` },
                             active: true
                         });
-                        this.app.workspace.revealLeaf(leaf);
+                        void this.app.workspace.revealLeaf(leaf);
                     }
-                });
+                })(); });
 
                 const connectionCount = connectionCounts.get(n.id) || 0;
                 itemEl.createEl('small', {

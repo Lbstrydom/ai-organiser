@@ -3,7 +3,7 @@
  * Shows a one-time privacy warning for cloud LLM usage
  */
 
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 
 export class PrivacyNoticeModal extends Modal {

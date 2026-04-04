@@ -219,7 +219,7 @@ export class ProjectService {
         const folder = this.app.vault.getFolderByPath(config.folderPath);
         if (!folder) return 0;
         return folder.children.filter(
-            c => c instanceof TFile && (c as TFile).extension === 'md' && (c as TFile).basename !== '_project'
+            c => c instanceof TFile && c.extension === 'md' && c.basename !== '_project'
         ).length;
     }
 
@@ -228,7 +228,7 @@ export class ProjectService {
         if (!config) return;
         const folder = this.app.vault.getFolderByPath(config.folderPath);
         if (folder) {
-            await this.app.vault.delete(folder, true);
+            await this.app.fileManager.trashFile(folder);
         }
     }
 

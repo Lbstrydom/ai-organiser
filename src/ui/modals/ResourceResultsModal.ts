@@ -111,7 +111,7 @@ export class ResourceResultsModal extends Modal {
             const info = item.createEl('div', { cls: 'ai-organiser-resource-results-info' });
 
             // Title as link
-            const titleLink = info.createEl('a', {
+            info.createEl('a', {
                 text: result.title,
                 cls: 'ai-organiser-resource-results-title',
                 attr: {
@@ -141,12 +141,13 @@ export class ResourceResultsModal extends Modal {
                 attr: { 'aria-label': 'Copy URL' }
             });
             setIcon(copyButton, 'copy');
-            copyButton.addEventListener('click', async (e) => {
+            copyButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                await navigator.clipboard.writeText(result.url);
-                setIcon(copyButton, 'check');
-                setTimeout(() => setIcon(copyButton, 'copy'), 2000);
+                void navigator.clipboard.writeText(result.url).then(() => {
+                    setIcon(copyButton, 'check');
+                    setTimeout(() => setIcon(copyButton, 'copy'), 2000);
+                });
             });
         }
     }

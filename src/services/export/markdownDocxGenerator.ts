@@ -8,7 +8,7 @@
  */
 
 import { parseMarkdown, extractTables } from '../../utils/markdownParser';
-import type { MarkdownLine, MarkdownTable } from '../../utils/markdownParser';
+import type { MarkdownTable } from '../../utils/markdownParser';
 
 export interface DocxOptions {
     title?: string;
@@ -30,7 +30,7 @@ export async function generateDocx(
 
     const lines = parseMarkdown(markdownContent, false);
     const tables = extractTables(lines);
-    const tableStartIndices = new Set(tables.map(t => t.startIndex));
+    const _tableStartIndices = new Set(tables.map(t => t.startIndex));
 
     const children: any[] = [];
 
@@ -168,7 +168,7 @@ function buildDocxTable(
     docx: any,
     docFont: string
 ): any {
-    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, BorderStyle, ShadingType } = docx;
+    const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, ShadingType } = docx;
 
     const headerRow = new TableRow({
         tableHeader: true,

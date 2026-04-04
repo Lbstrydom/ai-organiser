@@ -1,4 +1,4 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService, MultimodalLLMService, SummarizeOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, LanguageCode } from './types';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
@@ -576,7 +576,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const { url, headers, body } = this.adapter.formatStreamingRequest!(prompt);
 
-        // Use native fetch() for streaming (requestUrl doesn't support ReadableStream)
+        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
         const response = await fetch(url, {
             method: 'POST',
             headers,

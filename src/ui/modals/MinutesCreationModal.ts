@@ -3,7 +3,7 @@ import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
-import type { MeetingContext, OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
+import type { OutputAudience, ConfidentialityLevel } from '../../services/prompts/minutesPrompts';
 import { detectEmbeddedAudio, DetectedContent } from '../../utils/embeddedContentDetector';
 import { isRecordingSupported } from '../../services/audioRecordingService';
 import { AudioRecorderModal } from './AudioRecorderModal';
@@ -226,8 +226,8 @@ export class MinutesCreationModal extends Modal {
             text: this.state.outputFolder || '—',
             cls: 'ai-organiser-folder-display'
         });
-        folderDisplayEl.style.marginRight = '8px';
-        folderDisplayEl.style.color = 'var(--text-muted)';
+        folderDisplayEl.addClass('ai-organiser-mr-8');
+        folderDisplayEl.addClass('ai-organiser-text-muted');
 
         outputFolderSetting.addButton(btn => btn
             .setButtonText(this.plugin.t.modals?.folderScopePicker?.selectButton || 'Select')
@@ -312,7 +312,7 @@ export class MinutesCreationModal extends Modal {
         new Setting(topSection)
             .setName(t?.fieldLocation || 'Location')
             .addText(text => {
-                text.setPlaceholder('Boardroom or Zoom')
+                text.setPlaceholder('Boardroom or Zoom') // eslint-disable-line obsidianmd/ui/sentence-case -- Zoom is a brand name
                     .setValue(this.state.location)
                     .onChange(value => this.state.location = value.trim());
                 this.locationInputEl = text.inputEl;
@@ -495,7 +495,7 @@ export class MinutesCreationModal extends Modal {
             text: t?.participantListSaveCurrent || 'Save as list',
             cls: 'mod-muted'
         });
-        this.cleanups.push(listen(saveBtn, 'click', () => this.handleSaveCurrentParticipantList()));
+        this.cleanups.push(listen(saveBtn, 'click', () => { void this.handleSaveCurrentParticipantList(); }));
 
         // Label + description
         section.createEl('label', {
@@ -1714,7 +1714,7 @@ export class MinutesCreationModal extends Modal {
      */
     private showStatusBanner(banner: HTMLElement, filename: string): void {
         const display = this.truncateFilename(filename, 40);
-        banner.style.display = 'block';
+        banner.addClass('ai-organiser-block');
         banner.textContent = `\u2705 File loaded: ${display}`;
         logger.debug('Minutes', 'Status banner updated:', `${display} parentNode: ${banner.parentNode?.nodeName}`);
     }

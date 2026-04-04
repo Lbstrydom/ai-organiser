@@ -35,7 +35,7 @@ export class MinutesSettingsSection extends BaseSettingSection {
             .setName(t.settings.minutes?.defaultTimezone || 'Default timezone')
             .setDesc(t.settings.minutes?.defaultTimezoneDesc || 'IANA timezone (e.g., America/New_York)')
             .addText(text => text
-                .setPlaceholder('America/New_York')
+                .setPlaceholder('America/New_York') // eslint-disable-line obsidianmd/ui/sentence-case -- IANA timezone format
                 .setValue(this.plugin.settings.minutesDefaultTimezone)
                 .onChange((value) => {
                     this.plugin.settings.minutesDefaultTimezone = value.trim() || this.plugin.settings.minutesDefaultTimezone;

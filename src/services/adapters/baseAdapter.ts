@@ -57,8 +57,8 @@ export abstract class BaseAdapter extends BaseLLMService {
             if (typeof result === 'string') {
                 try {
                     result = this.extractJsonFromContent(result);
-                } catch (error) {
-                    //console.error('Failed to parse JSON from response:', error);
+                } catch (_error) {
+                    //console.error('Failed to parse JSON from response:', _error);
                     // If JSON parsing fails, try to extract tags directly
                     const tags = this.extractTagsFromText(result);
                     result = {
@@ -124,21 +124,21 @@ export abstract class BaseAdapter extends BaseLLMService {
     }
 
     async analyzeTags(content: string, existingTags: string[]): Promise<any> {
-        const prompt = this.buildPrompt(content, existingTags, TaggingMode.Hybrid, 10, this.config.language);
+        const prompt = this.buildPrompt(content, existingTags, TaggingMode.Hybrid, 10, this.config.language); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy tagging mode
         const response = await this.makeRequest(prompt);
         return this.parseResponse(response);
     }
 
     async testConnection(): Promise<{ result: any; error?: any }> {
         try {
-            const response = await this.makeRequest('test');
+            await this.makeRequest('test');
             return { result: { success: true } };
         } catch (error) {
             return { result: { success: false }, error };
         }
     }
 
-    protected async makeRequest(prompt: string): Promise<any> {
+    protected async makeRequest(_prompt: string): Promise<any> {
         // This method should not be called directly.
         // HTTP requests should be made through CloudLLMService which uses Obsidian's requestUrl
         // to avoid CORS issues. Adapters are meant to format/parse requests, not make them.
@@ -238,8 +238,7 @@ export abstract class BaseAdapter extends BaseLLMService {
             }
             
             return typeof content === 'string' ? content : JSON.stringify(content);
-        } catch (error) {
-            //console.error('Failed to parse response content:', error);
+        } catch (_error) {
             return '';
         }
     }
@@ -272,7 +271,7 @@ export abstract class BaseAdapter extends BaseLLMService {
      * @param options - Optional request options
      * @returns Formatted request body
      */
-    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): any {
+    formatMultimodalRequest(parts: ContentPart[], _options?: { maxTokens?: number }): any {
         const textContent = extractTextFromParts(parts);
         return this.formatRequest(textContent);
     }

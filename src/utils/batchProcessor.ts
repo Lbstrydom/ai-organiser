@@ -80,8 +80,8 @@ export class BatchProcessor {
                     lastNoticeTime = currentTime;
                 }
 
-            } catch (error) {
-                //console.error('Error processing batch:', error);
+            } catch (_error) {
+                // Error processing batch — continue with next item
             }
         }
 

@@ -1,4 +1,4 @@
-import { App, Modal, setIcon, TFile } from 'obsidian';
+import { App, Modal, setIcon } from 'obsidian';
 import type { AIOrganiserSettings } from '../../core/settings';
 import type { ConversationSummary } from '../../utils/chatExportUtils';
 import type { ConversationPersistenceService } from '../../services/chat/conversationPersistenceService';
@@ -84,7 +84,7 @@ export class ChatResumePickerModal extends Modal {
         const newProjectBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
         setIcon(newProjectBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'folder-plus');
         newProjectBtn.createSpan({ text: this.t.resumeNewProject });
-        newProjectBtn.addEventListener('click', () => this.handleCreateProject());
+        newProjectBtn.addEventListener('click', () => { void this.handleCreateProject(); });
 
         // Keyboard navigation
         this.setupKeyboardNav(contentEl);

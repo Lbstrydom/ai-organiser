@@ -191,7 +191,10 @@ export function splitIntoSegments(text: string, maxChars: number): string[] {
             result.push(seg);
         } else {
             // Force-split at sentence boundaries
-            const sentences = seg.split(/(?<=[.!?])\s+/);
+            const sentences = seg.split(/([.!?])\s+/).reduce<string[]>((acc, part, i, arr) => {
+                if (i % 2 === 0) acc.push(part + (arr[i + 1] ?? ''));
+                return acc;
+            }, []);
             let chunk = '';
             for (const sentence of sentences) {
                 if (chunk.length + sentence.length + 1 > maxChars && chunk.length > 0) {

@@ -85,7 +85,7 @@ export class KindleSyncModal extends Modal {
         const t = this.plugin.t;
         this.modalEl.addClass('ai-organiser-kindle-sync');
         this.titleEl.setText(t.modals.kindle.title);
-        this.modalEl.style.maxWidth = '650px';
+        this.modalEl.setCssProps({ '--max-w': '650px' }); this.modalEl.addClass('ai-organiser-max-w-custom');
         this.renderSource();
     }
 
@@ -156,7 +156,7 @@ export class KindleSyncModal extends Modal {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.txt';
-        this.cleanups.push(listen(input, 'change', async () => {
+        this.cleanups.push(listen(input, 'change', () => { void (async () => {
             const file = input.files?.[0];
             if (!file) return;
             try {
@@ -165,7 +165,7 @@ export class KindleSyncModal extends Modal {
             } catch (error) {
                 new Notice(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
-        }));
+        })(); }));
         input.click();
     }
 
@@ -175,14 +175,14 @@ export class KindleSyncModal extends Modal {
             new Notice(this.plugin.t.modals.kindle.noTxtFiles);
             return;
         }
-        new VaultTextFilePicker(this.app, textFiles, async (file) => {
+        new VaultTextFilePicker(this.app, textFiles, (file) => { void (async () => {
             try {
                 const content = await this.app.vault.read(file);
                 this.handleClippingsContent(content);
             } catch (error) {
                 new Notice(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
-        }).open();
+        })(); }).open();
     }
 
     private handleClippingsContent(content: string): void {
@@ -343,7 +343,7 @@ export class KindleSyncModal extends Modal {
                 const selected = this.books.filter(b =>
                     this.selectedBooks.has(generateBookKey(b.title, b.author))
                 );
-                this.runImport(selected);
+                void this.runImport(selected);
             });
 
         // UI sync helpers
@@ -370,7 +370,7 @@ export class KindleSyncModal extends Modal {
 
         const progressBar = contentEl.createDiv({ cls: 'ai-organiser-kindle-progress' });
         const progressFill = progressBar.createDiv({ cls: 'ai-organiser-kindle-progress-fill' });
-        progressFill.style.width = '0%';
+        progressFill.setCssProps({ '--progress-width': '0%' }); progressFill.addClass('ai-organiser-dynamic-width');
 
         const statusEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-status' });
         const bookCountEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-status' });
@@ -388,7 +388,7 @@ export class KindleSyncModal extends Modal {
                 headingEl.textContent = t.modals.kindle.enhancing;
             }
             const pct = p.total > 0 ? Math.round((p.current / p.total) * 100) : 0;
-            progressFill.style.width = `${pct}%`;
+            progressFill.setCssProps({ '--dynamic-width': `${pct}%` });
             if (p.bookTitle) {
                 statusEl.textContent = p.bookTitle;
             }
@@ -530,7 +530,7 @@ export class KindleSyncModal extends Modal {
                     e.preventDefault();
                     const file = this.app.vault.getAbstractFileByPath(cf.path);
                     if (file instanceof TFile) {
-                        this.app.workspace.getLeaf(true).openFile(file);
+                        void this.app.workspace.getLeaf(true).openFile(file);
                     }
                 }));
             }
@@ -591,10 +591,8 @@ export class KindleSyncModal extends Modal {
     }
 
     private async startAmazonSync(): Promise<void> {
-        const t = this.plugin.t;
-
         // Wire up debug mode for scraper logging
-        setScraperDebugMode(this.plugin.settings.debugMode);
+        setScraperDebugMode(this.plugin.settings.debugMode); // eslint-disable-line @typescript-eslint/no-deprecated -- still functional, migration pending
 
         // Privacy gate
         const proceed = await ensurePrivacyConsent(this.plugin, 'cloud');
@@ -602,8 +600,6 @@ export class KindleSyncModal extends Modal {
 
         const cookiePayload = await this.acquireValidCookies();
         if (!cookiePayload) return;
-
-        const region = this.plugin.settings.kindleAmazonRegion;
 
         // Create AbortController for the Amazon flow
         this.abortController = new AbortController();
@@ -858,7 +854,7 @@ export class KindleSyncModal extends Modal {
             .setCta()
             .onClick(() => {
                 const selected = this.amazonBooks.filter(b => this.selectedBooks.has(b.asin));
-                this.runAmazonImport(selected);
+                void this.runAmazonImport(selected);
             });
 
         // UI sync helpers
@@ -881,7 +877,7 @@ export class KindleSyncModal extends Modal {
 
         const progressBar = contentEl.createDiv({ cls: 'ai-organiser-kindle-progress' });
         const progressFill = progressBar.createDiv({ cls: 'ai-organiser-kindle-progress-fill' });
-        progressFill.style.width = '0%';
+        progressFill.setCssProps({ '--progress-width': '0%' }); progressFill.addClass('ai-organiser-dynamic-width');
 
         const statusEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-status' });
         const bookCountEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-status' });
@@ -896,7 +892,7 @@ export class KindleSyncModal extends Modal {
                 headingEl.textContent = t.modals.kindle.enhancing;
             }
             const pct = p.total > 0 ? Math.round((p.current / p.total) * 100) : 0;
-            progressFill.style.width = `${pct}%`;
+            progressFill.setCssProps({ '--dynamic-width': `${pct}%` });
             if (p.bookTitle) statusEl.textContent = p.bookTitle;
             bookCountEl.textContent = t.modals.kindle.progress
                 .replace('{current}', String(p.current))

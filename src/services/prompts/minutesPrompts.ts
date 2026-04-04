@@ -298,7 +298,7 @@ Language: ${outputLanguage}.`;
 }
 
 function buildSharedPromptSuffix(options: MinutesStylePromptOptions): string {
-    const { useGTD, dualOutput, meetingContext, outputAudience, styleReference, customInstructions } = options;
+    const { useGTD, dualOutput, meetingContext: _meetingContext, outputAudience: _outputAudience, styleReference, customInstructions } = options;
 
     // Response format
     const responseFormatSection = dualOutput
@@ -1014,10 +1014,10 @@ export function parseAgendaExtractionResponse(response: string): AgendaExtractio
         endTime: typeof parsed.endTime === 'string' ? parsed.endTime : '',
         location: typeof parsed.location === 'string' ? parsed.location : '',
         participants: Array.isArray(parsed.participants)
-            ? parsed.participants.filter((i: unknown) => typeof i === 'string' && (i as string).trim())
+            ? parsed.participants.filter((i: unknown) => typeof i === 'string' && (i).trim())
             : [],
         agendaItems: Array.isArray(parsed.agendaItems)
-            ? parsed.agendaItems.filter((i: unknown) => typeof i === 'string' && (i as string).trim())
+            ? parsed.agendaItems.filter((i: unknown) => typeof i === 'string' && (i).trim())
             : [],
     };
 }

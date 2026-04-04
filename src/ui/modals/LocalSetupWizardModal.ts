@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Setup wizard contains brand names (Ollama, Whisper, OpenAI) and technical terms */
 /**
  * Local Setup Wizard Modal
  * Guides users through setting up local AI (Ollama, Whisper) for offline use
@@ -212,7 +213,7 @@ interface WhisperModel {
     description: string;
 }
 
-const WHISPER_MODELS: WhisperModel[] = [
+const _WHISPER_MODELS: WhisperModel[] = [
     { name: 'Whisper Tiny', id: 'tiny', sizeGB: 0.075, quality: 'basic', description: 'Fastest, lowest accuracy. Good for clear audio.' },
     { name: 'Whisper Base', id: 'base', sizeGB: 0.15, quality: 'basic', description: 'Fast with reasonable accuracy.' },
     { name: 'Whisper Small', id: 'small', sizeGB: 0.5, quality: 'good', description: 'Good balance of speed and accuracy. Recommended.' },

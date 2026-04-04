@@ -1,5 +1,4 @@
 import { Platform, Setting } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
 import { AdapterType } from '../../services/adapters';
 import { buildProviderOptions, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -67,7 +66,7 @@ export class MobileSettingsSection extends BaseSettingSection {
                 .setName(t.settings.mobile.customEndpoint)
                 .setDesc(t.settings.mobile.customEndpointDesc)
                 .addText(text => text
-                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions')
+                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions') // eslint-disable-line obsidianmd/ui/sentence-case -- URL
                     .setValue(plugin.settings.mobileCustomEndpoint)
                     .onChange((value) => {
                         plugin.settings.mobileCustomEndpoint = value.trim();

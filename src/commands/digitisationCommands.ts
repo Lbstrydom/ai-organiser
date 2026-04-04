@@ -210,11 +210,13 @@ export async function findTargetImages(
     }
 
     if (images.length === 1) {
-        return [images[0].resolvedFile as TFile];
+        const file = images[0].resolvedFile;
+        return file instanceof TFile ? [file] : [];
     }
 
     // Strategy 3: Multiple images — show multi-select picker
-    return await showMultiImagePicker(plugin, images.map(img => img.resolvedFile as TFile));
+    const resolved = images.map(img => img.resolvedFile).filter((f): f is TFile => f instanceof TFile);
+    return await showMultiImagePicker(plugin, resolved);
 }
 
 /** Max images to auto-select to avoid accidental VLM cost */
@@ -350,7 +352,7 @@ async function loadImageDataUrl(app: any, file: TFile): Promise<string> {
         'bmp': 'image/bmp',
         'svg': 'image/svg+xml'
     };
-    const mediaType = mediaTypeMap[ext] || 'application/octet-stream';
+    const _mediaType = mediaTypeMap[ext] || 'application/octet-stream';
 
     // Convert to base64 data URL
     return new Promise((resolve, reject) => {
@@ -362,7 +364,7 @@ async function loadImageDataUrl(app: any, file: TFile): Promise<string> {
                 reject(new Error('Failed to read image as data URL'));
             }
         };
-        reader.onerror = () => reject(reader.error);
+        reader.onerror = () => reject(reader.error ?? new Error('Failed to read image'));
         reader.readAsDataURL(blob);
     });
 }

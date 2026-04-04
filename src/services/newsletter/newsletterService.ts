@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/no-tfile-tfolder-cast -- TFile cast used for test compatibility */
 /**
  * Newsletter Service
  *

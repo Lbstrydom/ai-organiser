@@ -60,9 +60,9 @@ export class SketchPadModal extends Modal {
         this.canvasEl = canvasWrap.createEl('canvas', { cls: 'ai-organiser-sketch-canvas' });
         this.canvasEl.width = CANVAS_WIDTH;
         this.canvasEl.height = CANVAS_HEIGHT;
-        this.canvasEl.style.width = `${CANVAS_CSS_WIDTH}px`;
-        this.canvasEl.style.height = `${CANVAS_CSS_HEIGHT}px`;
-        this.canvasEl.style.touchAction = 'none';
+        this.canvasEl.setCssProps({ '--dynamic-width': `${CANVAS_CSS_WIDTH}px` });
+        this.canvasEl.setCssProps({ '--dynamic-height': `${CANVAS_CSS_HEIGHT}px` });
+        this.canvasEl.addClass('ai-organiser-touch-none');
 
         const ctx = this.canvasEl.getContext('2d');
         if (!ctx) {
@@ -197,7 +197,7 @@ export class SketchPadModal extends Modal {
         if (event.pointerType === 'pen' && !this.stylusSeen) {
             this.stylusSeen = true;
             // Stylus detected: let touch gestures scroll the canvas wrapper instead of drawing
-            this.canvasEl.style.touchAction = 'pan-x pan-y';
+            this.canvasEl.addClass('ai-organiser-sketch-canvas-stylus');
         }
         if (this.stylusSeen && event.pointerType === 'touch') {
             return;

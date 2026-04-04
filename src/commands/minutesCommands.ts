@@ -72,6 +72,7 @@ async function saveDocxWithDialog(baseName: string, buffer: ArrayBuffer): Promis
     const defaultName = `${baseName}.docx`;
 
     try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require
         const remote = require('@electron/remote');
         const result = await remote.dialog.showSaveDialog({
             defaultPath: defaultName,
@@ -82,6 +83,7 @@ async function saveDocxWithDialog(baseName: string, buffer: ArrayBuffer): Promis
         });
 
         if (!result.canceled && result.filePath) {
+            // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: save dialog writes DOCX to filesystem
             const fs = require('node:fs');
             fs.writeFileSync(result.filePath, Buffer.from(buffer));
             return result.filePath;

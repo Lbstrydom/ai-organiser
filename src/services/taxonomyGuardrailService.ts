@@ -4,7 +4,7 @@
  * Uses deterministic normalization first, LLM repair as fallback.
  */
 
-import { Taxonomy, TaxonomyEntry } from './configurationService';
+import { Taxonomy } from './configurationService';
 import { SummarizableLLMService } from './types';
 import { buildTaxonomyRepairPrompt } from './prompts/tagPrompts';
 import type { ValidationResult, ValidationIssue } from './validators/types';

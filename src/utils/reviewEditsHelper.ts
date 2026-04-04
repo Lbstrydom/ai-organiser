@@ -24,14 +24,14 @@ export function showReviewOrApply(
 ): Promise<ReviewAction> {
     // Fast exit — skip O(m*n) diff when feature is off
     if (!plugin.settings.enableReviewedEdits) {
-        applyFn();
+        void applyFn();
         return Promise.resolve('accept');
     }
 
     const diff = computeLineDiff(oldContent, newContent);
 
     if (!hasMeaningfulChanges(diff)) {
-        applyFn();
+        void applyFn();
         return Promise.resolve('accept');
     }
 
@@ -44,7 +44,7 @@ export function showReviewOrApply(
             diff,
             stats,
             newContent,
-            async (action: ReviewAction) => {
+            (action: ReviewAction) => { void (async () => {
                 if (action === 'accept') {
                     await applyFn();
                 } else if (action === 'copy') {
@@ -53,7 +53,7 @@ export function showReviewOrApply(
                 }
                 // 'reject' — do nothing
                 resolve(action);
-            }
+            })(); }
         );
         modal.open();
     });

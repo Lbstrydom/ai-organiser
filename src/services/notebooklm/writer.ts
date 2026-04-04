@@ -5,7 +5,7 @@
  * This file is kept as a stub for future PDF export implementation.
  */
 
-import { App, TFolder } from 'obsidian';
+import { App } from 'obsidian';
 import { PackManifest, Changelog } from './types';
 
 /**

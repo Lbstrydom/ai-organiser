@@ -10,7 +10,7 @@ export function registerClearCommands(plugin: AIOrganiserPlugin) {
         name: plugin.t.commands.clearTags || plugin.t.commands.clearTagsForCurrentNote,
         icon: 'eraser',
         callback: () => {
-            new ClearTagsScopeModal(plugin.app, plugin, async (scope: ClearTagsScope) => {
+            new ClearTagsScopeModal(plugin.app, plugin, (scope: ClearTagsScope) => { void (async () => {
                 switch (scope) {
                     case 'note':
                         await clearTagsForCurrentNote(plugin);
@@ -24,7 +24,7 @@ export function registerClearCommands(plugin: AIOrganiserPlugin) {
                     default:
                         break;
                 }
-            }).open();
+            })(); }).open();
         }
     });
 }

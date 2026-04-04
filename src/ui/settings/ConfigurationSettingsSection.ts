@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Taxonomy setup UI contains action phrases and technical terms */
 import { Setting, Notice, Modal, App, TFolder } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -9,8 +10,8 @@ import { withBusyIndicator } from '../../utils/busyIndicator';
  * Existing item with potential suggested change
  */
 interface ReviewItem {
-    current: SuggestedDiscipline | SuggestedTheme | null;  // null for new items
-    suggested: SuggestedDiscipline | SuggestedTheme | null;  // null for "keep as-is"
+    current: SuggestedDiscipline | null;  // null for new items
+    suggested: SuggestedDiscipline | null;  // null for "keep as-is"
     action: 'keep' | 'modify' | 'add' | 'remove';
     selected: boolean;
 }
@@ -28,7 +29,7 @@ class ReviewComparisonModal extends Modal {
     constructor(
         app: App,
         itemType: 'theme' | 'discipline',
-        currentItems: (SuggestedDiscipline | SuggestedTheme)[],
+        currentItems: (SuggestedDiscipline)[],
         suggestedChanges: TaxonomyChange[],
         onConfirm: (items: ReviewItem[]) => void,
         onRefine: (context: string) => void
@@ -43,7 +44,7 @@ class ReviewComparisonModal extends Modal {
     }
 
     private buildReviewItems(
-        currentItems: (SuggestedDiscipline | SuggestedTheme)[],
+        currentItems: (SuggestedDiscipline)[],
         changes: TaxonomyChange[]
     ): ReviewItem[] {
         const items: ReviewItem[] = [];
@@ -109,21 +110,18 @@ class ReviewComparisonModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.style.width = '700px';
-        contentEl.style.maxWidth = '90vw';
+        contentEl.addClass('ai-organiser-review-modal');
 
         const typeLabel = this.itemType === 'theme' ? 'Themes' : 'Disciplines';
         contentEl.createEl('h2', { text: `Review ${typeLabel}` });
 
         const desc = contentEl.createEl('p', { cls: 'setting-item-description' });
-        desc.innerHTML = `AI analyzed your vault and suggests these changes. <strong>Select</strong> the changes you want to apply.`;
+        desc.appendText('AI analyzed your vault and suggests these changes. ');
+        desc.createEl('strong', { text: 'Select' });
+        desc.appendText(' the changes you want to apply.');
 
         // Summary badges
-        const summaryEl = contentEl.createDiv({ cls: 'review-summary' });
-        summaryEl.style.display = 'flex';
-        summaryEl.style.gap = '12px';
-        summaryEl.style.marginBottom = '16px';
-        summaryEl.style.flexWrap = 'wrap';
+        const summaryEl = contentEl.createDiv({ cls: 'ai-organiser-review-summary' });
 
         const counts = {
             keep: this.reviewItems.filter(i => i.action === 'keep').length,
@@ -138,31 +136,17 @@ class ReviewComparisonModal extends Modal {
         if (counts.remove > 0) this.createBadge(summaryEl, `${counts.remove} suggested removal`, 'var(--text-error)');
 
         // Table container
-        const tableContainer = contentEl.createDiv();
-        tableContainer.style.maxHeight = '300px';
-        tableContainer.style.overflowY = 'auto';
-        tableContainer.style.border = '1px solid var(--background-modifier-border)';
-        tableContainer.style.borderRadius = 'var(--radius-s)';
-        tableContainer.style.marginBottom = '16px';
+        const tableContainer = contentEl.createDiv({ cls: 'ai-organiser-review-table-container' });
 
-        const table = tableContainer.createEl('table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.style.fontSize = 'var(--font-ui-small)';
+        const table = tableContainer.createEl('table', { cls: 'ai-organiser-review-table' });
 
         // Header
         const thead = table.createEl('thead');
         const headerRow = thead.createEl('tr');
-        headerRow.style.backgroundColor = 'var(--background-secondary)';
-        headerRow.style.position = 'sticky';
-        headerRow.style.top = '0';
 
         const headers = ['', 'Current', 'Suggested Change', 'Action'];
         headers.forEach(h => {
-            const th = headerRow.createEl('th', { text: h });
-            th.style.padding = '8px';
-            th.style.textAlign = 'left';
-            th.style.borderBottom = '2px solid var(--background-modifier-border)';
+            headerRow.createEl('th', { text: h });
         });
 
         // Body
@@ -170,12 +154,9 @@ class ReviewComparisonModal extends Modal {
 
         for (const item of this.reviewItems) {
             const row = tbody.createEl('tr');
-            row.style.borderBottom = '1px solid var(--background-modifier-border)';
 
             // Checkbox cell
-            const checkCell = row.createEl('td');
-            checkCell.style.padding = '8px';
-            checkCell.style.width = '30px';
+            const checkCell = row.createEl('td', { cls: 'cell-narrow' });
 
             if (item.action !== 'keep') {
                 const checkbox = checkCell.createEl('input', { type: 'checkbox' });
@@ -188,28 +169,23 @@ class ReviewComparisonModal extends Modal {
 
             // Current cell
             const currentCell = row.createEl('td');
-            currentCell.style.padding = '8px';
             if (item.current) {
                 currentCell.createEl('strong', { text: item.current.name });
                 currentCell.createEl('br');
-                const descSpan = currentCell.createEl('span', { text: item.current.description });
-                descSpan.style.color = 'var(--text-muted)';
-                descSpan.style.fontSize = 'var(--font-ui-smaller)';
+                currentCell.createEl('span', { text: item.current.description, cls: 'ai-organiser-text-muted ai-organiser-text-ui-smaller' });
             } else {
                 currentCell.createEl('em', { text: '(new)' });
-                currentCell.style.color = 'var(--text-muted)';
+                currentCell.addClass('ai-organiser-text-muted');
             }
 
             // Suggested cell
             const suggestedCell = row.createEl('td');
-            suggestedCell.style.padding = '8px';
             if (item.suggested) {
                 if (item.action === 'modify' && item.current) {
                     // Show what changed
                     if (item.current.name !== item.suggested.name) {
                         const nameChange = suggestedCell.createEl('strong');
-                        const oldName = nameChange.createEl('s', { text: item.current.name });
-                        oldName.style.color = 'var(--text-muted)';
+                        nameChange.createEl('s', { text: item.current.name, cls: 'ai-organiser-text-muted' });
                         nameChange.appendText(` → ${item.suggested.name}`);
                     } else {
                         suggestedCell.createEl('strong', { text: item.suggested.name });
@@ -218,43 +194,36 @@ class ReviewComparisonModal extends Modal {
                     suggestedCell.createEl('strong', { text: item.suggested.name });
                 }
                 suggestedCell.createEl('br');
-                const descSpan = suggestedCell.createEl('span', { text: item.suggested.description });
-                descSpan.style.color = 'var(--text-muted)';
-                descSpan.style.fontSize = 'var(--font-ui-smaller)';
+                suggestedCell.createEl('span', { text: item.suggested.description, cls: 'ai-organiser-text-muted ai-organiser-text-ui-smaller' });
             } else if (item.action === 'remove') {
                 suggestedCell.createEl('em', { text: '(remove)' });
-                suggestedCell.style.color = 'var(--text-error)';
+                suggestedCell.addClass('ai-organiser-text-error');
             } else {
                 suggestedCell.createEl('em', { text: '—' });
-                suggestedCell.style.color = 'var(--text-muted)';
+                suggestedCell.addClass('ai-organiser-text-muted');
             }
 
             // Action cell
-            const actionCell = row.createEl('td');
-            actionCell.style.padding = '8px';
-            actionCell.style.width = '80px';
+            const actionCell = row.createEl('td', { cls: 'cell-action' });
 
-            const actionBadge = actionCell.createEl('span');
-            actionBadge.style.padding = '2px 8px';
-            actionBadge.style.borderRadius = '12px';
-            actionBadge.style.fontSize = 'var(--font-ui-smaller)';
+            const actionBadge = actionCell.createEl('span', { cls: 'ai-organiser-action-badge' });
 
             switch (item.action) {
                 case 'keep':
                     actionBadge.textContent = 'Keep';
-                    actionBadge.style.backgroundColor = 'var(--background-modifier-border)';
+                    actionBadge.addClass('badge-keep');
                     break;
                 case 'modify':
                     actionBadge.textContent = 'Modify';
-                    actionBadge.style.backgroundColor = 'var(--background-modifier-warning)';
+                    actionBadge.addClass('badge-modify');
                     break;
                 case 'add':
                     actionBadge.textContent = 'Add';
-                    actionBadge.style.backgroundColor = 'var(--background-modifier-success)';
+                    actionBadge.addClass('badge-add');
                     break;
                 case 'remove':
                     actionBadge.textContent = 'Remove';
-                    actionBadge.style.backgroundColor = 'var(--background-modifier-error)';
+                    actionBadge.addClass('badge-remove');
                     break;
             }
 
@@ -262,27 +231,19 @@ class ReviewComparisonModal extends Modal {
         }
 
         // Refine section
-        const refineSection = contentEl.createDiv();
-        refineSection.style.padding = '12px';
-        refineSection.style.backgroundColor = 'var(--background-secondary)';
-        refineSection.style.borderRadius = 'var(--radius-s)';
-        refineSection.style.marginBottom = '16px';
+        const refineSection = contentEl.createDiv({ cls: 'ai-organiser-refine-section' });
 
         refineSection.createEl('strong', { text: 'Need different suggestions?' });
         const refineDesc = refineSection.createEl('p', { cls: 'setting-item-description' });
-        refineDesc.style.margin = '4px 0 8px 0';
+        refineDesc.addClass('ai-organiser-refine-desc');
         refineDesc.textContent = 'Describe what you want to change:';
 
         const refineInput = refineSection.createEl('textarea', {
-            placeholder: 'e.g., "Add more focus on technology" or "Remove business-related themes"'
+            placeholder: 'e.g., "Add more focus on technology" or "Remove business-related themes"',
+            cls: 'ai-organiser-refine-textarea'
         });
-        refineInput.style.width = '100%';
-        refineInput.style.minHeight = '60px';
-        refineInput.style.padding = '8px';
-        refineInput.style.resize = 'vertical';
 
-        const refineBtnContainer = refineSection.createDiv();
-        refineBtnContainer.style.marginTop = '8px';
+        const refineBtnContainer = refineSection.createDiv({ cls: 'ai-organiser-mt-8' });
         const refineBtn = refineBtnContainer.createEl('button', { text: 'Regenerate Suggestions' });
         refineBtn.addEventListener('click', () => {
             const context = refineInput.value.trim();
@@ -293,10 +254,7 @@ class ReviewComparisonModal extends Modal {
         });
 
         // Main buttons
-        const buttonContainer = contentEl.createDiv();
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-        buttonContainer.style.gap = '8px';
+        const buttonContainer = contentEl.createDiv({ cls: 'ai-organiser-button-row' });
 
         const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
@@ -309,24 +267,18 @@ class ReviewComparisonModal extends Modal {
     }
 
     private createBadge(container: HTMLElement, text: string, color: string): void {
-        const badge = container.createEl('span', { text });
-        badge.style.padding = '4px 10px';
-        badge.style.borderRadius = '12px';
-        badge.style.fontSize = 'var(--font-ui-smaller)';
-        badge.style.backgroundColor = 'var(--background-secondary)';
-        badge.style.border = `1px solid ${color}`;
-        badge.style.color = color;
+        const badge = container.createEl('span', { text, cls: 'ai-organiser-review-badge' });
+        badge.setCssProps({ '--badge-color': color });
     }
 
     private updateRowStyle(row: HTMLElement, item: ReviewItem): void {
+        row.removeClass('ai-organiser-row-keep', 'ai-organiser-row-deselected', 'ai-organiser-row-selected');
         if (item.action === 'keep') {
-            row.style.opacity = '0.7';
+            row.addClass('ai-organiser-row-keep');
         } else if (!item.selected) {
-            row.style.opacity = '0.5';
-            row.style.textDecoration = 'line-through';
+            row.addClass('ai-organiser-row-deselected');
         } else {
-            row.style.opacity = '1';
-            row.style.textDecoration = 'none';
+            row.addClass('ai-organiser-row-selected');
         }
     }
 
@@ -359,7 +311,7 @@ class ReviewOrFreshModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.style.maxWidth = '480px';
+        contentEl.addClass('ai-organiser-modal-narrow-480');
 
         const typeLabel = this.itemType === 'theme' ? 'Themes' : 'Disciplines';
         contentEl.createEl('h2', { text: `${typeLabel} Already Configured` });
@@ -367,31 +319,19 @@ class ReviewOrFreshModal extends Modal {
         const desc = contentEl.createEl('p', { cls: 'setting-item-description' });
         desc.textContent = `You have ${this.existingCount} ${this.itemType}${this.existingCount > 1 ? 's' : ''} configured. What would you like to do?`;
 
-        const optionsEl = contentEl.createDiv();
-        optionsEl.style.display = 'flex';
-        optionsEl.style.flexDirection = 'column';
-        optionsEl.style.gap = '10px';
-        optionsEl.style.marginTop = '16px';
-        optionsEl.style.marginBottom = '16px';
+        const optionsEl = contentEl.createDiv({ cls: 'ai-organiser-choice-options' });
 
         // Option 1: Review & Improve (recommended)
         const reviewBtn = optionsEl.createEl('button', { cls: 'mod-cta' });
-        reviewBtn.style.padding = '12px 16px';
-        reviewBtn.style.textAlign = 'left';
-        reviewBtn.style.whiteSpace = 'normal';
-        reviewBtn.style.height = 'auto';
-        reviewBtn.style.lineHeight = '1.4';
+        reviewBtn.addClass('ai-organiser-choice-btn');
 
         const reviewTitle = reviewBtn.createEl('div', { text: 'Review & Improve (Recommended)' });
-        reviewTitle.style.fontWeight = '600';
-        reviewTitle.style.marginBottom = '4px';
+        reviewTitle.addClass('ai-organiser-choice-title');
 
         const reviewDesc = reviewBtn.createEl('div', {
             text: 'AI will suggest additions and refinements to your existing list'
         });
-        reviewDesc.style.fontSize = '12px';
-        reviewDesc.style.opacity = '0.85';
-        reviewDesc.style.fontWeight = 'normal';
+        reviewDesc.addClass('ai-organiser-choice-desc');
 
         reviewBtn.addEventListener('click', () => {
             this.onChoice('review');
@@ -400,26 +340,15 @@ class ReviewOrFreshModal extends Modal {
 
         // Option 2: Start Fresh
         const freshBtn = optionsEl.createEl('button');
-        freshBtn.style.padding = '12px 16px';
-        freshBtn.style.textAlign = 'left';
-        freshBtn.style.whiteSpace = 'normal';
-        freshBtn.style.height = 'auto';
-        freshBtn.style.lineHeight = '1.4';
-        freshBtn.style.display = 'block';
-        freshBtn.style.width = '100%';
+        freshBtn.addClass('ai-organiser-choice-btn-full');
 
         const freshTitle = freshBtn.createEl('div', { text: 'Start Fresh' });
-        freshTitle.style.fontWeight = '600';
-        freshTitle.style.marginBottom = '4px';
-        freshTitle.style.display = 'block';
+        freshTitle.addClass('ai-organiser-choice-title-block');
 
         const freshDesc = freshBtn.createEl('div', {
             text: 'Replace all existing with new AI-generated suggestions'
         });
-        freshDesc.style.fontSize = '12px';
-        freshDesc.style.opacity = '0.7';
-        freshDesc.style.fontWeight = 'normal';
-        freshDesc.style.display = 'block';
+        freshDesc.addClass('ai-organiser-choice-desc-block');
 
         freshBtn.addEventListener('click', () => {
             this.onChoice('fresh');
@@ -427,9 +356,7 @@ class ReviewOrFreshModal extends Modal {
         });
 
         // Cancel
-        const cancelContainer = contentEl.createDiv();
-        cancelContainer.style.textAlign = 'right';
-        cancelContainer.style.marginTop = '12px';
+        const cancelContainer = contentEl.createDiv({ cls: 'ai-organiser-cancel-right' });
         const cancelBtn = cancelContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
     }
@@ -459,35 +386,24 @@ class ReviewContextModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.style.maxWidth = '480px';
+        contentEl.addClass('ai-organiser-modal-narrow-480');
 
         const typeLabel = this.itemType === 'theme' ? 'themes' : 'disciplines';
         contentEl.createEl('h2', { text: 'How should AI suggest improvements?' });
 
-        const optionsEl = contentEl.createDiv();
-        optionsEl.style.display = 'flex';
-        optionsEl.style.flexDirection = 'column';
-        optionsEl.style.gap = '10px';
-        optionsEl.style.marginTop = '16px';
+        const optionsEl = contentEl.createDiv({ cls: 'ai-organiser-choice-options' });
 
         // Option 1: Analyze vault
         const vaultBtn = optionsEl.createEl('button', { cls: 'mod-cta' });
-        vaultBtn.style.padding = '12px 16px';
-        vaultBtn.style.textAlign = 'left';
-        vaultBtn.style.whiteSpace = 'normal';
-        vaultBtn.style.height = 'auto';
-        vaultBtn.style.lineHeight = '1.4';
+        vaultBtn.addClass('ai-organiser-choice-btn');
 
         const vaultTitle = vaultBtn.createEl('div', { text: 'Analyze my vault (Recommended)' });
-        vaultTitle.style.fontWeight = '600';
-        vaultTitle.style.marginBottom = '4px';
+        vaultTitle.addClass('ai-organiser-choice-title');
 
         const vaultDesc = vaultBtn.createEl('div', {
             text: 'AI scans your folder structure and note titles to suggest improvements'
         });
-        vaultDesc.style.fontSize = '12px';
-        vaultDesc.style.opacity = '0.85';
-        vaultDesc.style.fontWeight = 'normal';
+        vaultDesc.addClass('ai-organiser-choice-desc');
 
         vaultBtn.addEventListener('click', () => {
             this.onChoice('vault');
@@ -496,26 +412,15 @@ class ReviewContextModal extends Modal {
 
         // Option 2: Provide context
         const contextBtn = optionsEl.createEl('button');
-        contextBtn.style.padding = '12px 16px';
-        contextBtn.style.textAlign = 'left';
-        contextBtn.style.whiteSpace = 'normal';
-        contextBtn.style.height = 'auto';
-        contextBtn.style.lineHeight = '1.4';
-        contextBtn.style.display = 'block';
-        contextBtn.style.width = '100%';
+        contextBtn.addClass('ai-organiser-choice-btn-full');
 
         const contextTitle = contextBtn.createEl('div', { text: 'I\'ll describe what I need' });
-        contextTitle.style.fontWeight = '600';
-        contextTitle.style.marginBottom = '4px';
-        contextTitle.style.display = 'block';
+        contextTitle.addClass('ai-organiser-choice-title-block');
 
         const contextDesc = contextBtn.createEl('div', {
             text: `Tell the AI what ${typeLabel} you want to add or change`
         });
-        contextDesc.style.fontSize = '12px';
-        contextDesc.style.opacity = '0.7';
-        contextDesc.style.fontWeight = 'normal';
-        contextDesc.style.display = 'block';
+        contextDesc.addClass('ai-organiser-choice-desc-block');
 
         contextBtn.addEventListener('click', () => {
             this.close();
@@ -523,9 +428,7 @@ class ReviewContextModal extends Modal {
         });
 
         // Cancel
-        const cancelContainer = contentEl.createDiv();
-        cancelContainer.style.textAlign = 'right';
-        cancelContainer.style.marginTop = '16px';
+        const cancelContainer = contentEl.createDiv({ cls: 'ai-organiser-cancel-right-16' });
         const cancelBtn = cancelContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
     }
@@ -556,7 +459,7 @@ class AnalysisChoiceModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.style.maxWidth = '450px';
+        contentEl.addClass('ai-organiser-modal-narrow-450');
 
         contentEl.createEl('h2', { text: 'How would you like to start?' });
         contentEl.createEl('p', {
@@ -565,31 +468,19 @@ class AnalysisChoiceModal extends Modal {
         });
 
         // Options container
-        const optionsEl = contentEl.createDiv({ cls: 'analysis-choice-options' });
-        optionsEl.style.display = 'flex';
-        optionsEl.style.flexDirection = 'column';
-        optionsEl.style.gap = '10px';
-        optionsEl.style.marginTop = '16px';
-        optionsEl.style.marginBottom = '16px';
+        const optionsEl = contentEl.createDiv({ cls: 'ai-organiser-choice-options' });
 
         // Option 1: AI analyzes first
         const aiFirstBtn = optionsEl.createEl('button', { cls: 'mod-cta' });
-        aiFirstBtn.style.padding = '12px 16px';
-        aiFirstBtn.style.textAlign = 'left';
-        aiFirstBtn.style.whiteSpace = 'normal';
-        aiFirstBtn.style.height = 'auto';
-        aiFirstBtn.style.lineHeight = '1.4';
+        aiFirstBtn.addClass('ai-organiser-choice-btn');
 
         const aiFirstTitle = aiFirstBtn.createEl('div', { text: 'Let AI analyze first' });
-        aiFirstTitle.style.fontWeight = '600';
-        aiFirstTitle.style.marginBottom = '4px';
+        aiFirstTitle.addClass('ai-organiser-choice-title');
 
         const aiFirstDesc = aiFirstBtn.createEl('div', {
             text: 'AI analyzes your vault structure and note titles, then you can refine'
         });
-        aiFirstDesc.style.fontSize = '12px';
-        aiFirstDesc.style.opacity = '0.85';
-        aiFirstDesc.style.fontWeight = 'normal';
+        aiFirstDesc.addClass('ai-organiser-choice-desc');
 
         aiFirstBtn.addEventListener('click', () => {
             this.onChoice('ai-first');
@@ -598,22 +489,15 @@ class AnalysisChoiceModal extends Modal {
 
         // Option 2: Provide context first
         const contextFirstBtn = optionsEl.createEl('button');
-        contextFirstBtn.style.padding = '12px 16px';
-        contextFirstBtn.style.textAlign = 'left';
-        contextFirstBtn.style.whiteSpace = 'normal';
-        contextFirstBtn.style.height = 'auto';
-        contextFirstBtn.style.lineHeight = '1.4';
+        contextFirstBtn.addClass('ai-organiser-choice-btn');
 
         const contextFirstTitle = contextFirstBtn.createEl('div', { text: 'Describe my focus areas first' });
-        contextFirstTitle.style.fontWeight = '600';
-        contextFirstTitle.style.marginBottom = '4px';
+        contextFirstTitle.addClass('ai-organiser-choice-title');
 
         const contextFirstDesc = contextFirstBtn.createEl('div', {
             text: 'Tell the AI about your profession and interests before analysis'
         });
-        contextFirstDesc.style.fontSize = '12px';
-        contextFirstDesc.style.opacity = '0.7';
-        contextFirstDesc.style.fontWeight = 'normal';
+        contextFirstDesc.addClass('ai-organiser-choice-desc-dim');
 
         contextFirstBtn.addEventListener('click', () => {
             this.onChoice('context-first');
@@ -621,9 +505,7 @@ class AnalysisChoiceModal extends Modal {
         });
 
         // Cancel button
-        const cancelContainer = contentEl.createDiv();
-        cancelContainer.style.textAlign = 'right';
-        cancelContainer.style.marginTop = '12px';
+        const cancelContainer = contentEl.createDiv({ cls: 'ai-organiser-cancel-right' });
         const cancelBtn = cancelContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
     }
@@ -659,12 +541,7 @@ class UserContextModal extends Modal {
         const textArea = contentEl.createEl('textarea', {
             placeholder: 'e.g., "I\'m a product manager focused on AI tools and SaaS products. I\'m interested in machine learning, user research, and business strategy."'
         });
-        textArea.style.width = '100%';
-        textArea.style.minHeight = '120px';
-        textArea.style.marginTop = '12px';
-        textArea.style.marginBottom = '16px';
-        textArea.style.padding = '8px';
-        textArea.style.resize = 'vertical';
+        textArea.addClass('ai-organiser-user-context-textarea');
         textArea.addEventListener('input', (e) => {
             this.userContext = (e.target as HTMLTextAreaElement).value;
         });
@@ -673,15 +550,13 @@ class UserContextModal extends Modal {
         const infoEl = contentEl.createEl('p', {
             cls: 'setting-item-description'
         });
-        infoEl.style.fontSize = 'var(--font-ui-smaller)';
-        infoEl.style.color = 'var(--text-muted)';
-        infoEl.innerHTML = '<strong>Note:</strong> The AI will also analyze your folder structure and sample note titles.';
+        infoEl.addClass('ai-organiser-info-text-subtle');
+        infoEl.createEl('strong', { text: 'Note:' });
+        infoEl.appendText(' The AI will also analyze your folder structure and sample note titles.');
 
         // Buttons
         const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-        buttonContainer.style.gap = '8px';
+        buttonContainer.addClass('ai-organiser-flex-end', 'ai-organiser-gap-8');
 
         const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
@@ -747,7 +622,8 @@ class DisciplineSuggestionModal extends Modal {
     onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
-        contentEl.style.width = '600px';
+        contentEl.setCssProps({ '--modal-width': '600px' });
+        contentEl.addClass('ai-organiser-modal-medium');
 
         contentEl.createEl('h2', { text: 'Suggested Disciplines' });
         contentEl.createEl('p', {
@@ -757,54 +633,36 @@ class DisciplineSuggestionModal extends Modal {
 
         // Create discipline list
         this.listEl = contentEl.createDiv({ cls: 'discipline-suggestion-list' });
-        this.listEl.style.maxHeight = '350px';
-        this.listEl.style.overflowY = 'auto';
-        this.listEl.style.marginBottom = '16px';
-        this.listEl.style.border = '1px solid var(--background-modifier-border)';
-        this.listEl.style.borderRadius = 'var(--radius-s)';
+        this.listEl.addClass('ai-organiser-suggestion-list');
 
         this.renderDisciplineList();
 
         // Refine section
-        const refineSection = contentEl.createDiv({ cls: 'refine-section' });
-        refineSection.style.marginBottom = '16px';
-        refineSection.style.padding = '12px';
-        refineSection.style.backgroundColor = 'var(--background-secondary)';
-        refineSection.style.borderRadius = 'var(--radius-s)';
+        const refineSection = contentEl.createDiv({ cls: 'ai-organiser-refine-section' });
 
         refineSection.createEl('strong', { text: 'Refine suggestions' });
         const refineDesc = refineSection.createEl('p', {
             cls: 'setting-item-description'
         });
-        refineDesc.style.margin = '4px 0 8px 0';
+        refineDesc.addClass('ai-organiser-refine-desc');
         refineDesc.textContent = 'Describe what you want to change, add, or focus on:';
 
         const refineTextArea = refineSection.createEl('textarea', {
             placeholder: 'Examples:\n• "Add disciplines for personal finance and family organization"\n• "I need more focus on machine learning and data engineering"\n• "Remove business-related disciplines, focus on creative writing"'
         });
-        refineTextArea.style.width = '100%';
-        refineTextArea.style.minHeight = '80px';
-        refineTextArea.style.padding = '8px';
-        refineTextArea.style.resize = 'vertical';
-        refineTextArea.style.fontFamily = 'var(--font-interface)';
+        refineTextArea.addClass('ai-organiser-refine-textarea-tall');
 
         // Refine mode selection
-        const modeContainer = refineSection.createDiv();
-        modeContainer.style.marginTop = '12px';
-        modeContainer.style.display = 'flex';
-        modeContainer.style.gap = '16px';
-        modeContainer.style.alignItems = 'center';
+        const modeContainer = refineSection.createDiv({ cls: 'ai-organiser-refine-mode' });
 
         const modeLabel = modeContainer.createEl('span', { text: 'When regenerating:' });
-        modeLabel.style.fontWeight = '500';
+        modeLabel.addClass('ai-organiser-font-semibold');
 
         let selectedMode: 'add' | 'replace' = 'add';
 
         const addModeLabel = modeContainer.createEl('label');
-        addModeLabel.style.display = 'flex';
-        addModeLabel.style.alignItems = 'center';
-        addModeLabel.style.gap = '4px';
-        addModeLabel.style.cursor = 'pointer';
+        addModeLabel.addClass('ai-organiser-flex-center', 'ai-organiser-gap-4');
+        addModeLabel.addClass('ai-organiser-cursor-pointer');
         const addModeRadio = addModeLabel.createEl('input', { type: 'radio' });
         addModeRadio.name = 'refine-mode';
         addModeRadio.checked = true;
@@ -812,10 +670,8 @@ class DisciplineSuggestionModal extends Modal {
         addModeLabel.createEl('span', { text: 'Add to current list' });
 
         const replaceModeLabel = modeContainer.createEl('label');
-        replaceModeLabel.style.display = 'flex';
-        replaceModeLabel.style.alignItems = 'center';
-        replaceModeLabel.style.gap = '4px';
-        replaceModeLabel.style.cursor = 'pointer';
+        replaceModeLabel.addClass('ai-organiser-flex-center', 'ai-organiser-gap-4');
+        replaceModeLabel.addClass('ai-organiser-cursor-pointer');
         const replaceModeRadio = replaceModeLabel.createEl('input', { type: 'radio' });
         replaceModeRadio.name = 'refine-mode';
         replaceModeRadio.addEventListener('change', () => { selectedMode = 'replace'; });
@@ -823,7 +679,7 @@ class DisciplineSuggestionModal extends Modal {
 
         // Refine button
         const refineBtnContainer = refineSection.createDiv();
-        refineBtnContainer.style.marginTop = '12px';
+        refineBtnContainer.addClass('ai-organiser-mt-12');
         const refineBtn = refineBtnContainer.createEl('button', { text: 'Regenerate with AI' });
         refineBtn.addEventListener('click', () => {
             const additionalContext = refineTextArea.value.trim();
@@ -853,10 +709,8 @@ class DisciplineSuggestionModal extends Modal {
 
         // Main buttons
         const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'space-between';
-        buttonContainer.style.alignItems = 'center';
-        buttonContainer.style.marginTop = '8px';
+        buttonContainer.addClass('ai-organiser-flex-between');
+        buttonContainer.addClass('ai-organiser-mt-8');
 
         // Left side - selected count
         const selectedCount = buttonContainer.createEl('span', { cls: 'setting-item-description' });
@@ -868,8 +722,7 @@ class DisciplineSuggestionModal extends Modal {
 
         // Right side - buttons
         const btnGroup = buttonContainer.createDiv();
-        btnGroup.style.display = 'flex';
-        btnGroup.style.gap = '8px';
+        btnGroup.addClass('ai-organiser-flex-row', 'ai-organiser-gap-8');
 
         const cancelBtn = btnGroup.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
@@ -891,24 +744,22 @@ class DisciplineSuggestionModal extends Modal {
         if (!this.listEl) return;
         this.listEl.empty();
 
-        this.editableDisciplines.forEach((discipline, index) => {
+        this.editableDisciplines.forEach((discipline, _index) => {
             const itemEl = this.listEl!.createDiv({ cls: 'discipline-item' });
-            itemEl.style.padding = '10px 12px';
-            itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+            itemEl.setCssProps({ '--pad': '10px 12px' }); itemEl.addClass('ai-organiser-pad-custom');
+            itemEl.addClass('ai-organiser-border-b');
             if (!discipline.selected) {
-                itemEl.style.opacity = '0.5';
+                itemEl.addClass('ai-organiser-opacity-50');
             }
 
             // Top row: checkbox + name (editable)
             const topRow = itemEl.createDiv();
-            topRow.style.display = 'flex';
-            topRow.style.alignItems = 'center';
-            topRow.style.gap = '8px';
-            topRow.style.marginBottom = '4px';
+            topRow.addClass('ai-organiser-flex-center', 'ai-organiser-gap-8');
+            topRow.addClass('ai-organiser-mb-4');
 
             const checkbox = topRow.createEl('input', { type: 'checkbox' });
             checkbox.checked = discipline.selected;
-            checkbox.style.flexShrink = '0';
+            checkbox.addClass('ai-organiser-flex-shrink-0');
             checkbox.addEventListener('change', () => {
                 discipline.selected = checkbox.checked;
                 itemEl.style.opacity = discipline.selected ? '1' : '0.5';
@@ -917,19 +768,19 @@ class DisciplineSuggestionModal extends Modal {
 
             // Editable name input
             const nameInput = topRow.createEl('input', { type: 'text', value: discipline.name });
-            nameInput.style.flex = '1';
-            nameInput.style.fontWeight = 'bold';
-            nameInput.style.border = '1px solid transparent';
-            nameInput.style.borderRadius = 'var(--radius-s)';
-            nameInput.style.padding = '2px 6px';
-            nameInput.style.backgroundColor = 'transparent';
+            nameInput.addClass('ai-organiser-flex-1');
+            nameInput.addClass('ai-organiser-font-bold');
+            /* border:transparent handled by focus/blur classes */
+            nameInput.addClass('ai-organiser-rounded');
+            nameInput.setCssProps({ '--pad': '2px 6px' }); nameInput.addClass('ai-organiser-pad-custom');
+            nameInput.addClass('ai-organiser-bg-transparent');
             nameInput.addEventListener('focus', () => {
-                nameInput.style.border = '1px solid var(--interactive-accent)';
-                nameInput.style.backgroundColor = 'var(--background-primary)';
+                nameInput.setCssProps({ '--border': '1px solid var(--interactive-accent)' }); nameInput.addClass('ai-organiser-border-custom');
+                nameInput.addClass('ai-organiser-bg-primary');
             });
             nameInput.addEventListener('blur', () => {
-                nameInput.style.border = '1px solid transparent';
-                nameInput.style.backgroundColor = 'transparent';
+                /* border:transparent handled by focus/blur classes */
+                nameInput.addClass('ai-organiser-bg-transparent');
                 // Sanitize name to kebab-case
                 discipline.name = nameInput.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
                 nameInput.value = discipline.name;
@@ -944,44 +795,44 @@ class DisciplineSuggestionModal extends Modal {
                 text: discipline.description,
                 cls: 'setting-item-description'
             });
-            descEl.style.margin = '2px 0 2px 24px';
-            descEl.style.fontSize = 'var(--font-ui-smaller)';
+            descEl.setCssProps({ '--margin': '2px 0 2px 24px' }); descEl.addClass('ai-organiser-margin-custom');
+            descEl.addClass('ai-organiser-text-ui-smaller');
 
             // Use when
             const useWhenEl = itemEl.createEl('p', {
                 text: `Use when: ${discipline.useWhen}`,
                 cls: 'setting-item-description'
             });
-            useWhenEl.style.margin = '0 0 0 24px';
-            useWhenEl.style.fontSize = 'var(--font-ui-smaller)';
-            useWhenEl.style.color = 'var(--text-muted)';
+            useWhenEl.setCssProps({ '--margin': '0 0 0 24px' }); useWhenEl.addClass('ai-organiser-margin-custom');
+            useWhenEl.addClass('ai-organiser-text-ui-smaller');
+            useWhenEl.addClass('ai-organiser-text-muted');
 
             // Expandable comment section
             const commentContainer = itemEl.createDiv();
-            commentContainer.style.marginLeft = '24px';
-            commentContainer.style.marginTop = '6px';
+            commentContainer.setCssProps({ '--ml': '24px' }); commentContainer.addClass('ai-organiser-ml-custom');
+            commentContainer.addClass('ai-organiser-mt-8');
 
             const commentToggle = commentContainer.createEl('button', {
                 text: discipline.userComment ? '✏️ Edit note' : '+ Add note for AI'
             });
-            commentToggle.style.fontSize = 'var(--font-ui-smaller)';
-            commentToggle.style.padding = '2px 8px';
-            commentToggle.style.backgroundColor = 'transparent';
-            commentToggle.style.border = '1px solid var(--background-modifier-border)';
-            commentToggle.style.borderRadius = 'var(--radius-s)';
-            commentToggle.style.cursor = 'pointer';
+            commentToggle.addClass('ai-organiser-text-ui-smaller');
+            commentToggle.setCssProps({ '--pad': '2px 8px' }); commentToggle.addClass('ai-organiser-pad-custom');
+            commentToggle.addClass('ai-organiser-bg-transparent');
+            commentToggle.addClass('ai-organiser-border');
+            commentToggle.addClass('ai-organiser-rounded');
+            commentToggle.addClass('ai-organiser-cursor-pointer');
 
             const commentInput = commentContainer.createEl('textarea', {
                 placeholder: 'Add context for AI refinement (e.g., "needs to be more specific" or "combine with data-science")'
             });
             commentInput.value = discipline.userComment || '';
             commentInput.style.display = discipline.userComment ? 'block' : 'none';
-            commentInput.style.width = '100%';
-            commentInput.style.minHeight = '40px';
-            commentInput.style.marginTop = '4px';
-            commentInput.style.padding = '6px';
-            commentInput.style.fontSize = 'var(--font-ui-smaller)';
-            commentInput.style.resize = 'vertical';
+            commentInput.addClass('ai-organiser-w-full');
+            commentInput.addClass('ai-organiser-min-h-60');
+            commentInput.addClass('ai-organiser-mt-4');
+            commentInput.setCssProps({ '--pad': '6px' }); commentInput.addClass('ai-organiser-pad-custom');
+            commentInput.addClass('ai-organiser-text-ui-smaller');
+            commentInput.addClass('ai-organiser-resize-vertical');
             commentInput.addEventListener('input', () => {
                 discipline.userComment = commentInput.value;
                 commentToggle.textContent = commentInput.value ? '✏️ Edit note' : '+ Add note for AI';
@@ -1078,17 +929,17 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
         // Buttons row
         const buttonsContainer = containerEl.createDiv({ cls: 'config-buttons-container' });
-        buttonsContainer.style.display = 'flex';
-        buttonsContainer.style.flexWrap = 'wrap';
-        buttonsContainer.style.gap = '8px';
-        buttonsContainer.style.marginTop = '8px';
-        buttonsContainer.style.marginBottom = '16px';
+        buttonsContainer.addClass('ai-organiser-flex');
+        buttonsContainer.addClass('ai-organiser-flex-wrap');
+        buttonsContainer.addClass('ai-organiser-gap-8');
+        buttonsContainer.addClass('ai-organiser-mt-8');
+        buttonsContainer.addClass('ai-organiser-mb-16');
 
         // Open config folder button
             const openBtn = buttonsContainer.createEl('button', {
                 text: t.settings.configuration.openConfigFolder
             });
-        openBtn.addEventListener('click', async () => {
+        openBtn.addEventListener('click', () => { void (async () => {
                 const folderPath = getConfigFolderFullPath(this.plugin.settings);
                 const folder = this.plugin.app.vault.getAbstractFileByPath(folderPath);
 
@@ -1105,78 +956,81 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             } else {
                     new Notice(`Folder not found: ${folderPath}`);
             }
-        });
+        })(); });
 
         // Create config files button
             const createBtn = buttonsContainer.createEl('button', {
                 text: t.settings.configuration.createConfigFiles
             });
-        createBtn.addEventListener('click', async () => {
+        createBtn.addEventListener('click', () => { void (async () => {
             await this.plugin.configService.createDefaultConfigFiles();
                 const configFolder = getConfigFolderFullPath(this.plugin.settings);
                 new Notice(`${t.settings.configuration.configFilesCreated} ${configFolder}`);
-        });
+        })(); });
 
         // Suggest themes from vault button
         const suggestThemesBtn = buttonsContainer.createEl('button', {
             text: t.settings.configuration.suggestThemes || 'Suggest Themes'
         });
-        suggestThemesBtn.style.backgroundColor = 'var(--interactive-accent)';
-        suggestThemesBtn.style.color = 'var(--text-on-accent)';
-        suggestThemesBtn.addEventListener('click', async () => {
-            await this.suggestThemesFromVault(suggestThemesBtn);
-        });
+        suggestThemesBtn.addClass('ai-organiser-bg-accent');
+        suggestThemesBtn.addClass('ai-organiser-text-on-accent');
+        suggestThemesBtn.addEventListener('click', () => { void this.suggestThemesFromVault(suggestThemesBtn); });
 
         // Suggest disciplines from vault button
         const suggestBtn = buttonsContainer.createEl('button', {
             text: t.settings.configuration.suggestDisciplines || 'Suggest Disciplines'
         });
-        suggestBtn.style.backgroundColor = 'var(--interactive-accent)';
-        suggestBtn.style.color = 'var(--text-on-accent)';
-        suggestBtn.addEventListener('click', async () => {
-            await this.suggestDisciplinesFromVault(suggestBtn);
-        });
+        suggestBtn.addClass('ai-organiser-bg-accent');
+        suggestBtn.addClass('ai-organiser-text-on-accent');
+        suggestBtn.addEventListener('click', () => { void this.suggestDisciplinesFromVault(suggestBtn); });
 
         // Reset to defaults button
         const resetBtn = buttonsContainer.createEl('button', {
             text: t.settings.configuration.resetToDefaults
         });
-        resetBtn.style.color = 'var(--text-error)';
-        resetBtn.addEventListener('click', async () => {
-            if (confirm(t.settings.configuration.resetConfirm)) {
+        resetBtn.addClass('ai-organiser-text-error');
+        resetBtn.addEventListener('click', () => { void (async () => {
+            if (await this.plugin.showConfirmationDialog(t.settings.configuration.resetConfirm)) {
                 // Delete existing files and recreate
                 const paths = this.plugin.configService.getConfigPaths();
                 for (const path of Object.values(paths)) {
                     const file = this.plugin.app.vault.getAbstractFileByPath(path);
                     if (file) {
-                        await this.plugin.app.vault.delete(file);
+                        await this.plugin.app.fileManager.trashFile(file);
                     }
                 }
                 await this.plugin.configService.createDefaultConfigFiles();
                 this.plugin.configService.invalidateCache();
                 new Notice(`${t.settings.configuration.configFilesCreated} ${this.plugin.settings.configFolderPath}`);
             }
-        });
+        })(); });
 
         // Info about config files
         const infoEl = containerEl.createDiv({ cls: 'config-info' });
-        infoEl.style.marginTop = '12px';
-        infoEl.style.padding = '12px';
-        infoEl.style.backgroundColor = 'var(--background-secondary)';
-        infoEl.style.borderRadius = 'var(--radius-s)';
-        infoEl.style.fontSize = 'var(--font-ui-small)';
-        infoEl.style.color = 'var(--text-muted)';
+        infoEl.addClass('ai-organiser-mt-12');
+        infoEl.addClass('ai-organiser-p-12');
+        infoEl.addClass('ai-organiser-bg-secondary');
+        infoEl.addClass('ai-organiser-rounded');
+        infoEl.addClass('ai-organiser-text-ui-small');
+        infoEl.addClass('ai-organiser-text-muted');
 
-        infoEl.innerHTML = `
-            <strong>Configuration Files:</strong>
-            <ul style="margin: 8px 0 0 0; padding-left: 20px;">
-                <li><code>taxonomy.md</code> - Themes and disciplines with descriptions</li>
-                <li><code>summary-prompt.md</code> - Custom summary instructions</li>
-                <li><code>excluded-tags.md</code> - Tags to never suggest</li>
-            </ul>
-            <p style="margin-top: 8px;">Edit these files to customize how AI tags your notes.</p>
-            <p style="margin-top: 4px;"><strong>Tip:</strong> Click "Suggest Disciplines from Vault" to let AI analyze your folder structure and suggest meaningful disciplines based on your content.</p>
-        `;
+        infoEl.createEl('strong', { text: 'Configuration Files:' });
+        const ul = infoEl.createEl('ul', { cls: 'ai-organiser-config-files-list' });
+        const items = [
+            ['taxonomy.md', 'Themes and disciplines with descriptions'],
+            ['summary-prompt.md', 'Custom summary instructions'],
+            ['excluded-tags.md', 'Tags to never suggest'],
+        ];
+        for (const [code, desc] of items) {
+            const li = ul.createEl('li');
+            li.createEl('code', { text: code });
+            li.appendText(` - ${desc}`);
+        }
+        const editP = infoEl.createEl('p');
+        editP.appendText('Edit these files to customize how AI tags your notes.');
+        const tipP = infoEl.createEl('p');
+        tipP.createEl('strong', { text: 'Tip:' });
+        tipP.appendText(' Click "Suggest Disciplines from Vault" to let AI analyze your folder structure and suggest meaningful disciplines based on your content.');
     }
 
     // Store accumulated user context for refinement
@@ -1204,27 +1058,27 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 this.plugin.app,
                 'theme',
                 existingThemes.length,
-                async (choice: 'review' | 'fresh') => {
+                (choice: 'review' | 'fresh') => { void (async () => {
                     if (choice === 'review') {
                         // Show context choice for review
                         const contextModal = new ReviewContextModal(
                             this.plugin.app,
                             'theme',
-                            async (contextChoice, userContext) => {
+                            (contextChoice, userContext) => { void (async () => {
                                 if (contextChoice === 'vault') {
                                     await this.runThemeReview(button, existingThemes);
                                 } else {
                                     this.accumulatedThemeContext = userContext || '';
                                     await this.runThemeReview(button, existingThemes, userContext);
                                 }
-                            }
+                            })(); }
                         );
                         contextModal.open();
                     } else {
                         // Fresh analysis - show original choice modal
                         this.showFreshThemeAnalysisChoice(button);
                     }
-                }
+                })(); }
             );
             reviewModal.open();
         } else {
@@ -1239,20 +1093,20 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
     private showFreshThemeAnalysisChoice(button: HTMLButtonElement): void {
         const choiceModal = new AnalysisChoiceModal(
             this.plugin.app,
-            async (choice: 'ai-first' | 'context-first') => {
+            (choice: 'ai-first' | 'context-first') => { void (async () => {
                 if (choice === 'ai-first') {
                     await this.runThemeAnalysis(button, '');
                 } else {
                     const contextModal = new UserContextModal(
                         this.plugin.app,
-                        async (userContext: string) => {
+                        (userContext: string) => { void (async () => {
                             this.accumulatedThemeContext = userContext;
                             await this.runThemeAnalysis(button, userContext);
-                        }
+                        })(); }
                     );
                     contextModal.open();
                 }
-            }
+            })(); }
         );
         choiceModal.open();
     }
@@ -1312,16 +1166,14 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             'theme',
             existingThemes,
             changes,
-            async (reviewItems) => {
-                await this.applyThemeChanges(reviewItems, existingThemes);
-            },
-            async (refineContext) => {
+            (reviewItems) => { void this.applyThemeChanges(reviewItems, existingThemes); },
+            (refineContext) => { void (async () => {
                 const combinedContext = userContext
                     ? `${userContext}\n\nAdditional feedback: ${refineContext}`
                     : refineContext;
                 this.accumulatedThemeContext = combinedContext;
                 await this.runThemeReview(button, existingThemes, combinedContext);
-            }
+            })(); }
         );
         modal.open();
     }
@@ -1408,10 +1260,8 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
         const modal = new DisciplineSuggestionModal(
             this.plugin.app,
             themes,
-            async (selectedThemes) => {
-                await this.updateTaxonomyWithThemes(selectedThemes);
-            },
-            async (options: RefineOptions) => {
+            (selectedThemes) => { void this.updateTaxonomyWithThemes(selectedThemes); },
+            (options: RefineOptions) => { void (async () => {
                 const combinedContext = this.accumulatedThemeContext
                     ? `${this.accumulatedThemeContext}\n\nAdditional feedback: ${options.context}`
                     : options.context;
@@ -1422,7 +1272,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 } else {
                     await this.runThemeAnalysis(button, combinedContext);
                 }
-            }
+            })(); }
         );
         modal.open();
     }
@@ -1547,27 +1397,27 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 this.plugin.app,
                 'discipline',
                 existingDisciplines.length,
-                async (choice: 'review' | 'fresh') => {
+                (choice: 'review' | 'fresh') => { void (async () => {
                     if (choice === 'review') {
                         // Show context choice for review
                         const contextModal = new ReviewContextModal(
                             this.plugin.app,
                             'discipline',
-                            async (contextChoice, userContext) => {
+                            (contextChoice, userContext) => { void (async () => {
                                 if (contextChoice === 'vault') {
                                     await this.runDisciplineReview(button, existingDisciplines);
                                 } else {
                                     this.accumulatedContext = userContext || '';
                                     await this.runDisciplineReview(button, existingDisciplines, userContext);
                                 }
-                            }
+                            })(); }
                         );
                         contextModal.open();
                     } else {
                         // Fresh analysis - show original choice modal
                         this.showFreshDisciplineAnalysisChoice(button);
                     }
-                }
+                })(); }
             );
             reviewModal.open();
         } else {
@@ -1582,20 +1432,20 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
     private showFreshDisciplineAnalysisChoice(button: HTMLButtonElement): void {
         const choiceModal = new AnalysisChoiceModal(
             this.plugin.app,
-            async (choice: 'ai-first' | 'context-first') => {
+            (choice: 'ai-first' | 'context-first') => { void (async () => {
                 if (choice === 'ai-first') {
                     await this.runDisciplineAnalysis(button, '');
                 } else {
                     const contextModal = new UserContextModal(
                         this.plugin.app,
-                        async (userContext: string) => {
+                        (userContext: string) => { void (async () => {
                             this.accumulatedContext = userContext;
                             await this.runDisciplineAnalysis(button, userContext);
-                        }
+                        })(); }
                     );
                     contextModal.open();
                 }
-            }
+            })(); }
         );
         choiceModal.open();
     }
@@ -1667,16 +1517,14 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             'discipline',
             existingDisciplines,
             changes,
-            async (reviewItems) => {
-                await this.applyDisciplineChanges(reviewItems);
-            },
-            async (refineContext) => {
+            (reviewItems) => { void this.applyDisciplineChanges(reviewItems); },
+            (refineContext) => { void (async () => {
                 const combinedContext = userContext
                     ? `${userContext}\n\nAdditional feedback: ${refineContext}`
                     : refineContext;
                 this.accumulatedContext = combinedContext;
                 await this.runDisciplineReview(button, existingDisciplines, combinedContext);
-            }
+            })(); }
         );
         modal.open();
     }
@@ -1771,10 +1619,8 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
         const modal = new DisciplineSuggestionModal(
             this.plugin.app,
             disciplines,
-            async (selectedDisciplines) => {
-                await this.updateTaxonomyWithDisciplines(selectedDisciplines);
-            },
-            async (options: RefineOptions) => {
+            (selectedDisciplines) => { void this.updateTaxonomyWithDisciplines(selectedDisciplines); },
+            (options: RefineOptions) => { void (async () => {
                 // Combine with previous context for refinement
                 const combinedContext = this.accumulatedContext
                     ? `${this.accumulatedContext}\n\nAdditional feedback: ${options.context}`
@@ -1788,7 +1634,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                     // Replace mode: regenerate all disciplines
                     await this.runDisciplineAnalysis(button, combinedContext);
                 }
-            }
+            })(); }
         );
         modal.open();
     }

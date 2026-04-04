@@ -1,4 +1,4 @@
-import { addIcon, App, debounce, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
+import { addIcon, App, debounce, MarkdownView, Notice, Platform, Plugin, TFile, TFolder } from 'obsidian';
 import {
     ConnectionTestError,
     ConnectionTestResult,
@@ -19,7 +19,7 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
-import { AIOrganiserSettings, DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
+import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
@@ -449,7 +449,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
         // Register command picker command
         this.addCommand({
-            id: 'open-command-picker',
+            id: 'open-picker',
             name: this.t.commands.openCommandPicker || 'Open command picker',
             icon: 'sparkles',
             callback: () => this.openCommandPicker()
@@ -533,7 +533,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
             let noticeRef: Notice | null = null;
             const updateBtn = btnRow.createEl('button', { text: updateText, cls: 'mod-cta' });
-            updateBtn.style.marginRight = '8px';
+            updateBtn.addClass('ai-organiser-mr-8');
             updateBtn.addEventListener('click', () => {
                 (this.app as any).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
                 noticeRef?.hide();
@@ -633,12 +633,12 @@ export default class AIOrganiserPlugin extends Plugin {
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    public async onunload(): Promise<void> {
+    public onunload(): void {
         this.stopNewsletterScheduler();
-        await this.llmService?.dispose();
-        await this.embeddingService?.dispose();
+        void this.llmService?.dispose();
+        void this.embeddingService?.dispose();
         if (this.vectorStoreService) {
-            await this.vectorStoreService.dispose();
+            void this.vectorStoreService.dispose();
             this.vectorStore = null;
             this.vectorStoreService = null;
         }
@@ -647,8 +647,6 @@ export default class AIOrganiserPlugin extends Plugin {
         resetBusyState();
         this.busyStatusBarEl = null;
         this.notebookLMStatusBarEl = null;
-        this.app.workspace.detachLeavesOfType(TAG_NETWORK_VIEW_TYPE);
-        this.app.workspace.trigger('layout-change');
     }
 
     /**
@@ -692,18 +690,18 @@ export default class AIOrganiserPlugin extends Plugin {
                 const view = leaf.view as TagNetworkView;
                 if (view && 'updateNetworkData' in view) {
                     view.updateNetworkData(networkData);
-                    this.app.workspace.revealLeaf(leaf);
+                    void this.app.workspace.revealLeaf(leaf);
                 } else {
                     // View is invalid, close it and recreate
-                    await leaf.detach();
+                    leaf.detach();
                     needsNewLeaf = true;
                 }
             } else {
                 needsNewLeaf = true;
             }
-            
+
             if (needsNewLeaf) {
-                const newLeaf = await this.app.workspace.getRightLeaf(false);
+                const newLeaf = this.app.workspace.getRightLeaf(false);
                 if (!newLeaf) {
                     throw new Error('Failed to create new workspace leaf');
                 }
@@ -723,7 +721,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
             }
 
-            this.app.workspace.revealLeaf(leaf);
+            void this.app.workspace.revealLeaf(leaf);
         } catch (error) {
             logger.error('Core', 'Tag network error', error);
             new Notice(this.t.messages.failedToBuildNetwork + ': ' + (error as any).message, 4000);
@@ -777,7 +775,7 @@ export default class AIOrganiserPlugin extends Plugin {
             try {
                 await this.tagOperations.clearDirectoryTags(files);
                 new Notice(this.t.messages.successfullyClearedAllVault, 3000);
-            } catch (error) {
+            } catch (_error) {
                 new Notice(this.t.messages.failedToClearVaultTags, 4000);
             }
         }
@@ -800,7 +798,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public handleTagUpdateResult(result: TagOperationResult | null | undefined, silent = false): void {
         if (!result) {
-            !silent && new Notice('Failed to update tags: No result returned', 3000);
+            if (!silent) { new Notice('Failed to update tags: No result returned', 3000); } // eslint-disable-line obsidianmd/ui/sentence-case
             return;
         }
 
@@ -811,9 +809,9 @@ export default class AIOrganiserPlugin extends Plugin {
                 view.editor.refresh();
             }
             this.app.workspace.trigger('layout-change');
-            !silent && new Notice(result.message, 3000);
+            if (!silent) { new Notice(result.message, 3000); }
         } else {
-            !silent && new Notice(`Failed to update tags: ${result.message || 'Unknown error'}`, 4000);
+            if (!silent) { new Notice(`Failed to update tags: ${result.message || 'Unknown error'}`, 4000); }
         }
     }
 
@@ -835,7 +833,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
                     const result = await this.analyzeAndTagNote(file, content);
 
-                    result.success && successful++;
+                    if (result.success) { successful++; }
                     this.handleTagUpdateResult(result, true);
                     processed++;
 
@@ -843,7 +841,7 @@ export default class AIOrganiserPlugin extends Plugin {
                         new Notice(`Progress: ${processed}/${files.length} files processed`, 3000);
                         lastNotice = Date.now();
                     }
-                } catch (error) {
+                } catch (_error) {
                     new Notice(`Error processing ${file.path}`, 4000);
                 }
             }
@@ -852,7 +850,7 @@ export default class AIOrganiserPlugin extends Plugin {
             await this.suggestBackNovelDisciplines();
 
             new Notice(`Successfully tagged ${successful} out of ${files.length} files`, 4000);
-        } catch (error) {
+        } catch (_error) {
             new Notice('Failed to complete batch processing', 4000);
         } finally {
             this.novelDisciplineCollector = null;
@@ -886,7 +884,7 @@ export default class AIOrganiserPlugin extends Plugin {
             if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
                 await this.showSuggestionModal(activeFile, result.suggestedTitle, result.suggestedFolder);
             }
-        } catch (error) {
+        } catch (_error) {
             new Notice('Failed to analyze note. Please check console for details.', 4000);
         } finally {
             this.novelDisciplineCollector = null;
@@ -1073,12 +1071,12 @@ export default class AIOrganiserPlugin extends Plugin {
                 file,
                 suggestedTitle || '',
                 suggestedFolder || '',
-                async (result: SuggestionResult | null) => {
+                (result: SuggestionResult | null) => { void (async () => {
                     if (result) {
                         await this.applySuggestions(file, result);
                     }
                     resolve();
-                }
+                })(); }
             );
             modal.open();
         });

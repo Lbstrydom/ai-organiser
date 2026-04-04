@@ -188,7 +188,7 @@ export async function runBrandAudit(
                     selector: fix.selector,
                     property: fix.property,
                     value: fix.value,
-                    reason: String(fix.reason || ''),
+                    reason: typeof fix.reason === 'string' ? fix.reason : '',
                 });
             }
         }

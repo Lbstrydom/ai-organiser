@@ -66,11 +66,11 @@ export function sanitizeText(text: string): string {
     result = result.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
     // Bold: **text** or __text__
-    result = result.replace(/\*\*([^\*]+)\*\*/g, '$1');
+    result = result.replace(/\*\*([^*]+)\*\*/g, '$1');
     result = result.replace(/__([^_]+)__/g, '$1');
 
     // Italic: *text* or _text_
-    result = result.replace(/\*([^\*]+)\*/g, '$1');
+    result = result.replace(/\*([^*]+)\*/g, '$1');
     result = result.replace(/_([^_]+)_/g, '$1');
 
     // Strikethrough: ~~text~~

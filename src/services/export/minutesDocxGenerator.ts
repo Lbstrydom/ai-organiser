@@ -9,7 +9,7 @@
  *           Actions → Key Points → Risks → Open Questions → Deferred Items → GTD
  */
 
-import type { MinutesJSON, GTDAction, GTDProcessing } from '../prompts/minutesPrompts';
+import type { MinutesJSON, GTDAction } from '../prompts/minutesPrompts';
 import type { MinutesStyle } from '../../core/constants';
 import { stripConfidenceAnnotations, groupPointsBySubTopic, hasAnyAgendaRef } from '../../utils/minutesUtils';
 
@@ -26,7 +26,7 @@ export async function generateMinutesDocx(
 ): Promise<ArrayBuffer> {
     const {
         Document, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell,
-        WidthType, AlignmentType, Packer, BorderStyle, ShadingType
+        WidthType, AlignmentType, Packer, ShadingType
     } = await import('docx');
 
     const meta = json.metadata;
@@ -157,7 +157,7 @@ export async function generateMinutesDocx(
         // Flat layout fallback (when no agenda_item_ref links exist)
         if (hasAgenda) {
             children.push(heading2('Agenda', { Paragraph, TextRun, HeadingLevel }));
-            json.agenda!.forEach((item, i) => {
+            json.agenda.forEach((item, i) => {
                 children.push(new Paragraph({
                     children: [new TextRun({ text: `${i + 1}. ${item}`, size: 20, font: 'Calibri' })],
                     spacing: { after: 40 },
@@ -259,7 +259,7 @@ export async function generateMinutesDocx(
             children.push(heading2('Appendix', { Paragraph, TextRun, HeadingLevel }));
 
             if (hasRisks) {
-                const capped = json.risks!.slice(0, 6);
+                const capped = json.risks.slice(0, 6);
                 children.push(new Paragraph({
                     children: [new TextRun({ text: 'Risks & Issues', bold: true, size: 22, font: 'Calibri' })],
                     spacing: { before: 120, after: 60 },
@@ -278,7 +278,7 @@ export async function generateMinutesDocx(
                     children: [new TextRun({ text: 'Deferred Items', bold: true, size: 22, font: 'Calibri' })],
                     spacing: { before: 120, after: 60 },
                 }));
-                json.deferred_items!.forEach(d => {
+                json.deferred_items.forEach(d => {
                     const parts = [new TextRun({ text: d.text, size: 20, font: 'Calibri' })];
                     if (d.reason) parts.push(new TextRun({ text: ` — ${d.reason}`, italics: true, size: 20, font: 'Calibri' }));
                     children.push(new Paragraph({ children: parts, bullet: { level: 0 }, spacing: { after: 40 } }));
@@ -290,7 +290,7 @@ export async function generateMinutesDocx(
                     children: [new TextRun({ text: 'Open Questions', bold: true, size: 22, font: 'Calibri' })],
                     spacing: { before: 120, after: 60 },
                 }));
-                json.open_questions!.forEach(q => {
+                json.open_questions.forEach(q => {
                     const parts = [new TextRun({ text: q.text, size: 20, font: 'Calibri' })];
                     if (q.owner) parts.push(new TextRun({ text: ` (${q.owner})`, italics: true, size: 20, font: 'Calibri' }));
                     children.push(new Paragraph({ children: parts, bullet: { level: 0 }, spacing: { after: 40 } }));

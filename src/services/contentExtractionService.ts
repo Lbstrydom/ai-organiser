@@ -3,7 +3,7 @@
  * Extracts and combines content from multiple sources (PDFs, images, web links, YouTube)
  */
 
-import { App, TFile } from 'obsidian';
+import { App, TFile, requestUrl } from 'obsidian';
 import { DetectedContent } from '../utils/embeddedContentDetector';
 import { fetchArticle } from './webContentService';
 import { PdfService, PdfServiceResult } from './pdfService';
@@ -175,7 +175,7 @@ export class ContentExtractionService {
                     source: item,
                     content: '',
                     success: false,
-                    error: `Unknown content type: ${item.type}`
+                    error: `Unknown content type: ${item.type as string}`
                 };
         }
     }
@@ -232,7 +232,7 @@ export class ContentExtractionService {
             } else {
                 // Fall back to legacy caption scraping (deprecated but works without API key)
                 logger.debug('Core', 'Using legacy caption scraping for YouTube');
-                result = await fetchYouTubeTranscript(item.url);
+                result = await fetchYouTubeTranscript(item.url); // eslint-disable-line @typescript-eslint/no-deprecated -- fallback for users without Gemini key
             }
 
             if (!result.success || !result.transcript) {
@@ -552,14 +552,12 @@ export class ContentExtractionService {
 
             if (item.isExternal) {
                 // External image - fetch it
-                const response = await fetch(item.url);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch image: ${response.statusText}`);
+                const response = await requestUrl({ url: item.url });
+                if (response.status >= 400) {
+                    throw new Error(`Failed to fetch image: HTTP ${response.status}`);
                 }
-                const blob = await response.blob();
-                mimeType = blob.type || this.getMimeTypeFromUrl(item.url);
-                const arrayBuffer = await blob.arrayBuffer();
-                base64 = this.arrayBufferToBase64(arrayBuffer);
+                mimeType = response.headers['content-type'] || this.getMimeTypeFromUrl(item.url);
+                base64 = this.arrayBufferToBase64(response.arrayBuffer);
             } else {
                 // Internal image
                 let file: TFile | null = null;

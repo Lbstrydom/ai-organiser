@@ -91,7 +91,7 @@ export class FindResourcesModal extends Modal {
                 this.cleanups.push(listen(text.inputEl, 'keydown', (e) => {
                     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
-                        this.submit();
+                        void this.submit();
                     }
                 }));
             });
@@ -108,7 +108,7 @@ export class FindResourcesModal extends Modal {
             text: this.t.modals.findResources?.submitButton || 'Search',
             cls: 'mod-cta'
         });
-        this.cleanups.push(listen(submitButton, 'click', () => this.submit()));
+        this.cleanups.push(listen(submitButton, 'click', () => { void this.submit(); }));
     }
 
     private async submit() {

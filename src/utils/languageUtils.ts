@@ -1,4 +1,4 @@
-import { LanguageCode } from '../services/types';
+// LanguageCode type available from services/types if needed
 
 /**
  * Utility class for language-related operations

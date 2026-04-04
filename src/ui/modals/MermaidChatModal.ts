@@ -15,7 +15,6 @@ import { Modal, MarkdownRenderer, Platform, Component, Notice, Editor, App, Fuzz
 import type AIOrganiserPlugin from '../../main';
 import { MermaidContextService } from '../../services/mermaidContextService';
 import { MermaidTemplateService } from '../../services/mermaidTemplateService';
-import type { MermaidTemplate } from '../../services/mermaidTemplateService';
 import { MermaidExportService } from '../../services/mermaidExportService';
 import { MermaidChangeDetector } from '../../services/mermaidChangeDetector';
 import { MermaidTemplatePickerModal } from './MermaidTemplatePickerModal';
@@ -218,7 +217,7 @@ export class MermaidChatModal extends Modal {
 
         const previewTabContent = contentArea.createEl('div', { cls: 'ai-organiser-mermaid-tab-pane' });
         previewTabContent.dataset.tab = 'preview';
-        previewTabContent.style.display = 'none';
+        previewTabContent.addClass('ai-organiser-hidden');
         this.previewEl = previewTabContent.createEl('div', { cls: 'ai-organiser-mermaid-preview' });
 
         const chatTabContent = contentArea.createEl('div', { cls: 'ai-organiser-mermaid-tab-pane' });
@@ -256,7 +255,7 @@ export class MermaidChatModal extends Modal {
         this.inputEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                this.handleSend();
+                void this.handleSend();
             }
         });
 
@@ -264,13 +263,13 @@ export class MermaidChatModal extends Modal {
             cls: 'mod-cta ai-organiser-mermaid-send',
             text: t.sendButton,
         });
-        this.sendBtn.onclick = () => this.handleSend();
+        this.sendBtn.onclick = () => { void this.handleSend(); };
 
         this.cancelBtn = row.createEl('button', {
             cls: 'ai-organiser-mermaid-cancel',
             text: t.cancelButton,
         });
-        this.cancelBtn.style.display = 'none';
+        this.cancelBtn.addClass('ai-organiser-hidden');
         this.cancelBtn.onclick = () => this.streamAbortController?.abort();
     }
 
@@ -278,15 +277,15 @@ export class MermaidChatModal extends Modal {
 
     private buildHistoryNav(parent: HTMLElement): void {
         this.historyNavEl = parent.createEl('div', { cls: 'ai-organiser-mermaid-history-nav' });
-        this.historyNavEl.style.display = 'none';
+        this.historyNavEl.addClass('ai-organiser-hidden');
     }
 
     private updateHistoryNav(): void {
         if (this.diagramHistory.length < 2) {
-            this.historyNavEl.style.display = 'none';
+            this.historyNavEl.addClass('ai-organiser-hidden');
             return;
         }
-        this.historyNavEl.style.display = '';
+        this.historyNavEl.removeClass('ai-organiser-hidden');
         this.historyNavEl.empty();
 
         const t = this.plugin.t.modals.mermaidChat;
@@ -752,7 +751,7 @@ export class MermaidChatModal extends Modal {
                     item.type,
                     item.label,
                 );
-                this.handleSend(instruction);
+                void this.handleSend(instruction);
             },
             t.selectDiagramType,
         ).open();
@@ -841,7 +840,7 @@ export class MermaidChatModal extends Modal {
     private showExportMenu(e: MouseEvent): void {
         if (!this.currentDiagram) return;
         const t = this.plugin.t.modals.mermaidChat;
-        const activeFile = this.plugin.app.workspace.getActiveFile() as TFile | null;
+        const activeFile = this.plugin.app.workspace.getActiveFile();
         const name = this.getSafeDiagramName();
 
         // Helper: generate alt text when the setting is enabled and consent was granted (§4.3.5)
@@ -979,10 +978,10 @@ class TemplateNameModal extends Modal {
         contentEl.createEl('p', { text: this.promptText });
 
         const input = contentEl.createEl('input', {
-            attr: { type: 'text', placeholder: 'My Template' },
+            attr: { type: 'text', placeholder: 'My template' },
         });
         input.addClass('ai-organiser-template-name-input');
-        input.style.width = '100%';
+        input.addClass('ai-organiser-w-full');
         setTimeout(() => input.focus(), 30);
 
         const submit = () => {

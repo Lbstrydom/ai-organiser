@@ -138,7 +138,7 @@ export class ResearchUsageService {
      * and an optional user-facing message (warning or block reason).
      * Orchestrator calls this before each paid operation.
      */
-    checkBudget(tier: PaidTier): { allowed: boolean; message?: string } {
+    checkBudget(_tier: PaidTier): { allowed: boolean; message?: string } {
         if (!this.settings.enableResearchUsageGuardrails) {
             return { allowed: true };
         }

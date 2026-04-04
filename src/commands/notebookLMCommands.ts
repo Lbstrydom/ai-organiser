@@ -47,7 +47,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     plugin.app,
                     t,
                     preview,
-                    async (result) => {
+                    (result) => { void (async () => {
                         if (!result.proceed) {
                             // User cancelled
                             return;
@@ -96,7 +96,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                             new Notice(failMessage, 5000);
                             logger.error('Export', 'NotebookLM export error:', error);
                         }
-                    }
+                    })(); }
                 );
 
                 exportModal.open();
@@ -240,6 +240,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     const basePath = adapter.getBasePath?.() || '';
                     const folderPath = `${basePath}/${exportFolder}`;
 
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: open folder in OS file manager
                     const { shell } = require('electron');
                     shell.openPath(folderPath);
                 } else {

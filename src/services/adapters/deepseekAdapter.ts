@@ -1,5 +1,5 @@
 import { BaseAdapter } from "./baseAdapter";
-import { AdapterConfig, RequestBody, BaseResponse } from "./types";
+import { AdapterConfig, BaseResponse } from "./types";
 import * as endpoints from './cloudEndpoints.json';
 
 export class DeepseekAdapter extends BaseAdapter {

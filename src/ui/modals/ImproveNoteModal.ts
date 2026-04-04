@@ -121,7 +121,7 @@ export class ImproveNoteModal extends Modal {
                 text.inputEl.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
-                        this.submit();
+                        void this.submit();
                     }
                 });
             });
@@ -162,7 +162,7 @@ export class ImproveNoteModal extends Modal {
             text: this.t.modals.improveNote?.submitButton || 'Improve',
             cls: 'mod-cta'
         });
-        submitButton.addEventListener('click', () => this.submit());
+        submitButton.addEventListener('click', () => { void this.submit(); });
     }
 
     private async submit() {

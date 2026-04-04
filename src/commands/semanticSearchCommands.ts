@@ -3,7 +3,7 @@
  * Enables searching vault by semantic similarity
  */
 
-import { Notice, Modal, App, Platform, ButtonComponent, TFile, Setting, DropdownComponent } from 'obsidian';
+import { Notice, Modal, App, Platform, ButtonComponent, TFile, Setting } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
@@ -71,9 +71,9 @@ class SemanticSearchResultsModal extends Modal {
             text: t.description,
             cls: 'ai-organiser-semantic-search-description'
         });
-        descEl.style.color = 'var(--text-muted)';
-        descEl.style.fontSize = '13px';
-        descEl.style.marginBottom = '12px';
+        descEl.addClass('ai-organiser-text-muted');
+        descEl.addClass('ai-organiser-text-base');
+        descEl.addClass('ai-organiser-mb-12');
 
         // Search input area
         const searchContainer = contentEl.createDiv({ cls: 'ai-organiser-semantic-search-input-container' });
@@ -84,16 +84,16 @@ class SemanticSearchResultsModal extends Modal {
         });
         this.searchTextarea.value = this.query;
         this.searchTextarea.rows = 3;
-        this.searchTextarea.style.width = '100%';
-        this.searchTextarea.style.padding = '10px 12px';
-        this.searchTextarea.style.fontSize = '14px';
-        this.searchTextarea.style.border = '1px solid var(--background-modifier-border)';
-        this.searchTextarea.style.borderRadius = '6px';
-        this.searchTextarea.style.backgroundColor = 'var(--background-primary)';
-        this.searchTextarea.style.color = 'var(--text-normal)';
-        this.searchTextarea.style.resize = 'vertical';
-        this.searchTextarea.style.fontFamily = 'inherit';
-        this.searchTextarea.style.lineHeight = '1.5';
+        this.searchTextarea.addClass('ai-organiser-w-full');
+        this.searchTextarea.setCssProps({ '--pad': '10px 12px' }); this.searchTextarea.addClass('ai-organiser-pad-custom');
+        this.searchTextarea.addClass('ai-organiser-text-lg');
+        this.searchTextarea.addClass('ai-organiser-border');
+        this.searchTextarea.addClass('ai-organiser-rounded-md');
+        this.searchTextarea.addClass('ai-organiser-bg-primary');
+        this.searchTextarea.addClass('ai-organiser-text-normal');
+        this.searchTextarea.addClass('ai-organiser-resize-vertical');
+        this.searchTextarea.addClass('ai-organiser-font-inherit');
+        this.searchTextarea.addClass('ai-organiser-line-height-relaxed');
 
         this.searchTextarea.addEventListener('input', () => {
             this.query = this.searchTextarea.value;
@@ -104,29 +104,25 @@ class SemanticSearchResultsModal extends Modal {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 if (!this.isSearching) {
-                    this.performSearch();
+                    void this.performSearch();
                 }
             }
         });
 
         // Controls row: expand toggle + search button
         const controlsRow = contentEl.createDiv({ cls: 'ai-organiser-semantic-search-controls' });
-        controlsRow.style.display = 'flex';
-        controlsRow.style.justifyContent = 'space-between';
-        controlsRow.style.alignItems = 'center';
-        controlsRow.style.marginTop = '8px';
-        controlsRow.style.marginBottom = '16px';
+        controlsRow.addClass('ai-organiser-flex-between');
+        controlsRow.addClass('ai-organiser-mt-8');
+        controlsRow.addClass('ai-organiser-mb-16');
 
         // LLM expand toggle
         const expandLabel = controlsRow.createEl('label', {
             cls: 'ai-organiser-semantic-search-expand-label'
         });
-        expandLabel.style.display = 'flex';
-        expandLabel.style.alignItems = 'center';
-        expandLabel.style.gap = '6px';
-        expandLabel.style.fontSize = '13px';
-        expandLabel.style.color = 'var(--text-muted)';
-        expandLabel.style.cursor = 'pointer';
+        expandLabel.addClass('ai-organiser-flex-center', 'ai-organiser-gap-6');
+        expandLabel.addClass('ai-organiser-text-base');
+        expandLabel.addClass('ai-organiser-text-muted');
+        expandLabel.addClass('ai-organiser-cursor-pointer');
 
         this.expandToggle = expandLabel.createEl('input', {
             type: 'checkbox',
@@ -140,15 +136,15 @@ class SemanticSearchResultsModal extends Modal {
 
         // Tooltip
         const infoIcon = expandLabel.createSpan({ text: '?' });
-        infoIcon.style.display = 'inline-flex';
-        infoIcon.style.alignItems = 'center';
-        infoIcon.style.justifyContent = 'center';
-        infoIcon.style.width = '16px';
-        infoIcon.style.height = '16px';
-        infoIcon.style.borderRadius = '50%';
-        infoIcon.style.border = '1px solid var(--text-muted)';
-        infoIcon.style.fontSize = '10px';
-        infoIcon.style.color = 'var(--text-muted)';
+        infoIcon.addClass('ai-organiser-inline-flex');
+        infoIcon.addClass('ai-organiser-items-center');
+        infoIcon.addClass('ai-organiser-flex-end');
+        infoIcon.setCssProps({ '--w': '16px' }); infoIcon.addClass('ai-organiser-w-custom');
+        infoIcon.setCssProps({ '--h': '16px' }); infoIcon.addClass('ai-organiser-h-custom');
+        infoIcon.addClass('ai-organiser-rounded-full');
+        infoIcon.setCssProps({ '--border': '1px solid var(--text-muted)' }); infoIcon.addClass('ai-organiser-border-custom');
+        infoIcon.addClass('ai-organiser-text-xs');
+        infoIcon.addClass('ai-organiser-text-muted');
         infoIcon.title = t.expandTooltip || 'Uses your LLM to add related terms, synonyms, and concepts to improve search results';
 
         // Search button
@@ -166,9 +162,8 @@ class SemanticSearchResultsModal extends Modal {
             text: t.enterQueryHint || 'Enter a query and press Enter or click Search',
             cls: 'search-empty'
         });
-        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.color = 'var(--text-muted)';
-        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.textAlign = 'center';
-        (this.resultsDiv.querySelector('.search-empty') as HTMLElement).style.padding = '30px 20px';
+        const emptyEl = this.resultsDiv.querySelector('.search-empty') as HTMLElement;
+        emptyEl.addClass('ai-organiser-semantic-search-empty');
 
         // Focus textarea
         setTimeout(() => this.searchTextarea.focus(), 50);
@@ -251,42 +246,36 @@ class SemanticSearchResultsModal extends Modal {
                 text: t.noResults,
                 cls: 'search-empty'
             });
-            emptyEl.style.color = 'var(--text-muted)';
-            emptyEl.style.textAlign = 'center';
-            emptyEl.style.padding = '30px 20px';
+            emptyEl.addClass('ai-organiser-text-muted');
+            emptyEl.addClass('ai-organiser-text-center');
+            emptyEl.setCssProps({ '--pad': '30px 20px' }); emptyEl.addClass('ai-organiser-pad-custom');
             return;
         }
 
         // Header with controls
         this.selectionHeader = container.createEl('div', { cls: 'ai-organiser-semantic-search-results-header' });
-        this.selectionHeader.style.display = 'flex';
-        this.selectionHeader.style.justifyContent = 'space-between';
-        this.selectionHeader.style.alignItems = 'center';
-        this.selectionHeader.style.marginBottom = '10px';
-        this.selectionHeader.style.paddingBottom = '8px';
-        this.selectionHeader.style.borderBottom = '1px solid var(--background-modifier-border)';
+        this.selectionHeader.addClass('ai-organiser-flex');
+        this.selectionHeader.addClass('ai-organiser-flex-between');
+        this.selectionHeader.addClass('ai-organiser-items-center');
+        this.selectionHeader.addClass('ai-organiser-mb-10');
+        this.selectionHeader.addClass('ai-organiser-pb-8');
+        this.selectionHeader.addClass('ai-organiser-border-b');
 
         // Left side: result count + AI badge + selection count
         const leftSide = this.selectionHeader.createDiv();
-        leftSide.style.display = 'flex';
-        leftSide.style.alignItems = 'center';
-        leftSide.style.gap = '8px';
+        leftSide.addClass('ai-organiser-flex-center', 'ai-organiser-gap-8');
 
         leftSide.createEl('span', {
             text: `${this.results.length} ${t.resultsFound || 'results found'}`,
-            cls: 'ai-organiser-semantic-search-count'
-        }).style.color = 'var(--text-muted)';
+            cls: 'ai-organiser-semantic-search-count ai-organiser-text-muted'
+        });
 
         if (this.expandToggle.checked) {
             const aiLabel = leftSide.createEl('span', {
                 text: t.aiExpanded || 'AI-expanded',
                 cls: 'ai-organiser-semantic-search-ai-badge'
             });
-            aiLabel.style.fontSize = '11px';
-            aiLabel.style.padding = '2px 8px';
-            aiLabel.style.borderRadius = '10px';
-            aiLabel.style.backgroundColor = 'var(--interactive-accent)';
-            aiLabel.style.color = 'var(--text-on-accent)';
+            aiLabel.addClass('ai-organiser-text-sm', 'ai-organiser-bg-accent', 'ai-organiser-text-on-accent', 'ai-organiser-rounded-lg');
         }
 
         // Selection count badge
@@ -296,20 +285,14 @@ class SemanticSearchResultsModal extends Modal {
                 : t.noneSelected,
             cls: 'ai-organiser-semantic-search-selection-badge'
         });
-        selectionBadge.style.fontSize = '11px';
-        selectionBadge.style.padding = '2px 8px';
-        selectionBadge.style.borderRadius = '10px';
-        selectionBadge.style.backgroundColor = this.selectedResults.size > 0 
-            ? 'var(--interactive-accent)' 
-            : 'var(--background-modifier-border)';
-        selectionBadge.style.color = this.selectedResults.size > 0 
-            ? 'var(--text-on-accent)' 
-            : 'var(--text-muted)';
+        selectionBadge.addClass('ai-organiser-text-sm', 'ai-organiser-rounded-lg');
+        if (this.selectedResults.size > 0) {
+            selectionBadge.addClass('is-active');
+        }
 
         // Right side: Select All/Deselect All + Export buttons
         const rightSide = this.selectionHeader.createDiv();
-        rightSide.style.display = 'flex';
-        rightSide.style.gap = '8px';
+        rightSide.addClass('ai-organiser-flex-row', 'ai-organiser-gap-8');
 
         // Select All/Deselect All toggle button
         const selectToggleBtn = new ButtonComponent(rightSide);
@@ -339,22 +322,21 @@ class SemanticSearchResultsModal extends Modal {
             });
 
         const listEl = container.createDiv({ cls: 'ai-organiser-semantic-search-list' });
-        listEl.style.maxHeight = '400px';
-        listEl.style.overflowY = 'auto';
+        listEl.setCssProps({ '--max-h': '400px' }); listEl.addClass('ai-organiser-max-h-custom');
+        listEl.addClass('ai-organiser-overflow-y-auto');
 
         for (const result of this.results) {
             const resultEl = listEl.createEl('div', {
                 cls: 'ai-organiser-semantic-search-result-item'
             });
-            resultEl.style.padding = '10px 12px';
-            resultEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-            resultEl.style.display = 'flex';
-            resultEl.style.gap = '10px';
-            resultEl.style.alignItems = 'flex-start';
+            resultEl.setCssProps({ '--pad': '10px 12px' }); resultEl.addClass('ai-organiser-pad-custom');
+            resultEl.addClass('ai-organiser-border-b');
+            resultEl.addClass('ai-organiser-flex-row', 'ai-organiser-gap-10');
+            resultEl.addClass('ai-organiser-items-start');
 
             // Checkbox
             const checkboxContainer = resultEl.createDiv();
-            checkboxContainer.style.paddingTop = '2px';
+            checkboxContainer.addClass('ai-organiser-pt-2');
             const checkbox = checkboxContainer.createEl('input', { type: 'checkbox' });
             checkbox.checked = this.selectedResults.has(result.document.filePath);
             checkbox.addEventListener('change', () => {
@@ -370,28 +352,26 @@ class SemanticSearchResultsModal extends Modal {
 
             // Content area
             const contentEl = resultEl.createDiv();
-            contentEl.style.flex = '1';
-            contentEl.style.cursor = 'pointer';
+            contentEl.addClass('ai-organiser-flex-1');
+            contentEl.addClass('ai-organiser-cursor-pointer');
 
             contentEl.addEventListener('mouseenter', () => {
-                contentEl.style.opacity = '0.8';
+                contentEl.addClass('ai-organiser-opacity-85');
             });
             contentEl.addEventListener('mouseleave', () => {
-                contentEl.style.opacity = '1';
+                contentEl.removeClass('ai-organiser-opacity-85');
             });
 
             // Title row with score badge
             const titleRow = contentEl.createDiv();
-            titleRow.style.display = 'flex';
-            titleRow.style.justifyContent = 'space-between';
-            titleRow.style.alignItems = 'center';
-            titleRow.style.marginBottom = '4px';
+            titleRow.addClass('ai-organiser-flex-between');
+            titleRow.addClass('ai-organiser-mb-4');
 
             const title = result.document.metadata?.title || result.document.filePath.split('/').pop() || 'Untitled';
             titleRow.createEl('span', {
                 text: title,
-                cls: 'ai-organiser-semantic-search-result-title'
-            }).style.fontWeight = '600';
+                cls: 'ai-organiser-semantic-search-result-title ai-organiser-font-semibold'
+            });
 
             // Score badge
             const score = result.score;
@@ -400,18 +380,16 @@ class SemanticSearchResultsModal extends Modal {
                 text: `${scorePercent}%`,
                 cls: 'ai-organiser-semantic-search-score-badge'
             });
-            badgeEl.style.fontSize = '11px';
-            badgeEl.style.padding = '1px 6px';
-            badgeEl.style.borderRadius = '8px';
+            badgeEl.addClass('ai-organiser-text-sm');
+            badgeEl.setCssProps({ '--pad': '1px 6px' }); badgeEl.addClass('ai-organiser-pad-custom');
+            badgeEl.addClass('ai-organiser-rounded-md');
             if (score >= 0.8) {
-                badgeEl.style.backgroundColor = 'var(--color-green)';
-                badgeEl.style.color = 'white';
+                badgeEl.addClass('score-high');
             } else if (score >= 0.6) {
-                badgeEl.style.backgroundColor = 'var(--color-yellow)';
-                badgeEl.style.color = 'black';
+                badgeEl.addClass('score-medium');
             } else {
-                badgeEl.style.backgroundColor = 'var(--background-modifier-border)';
-                badgeEl.style.color = 'var(--text-muted)';
+                badgeEl.addClass('ai-organiser-bg-border');
+                badgeEl.addClass('ai-organiser-text-muted');
             }
 
             // File path
@@ -419,9 +397,9 @@ class SemanticSearchResultsModal extends Modal {
                 text: result.document.filePath,
                 cls: 'ai-organiser-semantic-search-result-path'
             });
-            pathEl.style.fontSize = '11px';
-            pathEl.style.color = 'var(--text-muted)';
-            pathEl.style.marginBottom = '4px';
+            pathEl.addClass('ai-organiser-text-sm');
+            pathEl.addClass('ai-organiser-text-muted');
+            pathEl.addClass('ai-organiser-mb-4');
 
             // Preview text
             const preview = result.highlightedText || result.document.content.substring(0, 200);
@@ -429,16 +407,16 @@ class SemanticSearchResultsModal extends Modal {
                 text: preview.length > 200 ? preview.substring(0, 200) + '...' : preview,
                 cls: 'ai-organiser-semantic-search-result-preview'
             });
-            previewEl.style.fontSize = '12px';
-            previewEl.style.color = 'var(--text-muted)';
-            previewEl.style.margin = '0';
-            previewEl.style.lineHeight = '1.4';
+            previewEl.addClass('ai-organiser-text-md');
+            previewEl.addClass('ai-organiser-text-muted');
+            previewEl.setCssProps({ '--margin': '0' }); previewEl.addClass('ai-organiser-margin-custom');
+            previewEl.addClass('ai-organiser-line-height-normal');
 
             // Click content to open note
             contentEl.addEventListener('click', () => {
                 const file = this.app.vault.getFileByPath(result.document.filePath);
                 if (file && file instanceof TFile) {
-                    this.app.workspace.getLeaf().openFile(file);
+                    void this.app.workspace.getLeaf().openFile(file);
                     this.close();
                 }
             });
@@ -508,8 +486,8 @@ class ExportSearchResultsModal extends Modal {
         // Description
         contentEl.createEl('p', {
             text: t.description,
-            cls: 'export-description'
-        }).style.marginBottom = '16px';
+            cls: 'export-description ai-organiser-mb-16'
+        });
 
         // Export target (New note vs Existing note)
         new Setting(contentEl)
@@ -533,15 +511,15 @@ class ExportSearchResultsModal extends Modal {
                 .addButton(button => {
                     button
                         .setButtonText(t.chooseFolder)
-                        .onClick(async () => {
+                        .onClick(() => {
                             const modal = new FolderScopePickerModal(
                                 this.app,
                                 this.plugin,
                                 {
                                     defaultFolder: this.selectedFolder,
-                                    onSelect: async (folder: string | null) => {
+                                    onSelect: (folder: string | null) => {
                                         this.selectedFolder = folder || '';
-                                        await this.refresh();
+                                        void this.refresh();
                                     }
                                 }
                             );
@@ -559,7 +537,7 @@ class ExportSearchResultsModal extends Modal {
                         .onClick(() => {
                             // Simple file suggester
                             const files = this.app.vault.getMarkdownFiles();
-                            const names = files.map(f => f.basename);
+                            // names used implicitly by file search below
                             
                             // Create a minimal suggester using Setting
                             const suggestSetting = new Setting(contentEl)
@@ -576,7 +554,7 @@ class ExportSearchResultsModal extends Modal {
                                         text.inputEl.addEventListener('keydown', (e) => {
                                             if (e.key === 'Enter' && matches.length > 0) {
                                                 this.selectedNote = matches[0];
-                                                this.refresh();
+                                                void this.refresh();
                                                 suggestSetting.settingEl.remove();
                                             }
                                         });
@@ -601,10 +579,9 @@ class ExportSearchResultsModal extends Modal {
 
         // Export button
         const buttonContainer = contentEl.createDiv({ cls: 'export-button-container' });
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-        buttonContainer.style.marginTop = '20px';
-        buttonContainer.style.gap = '8px';
+        buttonContainer.addClass('ai-organiser-flex-end');
+        buttonContainer.addClass('ai-organiser-mt-20');
+        buttonContainer.addClass('ai-organiser-gap-8');
 
         new ButtonComponent(buttonContainer)
             .setButtonText('Cancel')
@@ -671,9 +648,6 @@ class ExportSearchResultsModal extends Modal {
         lines.push(`## Search Results — ${timestamp}\n`);
 
         for (const result of this.results) {
-            const title = result.document.metadata?.title || 
-                         result.document.filePath.split('/').pop()?.replace('.md', '') || 
-                         'Untitled';
             const wikilink = `[[${result.document.filePath.replace('.md', '')}]]`;
             
             if (this.includeExcerpts) {
@@ -770,7 +744,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
             // Reuse existing leaf if one is already open (prevents duplicates)
             const existing = plugin.app.workspace.getLeavesOfType(RELATED_NOTES_VIEW_TYPE);
             if (existing.length > 0) {
-                plugin.app.workspace.revealLeaf(existing[0]);
+                void plugin.app.workspace.revealLeaf(existing[0]);
                 return;
             }
 
@@ -780,7 +754,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
                     type: RELATED_NOTES_VIEW_TYPE,
                     active: true
                 });
-                plugin.app.workspace.revealLeaf(leaf);
+                void plugin.app.workspace.revealLeaf(leaf);
             }
         }
     });

@@ -13,7 +13,9 @@
  * to render the warning icon.
  */
 
+// eslint-disable-next-line import/no-extraneous-dependencies -- @codemirror/view is provided by Obsidian at runtime
 import { ViewPlugin, ViewUpdate, Decoration, DecorationSet, EditorView } from '@codemirror/view';
+// eslint-disable-next-line import/no-extraneous-dependencies -- @codemirror/state is provided by Obsidian at runtime
 import { RangeSetBuilder } from '@codemirror/state';
 import { findAllMermaidBlocks } from '../../utils/mermaidUtils';
 import type AIOrganiserPlugin from '../../main';

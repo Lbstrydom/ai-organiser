@@ -5,7 +5,7 @@
  * DD-3: Auto-fixes where safe, flags where not.
  */
 
-import type { MinutesJSON, Action, Decision, Risk, NotablePoint, OpenQuestion, DeferredItem, GTDProcessing, GTDAction } from '../prompts/minutesPrompts';
+import type { MinutesJSON, GTDProcessing } from '../prompts/minutesPrompts';
 import type { ValidationResult, ValidationIssue } from './types';
 import { LOW_CONFIDENCE_WARN_RATIO, VALID_GTD_CONTEXTS } from './constants';
 

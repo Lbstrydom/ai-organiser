@@ -2,7 +2,6 @@
  * Digitisation Settings Section — Smart Digitisation configuration (Phase 3)
  */
 import { Setting } from 'obsidian';
-import AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import type { DigitiseMode } from '../../services/visionService';
 

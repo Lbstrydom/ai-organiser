@@ -83,7 +83,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         return details.createDiv({ cls: 'ai-organiser-settings-section-content' });
     }
 
-    async display(): Promise<void> {
+    display(): void { void this.displayAsync(); }
+    private async displayAsync(): Promise<void> {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('ai-organiser-settings');
@@ -141,11 +142,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         let sub = this.createSubCollapsibleSection(content, 'sub-audio', t.audioTranscription?.title || 'Audio & Recording', 'mic');
         new AudioTranscriptionSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-digitisation', t.digitisation?.title || 'Smart Digitisation', 'scan');
-        new DigitisationSettingsSection(this.plugin, sub, this).display();
+        await new DigitisationSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-sketch', t.sketch?.title || 'Sketch Pad', 'pencil');
-        new SketchSettingsSection(this.plugin, sub, this).display();
+        await new SketchSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-kindle', t.kindle?.title || 'Kindle Highlights', 'book-open');
-        new KindleSettingsSection(this.plugin, sub, this).display();
+        await new KindleSettingsSection(this.plugin, sub, this).display();
 
         // 6. Meeting Minutes
         content = this.createCollapsibleSection(
@@ -165,7 +166,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             d?.vaultIntelligence || 'Semantic search, RAG context, and canvas visualizations'
         );
         sub = this.createSubCollapsibleSection(content, 'sub-semantic-search', t.semanticSearch?.title || 'Semantic Search', 'brain-circuit');
-        new SemanticSearchSettingsSection(this.plugin, sub, this).display();
+        await new SemanticSearchSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-canvas', this.plugin.t.canvas?.settingsTitle || 'Canvas Boards', 'layout-grid');
         new CanvasSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-mermaid', this.plugin.t.modals?.mermaidChat?.settingsTitle || 'Mermaid Diagram Chat', 'share-2');

@@ -1,6 +1,6 @@
-import { App, Modal, ButtonComponent, Setting } from 'obsidian';
+import { App, Modal, ButtonComponent } from 'obsidian';
 import AIOrganiserPlugin from '../../main';
-import { getVaultItems, VaultItem, getPathStrings } from '../../utils/vaultPathFetcher';
+import { getVaultItems, VaultItem } from '../../utils/vaultPathFetcher';
 
 export class ExcludedFilesModal extends Modal {
     private excludedFolders: string[] = [];
@@ -14,7 +14,7 @@ export class ExcludedFilesModal extends Modal {
         const target = event.target as Node;
         if (this.filterInput && !this.filterInput.parentElement?.contains(target) && 
             !this.pathDropdownContainer.contains(target)) {
-            this.pathDropdownContainer.style.display = 'none';
+            this.pathDropdownContainer.addClass('ai-organiser-hidden');
         }
     };
 
@@ -33,7 +33,7 @@ export class ExcludedFilesModal extends Modal {
             try {
                 this.cachedPaths = getVaultItems(this.app);
                 this.hasLoadedPaths = true;
-            } catch (error) {
+            } catch (_error) {
                 this.cachedPaths = [];
             }
         }
@@ -47,38 +47,38 @@ export class ExcludedFilesModal extends Modal {
 
         // Set container styles
         contentEl.addClass('ai-organiser-excluded-files-modal');
-        contentEl.style.padding = '20px';
-        contentEl.style.maxWidth = '500px';
-        contentEl.style.margin = '0 auto';
+        contentEl.addClass('ai-organiser-p-16');
+        contentEl.setCssProps({ '--max-w': '500px' }); contentEl.addClass('ai-organiser-max-w-custom');
+        contentEl.setCssProps({ '--margin': '0 auto' }); contentEl.addClass('ai-organiser-margin-custom');
         
         // Set modal title with improved styling
         const titleEl = contentEl.createEl('h2', {
             text: this.plugin.t.modals.excludedFilesTitle,
             cls: 'ai-organiser-excluded-files-title'
         });
-        titleEl.style.marginTop = '0';
-        titleEl.style.marginBottom = '10px';
-        titleEl.style.color = 'var(--text-normal)';
-        titleEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-        titleEl.style.paddingBottom = '10px';
+        titleEl.addClass('ai-organiser-mt-0');
+        titleEl.addClass('ai-organiser-mb-10');
+        titleEl.addClass('ai-organiser-text-normal');
+        titleEl.addClass('ai-organiser-border-b');
+        titleEl.addClass('ai-organiser-pb-8');
         
         const subtitleEl = contentEl.createEl('p', {
             text: this.plugin.t.modals.excludedFilesSubtitle,
             cls: 'ai-organiser-excluded-files-subtitle'
         });
-        subtitleEl.style.margin = '10px 0 15px';
-        subtitleEl.style.color = 'var(--text-muted)';
-        subtitleEl.style.fontSize = '14px';
+        subtitleEl.setCssProps({ '--margin': '10px 0 15px' }); subtitleEl.addClass('ai-organiser-margin-custom');
+        subtitleEl.addClass('ai-organiser-text-muted');
+        subtitleEl.addClass('ai-organiser-text-lg');
 
         // Create container for excluded paths list
         const excludedListContainer = contentEl.createDiv({ cls: 'ai-organiser-excluded-list' });
-        excludedListContainer.style.marginBottom = '20px';
-        excludedListContainer.style.maxHeight = '200px';
-        excludedListContainer.style.overflowY = 'auto';
-        excludedListContainer.style.padding = '5px';
-        excludedListContainer.style.border = '1px solid var(--background-modifier-border)';
-        excludedListContainer.style.borderRadius = '4px';
-        excludedListContainer.style.backgroundColor = 'var(--background-secondary)';
+        excludedListContainer.addClass('ai-organiser-mb-20');
+        excludedListContainer.setCssProps({ '--max-h': '200px' }); excludedListContainer.addClass('ai-organiser-max-h-custom');
+        excludedListContainer.addClass('ai-organiser-overflow-y-auto');
+        excludedListContainer.setCssProps({ '--pad': '5px' }); excludedListContainer.addClass('ai-organiser-pad-custom');
+        excludedListContainer.addClass('ai-organiser-border');
+        excludedListContainer.addClass('ai-organiser-rounded');
+        excludedListContainer.addClass('ai-organiser-bg-secondary');
         
         this.renderExcludedList(excludedListContainer);
 
@@ -86,23 +86,23 @@ export class ExcludedFilesModal extends Modal {
         const filterContainer = contentEl.createDiv({
             cls: 'filter-container'
         });
-        filterContainer.style.marginBottom = '20px';
+        filterContainer.addClass('ai-organiser-mb-20');
 
         // Add filter label
         const filterLabel = filterContainer.createEl('div', {
             text: this.plugin.t.modals.filterLabel,
             cls: 'filter-label'
         });
-        filterLabel.style.fontWeight = 'bold';
-        filterLabel.style.marginBottom = '8px';
-        filterLabel.style.fontSize = '16px';
+        filterLabel.addClass('ai-organiser-font-bold');
+        filterLabel.addClass('ai-organiser-mb-8');
+        filterLabel.addClass('ai-organiser-text-lg');
 
         // Create input container
         const inputContainer = filterContainer.createDiv({
             cls: 'filter-input-container'
         });
-        inputContainer.style.display = 'flex';
-        inputContainer.style.position = 'relative';
+        inputContainer.addClass('ai-organiser-flex');
+        inputContainer.addClass('ai-organiser-relative');
 
         // Add input field with improved styling
         this.filterInput = inputContainer.createEl('input', {
@@ -111,12 +111,12 @@ export class ExcludedFilesModal extends Modal {
             cls: 'filter-input',
             value: ''
         });
-        this.filterInput.style.flex = '1';
-        this.filterInput.style.padding = '8px 12px';
-        this.filterInput.style.fontSize = '14px';
-        this.filterInput.style.border = '1px solid var(--background-modifier-border)';
-        this.filterInput.style.borderRadius = '4px';
-        this.filterInput.style.backgroundColor = 'var(--background-primary)';
+        this.filterInput.addClass('ai-organiser-flex-1');
+        this.filterInput.setCssProps({ '--pad': '8px 12px' }); this.filterInput.addClass('ai-organiser-pad-custom');
+        this.filterInput.addClass('ai-organiser-text-lg');
+        this.filterInput.addClass('ai-organiser-border');
+        this.filterInput.addClass('ai-organiser-rounded');
+        this.filterInput.addClass('ai-organiser-bg-primary');
         
         this.searchTerm = '';  // Start with empty search term
 
@@ -126,18 +126,17 @@ export class ExcludedFilesModal extends Modal {
         });
         
         // Style the dropdown container
-        this.pathDropdownContainer.style.position = 'absolute';
-        this.pathDropdownContainer.style.top = '100%';
-        this.pathDropdownContainer.style.left = '0';
-        this.pathDropdownContainer.style.width = '100%';
-        this.pathDropdownContainer.style.maxHeight = '200px';
-        this.pathDropdownContainer.style.overflowY = 'auto';
-        this.pathDropdownContainer.style.backgroundColor = 'var(--background-primary)';
-        this.pathDropdownContainer.style.border = '1px solid var(--background-modifier-border)';
-        this.pathDropdownContainer.style.borderRadius = '4px';
-        this.pathDropdownContainer.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.15)';
-        this.pathDropdownContainer.style.zIndex = '1000';
-        this.pathDropdownContainer.style.display = 'none';
+        this.pathDropdownContainer.setCssProps({ '--pos': 'absolute', '--popup-top': '100%', '--popup-left': '0' });
+        this.pathDropdownContainer.addClass('ai-organiser-pos-custom');
+        this.pathDropdownContainer.addClass('ai-organiser-w-full');
+        this.pathDropdownContainer.setCssProps({ '--max-h': '200px' }); this.pathDropdownContainer.addClass('ai-organiser-max-h-custom');
+        this.pathDropdownContainer.addClass('ai-organiser-overflow-y-auto');
+        this.pathDropdownContainer.addClass('ai-organiser-bg-primary');
+        this.pathDropdownContainer.addClass('ai-organiser-border');
+        this.pathDropdownContainer.addClass('ai-organiser-rounded');
+        this.pathDropdownContainer.setCssProps({ '--shadow': '0 4px 14px rgba(0, 0, 0, 0.15)' }); this.pathDropdownContainer.addClass('ai-organiser-shadow-custom');
+        this.pathDropdownContainer.setCssProps({ '--z': '1000' }); this.pathDropdownContainer.addClass('ai-organiser-z-custom');
+        this.pathDropdownContainer.addClass('ai-organiser-hidden');
         
         // Prevent event bubbling to keep dropdown open when clicked
         this.pathDropdownContainer.addEventListener('click', (e) => {
@@ -146,7 +145,7 @@ export class ExcludedFilesModal extends Modal {
 
         // Add button with improved styling
         const addButtonContainer = inputContainer.createDiv();
-        addButtonContainer.style.marginLeft = '8px';
+        addButtonContainer.addClass('ai-organiser-ml-8');
         
         const addButtonEl = new ButtonComponent(addButtonContainer)
             .setButtonText(this.plugin.t.modals.addButton)
@@ -157,21 +156,21 @@ export class ExcludedFilesModal extends Modal {
                     this.renderExcludedList(excludedListContainer);
                     this.filterInput.value = '';
                     this.searchTerm = '';
-                    this.pathDropdownContainer.style.display = 'none';
+                    this.pathDropdownContainer.addClass('ai-organiser-hidden');
                 }
             });
         
         // Add class to the button element
         addButtonEl.buttonEl.addClass('ai-organiser-excluded-files-add-button');
-        addButtonEl.buttonEl.style.padding = '8px 16px';
-        addButtonEl.buttonEl.style.fontSize = '14px';
-        addButtonEl.buttonEl.style.fontWeight = 'bold';
+        addButtonEl.buttonEl.setCssProps({ '--pad': '8px 16px' }); addButtonEl.buttonEl.addClass('ai-organiser-pad-custom');
+        addButtonEl.buttonEl.addClass('ai-organiser-text-lg');
+        addButtonEl.buttonEl.addClass('ai-organiser-font-bold');
 
         // Set up input events
         this.filterInput.addEventListener('focus', () => {
             // Show dropdown when input gets focus
             this.updatePathDropdown(this.filterInput.value);
-            this.pathDropdownContainer.style.display = 'block';
+            this.pathDropdownContainer.addClass('ai-organiser-block');
         });
 
         this.filterInput.addEventListener('input', () => {
@@ -179,7 +178,7 @@ export class ExcludedFilesModal extends Modal {
             this.updatePathDropdown(this.searchTerm);
             
             // Make sure dropdown is visible when typing
-            this.pathDropdownContainer.style.display = 'block';
+            this.pathDropdownContainer.addClass('ai-organiser-block');
         });
 
         this.filterInput.addEventListener('click', (e) => {
@@ -188,7 +187,7 @@ export class ExcludedFilesModal extends Modal {
             
             // Show dropdown on click in the input
             this.updatePathDropdown(this.filterInput.value);
-            this.pathDropdownContainer.style.display = 'block';
+            this.pathDropdownContainer.addClass('ai-organiser-block');
         });
 
         // Handle clicks outside the dropdown
@@ -196,16 +195,16 @@ export class ExcludedFilesModal extends Modal {
 
         // Create spacer element to push buttons to bottom
         const spacerEl = contentEl.createDiv('modal-spacer');
-        spacerEl.style.flexGrow = '1';
-        spacerEl.style.minHeight = '20px';
+        spacerEl.addClass('ai-organiser-flex-1');
+        spacerEl.setCssProps({ '--min-h': '20px' }); spacerEl.addClass('ai-organiser-min-h-custom');
         
         // Create button container for Save/Cancel with improved positioning
         const buttonContainer = contentEl.createDiv('modal-button-container');
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'space-between';
-        buttonContainer.style.marginTop = '20px';
-        buttonContainer.style.padding = '10px 0';
-        buttonContainer.style.borderTop = '1px solid var(--background-modifier-border)';
+        buttonContainer.addClass('ai-organiser-flex-row');
+        buttonContainer.addClass('ai-organiser-gap-8');
+        buttonContainer.addClass('ai-organiser-mt-20');
+        buttonContainer.setCssProps({ '--pad': '10px 0' }); buttonContainer.addClass('ai-organiser-pad-custom');
+        buttonContainer.addClass('ai-organiser-border-t');
         
         // Left-side buttons container
         const leftButtonContainer = buttonContainer.createDiv('left-buttons');
@@ -213,17 +212,17 @@ export class ExcludedFilesModal extends Modal {
         // Add Clear All button
         const clearAllButtonEl = new ButtonComponent(leftButtonContainer)
             .setButtonText(this.plugin.t.modals.clearAllButton)
-            .onClick(() => {
+            .onClick(() => { void (async () => {
                 // Confirmation dialog to prevent accidental deletion
-                if (this.excludedFolders.length > 0 && confirm(this.plugin.t.modals.clearAllConfirm)) {
+                if (this.excludedFolders.length > 0 && await this.plugin.showConfirmationDialog(this.plugin.t.modals.clearAllConfirm)) {
                     this.excludedFolders = [];
                     this.renderExcludedList(excludedListContainer);
                 }
-            });
+            })(); });
         
         // Set appropriate class
         clearAllButtonEl.buttonEl.addClass('ai-organiser-excluded-files-clear-button');
-        clearAllButtonEl.buttonEl.style.backgroundColor = 'var(--background-secondary)';
+        clearAllButtonEl.buttonEl.addClass('ai-organiser-bg-secondary');
         
         // Disable button if no exclusions exist
         if (this.excludedFolders.length === 0) {
@@ -233,8 +232,7 @@ export class ExcludedFilesModal extends Modal {
         
         // Right-side buttons container
         const rightButtonContainer = buttonContainer.createDiv('right-buttons');
-        rightButtonContainer.style.display = 'flex';
-        rightButtonContainer.style.gap = '10px';
+        rightButtonContainer.addClass('ai-organiser-flex-row', 'ai-organiser-gap-10');
         
         // Add cancel button
         const cancelButtonEl = new ButtonComponent(rightButtonContainer)
@@ -243,7 +241,7 @@ export class ExcludedFilesModal extends Modal {
                 this.close();
             });
         
-        cancelButtonEl.buttonEl.style.minWidth = '80px';
+        cancelButtonEl.buttonEl.setCssProps({ '--min-w': '80px' }); cancelButtonEl.buttonEl.addClass('ai-organiser-min-w-custom');
         
         // Add save button
         const saveButtonEl = new ButtonComponent(rightButtonContainer)
@@ -254,7 +252,7 @@ export class ExcludedFilesModal extends Modal {
                 this.close();
             });
         
-        saveButtonEl.buttonEl.style.minWidth = '80px';
+        saveButtonEl.buttonEl.setCssProps({ '--min-w': '80px' }); saveButtonEl.buttonEl.addClass('ai-organiser-min-w-custom');
     }
 
     private updatePathDropdown(searchTerm: string) {
@@ -312,7 +310,7 @@ export class ExcludedFilesModal extends Modal {
                     { path: 'textgenerator/', isFolder: true, name: 'textgenerator' },
                     { path: 'attachments/', isFolder: true, name: 'attachments' },
                     { path: 'templates/', isFolder: true, name: 'templates' },
-                    { path: '.obsidian/', isFolder: true, name: '.obsidian' },
+                    { path: `${this.app.vault.configDir}/`, isFolder: true, name: this.app.vault.configDir },
                 ];
                 
                 // Find actual matching folders from vault that match common patterns
@@ -339,10 +337,10 @@ export class ExcludedFilesModal extends Modal {
                 const noItemsEl = this.pathDropdownContainer.createDiv({
                     cls: 'path-dropdown-empty'
                 });
-                noItemsEl.style.padding = '10px';
-                noItemsEl.style.textAlign = 'center';
-                noItemsEl.style.color = 'var(--text-muted)';
-                noItemsEl.style.fontSize = '14px';
+                noItemsEl.setCssProps({ '--pad': '10px' }); noItemsEl.addClass('ai-organiser-pad-custom');
+                noItemsEl.addClass('ai-organiser-text-center');
+                noItemsEl.addClass('ai-organiser-text-muted');
+                noItemsEl.addClass('ai-organiser-text-lg');
                 
                 noItemsEl.textContent = this.plugin.t.modals.noMatchingPaths;
                 
@@ -351,21 +349,20 @@ export class ExcludedFilesModal extends Modal {
                     const useCurrentTextEl = this.pathDropdownContainer.createDiv({
                         cls: 'path-dropdown-item path-use-current'
                     });
-                    useCurrentTextEl.style.padding = '8px 12px';
-                    useCurrentTextEl.style.cursor = 'pointer';
-                    useCurrentTextEl.style.display = 'flex';
-                    useCurrentTextEl.style.alignItems = 'center';
-                    useCurrentTextEl.style.color = 'var(--text-accent)';
-                    useCurrentTextEl.style.backgroundColor = 'var(--background-secondary)';
-                    useCurrentTextEl.style.borderRadius = '4px';
-                    useCurrentTextEl.style.margin = '8px';
+                    useCurrentTextEl.setCssProps({ '--pad': '8px 12px' }); useCurrentTextEl.addClass('ai-organiser-pad-custom');
+                    useCurrentTextEl.addClass('ai-organiser-cursor-pointer');
+                    useCurrentTextEl.addClass('ai-organiser-flex-center');
+                    useCurrentTextEl.addClass('ai-organiser-text-accent');
+                    useCurrentTextEl.addClass('ai-organiser-bg-secondary');
+                    useCurrentTextEl.addClass('ai-organiser-rounded');
+                    useCurrentTextEl.setCssProps({ '--margin': '8px' }); useCurrentTextEl.addClass('ai-organiser-margin-custom');
                     
                     useCurrentTextEl.addEventListener('mouseenter', () => {
-                        useCurrentTextEl.style.backgroundColor = 'var(--background-modifier-hover)';
+                        useCurrentTextEl.setCssProps({ '--bg': 'var(--background-modifier-hover)' }); useCurrentTextEl.addClass('ai-organiser-bg-custom');
                     });
                     
                     useCurrentTextEl.addEventListener('mouseleave', () => {
-                        useCurrentTextEl.style.backgroundColor = 'var(--background-secondary)';
+                        useCurrentTextEl.addClass('ai-organiser-bg-secondary');
                     });
                     
                     useCurrentTextEl.textContent = this.plugin.t.modals.useAsPattern.replace('{searchTerm}', searchTerm);
@@ -378,7 +375,7 @@ export class ExcludedFilesModal extends Modal {
                             if (listContainer) this.renderExcludedList(listContainer);
                             this.filterInput.value = '';
                             this.searchTerm = '';
-                            this.pathDropdownContainer.style.display = 'none';
+                            this.pathDropdownContainer.addClass('ai-organiser-hidden');
                         }
                     });
                 }
@@ -393,27 +390,26 @@ export class ExcludedFilesModal extends Modal {
                     const moreItemsEl = this.pathDropdownContainer.createDiv({
                         cls: 'path-dropdown-more'
                     });
-                    moreItemsEl.style.padding = '6px 10px';
-                    moreItemsEl.style.textAlign = 'center';
-                    moreItemsEl.style.fontSize = '12px';
-                    moreItemsEl.style.color = 'var(--text-muted)';
-                    moreItemsEl.style.borderTop = '1px solid var(--background-modifier-border)';
+                    moreItemsEl.setCssProps({ '--pad': '6px 10px' }); moreItemsEl.addClass('ai-organiser-pad-custom');
+                    moreItemsEl.addClass('ai-organiser-text-center');
+                    moreItemsEl.addClass('ai-organiser-text-md');
+                    moreItemsEl.addClass('ai-organiser-text-muted');
+                    moreItemsEl.addClass('ai-organiser-border-t');
                     
                     moreItemsEl.textContent = `${matchedItems.length - limitedItems.length} ${this.plugin.t.modals.moreResults}`;
                 }
             }
             
             // Display the dropdown
-            this.pathDropdownContainer.style.display = 'block';
-        } catch (error) {
-            //console.error('Error updating path dropdown:', error);
+            this.pathDropdownContainer.addClass('ai-organiser-block');
+        } catch (_error) {
             
             // Show error state
             const errorEl = this.pathDropdownContainer.createDiv({
                 cls: 'path-dropdown-error'
             });
-            errorEl.style.padding = '10px';
-            errorEl.style.color = 'var(--text-error)';
+            errorEl.setCssProps({ '--pad': '10px' }); errorEl.addClass('ai-organiser-pad-custom');
+            errorEl.addClass('ai-organiser-text-error');
             errorEl.textContent = this.plugin.t.modals.errorLoadingPaths;
         }
     }
@@ -424,19 +420,18 @@ export class ExcludedFilesModal extends Modal {
         });
         
         // Style the item
-        itemEl.style.padding = '8px 12px';
-        itemEl.style.cursor = 'pointer';
-        itemEl.style.display = 'flex';
-        itemEl.style.alignItems = 'center';
-        itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+        itemEl.setCssProps({ '--pad': '8px 12px' }); itemEl.addClass('ai-organiser-pad-custom');
+        itemEl.addClass('ai-organiser-cursor-pointer');
+        itemEl.addClass('ai-organiser-flex-center');
+        itemEl.addClass('ai-organiser-border-b');
         
         // Add hover effect
         itemEl.addEventListener('mouseenter', () => {
-            itemEl.style.backgroundColor = 'var(--background-modifier-hover)';
+            itemEl.setCssProps({ '--bg': 'var(--background-modifier-hover)' }); itemEl.addClass('ai-organiser-bg-custom');
         });
         
         itemEl.addEventListener('mouseleave', () => {
-            itemEl.style.backgroundColor = '';
+            itemEl.removeClass('ai-organiser-bg-custom');
         });
         
         // Add appropriate icon
@@ -444,12 +439,12 @@ export class ExcludedFilesModal extends Modal {
             cls: `path-item-icon ${item.isFolder ? 'folder-icon' : 'file-icon'}`
         });
         
-        iconEl.style.marginRight = '8px';
-        iconEl.style.fontSize = '14px';
-        iconEl.style.minWidth = '20px';
-        iconEl.style.display = 'inline-flex';
-        iconEl.style.alignItems = 'center';
-        iconEl.style.justifyContent = 'center';
+        iconEl.addClass('ai-organiser-mr-8');
+        iconEl.addClass('ai-organiser-text-lg');
+        iconEl.setCssProps({ '--min-w': '20px' }); iconEl.addClass('ai-organiser-min-w-custom');
+        iconEl.addClass('ai-organiser-inline-flex');
+        iconEl.addClass('ai-organiser-items-center');
+        iconEl.addClass('ai-organiser-flex-end');
         
         // Create text element for path
         const textEl = itemEl.createSpan({
@@ -457,10 +452,10 @@ export class ExcludedFilesModal extends Modal {
             text: item.path
         });
         
-        textEl.style.overflow = 'hidden';
-        textEl.style.textOverflow = 'ellipsis';
-        textEl.style.whiteSpace = 'nowrap';
-        textEl.style.flex = '1';
+        textEl.addClass('ai-organiser-overflow-hidden');
+        textEl.addClass('ai-organiser-truncate');
+        textEl.addClass('ai-organiser-truncate');
+        textEl.addClass('ai-organiser-flex-1');
         
         // Highlight search term if applicable
         if (this.searchTerm) {
@@ -484,8 +479,8 @@ export class ExcludedFilesModal extends Modal {
                     cls: 'path-match-highlight'
                 });
                 
-                highlightSpan.style.backgroundColor = 'var(--text-highlight-bg)';
-                highlightSpan.style.borderRadius = '2px';
+                highlightSpan.setCssProps({ '--bg': 'var(--text-highlight-bg)' }); highlightSpan.addClass('ai-organiser-bg-custom');
+                highlightSpan.addClass('ai-organiser-rounded');
                 
                 // Text after match
                 if (index + this.searchTerm.length < item.path.length) {
@@ -500,7 +495,7 @@ export class ExcludedFilesModal extends Modal {
         itemEl.addEventListener('click', () => {
             this.filterInput.value = item.path;
             this.searchTerm = item.path;
-            this.pathDropdownContainer.style.display = 'none';
+            this.pathDropdownContainer.addClass('ai-organiser-hidden');
             
             // Add path to excluded folders directly
             if (!this.excludedFolders.includes(item.path)) {
@@ -522,10 +517,10 @@ export class ExcludedFilesModal extends Modal {
                 cls: 'ai-organiser-excluded-empty-message'
             });
             
-            emptyEl.style.padding = '10px';
-            emptyEl.style.color = 'var(--text-muted)';
-            emptyEl.style.textAlign = 'center';
-            emptyEl.style.fontStyle = 'italic';
+            emptyEl.setCssProps({ '--pad': '10px' }); emptyEl.addClass('ai-organiser-pad-custom');
+            emptyEl.addClass('ai-organiser-text-muted');
+            emptyEl.addClass('ai-organiser-text-center');
+            emptyEl.addClass('ai-organiser-italic');
             
             return;
         }
@@ -539,39 +534,37 @@ export class ExcludedFilesModal extends Modal {
                 cls: 'ai-organiser-excluded-folder-item'
             });
             
-            item.style.display = 'flex';
-            item.style.alignItems = 'center';
-            item.style.justifyContent = 'space-between';
-            item.style.padding = '6px 8px';
-            item.style.margin = '3px 0';
-            item.style.backgroundColor = 'var(--background-primary)';
-            item.style.borderRadius = '4px';
-            item.style.border = '1px solid var(--background-modifier-border)';
+            item.addClass('ai-organiser-flex-center');
+            item.addClass('ai-organiser-flex-between');
+            item.setCssProps({ '--pad': '6px 8px' }); item.addClass('ai-organiser-pad-custom');
+            item.setCssProps({ '--margin': '3px 0' }); item.addClass('ai-organiser-margin-custom');
+            item.addClass('ai-organiser-bg-primary');
+            item.addClass('ai-organiser-rounded');
+            item.addClass('ai-organiser-border');
             
             // Path text with icon
             const pathContainer = item.createDiv({
                 cls: 'ai-organiser-excluded-folder-path'
             });
-            pathContainer.style.display = 'flex';
-            pathContainer.style.alignItems = 'center';
-            pathContainer.style.overflow = 'hidden';
-            pathContainer.style.flex = '1';
+            pathContainer.addClass('ai-organiser-flex-center');
+            pathContainer.addClass('ai-organiser-overflow-hidden');
+            pathContainer.addClass('ai-organiser-flex-1');
             
             // Add appropriate icon based on pattern
             const isFolder = folder.endsWith('/');
             const iconEl = pathContainer.createSpan({
                 cls: `ai-organiser-excluded-item-icon ${isFolder ? 'folder-icon' : folder.includes('*') ? 'search-icon' : 'file-icon'}`
             });
-            iconEl.style.marginRight = '8px';
+            iconEl.addClass('ai-organiser-mr-8');
             
             // Path text
             const textEl = pathContainer.createSpan({
                 text: folder,
                 cls: 'ai-organiser-excluded-folder-text'
             });
-            textEl.style.overflow = 'hidden';
-            textEl.style.textOverflow = 'ellipsis';
-            textEl.style.whiteSpace = 'nowrap';
+            textEl.addClass('ai-organiser-overflow-hidden');
+            textEl.addClass('ai-organiser-truncate');
+            textEl.addClass('ai-organiser-truncate');
             
             // Remove button
             const removeButton = item.createEl('button', {
@@ -579,20 +572,20 @@ export class ExcludedFilesModal extends Modal {
                 text: '×'
             });
             
-            removeButton.style.border = 'none';
-            removeButton.style.background = 'none';
-            removeButton.style.cursor = 'pointer';
-            removeButton.style.color = 'var(--text-muted)';
-            removeButton.style.fontSize = '18px';
-            removeButton.style.padding = '0 4px';
-            removeButton.style.marginLeft = '4px';
+            removeButton.setCssProps({ '--border': 'none' }); removeButton.addClass('ai-organiser-border-custom');
+            removeButton.setCssProps({ '--bg': 'none' }); removeButton.addClass('ai-organiser-bg-custom');
+            removeButton.addClass('ai-organiser-cursor-pointer');
+            removeButton.addClass('ai-organiser-text-muted');
+            removeButton.setCssProps({ '--pad': '0 4px' }); removeButton.addClass('ai-organiser-pad-custom');
+            removeButton.addClass('ai-organiser-text-lg');
+            removeButton.addClass('ai-organiser-ml-4');
             
             removeButton.addEventListener('mouseenter', () => {
-                removeButton.style.color = 'var(--text-error)';
+                removeButton.addClass('ai-organiser-text-error');
             });
             
             removeButton.addEventListener('mouseleave', () => {
-                removeButton.style.color = 'var(--text-muted)';
+                removeButton.addClass('ai-organiser-text-muted');
             });
             
             removeButton.addEventListener('click', (e) => {

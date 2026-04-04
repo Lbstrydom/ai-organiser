@@ -200,7 +200,7 @@ export class HighlightModeHandler implements ChatModeHandler {
         };
     }
 
-    getActionDescriptors(t: Translations): ActionDescriptor[] {
+    getActionDescriptors(_t: Translations): ActionDescriptor[] {
         return [
             {
                 id: 'insert-summary',

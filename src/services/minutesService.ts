@@ -4,7 +4,6 @@ import { logger } from '../utils/logger';
 import { getLanguageNameForPrompt } from './languages';
 import {
     Action,
-    ChunkExtractionContext,
     IntermediateMergeContext,
     MeetingMetadata,
     MinutesJSON,
@@ -468,9 +467,10 @@ export class MinutesService {
                 2000
             );
 
-            const chunkText = Array.isArray(chunks[i])
-                ? (chunks[i] as TranscriptSegment[]).map(s => s.text).join('\n')
-                : String(chunks[i]);
+            const chunk = chunks[i];
+            const chunkText = Array.isArray(chunk)
+                ? (chunk).map(s => s.text).join('\n')
+                : typeof chunk === 'string' ? chunk : JSON.stringify(chunk);
 
             const prompt = `${buildChunkExtractionPrompt({
                 outputLanguage,

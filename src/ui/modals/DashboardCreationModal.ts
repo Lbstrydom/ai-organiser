@@ -27,7 +27,7 @@ export class DashboardCreationModal extends Modal {
 
     onOpen() {
         this.titleEl.setText(this.plugin.t.modals.dashboardCreation.title);
-        this.renderContent();
+        void this.renderContent();
     }
 
     onClose() {
@@ -67,10 +67,8 @@ export class DashboardCreationModal extends Modal {
                 text: this.plugin.t.modals.confirm,
                 cls: 'mod-cta'
             });
-            confirmBtn.style.marginRight = '8px';
-            confirmBtn.addEventListener('click', async () => {
-                await this.setFolderPath(this.folderInputValue);
-            });
+            confirmBtn.addClass('ai-organiser-mr-8');
+            confirmBtn.addEventListener('click', () => { void this.setFolderPath(this.folderInputValue); });
 
             const cancelBtn = buttonContainer.createEl('button', {
                 text: this.plugin.t.modals.cancel
@@ -78,7 +76,7 @@ export class DashboardCreationModal extends Modal {
             cancelBtn.addEventListener('click', () => {
                 this.isEditingFolder = false;
                 this.contentEl.empty();
-                this.renderContent();
+                void this.renderContent();
             });
         } else {
             // Display mode - show folder path with change button
@@ -92,7 +90,7 @@ export class DashboardCreationModal extends Modal {
                             this.isEditingFolder = true;
                             this.folderInputValue = this.targetFolder.path || '/';
                             this.contentEl.empty();
-                            this.renderContent();
+                            void this.renderContent();
                         });
                 });
         }
@@ -115,7 +113,7 @@ export class DashboardCreationModal extends Modal {
                 text: this.plugin.t.modals.dashboardCreation.createButton,
                 cls: 'mod-cta'
             });
-            createBtn.addEventListener('click', () => this.createDashboard());
+            createBtn.addEventListener('click', () => { void this.createDashboard(); });
         }
     }
 

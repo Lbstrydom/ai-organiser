@@ -2,7 +2,7 @@
  * Vision Service — Smart Digitisation (Phase 3)
  * Converts analog inputs (whiteboard photos, handwritten notes, sketches) to structured Markdown + Mermaid
  */
-import { TFile, Notice } from 'obsidian';
+import { TFile } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import type { DetectedContent } from '../utils/embeddedContentDetector';
 import { buildDigitisePrompt } from './prompts/digitisePrompts';

@@ -95,7 +95,7 @@ export class MermaidDiagramModal extends Modal {
                 // Make text area larger
                 text.inputEl.rows = 4;
                 text.inputEl.spellcheck = true;
-                text.inputEl.style.width = '100%';
+                text.inputEl.addClass('ai-organiser-w-full');
                 enableAutoExpand(text.inputEl);
             });
 
@@ -116,7 +116,7 @@ export class MermaidDiagramModal extends Modal {
                 this.instruction = example;
                 const textArea = contentEl.querySelector('textarea');
                 if (textArea) {
-                    (textArea as HTMLTextAreaElement).value = example;
+                    (textArea).value = example;
                 }
             };
         }

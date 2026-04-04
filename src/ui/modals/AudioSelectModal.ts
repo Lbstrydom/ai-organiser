@@ -218,7 +218,7 @@ export class AudioSelectModal extends Modal {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'audio/*,.mp3,.wav,.m4a,.ogg,.webm,.mp4';
-        input.style.display = 'none';
+        input.addClass('ai-organiser-hidden');
 
         input.onchange = () => {
             const file = input.files?.[0];

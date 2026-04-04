@@ -1,5 +1,4 @@
-import { Setting, ButtonComponent, Notice } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
+import { Setting, ButtonComponent, Notice, requestUrl } from 'obsidian';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
@@ -14,13 +13,15 @@ export class LLMSettingsSection extends BaseSettingSection {
     display(): void {
         this.createSectionHeader(this.plugin.t.settings.llm.title, 'bot');
         this.createServiceTypeDropdown();
-        this.plugin.settings.serviceType === 'local' ?
-            this.displayLocalSettings() :
+        if (this.plugin.settings.serviceType === 'local') {
+            this.displayLocalSettings();
+        } else {
             this.displayCloudSettings();
+        }
 
         // Check local service status when loading settings if local service is selected
         if (this.plugin.settings.serviceType === 'local') {
-            this.checkLocalService(this.plugin.settings.localEndpoint);
+            void this.checkLocalService(this.plugin.settings.localEndpoint);
         }
 
         this.renderSecretStorageMigrationNotice();
@@ -87,10 +88,10 @@ export class LLMSettingsSection extends BaseSettingSection {
                             const shouldPersistPlainKey = !secretStorage.isAvailable() || !oldSecretId;
 
                             if (this.plugin.settings.cloudApiKey && shouldPersistPlainKey) {
-                                this.plugin.settings.providerSettings[oldType]!.apiKey = this.plugin.settings.cloudApiKey;
+                                this.plugin.settings.providerSettings[oldType].apiKey = this.plugin.settings.cloudApiKey;
                             }
                             if (this.plugin.settings.cloudModel) {
-                                this.plugin.settings.providerSettings[oldType]!.model = this.plugin.settings.cloudModel;
+                                this.plugin.settings.providerSettings[oldType].model = this.plugin.settings.cloudModel;
                             }
 
                             this.plugin.settings.cloudServiceType = newType;
@@ -125,6 +126,7 @@ export class LLMSettingsSection extends BaseSettingSection {
     }
 
     private getProviderOptions(): Record<string, string> {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Code-splitting: provider options loaded on demand
         const { buildProviderOptions } = require('../../services/adapters/providerRegistry');
         return buildProviderOptions(this.plugin.t.dropdowns);
     }
@@ -134,7 +136,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setName(this.plugin.t.settings.llm.localEndpoint)
             .setDesc(this.plugin.t.settings.llm.localEndpointDesc)
             .addText(text => text
-                .setPlaceholder('http://localhost:11434/v1/chat/completions')
+                .setPlaceholder('http://localhost:11434/v1/chat/completions') // eslint-disable-line obsidianmd/ui/sentence-case -- URL
                 .setValue(this.plugin.settings.localEndpoint)
                 .onChange((value) => {
                     this.plugin.settings.localEndpoint = value;
@@ -170,11 +172,11 @@ export class LLMSettingsSection extends BaseSettingSection {
         tipsList.createEl('li', { text: `${this.plugin.t.dropdowns.koboldcpp}: http://localhost:5001/v1/chat/completions` });
 
         // Style the tips block
-        tipsEl.style.backgroundColor = 'rgba(100, 100, 100, 0.1)';
-        tipsEl.style.padding = '8px 12px';
-        tipsEl.style.borderRadius = '4px';
-        tipsEl.style.marginBottom = '16px';
-        tipsEl.style.fontSize = '0.9em';
+        tipsEl.setCssProps({ '--bg': 'rgba(100, 100, 100, 0.1)' }); tipsEl.addClass('ai-organiser-bg-custom');
+        tipsEl.setCssProps({ '--pad': '8px 12px' }); tipsEl.addClass('ai-organiser-pad-custom');
+        tipsEl.addClass('ai-organiser-rounded');
+        tipsEl.addClass('ai-organiser-mb-16');
+        tipsEl.addClass('ai-organiser-text-ui-small');
 
         this.createTestButton();
     }
@@ -196,7 +198,7 @@ export class LLMSettingsSection extends BaseSettingSection {
 
                 // Clear previous status
                 if (this.statusContainer) {
-                    this.statusContainer.style.display = 'block';
+                    this.statusContainer.addClass('ai-organiser-block');
                     this.statusEl.textContent = '';
                     this.statusEl.className = '';
                 }
@@ -223,7 +225,7 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         // Hide status container initially
         if (this.statusContainer) {
-            this.statusContainer.style.display = 'none';
+            this.statusContainer.addClass('ai-organiser-hidden');
         }
     }
 
@@ -273,7 +275,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             this.plugin.settings.cloudServiceType === 'openai-compatible' ? 'your-api-key' :
             'your-api-key';
 
-        const secretId = PROVIDER_TO_SECRET_ID[serviceType as keyof typeof PROVIDER_TO_SECRET_ID];
+        const secretId = PROVIDER_TO_SECRET_ID[serviceType];
         const secretStorageAvailable = this.plugin.secretStorageService.isAvailable();
 
         if (secretId && secretStorageAvailable) {
@@ -403,16 +405,16 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         // Collapsible list of all 14 supported providers
         const detailsEl = boxEl.createEl('details');
-        detailsEl.style.marginTop = '4px';
+        detailsEl.addClass('ai-organiser-mt-4');
         detailsEl.createEl('summary', {
             text: t.viewAllProviders,
-            cls: 'setting-item-description'
-        }).style.cursor = 'pointer';
+            cls: 'setting-item-description ai-organiser-cursor-pointer'
+        });
 
         const providerOptions = this.getProviderOptions();
         const providerList = detailsEl.createEl('ul');
-        providerList.style.margin = '4px 0 0 0';
-        providerList.style.paddingLeft = '20px';
+        providerList.setCssProps({ '--margin': '4px 0 0 0' }); providerList.addClass('ai-organiser-margin-custom');
+        providerList.setCssProps({ '--pl': '20px' }); providerList.addClass('ai-organiser-pl-custom');
         for (const name of Object.values(providerOptions)) {
             providerList.createEl('li', { text: name, cls: 'setting-item-description' });
         }
@@ -426,9 +428,9 @@ export class LLMSettingsSection extends BaseSettingSection {
         const plugin = this.plugin;
 
         const localDiv = parentEl.createDiv();
-        localDiv.style.marginTop = '8px';
-        localDiv.style.borderTop = '1px solid var(--background-modifier-border)';
-        localDiv.style.paddingTop = '8px';
+        localDiv.addClass('ai-organiser-mt-8');
+        localDiv.addClass('ai-organiser-border-t');
+        localDiv.addClass('ai-organiser-pt-4');
 
         localDiv.createEl('strong', { text: t.title });
         localDiv.createEl('p', {
@@ -438,11 +440,11 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         const wizardBtn = localDiv.createEl('button', { text: t.setupWizard });
         wizardBtn.classList.add('mod-cta');
-        wizardBtn.style.marginTop = '4px';
-        wizardBtn.addEventListener('click', async () => {
+        wizardBtn.addClass('ai-organiser-mt-4');
+        wizardBtn.addEventListener('click', () => { void (async () => {
             const { LocalSetupWizardModal } = await import('../modals/LocalSetupWizardModal');
             new LocalSetupWizardModal(plugin.app, plugin).open();
-        });
+        })(); });
     }
 
     private renderProviderCapabilityBanner(): void {
@@ -467,8 +469,8 @@ export class LLMSettingsSection extends BaseSettingSection {
         const bannerEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
         bannerEl.createEl('strong', { text: t.title });
         const list = bannerEl.createEl('ul');
-        list.style.margin = '4px 0 0 0';
-        list.style.paddingLeft = '20px';
+        list.setCssProps({ '--margin': '4px 0 0 0' }); list.addClass('ai-organiser-margin-custom');
+        list.setCssProps({ '--pl': '20px' }); list.addClass('ai-organiser-pl-custom');
         for (const item of missing) {
             list.createEl('li', { text: item, cls: 'setting-item-description' });
         }
@@ -477,7 +479,7 @@ export class LLMSettingsSection extends BaseSettingSection {
     private setStatusMessage(message: string, status: 'success' | 'error'): void {
         if (!this.statusContainer || !this.statusEl) return;
 
-        this.statusContainer.style.display = 'block';
+        this.statusContainer.addClass('ai-organiser-block');
         this.statusContainer.className = 'ai-organiser-connection-test-status ' + status;
         this.statusEl.textContent = message;
     }
@@ -487,15 +489,16 @@ export class LLMSettingsSection extends BaseSettingSection {
         let checkUrl = `${baseUrl}/v1/models`;  // Default check URL for most services
 
         try {
-            const response = await fetch(checkUrl, {
+            const response = await requestUrl({
+                url: checkUrl,
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
 
-            if (!response.ok) {
+            if (response.status >= 400) {
                 new Notice(this.plugin.t.messages.localServiceNotRunning, 10000);
             }
-        } catch (error) {
+        } catch (_error) {
             new Notice(this.plugin.t.messages.localServiceNotAvailable, 10000);
         }
     }

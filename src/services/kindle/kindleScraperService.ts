@@ -356,14 +356,14 @@ function normalizeWhitespace(value: string): string {
  */
 function parseLibraryNextPage(doc: Document): string | null {
     // Check for a "next page" link or pagination token
-    const nextLink = doc.querySelector('.kp-notebook-library-next-page') as HTMLAnchorElement | null;
+    const nextLink = doc.querySelector('.kp-notebook-library-next-page') as HTMLAnchorElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
     if (nextLink?.href) {
         const url = new URL(nextLink.href, 'https://placeholder.com');
         return url.searchParams.get('paginationToken');
     }
 
     // Check for hidden pagination token input
-    const tokenEl = doc.querySelector('[name="paginationToken"], .kp-notebook-library-pagination-token') as HTMLInputElement | null;
+    const tokenEl = doc.querySelector('[name="paginationToken"], .kp-notebook-library-pagination-token') as HTMLInputElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
     if (tokenEl?.value) return tokenEl.value;
 
     // Check for a "Show more" or pagination button with data attribute
@@ -494,19 +494,11 @@ function parsePageStateFromUrl(href: string): NextPageState | null {
 function parseStateBlob(raw: string): NextPageState | null {
     try {
         const parsed = JSON.parse(raw) as Record<string, unknown>;
-        const token = String(
-            parsed.token ??
-            parsed.nextToken ??
-            parsed.paginationToken ??
-            parsed.nextPageStart ??
-            ''
-        ).trim();
+        const rawToken = parsed.token ?? parsed.nextToken ?? parsed.paginationToken ?? parsed.nextPageStart ?? '';
+        const token = (typeof rawToken === 'string' ? rawToken : JSON.stringify(rawToken)).trim();
         if (!token) return null;
-        const contentLimitState = String(
-            parsed.contentLimitState ??
-            parsed.contentLimit ??
-            ''
-        ).trim();
+        const rawLimit = parsed.contentLimitState ?? parsed.contentLimit ?? '';
+        const contentLimitState = (typeof rawLimit === 'string' ? rawLimit : JSON.stringify(rawLimit)).trim();
         return { token, contentLimitState };
     } catch {
         return null;
@@ -610,7 +602,7 @@ const PAGE_SELECTORS = [
 ].join(', ');
 
 const COLOR_PATTERN = /kp-notebook-highlight-(pink|blue|yellow|orange)\b/i;
-const LOCATION_PATTERN = /(?:Location|Loc\.?|Position|Posizione|Ubicaci(?:o|\u00f3)n|Emplacement)\s*[:#]?\s*([\d,\-]+)/i;
+const LOCATION_PATTERN = /(?:Location|Loc\.?|Position|Posizione|Ubicaci(?:o|\u00f3)n|Emplacement)\s*[:#]?\s*([\d,-]+)/i;
 const PAGE_PATTERN = /(?:Page|Seite|Pagina|P(?:a|\u00e1)gina)\s*[:#]?\s*(\d+)/i;
 const TRAILING_PAGE_PATTERN = /(\d+)\s*$/;
 
@@ -689,7 +681,7 @@ function extractNote(context: Element): string | undefined {
 function extractLocation(context: Element): string | undefined {
     const locationNodes = Array.from(context.querySelectorAll(LOCATION_SELECTORS));
     for (const node of locationNodes) {
-        const value = readElementValue(node as Element);
+        const value = readElementValue(node);
         if (!value) continue;
         const parsed = parseLocationFromText(value) || normalizeWhitespace(value);
         if (parsed) return parsed;
@@ -869,7 +861,7 @@ export async function fetchAllHighlights(
             if (authExpired) {
                 return { results: allResults, authExpired: true };
             }
-        } catch (err) {
+        } catch (_err) {
             // Per-book isolation: failed book doesn't block others
             logger.error('Kindle', `Failed to fetch highlights for ASIN ${asin}`);
             allResults.set(asin, []);

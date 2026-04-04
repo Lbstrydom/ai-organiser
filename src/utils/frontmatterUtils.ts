@@ -65,7 +65,7 @@ export function getAIOMetadata(app: App, file: TFile): AIOMetadata | null {
     const metadata: AIOMetadata = {};
     
     // Extract all AIO properties
-    for (const [key, value] of Object.entries(AIO_META)) {
+    for (const [_key, value] of Object.entries(AIO_META)) {
         const propName = value;
         if (propName in frontmatter) {
             (metadata as any)[propName] = frontmatter[propName];

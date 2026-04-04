@@ -1,5 +1,4 @@
 import { Setting } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { getLanguageOptions, SupportedLanguage } from '../../i18n';
 import { LanguageUtils } from '../../utils/languageUtils';
@@ -44,7 +43,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
         // === Output Language Settings ===
         this.containerEl.createEl('h2', { text: this.plugin.t.settings.interface.outputLanguage || 'Output Language' });
 
-        const outputDesc = this.containerEl.createEl('p', {
+        this.containerEl.createEl('p', {
             cls: 'setting-item-description',
             text: this.plugin.t.settings.interface.outputLanguageDesc || 'Language for AI-generated content. Each feature can use this or have its own override.'
         });
@@ -102,18 +101,15 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
         const notice = document.createElement('div');
         notice.className = 'notice language-notice';
-        notice.style.marginTop = '10px';
-        notice.style.padding = '8px 12px';
-        notice.style.backgroundColor = 'var(--background-modifier-info)';
-        notice.style.border = '1px solid var(--background-modifier-border)';
-        notice.style.borderRadius = '4px';
-        notice.style.color = 'var(--text-normal)';
-        notice.innerHTML = `
-            <div style="display: flex; align-items: center;">
-                <span style="margin-right: 8px;">💡</span>
-                <span>${this.plugin.t.messages.languageChangeNotice}</span>
-            </div>
-        `;
+        notice.addClass('ai-organiser-mt-12');
+        notice.setCssProps({ '--pad': '8px 12px' }); notice.addClass('ai-organiser-pad-custom');
+        notice.setCssProps({ '--bg': 'var(--background-modifier-info)' }); notice.addClass('ai-organiser-bg-custom');
+        notice.addClass('ai-organiser-border');
+        notice.addClass('ai-organiser-rounded');
+        notice.addClass('ai-organiser-text-normal');
+        const row = notice.createDiv({ cls: 'ai-organiser-flex-row' });
+        row.createSpan({ text: '\uD83D\uDCA1', cls: 'ai-organiser-icon-inline' });
+        row.createSpan({ text: this.plugin.t.messages.languageChangeNotice });
 
         // Insert after the interface language setting, not at the end
         const firstSetting = this.containerEl.querySelector('.setting-item');

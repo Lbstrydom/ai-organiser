@@ -1,5 +1,4 @@
 import { TFile, Notice, App, TFolder, TAbstractFile } from 'obsidian';
-import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { TAG_RANGE, TAG_PREDEFINED_RANGE, TAG_GENERATE_RANGE } from './constants';
@@ -9,10 +8,10 @@ import { logger } from './logger';
 export { TAG_RANGE, TAG_PREDEFINED_RANGE, TAG_GENERATE_RANGE };
 
 // Global debug mode flag (set by plugin)
-let globalDebugMode = false;
+let _globalDebugMode = false;
 
 export function setGlobalDebugMode(enabled: boolean): void {
-    globalDebugMode = enabled;
+    _globalDebugMode = enabled;
 }
 
 function debugLog(message: string, data?: any): void {
@@ -64,8 +63,7 @@ export class TagUtils {
 
             return tags.filter(tag => tag !== null && tag !== undefined)
                 .map(tag => String(tag)); // Convert all tags to strings
-        } catch (error) {
-            //console.error('Error getting existing tags:', error);
+        } catch (_error) {
             return [];
         }
     }
@@ -103,7 +101,7 @@ export class TagUtils {
             return '';
         }
         
-        const tagStr = typeof tag === 'string' ? tag : String(tag);
+        const tagStr = typeof tag === 'string' ? tag : typeof tag === 'number' ? String(tag) : '';
         
         // Remove leading # if present
         let formatted = tagStr.trim();
@@ -244,7 +242,7 @@ export class TagUtils {
             debugLog(`YAML-ready tags after formatting:`, yamlReadyTags);
 
             if (yamlReadyTags.length === 0) {
-                !silent && new Notice('No valid tags to add', 3000);
+                if (!silent) { new Notice('No valid tags to add', 3000); }
                 return { success: true, message: 'No valid tags to add', tags: [] };
             }
 
@@ -275,7 +273,7 @@ export class TagUtils {
                     if (existingSet.size === newSet.size && 
                         [...existingSet].every(t => newSet.has(t))) {
                         const successMessage = `Tags already up to date (${yamlReadyTags.length} tag${yamlReadyTags.length === 1 ? '' : 's'})`;
-                        !silent && new Notice(successMessage, 3000);
+                        if (!silent) { new Notice(successMessage, 3000); }
                         
                         return {
                             success: true,
@@ -284,8 +282,8 @@ export class TagUtils {
                         };
                     }
                 }
-            } catch (compareError) {
-                //console.error('Error comparing tags:', compareError);
+            } catch (_compareError) {
+                // Tag comparison error — skip
             }
             
             try {
@@ -302,8 +300,7 @@ export class TagUtils {
                     let frontmatter: any;
                     try {
                         frontmatter = yaml.load(frontmatterText) || {};
-                    } catch (e) {
-                        //console.error('Error parsing frontmatter:', e);
+                    } catch (_e) {
                         frontmatter = {};
                     }
                     
@@ -335,7 +332,7 @@ export class TagUtils {
             }
 
             const successMessage = `${replaceTags ? "Replaced" : "Added"} ${yamlReadyTags.length} tag${yamlReadyTags.length === 1 ? '' : 's'}`;
-            !silent && new Notice(successMessage, 3000);
+            if (!silent) { new Notice(successMessage, 3000); }
 
             return {
                 success: true,
@@ -345,7 +342,7 @@ export class TagUtils {
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             //console.error('Error in updateNoteTags:', error);
-            !silent && new Notice(`Error updating tags: ${message}`, 3000);
+            if (!silent) { new Notice(`Error updating tags: ${message}`, 3000); }
             return {
                 success: false,
                 message: `Update failed: ${message}`
@@ -371,8 +368,8 @@ export class TagUtils {
             // Define event handler with proper type annotation
             const eventHandler = (...args: unknown[]) => {
                 try {
-                    const changedFile = args[0] as TFile;
-                    if (changedFile?.path === file.path) {
+                    const changedFile = args[0];
+                    if (changedFile instanceof TFile && changedFile.path === file.path) {
                         clearTimeout(timeout);
                         app.metadataCache.off('changed', eventHandler);
                         // Add small delay to ensure cache is fully updated
@@ -437,14 +434,14 @@ export class TagUtils {
         const dateStr = `${year}${month}${day}`;
     
         const folderPath = tagDir;
-        const filePath = path.join(folderPath, `tags_${dateStr}.md`);
+        const filePath = `${folderPath}/tags_${dateStr}.md`;
 
         // Show confirmation dialog
         const modal = new ConfirmationModal(
             app,
             'Save Tags',
             `Tags will be saved to: ${filePath}\nDo you want to continue?`,
-            async () => {
+            () => { void (async () => {
                 try {
                     // Try to create folder if it doesn't exist (ignore if already exists)
                     const folder = vault.getAbstractFileByPath(folderPath);
@@ -458,22 +455,22 @@ export class TagUtils {
                             }
                         }
                     }
-                    
+
                     // Create or modify file
                     const file = vault.getAbstractFileByPath(filePath);
                     if (!file) {
                         await vault.create(filePath, formattedTags);
-                    } else {
-                        await vault.modify(file as TFile, formattedTags);
+                    } else if (file instanceof TFile) {
+                        await vault.modify(file, formattedTags);
                     }
-                    
+
                     new Notice(`Tags saved to ${filePath}`, 3000);
                 } catch (error) {
                     const message = error instanceof Error ? error.message : 'Unknown error';
                     new Notice(`Error saving tags: ${message}`, 3000);
                     throw new TagError(`Failed to save tags: ${message}`);
                 }
-            }
+            })(); }
         );
         
         modal.open();
@@ -502,8 +499,7 @@ export class TagUtils {
                 .map(line => line.trim())
                 .filter(Boolean)
                 .map(tag => this.formatTag(tag));
-        } catch (error) {
-            //console.error('Error reading tags file:', error);
+        } catch (_error) {
             return null;
         }
     }
@@ -526,11 +522,12 @@ export class TagUtils {
             .map(tag => {
                 try {
                     const formatted = this.formatTag(tag);
-                    if (formatted !== tag) {
-                        debugLog(`formatTag transformed: "${tag}" -> "${formatted}"`);
+                    const tagStr = typeof tag === 'string' ? tag : String(tag as string | number);
+                    if (formatted !== tagStr) {
+                        debugLog(`formatTag transformed: "${tagStr}" -> "${formatted}"`);
                     }
                     return keepHashPrefix ? `#${formatted}` : formatted;
-                } catch (error) {
+                } catch (_error) {
                     return null;
                 }
             })
@@ -617,8 +614,7 @@ export class TagUtils {
                         newFrontmatter + 
                         '\n---' + 
                         content.substring(frontmatterPosition.end.offset);
-                } catch (error) {
-                    //console.error('Error processing existing frontmatter:', error);
+                } catch (_error) {
                     // Fall back to creating new frontmatter
                     const yamlTags = finalTags.map(tag => `  - ${tag}`).join('\n');
                     newContent = `---\ntags:\n${yamlTags}\n---\n${content}`;
@@ -688,9 +684,8 @@ export class TagUtils {
                         // Invalid regex pattern - silently ignore and continue to next pattern
                     }
                 }
-            } catch (error) {
-                // If any pattern fails, log it but continue with other patterns
-                //console.error(`Error checking pattern "${pattern}":`, error);
+            } catch (_error) {
+                // If any pattern fails, continue with other patterns
             }
         }
         
@@ -772,8 +767,7 @@ export class TagUtils {
         try {
             const regex = new RegExp(regexPattern, 'i');
             return regex.test(str);
-        } catch (e) {
-            //console.error('Error creating regex from pattern:', pattern, e);
+        } catch (_e) {
             return false;
         }
     }

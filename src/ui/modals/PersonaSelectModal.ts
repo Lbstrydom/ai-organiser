@@ -98,7 +98,7 @@ export function createPersonaButton(
     const iconEl = btn.createSpan();
     setIcon(iconEl, 'user');
 
-    const label = btn.createSpan({ text: currentPersona.name, cls: 'ai-organiser-persona-button-label' });
+    btn.createSpan({ text: currentPersona.name, cls: 'ai-organiser-persona-button-label' });
 
     btn.addEventListener('click', (e) => {
         e.preventDefault();

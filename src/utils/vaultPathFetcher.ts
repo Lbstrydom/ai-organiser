@@ -1,4 +1,4 @@
-import { App, TFolder, TFile } from 'obsidian';
+import { App, TFolder } from 'obsidian';
 
 export interface VaultItem {
     path: string;
@@ -32,8 +32,7 @@ export function getVaultItems(app: App, searchTerm?: string): VaultItem[] {
  * Collect all paths from the vault in a flattened structure
  */
 function collectAllPaths(app: App, result: VaultItem[]): void {
-    // Get root folder
-    const rootFolder = app.vault.getRoot();
+    // Get root folder contents
     
     // Process root folder contents
     const files = app.vault.getFiles();
@@ -121,9 +120,8 @@ export function isPathExcluded(path: string, excludedPatterns: string[]): boolea
             else if (path === pattern || path.startsWith(pattern)) {
                 return true;
             }
-        } catch (error) {
-            // Keep this error logging as it's important for debugging invalid patterns
-            //console.error(`Invalid exclusion pattern: ${pattern}`, error);
+        } catch (_error) {
+            // Invalid exclusion pattern — skip
         }
     }
     

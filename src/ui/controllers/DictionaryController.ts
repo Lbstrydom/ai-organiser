@@ -4,7 +4,7 @@
  * Responsible for handling all dictionary interactions in UI modals
  */
 
-import type AIOrganiserPlugin from '../../main';
+// AIOrganiserPlugin type available via DI
 import { logger } from '../../utils/logger';
 import { DictionaryService, Dictionary, DictionaryEntry } from '../../services/dictionaryService';
 import { LLMService, type LanguageCode } from '../../services/types';
@@ -202,10 +202,11 @@ export class DictionaryController {
             );
 
             // Call LLM service
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- legacy API still functional
             const response = await llmService.analyzeTags(
                 prompt,
                 [],
-                TaggingMode.GenerateNew,
+                TaggingMode.GenerateNew, // eslint-disable-line @typescript-eslint/no-deprecated
                 50,
                 options.language || 'en'
             );

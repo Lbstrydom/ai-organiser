@@ -61,7 +61,7 @@ export class VisionPreviewModal extends Modal {
         const fullMarkdown = buildDigitiseMarkdown(this.result);
 
         // Render markdown (async but we don't await — modal shows immediately)
-        this.renderMarkdown(outputPane, fullMarkdown);
+        void this.renderMarkdown(outputPane, fullMarkdown);
 
         // Action buttons
         const buttonContainer = contentEl.createEl('div', { cls: 'modal-button-container' });
@@ -103,7 +103,8 @@ export class VisionPreviewModal extends Modal {
      */
     private async renderMarkdown(container: HTMLElement, markdown: string) {
         try {
-            await MarkdownRenderer.renderMarkdown(
+            await MarkdownRenderer.render(
+                this.plugin.app,
                 markdown,
                 container,
                 '', // sourcePath
@@ -115,7 +116,7 @@ export class VisionPreviewModal extends Modal {
             const pre = container.createEl('pre', { cls: 'vision-preview-error' });
             pre.createEl('div', { 
                 cls: 'callout callout-warning',
-                text: '⚠️ Render error — showing raw output below:'
+                text: '⚠️ Render error — showing raw output below:' // eslint-disable-line obsidianmd/ui/sentence-case -- emoji-prefixed
             });
             pre.createEl('code', { text: markdown });
         }

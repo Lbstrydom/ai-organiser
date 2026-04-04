@@ -1,5 +1,4 @@
 import { Setting } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { ExcludedFilesModal } from '../modals/ExcludedFilesModal';
 
@@ -16,7 +15,7 @@ export class TaggingSettingsSection extends BaseSettingSection {
                 const container = slider.sliderEl.parentElement;
                 if (container) {
                     const numberDisplay = container.createSpan({ cls: 'ai-organiser-value-display' });
-                    numberDisplay.style.marginLeft = '10px';
+                    numberDisplay.addClass('ai-organiser-ml-10');
                     numberDisplay.setText(String(this.plugin.settings.maxTags));
 
                     slider.setLimits(1, 10, 1)
@@ -105,11 +104,11 @@ export class TaggingSettingsSection extends BaseSettingSection {
                     const modal = new ExcludedFilesModal(
                         this.plugin.app,
                         this.plugin,
-                        async (excludedFolders: string[]) => {
+                        (excludedFolders: string[]) => { void (async () => {
                             this.plugin.settings.excludedFolders = excludedFolders;
                             await this.plugin.saveSettings();
                             updateExcludedInfo();
-                        }
+                        })(); }
                     );
                     modal.open();
                 })

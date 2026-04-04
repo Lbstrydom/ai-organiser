@@ -2174,7 +2174,7 @@ export const en: Translations = {
             previouslySynced: "Synced before",
             cancel: "Cancel",
             libraryRefreshTitle: "Library data needed",
-            libraryRefreshDesc: "Amazon\'s Kindle library loads via JavaScript in the browser, so we need the bookmarklet to read your books. Click below to sign in and load your library.",
+            libraryRefreshDesc: "Amazon's Kindle library loads via JavaScript in the browser, so we need the bookmarklet to read your books. Click below to sign in and load your library.",
             refreshLibrary: "Refresh Library"
         },
         mermaidChat: {

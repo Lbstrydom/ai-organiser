@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Code-splitting: Readability loaded on demand */
 /**
  * Web Content Service
  * Fetches and extracts article content from URLs using Readability,
@@ -303,7 +304,7 @@ async function fetchViaJina(url: string): Promise<WebFetchResult> {
     }
 
     const markdown = cleanMarkdown(content);
-    const textContent = content.replace(/[#*\[\]()_`>|-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const textContent = content.replace(/[#*[\]()_`>|-]/g, ' ').replace(/\s+/g, ' ').trim();
 
     return buildSuccessResult(url, { title, markdown, textContent });
 }
@@ -362,7 +363,7 @@ export async function fetchArticle(url: string): Promise<WebFetchResult> {
 export function openInBrowser(url: string): void {
     if (typeof require !== 'undefined') {
         try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
+             
             const { shell } = require('electron');
             shell.openExternal(url);
             return;

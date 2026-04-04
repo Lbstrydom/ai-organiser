@@ -153,7 +153,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                 if (!data.choices || !Array.isArray(data.choices)) {
                     throw new Error('Invalid response format');
                 }
-            } catch (parseError) {
+            } catch (_parseError) {
                 throw new Error('Failed to parse response from local service');
             }
 
@@ -331,6 +331,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
             stream: true,
         };
 
+        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
         const response = await fetch(url, {
             method: 'POST',
             headers: { ...this.authHeaders, 'Content-Type': 'application/json' },

@@ -1,5 +1,5 @@
 import { BaseAdapter } from './baseAdapter';
-import { BaseResponse, RequestBody, AdapterConfig } from './types';
+import { BaseResponse, AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
 
 export class AliyunAdapter extends BaseAdapter {
@@ -34,7 +34,7 @@ export class AliyunAdapter extends BaseAdapter {
             let jsonContent;
             try {
                 jsonContent = this.extractJsonFromContent(content);
-            } catch (jsonError) {
+            } catch (_jsonError) {
                 //console.error('JSON extraction error:', jsonError);
                 
                 // Fallback: Try to parse the content directly if it might be JSON already
@@ -42,7 +42,7 @@ export class AliyunAdapter extends BaseAdapter {
                     if (typeof content === 'string' && (content.trim().startsWith('{') && content.trim().endsWith('}'))) {
                         jsonContent = JSON.parse(content);
                     }
-                } catch (directParseError) {
+                } catch (_directParseError) {
                     //console.error('Direct JSON parse error:', directParseError);
                 }
                 

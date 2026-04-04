@@ -91,7 +91,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         name: plugin.t.commands.addToPendingIntegration,
         icon: 'plus-circle',
         editorCallback: async (editor: Editor) => {
-            const modal = new AddContentModal(plugin.app, plugin.t, async (result) => {
+            const modal = new AddContentModal(plugin.app, plugin.t, (result) => {
                 if (result) {
                     addToPendingIntegration(editor, result);
 
@@ -138,7 +138,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                 personas,
                 defaultPersona,
                 plugin.t,
-                async (selectedPersona, placement, format, detail, autoTag) => {
+                (selectedPersona, placement, format, detail, autoTag) => { void (async () => {
                     // Guard: callout/merge require main content
                     if ((placement === 'callout' || placement === 'merge') && !mainContent.trim()) {
                         new Notice(plugin.t.messages.noMainContentToIntegrateInto);
@@ -290,7 +290,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                     } finally {
                         hideBusy(plugin);
                     }
-                }
+                })(); }
             );
             modal.open();
         }
@@ -585,7 +585,9 @@ export function truncatePendingContentForIntegration(
     };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- SourceType still used in integration UI
 function getDefaultSourceTitle(t: Translations, type: SourceType): string {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const typeLabels = t.modals.addContent.types as Record<SourceType, string>;
     return typeLabels[type] || t.modals.addContent.defaultTitle;
 }
@@ -679,7 +681,7 @@ async function extractPendingEmbedText(
  * Detect content type from text
  */
 function detectContentType(text: string, t: Translations): {
-    type: SourceType;
+    type: SourceType; // eslint-disable-line @typescript-eslint/no-deprecated
     title?: string;
     link?: string;
     isInternal?: boolean;
@@ -964,7 +966,7 @@ class AddContentModal extends Modal {
 
         contentEl.createEl('h2', { text: this.t.modals.addContent.title });
 
-        let selectedType: SourceType = 'manual';
+        let selectedType: SourceType = 'manual'; // eslint-disable-line @typescript-eslint/no-deprecated
         let title = '';
         let link = '';
         let content = '';
@@ -983,7 +985,7 @@ class AddContentModal extends Modal {
                     .addOption('note', this.t.modals.addContent.types.note)
                     .setValue('manual')
                     .onChange(value => {
-                        selectedType = value as SourceType;
+                        selectedType = value as SourceType; // eslint-disable-line @typescript-eslint/no-deprecated
                     });
             });
 
@@ -1023,7 +1025,7 @@ class AddContentModal extends Modal {
                 content = value;
             });
         textArea.inputEl.rows = 10;
-        textArea.inputEl.style.width = '100%';
+        textArea.inputEl.addClass('ai-organiser-w-full');
 
         // Buttons
         new Setting(contentEl)
@@ -1088,8 +1090,8 @@ class QuickTextModal extends Modal {
             .setPlaceholder(this.t.modals.quickAddText.placeholder)
             .onChange(value => { text = value; });
         textArea.inputEl.rows = 10;
-        textArea.inputEl.style.width = '100%';
-        textArea.inputEl.style.marginBottom = '1em';
+        textArea.inputEl.addClass('ai-organiser-w-full');
+        textArea.inputEl.addClass('ai-organiser-mb-1em');
 
         new Setting(contentEl)
             .addButton(btn => btn
@@ -1142,7 +1144,7 @@ class QuickUrlModal extends Modal {
                 input
                     .setPlaceholder(this.t.modals.quickAddUrl.urlPlaceholder)
                     .onChange(value => { url = value; });
-                input.inputEl.style.width = '100%';
+                input.inputEl.addClass('ai-organiser-w-full');
             });
 
         new Setting(contentEl)

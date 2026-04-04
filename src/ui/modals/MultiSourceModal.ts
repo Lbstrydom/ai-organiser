@@ -20,10 +20,8 @@ import {
     DetectedSource,
     DetectedSources,
     detectSourcesFromContent,
-    getTotalSourceCount,
     hasAnySources
 } from '../../utils/sourceDetection';
-import { listen } from '../utils/domUtils';
 
 export interface SelectedSources {
     urls: string[];
@@ -226,7 +224,7 @@ export class MultiSourceModal extends Modal {
         text = text.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
 
         // Remove raw URLs
-        text = text.replace(/https?:\/\/[^\s\])\"'<>]+/gi, '');
+        text = text.replace(/https?:\/\/[^\s\])"'<>]+/gi, '');
 
         // Remove vault embeds: ![[file]] and links: [[file]]
         text = text.replace(/!?\[\[[^\]]+\]\]/g, '');
@@ -246,7 +244,7 @@ export class MultiSourceModal extends Modal {
 
         // Load personas asynchronously if needed, then re-render settings section
         if (!this.config.hidePersona) {
-            this.plugin.configService.getSummaryPersonas().then(personas => {
+            void this.plugin.configService.getSummaryPersonas().then(personas => {
                 this.personas = personas;
                 // Re-render settings section to include persona dropdown
                 const settingsSection = this.sectionsContainer?.querySelector('.ai-organiser-multi-source-settings');

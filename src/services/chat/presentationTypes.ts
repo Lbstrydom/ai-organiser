@@ -178,8 +178,8 @@ export function migratePresentationSession(data: unknown): PresentationSession |
     const versions: PresentationVersion[] = rawVersions
         .filter((v): v is PresentationVersion =>
             !!v && typeof v === 'object'
-            && typeof (v as any).html === 'string'
-            && typeof (v as any).timestamp === 'number'
+            && typeof (v).html === 'string'
+            && typeof (v).timestamp === 'number'
         )
         .slice(0, MAX_VERSIONS);
 
@@ -188,13 +188,13 @@ export function migratePresentationSession(data: unknown): PresentationSession |
     const conversation: PresentationMessage[] = rawConv
         .filter((m): m is PresentationMessage =>
             !!m && typeof m === 'object'
-            && typeof (m as any).role === 'string'
-            && typeof (m as any).content === 'string'
+            && typeof (m).role === 'string'
+            && typeof (m).content === 'string'
         );
 
     return {
         schemaVersion: 1,
-        html: o.html as string,
+        html: o.html,
         versions,
         conversation,
         brandEnabled: typeof o.brandEnabled === 'boolean' ? o.brandEnabled : false,

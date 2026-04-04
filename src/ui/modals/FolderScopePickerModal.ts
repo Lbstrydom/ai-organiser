@@ -89,10 +89,10 @@ export class FolderScopePickerModal extends Modal {
 
         // Set container styles
         contentEl.addClass('ai-organiser-folder-picker');
-        contentEl.style.padding = '20px';
-        contentEl.style.width = '400px';
-        contentEl.style.maxWidth = '90vw';
-        contentEl.style.margin = '0 auto';
+        contentEl.addClass('ai-organiser-p-16');
+        contentEl.setCssProps({ '--w': '400px' }); contentEl.addClass('ai-organiser-w-custom');
+        contentEl.setCssProps({ '--max-w': '90vw' }); contentEl.addClass('ai-organiser-max-w-custom');
+        contentEl.setCssProps({ '--margin': '0 auto' }); contentEl.addClass('ai-organiser-margin-custom');
 
         // Modal title
         const t = this.plugin.t.modals?.folderScopePicker;
@@ -100,36 +100,36 @@ export class FolderScopePickerModal extends Modal {
             text: this.options.title || t?.title || 'Select Folder Scope',
             cls: 'folder-picker-title'
         });
-        titleEl.style.marginTop = '0';
-        titleEl.style.marginBottom = '10px';
-        titleEl.style.color = 'var(--text-normal)';
-        titleEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-        titleEl.style.paddingBottom = '10px';
+        titleEl.addClass('ai-organiser-mt-0');
+        titleEl.addClass('ai-organiser-mb-10');
+        titleEl.addClass('ai-organiser-text-normal');
+        titleEl.addClass('ai-organiser-border-b');
+        titleEl.addClass('ai-organiser-pb-8');
 
         // Description
         const descEl = contentEl.createEl('p', {
             text: this.options.description || t?.description || 'Choose a root folder to constrain AI suggestions within your organizational structure.',
             cls: 'folder-picker-description'
         });
-        descEl.style.margin = '10px 0 15px';
-        descEl.style.color = 'var(--text-muted)';
-        descEl.style.fontSize = '14px';
+        descEl.setCssProps({ '--margin': '10px 0 15px' }); descEl.addClass('ai-organiser-margin-custom');
+        descEl.addClass('ai-organiser-text-muted');
+        descEl.addClass('ai-organiser-text-lg');
 
         // Search input
         const searchContainer = contentEl.createDiv({ cls: 'folder-picker-search' });
-        searchContainer.style.marginBottom = '12px';
+        searchContainer.addClass('ai-organiser-mb-12');
 
         this.searchInput = searchContainer.createEl('input', {
             type: 'text',
             placeholder: t?.searchPlaceholder || 'Search folders...',
             cls: 'folder-picker-search-input'
         });
-        this.searchInput.style.width = '100%';
-        this.searchInput.style.padding = '8px 12px';
-        this.searchInput.style.fontSize = '14px';
-        this.searchInput.style.border = '1px solid var(--background-modifier-border)';
-        this.searchInput.style.borderRadius = '4px';
-        this.searchInput.style.backgroundColor = 'var(--background-primary)';
+        this.searchInput.addClass('ai-organiser-w-full');
+        this.searchInput.setCssProps({ '--pad': '8px 12px' }); this.searchInput.addClass('ai-organiser-pad-custom');
+        this.searchInput.addClass('ai-organiser-text-lg');
+        this.searchInput.addClass('ai-organiser-border');
+        this.searchInput.addClass('ai-organiser-rounded');
+        this.searchInput.addClass('ai-organiser-bg-primary');
 
         this.searchInput.addEventListener('input', () => {
             this.searchTermRaw = this.searchInput.value;
@@ -139,22 +139,22 @@ export class FolderScopePickerModal extends Modal {
 
         // Folder list container
         this.folderListEl = contentEl.createDiv({ cls: 'folder-list' });
-        this.folderListEl.style.maxHeight = '300px';
-        this.folderListEl.style.overflowY = 'auto';
-        this.folderListEl.style.border = '1px solid var(--background-modifier-border)';
-        this.folderListEl.style.borderRadius = '6px';
-        this.folderListEl.style.marginBottom = '16px';
-        this.folderListEl.style.backgroundColor = 'var(--background-secondary)';
+        this.folderListEl.setCssProps({ '--max-h': '300px' }); this.folderListEl.addClass('ai-organiser-max-h-custom');
+        this.folderListEl.addClass('ai-organiser-overflow-y-auto');
+        this.folderListEl.addClass('ai-organiser-border');
+        this.folderListEl.addClass('ai-organiser-rounded-md');
+        this.folderListEl.addClass('ai-organiser-mb-16');
+        this.folderListEl.addClass('ai-organiser-bg-secondary');
 
         this.renderFolderList();
 
         // Resolved-path preview element
         this.previewEl = contentEl.createDiv({ cls: 'folder-picker-preview' });
-        this.previewEl.style.margin = '0 0 12px';
-        this.previewEl.style.padding = '6px 12px';
-        this.previewEl.style.fontSize = '13px';
-        this.previewEl.style.color = 'var(--text-muted)';
-        this.previewEl.style.fontStyle = 'italic';
+        this.previewEl.setCssProps({ '--margin': '0 0 12px' }); this.previewEl.addClass('ai-organiser-margin-custom');
+        this.previewEl.setCssProps({ '--pad': '6px 12px' }); this.previewEl.addClass('ai-organiser-pad-custom');
+        this.previewEl.addClass('ai-organiser-text-base');
+        this.previewEl.addClass('ai-organiser-text-muted');
+        this.previewEl.addClass('ai-organiser-italic');
         this.updatePreview();
 
         // If defaultFolder doesn't exist in vault, prefill search with that path
@@ -171,11 +171,11 @@ export class FolderScopePickerModal extends Modal {
 
         // Button container
         const buttonContainer = contentEl.createDiv({ cls: 'folder-picker-buttons' });
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'space-between';
-        buttonContainer.style.marginTop = '16px';
-        buttonContainer.style.paddingTop = '16px';
-        buttonContainer.style.borderTop = '1px solid var(--background-modifier-border)';
+        buttonContainer.addClass('ai-organiser-flex-row');
+        buttonContainer.addClass('ai-organiser-gap-8');
+        buttonContainer.addClass('ai-organiser-mt-16');
+        buttonContainer.setCssProps({ '--pad': '16px 0 0 0' }); buttonContainer.addClass('ai-organiser-pad-custom');
+        buttonContainer.addClass('ai-organiser-border-t');
 
         // Left side: "Use entire vault" button (if allowed)
         const leftButtons = buttonContainer.createDiv();
@@ -186,13 +186,12 @@ export class FolderScopePickerModal extends Modal {
                     this.options.onSelect(null);
                     this.close();
                 });
-            skipButton.buttonEl.style.backgroundColor = 'var(--background-secondary)';
+            skipButton.buttonEl.addClass('ai-organiser-bg-secondary');
         }
 
         // Right side: Cancel and Select buttons
         const rightButtons = buttonContainer.createDiv();
-        rightButtons.style.display = 'flex';
-        rightButtons.style.gap = '10px';
+        rightButtons.addClass('ai-organiser-flex-row', 'ai-organiser-gap-10');
 
         new ButtonComponent(rightButtons)
             .setButtonText(this.plugin.t.modals?.cancelButton || 'Cancel')
@@ -246,9 +245,9 @@ export class FolderScopePickerModal extends Modal {
         // Show empty state if no folders and no create affordance
         if (filteredFolders.length === 0 && !createPath) {
             const emptyEl = this.folderListEl.createDiv({ cls: 'folder-list-empty' });
-            emptyEl.style.padding = '20px';
-            emptyEl.style.textAlign = 'center';
-            emptyEl.style.color = 'var(--text-muted)';
+            emptyEl.addClass('ai-organiser-p-16');
+            emptyEl.addClass('ai-organiser-text-center');
+            emptyEl.addClass('ai-organiser-text-muted');
             emptyEl.textContent = t?.noFoldersFound || 'No folders found';
         }
 
@@ -281,58 +280,56 @@ export class FolderScopePickerModal extends Modal {
         const isTopLevel = depth === 0;
 
         const itemEl = this.folderListEl.createDiv({ cls: `folder-item ${isTopLevel ? 'folder-item-top' : 'folder-item-nested'}` });
-        itemEl.style.padding = '8px 12px';
+        itemEl.setCssProps({ '--pad': '8px 12px' }); itemEl.addClass('ai-organiser-pad-custom');
         itemEl.style.paddingLeft = `${12 + depth * 16}px`;
-        itemEl.style.cursor = 'pointer';
-        itemEl.style.display = 'flex';
-        itemEl.style.alignItems = 'center';
-        itemEl.style.gap = '8px';
-        itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
+        itemEl.addClass('ai-organiser-cursor-pointer');
+        itemEl.addClass('ai-organiser-flex-center', 'ai-organiser-gap-8');
+        itemEl.addClass('ai-organiser-border-b');
 
         // Visual hierarchy: top-level folders are bolder
         if (isTopLevel) {
-            itemEl.style.fontWeight = '600';
+            itemEl.addClass('ai-organiser-font-semibold');
         } else {
-            itemEl.style.color = 'var(--text-muted)';
+            itemEl.addClass('ai-organiser-text-muted');
         }
 
         if (isSelected) {
             itemEl.addClass('selected');
-            itemEl.style.backgroundColor = 'var(--interactive-accent)';
-            itemEl.style.color = 'var(--text-on-accent)';
+            itemEl.addClass('ai-organiser-bg-accent');
+            itemEl.addClass('ai-organiser-text-on-accent');
         }
 
         // Hover effect
         itemEl.addEventListener('mouseenter', () => {
             if (!isSelected) {
-                itemEl.style.backgroundColor = 'var(--background-modifier-hover)';
+                itemEl.setCssProps({ '--bg': 'var(--background-modifier-hover)' }); itemEl.addClass('ai-organiser-bg-custom');
                 // Brighten nested folders on hover
                 if (!isTopLevel) {
-                    itemEl.style.color = 'var(--text-normal)';
+                    itemEl.addClass('ai-organiser-text-normal');
                 }
             }
         });
         itemEl.addEventListener('mouseleave', () => {
             if (!isSelected) {
-                itemEl.style.backgroundColor = '';
+                itemEl.removeClass('ai-organiser-bg-accent', 'ai-organiser-bg-custom');
                 // Restore muted color for nested folders
                 if (!isTopLevel) {
-                    itemEl.style.color = 'var(--text-muted)';
+                    itemEl.addClass('ai-organiser-text-muted');
                 }
             }
         });
 
         // Folder icon
         const iconEl = itemEl.createSpan({ cls: 'folder-item-icon' });
-        iconEl.style.fontSize = '14px';
+        iconEl.addClass('ai-organiser-text-lg');
         setIcon(iconEl, 'folder');
 
         // Folder name (show full path when searching, just name otherwise)
         const nameEl = itemEl.createSpan({ cls: 'folder-item-name' });
-        nameEl.style.flex = '1';
-        nameEl.style.overflow = 'hidden';
-        nameEl.style.textOverflow = 'ellipsis';
-        nameEl.style.whiteSpace = 'nowrap';
+        nameEl.addClass('ai-organiser-flex-1');
+        nameEl.addClass('ai-organiser-overflow-hidden');
+        nameEl.addClass('ai-organiser-truncate');
+        nameEl.addClass('ai-organiser-truncate');
 
         if (this.searchTerm) {
             // Show full path with search term highlighted
@@ -347,7 +344,7 @@ export class FolderScopePickerModal extends Modal {
                 const highlightEl = nameEl.createSpan({ text: match, cls: 'search-highlight' });
                 highlightEl.style.backgroundColor = isSelected ? 'var(--text-on-accent)' : 'var(--text-highlight-bg)';
                 highlightEl.style.color = isSelected ? 'var(--interactive-accent)' : 'inherit';
-                highlightEl.style.borderRadius = '2px';
+                highlightEl.addClass('ai-organiser-rounded');
                 if (after) nameEl.createSpan({ text: after });
             } else {
                 nameEl.textContent = folder.path;
@@ -367,30 +364,28 @@ export class FolderScopePickerModal extends Modal {
         const label = (t?.createFolder || 'Create new folder: "{path}"').replace('{path}', folderName);
 
         const itemEl = this.folderListEl.createDiv({ cls: 'folder-item folder-item-create' });
-        itemEl.style.padding = '8px 12px';
-        itemEl.style.cursor = 'pointer';
-        itemEl.style.display = 'flex';
-        itemEl.style.alignItems = 'center';
-        itemEl.style.gap = '8px';
-        itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-        itemEl.style.color = 'var(--interactive-accent)';
-        itemEl.style.fontWeight = '600';
+        itemEl.setCssProps({ '--pad': '8px 12px' }); itemEl.addClass('ai-organiser-pad-custom');
+        itemEl.addClass('ai-organiser-cursor-pointer');
+        itemEl.addClass('ai-organiser-flex-center', 'ai-organiser-gap-8');
+        itemEl.addClass('ai-organiser-border-b');
+        itemEl.addClass('ai-organiser-text-accent');
+        itemEl.addClass('ai-organiser-font-semibold');
 
         const iconEl = itemEl.createSpan();
-        iconEl.style.fontSize = '14px';
+        iconEl.addClass('ai-organiser-text-lg');
         iconEl.textContent = '+';
 
         const nameEl = itemEl.createSpan({ text: label });
-        nameEl.style.flex = '1';
+        nameEl.addClass('ai-organiser-flex-1');
 
         itemEl.addEventListener('mouseenter', () => {
-            itemEl.style.backgroundColor = 'var(--background-modifier-hover)';
+            itemEl.setCssProps({ '--bg': 'var(--background-modifier-hover)' }); itemEl.addClass('ai-organiser-bg-custom');
         });
         itemEl.addEventListener('mouseleave', () => {
-            itemEl.style.backgroundColor = '';
+            itemEl.removeClass('ai-organiser-bg-accent', 'ai-organiser-bg-custom');
         });
 
-        itemEl.addEventListener('click', async () => {
+        itemEl.addEventListener('click', () => { void (async () => {
             const normalized = normalizePath(folderName);
             // Validate: no invalid characters
             if (/[<>:"|?*]/.test(normalized)) {
@@ -403,7 +398,7 @@ export class FolderScopePickerModal extends Modal {
             } catch {
                 // Folder creation failed silently — user can retry
             }
-        });
+        })(); });
     }
 
     private selectFolder(folderPath: string): void {
@@ -412,7 +407,7 @@ export class FolderScopePickerModal extends Modal {
         this.updatePreview();
 
         // Enable the select button
-        if (this.selectButton) {
+        if (this.selectButton != null) {
             this.selectButton.setDisabled(false);
         }
     }

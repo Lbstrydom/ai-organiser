@@ -176,7 +176,7 @@ export class FlashcardExportModal extends Modal {
                     .onChange(value => this.context = value);
                 text.inputEl.rows = 3;
                 text.inputEl.spellcheck = true;
-                text.inputEl.style.width = '100%';
+                text.inputEl.addClass('ai-organiser-w-full');
             });
 
         // Buttons

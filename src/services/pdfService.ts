@@ -4,7 +4,9 @@
  */
 
 import { App, TFile } from 'obsidian';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external PDF files from filesystem
 import { promises as fs } from 'fs';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: path manipulation for external PDFs
 import path from 'path';
 import { logger } from '../utils/logger';
 

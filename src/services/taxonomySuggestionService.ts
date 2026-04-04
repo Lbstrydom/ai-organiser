@@ -30,7 +30,7 @@ export type SuggestedTheme = SuggestedDiscipline;
  */
 export interface TaxonomyChange {
     action: 'add' | 'modify' | 'remove';
-    item: SuggestedDiscipline | SuggestedTheme;
+    item: SuggestedDiscipline;
     originalName?: string;  // For modify/remove - the original item name
     reason?: string;        // AI's reason for suggesting this change
 }

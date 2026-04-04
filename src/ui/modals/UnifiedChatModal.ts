@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Menu, Modal, Notice, TextAreaComponent, setIcon } from 'obsidian';
+import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Menu, Modal, Notice, TFile, TextAreaComponent, setIcon } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { enableAutoExpand } from '../../utils/uiUtils';
 import { ensureNoteStructureIfEnabled } from '../../utils/noteStructure';
@@ -22,7 +22,7 @@ import { ProjectService } from '../../services/chat/projectService';
 import { GlobalMemoryService } from '../../services/chat/globalMemoryService';
 import { ChatResumePickerModal } from './ChatResumePickerModal';
 import type { ConversationState } from '../../utils/chatExportUtils';
-import type { TFile } from 'obsidian';
+
 
 interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
@@ -363,7 +363,7 @@ export class UnifiedChatModal extends Modal {
 
             const contentEl = messageEl.createDiv({ cls: 'ai-organiser-chat-msg-content' });
             if (message.role === 'assistant') {
-                MarkdownRenderer.render(this.app, message.content, contentEl, '', this.component);
+                void MarkdownRenderer.render(this.app, message.content, contentEl, '', this.component);
             } else {
                 contentEl.textContent = message.content;
             }
@@ -378,11 +378,11 @@ export class UnifiedChatModal extends Modal {
                         text: source,
                         cls: 'internal-link'
                     });
-                    linkEl.addEventListener('click', async (event) => {
+                    linkEl.addEventListener('click', (event) => {
                         event.preventDefault();
                         const file = this.app.vault.getFileByPath(source);
                         if (file) {
-                            await this.app.workspace.getLeaf().openFile(file);
+                            void this.app.workspace.getLeaf().openFile(file);
                         }
                     });
                 }
@@ -453,7 +453,7 @@ export class UnifiedChatModal extends Modal {
 
         // Project dropdown (Free Chat mode only)
         if (this.activeMode === 'free' && this.projectService) {
-            this.renderProjectDropdown(this.actionsEl!);
+            this.renderProjectDropdown(this.actionsEl);
         }
     }
 
@@ -580,7 +580,7 @@ export class UnifiedChatModal extends Modal {
             this.activeProjectId = await this.projectService.createProject(name);
             this.persistenceService?.startNew('free');
             this.freeChatHandler?.setProjectContext(
-                (await this.projectService.findProject(this.activeProjectId))!
+                (await this.projectService.findProject(this.activeProjectId))
             );
             this.renderActionsBar();
         }
@@ -672,7 +672,7 @@ export class UnifiedChatModal extends Modal {
             const contentEl = lastEl.querySelector('.ai-organiser-chat-msg-content');
             if (contentEl) {
                 contentEl.empty();
-                MarkdownRenderer.render(this.app, content, contentEl as HTMLElement, '', this.component!);
+                void MarkdownRenderer.render(this.app, content, contentEl as HTMLElement, '', this.component!);
             }
         } else {
             // No DOM element yet — full re-render
@@ -711,7 +711,7 @@ export class UnifiedChatModal extends Modal {
 
         this.inputArea.setValue('');
         // Reset textarea height after clearing
-        this.inputArea.inputEl.style.height = 'auto';
+        this.inputArea.inputEl.addClass('ai-organiser-h-auto');
 
         this.isProcessing = true;
         this.updateInputState();
@@ -1241,9 +1241,8 @@ export class UnifiedChatModal extends Modal {
 
         // Set file for overwrite on next save
         const file = this.app.vault.getAbstractFileByPath(filePath);
-        // TFile is imported as a type-only import; use duck-typing check at runtime
-        if (file && 'extension' in file && 'stat' in file) {
-            this.persistenceService.setCurrentFile(state.mode, file as TFile);
+        if (file instanceof TFile) {
+            this.persistenceService.setCurrentFile(state.mode, file);
         }
 
         // Load project context
@@ -1251,6 +1250,6 @@ export class UnifiedChatModal extends Modal {
             await this.loadProjectContext(state.projectId);
         }
 
-        return state.mode as ChatMode;
+        return state.mode;
     }
 }

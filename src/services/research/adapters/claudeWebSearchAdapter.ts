@@ -26,7 +26,7 @@ interface StreamState {
     inputJsonBuffer: string;
     currentTextBlock: { text: string; citations: unknown[] } | null;
     currentServerToolUse: { id: string; name: string; input: unknown } | null;
-    currentSearchToolResult: unknown | null;
+    currentSearchToolResult: unknown;
     usage: { inputTokens: number; outputTokens: number; searchRequests: number };
     stopReason: string | null;
     lastSearchResultBlockIndex: number;
@@ -400,6 +400,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         callbacks?: ClaudeWebSearchStreamCallbacks,
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
+        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
         const response = await fetch(`${CLAUDE_API_BASE}/v1/messages`, {
             method: 'POST',
             headers,

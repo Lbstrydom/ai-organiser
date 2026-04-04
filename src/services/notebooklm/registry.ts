@@ -2,15 +2,13 @@
  * Registry Service for NotebookLM Source Packs
  * 
  * Manages pack versioning and revision tracking across sessions.
- * Stores registry in .obsidian/ai-organiser-notebooklm-registry.json
+ * Stores registry in {configDir}/ai-organiser-notebooklm-registry.json
  */
 
 import { App } from 'obsidian';
 import { PackRegistry, PackRegistryEntry, PackManifest } from './types';
 import { computePackHash } from './hashing';
 import { logger } from '../../utils/logger';
-
-const REGISTRY_FILE = '.obsidian/ai-organiser-notebooklm-registry.json';
 
 /**
  * Registry manager for source packs
@@ -20,12 +18,16 @@ export class RegistryService {
 
     constructor(private app: App) {}
 
+    private get registryFile(): string {
+        return `${this.app.vault.configDir}/ai-organiser-notebooklm-registry.json`;
+    }
+
     /**
      * Load registry from disk
      */
     async loadRegistry(): Promise<void> {
         try {
-            const file = this.app.vault.getAbstractFileByPath(REGISTRY_FILE);
+            const file = this.app.vault.getAbstractFileByPath(this.registryFile);
             if (!file) {
                 // Initialize empty registry
                 this.registry = {
@@ -35,7 +37,7 @@ export class RegistryService {
                 return;
             }
 
-            const content = await this.app.vault.adapter.read(REGISTRY_FILE);
+            const content = await this.app.vault.adapter.read(this.registryFile);
             this.registry = JSON.parse(content);
         } catch (error) {
             logger.error('Export', 'Failed to load NotebookLM registry:', error);
@@ -57,7 +59,7 @@ export class RegistryService {
 
         try {
             const content = JSON.stringify(this.registry, null, 2);
-            await this.app.vault.adapter.write(REGISTRY_FILE, content);
+            await this.app.vault.adapter.write(this.registryFile, content);
         } catch (error) {
             logger.error('Export', 'Failed to save NotebookLM registry:', error);
             throw error;

@@ -151,7 +151,7 @@ export class SlideIframePreview {
                 sandbox: 'allow-same-origin',
                 title: 'Slide deck preview', // H5 accessibility
             },
-        }) as HTMLIFrameElement;
+        });
 
         this.iframe.addEventListener('load', () => {
             if (token !== this.renderToken) return; // Stale (M13)
@@ -246,7 +246,7 @@ export class SlideIframePreview {
             cls: 'ai-organiser-pres-nav-btn',
             text: '◄',
             attr: { 'aria-label': 'Previous slide' }, // H5
-        }) as HTMLButtonElement;
+        });
         this.prevBtn.addEventListener('click', () => this.goToSlide(this.currentSlideIndex - 1));
 
         this.navCounter = this.navContainer.createEl('span', {
@@ -258,7 +258,7 @@ export class SlideIframePreview {
             cls: 'ai-organiser-pres-nav-btn',
             text: '►',
             attr: { 'aria-label': 'Next slide' }, // H5
-        }) as HTMLButtonElement;
+        });
         this.nextBtn.addEventListener('click', () => this.goToSlide(this.currentSlideIndex + 1));
     }
 
@@ -292,7 +292,7 @@ export class SlideIframePreview {
     private renderQualityBadge(): void {
         const container = this.container.querySelector('.ai-organiser-pres-quality-container');
         if (!container) return;
-        (container as HTMLElement).innerHTML = '';
+        (container as HTMLElement).empty();
 
         if (!this.qualityResult || this.state !== 'ready') return;
         const score = this.qualityResult.totalScore;

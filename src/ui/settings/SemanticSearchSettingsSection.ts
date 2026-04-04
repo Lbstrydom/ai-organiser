@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Provider names (Ollama), URLs, and technical terms */
 import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -44,7 +45,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     }
 
                     // Refresh settings display to show/hide dependent settings
-                    this.display();
+                    void this.display();
                 }));
 
         // Only show additional settings if semantic search is enabled
@@ -89,7 +90,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     }
 
                     void plugin.saveSettings();
-                    this.display(); // Refresh to show provider-specific settings
+                    void this.display(); // Refresh to show provider-specific settings
                 }));
 
         // Local-ONNX recommendation banner: shown when no API key is configured
@@ -112,7 +113,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     plugin.settings.embeddingProvider = 'local-onnx' as any;
                     plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
                     void plugin.saveSettings();
-                    this.display();
+                    void this.display();
                 });
             }
         }
@@ -236,7 +237,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 .onChange((value) => {
                     plugin.settings.useSharedExcludedFolders = value;
                     void plugin.saveSettings();
-                    this.display(); // Refresh to show/hide custom folders
+                    void this.display(); // Refresh to show/hide custom folders
                 }));
 
         // Show either shared folders info or custom folders textarea
@@ -252,9 +253,9 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
             if (sharedFolders.length > 0) {
                 const folderList = infoContent.createDiv({ cls: 'setting-item-description' });
-                folderList.style.fontFamily = 'monospace';
-                folderList.style.fontSize = '0.85em';
-                folderList.style.opacity = '0.8';
+                folderList.addClass('ai-organiser-font-mono');
+                folderList.addClass('ai-organiser-text-ui-smaller');
+                folderList.addClass('ai-organiser-opacity-85');
                 folderList.setText(sharedFolders.join(', ') || 'None');
             } else {
                 infoContent.createDiv({
@@ -350,7 +351,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     plugin.settings.enableVaultChat = value;
                     void plugin.saveSettings();
                     // Refresh to show/hide RAG options
-                    this.display();
+                    void this.display();
                 }));
 
         // Only show RAG options if Vault Chat is enabled
@@ -451,7 +452,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
             // 3. Main cloud provider secret
             const mainProvider = plugin.settings.cloudServiceType;
-            const mainSecretId = PROVIDER_TO_SECRET_ID[mainProvider as keyof typeof PROVIDER_TO_SECRET_ID];
+            const mainSecretId = PROVIDER_TO_SECRET_ID[mainProvider];
             if (mainSecretId && await secretStorage.hasSecret(mainSecretId)) return true;
         }
 

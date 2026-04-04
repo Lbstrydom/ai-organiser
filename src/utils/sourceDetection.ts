@@ -3,7 +3,7 @@
  * Detects URLs, PDFs, YouTube links, and audio files from note content
  */
 
-import { App, TFile } from 'obsidian';
+import { App } from 'obsidian';
 import { EXTRACTABLE_DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS } from '../core/constants';
 import { isYouTubeUrl as isYouTubeUrlCanonical } from '../services/youtubeService';
 
@@ -58,7 +58,7 @@ const VAULT_IMAGE_PATTERN = new RegExp(String.raw`!?\[\[([^\]|]+\.(${imageExts})
 /**
  * Detect all sources from note content
  */
-export function detectSourcesFromContent(content: string, app?: App): DetectedSources {
+export function detectSourcesFromContent(content: string, _app?: App): DetectedSources {
     const lines = content.split('\n');
     const sources: DetectedSources = {
         urls: [],

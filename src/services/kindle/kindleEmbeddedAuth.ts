@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for BrowserWindow */
 /**
  * Kindle Embedded Auth Method (Desktop Only)
  *
@@ -420,7 +421,7 @@ async function performEmbeddedLogin(
     onProgress?: (phase: string) => void,
     credentials?: { email?: string; password?: string },
 ): Promise<AuthMethodResult> {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const remote = require('@electron/remote');
     const BrowserWindow = remote.BrowserWindow;
 
@@ -706,7 +707,7 @@ function loadPageSnapshot(
             } catch (err) {
                 clearTimeout(safetyTimeout);
                 try { scrapeWin.destroy(); } catch { /* already destroyed */ }
-                reject(err);
+                reject(err instanceof Error ? err : new Error(String(err)));
             }
         });
 
@@ -967,7 +968,7 @@ export async function fetchHighlightsEmbedded(
         throw new Error('Embedded highlight fetching is desktop-only');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const remote = require('@electron/remote');
     const BrowserWindow = remote.BrowserWindow;
     const notebookUrl = getNotebookUrl(region);

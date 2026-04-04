@@ -5,7 +5,7 @@
  * Future-proofs the integration by centralizing API detection and version checking.
  */
 
-import { App, Plugin, Platform, TFile } from 'obsidian';
+import { App, Plugin, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 
 export interface BasesPlugin extends Plugin {
@@ -71,7 +71,8 @@ export class BasesService {
     /**
      * Get the Bases API object if exposed
      */
-    public getBasesApi(): any | null {
+     
+    public getBasesApi(): any {
         const bases = this.getBasesPlugin();
         return bases?.api || null;
     }

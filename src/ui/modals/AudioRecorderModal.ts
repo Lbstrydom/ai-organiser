@@ -96,7 +96,7 @@ export class AudioRecorderModal extends Modal {
 
         // Size display
         this.sizeEl = contentEl.createDiv({ cls: 'ai-organiser-audio-recorder-size' });
-        this.sizeEl.textContent = '0.0 MB';
+        this.sizeEl.textContent = '0.0 MB'; // eslint-disable-line obsidianmd/ui/sentence-case -- file size label
 
         // Max time hint (mobile only, when auto-transcribe makes sense)
         if (Platform.isMobile) {
@@ -134,7 +134,7 @@ export class AudioRecorderModal extends Modal {
                 });
                 const iconSpan = recordBtn.createSpan({ cls: 'ai-organiser-audio-recorder-btn-icon' });
                 setIcon(iconSpan, 'mic');
-                this.cleanups.push(listen(recordBtn, 'click', () => this.startRecording()));
+                this.cleanups.push(listen(recordBtn, 'click', () => { void this.startRecording(); }));
                 break;
             }
             case 'recording': {
@@ -144,7 +144,7 @@ export class AudioRecorderModal extends Modal {
                 });
                 const iconSpan = stopBtn.createSpan({ cls: 'ai-organiser-audio-recorder-btn-icon' });
                 setIcon(iconSpan, 'square');
-                this.cleanups.push(listen(stopBtn, 'click', () => this.stopRecording()));
+                this.cleanups.push(listen(stopBtn, 'click', () => { void this.stopRecording(); }));
                 break;
             }
             case 'stopped': {
@@ -166,7 +166,7 @@ export class AudioRecorderModal extends Modal {
                     // Don't null filenameInput here — if startRecording() fails,
                     // the user stays in 'stopped' state and the input must still work.
                     // renderControls() rebuilds the DOM (including a fresh input) on success.
-                    this.startRecording();
+                    void this.startRecording();
                 }));
 
                 // Filename input (standalone mode only)
@@ -184,7 +184,7 @@ export class AudioRecorderModal extends Modal {
                     text: t?.save || 'Save',
                     cls: 'mod-cta'
                 });
-                this.cleanups.push(listen(saveBtn, 'click', () => this.saveRecording()));
+                this.cleanups.push(listen(saveBtn, 'click', () => { void this.saveRecording(); }));
 
                 const discardBtn = this.controlsEl.createEl('button', {
                     text: t?.discard || 'Discard'
@@ -292,7 +292,7 @@ export class AudioRecorderModal extends Modal {
         this.revokeAudioUrl();
         this.audioUrl = URL.createObjectURL(this.blob);
         const audio = new Audio(this.audioUrl);
-        audio.play();
+        void audio.play();
     }
 
     private updateAutoTranscribeState(): void {
@@ -505,7 +505,7 @@ export class AudioRecorderModal extends Modal {
             text: t?.keepOriginal || 'Keep original',
             attr: { title: t?.keepOriginalDesc || 'Keep the full-quality recording' }
         });
-        this.cleanups.push(listen(keepBtn, 'click', () => finishWith(savedFile)));
+        this.cleanups.push(listen(keepBtn, 'click', () => { void finishWith(savedFile); }));
 
         // Keep compressed (desktop only, requires FFmpeg)
         if (!Platform.isMobile) {
@@ -513,12 +513,12 @@ export class AudioRecorderModal extends Modal {
                 text: t?.keepCompressed || 'Keep compressed',
                 attr: { title: t?.keepCompressedDesc || 'Replace with smaller MP3' }
             });
-            this.cleanups.push(listen(compressBtn, 'click', async () => {
+            this.cleanups.push(listen(compressBtn, 'click', () => { void (async () => {
                 compressBtn.disabled = true;
                 compressBtn.textContent = t?.compressing || 'Compressing...';
                 const compressedFile = await this.compressAndReplace(savedFile);
                 await finishWith(compressedFile ?? savedFile);
-            }));
+            })(); }));
         }
 
         // Delete audio
@@ -527,10 +527,10 @@ export class AudioRecorderModal extends Modal {
             cls: 'mod-warning',
             attr: { title: t?.deleteAudioDesc || 'Remove audio file (transcript saved)' }
         });
-        this.cleanups.push(listen(deleteBtn, 'click', async () => {
+        this.cleanups.push(listen(deleteBtn, 'click', () => { void (async () => {
             await this.deleteRecording(savedFile);
             await finishWith(null);
-        }));
+        })(); }));
     }
 
     /** Apply storage policy and return the final file (null if deleted, new TFile if compressed). */
@@ -579,7 +579,7 @@ export class AudioRecorderModal extends Modal {
     private async deleteRecording(file: TFile): Promise<void> {
         const t = this.plugin.t.recording;
         try {
-            await this.app.vault.delete(file);
+            await this.app.fileManager.trashFile(file);
             new Notice(t?.audioDeleted || 'Audio file deleted');
         } catch (err) {
             logger.error('Audio', 'Failed to delete recording:', err);
@@ -637,7 +637,7 @@ export class AudioRecorderModal extends Modal {
         this.close();
     }
 
-    async onClose(): Promise<void> {
+    onClose(): void {
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
 
@@ -645,26 +645,28 @@ export class AudioRecorderModal extends Modal {
         // Modal.onClose can't be async-blocked for a confirmation dialog,
         // so we save unconditionally and notify the user.
         if (!this.actionFired && (this.recorder.isRecording() || this.recorder.hasData())) {
-            const t = this.plugin.t.recording;
-            const isActive = this.recorder.isRecording();
+            void (async () => {
+                const t = this.plugin.t.recording;
+                const isActive = this.recorder.isRecording();
 
-            if (isActive) {
-                try {
-                    this.blob = await this.recorder.stopRecording();
-                } catch {
-                    // Best effort
+                if (isActive) {
+                    try {
+                        this.blob = await this.recorder.stopRecording();
+                    } catch {
+                        // Best effort
+                    }
                 }
-            }
 
-            // Attempt auto-save to prevent data loss
-            if (this.blob && this.blob.size > 0) {
-                try {
-                    await this.saveBlobToVault('-unsaved');
-                    new Notice(t?.saved || 'Recording auto-saved');
-                } catch {
-                    logger.warn('Audio', 'Failed to auto-save recording on close');
+                // Attempt auto-save to prevent data loss
+                if (this.blob && this.blob.size > 0) {
+                    try {
+                        await this.saveBlobToVault('-unsaved');
+                        new Notice(t?.saved || 'Recording auto-saved');
+                    } catch {
+                        logger.warn('Audio', 'Failed to auto-save recording on close');
+                    }
                 }
-            }
+            })();
         }
 
         this.stopTimer();

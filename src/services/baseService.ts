@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tagging modes maintained for backward compatibility */
 import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError, GenerateTagsResponse, LanguageCode } from './types';
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';
@@ -88,7 +89,7 @@ export abstract class BaseLLMService {
      * @param language - Optional language code
      * @returns Formatted request body
      */
-    public formatRequest(prompt: string, language?: string): any {
+    public formatRequest(prompt: string, _language?: string): any {
         // Default OpenAI-compatible format
         return {
             model: this.modelName,
@@ -368,7 +369,7 @@ export abstract class BaseLLMService {
                             .slice(0, maxTags)
                     };
                 }
-            } catch (e) {
+            } catch (_e) {
                 // Not JSON, might be wrapped in markdown code fences
                 this.debugLog(`Initial JSON parse failed, trying to extract from markdown`);
             }
@@ -434,7 +435,7 @@ export abstract class BaseLLMService {
             // Clean up the response for text parsing fallback
             let cleanedResponse = response
                 .replace(/^```.*$/gm, '') // Remove code blocks
-                .replace(/^\s*[\-\*]\s+/gm, '') // Remove list markers
+                .replace(/^\s*[-*]\s+/gm, '') // Remove list markers
                 .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered list markers
                 .trim();
 
@@ -561,7 +562,7 @@ export abstract class BaseLLMService {
                 
                 // If no standard fields, try to extract any possible string
                 if (!textContent) {
-                    for (const [key, value] of Object.entries(content)) {
+                    for (const [_key, value] of Object.entries(content)) {
                         if (typeof value === 'string' && value.trim()) {
                             textContent = value.trim();
                             //console.log(`Using string value from field "${key}":`, textContent);
@@ -604,9 +605,8 @@ export abstract class BaseLLMService {
                             .filter((tag: string) => tag.length > 0);
                         //console.log('Parsed JSON object with tags field:', tags);
                     }
-                } catch (jsonError) {
-                    // Not valid JSON, continue with text parsing
-                    //console.log('Failed to parse as JSON, continuing with text parsing:', jsonError);
+                } catch (_jsonError) {
+                    // Not valid JSON, continue with text parsing;
                 }
             }
             
@@ -657,8 +657,7 @@ export abstract class BaseLLMService {
 
             // console.log('Final extracted tags:', uniqueTags);
             return { tags: uniqueTags };
-        } catch (error) {
-            //console.error('Failed to process tags from response:', error);
+        } catch (_error) {
             return { tags: [] };
         }
     }
@@ -759,7 +758,7 @@ export abstract class BaseLLMService {
             if (error instanceof Error && error.message.startsWith('Tag analysis failed:')) {
                 throw error;
             }
-            throw this.handleError(error, 'Tag analysis');
+            this.handleError(error, 'Tag analysis');
         }
     }
     

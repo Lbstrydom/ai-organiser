@@ -1,5 +1,5 @@
 import { BaseAdapter } from './baseAdapter';
-import { BaseResponse, RequestBody, AdapterConfig } from './types';
+import { BaseResponse, AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
 
 export class OpenRouterAdapter extends BaseAdapter {

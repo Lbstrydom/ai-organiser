@@ -191,7 +191,7 @@ export class DashboardService {
             
             // Validate YAML structure (basic check)
             if (!content.includes('---') || !content.includes('name:') || !content.includes('columns:')) {
-                new Notice('Invalid dashboard format. Must contain YAML frontmatter with name and columns.');
+                new Notice('Invalid dashboard format. Must contain YAML frontmatter with name and columns.'); // eslint-disable-line obsidianmd/ui/sentence-case -- YAML is an acronym
                 return false;
             }
             

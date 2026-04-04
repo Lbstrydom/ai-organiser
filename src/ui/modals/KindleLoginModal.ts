@@ -60,7 +60,7 @@ export class KindleLoginModal extends Modal {
         const t = this.plugin.t;
         this.modalEl.addClass('ai-organiser-kindle-login');
         this.titleEl.setText(t.modals.kindle.loginTitle);
-        this.modalEl.style.maxWidth = '520px';
+        this.modalEl.setCssProps({ '--max-w': '520px' }); this.modalEl.addClass('ai-organiser-max-w-custom');
 
         // Build auth method chain at modal open time
         this.authMethods = buildAuthMethodChain(t);
@@ -89,7 +89,7 @@ export class KindleLoginModal extends Modal {
         if (this.expiredMessage) {
             const expiredEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-validation is-invalid' });
             expiredEl.textContent = `✗ ${this.expiredMessage}`;
-            expiredEl.style.marginBottom = '12px';
+            expiredEl.addClass('ai-organiser-mb-12');
         }
 
         const primary = this.authMethods[0];
@@ -138,7 +138,7 @@ export class KindleLoginModal extends Modal {
                 text: t.kindleSync.desktopOnly,
                 cls: 'ai-organiser-kindle-desktop-badge'
             });
-            badge.style.marginLeft = '8px';
+            badge.addClass('ai-organiser-ml-8');
         }
 
         ctaSection.createEl('p', {
@@ -224,7 +224,7 @@ export class KindleLoginModal extends Modal {
         const region = this.plugin.settings.kindleAmazonRegion;
 
         // Use the first interactive method (bookmarklet preferred)
-        const interactive = this.authMethods.find(m => m.renderManualUI);
+        const interactive = this.authMethods.find((m): boolean => !!m.renderManualUI);
         if (interactive?.renderManualUI) {
             let capturedCookies = '';
             interactive.renderManualUI(container, region, (cookies) => {
@@ -286,7 +286,7 @@ export class KindleLoginModal extends Modal {
         const payload: KindleCookiePayload = {
             cookies: parsed,
             cookieString: cookieString,
-            userAgent: navigator.userAgent,
+            userAgent: navigator.userAgent, // eslint-disable-line obsidianmd/platform -- need actual UA string for HTTP requests, not platform detection
             region,
             capturedAt: new Date().toISOString(),
             source: 'manual',
@@ -338,8 +338,8 @@ export class KindleLoginModal extends Modal {
 
         const successEl = contentEl.createDiv({ cls: 'ai-organiser-kindle-validation is-valid' });
         successEl.textContent = `✓ ${t.kindleSync.loginSuccess}`;
-        successEl.style.fontSize = 'var(--font-ui-medium)';
-        successEl.style.padding = '12px 0';
+        successEl.addClass('ai-organiser-text-ui-medium');
+        successEl.setCssProps({ '--pad': '12px 0' }); successEl.addClass('ai-organiser-pad-custom');
 
         const actions = contentEl.createDiv({ cls: 'ai-organiser-kindle-actions' });
         new ButtonComponent(actions)

@@ -91,7 +91,7 @@ export class VaultModeHandler implements ChatModeHandler {
             cls: 'ai-organiser-chat-context-line ai-organiser-chat-scope-row' 
         });
 
-        const scopeText = scopeRow.createEl('span', {
+        scopeRow.createEl('span', {
             cls: 'ai-organiser-chat-scope-text',
             text: this.getScopeDisplayText(ctx)
         });

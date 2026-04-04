@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for optional Electron modules */
 /**
  * Kindle Auth Method Strategy Pattern (DD-1)
  *
@@ -145,7 +146,7 @@ export class BookmarkletAuthMethod implements AuthMethod {
 
         // Draggable bookmarklet link
         const dragLink = step2.createEl('a', {
-            text: '\uD83D\uDCCB Copy Kindle Cookies',
+            text: '\uD83D\uDCCB Copy Kindle cookies', // eslint-disable-line obsidianmd/ui/sentence-case -- Kindle is a brand name
             cls: 'ai-organiser-kindle-bookmarklet-link',
             href: bookmarkletUrl,
         });
@@ -153,9 +154,9 @@ export class BookmarkletAuthMethod implements AuthMethod {
 
         // Copy bookmarklet button
         const copyBtn = step2.createEl('button', { text: t.kindleSync.bookmarkletCopy });
-        copyBtn.style.marginLeft = '8px';
+        copyBtn.addClass('ai-organiser-ml-8');
         copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(bookmarkletUrl);
+            void navigator.clipboard.writeText(bookmarkletUrl);
             new Notice(t.kindleSync.bookmarkletCopied);
         });
 
@@ -168,7 +169,7 @@ export class BookmarkletAuthMethod implements AuthMethod {
             cls: 'ai-organiser-kindle-code-snippet',
         });
         codeBlock.addEventListener('click', () => {
-            navigator.clipboard.writeText(consoleScript);
+            void navigator.clipboard.writeText(consoleScript);
             new Notice(t.modals.kindle.copiedToClipboard);
         });
 
@@ -224,7 +225,7 @@ export class ConsoleAuthMethod implements AuthMethod {
             cls: 'ai-organiser-kindle-code-snippet',
         });
         codeBlock.addEventListener('click', () => {
-            navigator.clipboard.writeText(consoleScript);
+            void navigator.clipboard.writeText(consoleScript);
             new Notice(t.modals.kindle.copiedToClipboard);
         });
 

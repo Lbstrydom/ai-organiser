@@ -98,7 +98,7 @@ export class QuickPeekModal extends Modal {
         this.contentEl.empty();
 
         // Title
-        this.titleEl.setText('⚡ Quick Peek');
+        this.titleEl.setText('⚡ Quick Peek'); // eslint-disable-line obsidianmd/ui/sentence-case -- feature name
 
         if (this.phase !== 'done') {
             this.renderProgress();
@@ -195,7 +195,7 @@ export class QuickPeekModal extends Modal {
 
         // Remove from Note button
         new ButtonComponent(actions)
-            .setButtonText('Remove from Note')
+            .setButtonText('Remove from note')
             .onClick(() => {
                 this.removeFromNote(source, card);
             });
@@ -227,7 +227,7 @@ export class QuickPeekModal extends Modal {
 
         // 5s undo notice
         const notice = new Notice('Source removed. Click to undo.', 5000);
-        notice.noticeEl.addEventListener('click', () => {
+        notice.messageEl.addEventListener('click', () => {
             this.editor.setValue(originalContent);
             notice.hide();
         });

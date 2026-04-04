@@ -38,7 +38,7 @@ export class ManageIndexModal extends Modal {
         const hasEmbedding = !!this.plugin.embeddingService;
         if (!hasEmbedding) {
             contentEl.createEl('p', {
-                text: 'Embedding service not configured. Set an embedding provider and API key in Semantic Search settings before building.',
+                text: 'Embedding service not configured. Set an embedding provider and API key in Semantic Search settings before building.', // eslint-disable-line obsidianmd/ui/sentence-case -- Semantic Search is a proper noun
                 cls: 'ai-organiser-warning'
             });
         }

@@ -64,28 +64,28 @@ export class CommandPickerModal extends Modal {
 		// Obsidian's .modal renders its own background/shadow at a fixed height,
 		// clipping content with overflow:hidden. Instead of fighting it, we make
 		// the .modal invisible and let the .prompt div be the visual container.
-		this.modalEl.style.background = 'none';
-		this.modalEl.style.boxShadow = 'none';
-		this.modalEl.style.border = 'none';
-		this.modalEl.style.overflow = 'visible';
-		this.modalEl.style.padding = '0';
+		this.modalEl.setCssProps({ '--bg': 'none' }); this.modalEl.addClass('ai-organiser-bg-custom');
+		this.modalEl.setCssProps({ '--shadow': 'none' }); this.modalEl.addClass('ai-organiser-shadow-custom');
+		this.modalEl.setCssProps({ '--border': 'none' }); this.modalEl.addClass('ai-organiser-border-custom');
+		this.modalEl.setCssProps({ '--overflow': 'visible' }); this.modalEl.addClass('ai-organiser-overflow-custom');
+		this.modalEl.setCssProps({ '--pad': '0' }); this.modalEl.addClass('ai-organiser-pad-custom');
 
 		// Pin modal near top of viewport (Obsidian uses flex centering on container)
 		const container = this.containerEl;
 		if (container) {
-			container.style.alignItems = 'flex-start';
-			container.style.paddingTop = '10vh';
+			container.addClass('ai-organiser-items-start');
+			container.setCssProps({ '--pad': '10vh 0 0 0' }); container.addClass('ai-organiser-pad-custom');
 		}
 
 		// Hide title and close button (we rely on Esc to close)
 		const titleEl = this.modalEl.querySelector('.modal-title') as HTMLElement;
-		if (titleEl) titleEl.style.display = 'none';
+		if (titleEl) titleEl.addClass('ai-organiser-hidden');
 		const closeBtn = this.modalEl.querySelector('.modal-close-button') as HTMLElement;
-		if (closeBtn) closeBtn.style.display = 'none';
+		if (closeBtn) closeBtn.addClass('ai-organiser-hidden');
 
-		contentEl.style.overflow = 'visible';
-		contentEl.style.padding = '0';
-		contentEl.style.margin = '0';
+		contentEl.setCssProps({ '--overflow': 'visible' }); contentEl.addClass('ai-organiser-overflow-custom');
+		contentEl.setCssProps({ '--pad': '0' }); contentEl.addClass('ai-organiser-pad-custom');
+		contentEl.setCssProps({ '--margin': '0' }); contentEl.addClass('ai-organiser-margin-custom');
 
 		// Build the prompt container (matches FuzzySuggestModal styling)
 		const promptEl = contentEl.createDiv({ cls: 'prompt' });
@@ -124,9 +124,9 @@ export class CommandPickerModal extends Modal {
 				'id': 'picker-listbox',
 			}
 		});
-		// Inline style — CSS max-height gets overridden by Obsidian framework
-		this.listEl.style.maxHeight = 'calc(70vh - 80px)';
-		this.listEl.style.overflowY = 'auto';
+		// setCssProps — CSS max-height gets overridden by Obsidian framework
+		this.listEl.setCssProps({ '--max-h': 'calc(70vh - 80px)' }); this.listEl.addClass('ai-organiser-max-h-custom');
+		this.listEl.addClass('ai-organiser-overflow-y-auto');
 
 		// Wire events
 		this.cleanups.push(listen(this.inputEl, 'input', () => {

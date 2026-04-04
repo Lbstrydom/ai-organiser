@@ -8,7 +8,7 @@
 import type { App } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import type { AdapterType } from './adapters';
-import type { AIOrganiserSettings } from '../core/settings';
+// AIOrganiserSettings type available via plugin
 import {
     STANDARD_SECRET_IDS,
     PLUGIN_SECRET_IDS,
@@ -218,7 +218,7 @@ export class SecretStorageService implements ISecretStorageService {
                             secretId,
                             success: true,
                         });
-                    } catch (error) {
+                    } catch (_error) {
                         entries.push({
                             field: 'cloudApiKey',
                             secretId,
@@ -242,7 +242,7 @@ export class SecretStorageService implements ISecretStorageService {
                                     secretId,
                                     success: true,
                                 });
-                            } catch (error) {
+                            } catch (_error) {
                                 entries.push({
                                     field: `providerSettings.${provider}.apiKey`,
                                     secretId,
@@ -264,7 +264,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.EMBEDDING,
                         success: true,
                     });
-                } catch (error) {
+                } catch (_error) {
                     entries.push({
                         field: 'embeddingApiKey',
                         secretId: PLUGIN_SECRET_IDS.EMBEDDING,
@@ -283,7 +283,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.YOUTUBE,
                         success: true,
                     });
-                } catch (error) {
+                } catch (_error) {
                     entries.push({
                         field: 'youtubeGeminiApiKey',
                         secretId: PLUGIN_SECRET_IDS.YOUTUBE,
@@ -302,7 +302,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.PDF,
                         success: true,
                     });
-                } catch (error) {
+                } catch (_error) {
                     entries.push({
                         field: 'pdfApiKey',
                         secretId: PLUGIN_SECRET_IDS.PDF,
@@ -321,7 +321,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.AUDIO,
                         success: true,
                     });
-                } catch (error) {
+                } catch (_error) {
                     entries.push({
                         field: 'audioTranscriptionApiKey',
                         secretId: PLUGIN_SECRET_IDS.AUDIO,

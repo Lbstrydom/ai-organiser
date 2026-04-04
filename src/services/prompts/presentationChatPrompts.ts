@@ -6,7 +6,7 @@
  * LLM writes semantic CSS classes — never raw hex codes.
  */
 
-import type { BrandTheme, BrandRule } from '../chat/brandThemeService';
+import type { BrandRule } from '../chat/brandThemeService';
 import { buildIconReference } from '../chat/brandThemeService';
 
 // ── Generation ──────────────────────────────────────────────────────────────

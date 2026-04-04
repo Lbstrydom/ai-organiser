@@ -3,8 +3,8 @@
  * Migrates existing notes to Obsidian Bases-compatible metadata format
  */
 
-import { App, TFile, TFolder, Notice } from 'obsidian';
-import { AIO_META, ContentType, SourceType } from '../core/constants';
+import { App, TFile, TFolder } from 'obsidian';
+import { AIO_META, ContentType } from '../core/constants';
 import { 
     updateAIOMetadata, 
     createSummaryHook, 

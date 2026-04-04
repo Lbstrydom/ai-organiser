@@ -73,9 +73,9 @@ export function translateSelectionFromMenu(plugin: AIOrganiserPlugin, editor: Ed
     const modal = new TranslateModal(
         plugin.app,
         plugin.t,
-        async (result) => {
+        (result) => { void (async () => {
             await translateSelection(plugin, editor, selection, result.targetLanguageName);
-        }
+        })(); }
     );
     modal.open();
 }
@@ -108,9 +108,9 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                 const modal = new TranslateModal(
                     plugin.app,
                     plugin.t,
-                    async (result) => {
+                    (result) => { void (async () => {
                         await translateSelection(plugin, editor, selection, result.targetLanguageName);
-                    }
+                    })(); }
                 );
                 modal.open();
                 return;
@@ -125,7 +125,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                     plugin.app,
                     plugin,
                     content,
-                    async (result: MultiSourceModalResult) => {
+                    (result: MultiSourceModalResult) => { void (async () => {
                         try {
                             const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
                             if (!activeView) {
@@ -137,7 +137,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                             logger.error('Summary', 'Error in handleMultiSourceTranslate:', e);
                             new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
                         }
-                    },
+                    })(); },
                     {
                         mode: 'translate',
                         hidePersona: true,
@@ -152,7 +152,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                 const modal = new TranslateModal(
                     plugin.app,
                     plugin.t,
-                    async (result) => {
+                    (result) => { void (async () => {
                         await translateNote(
                             plugin,
                             editor,
@@ -161,7 +161,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                             plugin.t.messages.translatingFullNote,
                             result.insertAtCursor
                         );
-                    }
+                    })(); }
                 );
                 modal.open();
             }

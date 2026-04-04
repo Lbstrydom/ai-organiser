@@ -151,7 +151,7 @@ export class DictionaryService {
         const file = this.app.vault.getAbstractFileByPath(path);
 
         if (file instanceof TFile) {
-            await this.app.vault.delete(file);
+            await this.app.fileManager.trashFile(file);
             return true;
         }
 

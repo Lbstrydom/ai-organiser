@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- NotebookLM is a brand name */
 /**
  * NotebookLM Settings Section
  * Settings UI for configuring NotebookLM source pack exports (PDF-based)
@@ -97,15 +98,15 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Info about PDF export
         const infoBox = containerEl.createDiv({ cls: 'setting-item-description' });
-        infoBox.style.marginTop = '12px';
-        infoBox.style.padding = '12px';
-        infoBox.style.backgroundColor = 'var(--background-secondary)';
-        infoBox.style.borderRadius = '6px';
-        infoBox.innerHTML = `
-            <strong>Why PDF?</strong> NotebookLM can analyze images, diagrams, and formatted content in PDFs.<br>
-            <br>
-            <em>Use Ctrl+P → "NotebookLM: Export Source Pack" to export tagged notes as PDFs.</em>
-        `;
+        infoBox.addClass('ai-organiser-mt-12');
+        infoBox.addClass('ai-organiser-p-12');
+        infoBox.addClass('ai-organiser-bg-secondary');
+        infoBox.addClass('ai-organiser-rounded-md');
+        infoBox.createEl('strong', { text: 'Why PDF?' });
+        infoBox.appendText(' NotebookLM can analyze images, diagrams, and formatted content in PDFs.');
+        infoBox.createEl('br');
+        infoBox.createEl('br');
+        infoBox.createEl('em', { text: 'Use Ctrl+P \u2192 "NotebookLM: Export Source Pack" to export tagged notes as PDFs.' });
 
         // === PDF GENERATION SETTINGS ===
         containerEl.createEl('h4', { text: t?.pdfSettingsTitle || 'PDF Generation Settings' });
@@ -185,16 +186,17 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // PDF warning for v1
         const pdfWarningBox = containerEl.createDiv({ cls: 'setting-item-description' });
-        pdfWarningBox.style.marginTop = '12px';
-        pdfWarningBox.style.padding = '12px';
-        pdfWarningBox.style.backgroundColor = 'var(--background-modifier-warning)';
-        pdfWarningBox.style.borderRadius = '6px';
-        pdfWarningBox.innerHTML = `
-            <strong>⚠️ v1 Limitations:</strong><br>
-            • Latin alphabet only (CJK/RTL not yet supported)<br>
-            • Basic formatting: headings, paragraphs, lists<br>
-            • Complex blocks (code, HTML, Dataview) are stripped for clean AI parsing
-        `;
+        pdfWarningBox.addClass('ai-organiser-mt-12');
+        pdfWarningBox.addClass('ai-organiser-p-12');
+        pdfWarningBox.addClass('ai-organiser-bg-warning');
+        pdfWarningBox.addClass('ai-organiser-rounded-md');
+        pdfWarningBox.createEl('strong', { text: '\u26A0\uFE0F v1 Limitations:' });
+        pdfWarningBox.createEl('br');
+        pdfWarningBox.appendText('\u2022 Latin alphabet only (CJK/RTL not yet supported)');
+        pdfWarningBox.createEl('br');
+        pdfWarningBox.appendText('\u2022 Basic formatting: headings, paragraphs, lists');
+        pdfWarningBox.createEl('br');
+        pdfWarningBox.appendText('\u2022 Complex blocks (code, HTML, Dataview) are stripped for clean AI parsing');
     }
 
     /**

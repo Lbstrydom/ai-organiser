@@ -7,6 +7,7 @@
  * - Compute pack-level hashes for revision management
  */
 
+// eslint-disable-next-line import/no-nodejs-modules -- Node.js crypto for SHA256 hashing (available in Electron runtime)
 import { createHash } from 'crypto';
 
 /**

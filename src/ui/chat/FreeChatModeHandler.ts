@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for file dialogs and fs */
 import { App, Notice, TFile } from 'obsidian';
 import type { ChatMode, ChatModeHandler, ModalContext, SendResult, ActionDescriptor, ActionCallbacks, FreeChatCallbacks } from './ChatModeHandler';
 import type { Translations } from '../../i18n/types';
@@ -28,10 +29,10 @@ export interface IndexedAttachmentEntry extends AttachmentEntry {
 }
 
 // Budget fractions
-const BUDGET_FRACTION_SYSTEM = 0.02;
+const _BUDGET_FRACTION_SYSTEM = 0.02;
 const BUDGET_FRACTION_PROJECT_INSTRUCTIONS = 0.05;
 const BUDGET_FRACTION_PROJECT_MEMORY = 0.03;
-const BUDGET_FRACTION_GLOBAL_MEMORY = 0.03;
+const _BUDGET_FRACTION_GLOBAL_MEMORY = 0.03;
 const BUDGET_FRACTION_HISTORY = 0.30;
 const BUDGET_FRACTION_INDEXED_RAG = 0.25;
 const BUDGET_FRACTION_FLAT_ATT = 0.20;
@@ -143,7 +144,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
         for (const att of this.attachments) {
             const pill = container.createDiv({ cls: 'ai-organiser-free-chat-att-pill' });
 
-            const toggle = pill.createEl('input', { attr: { type: 'checkbox' } }) as HTMLInputElement;
+            const toggle = pill.createEl('input', { attr: { type: 'checkbox' } });
             toggle.checked = att.included;
             toggle.addEventListener('change', () => {
                 att.included = toggle.checked;
@@ -406,7 +407,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
     private async addExternalAttachment(filePath: string, ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         const fileName = filePath.split(/[\\/]/).pop() ?? 'unknown';
         try {
-            // @ts-ignore
+            // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external files via native OS dialog
             const fs = require('fs').promises;
             const buffer = await fs.readFile(filePath);
 
@@ -469,7 +470,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
             onChooseItem(item: TFile): void { this.onSelect(item); }
         }
 
-        const picker = new VaultFilePicker(this.app, async (file: TFile) => {
+        const picker = new VaultFilePicker(this.app, (file: TFile) => { void (async () => {
             if (this.attachments.some(a => a.path === file.path)) return;
 
             if (!this.documentService) {
@@ -504,7 +505,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
             } catch {
                 callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExtractFailed.replace('{name}', file.name));
             }
-        });
+        })(); });
         picker.open();
     }
 
@@ -696,7 +697,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
                 }
             } else {
                 // External (native-picker) file
-                // @ts-ignore
+                // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external files via native OS dialog
                 const fs = require('fs').promises;
                 const buffer = await fs.readFile(att.path);
                 const ext = (att.path.split('.').pop() ?? '').toLowerCase();
@@ -727,7 +728,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
 
     private rerenderContext(ctx: ModalContext): void {
         // Find the context panel element in the modal and re-render
-        const ctxEl = document.querySelector('.ai-organiser-chat-context') as HTMLElement | null;
+        const ctxEl = document.querySelector('.ai-organiser-chat-context') as HTMLElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
         if (ctxEl) {
             this.renderContextPanel(ctxEl, ctx);
         }

@@ -1,5 +1,4 @@
 import { ButtonComponent } from 'obsidian';
-import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class SupportSection extends BaseSettingSection {

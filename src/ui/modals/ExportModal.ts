@@ -113,6 +113,7 @@ export class ExportModal extends Modal {
     }
 
     private openNotePicker(): void {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Code-splitting: FuzzySuggestModal loaded on demand
         const { FuzzySuggestModal } = require('obsidian');
 
         const modal = new (class extends FuzzySuggestModal<TFile> {

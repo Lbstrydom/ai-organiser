@@ -499,7 +499,7 @@ function renderStandard(json: MinutesJSON, obsidianTasksFormat?: boolean): strin
     return sections.join('\n\n');
 }
 
-function renderStandardAgendaGrouped(json: MinutesJSON, sections: string[], obsidianTasksFormat?: boolean): void {
+function renderStandardAgendaGrouped(json: MinutesJSON, sections: string[], _obsidianTasksFormat?: boolean): void {
     const agenda = json.agenda || [];
     const renderedPointIds = new Set<string>();
     const renderedDecisionIds = new Set<string>();
@@ -637,7 +637,7 @@ function renderDetailed(json: MinutesJSON, obsidianTasksFormat?: boolean): strin
     return sections.join('\n\n');
 }
 
-function renderDetailedAgendaGrouped(json: MinutesJSON, sections: string[], obsidianTasksFormat?: boolean): void {
+function renderDetailedAgendaGrouped(json: MinutesJSON, sections: string[], _obsidianTasksFormat?: boolean): void {
     const agenda = json.agenda || [];
     const renderedPointIds = new Set<string>();
     const renderedDecisionIds = new Set<string>();

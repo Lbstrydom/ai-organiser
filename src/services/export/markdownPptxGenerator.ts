@@ -11,7 +11,7 @@
  */
 
 import { parseMarkdown, extractTables } from '../../utils/markdownParser';
-import type { MarkdownLine, MarkdownTable } from '../../utils/markdownParser';
+import type { MarkdownTable } from '../../utils/markdownParser';
 
 // ── Export Theme ─────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
  * 4-stage UI for migrating notes to Bases format
  */
 
-import { App, Modal, Notice, TFolder } from 'obsidian';
+import { App, Modal, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { 
     MigrationService, 
@@ -56,7 +56,7 @@ export class MigrationModal extends Modal {
         
         switch (this.stage) {
             case 'analysis':
-                this.renderAnalysisStage();
+                void this.renderAnalysisStage();
                 break;
             case 'options':
                 this.renderOptionsStage();
@@ -84,7 +84,7 @@ export class MigrationModal extends Modal {
             cls: 'ai-organiser-migration-loading'
         });
         
-        const spinner = container.createDiv({ cls: 'ai-organiser-spinner' });
+        container.createDiv({ cls: 'ai-organiser-spinner' });
         
         // Analyze scope
         try {
@@ -203,7 +203,7 @@ export class MigrationModal extends Modal {
         startBtn.addEventListener('click', () => {
             this.stage = 'progress';
             this.renderStage();
-            this.executeMigration();
+            void this.executeMigration();
         });
     }
     
@@ -219,7 +219,7 @@ export class MigrationModal extends Modal {
         
         const progressBar = progressContainer.createDiv({ cls: 'ai-organiser-progress-bar' });
         const progressFill = progressBar.createDiv({ cls: 'ai-organiser-progress-fill' });
-        progressFill.style.width = '0%';
+        progressFill.setCssProps({ '--progress-width': '0%' }); progressFill.addClass('ai-organiser-dynamic-width');
         
         const statusText = progressContainer.createEl('p', { 
             text: this.plugin.t.modals.migration.starting,
@@ -243,7 +243,7 @@ export class MigrationModal extends Modal {
         const progressCallback = (current: number, total: number, fileName: string) => {
             const percent = Math.round((current / total) * 100);
             if (progressFill) {
-                progressFill.style.width = `${percent}%`;
+                progressFill.setCssProps({ '--dynamic-width': `${percent}%` });
             }
             if (statusText) {
                 statusText.setText(`${this.plugin.t.modals.migration.processing} ${current}/${total}: ${fileName}`);

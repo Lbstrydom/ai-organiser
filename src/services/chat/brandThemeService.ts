@@ -9,7 +9,7 @@
  * ## Composition Rules list.
  */
 
-import type { App, TFile } from 'obsidian';
+import { type App, TFile } from 'obsidian';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { logger } from '../../utils/logger';
 import { SLIDE_WIDTH, SLIDE_HEIGHT } from './presentationConstants';
@@ -283,17 +283,16 @@ export async function loadBrandTheme(app: App, settings: AIOrganiserSettings): P
     if (!abstract) return null;
 
     // Verify it's a file, not a folder (M6 fix)
-    if (!('extension' in abstract)) {
+    if (!(abstract instanceof TFile)) {
         logger.warn('BrandTheme', `Path is not a file: ${path}`);
         return null;
     }
-    const file = abstract as TFile;
 
     try {
-        const content = await app.vault.cachedRead(file);
+        const content = await app.vault.cachedRead(abstract);
         return parseBrandFile(content);
     } catch (e) {
-        logger.warn('BrandTheme', `Failed to load brand file: ${e}`);
+        logger.warn('BrandTheme', `Failed to load brand file: ${e instanceof Error ? e.message : String(e)}`);
         return null;
     }
 }

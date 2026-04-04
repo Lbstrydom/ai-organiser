@@ -161,7 +161,7 @@ function detectLinkSyntax(
 function detectBareUrls(line: string, lineNumber: number, items: DetectedContent[]): void {
     // Match URLs that are not inside markdown syntax
     // This regex looks for http/https URLs
-    const urlRegex = /(?<!\(|"|\[)https?:\/\/[^\s<>\[\]()]+(?=\s|$|[<>\[\]()])/g;
+    const urlRegex = /(?<!\(|"|\[)https?:\/\/[^\s<>[\]()]+(?=\s|$|[<>[\]()])/g;
     let match;
 
     while ((match = urlRegex.exec(line)) !== null) {

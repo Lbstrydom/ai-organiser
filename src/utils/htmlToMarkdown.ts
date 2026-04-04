@@ -15,6 +15,7 @@ export interface HtmlToMarkdownOptions {
 export function htmlToMarkdown(html: string, options?: HtmlToMarkdownOptions): string {
     // Create a temporary DOM element
     const template = document.createElement('template');
+    // eslint-disable-next-line @microsoft/sdl/no-inner-html -- Safe: parsing HTML string into inert <template> for DOM traversal
     template.innerHTML = html.trim();
     const doc = template.content;
 
@@ -259,6 +260,7 @@ export function extractLinks(html: string): ExtractedLink[] {
     const seen = new Set<string>();
 
     const template = document.createElement('template');
+    // eslint-disable-next-line @microsoft/sdl/no-inner-html -- Safe: parsing HTML string into inert <template> for link extraction
     template.innerHTML = html;
 
     template.content.querySelectorAll('a[href]').forEach(a => {

@@ -1,3 +1,4 @@
+import { requestUrl } from "obsidian";
 import { BaseAdapter } from "./baseAdapter";
 import { AdapterConfig, RequestBody } from "./types";
 
@@ -53,17 +54,18 @@ export class SiliconflowAdapter extends BaseAdapter {
 
   async testConnection(): Promise<{ result: any; error?: any }> {
     try {
-      const response = await fetch(`${this.getEndpoint()}/v1/chat/completions`, {
+      const response = await requestUrl({
+        url: `${this.getEndpoint()}/v1/chat/completions`,
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(this.formatRequest('test'))
       });
-      
-      if (!response.ok) {
-        const error = await response.json();
+
+      if (response.status >= 400) {
+        const error = response.json;
         return { result: null, error: error.error?.message || 'Connection test failed' };
       }
-      
+
       return { result: { success: true } };
     } catch (error) {
       return { result: null, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -77,7 +79,7 @@ export class SiliconflowAdapter extends BaseAdapter {
         result = result[key];
       }
       return result;
-    } catch (error) {
+    } catch (_error) {
       throw new Error('Failed to parse Siliconflow response');
     }
   }

@@ -62,7 +62,7 @@ export async function auditMinutesWithLLM(
         }
 
         const auditIssues: ValidationIssue[] = (parsed.issues || []).map(i => ({
-            severity: (i.severity === 'warning' ? 'warning' : 'info') as 'warning' | 'info',
+            severity: (i.severity === 'warning' ? 'warning' : 'info'),
             field: i.field || 'audit',
             message: `[Audit] ${i.message}`
         }));

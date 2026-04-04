@@ -23,7 +23,7 @@ export function registerEmbedScanCommands(plugin: AIOrganiserPlugin): void {
         icon: 'hard-drive',
         callback: () => {
             const modal = new EmbedScanScopeModal(plugin.app, plugin, (scope) => {
-                executeScan(plugin, scope);
+                void executeScan(plugin, scope);
             });
             modal.open();
         }

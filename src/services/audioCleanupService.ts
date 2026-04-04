@@ -110,7 +110,7 @@ async function deleteAudioFile(
     file: TFile
 ): Promise<void> {
     try {
-        await plugin.app.vault.delete(file);
+        await plugin.app.fileManager.trashFile(file);
         new Notice(plugin.t.compression?.audioDeleted || 'Audio file deleted');
     } catch (err) {
         logger.error('Audio', 'Delete failed:', err);

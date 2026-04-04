@@ -503,7 +503,7 @@ export class EmbedScanResultsModal extends Modal {
 
                 // Click to navigate to the referencing note
                 const navigateToRef = () => {
-                    this.app.workspace.openLinkText(data.file.path, '', false);
+                    void this.app.workspace.openLinkText(data.file.path, '', false);
                     this.close();
                 };
                 this.cleanups.push(listen(refRow, 'click', navigateToRef));
@@ -527,7 +527,7 @@ export class EmbedScanResultsModal extends Modal {
                 openBtn.prepend(openIcon);
                 this.cleanups.push(listen(openBtn, 'click', (e) => {
                     e.stopPropagation();
-                    this.app.workspace.openLinkText(target.file!.path, '', false);
+                    void this.app.workspace.openLinkText(target.file!.path, '', false);
                     this.close();
                 }));
 
@@ -541,7 +541,7 @@ export class EmbedScanResultsModal extends Modal {
                 copyBtn.prepend(copyIcon);
                 this.cleanups.push(listen(copyBtn, 'click', (e) => {
                     e.stopPropagation();
-                    navigator.clipboard.writeText(target.file!.path);
+                    void navigator.clipboard.writeText(target.file!.path);
                     new Notice(embedScan.pathCopied);
                 }));
             }
@@ -590,7 +590,7 @@ export class EmbedScanResultsModal extends Modal {
             this.createCheckbox(row, file.path);
 
             const icon = row.createSpan({ cls: 'ai-organiser-embed-scan-type-icon' });
-            const ext = `.${file.extension}`;
+            const _ext = `.${file.extension}`;
             setIcon(icon, getEmbedTypeIcon(
                 (['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tiff','tif','avif'].includes(file.extension)) ? 'image'
                 : file.extension === 'pdf' ? 'pdf'
@@ -607,7 +607,7 @@ export class EmbedScanResultsModal extends Modal {
             pathEl.textContent = file.path;
 
             const navigateToOrphan = () => {
-                this.app.workspace.openLinkText(file.path, '', false);
+                void this.app.workspace.openLinkText(file.path, '', false);
                 this.close();
             };
             this.cleanups.push(listen(row, 'click', navigateToOrphan));
@@ -716,7 +716,7 @@ export class EmbedScanResultsModal extends Modal {
 
         for (const file of files) {
             try {
-                await this.app.vault.trash(file, true);
+                await this.app.fileManager.trashFile(file);
                 deletedCount++;
                 // Remove from scan result
                 this.removeFromScanResult(file.path);
@@ -845,10 +845,10 @@ class DeleteConfirmModal extends Modal {
         const confirmIcon = confirmBtn.createSpan();
         setIcon(confirmIcon, 'trash-2');
         confirmBtn.prepend(confirmIcon);
-        confirmBtn.addEventListener('click', async () => {
+        confirmBtn.addEventListener('click', () => { void (async () => {
             this.close();
             await this.onConfirm();
-        });
+        })(); });
     }
 
     onClose(): void {

@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Placeholders contain domain names and technical terms */
 /**
  * Research Settings Section
  *
@@ -133,7 +134,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                         btn.setDisabled(true);
                         statusEl.textContent = '';
                         statusEl.className = '';
-                        statusContainer.style.display = 'none';
+                        statusContainer.addClass('ai-organiser-hidden');
                         const searchService = new ResearchSearchService(this.plugin);
                         const providerType = this.plugin.settings.researchProvider;
                         let msg: string;
@@ -149,12 +150,12 @@ export class ResearchSettingsSection extends BaseSettingSection {
                             const results = await searchService.search(['test'], { maxResults: 1 });
                             msg = `Connected — ${results.length} result${results.length === 1 ? '' : 's'} returned`;
                         }
-                        statusContainer.style.display = 'block';
+                        statusContainer.addClass('ai-organiser-block');
                         statusContainer.className = 'ai-organiser-connection-test-status success';
                         statusEl.textContent = msg;
                     } catch (error) {
                         const errMsg = (error as Error).message || 'Unknown error';
-                        statusContainer.style.display = 'block';
+                        statusContainer.addClass('ai-organiser-block');
                         statusContainer.className = 'ai-organiser-connection-test-status error';
                         statusEl.textContent = `Connection failed: ${errMsg}`;
                     } finally {
@@ -164,7 +165,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
         const statusContainer = testContainer.createDiv('ai-organiser-connection-test-status');
         const statusEl = statusContainer.createSpan();
-        statusContainer.style.display = 'none';
+        statusContainer.addClass('ai-organiser-hidden');
 
         // Preferred Sources
         this.containerEl.createEl('h4', { text: rt.preferredSitesHeader || 'Source Preferences' });
@@ -304,13 +305,13 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .setDesc(`${summary.estimatedUsd} estimated · ${summary.operations} operations · ${summary.status}`)
             .addButton(btn => btn
                 .setButtonText(rt.resetUsage || 'Reset Usage')
-                .onClick(async () => {
-                    if (confirm(rt.resetUsageConfirm || 'Reset usage counter to zero?')) {
+                .onClick(() => { void (async () => {
+                    if (await this.plugin.showConfirmationDialog(rt.resetUsageConfirm || 'Reset usage counter to zero?')) {
                         await usageService.resetUsage();
                         new Notice(rt.resetUsageSuccess || 'Usage counter reset');
                         this.settingTab.display();
                     }
-                }));
+                })(); }));
 
         // Quality & Academic
         this.containerEl.createEl('h4', { text: rt.qualitySection || 'Quality & Academic' });

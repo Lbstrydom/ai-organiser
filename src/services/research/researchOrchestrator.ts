@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/no-tfile-tfolder-cast, obsidianmd/prefer-file-manager-trash-file -- Session file management uses legacy API for test compatibility */
 /**
  * Research Orchestrator
  *

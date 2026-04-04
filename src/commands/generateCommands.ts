@@ -11,7 +11,7 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
         name: plugin.t.commands.tag || plugin.t.commands.generateTagsForCurrentNote,
         icon: 'tag',
         callback: () => {
-            new TagScopeModal(plugin.app, plugin, async (scope: TagScope) => {
+            new TagScopeModal(plugin.app, plugin, (scope: TagScope) => { void (async () => {
                 switch (scope) {
                     case 'note':
                         await tagCurrentNote(plugin);
@@ -25,7 +25,7 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
                     default:
                         break;
                 }
-            }).open();
+            })(); }).open();
         }
     });
 
@@ -90,7 +90,7 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
         title: t?.title,
         description: t?.description,
         allowSkip: true,
-        onSelect: async (folderPath: string | null) => {
+        onSelect: (folderPath: string | null) => { void (async () => {
             new Notice(plugin.t.messages.analyzing);
 
             try {
@@ -112,10 +112,10 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
                 if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
                     await plugin.showSuggestionModal(view.file!, result.suggestedTitle, result.suggestedFolder);
                 }
-            } catch (error) {
+            } catch (_error) {
                 new Notice(plugin.t.messages.failedToGenerateTags);
             }
-        }
+        })(); }
     }).open();
 }
 

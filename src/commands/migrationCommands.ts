@@ -3,7 +3,7 @@
  * Commands for migrating notes to Obsidian Bases format
  */
 
-import { Notice, TFolder } from 'obsidian';
+import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { MigrationModal } from '../ui/modals/MigrationModal';
 

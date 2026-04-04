@@ -116,9 +116,9 @@ export class NewsletterSettingsSection extends BaseSettingSection {
 
             // Re-deploy notice for existing users
             const upgradeBox = this.containerEl.createDiv({ cls: 'setting-item-description' });
-            upgradeBox.style.borderLeft = '3px solid var(--text-warning)';
-            upgradeBox.style.paddingLeft = '8px';
-            upgradeBox.style.marginBottom = '12px';
+            upgradeBox.setCssProps({ '--border-left': '3px solid var(--text-warning)' }); upgradeBox.addClass('ai-organiser-border-left-custom');
+            upgradeBox.setCssProps({ '--pl': '8px' }); upgradeBox.addClass('ai-organiser-pl-custom');
+            upgradeBox.addClass('ai-organiser-mb-12');
             upgradeBox.createEl('strong', { text: 'Existing users: ' });
             upgradeBox.createSpan({
                 text: 'The script template was updated to support two-phase confirmation. '

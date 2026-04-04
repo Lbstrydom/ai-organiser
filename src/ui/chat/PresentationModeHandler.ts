@@ -27,7 +27,7 @@ import {
 } from '../../services/chat/presentationTypes';
 import { generateHtml, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
 import {
-    isBrandAvailable, resolveTheme, getDefaultTheme,
+    isBrandAvailable, resolveTheme,
     type BrandTheme,
 } from '../../services/chat/brandThemeService';
 import { extractDeckTitle, countSlides } from '../../services/prompts/presentationChatPrompts';
@@ -476,7 +476,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     .join('\n');
 
                 const result = await refineHtml(llmCtx, {
-                    currentHtml: this.html!,
+                    currentHtml: this.html,
                     userRequest: `Polish the presentation. Fix these issues:\n${polishRequest}`,
                     outputLanguage: ctx.plugin.settings.summaryLanguage,
                     theme,
@@ -546,7 +546,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private renderVersionNav(container: HTMLElement): void {
         const nav = container.createEl('div', { cls: 'ai-organiser-pres-version-nav' });
 
-        const prevBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: '◄ Prev' });
+        const prevBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: '◄ Prev' }); // eslint-disable-line obsidianmd/ui/sentence-case
         prevBtn.disabled = this.versionIndex <= 0;
         prevBtn.addEventListener('click', () => this.restoreVersion(this.versionIndex - 1));
 
@@ -568,7 +568,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.brandAvailable) {
             // Brand file exists — show functional toggle
             const label = toggle.createEl('label', { cls: 'ai-organiser-pres-brand-label' });
-            const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+            const checkbox = label.createEl('input', { type: 'checkbox' });
             checkbox.checked = this.brandEnabled;
             checkbox.addEventListener('change', () => {
                 this.brandEnabled = checkbox.checked;
@@ -579,7 +579,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // No brand file — show instructions
             toggle.addClass('is-disabled');
             const label = toggle.createEl('label', { cls: 'ai-organiser-pres-brand-label' });
-            const checkbox = label.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+            const checkbox = label.createEl('input', { type: 'checkbox' });
             checkbox.checked = false;
             checkbox.disabled = true;
             label.createEl('span', { text: ' On-brand' });

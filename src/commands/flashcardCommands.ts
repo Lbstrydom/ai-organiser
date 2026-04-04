@@ -481,6 +481,7 @@ async function saveFlashcardWithDialog(
 
     // Try system Save dialog via @electron/remote (Obsidian bundles this)
     try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for optional module
         const remote = require('@electron/remote');
         const result = await remote.dialog.showSaveDialog({
             defaultPath: defaultName,
@@ -491,6 +492,7 @@ async function saveFlashcardWithDialog(
         });
 
         if (!result.canceled && result.filePath) {
+            // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: save dialog writes to filesystem
             require('node:fs').writeFileSync(result.filePath, csvContent, 'utf-8');
             return result.filePath;
         }
@@ -501,9 +503,12 @@ async function saveFlashcardWithDialog(
 
     // Fallback: write to Downloads folder
     try {
+        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: resolve Downloads folder path
         const nodePath = require('node:path');
+        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: resolve user home directory
         const downloadsDir = nodePath.join(require('node:os').homedir(), 'Downloads');
         const filePath = nodePath.join(downloadsDir, defaultName);
+        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: write CSV to Downloads folder
         require('node:fs').writeFileSync(filePath, csvContent, 'utf-8');
         return filePath;
     } catch {

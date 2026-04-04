@@ -54,7 +54,7 @@ export class GlobalMemoryModal extends Modal {
         const input = row.createEl('input', {
             cls: 'ai-organiser-global-memory-add-input',
             attr: { placeholder: this.t.globalMemoryAddPlaceholder, type: 'text' },
-        }) as HTMLInputElement;
+        });
 
         const addBtn = row.createEl('button', { text: this.t.globalMemoryAdd });
         const doAdd = () => {
@@ -78,11 +78,11 @@ export class GlobalMemoryModal extends Modal {
         const cancelBtn = row.createEl('button', { text: this.t.globalMemoryCancel });
         const saveBtn = row.createEl('button', { text: this.t.globalMemorySave, cls: 'mod-cta' });
         cancelBtn.addEventListener('click', () => this.close());
-        saveBtn.addEventListener('click', async () => {
+        saveBtn.addEventListener('click', () => { void (async () => {
             await this.memoryService.saveAll(this.items);
             this.onSaved(this.items);
             this.close();
-        });
+        })(); });
     }
 
     onClose(): void { this.contentEl.empty(); }

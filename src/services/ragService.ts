@@ -101,7 +101,7 @@ export class RAGService {
             // Get unique sources
             const sources = Array.from(
                 new Set(selectedChunks.map((r: SearchResult) => r.document.filePath))
-            ) as string[];
+            );
 
             return {
                 chunks: selectedChunks,

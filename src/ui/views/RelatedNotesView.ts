@@ -90,12 +90,12 @@ export class RelatedNotesView extends ItemView {
         this.resultContainer = container.createEl('div', { cls: 'ai-organiser-related-notes-results' });
 
         // Initial render
-        this.updateRelatedNotes();
+        void this.updateRelatedNotes();
 
         // Register event listener for note changes
         this.registerEvent(
             this.app.workspace.on('active-leaf-change', () => {
-                this.onActiveNoteChanged();
+                void this.onActiveNoteChanged();
             })
         );
 
@@ -107,7 +107,7 @@ export class RelatedNotesView extends ItemView {
                 if (this.state.folderScope === oldPath || this.state.folderScope.startsWith(oldPath + '/')) {
                     this.state.folderScope = this.state.folderScope.replace(oldPath, file.path);
                     this.rerenderHeader();
-                    this.updateRelatedNotes(true);
+                    void this.updateRelatedNotes(true);
                 }
             })
         );
@@ -120,7 +120,7 @@ export class RelatedNotesView extends ItemView {
                     this.state.scopePinned = false;
                     this.state.folderScope = this.normalizeFolderPath(this.app.workspace.getActiveFile()?.parent?.path);
                     this.rerenderHeader();
-                    this.updateRelatedNotes(true);
+                    void this.updateRelatedNotes(true);
                 }
             })
         );
@@ -174,7 +174,7 @@ export class RelatedNotesView extends ItemView {
                     const activeFile = this.app.workspace.getActiveFile();
                     this.state.folderScope = this.normalizeFolderPath(activeFile?.parent?.path);
                     this.rerenderHeader();
-                    this.updateRelatedNotes(true);
+                    void this.updateRelatedNotes(true);
                 } else {
                     // Pin current scope
                     this.state.scopePinned = true;
@@ -191,19 +191,19 @@ export class RelatedNotesView extends ItemView {
             cls: 'clickable-icon ai-organiser-related-notes-refresh-btn',
             title: 'Refresh'
         });
-        refreshBtn.innerHTML = '&#8635;';
-        refreshBtn.addEventListener('click', async () => {
+        refreshBtn.setText('\u21BB');
+        refreshBtn.addEventListener('click', () => { void (async () => {
             refreshBtn.classList.add('loading');
             await this.updateRelatedNotes(true);
             refreshBtn.classList.remove('loading');
-        });
+        })(); });
 
         // Options button
         const optionsBtn = controls.createEl('button', {
             cls: 'clickable-icon ai-organiser-related-notes-options-btn',
             title: 'Options'
         });
-        optionsBtn.innerHTML = '&#8943;';
+        optionsBtn.setText('\u22EF');
         optionsBtn.addEventListener('click', (e) => {
             this.showOptionsMenu(e);
         });
@@ -234,7 +234,7 @@ export class RelatedNotesView extends ItemView {
                 this.state.folderScope = folderPath;
                 this.state.scopePinned = true; // User explicitly chose
                 this.rerenderHeader();
-                this.updateRelatedNotes(true);
+                void this.updateRelatedNotes(true);
             }
         }).open();
     }
@@ -252,7 +252,7 @@ export class RelatedNotesView extends ItemView {
                     const activeFile = this.app.workspace.getActiveFile();
                     this.state.folderScope = this.normalizeFolderPath(activeFile?.parent?.path);
                     this.rerenderHeader();
-                    this.updateRelatedNotes(true);
+                    void this.updateRelatedNotes(true);
                 });
         });
 
@@ -264,7 +264,7 @@ export class RelatedNotesView extends ItemView {
                     this.state.folderScope = null;
                     this.state.scopePinned = true;
                     this.rerenderHeader();
-                    this.updateRelatedNotes(true);
+                    void this.updateRelatedNotes(true);
                 });
         });
 
@@ -272,14 +272,14 @@ export class RelatedNotesView extends ItemView {
 
         menu.addItem(item => {
             item
-                .setTitle('Copy as Markdown')
+                .setTitle('Copy as Markdown') // eslint-disable-line obsidianmd/ui/sentence-case -- Markdown is a proper noun
                 .setIcon('copy')
                 .onClick(() => this.copyAsMarkdown());
         });
 
         menu.addItem(item => {
             item
-                .setTitle('Clear Cache')
+                .setTitle('Clear cache')
                 .setIcon('trash-2')
                 .onClick(() => this.clearCache());
         });
@@ -306,7 +306,7 @@ export class RelatedNotesView extends ItemView {
         }
 
         this.debounceTimer = setTimeout(
-            () => this.updateRelatedNotes(),
+            () => { void this.updateRelatedNotes(); },
             this.DEBOUNCE_MS
         );
     }
@@ -448,7 +448,7 @@ export class RelatedNotesView extends ItemView {
             this.state.folderScope = null;
             this.state.scopePinned = true;
             this.rerenderHeader();
-            this.updateRelatedNotes(true);
+            void this.updateRelatedNotes(true);
         });
     }
 
@@ -482,7 +482,7 @@ export class RelatedNotesView extends ItemView {
             cls: 'mod-cta'
         });
         retryBtn.addEventListener('click', () => {
-            this.updateRelatedNotes(true);
+            void this.updateRelatedNotes(true);
         });
     }
 
@@ -517,7 +517,7 @@ export class RelatedNotesView extends ItemView {
 
             linkEl.addEventListener('click', (e) => {
                 e.preventDefault();
-                this.openNote(result.document.filePath);
+                void this.openNote(result.document.filePath);
             });
 
             // Similarity badge color-coded by score
@@ -576,7 +576,7 @@ export class RelatedNotesView extends ItemView {
                 this.state.folderScope = null;
                 this.state.scopePinned = true;
                 this.rerenderHeader();
-                this.updateRelatedNotes(true);
+                void this.updateRelatedNotes(true);
             });
         }
 
@@ -627,10 +627,9 @@ export class RelatedNotesView extends ItemView {
             ? rect.right + 10
             : rect.left - popupWidth - 10;
 
-        popup.style.position = 'fixed';
-        popup.style.top = `${Math.max(0, rect.top)}px`;
-        popup.style.left = `${Math.max(0, left)}px`;
-        popup.style.zIndex = '1000';
+        popup.addClass('ai-organiser-popup-positioned');
+        popup.setCssProps({ '--popup-top': `${Math.max(0, rect.top)}px`, '--popup-left': `${Math.max(0, left)}px` });
+        popup.setCssProps({ '--z': '1000' }); popup.addClass('ai-organiser-z-custom');
     }
 
     private hidePreviewPopup(): void {
@@ -665,7 +664,7 @@ export class RelatedNotesView extends ItemView {
         }
 
         const markdown = lines.join('\n');
-        navigator.clipboard.writeText(markdown).then(() => {
+        void navigator.clipboard.writeText(markdown).then(() => {
             const t = this.plugin.t?.messages;
             new Notice(t?.relatedNotesCopiedToClipboard || 'Related notes copied to clipboard');
         });

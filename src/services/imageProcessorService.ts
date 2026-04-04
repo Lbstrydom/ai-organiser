@@ -574,9 +574,9 @@ export class ImageProcessorService {
     private canvasToArrayBuffer(canvas: HTMLCanvasElement, mediaType: string, quality: number): Promise<ArrayBuffer> {
         return new Promise((resolve, reject) => {
             canvas.toBlob(
-                async (blob) => {
+                (blob) => {
                     if (!blob) { reject(new Error('canvas.toBlob failed')); return; }
-                    resolve(await blob.arrayBuffer());
+                    void blob.arrayBuffer().then(resolve, reject);
                 },
                 mediaType,
                 quality
@@ -609,8 +609,11 @@ export class ImageProcessorService {
         // 3. Count backlinks referencing the new path
         const backlinksMigrated = this.countBacklinks(newPath);
 
-        const newFile = this.app.vault.getAbstractFileByPath(newPath) as TFile;
-        return { newFile, backlinksMigrated, oldPath, newPath };
+        const abstract = this.app.vault.getAbstractFileByPath(newPath);
+        if (!(abstract instanceof TFile)) {
+            throw new Error(`Expected TFile at ${newPath} after rename`);
+        }
+        return { newFile: abstract, backlinksMigrated, oldPath, newPath };
     }
 
     private countBacklinks(filePath: string): number {

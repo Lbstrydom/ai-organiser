@@ -40,7 +40,7 @@ export class SummaryResultModal extends Modal {
         // Scrollable preview area
         const previewEl = contentEl.createDiv({ cls: 'ai-organiser-summary-preview' });
         this.component.load();
-        MarkdownRenderer.render(
+        void MarkdownRenderer.render(
             this.app,
             this.content,
             previewEl,

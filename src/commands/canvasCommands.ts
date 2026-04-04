@@ -67,9 +67,9 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 allowSkip: false,
                 allowNewFolder: true,
                 confirmButtonText: plugin.t.canvas.chooseFolder,
-                onSelect: async (selectedFolder) => {
+                onSelect: (selectedFolder) => { void (async () => {
                     const canvasFolder = selectedFolder || defaultFolder;
-                    
+
                     try {
                         const result = await withBusyIndicator(plugin, () =>
                             buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
@@ -102,7 +102,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     } catch {
                         new Notice(plugin.t.canvas.creationFailed);
                     }
-                }
+                })(); }
             });
             folderPicker.open();
         }
@@ -139,9 +139,9 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 allowSkip: false,
                 allowNewFolder: true,
                 confirmButtonText: plugin.t.canvas.chooseFolder,
-                onSelect: async (selectedFolder) => {
+                onSelect: (selectedFolder) => { void (async () => {
                     const canvasFolder = selectedFolder || defaultFolder;
-                    
+
                     try {
                         const result = await withBusyIndicator(plugin, () =>
                             buildContextBoard(plugin.app, {
@@ -166,7 +166,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     } catch {
                         new Notice(plugin.t.canvas.creationFailed);
                     }
-                }
+                })(); }
             });
             folderPicker.open();
         }
@@ -182,7 +182,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 return;
             }
 
-            const modal = new TagPickerModal(plugin.app, plugin.t, async (tag) => {
+            const modal = new TagPickerModal(plugin.app, plugin.t, (tag) => { void (async () => {
                 const files = getFilesWithTag(plugin, tag);
 
                 // Show folder picker - default to current note folder or settings default
@@ -194,9 +194,9 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     allowSkip: false,
                     allowNewFolder: true,
                     confirmButtonText: plugin.t.canvas.chooseFolder,
-                    onSelect: async (selectedFolder) => {
+                    onSelect: (selectedFolder) => { void (async () => {
                         const canvasFolder = selectedFolder || defaultFolder;
-                        
+
                         try {
                             const result = await withBusyIndicator(plugin, () =>
                                 buildClusterBoard(plugin.app, pluginContext(plugin), {
@@ -223,10 +223,10 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                         } catch {
                             new Notice(plugin.t.canvas.creationFailed);
                         }
-                    }
+                    })(); }
                 });
                 folderPicker.open();
-            });
+            })(); });
 
             modal.open();
         }

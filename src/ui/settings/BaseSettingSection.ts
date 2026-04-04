@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Code-splitting: Obsidian module loaded dynamically */
 import { setIcon, Setting } from 'obsidian';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
@@ -52,7 +53,7 @@ export abstract class BaseSettingSection {
                     group.setIcon(icon);
                 }
                 // Return the group container for further settings
-                return (group as any).settingEl || container;
+                return (group).settingEl || container;
             }
         } catch {
             // Fall through to custom header
@@ -105,14 +106,14 @@ export abstract class BaseSettingSection {
 
         if (useSecretStorage) {
             // Check key status asynchronously
-            secretStorage.hasSecret(secretId).then((hasKey) => {
+            void secretStorage.hasSecret(secretId).then((hasKey) => {
                 // Add status indicator
                 const statusEl = setting.nameEl.createSpan({
                     cls: hasKey ? 'ai-organiser-key-status-set' : 'ai-organiser-key-status-empty',
                     text: hasKey ? t.secretStorage.keyConfigured : t.secretStorage.noKeySet
                 });
-                statusEl.style.marginLeft = '8px';
-                statusEl.style.fontSize = '0.9em';
+                statusEl.addClass('ai-organiser-ml-8');
+                statusEl.addClass('ai-organiser-text-ui-small');
             });
 
             // Add device-only badge
@@ -120,9 +121,9 @@ export abstract class BaseSettingSection {
                 cls: 'ai-organiser-device-badge',
                 text: t.secretStorage.deviceOnly
             });
-            deviceBadge.style.fontSize = '0.8em';
-            deviceBadge.style.color = 'var(--text-muted)';
-            deviceBadge.style.marginLeft = '8px';
+            deviceBadge.addClass('ai-organiser-text-ui-smaller');
+            deviceBadge.addClass('ai-organiser-text-muted');
+            deviceBadge.addClass('ai-organiser-ml-8');
         }
 
         // Use password text field with manual SecretStorage save
@@ -136,7 +137,7 @@ export abstract class BaseSettingSection {
             text.inputEl.type = 'password';
 
             // Handle Enter key to save immediately
-            text.inputEl.addEventListener('keydown', async (e) => {
+            text.inputEl.addEventListener('keydown', (e) => { void (async () => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     const value = text.getValue();
@@ -159,10 +160,10 @@ export abstract class BaseSettingSection {
                         onChange(value);
                     }
                 }
-            });
+            })(); });
 
             // Also save on blur (when clicking away)
-            text.inputEl.addEventListener('blur', async () => {
+            text.inputEl.addEventListener('blur', () => { void (async () => {
                 const value = text.getValue();
                 if (value && useSecretStorage) {
                     await secretStorage.setSecret(secretId, value);
@@ -180,7 +181,7 @@ export abstract class BaseSettingSection {
                     const { Notice } = require('obsidian');
                     new Notice(t.secretStorage.keySaved || 'API key saved securely');
                 }
-            });
+            })(); });
         });
 
         // Add "Test Key" button if callback provided
@@ -216,9 +217,9 @@ export abstract class BaseSettingSection {
                 cls: 'ai-organiser-fallback-warning',
                 text: t.secretStorage.fallbackWarning
             });
-            warningEl.style.color = 'var(--text-warning)';
-            warningEl.style.fontSize = '0.9em';
-            warningEl.style.marginTop = '4px';
+            warningEl.addClass('ai-organiser-text-warning');
+            warningEl.addClass('ai-organiser-text-ui-small');
+            warningEl.addClass('ai-organiser-mt-4');
         }
 
         return setting;

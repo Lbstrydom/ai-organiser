@@ -1478,7 +1478,7 @@ ${persona.prompt}
                 content += `\n\n## Disciplines\n\nSecond-level tags representing academic or professional fields.\n\n| Name | Description | Use When |\n|------|-------------|----------|\n${newRows}\n`;
             }
 
-            await this.app.vault.modify(file as TFile, content);
+            await this.app.vault.modify(file, content);
             this.invalidateCache();
 
             return novel.length;
@@ -1647,7 +1647,7 @@ ${persona.prompt}
             const personaMatch = firstLine.match(/\[persona:\s*([^\]]+)\]/i);
             const iconMatch = firstLine.match(/\[icon:\s*([^\]]+)\]/i);
 
-            const category = (categoryMatch?.[1]?.trim().toLowerCase() === 'persona' ? 'persona' : 'default') as 'default' | 'persona';
+            const category = (categoryMatch?.[1]?.trim().toLowerCase() === 'persona' ? 'persona' : 'default');
             const personaId = personaMatch?.[1]?.trim();
             const icon = iconMatch?.[1]?.trim();
 

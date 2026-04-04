@@ -188,7 +188,7 @@ export class SimpleVectorStore implements IVectorStore {
     }
 
     async dispose(): Promise<void> {
-        this.clear();
+        await this.clear();
     }
 
     /**

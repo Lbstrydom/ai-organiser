@@ -304,7 +304,7 @@ async function improveNoteWithQuery(
                 await showReviewOrApply(
                     plugin,
                     strippedBody,
-                    response.content!,
+                    response.content,
                     () => applyImprovement(plugin, view, editor, response.content!, frontmatter, placement)
                 );
             } else {
@@ -314,7 +314,7 @@ async function improveNoteWithQuery(
                         plugin,
                         response.content!,
                         placement,
-                        async (action: ImprovePreviewAction) => {
+                        (action: ImprovePreviewAction) => { void (async () => {
                             if (action === 'confirm') {
                                 await applyImprovement(plugin, view, editor, response.content!, frontmatter, placement);
                             } else if (action === 'copy') {
@@ -322,7 +322,7 @@ async function improveNoteWithQuery(
                                 new Notice(plugin.t.messages.copiedToClipboard || 'Copied to clipboard', 3000);
                             }
                             resolve();
-                        }
+                        })(); }
                     );
                     previewModal.open();
                 });

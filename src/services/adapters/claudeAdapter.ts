@@ -68,7 +68,7 @@ export class ClaudeAdapter extends BaseAdapter {
      * Formats a request for Claude's Messages API
      * Claude requires 'system' as a separate parameter, not in messages array
      */
-    public formatRequest(prompt: string, language?: string): any {
+    public formatRequest(prompt: string, _language?: string): any {
         const body: any = {
             model: this.config.modelName,
             max_tokens: 1024,

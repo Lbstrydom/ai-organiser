@@ -1,56 +1,59 @@
+import { requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
 
 export async function fetchLocalModels(endpoint: string): Promise<string[]> {
     try {
         const baseUrl = normalizeEndpoint(endpoint);
         const isOllama = baseUrl.includes('localhost:11434') || baseUrl.includes('ollama');
-        const isLocalAI = baseUrl.includes('localhost:8080') || baseUrl.includes('localai');
-        const isLMStudio = baseUrl.includes('localhost:1234') || baseUrl.includes('lm_studio');
-        
+        const _isLocalAI = baseUrl.includes('localhost:8080') || baseUrl.includes('localai');
+        const _isLMStudio = baseUrl.includes('localhost:1234') || baseUrl.includes('lm_studio');
+
         // Special handling for Ollama
         if (isOllama) {
             try {
                 // First try Ollama's specific API endpoint for listing models
-                const ollamaResponse = await fetch(`${baseUrl.replace('/v1', '')}/api/tags`, {
+                const ollamaResponse = await requestUrl({
+                    url: `${baseUrl.replace('/v1', '')}/api/tags`,
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
-                if (ollamaResponse.ok) {
-                    const ollamaData = await ollamaResponse.json();
+
+                if (ollamaResponse.status < 400) {
+                    const ollamaData = ollamaResponse.json;
                     if (ollamaData.models && Array.isArray(ollamaData.models)) {
                         return ollamaData.models.map((model: any) => model.name);
                     }
                 }
-                
+
                 // If that fails, try the Ollama list API
-                const ollamaListResponse = await fetch(`${baseUrl.replace('/v1', '')}/api/list`, {
+                const ollamaListResponse = await requestUrl({
+                    url: `${baseUrl.replace('/v1', '')}/api/list`,
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
                 });
-                
-                if (ollamaListResponse.ok) {
-                    const ollamaListData = await ollamaListResponse.json();
+
+                if (ollamaListResponse.status < 400) {
+                    const ollamaListData = ollamaListResponse.json;
                     if (Array.isArray(ollamaListData.models)) {
                         return ollamaListData.models.map((model: any) => model.name);
                     }
                 }
-            } catch (error) {
+            } catch (_error) {
                 // Will fall back to standard endpoint
-                //console.error('Failed to fetch Ollama models:', error);
             }
         }
-        
+
         // Standard OpenAI-compatible API endpoint
         const modelsEndpoint = `${baseUrl}/models`;
-        
+
         try {
-            const response = await fetch(modelsEndpoint, {
+            const response = await requestUrl({
+                url: modelsEndpoint,
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' }
             });
-    
-            if (!response.ok) {
+
+            if (response.status >= 400) {
                 // if (isLocalAI) {
                 //     console.error('Failed to connect to LocalAI service. Please make sure it is running on the specified endpoint.');
                 // } else if (isOllama) {
@@ -63,7 +66,7 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
                 return []; // Return empty array if endpoint doesn't respond properly
             }
     
-            const data = await response.json();
+            const data = response.json;
             
             let models: string[] = [];
             if (Array.isArray(data)) {
@@ -88,13 +91,12 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
             }
             
             return models;
-        } catch (error) {
-            //console.error('Failed to fetch models from standard endpoint:', error);
+        } catch (_error) {
+            // Failed to fetch from standard endpoint
         }
         
         return []; // Return empty array if all attempts fail
-    } catch (error) {
-        //console.error('Error in fetchLocalModels:', error);
+    } catch (_error) {
         return [];
     }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Dynamic require() for Electron desktop-only paths and code-splitting */
 /**
  * Audio Transcription Service
  * Handles transcription of audio files using Whisper API (OpenAI or Groq)
@@ -416,7 +417,9 @@ export async function transcribeExternalAudio(
 ): Promise<TranscriptionResult> {
     try {
         // Use Node.js fs to read external file
+        // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external audio files
         const { promises: fs } = require('fs');
+        // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: path manipulation for external files
         const path = require('path');
 
         // Normalize the file path
@@ -559,6 +562,7 @@ export function parseWhisperSegments(rawSegments: unknown): WhisperSegment[] | u
 // CHUNKED TRANSCRIPTION FOR VERY LONG FILES
 // ============================================================================
 
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: chunked audio file I/O
 import * as fs from 'fs';
 import {
     ChunkInfo,

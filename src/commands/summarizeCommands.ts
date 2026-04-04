@@ -73,7 +73,7 @@ function showSummaryPreviewOrInsert(
                     doInsert();
                     new Notice(noticeMessage || plugin.t.messages.summaryInserted);
                 } else if (action === 'copy') {
-                    navigator.clipboard.writeText(output);
+                    void navigator.clipboard.writeText(output);
                     new Notice(plugin.t.messages.copiedToClipboard);
                 }
                 resolve(action);
@@ -309,14 +309,14 @@ function openMultiSourceModal(
         plugin.app,
         plugin,
         noteContent,
-        async (result: MultiSourceModalResult) => {
+        (result: MultiSourceModalResult) => { void (async () => {
             try {
                 await handleMultiSourceResult(plugin, pdfService, editor, view, result);
             } catch (e) {
                 logger.error('Summary', 'Error in handleMultiSourceResult:', e);
                 new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
             }
-        }
+        })(); }
     );
     modal.open();
 }
@@ -1200,6 +1200,7 @@ Provide a unified summary that:
     return prompt;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handleSmartTarget(
     plugin: AIOrganiserPlugin,
     pdfService: PdfService,
@@ -1208,10 +1209,6 @@ async function handleSmartTarget(
     personaPrompt: string,
     personaId?: string
 ): Promise<void> {
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : 'local';
-
     if (target.type === 'selection-text') {
         await handleTextSummarization(plugin, editor, target.text, personaPrompt);
         return;
@@ -1227,7 +1224,7 @@ async function handleSmartTarget(
     }
 
     if (target.type === 'internal-pdf') {
-        if (!canSummarizePdf(plugin)) {
+        if (!(await canSummarizePdf(plugin))) {
             new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         }
@@ -1240,7 +1237,7 @@ async function handleSmartTarget(
             new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
             return;
         }
-        if (!canSummarizePdf(plugin)) {
+        if (!(await canSummarizePdf(plugin))) {
             new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
             return;
         }
@@ -1249,6 +1246,7 @@ async function handleSmartTarget(
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function openSummarizeSourceModal(
     plugin: AIOrganiserPlugin,
     pdfService: PdfService,
@@ -1256,7 +1254,7 @@ function openSummarizeSourceModal(
     view: MarkdownView,
     detectedSource?: SummarizeSourceOption
 ): void {
-    const modal = new SummarizeSourceModal(plugin.app, plugin, async (source: SummarizeSourceOption) => {
+    const modal = new SummarizeSourceModal(plugin.app, plugin, (source: SummarizeSourceOption) => { void (async () => {
         const defaultPersonaId = plugin.settings.defaultSummaryPersona;
         const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
 
@@ -1279,7 +1277,7 @@ function openSummarizeSourceModal(
             default:
                 break;
         }
-    }, detectedSource);
+    })(); }, detectedSource);
     modal.open();
 }
 
@@ -1315,10 +1313,10 @@ async function openUrlSummarizeModal(
         plugin.settings.defaultSummaryPersona,
         personas,
         plugin.settings.enableStudyCompanion,
-        async (result) => {
+        (result) => { void (async () => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
             await handleUrlSummarization(plugin, pdfService, editor, result.url, personaPrompt, result.context, result.personaId);
-        }
+        })(); }
     );
     modal.open();
 }
@@ -1329,7 +1327,7 @@ async function openPdfSummarizeModal(
     editor: Editor,
     view: MarkdownView
 ): Promise<void> {
-    if (!canSummarizePdf(plugin)) {
+    if (!(await canSummarizePdf(plugin))) {
         new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
         return;
     }
@@ -1375,16 +1373,16 @@ async function openPdfSummarizeModal(
         defaultPersona,
         personas,
         plugin.settings.enableStudyCompanion,
-        async (result) => {
+        (result) => { void (async () => {
             if (result.file) {
                 const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
                 await handlePdfSummarization(plugin, pdfService, editor, result.file, personaPrompt, result.context, result.personaId);
             }
-        },
-        async (result) => {
+        })(); },
+        (result) => { void (async () => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
             await handleExternalPdfSummarization(plugin, pdfService, editor, result.externalPath, personaPrompt, result.context, result.personaId);
-        }
+        })(); }
     );
     modal.open();
 }
@@ -1400,10 +1398,10 @@ async function openYouTubeSummarizeModal(
         plugin.settings.defaultSummaryPersona,
         personas,
         plugin.settings.enableStudyCompanion,
-        async (result) => {
+        (result) => { void (async () => {
             const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(result.personaId);
             await handleYouTubeSummarization(plugin, editor, result.url, personaPrompt, result.context, result.personaId);
-        }
+        })(); }
     );
     modal.open();
 }
@@ -1430,13 +1428,14 @@ async function openAudioSummarizeModal(
         plugin.settings.defaultSummaryPersona,
         personas,
         plugin.settings.enableStudyCompanion,
-        async (result: AudioSelectResult) => {
+        (result: AudioSelectResult) => { void (async () => {
             await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key);
-        }
+        })(); }
     );
     modal.open();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function detectTargetFromFrontmatter(
     plugin: AIOrganiserPlugin,
     file: TFile
@@ -1872,7 +1871,7 @@ async function handleDocumentSummarization(
     document: { path: string; isVaultFile: boolean },
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    _personaId?: string
 ): Promise<void> {
     const result = await extractDocumentTextForMultiSource(plugin, view, document);
     if (!result.success || !result.text) {
@@ -1986,6 +1985,7 @@ async function handleAudioSummarization(
             new Notice(plugin.t.messages.mobileExternalNotSupported);
             return;
         }
+        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: extract basename from external audio file path
         const path = require('path');
         audioName = path.basename(externalPath, path.extname(externalPath));
         audioPath = externalPath;
@@ -2455,6 +2455,7 @@ async function handleYouTubeSummarization(
 /**
  * Summarize YouTube transcript and insert into editor
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function summarizeYouTubeAndInsert(
     plugin: AIOrganiserPlugin,
     editor: Editor,
@@ -2509,6 +2510,7 @@ async function summarizeYouTubeAndInsert(
 /**
  * Summarize YouTube transcript in chunks
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function summarizeYouTubeInChunks(
     plugin: AIOrganiserPlugin,
     editor: Editor,

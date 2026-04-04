@@ -1,3 +1,4 @@
+/* eslint-disable obsidianmd/ui/sentence-case -- Provider/model names contain proper nouns (Claude, Gemini, Whisper, etc.) */
 /**
  * Specialist Providers Settings Section
  * Unified section for all feature-specific LLM/API provider configurations.

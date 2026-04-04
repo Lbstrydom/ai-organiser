@@ -38,7 +38,7 @@ export class ExportSettingsSection extends BaseSettingSection {
                     dropdown.addOption(folder, folder);
                 }
             }
-            dropdown.addOption('__custom__', '— Custom path —');
+            dropdown.addOption('__custom__', '— Custom path —'); // eslint-disable-line obsidianmd/ui/sentence-case
 
             const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
             dropdown.setValue(isCustom ? '__custom__' : currentResolved);
@@ -167,19 +167,19 @@ export class ExportSettingsSection extends BaseSettingSection {
     /** Render inline colour swatch dots */
     private renderColorSwatch(container: HTMLElement, primary: string, accent?: string): void {
         const wrapper = container.createSpan({ cls: 'ai-organiser-color-swatch' });
-        wrapper.style.marginLeft = '8px';
-        wrapper.style.display = 'inline-flex';
-        wrapper.style.gap = '4px';
-        wrapper.style.verticalAlign = 'middle';
+        wrapper.addClass('ai-organiser-ml-8');
+        wrapper.addClass('ai-organiser-inline-flex');
+        wrapper.addClass('ai-organiser-gap-4');
+        /* verticalAlign handled by parent flex */
 
         const dot = (hex: string) => {
             const el = wrapper.createSpan();
-            el.style.display = 'inline-block';
-            el.style.width = '14px';
-            el.style.height = '14px';
-            el.style.borderRadius = '50%';
-            el.style.backgroundColor = `#${hex}`;
-            el.style.border = '1px solid var(--background-modifier-border)';
+            el.addClass('ai-organiser-inline-block');
+            el.setCssProps({ '--w': '14px' }); el.addClass('ai-organiser-w-custom');
+            el.setCssProps({ '--h': '14px' }); el.addClass('ai-organiser-h-custom');
+            el.addClass('ai-organiser-rounded-full');
+            el.setCssProps({ '--bg': `#${hex}` }); el.addClass('ai-organiser-bg-custom');
+            el.addClass('ai-organiser-border');
         };
 
         dot(primary);

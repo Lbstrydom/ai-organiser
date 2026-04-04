@@ -12,13 +12,13 @@ export class ConfirmationModal extends Modal {
         const confirmText = plugin?.t?.modals?.confirm || 'Confirm';
 
         // Create title with warning icon
-        const titleEl = this.contentEl.createEl('h3', {
+        this.contentEl.createEl('h3', {
             cls: 'ai-organiser-modal-title',
             text: `${title}`
         });
 
         // Create message
-        const messageEl = this.contentEl.createEl('p', {
+        this.contentEl.createEl('p', {
             cls: 'ai-organiser-modal-message',
             text: message
         });

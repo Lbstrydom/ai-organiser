@@ -39,7 +39,7 @@ export class WebReaderModal extends Modal {
         const t = this.plugin.t;
         this.modalEl.addClass('ai-organiser-web-reader');
         this.titleEl.setText(t.modals.webReader.title);
-        this.modalEl.style.maxWidth = '700px';
+        this.modalEl.setCssProps({ '--max-w': '700px' }); this.modalEl.addClass('ai-organiser-max-w-custom');
         this.renderLoading();
     }
 
@@ -57,14 +57,14 @@ export class WebReaderModal extends Modal {
         const t = this.plugin.t;
         contentEl.empty();
 
-        const desc = contentEl.createEl('p', {
+        contentEl.createEl('p', {
             text: t.modals.webReader.loadingDescription.replace('{count}', String(this.urls.length))
         });
 
         // Progress bar
         const progressBar = contentEl.createDiv({ cls: 'ai-organiser-web-reader-progress' });
         const progressFill = progressBar.createDiv({ cls: 'ai-organiser-web-reader-progress-fill' });
-        progressFill.style.width = '0%';
+        progressFill.setCssProps({ '--progress-width': '0%' }); progressFill.addClass('ai-organiser-dynamic-width');
 
         // Status text
         const statusEl = contentEl.createDiv({ cls: 'ai-organiser-web-reader-status' });
@@ -79,7 +79,7 @@ export class WebReaderModal extends Modal {
         // Start fetching
         const onProgress = (p: TriageProgress) => {
             const pct = Math.round((p.current / p.total) * 100);
-            progressFill.style.width = `${pct}%`;
+            progressFill.setCssProps({ '--dynamic-width': `${pct}%` });
 
             const truncUrl = p.url.length > 60 ? p.url.substring(0, 57) + '...' : p.url;
             if (p.phase === 'fetching') {
@@ -144,7 +144,7 @@ export class WebReaderModal extends Modal {
         });
 
         // (b) Note title input
-        const titleSetting = new Setting(contentEl)
+        new Setting(contentEl)
             .setName(t.modals.webReader.noteTitleLabel)
             .addText(text => {
                 text.setPlaceholder(t.modals.webReader.noteTitlePlaceholder);
@@ -160,7 +160,7 @@ export class WebReaderModal extends Modal {
             if (this.selectedUrls.has(article.url)) card.addClass('ai-organiser-web-reader-card-selected');
 
             // Card click toggles selection
-            card.addEventListener('click', (e) => {
+            card.addEventListener('click', (_e) => {
                 this.toggleSelection(article.url);
                 card.toggleClass('ai-organiser-web-reader-card-selected', this.selectedUrls.has(article.url));
                 const cb = card.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -253,7 +253,7 @@ export class WebReaderModal extends Modal {
                 );
 
                 // Open in new tab (SRP: UI navigation in modal, not service)
-                this.app.workspace.getLeaf(true).openFile(file);
+                void this.app.workspace.getLeaf(true).openFile(file);
 
                 new Notice(t.modals.webReader.createdNote.replace('{filename}', file.basename));
                 this.createdNotes.push({ path: file.path, title: file.basename });
@@ -292,7 +292,7 @@ export class WebReaderModal extends Modal {
                     e.preventDefault();
                     const file = this.app.vault.getAbstractFileByPath(note.path);
                     if (file instanceof TFile) {
-                        this.app.workspace.getLeaf(true).openFile(file);
+                        void this.app.workspace.getLeaf(true).openFile(file);
                     }
                 });
             }

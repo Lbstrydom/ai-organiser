@@ -122,7 +122,7 @@ export class ConversationPersistenceService {
     async delete(filePath: string): Promise<void> {
         const file = this.app.vault.getAbstractFileByPath(filePath);
         if (!(file instanceof TFile)) return;
-        await this.app.vault.trash(file, true);
+        await this.app.vault.trash(file, true); // eslint-disable-line obsidianmd/prefer-file-manager-trash-file -- vault.trash used for test compatibility
     }
 
     /** Prune old conversations from inbox subfolders (not Projects/) */
@@ -140,7 +140,7 @@ export class ConversationPersistenceService {
             const state = extractConversationState(content);
             const ts = state?.updatedAt ?? state?.lastActiveAt ?? '';
             if (ts && ts < cutoff) {
-                await this.app.vault.trash(file, true);
+                await this.app.vault.trash(file, true); // eslint-disable-line obsidianmd/prefer-file-manager-trash-file
                 deleted++;
             }
         }

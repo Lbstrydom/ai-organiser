@@ -10,9 +10,13 @@
  */
 
 import { App, TFile, Platform } from 'obsidian';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: FFmpeg subprocess for audio compression
 import { spawn } from 'child_process';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp file I/O for FFmpeg pipeline
 import * as fs from 'fs';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp file path construction
 import * as path from 'path';
+// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp directory resolution
 import * as os from 'os';
 import { MAX_FILE_SIZE_BYTES, formatFileSize } from './audioTranscriptionService';
 import { getAvailableFilePath } from '../utils/minutesUtils';
@@ -461,8 +465,11 @@ export async function replaceAudioFile(
         if (resolved[sourcePath]?.[newPath]) backlinksMigrated++;
     }
 
-    const newFile = app.vault.getAbstractFileByPath(newPath) as TFile;
-    return { newFile, backlinksMigrated, oldPath, newPath };
+    const abstract = app.vault.getAbstractFileByPath(newPath);
+    if (!(abstract instanceof TFile)) {
+        throw new Error(`Expected TFile at ${newPath} after rename`);
+    }
+    return { newFile: abstract, backlinksMigrated, oldPath, newPath };
 }
 
 // ============================================================================
@@ -546,7 +553,7 @@ export async function needsChunking(
 
         return { needsChunking: false, estimatedDuration: duration };
 
-    } catch (error) {
+    } catch (_error) {
         // If we can't determine duration, fall back to file size heuristic
         const fileSize = file.stat.size;
         // If file is > 100MB, likely needs chunking

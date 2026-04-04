@@ -296,7 +296,7 @@ export class ResearchModeHandler implements ChatModeHandler {
 
             // Extract plain query strings for search (handle PerspectiveQuery[] or string[])
             const queryStrings = queries.map(q =>
-                typeof q === 'string' ? q : (q as PerspectiveQuery).query,
+                typeof q === 'string' ? q : (q).query,
             );
 
             const results = await this.orchestrator.executeSearch(queryStrings, {
@@ -634,7 +634,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         // Use vault context to answer the question via LLM
         cb.showThinking();
         try {
-            const language = ctx.fullPlugin.settings.summaryLanguage;
+            const _language = ctx.fullPlugin.settings.summaryLanguage;
             const context = precheck.relatedNotes
                 .map(n => `### ${n.path}\n${n.excerpt}`)
                 .join('\n\n');
@@ -1015,7 +1015,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 if (pType === activeProv) opt.selected = true;
             }
         });
-        providerSelect.addEventListener('change', async () => {
+        providerSelect.addEventListener('change', () => { void (async () => {
             ctx.fullPlugin.settings.researchProvider = providerSelect.value as SearchProviderType;
             await ctx.fullPlugin.saveSettings();
             // Re-init search service with new provider
@@ -1024,7 +1024,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 usageService: this.usageService,
                 qualityService: this.qualityService,
             });
-        });
+        })(); });
 
         // Scope dropdown
         row.createEl('span', { text: t.scopeLabel || 'Scope:', cls: 'ai-organiser-research-control-label' });
@@ -1061,10 +1061,10 @@ export class ResearchModeHandler implements ChatModeHandler {
         // Phase 3: Academic mode toggle
         const academicLabel = row.createEl('label', { cls: 'ai-organiser-research-toggle-label' });
         const academicCheckbox = academicLabel.createEl('input', { type: 'checkbox' });
-        (academicCheckbox as HTMLInputElement).checked = this.academicMode;
+        (academicCheckbox).checked = this.academicMode;
         academicLabel.createEl('span', { text: t.researchAcademicMode || 'Academic Mode' });
         academicCheckbox.addEventListener('change', () => {
-            this.academicMode = (academicCheckbox as HTMLInputElement).checked;
+            this.academicMode = (academicCheckbox).checked;
         });
     }
 
@@ -1212,12 +1212,12 @@ export class ResearchModeHandler implements ChatModeHandler {
                 type: 'checkbox',
                 cls: 'ai-organiser-research-card-checkbox',
             });
-            (checkbox as HTMLInputElement).checked = isSelected;
+            (checkbox).checked = isSelected;
 
             // Phase 3: Quality badge (if quality scoring enabled and score exists)
             if (result.qualityScore !== undefined && ctx.fullPlugin.settings.enableResearchQualityScoring) {
                 const label = SourceQualityService.getQualityLabel(result.qualityScore);
-                const labelKey = `researchQuality${label}` as string;
+                const labelKey = `researchQuality${label}`;
                 const badgeCls = `ai-organiser-research-quality-badge ai-organiser-research-quality-${label.toLowerCase()}`;
                 const badge = card.createEl('span', {
                     text: t[labelKey] || label,

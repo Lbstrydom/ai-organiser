@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- WASM module loaded via require() */
 /**
  * Voy WASM Vector Store Implementation
  * Production-grade vector storage with Voy (https://github.com/tantaraio/voy)
@@ -11,7 +12,7 @@ import { cosineSimilarity } from './vectorMath';
 import { logger } from '../../utils/logger';
 
 const voyWasm = require('voy-search/voy_search_bg.wasm') as Uint8Array;
-const voyBg = require('voy-search/voy_search_bg.js') as any;
+const voyBg = require('voy-search/voy_search_bg.js');
 const VoyClass = voyBg.Voy as typeof import('voy-search').Voy;
 
 let voyWasmInit: Promise<void> | null = null;
@@ -390,7 +391,7 @@ export class VoyVectorStore implements IVectorStore {
             // Restore change tracker
             const trackerData = new Map<string, string>(data.fileHashes || data.changeTracker || []);
             for (const [path, hash] of trackerData) {
-                this.fileChangeTracker.updateHash(path, hash as string);
+                this.fileChangeTracker.updateHash(path, hash);
             }
 
             // Initialize WebAssembly before deserializing

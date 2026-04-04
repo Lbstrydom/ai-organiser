@@ -75,25 +75,25 @@ export class RelatedNotesModal extends Modal {
             this.folderScope = scope;
             folderBtn.addClass('mod-cta');
             vaultBtn.removeClass('mod-cta');
-            this.fetchRelatedNotes();
+            void this.fetchRelatedNotes();
         });
 
         vaultBtn.addEventListener('click', () => {
             this.folderScope = null;
             vaultBtn.addClass('mod-cta');
             folderBtn.removeClass('mod-cta');
-            this.fetchRelatedNotes();
+            void this.fetchRelatedNotes();
         });
 
         const refreshButton = controls.createEl('button', {
             cls: 'mod-cta',
             text: t?.refresh || 'Refresh'
         });
-        refreshButton.addEventListener('click', async () => {
+        refreshButton.addEventListener('click', () => { void (async () => {
             refreshButton.disabled = true;
             await this.fetchRelatedNotes();
             refreshButton.disabled = false;
-        });
+        })(); });
 
         this.statusEl = contentEl.createDiv({ cls: 'ai-organiser-related-notes-status' });
         this.listEl = contentEl.createEl('ul', { cls: 'ai-organiser-related-notes-list' });

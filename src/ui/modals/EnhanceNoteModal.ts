@@ -41,7 +41,7 @@ export class EnhanceNoteModal extends Modal {
             textEl.createEl('div', { text: action.label, cls: 'ai-organiser-enhance-label' });
             textEl.createEl('div', { text: action.description, cls: 'ai-organiser-enhance-desc' });
 
-            actionEl.addEventListener('click', async () => {
+            actionEl.addEventListener('click', () => { void (async () => {
                 this.close();
                 try {
                     await action.onClick();
@@ -49,7 +49,7 @@ export class EnhanceNoteModal extends Modal {
                     logger.error('UI', 'Enhance action error:', error);
                     new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
-            });
+            })(); });
         }
 
         new Setting(contentEl)

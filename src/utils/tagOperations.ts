@@ -1,4 +1,4 @@
-import { App, TFile, Notice } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { BatchProcessor, BatchProcessResult } from './batchProcessor';
 import { TagUtils, TagOperationResult } from './tagUtils';
 

@@ -81,7 +81,7 @@ class SearchCache {
     /**
      * Invalidate cache entries related to a file
      */
-    invalidateForFile(filePath: string): void {
+    invalidateForFile(_filePath: string): void {
         // Clear entire cache when a file changes
         // A more sophisticated approach would track which queries include which files
         this.clear();
@@ -654,7 +654,7 @@ export class VectorStoreService {
                     }
                 }).catch(err => {
                     logger.error('Search', 'Auto-rebuild failed', err);
-                    new Notice('Index auto-rebuild failed. Rebuild manually via Settings.', 5000);
+                    new Notice('Index auto-rebuild failed. Rebuild manually via Settings.', 5000); // eslint-disable-line obsidianmd/ui/sentence-case -- Settings is a proper noun (Obsidian UI element)
                 });
             } else {
                 const msg = `Vector index version ${metadata?.version ?? 'unknown'} is outdated (current: ${INDEX_SCHEMA_VERSION}). Rebuild via Settings → Vault Intelligence → Semantic Search → Build Index.`;

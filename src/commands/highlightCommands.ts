@@ -13,7 +13,7 @@ export function registerHighlightCommands(plugin: AIOrganiserPlugin): void {
         id: 'highlight-selection',
         name: plugin.t.commands.highlightSelection || 'Highlight selection',
         icon: 'highlighter',
-        editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+        editorCallback: (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
             const selection = editor.getSelection();
 
             if (!selection || selection.trim().length === 0) {
@@ -39,7 +39,7 @@ export function registerHighlightCommands(plugin: AIOrganiserPlugin): void {
             id: `highlight-${color.id}`,
             name: `${plugin.t.commands.highlightWith || 'Highlight with'} ${color.name}`,
             icon: 'highlighter',
-            editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+            editorCallback: (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
                 const selection = editor.getSelection();
 
                 if (!selection || selection.trim().length === 0) {
@@ -57,7 +57,7 @@ export function registerHighlightCommands(plugin: AIOrganiserPlugin): void {
         id: 'remove-highlight',
         name: plugin.t.commands.removeHighlight || 'Remove highlight',
         icon: 'eraser',
-        editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+        editorCallback: (editor: Editor, _ctx: MarkdownView | MarkdownFileInfo) => {
             const selection = editor.getSelection();
 
             if (!selection || selection.trim().length === 0) {

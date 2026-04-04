@@ -12,7 +12,7 @@ class Logger {
 	}
 
 	debug(tag: string, message: string, data?: unknown): void {
-		if (this.debugMode) console.log(`[AI Organiser][${tag}] ${message}`, data ?? '');
+		if (this.debugMode) console.debug(`[AI Organiser][${tag}] ${message}`, data ?? '');
 	}
 
 	warn(tag: string, message: string, data?: unknown): void {

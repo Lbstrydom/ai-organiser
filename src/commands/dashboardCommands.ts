@@ -35,7 +35,7 @@ export function registerDashboardCommands(plugin: AIOrganiserPlugin) {
 
     // Register folder context menu
     plugin.registerEvent(
-        plugin.app.workspace.on('file-menu', (menu: Menu, file, source) => {
+        plugin.app.workspace.on('file-menu', (menu: Menu, file, _source) => {
             // Only show for folders
             if (!(file instanceof TFolder)) {
                 return;
