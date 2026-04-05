@@ -436,9 +436,11 @@ describe('TaxonomyGuardrailService', () => {
 
     describe('debug mode', () => {
         it('does not throw when debug mode is on', async () => {
+            const { logger } = await import('../src/utils/logger');
+            logger.setDebugMode(true);
             const debugService = new TaxonomyGuardrailService(true);
             const taxonomy = makeTaxonomy();
-            const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
             const result = await debugService.validateTags(
                 ['Technology', 'Computer Science', 'ai'],
@@ -447,6 +449,7 @@ describe('TaxonomyGuardrailService', () => {
             expect(result.success).toBe(true);
             expect(spy).toHaveBeenCalled();
 
+            logger.setDebugMode(false);
             spy.mockRestore();
         });
     });

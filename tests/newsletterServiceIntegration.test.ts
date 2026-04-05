@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Newsletter Service Integration Tests
  *
@@ -15,6 +16,9 @@ vi.mock('obsidian', () => ({
 vi.mock('../src/utils/htmlToMarkdown', () => ({
     htmlToMarkdown: (html: string) => html.replace(/<[^>]+>/g, ''),
     cleanMarkdown: (md: string) => md.trim(),
+    cleanNewsletterMarkdown: (md: string) => md.trim(),
+    extractNewsletterText: (md: string) => md.trim(),
+    extractNewsletterLinks: () => [],
     extractLinks: () => [],
 }));
 
@@ -47,7 +51,7 @@ vi.mock('../src/utils/frontmatterUtils', () => ({
 }));
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { requestUrl } from 'obsidian';
+import { requestUrl, TFile } from 'obsidian';
 import { NewsletterService } from '../src/services/newsletter/newsletterService';
 import type { RawNewsletter } from '../src/services/newsletter/newsletterTypes';
 import { updateAIOMetadata } from '../src/utils/frontmatterUtils';
@@ -68,15 +72,26 @@ function makeRaw(overrides: Partial<RawNewsletter> = {}): RawNewsletter {
 
 /** In-memory vault mock with file storage */
 function createMockVault() {
-    const files = new Map<string, { path: string; content: string }>();
+    const files = new Map<string, { path: string; content: string; tfile: any }>();
+    const makeTFile = (path: string) => {
+        const tf = new TFile();
+        tf.path = path;
+        tf.name = path.split('/').pop() ?? path;
+        return tf;
+    };
     return {
         files,
-        getAbstractFileByPath: (path: string) => files.get(path) ?? null,
+        getAbstractFileByPath: (path: string) => files.get(path)?.tfile ?? null,
+        getFileByPath: (path: string) => files.get(path)?.tfile ?? null,
         create: vi.fn(async (path: string, content: string) => {
-            files.set(path, { path, content });
+            const tfile = makeTFile(path);
+            files.set(path, { path, content, tfile });
+            return tfile;
         }),
         modify: vi.fn(async (file: { path: string }, content: string) => {
-            files.set(file.path, { path: file.path, content });
+            const existing = files.get(file.path);
+            const tfile = existing?.tfile ?? makeTFile(file.path);
+            files.set(file.path, { path: file.path, content, tfile });
         }),
         cachedRead: vi.fn(async (file: { path: string }) => {
             return files.get(file.path)?.content ?? '';
@@ -113,10 +128,10 @@ function createMockPlugin(vault: ReturnType<typeof createMockVault>) {
     } as any;
 }
 
-/** Mock requestUrl: routes GET (returns emails) and POST (returns ok). */
+/** Mock requestUrl: routes confirm action (returns ok) and fetch (returns emails). */
 function mockFetchResponse(emails: RawNewsletter[]) {
     (requestUrl as any).mockImplementation(async (opts: any) => {
-        if (opts.method === 'POST') {
+        if (opts.url?.includes('action=confirm')) {
             return { status: 200, text: JSON.stringify({ ok: true }), json: { ok: true } };
         }
         const body = JSON.stringify(emails);
@@ -144,7 +159,6 @@ describe('NewsletterService integration', () => {
         it('creates a fresh digest on first fetch', async () => {
             mockFetchResponse([makeRaw()]);
             const result = await service.fetchAndProcess();
-
             expect(result.totalNew).toBe(1);
             const digestEntry = [...vault.files.entries()].find(([k]) => k.includes('Digest'));
             expect(digestEntry).toBeDefined();
@@ -284,6 +298,12 @@ describe('NewsletterService integration', () => {
     // ── Mark-seen safety + Gmail confirmation ────────────────────────
 
     describe('mark-seen safety and Gmail confirmation', () => {
+        beforeEach(async () => {
+            // logger.warn only emits with debugMode on — needed for warn assertions below
+            const { logger } = await import('../src/utils/logger');
+            logger.setDebugMode(true);
+        });
+
         it('does not mark seen before vault writes', async () => {
             vault.create.mockRejectedValueOnce(new Error('Vault write failed'));
             mockFetchResponse([makeRaw()]);
@@ -298,15 +318,16 @@ describe('NewsletterService integration', () => {
             expect(plugin.newsletterSeenIds.length).toBe(1);
         });
 
-        it('calls POST to confirm read on Gmail after vault writes', async () => {
+        it('calls confirm URL on Gmail after vault writes', async () => {
             mockFetchResponse([makeRaw({ id: 'msg-42' })]);
             await service.fetchAndProcess();
 
-            // requestUrl called twice: GET (fetch) + POST (confirm)
+            // requestUrl called twice: GET fetch + GET confirm (Apps Script drops POST bodies)
             expect(requestUrl).toHaveBeenCalledTimes(2);
-            const postCall = (requestUrl as any).mock.calls[1][0];
-            expect(postCall.method).toBe('POST');
-            expect(JSON.parse(postCall.body)).toEqual(['msg-42']);
+            const confirmCall = (requestUrl as any).mock.calls[1][0];
+            expect(confirmCall.method).toBe('GET');
+            expect(confirmCall.url).toContain('action=confirm');
+            expect(confirmCall.url).toContain('ids=');
         });
 
         it('does not POST confirm when vault writes fail', async () => {
@@ -337,13 +358,15 @@ describe('NewsletterService integration', () => {
             const confirmed = await service.confirmReadOnGmail(['msg-1']);
             // Default mock returns {status: 200} — override for this test
             (requestUrl as any).mockImplementation(async (opts: any) => {
-                if (opts.method === 'POST') return { status: 405, text: '', json: null };
+                if (opts.url?.includes('action=confirm')) return { status: 405, text: '', json: null };
                 return { status: 200, text: '[]', json: [] };
             });
             const result = await service.confirmReadOnGmail(['msg-1']);
             expect(result).toBe(false);
+            // logger.warn emits: [AI Organiser][Newsletter] <message>
             expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('does not support two-phase')
+                expect.stringContaining('does not support two-phase'),
+                expect.anything()
             );
             warnSpy.mockRestore();
         });
@@ -351,7 +374,7 @@ describe('NewsletterService integration', () => {
         it('returns false and warns on old-script 500 response', async () => {
             const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
             (requestUrl as any).mockImplementation(async (opts: any) => {
-                if (opts.method === 'POST') return { status: 500, text: '', json: null };
+                if (opts.url?.includes('action=confirm')) return { status: 500, text: '', json: null };
                 return { status: 200, text: '[]', json: [] };
             });
             // Reset warning flag by creating fresh service
@@ -359,7 +382,8 @@ describe('NewsletterService integration', () => {
             const result = await freshService.confirmReadOnGmail(['msg-1']);
             expect(result).toBe(false);
             expect(warnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('Re-deploy')
+                expect.stringContaining('Re-deploy'),
+                expect.anything()
             );
             warnSpy.mockRestore();
         });

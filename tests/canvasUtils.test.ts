@@ -159,16 +159,21 @@ describe('Canvas Utils', () => {
         expect(node.color).toBe('5');
     });
 
-    it('buildCanvasEdge should warn and fallback for missing positions', () => {
+    it('buildCanvasEdge should warn and fallback for missing positions', async () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // logger.warn only emits when debugMode is on
+        const { logger } = await import('../src/utils/logger');
+        logger.setDebugMode(true);
+
         const edge: EdgeDescriptor = { fromId: 'x', toId: 'y' };
         const positions = new Map<string, { x: number; y: number }>();
 
         const result = buildCanvasEdge(edge, positions);
 
-        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Missing position'));
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Missing position'), '');
         expect(result.fromNode).toBe('x');
         expect(result.toNode).toBe('y');
+        logger.setDebugMode(false);
         warnSpy.mockRestore();
     });
 
