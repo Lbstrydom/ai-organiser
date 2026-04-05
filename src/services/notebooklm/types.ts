@@ -221,7 +221,7 @@ export interface Changelog {
  */
 export interface SelectionResult {
     /** Array of TFile objects */
-    files: any[]; // Use 'any' to avoid importing Obsidian types here
+    files: import('obsidian').TFile[];
 
     /** Selection method used */
     selectionMethod: 'tag' | 'manual' | 'folder';

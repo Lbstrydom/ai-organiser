@@ -553,8 +553,8 @@ export class MultiSourceModal extends Modal {
                     dropdown.onChange(value => {
                         this.selectedPersonaId = value;
                         if (companionToggleEl) {
-                            companionToggleEl.style.display =
-                                (this.plugin.settings.enableStudyCompanion && value === 'study') ? '' : 'none';
+                            companionToggleEl.toggleClass('ai-organiser-hidden',
+                                !(this.plugin.settings.enableStudyCompanion && value === 'study'));
                         }
                     });
                 });
@@ -567,8 +567,8 @@ export class MultiSourceModal extends Modal {
                     .setValue(this.includeCompanion)
                     .onChange(value => this.includeCompanion = value));
             companionToggleEl = companionSetting.settingEl;
-            companionToggleEl.style.display =
-                (this.plugin.settings.enableStudyCompanion && this.selectedPersonaId === 'study') ? '' : 'none';
+            companionToggleEl.toggleClass('ai-organiser-hidden',
+                !(this.plugin.settings.enableStudyCompanion && this.selectedPersonaId === 'study'));
         }
 
         // Focus context input (Summarize Mode)

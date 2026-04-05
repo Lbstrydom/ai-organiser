@@ -121,8 +121,8 @@ export class QuickPeekModal extends Modal {
 
         if (this.progressTotal > 0) {
             const bar = wrap.createDiv({ cls: 'ai-organiser-quick-peek-bar-wrap' });
-            const fill = bar.createDiv({ cls: 'ai-organiser-quick-peek-bar-fill' });
-            fill.style.width = `${Math.round((this.progressCurrent / this.progressTotal) * 100)}%`;
+            const fill = bar.createDiv({ cls: 'ai-organiser-quick-peek-bar-fill ai-organiser-dynamic-width' });
+            fill.setCssProps({ '--dynamic-width': `${Math.round((this.progressCurrent / this.progressTotal) * 100)}%` });
             wrap.createEl('p', {
                 text: `${this.progressCurrent} / ${this.progressTotal}${this.progressLabel ? ` — ${this.progressLabel}` : ''}`,
                 cls: 'ai-organiser-quick-peek-progress-text'

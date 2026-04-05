@@ -13,11 +13,9 @@ export interface HtmlToMarkdownOptions {
  * Convert HTML to Markdown, preserving hyperlinks
  */
 export function htmlToMarkdown(html: string, options?: HtmlToMarkdownOptions): string {
-    // Create a temporary DOM element
-    const template = document.createElement('template');
-    // eslint-disable-next-line @microsoft/sdl/no-inner-html -- Safe: parsing HTML string into inert <template> for DOM traversal
-    template.innerHTML = html.trim();
-    const doc = template.content;
+    // Parse HTML safely via DOMParser (no script execution, no innerHTML)
+    const parsed = new DOMParser().parseFromString(html.trim(), 'text/html');
+    const doc = parsed.body;
 
     // Strip hidden elements (preheader divs, tracking spans) before processing.
     // Email builders hide preview text with display:none, visibility:hidden, max-height:0, etc.
@@ -259,11 +257,9 @@ export function extractLinks(html: string): ExtractedLink[] {
     const links: ExtractedLink[] = [];
     const seen = new Set<string>();
 
-    const template = document.createElement('template');
-    // eslint-disable-next-line @microsoft/sdl/no-inner-html -- Safe: parsing HTML string into inert <template> for link extraction
-    template.innerHTML = html;
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
 
-    template.content.querySelectorAll('a[href]').forEach(a => {
+    parsed.body.querySelectorAll('a[href]').forEach(a => {
         const href = a.getAttribute('href');
         const text = a.textContent?.trim();
 

@@ -85,8 +85,8 @@ export class YouTubeInputModal extends Modal {
                 dropdown.setValue(this.personaId);
                 dropdown.onChange(value => {
                     this.personaId = value;
-                    this.companionToggleEl.style.display =
-                        (this.enableStudyCompanion && value === 'study') ? '' : 'none';
+                    this.companionToggleEl.toggleClass('ai-organiser-hidden',
+                        !(this.enableStudyCompanion && value === 'study'));
                 });
             });
 
@@ -98,8 +98,8 @@ export class YouTubeInputModal extends Modal {
                 .setValue(this.includeCompanion)
                 .onChange(value => this.includeCompanion = value));
         this.companionToggleEl = companionSetting.settingEl;
-        this.companionToggleEl.style.display =
-            (this.enableStudyCompanion && this.personaId === 'study') ? '' : 'none';
+        this.companionToggleEl.toggleClass('ai-organiser-hidden',
+            !(this.enableStudyCompanion && this.personaId === 'study'));
 
         // Optional context field
         new Setting(contentEl)

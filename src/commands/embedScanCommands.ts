@@ -77,7 +77,7 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
     // For vault/folder scans, show progress
     if (files.length > 1) {
         progressNotice = new Notice('', 0); // Persistent notice
-        const noticeEl = (progressNotice as any).noticeEl as HTMLElement;
+        const noticeEl = progressNotice.messageEl;
         if (noticeEl) {
             noticeEl.empty();
             const wrapper = noticeEl.createDiv({ cls: 'ai-organiser-embed-scan-progress' });
@@ -109,7 +109,10 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
                 const pct = Math.round((current / total) * 100);
                 const fill = (progressNotice as any).__progressFill as HTMLElement;
                 const text = (progressNotice as any).__progressText as HTMLElement;
-                if (fill) fill.style.width = `${pct}%`;
+                if (fill) {
+                    fill.addClass('ai-organiser-dynamic-width');
+                    fill.setCssProps({ '--dynamic-width': `${pct}%` });
+                }
                 if (text) text.textContent = embedScan.scanProgress
                     .replace('{current}', String(current))
                     .replace('{total}', String(total))

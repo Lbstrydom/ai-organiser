@@ -290,10 +290,10 @@ export class SourcePackService {
             // Apply post-export tag action
             onProgress?.(totalItems, totalItems, 'Updating tags...');
             if (this.config.postExportTagAction === 'clear') {
-                await this.selectionService.clearSelection(selection.files as TFile[]);
+                await this.selectionService.clearSelection(selection.files);
             } else if (this.config.postExportTagAction === 'archive') {
                 await this.selectionService.archiveSelection(
-                    selection.files as TFile[],
+                    selection.files,
                     packId,
                     manifest.revision
                 );

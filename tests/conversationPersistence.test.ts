@@ -95,6 +95,9 @@ function buildMockApp() {
                 files.set(newPath, { file, content: entry.content });
             }
         }),
+        trashFile: vi.fn(async (file: TFile) => {
+            files.delete(file.path);
+        }),
     };
 
     return { vault, files, fileManager };
@@ -353,13 +356,13 @@ describe('ConversationPersistenceService', () => {
         it('trashes the file at the given path', async () => {
             const path = await service.saveNow(makeState());
             await service.delete(path);
-            expect(mockApp.vault.trash).toHaveBeenCalledTimes(1);
-            expect(mockApp.vault.trash).toHaveBeenCalledWith(expect.any(TFile), true);
+            expect(mockApp.fileManager.trashFile).toHaveBeenCalledTimes(1);
+            expect(mockApp.fileManager.trashFile).toHaveBeenCalledWith(expect.any(TFile));
         });
 
         it('does nothing for non-existent path', async () => {
             await service.delete('nonexistent/path.md');
-            expect(mockApp.vault.trash).not.toHaveBeenCalled();
+            expect(mockApp.fileManager.trashFile).not.toHaveBeenCalled();
         });
     });
 
@@ -578,7 +581,7 @@ describe('ConversationPersistenceService', () => {
 
             const pruned = await service.pruneOldConversations(30);
             expect(pruned).toBe(1);
-            expect(mockApp.vault.trash).toHaveBeenCalled();
+            expect(mockApp.fileManager.trashFile).toHaveBeenCalled();
         });
 
         it('keeps recent conversations', async () => {

@@ -6984,3 +6984,89 @@
     justify-content: center;
     padding: 4px;
 }
+
+/* ============================================
+   Utility classes for replacing inline styles
+   ============================================ */
+
+/* Hidden via display:none */
+.ai-organiser-hidden {
+    display: none !important;
+}
+
+/* Shown via display:block (overrides parent hide) */
+.ai-organiser-block {
+    display: block !important;
+}
+
+/* Shown via display:flex */
+.ai-organiser-flex {
+    display: flex !important;
+}
+
+/* Dynamic width (percentage-based progress bars) */
+.ai-organiser-dynamic-width {
+    width: var(--dynamic-width);
+}
+
+/* Color swatch (dynamic background color) */
+.ai-organiser-color-swatch {
+    background-color: var(--swatch-color);
+}
+
+/* Scaled iframe preview */
+.ai-organiser-scaled-iframe {
+    transform: scale(var(--iframe-scale));
+    width: var(--iframe-width);
+    height: var(--iframe-height);
+}
+.ai-organiser-scaled-iframe-wrapper {
+    height: var(--iframe-wrapper-height);
+}
+
+/* Slide nav container shown only when >1 slide */
+.ai-organiser-slide-nav-container {
+    display: flex;
+}
+.ai-organiser-slide-nav-container.ai-organiser-hidden {
+    display: none !important;
+}
+
+/* Dynamic indent for folder tree items */
+.ai-organiser-tree-item-indent {
+    padding-left: var(--tree-indent);
+}
+
+/* Dynamic opacity */
+.ai-organiser-dim {
+    opacity: 0.5;
+}
+
+/* Textarea auto-sized height */
+.ai-organiser-autosize-textarea {
+    height: var(--textarea-height);
+}
+
+/* Folder picker highlight states */
+.ai-organiser-folder-highlight-selected {
+    background-color: var(--text-on-accent);
+    color: var(--interactive-accent);
+}
+.ai-organiser-folder-highlight-match {
+    background-color: var(--text-highlight-bg);
+    color: inherit;
+}
+
+/* Minutes banner (hidden by default, shown via ai-organiser-block class) */
+.ai-organiser-minutes-banner {
+    display: none;
+    padding: 6px 12px;
+    margin: 2px 0 8px 0;
+    border-radius: 6px;
+    background: #d4edda;
+    border: 2px solid #28a745;
+    color: #155724;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+}

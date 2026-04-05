@@ -227,8 +227,8 @@ export class MermaidChatModal extends Modal {
 
         const switchTab = (tab: 'preview' | 'chat') => {
             this.activeTab = tab;
-            previewTabContent.style.display = tab === 'preview' ? '' : 'none';
-            chatTabContent.style.display = tab === 'chat' ? '' : 'none';
+            previewTabContent.toggleClass('ai-organiser-hidden', tab !== 'preview');
+            chatTabContent.toggleClass('ai-organiser-hidden', tab !== 'chat');
             previewTab.classList.toggle('ai-organiser-mermaid-tab-active', tab === 'preview');
             chatTab.classList.toggle('ai-organiser-mermaid-tab-active', tab === 'chat');
         };
@@ -776,15 +776,15 @@ export class MermaidChatModal extends Modal {
     private setProcessing(processing: boolean): void {
         this.isProcessing = processing;
         this.inputEl.disabled = processing;
-        this.sendBtn.style.display = processing ? 'none' : '';
-        this.cancelBtn.style.display = processing ? '' : 'none';
+        this.sendBtn.toggleClass('ai-organiser-hidden', processing);
+        this.cancelBtn.toggleClass('ai-organiser-hidden', !processing);
     }
 
     private switchToPreviewTab(): void {
         const panes = this.contentEl.querySelectorAll<HTMLElement>('.ai-organiser-mermaid-tab-pane');
         const tabs = this.contentEl.querySelectorAll<HTMLElement>('.ai-organiser-mermaid-tab');
         const previewLabel = this.plugin.t.modals.mermaidChat.previewTab;
-        panes.forEach(p => { p.style.display = p.dataset.tab === 'preview' ? '' : 'none'; });
+        panes.forEach(p => { p.toggleClass('ai-organiser-hidden', p.dataset.tab !== 'preview'); });
         tabs.forEach(tab => {
             tab.classList.toggle('ai-organiser-mermaid-tab-active', tab.textContent === previewLabel);
         });

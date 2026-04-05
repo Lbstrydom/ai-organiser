@@ -762,7 +762,7 @@ class DisciplineSuggestionModal extends Modal {
             checkbox.addClass('ai-organiser-flex-shrink-0');
             checkbox.addEventListener('change', () => {
                 discipline.selected = checkbox.checked;
-                itemEl.style.opacity = discipline.selected ? '1' : '0.5';
+                itemEl.toggleClass('ai-organiser-opacity-50', !discipline.selected);
                 if ((this as any).updateCount) (this as any).updateCount();
             });
 
@@ -826,7 +826,7 @@ class DisciplineSuggestionModal extends Modal {
                 placeholder: 'Add context for AI refinement (e.g., "needs to be more specific" or "combine with data-science")'
             });
             commentInput.value = discipline.userComment || '';
-            commentInput.style.display = discipline.userComment ? 'block' : 'none';
+            commentInput.toggleClass('ai-organiser-hidden', !discipline.userComment);
             commentInput.addClass('ai-organiser-w-full');
             commentInput.addClass('ai-organiser-min-h-60');
             commentInput.addClass('ai-organiser-mt-4');
@@ -839,8 +839,8 @@ class DisciplineSuggestionModal extends Modal {
             });
 
             commentToggle.addEventListener('click', () => {
-                const isVisible = commentInput.style.display !== 'none';
-                commentInput.style.display = isVisible ? 'none' : 'block';
+                const isVisible = !commentInput.hasClass('ai-organiser-hidden');
+                commentInput.toggleClass('ai-organiser-hidden', isVisible);
                 if (!isVisible) {
                     commentInput.focus();
                 }

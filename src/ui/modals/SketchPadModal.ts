@@ -122,8 +122,8 @@ export class SketchPadModal extends Modal {
         const colorBar = container.createEl('div', { cls: 'ai-organiser-sketch-style-row' });
         const colors = ['#000000', '#2563eb', '#dc2626'];
         for (const color of colors) {
-            const btn = colorBar.createEl('button', { cls: 'ai-organiser-sketch-color' });
-            btn.style.backgroundColor = color;
+            const btn = colorBar.createEl('button', { cls: 'ai-organiser-sketch-color ai-organiser-color-swatch' });
+            btn.setCssProps({ '--swatch-color': color });
             btn.title = color;
             if (color.toLowerCase() === this.activeColor.toLowerCase()) {
                 btn.addClass('is-active');

@@ -1703,9 +1703,7 @@ export class MinutesCreationModal extends Modal {
      */
     private createStatusBanner(): HTMLDivElement {
         const banner = document.createElement('div');
-        banner.style.cssText = 'display:none; padding:6px 12px; margin:2px 0 8px 0; border-radius:6px; ' +
-            'background:#d4edda; border:2px solid #28a745; color:#155724; ' +
-            'font-size:13px; font-weight:700; line-height:1.4;';
+        banner.addClass('ai-organiser-minutes-banner');
         return banner;
     }
 

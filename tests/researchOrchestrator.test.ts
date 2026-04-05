@@ -60,7 +60,7 @@ vi.mock('../src/services/canvas/canvasUtils', () => ({
 }));
 
 import { ResearchOrchestrator } from '../src/services/research/researchOrchestrator';
-import { TFolder } from './mocks/obsidian';
+import { TFolder, createTFile } from './mocks/obsidian';
 import type { SearchResult, ResearchSessionState, SourceExtraction, PerspectiveQuery } from '../src/services/research/researchTypes';
 
 // ── Fixtures ──
@@ -75,6 +75,9 @@ function makePlugin() {
                 modify: vi.fn(),
                 create: vi.fn(),
                 delete: vi.fn(),
+            },
+            fileManager: {
+                trashFile: vi.fn().mockResolvedValue(undefined),
             },
         },
         secretStorageService: {
@@ -654,7 +657,7 @@ describe('ResearchOrchestrator', () => {
         });
 
         it('saveSession modifies file when it already exists', async () => {
-            const existingFile = { path: 'AI-Organiser/Config/.research-session-abc123.json' };
+            const existingFile = createTFile('AI-Organiser/Config/.research-session-abc123.json');
             plugin.app.vault.getAbstractFileByPath.mockReturnValue(existingFile);
             plugin.app.vault.modify.mockResolvedValue(undefined);
 
@@ -668,13 +671,13 @@ describe('ResearchOrchestrator', () => {
         });
 
         it('clearSession deletes the session file', async () => {
-            const existingFile = { path: 'AI-Organiser/Config/.research-session-abc123.json' };
+            const existingFile = createTFile('AI-Organiser/Config/.research-session-abc123.json');
             plugin.app.vault.getAbstractFileByPath.mockReturnValue(existingFile);
-            plugin.app.vault.delete.mockResolvedValue(undefined);
+            plugin.app.fileManager.trashFile.mockResolvedValue(undefined);
 
             await orchestrator.clearSession();
 
-            expect(plugin.app.vault.delete).toHaveBeenCalledWith(existingFile);
+            expect(plugin.app.fileManager.trashFile).toHaveBeenCalledWith(existingFile);
         });
 
         it('clearSession does nothing if no session file exists', async () => {
@@ -682,7 +685,7 @@ describe('ResearchOrchestrator', () => {
 
             await orchestrator.clearSession();
 
-            expect(plugin.app.vault.delete).not.toHaveBeenCalled();
+            expect(plugin.app.fileManager.trashFile).not.toHaveBeenCalled();
         });
 
         it('findResumableSession returns null if config folder does not exist', async () => {
@@ -695,14 +698,11 @@ describe('ResearchOrchestrator', () => {
 
         it('findResumableSession returns recent session within 1 hour', async () => {
             const state = makeSessionState({ timestamp: Date.now() - 1000 }); // 1 second ago
-            const sessionFile = {
-                name: '.research-session-abc123.json',
-                path: 'AI-Organiser/Config/.research-session-abc123.json',
-                stat: { mtime: Date.now() },
-            };
+            const sessionFile = createTFile('AI-Organiser/Config/.research-session-abc123.json');
+            sessionFile.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
 
             const folder = new TFolder();
-            folder.children = [sessionFile as any];
+            folder.children = [sessionFile];
             plugin.app.vault.getAbstractFileByPath.mockReturnValue(folder);
             plugin.app.vault.read.mockResolvedValue(JSON.stringify(state));
 
@@ -714,41 +714,35 @@ describe('ResearchOrchestrator', () => {
 
         it('findResumableSession deletes expired sessions (>1 hour)', async () => {
             const state = makeSessionState({ timestamp: Date.now() - 4_000_000 }); // >1 hour
-            const sessionFile = {
-                name: '.research-session-old.json',
-                path: 'AI-Organiser/Config/.research-session-old.json',
-                stat: { mtime: Date.now() - 4_000_000 },
-            };
+            const sessionFile = createTFile('AI-Organiser/Config/.research-session-old.json');
+            sessionFile.stat = { mtime: Date.now() - 4_000_000, ctime: 0, size: 0 };
 
             const folder = new TFolder();
-            folder.children = [sessionFile as any];
+            folder.children = [sessionFile];
             plugin.app.vault.getAbstractFileByPath.mockReturnValue(folder);
             plugin.app.vault.read.mockResolvedValue(JSON.stringify(state));
-            plugin.app.vault.delete.mockResolvedValue(undefined);
+            plugin.app.fileManager.trashFile.mockResolvedValue(undefined);
 
             const result = await orchestrator.findResumableSession();
 
             expect(result).toBeNull();
-            expect(plugin.app.vault.delete).toHaveBeenCalled();
+            expect(plugin.app.fileManager.trashFile).toHaveBeenCalled();
         });
 
         it('findResumableSession handles corrupted session files', async () => {
-            const sessionFile = {
-                name: '.research-session-corrupt.json',
-                path: 'AI-Organiser/Config/.research-session-corrupt.json',
-                stat: { mtime: Date.now() },
-            };
+            const sessionFile = createTFile('AI-Organiser/Config/.research-session-corrupt.json');
+            sessionFile.stat = { mtime: Date.now(), ctime: Date.now(), size: 0 };
 
             const folder = new TFolder();
-            folder.children = [sessionFile as any];
+            folder.children = [sessionFile];
             plugin.app.vault.getAbstractFileByPath.mockReturnValue(folder);
             plugin.app.vault.read.mockResolvedValue('not valid json{{{');
-            plugin.app.vault.delete.mockResolvedValue(undefined);
+            plugin.app.fileManager.trashFile.mockResolvedValue(undefined);
 
             const result = await orchestrator.findResumableSession();
 
             expect(result).toBeNull();
-            expect(plugin.app.vault.delete).toHaveBeenCalled();
+            expect(plugin.app.fileManager.trashFile).toHaveBeenCalled();
         });
     });
 

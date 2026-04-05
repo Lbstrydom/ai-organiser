@@ -281,7 +281,8 @@ export class FolderScopePickerModal extends Modal {
 
         const itemEl = this.folderListEl.createDiv({ cls: `folder-item ${isTopLevel ? 'folder-item-top' : 'folder-item-nested'}` });
         itemEl.setCssProps({ '--pad': '8px 12px' }); itemEl.addClass('ai-organiser-pad-custom');
-        itemEl.style.paddingLeft = `${12 + depth * 16}px`;
+        itemEl.addClass('ai-organiser-tree-item-indent');
+        itemEl.setCssProps({ '--tree-indent': `${12 + depth * 16}px` });
         itemEl.addClass('ai-organiser-cursor-pointer');
         itemEl.addClass('ai-organiser-flex-center', 'ai-organiser-gap-8');
         itemEl.addClass('ai-organiser-border-b');
@@ -342,8 +343,7 @@ export class FolderScopePickerModal extends Modal {
 
                 if (before) nameEl.createSpan({ text: before });
                 const highlightEl = nameEl.createSpan({ text: match, cls: 'search-highlight' });
-                highlightEl.style.backgroundColor = isSelected ? 'var(--text-on-accent)' : 'var(--text-highlight-bg)';
-                highlightEl.style.color = isSelected ? 'var(--interactive-accent)' : 'inherit';
+                highlightEl.addClass(isSelected ? 'ai-organiser-folder-highlight-selected' : 'ai-organiser-folder-highlight-match');
                 highlightEl.addClass('ai-organiser-rounded');
                 if (after) nameEl.createSpan({ text: after });
             } else {

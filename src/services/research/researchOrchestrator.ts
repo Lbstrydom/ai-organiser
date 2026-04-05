@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/no-tfile-tfolder-cast, obsidianmd/prefer-file-manager-trash-file -- Session file management uses legacy API for test compatibility */
 /**
  * Research Orchestrator
  *
@@ -916,17 +915,17 @@ export class ResearchOrchestrator {
         if (!configFolder || !(configFolder instanceof TFolder)) return null;
 
         const sessionFiles = configFolder.children
-            .filter(f => f.name.startsWith('.research-session-') && f.name.endsWith('.json'))
-            .sort((a, b) => (b as TFile).stat.mtime - (a as TFile).stat.mtime);
+            .filter((f): f is TFile => f instanceof TFile && f.name.startsWith('.research-session-') && f.name.endsWith('.json'))
+            .sort((a, b) => b.stat.mtime - a.stat.mtime);
 
         for (const f of sessionFiles) {
             try {
-                const content = await this.plugin.app.vault.read(f as TFile);
+                const content = await this.plugin.app.vault.read(f);
                 const state: ResearchSessionState = JSON.parse(content);
                 if (Date.now() - state.timestamp < 3_600_000) return state;
-                await this.plugin.app.vault.delete(f as TFile);
+                await this.plugin.app.fileManager.trashFile(f);
             } catch {
-                await this.plugin.app.vault.delete(f as TFile).catch(() => {});
+                await this.plugin.app.fileManager.trashFile(f).catch(() => {});
             }
         }
         return null;
@@ -938,8 +937,8 @@ export class ResearchOrchestrator {
         await ensureFolderExists(this.plugin.app.vault, folder);
         const json = JSON.stringify(state, null, 2);
         const file = this.plugin.app.vault.getAbstractFileByPath(this.sessionFilePath);
-        if (file) {
-            await this.plugin.app.vault.modify(file as TFile, json);
+        if (file instanceof TFile) {
+            await this.plugin.app.vault.modify(file, json);
         } else {
             await this.plugin.app.vault.create(this.sessionFilePath, json);
         }
@@ -948,7 +947,7 @@ export class ResearchOrchestrator {
     /** Delete current session file. */
     async clearSession(): Promise<void> {
         const file = this.plugin.app.vault.getAbstractFileByPath(this.sessionFilePath);
-        if (file) await this.plugin.app.vault.delete(file as TFile);
+        if (file instanceof TFile) await this.plugin.app.fileManager.trashFile(file);
     }
 
     /** Cleanup: close any active CDP connections. Called from plugin.onunload(). */

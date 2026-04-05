@@ -208,10 +208,14 @@ export class SlideIframePreview {
         if (!this.iframeWrapper || !this.iframe) return;
         const containerWidth = this.iframeWrapper.clientWidth || 600;
         const scale = containerWidth / SLIDE_WIDTH;
-        this.iframe.style.transform = `scale(${scale})`;
-        this.iframe.style.width = `${SLIDE_WIDTH}px`;
-        this.iframe.style.height = `${SLIDE_HEIGHT}px`;
-        this.iframeWrapper.style.height = `${Math.ceil(SLIDE_HEIGHT * scale)}px`;
+        this.iframe.addClass('ai-organiser-scaled-iframe');
+        this.iframe.setCssProps({
+            '--iframe-scale': String(scale),
+            '--iframe-width': `${SLIDE_WIDTH}px`,
+            '--iframe-height': `${SLIDE_HEIGHT}px`
+        });
+        this.iframeWrapper.addClass('ai-organiser-scaled-iframe-wrapper');
+        this.iframeWrapper.setCssProps({ '--iframe-wrapper-height': `${Math.ceil(SLIDE_HEIGHT * scale)}px` });
     }
 
     private showActiveSlide(): void {
@@ -279,7 +283,7 @@ export class SlideIframePreview {
 
         // L4: hide nav when only 1 slide
         if (this.navContainer) {
-            this.navContainer.style.display = this.slideCount <= 1 ? 'none' : 'flex';
+            this.navContainer.toggleClass('ai-organiser-hidden', this.slideCount <= 1);
         }
     }
 

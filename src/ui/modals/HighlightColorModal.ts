@@ -56,8 +56,8 @@ export class HighlightColorModal extends Modal {
         const colorGrid = contentEl.createDiv({ cls: 'ai-organiser-highlight-color-grid' });
 
         for (const color of HIGHLIGHT_COLORS) {
-            const colorBtn = colorGrid.createDiv({ cls: 'ai-organiser-highlight-color-btn' });
-            colorBtn.style.backgroundColor = color.color;
+            const colorBtn = colorGrid.createDiv({ cls: 'ai-organiser-highlight-color-btn ai-organiser-color-swatch' });
+            colorBtn.setCssProps({ '--swatch-color': color.color });
             colorBtn.setAttribute('aria-label', color.name);
             colorBtn.setAttribute('title', color.name);
 

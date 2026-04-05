@@ -13,6 +13,7 @@
 export function enableAutoExpand(textarea: HTMLTextAreaElement, maxHeight = 200): void {
     textarea.addEventListener('input', () => {
         textarea.addClass('ai-organiser-h-auto');
-        textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+        textarea.addClass('ai-organiser-autosize-textarea');
+        textarea.setCssProps({ '--textarea-height': Math.min(textarea.scrollHeight, maxHeight) + 'px' });
     });
 }

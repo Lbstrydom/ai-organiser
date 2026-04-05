@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/no-tfile-tfolder-cast -- TFile cast used for test compatibility */
 /**
  * Newsletter Service
  *
@@ -357,8 +356,8 @@ export class NewsletterService {
         const digestPath = getDigestPath(outputRoot, dateStr);
 
         const existingDigest = vault.getAbstractFileByPath(digestPath);
-        if (existingDigest) {
-            await this.mergeIntoExistingDigest(existingDigest as TFile, newsletters, dateStr);
+        if (existingDigest instanceof TFile) {
+            await this.mergeIntoExistingDigest(existingDigest, newsletters, dateStr);
         } else {
             const digestContent = this.buildDigestContent(newsletters, dateStr, dateLabel, 0);
             await vault.create(digestPath, digestContent);

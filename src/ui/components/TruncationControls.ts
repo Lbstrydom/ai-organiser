@@ -146,14 +146,14 @@ export function createTruncationWarning(
     // Truncation dropdown
     const select = createTruncationDropdown(warningEl, currentChoice, options, (choice) => {
         // Update full warning visibility
-        fullWarningEl.style.display = choice === 'full' ? 'block' : 'none';
+        fullWarningEl.toggleClass('ai-organiser-hidden', choice !== 'full');
         onChange(choice);
     });
     
     // Full document warning (shown only when "Use Full" selected)
     const fullWarningEl = warningEl.createDiv({ cls: 'ai-organiser-truncation-full-warning' });
     fullWarningEl.setText(fullWarningText || 'Warning: may exceed token limits');
-    fullWarningEl.style.display = currentChoice === 'full' ? 'block' : 'none';
+    fullWarningEl.toggleClass('ai-organiser-hidden', currentChoice !== 'full');
     
     return { warningEl, select, fullWarningEl };
 }
