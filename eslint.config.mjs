@@ -3,7 +3,7 @@ import { defineConfig } from 'eslint/config';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default defineConfig([
-    ...obsidianmd.configs.recommended,
+    ...obsidianmd.configs.recommendedWithLocalesEn,
     {
         files: ['src/**/*.ts'],
         languageOptions: {
@@ -71,6 +71,27 @@ export default defineConfig([
 
             // Browser globals available in Obsidian
             'no-undef': 'off',
+        },
+    },
+    {
+        // Pass our custom acronym list to the locale-module rule so domain acronyms
+        // (LLM, GTD, PPTX, DOCX, RAG, etc.) are preserved during sentence-case checks.
+        files: ['**/en.ts', '**/en-*.ts', '**/en/**/*.ts'],
+        rules: {
+            'obsidianmd/ui/sentence-case-locale-module': ['warn', {
+                acronyms: [
+                    'API', 'HTTP', 'HTTPS', 'URL', 'DNS', 'TCP', 'IP', 'SSH', 'TLS', 'SSL',
+                    'FTP', 'SFTP', 'SMTP', 'JSON', 'XML', 'HTML', 'CSS', 'PDF', 'CSV', 'YAML',
+                    'SQL', 'PNG', 'JPG', 'JPEG', 'GIF', 'SVG', '2FA', 'MFA', 'OAuth', 'JWT',
+                    'LDAP', 'SAML', 'SDK', 'IDE', 'CLI', 'GUI', 'CRUD', 'REST', 'SOAP', 'CPU',
+                    'GPU', 'RAM', 'SSD', 'USB', 'UI', 'OK', 'RSS', 'S3', 'WebDAV', 'ID',
+                    'UUID', 'GUID', 'SHA', 'MD5', 'ASCII', 'UTF-8', 'UTF-16', 'DOM', 'CDN',
+                    'FAQ', 'AI', 'ML',
+                    'LLM', 'PPTX', 'DOCX', 'RAG', 'KPI', 'GTD', 'SSE', 'ONNX', 'WASM', 'CDP',
+                    'ASIN', 'ISBN', 'DOI', 'SERP', 'MP3', 'MP4', 'MB', 'GB', 'KB', 'RTF',
+                    'TXT', 'XLSX', 'IANA', 'UA', 'TLDR', 'UX', 'MIME', 'UTF', 'FFmpeg',
+                ],
+            }],
         },
     },
     {
