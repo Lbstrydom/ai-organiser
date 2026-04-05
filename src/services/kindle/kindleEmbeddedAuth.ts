@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for BrowserWindow */
 /**
  * Kindle Embedded Auth Method (Desktop Only)
  *
@@ -18,6 +17,7 @@
  */
 
 import { Platform } from 'obsidian';
+import { desktopRequire } from '../../utils/desktopRequire';
 import type { AuthMethod, AuthMethodResult } from './kindleAuthMethods';
 import type { KindleCookiePayload, KindleHighlight, KindleScrapedBook } from './kindleTypes';
 import type { Translations } from '../../i18n/types';
@@ -28,12 +28,27 @@ import { logger } from '../../utils/logger';
 // Electron BrowserWindow surface used in this module. Typed loosely because
 // @electron/remote isn't bundled with types and the runtime shape depends on
 // the host Electron version.
+interface ElectronCookie {
+    name: string;
+    value: string;
+    domain: string;
+    path: string;
+    httpOnly: boolean;
+    secure: boolean;
+}
+
 interface ElectronWebContents {
     executeJavaScript<T = unknown>(code: string): Promise<T>;
-    on(event: string, handler: (...args: unknown[]) => void): void;
-    once(event: string, handler: (...args: unknown[]) => void): void;
-    session: { clearStorageData(options?: unknown): Promise<void> };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron event handler signature varies by event type
+    on(event: string, handler: any): void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron event handler signature varies by event type
+    once(event: string, handler: any): void;
+    session: {
+        clearStorageData(options?: unknown): Promise<void>;
+        cookies: { get(filter: Record<string, unknown>): Promise<ElectronCookie[]> };
+    };
     getURL(): string;
+    getUserAgent(): string;
 }
 
 interface ElectronBrowserWindow {
@@ -49,6 +64,14 @@ interface ElectronBrowserWindow {
 
 interface ElectronBrowserWindowConstructor {
     new(options: unknown): ElectronBrowserWindow;
+}
+
+interface ElectronRemoteModule {
+    BrowserWindow: ElectronBrowserWindowConstructor;
+}
+
+function requireElectronRemote(): ElectronRemoteModule | undefined {
+    return desktopRequire<ElectronRemoteModule>('@electron/remote');
 }
 
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for overall login flow
@@ -418,8 +441,7 @@ export class EmbeddedAuthMethod implements AuthMethod {
         // DD-4: Platform.isDesktop does not exist — use !Platform.isMobile
         if (Platform.isMobile) return false;
         try {
-            require('@electron/remote');
-            return true;
+            return requireElectronRemote() !== undefined;
         } catch {
             return false;
         }
@@ -447,8 +469,10 @@ async function performEmbeddedLogin(
     onProgress?: (phase: string) => void,
     credentials?: { email?: string; password?: string },
 ): Promise<AuthMethodResult> {
-     
-    const remote = require('@electron/remote');
+    const remote = requireElectronRemote();
+    if (!remote) {
+        return { success: false, error: 'Embedded login requires desktop Obsidian' };
+    }
     const BrowserWindow = remote.BrowserWindow;
 
     // Login window uses the persistent partition so cookies are shared
@@ -596,7 +620,7 @@ async function performEmbeddedLogin(
         // Load the notebook URL to start the login flow.
         // If session cookies exist in the partition, the page loads directly.
         // Otherwise Amazon redirects to the login page.
-        loginWin.loadURL(notebookUrl);
+        void loginWin.loadURL(notebookUrl);
 
         // Auto-fill Amazon credentials when the login form loads.
         // Uses dom-ready event which fires for each page navigation,
@@ -776,8 +800,7 @@ interface HighlightReadiness {
 export function isEmbeddedAvailable(): boolean {
     if (Platform.isMobile) return false;
     try {
-        require('@electron/remote');
-        return true;
+        return requireElectronRemote() !== undefined;
     } catch {
         return false;
     }
@@ -996,8 +1019,10 @@ export async function fetchHighlightsEmbedded(
         throw new Error('Embedded highlight fetching is desktop-only');
     }
 
-     
-    const remote = require('@electron/remote');
+    const remote = requireElectronRemote();
+    if (!remote) {
+        throw new Error('Embedded highlight fetching is desktop-only');
+    }
     const BrowserWindow = remote.BrowserWindow;
     const notebookUrl = getNotebookUrl(region);
 

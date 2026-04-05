@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Code-splitting: Readability loaded on demand */
 /**
  * Web Content Service
  * Fetches and extracts article content from URLs using Readability,
@@ -14,6 +13,7 @@
 
 import { requestUrl } from 'obsidian';
 import { Readability } from '@mozilla/readability';
+import { getElectron } from '../utils/desktopRequire';
 import { validateUrl, isPdfUrl } from '../utils/urlValidator';
 import { htmlToMarkdown, cleanMarkdown, ExtractedLink, extractLinks } from '../utils/htmlToMarkdown';
 import { chunkContentSync } from '../utils/textChunker';
@@ -361,15 +361,15 @@ export async function fetchArticle(url: string): Promise<WebFetchResult> {
  * Open URL in default browser (for PDF fallback)
  */
 export function openInBrowser(url: string): void {
-    if (typeof require !== 'undefined') {
-        try {
-             
-            const { shell } = require('electron');
+    try {
+        const electron = getElectron();
+        const shell = (electron as { shell?: { openExternal?: (url: string) => void } } | undefined)?.shell;
+        if (shell?.openExternal) {
             shell.openExternal(url);
             return;
-        } catch {
-            // Electron not available, fall through to window.open
         }
+    } catch {
+        // Electron not available, fall through to window.open
     }
     window.open(url, '_blank');
 }

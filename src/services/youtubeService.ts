@@ -620,10 +620,9 @@ function selectBestCaptionTrack(captionTracks: YouTubeCaptionTrack[]): YouTubeCa
 }
 
 /**
- * Fetch transcript from YouTube by scraping captions
- * This is a fallback method - prefer using transcribeYouTubeWithGemini
- *
- * @deprecated Use transcribeYouTubeWithGemini for more reliable results
+ * Fetch transcript from YouTube by scraping captions.
+ * Active fallback method used when a Gemini API key is unavailable.
+ * Prefer using transcribeYouTubeWithGemini when Gemini is configured.
  */
 export async function fetchYouTubeTranscript(url: string): Promise<YouTubeTranscriptResult> {
     const videoId = extractYouTubeVideoId(url);

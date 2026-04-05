@@ -252,7 +252,7 @@ export class VectorStoreService {
 
             // Read file content
             const content = await this.app.vault.read(file);
-            const contentHash = createContentHash(content);
+            const contentHash = await createContentHash(content);
             const changeTracker = this.getChangeTracker();
             const hasChanged = changeTracker ? changeTracker.hasChanged(file.path, contentHash) : true;
 
@@ -284,7 +284,7 @@ export class VectorStoreService {
             const documents: VectorDocument[] = [];
             for (let i = 0; i < chunks.length; i++) {
                 const chunk = chunks[i];
-                const chunkHash = createContentHash(chunk);
+                const chunkHash = await createContentHash(chunk);
 
                 documents.push({
                     id: `${file.path}-${i}`,

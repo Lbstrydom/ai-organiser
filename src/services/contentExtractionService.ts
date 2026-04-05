@@ -230,9 +230,9 @@ export class ContentExtractionService {
                     this.youtubeGeminiConfig.timeoutMs
                 );
             } else {
-                // Fall back to legacy caption scraping (deprecated but works without API key)
-                logger.debug('Core', 'Using legacy caption scraping for YouTube');
-                result = await fetchYouTubeTranscript(item.url); // eslint-disable-line @typescript-eslint/no-deprecated -- fallback for users without Gemini key
+                // Fall back to caption scraping (works without API key)
+                logger.debug('Core', 'Using caption scraping for YouTube');
+                result = await fetchYouTubeTranscript(item.url);
             }
 
             if (!result.success || !result.transcript) {

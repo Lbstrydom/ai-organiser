@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for file dialogs and fs */
-import { App, Notice, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, Notice, TFile } from 'obsidian';
+import { desktopRequire, getFs } from '../../utils/desktopRequire';
 import type { ChatMode, ChatModeHandler, ModalContext, SendResult, ActionDescriptor, ActionCallbacks, FreeChatCallbacks } from './ChatModeHandler';
 import type { Translations } from '../../i18n/types';
 import type { ProjectConfig, ProjectService } from '../../services/chat/projectService';
@@ -386,8 +386,9 @@ export class FreeChatModeHandler implements ChatModeHandler {
 
     private async tryNativeFilePicker(): Promise<string[] | null> {
         try {
-            // @ts-ignore — available in Electron/desktop Obsidian
-            const remote = require('@electron/remote');
+            type ElectronRemote = { dialog: { showOpenDialog: (opts: { properties: string[]; filters: Array<{ name: string; extensions: string[] }> }) => Promise<{ canceled: boolean; filePaths: string[] }> } };
+            const remote = desktopRequire<ElectronRemote>('@electron/remote');
+            if (!remote) return null; // Electron unavailable (mobile)
             const result = await remote.dialog.showOpenDialog({
                 properties: ['openFile', 'multiSelections'],
                 filters: [
@@ -405,9 +406,12 @@ export class FreeChatModeHandler implements ChatModeHandler {
     private async addExternalAttachment(filePath: string, ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         const fileName = filePath.split(/[\\/]/).pop() ?? 'unknown';
         try {
-            // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external files via native OS dialog
-            const fs = require('fs').promises;
-            const buffer = await fs.readFile(filePath);
+            const fsMod = getFs();
+            if (!fsMod) {
+                callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExternalFailed.replace('{name}', fileName));
+                return;
+            }
+            const buffer = await fsMod.promises.readFile(filePath);
 
             if (!this.documentService) {
                 this.documentService = new DocumentExtractionService(this.app);
@@ -453,8 +457,6 @@ export class FreeChatModeHandler implements ChatModeHandler {
     }
 
     private openVaultFilePicker(ctx: ModalContext, callbacks: ActionCallbacks): void {
-        const { FuzzySuggestModal } = require('obsidian');
-
         const vaultApp = this.app;
         class VaultFilePicker extends FuzzySuggestModal<TFile> {
             constructor(pickerApp: App, private readonly onSelect: (file: TFile) => void) {
@@ -694,10 +696,10 @@ export class FreeChatModeHandler implements ChatModeHandler {
                     att.charCount = att.extractedText.length;
                 }
             } else {
-                // External (native-picker) file
-                // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external files via native OS dialog
-                const fs = require('fs').promises;
-                const buffer = await fs.readFile(att.path);
+                // External (native-picker) file (desktop-only)
+                const fsMod = getFs();
+                if (!fsMod) return;
+                const buffer = await fsMod.promises.readFile(att.path);
                 const ext = (att.path.split('.').pop() ?? '').toLowerCase();
                 if (['docx', 'xlsx', 'pptx', 'pdf', 'rtf'].includes(ext)) {
                     try {
@@ -726,7 +728,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
 
     private rerenderContext(ctx: ModalContext): void {
         // Find the context panel element in the modal and re-render
-        const ctxEl = document.querySelector('.ai-organiser-chat-context') as HTMLElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+        const ctxEl = document.querySelector('.ai-organiser-chat-context') as HTMLElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- narrow Element to HTMLElement for DOM manipulation
         if (ctxEl) {
             this.renderContextPanel(ctxEl, ctx);
         }

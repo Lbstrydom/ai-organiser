@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Setup wizard contains brand names (Ollama, Whisper, OpenAI) and technical terms */
 /**
  * Local Setup Wizard Modal
  * Guides users through setting up local AI (Ollama, Whisper) for offline use
@@ -384,7 +383,7 @@ export class LocalSetupWizardModal extends Modal {
             const windowsEl = platformEl.createDiv('platform-item');
             windowsEl.createEl('strong', { text: 'Windows: ' });
             const winLink = windowsEl.createEl('a', {
-                text: 'Download Installer',
+                text: 'Download installer',
                 href: 'https://ollama.com/download/windows'
             });
             winLink.setAttr('target', '_blank');
@@ -398,7 +397,8 @@ export class LocalSetupWizardModal extends Modal {
             });
             macLink.setAttr('target', '_blank');
             macEl.createSpan({ text: ' or ' });
-            macEl.createEl('code', { text: 'brew install ollama' });
+            const brewCmd = 'brew install ollama';
+            macEl.createEl('code', { text: brewCmd });
 
             // Linux
             const linuxEl = platformEl.createDiv('platform-item');
@@ -410,7 +410,7 @@ export class LocalSetupWizardModal extends Modal {
         new Setting(stepEl)
             .setName(this.plugin.t.modals.localSetupWizard.verifySetup)
             .addButton(button => button
-                .setButtonText('Verify Connection')
+                .setButtonText('Verify connection')
                 .onClick(async () => {
                     button.setButtonText(this.plugin.t.modals.localSetupWizard.verifying);
                     button.setDisabled(true);
@@ -449,7 +449,7 @@ export class LocalSetupWizardModal extends Modal {
         // Installed models
         if (this.status.ollama.models.length > 0) {
             const installedEl = stepEl.createDiv('installed-models');
-            installedEl.createEl('h4', { text: 'Installed Models' });
+            installedEl.createEl('h4', { text: 'Installed models' });
             const modelsList = installedEl.createEl('ul');
             for (const model of this.status.ollama.models) {
                 modelsList.createEl('li', { text: model });
@@ -543,7 +543,7 @@ export class LocalSetupWizardModal extends Modal {
         new Notice(this.plugin.t.modals.localSetupWizard.commandCopied.replace('{command}', command), 10000);
 
         // We can't actually run the command from the browser, but we can show instructions
-        button.textContent = 'Command Copied';
+        button.textContent = 'Command copied';
         setTimeout(() => {
             button.textContent = 'Install';
             button.removeAttribute('disabled');
@@ -561,18 +561,18 @@ export class LocalSetupWizardModal extends Modal {
 
         // Summary of selections
         const summaryEl = stepEl.createDiv('selection-summary');
-        summaryEl.createEl('h4', { text: 'Your Configuration' });
+        summaryEl.createEl('h4', { text: 'Your configuration' });
 
         if (this.selectedChatModel) {
-            summaryEl.createEl('p', { text: `Chat Model: ${this.selectedChatModel}` });
+            summaryEl.createEl('p', { text: `Chat model: ${this.selectedChatModel}` });
         }
         if (this.selectedEmbeddingModel) {
-            summaryEl.createEl('p', { text: `Embedding Model: ${this.selectedEmbeddingModel}` });
+            summaryEl.createEl('p', { text: `Embedding model: ${this.selectedEmbeddingModel}` });
         }
 
         // Whisper section
         const whisperEl = stepEl.createDiv('whisper-section');
-        whisperEl.createEl('h4', { text: 'Audio Transcription (Whisper)' });
+        whisperEl.createEl('h4', { text: 'Audio transcription (Whisper)' });
 
         if (this.status.whisper.available) {
             whisperEl.createEl('p', {
@@ -580,10 +580,10 @@ export class LocalSetupWizardModal extends Modal {
                 text: '✓ Whisper available via Ollama'
             });
         } else {
-            whisperEl.createEl('p', { text: 'Local Whisper transcription requires whisper.cpp. For now, use cloud transcription (OpenAI or Groq).' });
+            whisperEl.createEl('p', { text: 'Local Whisper transcription requires Whisper.cpp. For now, use cloud transcription (OpenAI or Groq).' });
 
             const whisperLink = whisperEl.createEl('a', {
-                text: 'Learn more about whisper.cpp',
+                text: 'Learn more about Whisper.cpp',
                 href: 'https://github.com/ggerganov/whisper.cpp'
             });
             whisperLink.setAttr('target', '_blank');
@@ -591,7 +591,7 @@ export class LocalSetupWizardModal extends Modal {
 
         // Test connection button
         new Setting(stepEl)
-            .setName('Test Connection')
+            .setName('Test connection')
             .addButton(button => button
                 .setButtonText(this.plugin.t.modals.localSetupWizard.verifySetup)
                 .onClick(async () => {
@@ -615,7 +615,7 @@ export class LocalSetupWizardModal extends Modal {
             .setName(this.plugin.t.modals.localSetupWizard.applySettings)
             .setDesc('Update plugin settings to use local AI')
             .addButton(button => button
-                .setButtonText('Apply & Close')
+                .setButtonText('Apply and close')
                 .setCta()
                 .onClick(async () => {
                     await this.applySettings();
@@ -671,7 +671,7 @@ export class LocalSetupWizardModal extends Modal {
         const navEl = container.createDiv('ai-organiser-wizard-navigation');
 
         if (showBack) {
-            const backBtn = navEl.createEl('button', { text: '← Back' });
+            const backBtn = navEl.createEl('button', { text: 'Back' });
             backBtn.onclick = () => {
                 this.currentStep--;
                 this.renderWizard();

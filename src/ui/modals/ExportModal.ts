@@ -1,4 +1,4 @@
-import { App, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, Modal, Notice, Setting, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { ExportService } from '../../services/export/exportService';
 import type { ExportFormat } from '../../services/export/exportService';
@@ -113,9 +113,6 @@ export class ExportModal extends Modal {
     }
 
     private openNotePicker(): void {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Code-splitting: FuzzySuggestModal loaded on demand
-        const { FuzzySuggestModal } = require('obsidian');
-
         const modal = new (class extends FuzzySuggestModal<TFile> {
             private parentModal: ExportModal;
 

@@ -15,6 +15,7 @@ import { getNotebookLMExportFullPath } from '../core/settings';
 import { NotebookLMExportModal } from '../ui/modals/NotebookLMExportModal';
 import { pluginContext, summarizeText } from '../services/llmFacade';
 import { buildFolderNamePrompt } from '../services/prompts/notebookLMPrompts';
+import { getElectron } from '../utils/desktopRequire';
 
 export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
@@ -240,9 +241,10 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     const basePath = adapter.getBasePath?.() || '';
                     const folderPath = `${basePath}/${exportFolder}`;
 
-                    // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: open folder in OS file manager
-                    const { shell } = require('electron');
-                    shell.openPath(folderPath);
+                    const electron = getElectron();
+                    if (electron?.shell?.openPath) {
+                        void electron.shell.openPath(folderPath);
+                    }
                 } else {
                     new Notice(t.messages?.desktopOnly || 'This feature is only available on desktop');
                 }

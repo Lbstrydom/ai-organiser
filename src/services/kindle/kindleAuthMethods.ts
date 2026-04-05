@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for optional Electron modules */
 /**
  * Kindle Auth Method Strategy Pattern (DD-1)
  *
@@ -16,6 +15,7 @@ import { Notice } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { generateCookieBookmarklet, generateConsoleScript } from './kindleBookmarklet';
 import { openAmazonInBrowser, validateCookieFormat } from './kindleAuthService';
+import { EmbeddedAuthMethod } from './kindleEmbeddedAuth';
 
 // =========================================================================
 // AuthMethod Interface
@@ -146,8 +146,7 @@ export class BookmarkletAuthMethod implements AuthMethod {
 
         // Draggable bookmarklet link
         const dragLink = step2.createEl('a', {
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            text: '\uD83D\uDCCB Copy Kindle cookies',
+            text: 'Copy Kindle cookies',
             cls: 'ai-organiser-kindle-bookmarklet-link',
             href: bookmarkletUrl,
         });
@@ -248,15 +247,15 @@ export class ConsoleAuthMethod implements AuthMethod {
 export function buildAuthMethodChain(t: Translations): AuthMethod[] {
     const methods: AuthMethod[] = [];
 
-    // Embedded — only added if available (lazy-loaded to avoid import issues)
+    // Embedded — only added if available. EmbeddedAuthMethod is safe to instantiate
+    // on mobile because its constructor is pure; isAvailable() gates all Electron access.
     try {
-        const { EmbeddedAuthMethod } = require('./kindleEmbeddedAuth') as typeof import('./kindleEmbeddedAuth');
         const embedded = new EmbeddedAuthMethod(t);
         if (embedded.isAvailable()) {
             methods.push(embedded);
         }
     } catch {
-        // @electron/remote not available — skip embedded
+        // Constructor failed (unexpected) — skip embedded
     }
 
     methods.push(new BookmarkletAuthMethod(t), new ConsoleAuthMethod(t));

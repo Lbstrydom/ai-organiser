@@ -13,6 +13,7 @@ vi.mock('fs', () => ({
     }
 }));
 
+
 import { PdfService } from '../src/services/pdfService';
 import { App, requestUrl } from 'obsidian';
 import { promises as fs } from 'fs';
@@ -20,6 +21,13 @@ import { promises as fs } from 'fs';
 const mockRequestUrl = requestUrl as unknown as ReturnType<typeof vi.fn>;
 const mockStat = fs.stat as unknown as ReturnType<typeof vi.fn>;
 const mockReadFile = fs.readFile as unknown as ReturnType<typeof vi.fn>;
+
+// Mock globalThis.require so pdfService's desktopRequire() returns the same mocked fs
+(globalThis as unknown as { require: (mod: string) => unknown }).require = (mod: string) => {
+    if (mod === 'fs') return { promises: { stat: mockStat, readFile: mockReadFile } };
+    if (mod === 'path') return { basename: (p: string) => p.split('/').pop() ?? p, extname: (p: string) => { const i = p.lastIndexOf('.'); return i >= 0 ? p.slice(i) : ''; }, normalize: (p: string) => p, resolve: (...parts: string[]) => parts.join('/') };
+    throw new Error(`Unexpected require: ${mod}`);
+};
 
 function createMockApp(): App {
     return {

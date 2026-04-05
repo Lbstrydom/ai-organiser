@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Provider/model names contain proper nouns (Claude, Gemini, Whisper, etc.) */
 /**
  * Specialist Providers Settings Section
  * Unified section for all feature-specific LLM/API provider configurations.
@@ -105,12 +104,14 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
         // Model selection
         new Setting(this.containerEl)
-            .setName(yt?.model || 'Gemini Model')
+            .setName(yt?.model || 'Gemini model')
             .setDesc(yt?.modelDesc || 'Model to use for YouTube video analysis')
             .addDropdown(dropdown => {
+                const flashLabel = 'Gemini 3 Flash (recommended)';
+                const proLabel = 'Gemini 3.1 Pro (higher quality)';
                 dropdown
-                    .addOption('gemini-3-flash-preview', 'Gemini 3 Flash (Recommended)')
-                    .addOption('gemini-3.1-pro-preview', 'Gemini 3.1 Pro (Higher quality)')
+                    .addOption('gemini-3-flash-preview', flashLabel)
+                    .addOption('gemini-3.1-pro-preview', proLabel)
                     .setValue(this.plugin.settings.youtubeGeminiModel)
                     .onChange((value) => {
                         this.plugin.settings.youtubeGeminiModel = value;
@@ -219,18 +220,30 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                     .setName(pdf?.model || 'Model')
                     .setDesc(pdf?.modelDesc || 'Model to use for PDF analysis')
                     .addDropdown(dropdown => {
+                        const claudeLabels = {
+                            default: 'Default (claude-sonnet-4-6)',
+                            sonnet: 'Claude Sonnet 4.6 (recommended)',
+                            opus: 'Claude Opus 4.6 (highest quality)',
+                            sonnet45: 'Claude Sonnet 4.5 (legacy)',
+                            haiku: 'Claude Haiku 4.5 (fastest)',
+                        };
+                        const geminiLabels = {
+                            default: 'Default (gemini-3-flash-preview)',
+                            flash: 'Gemini 3 Flash (recommended)',
+                            pro: 'Gemini 3.1 Pro (higher quality)',
+                        };
                         if (selectedPdfProvider === 'claude') {
                             dropdown
-                                .addOption('', 'Default (claude-sonnet-4-6)')
-                                .addOption('claude-sonnet-4-6', 'Claude Sonnet 4.6 (Recommended)')
-                                .addOption('claude-opus-4-6', 'Claude Opus 4.6 (Highest quality)')
-                                .addOption('claude-sonnet-4-5-20250929', 'Claude Sonnet 4.5 (Legacy)')
-                                .addOption('claude-haiku-4-5-20251001', 'Claude Haiku 4.5 (Fastest)');
+                                .addOption('', claudeLabels.default)
+                                .addOption('claude-sonnet-4-6', claudeLabels.sonnet)
+                                .addOption('claude-opus-4-6', claudeLabels.opus)
+                                .addOption('claude-sonnet-4-5-20250929', claudeLabels.sonnet45)
+                                .addOption('claude-haiku-4-5-20251001', claudeLabels.haiku);
                         } else {
                             dropdown
-                                .addOption('', 'Default (gemini-3-flash-preview)')
-                                .addOption('gemini-3-flash-preview', 'Gemini 3 Flash (Recommended)')
-                                .addOption('gemini-3.1-pro-preview', 'Gemini 3.1 Pro (Higher quality)');
+                                .addOption('', geminiLabels.default)
+                                .addOption('gemini-3-flash-preview', geminiLabels.flash)
+                                .addOption('gemini-3.1-pro-preview', geminiLabels.pro);
                         }
                         dropdown
                             .setValue(this.plugin.settings.pdfModel)

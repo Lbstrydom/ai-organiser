@@ -1,22 +1,32 @@
 /**
  * Hashing Utilities for NotebookLM Source Packs
- * 
+ *
  * Provides SHA256 hashing for note content and pack content to:
  * - Detect changes in notes across revisions
  * - Generate stable short IDs for note anchors
  * - Compute pack-level hashes for revision management
+ *
+ * Uses the Web Crypto API, which is available on both desktop and mobile
+ * Obsidian (and in Node 18+ for tests).
  */
 
-// eslint-disable-next-line import/no-nodejs-modules -- Node.js crypto for SHA256 hashing (available in Electron runtime)
-import { createHash } from 'crypto';
+function bytesToHex(bytes: Uint8Array): string {
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+}
 
 /**
  * Compute SHA256 hash of a string
  * @param content Content to hash
  * @returns Hex-encoded SHA256 hash
  */
-export function computeSHA256(content: string): string {
-    return createHash('sha256').update(content, 'utf8').digest('hex');
+export async function computeSHA256(content: string): Promise<string> {
+    const data = new TextEncoder().encode(content);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    return bytesToHex(new Uint8Array(hashBuffer));
 }
 
 /**
@@ -34,27 +44,27 @@ export function generateShortId(sha256: string, length: number = 8): string {
  * @param content Sanitised note content
  * @returns Object with full hash and short ID
  */
-export function hashNoteContent(content: string): { sha256: string; shortId: string } {
-    const sha256 = computeSHA256(content);
+export async function hashNoteContent(content: string): Promise<{ sha256: string; shortId: string }> {
+    const sha256 = await computeSHA256(content);
     const shortId = generateShortId(sha256);
     return { sha256, shortId };
 }
 
 /**
  * Compute deterministic pack-level hash from ordered entry hashes
- * 
+ *
  * This ensures:
  * - Content changes trigger new revision
  * - Order changes trigger new revision
  * - Only metadata changes (like mtime) do NOT trigger new revision
- * 
+ *
  * @param entryHashes Array of note content hashes (in pack order)
  * @returns Pack hash
  */
-export function computePackHash(entryHashes: string[]): string {
+export async function computePackHash(entryHashes: string[]): Promise<string> {
     // Sort hashes to create deterministic ordering
     const sortedHashes = [...entryHashes].sort((a, b) => a.localeCompare(b));
-    
+
     // Concatenate and hash
     const concatenated = sortedHashes.join('|');
     return computeSHA256(concatenated);
@@ -84,7 +94,10 @@ export function isValidSHA256(hash: string): boolean {
  * @param data Binary data to hash
  * @returns Hex-encoded SHA256 hash
  */
-export function computeBinarySHA256(data: ArrayBuffer | Uint8Array): string {
-    const buffer = data instanceof ArrayBuffer ? Buffer.from(data) : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-    return createHash('sha256').update(buffer).digest('hex');
+export async function computeBinarySHA256(data: ArrayBuffer | Uint8Array): Promise<string> {
+    const buffer: ArrayBuffer = data instanceof Uint8Array
+        ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+        : data;
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return bytesToHex(new Uint8Array(hashBuffer));
 }

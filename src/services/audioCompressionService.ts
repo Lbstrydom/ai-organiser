@@ -10,16 +10,48 @@
  */
 
 import { App, TFile, Platform } from 'obsidian';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: FFmpeg subprocess for audio compression
-import { spawn } from 'child_process';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp file I/O for FFmpeg pipeline
-import * as fs from 'fs';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp file path construction
-import * as path from 'path';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: temp directory resolution
-import * as os from 'os';
+import { desktopRequire, getFs, getPath, getOs } from '../utils/desktopRequire';
 import { MAX_FILE_SIZE_BYTES, formatFileSize } from './audioTranscriptionService';
 import { getAvailableFilePath } from '../utils/minutesUtils';
+
+// Desktop-only Node modules. This service only runs on desktop (FFmpeg subprocess
+// via child_process). All access is guarded via the helpers below.
+type ChildProcessModule = typeof import('child_process');
+
+function requireFs(): typeof import('fs') {
+    const m = getFs();
+    if (!m) throw new Error('fs module unavailable (desktop-only feature)');
+    return m;
+}
+function requirePath(): typeof import('path') {
+    const m = getPath();
+    if (!m) throw new Error('path module unavailable (desktop-only feature)');
+    return m;
+}
+function requireOs(): typeof import('os') {
+    const m = getOs();
+    if (!m) throw new Error('os module unavailable (desktop-only feature)');
+    return m;
+}
+function requireSpawn(): ChildProcessModule['spawn'] {
+    const m = desktopRequire<ChildProcessModule>('child_process');
+    if (!m) throw new Error('child_process module unavailable (desktop-only feature)');
+    return m.spawn;
+}
+
+// Lazy proxies — resolved on first property access. All functions in this file
+// are only invoked on desktop (FFmpeg is desktop-only), so these never fire on
+// mobile. Each proxy throws a clear error if accessed on a mobile platform.
+const fs: typeof import('fs') = new Proxy({} as typeof import('fs'), {
+    get: (_t, prop) => (requireFs() as unknown as Record<string, unknown>)[prop as string],
+});
+const path: typeof import('path') = new Proxy({} as typeof import('path'), {
+    get: (_t, prop) => (requirePath() as unknown as Record<string, unknown>)[prop as string],
+});
+const os: typeof import('os') = new Proxy({} as typeof import('os'), {
+    get: (_t, prop) => (requireOs() as unknown as Record<string, unknown>)[prop as string],
+});
+const spawn: ChildProcessModule['spawn'] = ((...args: Parameters<ChildProcessModule['spawn']>) => requireSpawn()(...args)) as ChildProcessModule['spawn'];
 
 // Target size after compression (20MB to have margin under 25MB limit)
 const TARGET_SIZE_BYTES = 20 * 1024 * 1024;

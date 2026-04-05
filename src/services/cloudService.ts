@@ -576,8 +576,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const { url, headers, body } = this.adapter.formatStreamingRequest!(prompt);
 
-        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await fetch(url, {
+        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+        const response = await globalThis.fetch(url, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),

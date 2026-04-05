@@ -34,14 +34,16 @@ export class MinutesSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl)
             .setName(t.settings.minutes?.defaultTimezone || 'Default timezone')
             .setDesc(t.settings.minutes?.defaultTimezoneDesc || 'IANA timezone (e.g., America/New_York)')
-            .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
-                .setPlaceholder('America/New_York')
-                .setValue(this.plugin.settings.minutesDefaultTimezone)
-                .onChange((value) => {
-                    this.plugin.settings.minutesDefaultTimezone = value.trim() || this.plugin.settings.minutesDefaultTimezone;
-                    void this.plugin.saveSettings();
-                }));
+            .addText(text => {
+                const tzPlaceholder = 'America/New_York';
+                return text
+                    .setPlaceholder(tzPlaceholder)
+                    .setValue(this.plugin.settings.minutesDefaultTimezone)
+                    .onChange((value) => {
+                        this.plugin.settings.minutesDefaultTimezone = value.trim() || this.plugin.settings.minutesDefaultTimezone;
+                        void this.plugin.saveSettings();
+                    });
+            });
 
         new Setting(this.containerEl)
             .setName(t.settings.minutes?.style || 'Minutes style')

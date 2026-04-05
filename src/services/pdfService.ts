@@ -4,10 +4,7 @@
  */
 
 import { App, TFile } from 'obsidian';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external PDF files from filesystem
-import { promises as fs } from 'fs';
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: path manipulation for external PDFs
-import path from 'path';
+import { getFs, getPath } from '../utils/desktopRequire';
 import { logger } from '../utils/logger';
 
 export interface PdfContent {
@@ -75,7 +72,16 @@ export class PdfService {
             return this.downloadPdfAsBase64(filePathOrUrl);
         }
 
-        // Local file path
+        // Local file path (desktop-only)
+        const fsMod = getFs();
+        if (!fsMod) {
+            return { success: false, error: 'External PDF reading requires desktop Obsidian' };
+        }
+        const fs = fsMod.promises;
+        const pathMod = getPath();
+        if (!pathMod) {
+            return { success: false, error: 'External PDF reading requires desktop Obsidian' };
+        }
         try {
             const normalizedPath = this.normalizeExternalPath(filePathOrUrl);
             const stats = await fs.stat(normalizedPath);
@@ -97,7 +103,7 @@ export class PdfService {
             return {
                 success: true,
                 content: {
-                    fileName: path.basename(normalizedPath),
+                    fileName: pathMod.basename(normalizedPath),
                     filePath: normalizedPath,
                     base64Data: base64,
                     mimeType: 'application/pdf',
@@ -231,6 +237,10 @@ export class PdfService {
     }
 
     private normalizeExternalPath(filePath: string): string {
+        const pathMod = getPath();
+        if (!pathMod) {
+            return filePath;
+        }
         if (filePath.startsWith('file://')) {
             try {
                 const url = new URL(filePath);
@@ -238,12 +248,12 @@ export class PdfService {
                 if (process.platform === 'win32' && pathname.startsWith('/')) {
                     pathname = pathname.slice(1);
                 }
-                return path.normalize(pathname);
+                return pathMod.normalize(pathname);
             } catch {
                 return filePath;
             }
         }
-        return path.normalize(filePath);
+        return pathMod.normalize(filePath);
     }
 
     /**

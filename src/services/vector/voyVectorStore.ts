@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- WASM module loaded via require() */
 /**
  * Voy WASM Vector Store Implementation
  * Production-grade vector storage with Voy (https://github.com/tantaraio/voy)
@@ -6,14 +5,19 @@
  */
 
 import type { Voy as VoyClient } from 'voy-search';
+// The `.wasm` asset is loaded as a Uint8Array via esbuild's `binary` loader
+// (see esbuild.config.mjs). The `.js` file is the WASM glue module shipped by
+// voy-search; we import it as a namespace and read `Voy` from it.
+// @ts-expect-error - esbuild resolves .wasm imports via the binary loader
+import voyWasm from 'voy-search/voy_search_bg.wasm';
+// @ts-expect-error - JS glue module without its own .d.ts
+import * as voyBg from 'voy-search/voy_search_bg.js';
 import { App } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, IndexMetadata, FileChangeTracker, INDEX_SCHEMA_VERSION } from './types';
 import { cosineSimilarity } from './vectorMath';
 import { logger } from '../../utils/logger';
 
-const voyWasm = require('voy-search/voy_search_bg.wasm') as Uint8Array;
-const voyBg = require('voy-search/voy_search_bg.js');
-const VoyClass = voyBg.Voy as typeof import('voy-search').Voy;
+const VoyClass = (voyBg as unknown as { Voy: typeof import('voy-search').Voy }).Voy;
 
 let voyWasmInit: Promise<void> | null = null;
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy tagging modes maintained for backward compatibility */
 import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError, GenerateTagsResponse, LanguageCode } from './types';
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';

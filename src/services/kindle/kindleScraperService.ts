@@ -356,14 +356,14 @@ function normalizeWhitespace(value: string): string {
  */
 function parseLibraryNextPage(doc: Document): string | null {
     // Check for a "next page" link or pagination token
-    const nextLink = doc.querySelector('.kp-notebook-library-next-page') as HTMLAnchorElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+    const nextLink = doc.querySelector('.kp-notebook-library-next-page') as HTMLAnchorElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- narrow Element to HTMLAnchorElement for .href access
     if (nextLink?.href) {
         const url = new URL(nextLink.href, 'https://placeholder.com');
         return url.searchParams.get('paginationToken');
     }
 
     // Check for hidden pagination token input
-    const tokenEl = doc.querySelector('[name="paginationToken"], .kp-notebook-library-pagination-token') as HTMLInputElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+    const tokenEl = doc.querySelector('[name="paginationToken"], .kp-notebook-library-pagination-token') as HTMLInputElement | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion -- narrow Element to HTMLInputElement for .value access
     if (tokenEl?.value) return tokenEl.value;
 
     // Check for a "Show more" or pagination button with data attribute

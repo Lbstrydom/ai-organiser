@@ -400,8 +400,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         callbacks?: ClaudeWebSearchStreamCallbacks,
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
-        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await fetch(`${CLAUDE_API_BASE}/v1/messages`, {
+        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+        const response = await globalThis.fetch(`${CLAUDE_API_BASE}/v1/messages`, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),

@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Taxonomy setup UI contains action phrases and technical terms */
 import { Setting, Notice, Modal, App, TFolder } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -244,7 +243,7 @@ class ReviewComparisonModal extends Modal {
         });
 
         const refineBtnContainer = refineSection.createDiv({ cls: 'ai-organiser-mt-8' });
-        const refineBtn = refineBtnContainer.createEl('button', { text: 'Regenerate Suggestions' });
+        const refineBtn = refineBtnContainer.createEl('button', { text: 'Regenerate suggestions' });
         refineBtn.addEventListener('click', () => {
             const context = refineInput.value.trim();
             if (context) {
@@ -259,7 +258,7 @@ class ReviewComparisonModal extends Modal {
         const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
 
-        const applyBtn = buttonContainer.createEl('button', { text: 'Apply Selected Changes', cls: 'mod-cta' });
+        const applyBtn = buttonContainer.createEl('button', { text: 'Apply selected changes', cls: 'mod-cta' });
         applyBtn.addEventListener('click', () => {
             this.onConfirm(this.reviewItems);
             this.close();
@@ -325,7 +324,7 @@ class ReviewOrFreshModal extends Modal {
         const reviewBtn = optionsEl.createEl('button', { cls: 'mod-cta' });
         reviewBtn.addClass('ai-organiser-choice-btn');
 
-        const reviewTitle = reviewBtn.createEl('div', { text: 'Review & Improve (Recommended)' });
+        const reviewTitle = reviewBtn.createEl('div', { text: 'Review and improve (recommended)' });
         reviewTitle.addClass('ai-organiser-choice-title');
 
         const reviewDesc = reviewBtn.createEl('div', {
@@ -342,7 +341,7 @@ class ReviewOrFreshModal extends Modal {
         const freshBtn = optionsEl.createEl('button');
         freshBtn.addClass('ai-organiser-choice-btn-full');
 
-        const freshTitle = freshBtn.createEl('div', { text: 'Start Fresh' });
+        const freshTitle = freshBtn.createEl('div', { text: 'Start fresh' });
         freshTitle.addClass('ai-organiser-choice-title-block');
 
         const freshDesc = freshBtn.createEl('div', {
@@ -397,7 +396,7 @@ class ReviewContextModal extends Modal {
         const vaultBtn = optionsEl.createEl('button', { cls: 'mod-cta' });
         vaultBtn.addClass('ai-organiser-choice-btn');
 
-        const vaultTitle = vaultBtn.createEl('div', { text: 'Analyze my vault (Recommended)' });
+        const vaultTitle = vaultBtn.createEl('div', { text: 'Analyze my vault (recommended)' });
         vaultTitle.addClass('ai-organiser-choice-title');
 
         const vaultDesc = vaultBtn.createEl('div', {
@@ -414,7 +413,8 @@ class ReviewContextModal extends Modal {
         const contextBtn = optionsEl.createEl('button');
         contextBtn.addClass('ai-organiser-choice-btn-full');
 
-        const contextTitle = contextBtn.createEl('div', { text: 'I\'ll describe what I need' });
+        const contextLabel = `I'll describe what I need`;
+        const contextTitle = contextBtn.createEl('div', { text: contextLabel });
         contextTitle.addClass('ai-organiser-choice-title-block');
 
         const contextDesc = contextBtn.createEl('div', {
@@ -531,7 +531,7 @@ class UserContextModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
 
-        contentEl.createEl('h2', { text: 'Describe Your Focus Areas' });
+        contentEl.createEl('h2', { text: 'Describe your focus areas' });
         contentEl.createEl('p', {
             text: 'Help the AI understand your needs by describing your profession, interests, or focus areas.',
             cls: 'setting-item-description'
@@ -561,7 +561,7 @@ class UserContextModal extends Modal {
         const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
 
-        const analyzeBtn = buttonContainer.createEl('button', { text: 'Analyze Vault', cls: 'mod-cta' });
+        const analyzeBtn = buttonContainer.createEl('button', { text: 'Analyze vault', cls: 'mod-cta' });
         analyzeBtn.addEventListener('click', () => {
             this.onSubmit(this.userContext);
             this.close();
@@ -625,7 +625,7 @@ class DisciplineSuggestionModal extends Modal {
         contentEl.setCssProps({ '--modal-width': '600px' });
         contentEl.addClass('ai-organiser-modal-medium');
 
-        contentEl.createEl('h2', { text: 'Suggested Disciplines' });
+        contentEl.createEl('h2', { text: 'Suggested disciplines' });
         contentEl.createEl('p', {
             text: 'Review and edit the suggested disciplines. Click on a name to edit it, or add comments for context.',
             cls: 'setting-item-description'
@@ -727,7 +727,7 @@ class DisciplineSuggestionModal extends Modal {
         const cancelBtn = btnGroup.createEl('button', { text: 'Cancel' });
         cancelBtn.addEventListener('click', () => this.close());
 
-        const confirmBtn = btnGroup.createEl('button', { text: 'Update Taxonomy', cls: 'mod-cta' });
+        const confirmBtn = btnGroup.createEl('button', { text: 'Update taxonomy', cls: 'mod-cta' });
         confirmBtn.addEventListener('click', () => {
             const selected = this.editableDisciplines
                 .filter(d => d.selected)
@@ -881,7 +881,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                     dropdown.addOption(folder, folder);
                 }
             }
-            dropdown.addOption('__custom__', '— Custom path —');
+            dropdown.addOption('__custom__', 'Custom path');
 
             dropdown.setValue(hasCustomOutputRoot ? '__custom__' : (this.plugin.settings.outputRootFolder || ''));
 
@@ -1015,7 +1015,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
         infoEl.addClass('ai-organiser-text-ui-small');
         infoEl.addClass('ai-organiser-text-muted');
 
-        infoEl.createEl('strong', { text: 'Configuration Files:' });
+        infoEl.createEl('strong', { text: 'Configuration files:' });
         const ul = infoEl.createEl('ul', { cls: 'ai-organiser-config-files-list' });
         const items = [
             ['taxonomy.md', 'Themes and disciplines with descriptions'],

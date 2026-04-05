@@ -29,16 +29,16 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         new Setting(containerEl)
             .setName(t?.selectionTag || 'Selection tag')
             .setDesc(t?.selectionTagDesc || 'Tag to mark notes for export. Use Ctrl+P → "NotebookLM: Toggle Selection" to tag notes.')
-            .addText(text =>
-                text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case
-                    .setPlaceholder('notebooklm')
+            .addText(text => {
+                const tagPlaceholder = 'notebooklm';
+                return text
+                    .setPlaceholder(tagPlaceholder)
                     .setValue(plugin.settings.notebooklmSelectionTag)
                     .onChange(value => {
                         plugin.settings.notebooklmSelectionTag = value || 'notebooklm';
                         void plugin.saveSettings();
-                    })
-            );
+                    });
+            });
 
         // Export folder - with folder picker
         const exportFolderSetting = new Setting(containerEl)

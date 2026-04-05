@@ -70,36 +70,36 @@ export class SecretStorageService implements ISecretStorageService {
     /**
      * Get a secret by ID from SecretStorage
      */
-    // eslint-disable-next-line @typescript-eslint/require-await
-    async getSecret(id: string): Promise<string | null> {
+    getSecret(id: string): Promise<string | null> {
         if (!this.isAvailable()) {
-            return null;
+            return Promise.resolve(null);
         }
 
-        try {
-            const value = (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): string | null; setSecret(id: string, value: string): void } }).secretStorage.getSecret(id);
-            return value || null;
-        } catch (error) {
-            logger.error('Core', `SecretStorage: Failed to get secret ${id}:`, error);
-            return null;
-        }
+        // Obsidian SecretStorage API is synchronous; Promise.resolve handles both
+        // sync and Promise returns (for test mocks using async signatures).
+        return Promise.resolve()
+            .then(() => this.app.secretStorage.getSecret(id) as unknown as string | null)
+            .then(v => v || null)
+            .catch(error => {
+                logger.error('Core', `SecretStorage: Failed to get secret ${id}:`, error);
+                return null;
+            });
     }
 
     /**
      * Set a secret by ID in SecretStorage
      */
-    // eslint-disable-next-line @typescript-eslint/require-await
-    async setSecret(id: string, value: string): Promise<void> {
+    setSecret(id: string, value: string): Promise<void> {
         if (!this.isAvailable()) {
-            throw new Error('SecretStorage not available');
+            return Promise.reject(new Error('SecretStorage not available'));
         }
 
-        try {
-            (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): string | null; setSecret(id: string, value: string): void } }).secretStorage.setSecret(id, value);
-        } catch (error) {
-            logger.error('Core', `SecretStorage: Failed to set secret ${id}:`, error);
-            throw error;
-        }
+        return Promise.resolve()
+            .then(() => this.app.secretStorage.setSecret(id, value) as unknown as void)
+            .catch(error => {
+                logger.error('Core', `SecretStorage: Failed to set secret ${id}:`, error);
+                throw error instanceof Error ? error : new Error(String(error));
+            });
     }
 
     /**
@@ -110,13 +110,12 @@ export class SecretStorageService implements ISecretStorageService {
             return Promise.resolve();
         }
 
-        try {
-            // SecretStorage has no delete method - set to empty string to clear
-            (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): Promise<string | null>; setSecret(id: string, value: string): Promise<void> } }).secretStorage.setSecret(id, '');
-        } catch (error) {
-            logger.error('Core', `SecretStorage: Failed to remove secret ${id}:`, error);
-        }
-        return Promise.resolve();
+        // SecretStorage has no delete method - set to empty string to clear
+        return Promise.resolve()
+            .then(() => this.app.secretStorage.setSecret(id, '') as unknown as void)
+            .catch(error => {
+                logger.error('Core', `SecretStorage: Failed to remove secret ${id}:`, error);
+            });
     }
 
     /**

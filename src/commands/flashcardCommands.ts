@@ -18,6 +18,7 @@ import {
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
 import { summarizeText, sendMultimodal, getServiceType, pluginContext, isMultimodalService } from '../services/llmFacade';
+import { desktopRequire, getFs, getPath, getOs } from '../utils/desktopRequire';
 import type { ContentPart } from '../services/adapters/types';
 import { detectEmbeddedContent } from '../utils/embeddedContentDetector';
 import { withBusyIndicator } from '../utils/busyIndicator';
@@ -481,36 +482,40 @@ async function saveFlashcardWithDialog(
 
     // Try system Save dialog via @electron/remote (Obsidian bundles this)
     try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require for optional module
-        const remote = require('@electron/remote');
-        const result = await remote.dialog.showSaveDialog({
-            defaultPath: defaultName,
-            filters: [
-                { name: 'CSV Files', extensions: [format.fileExtension] },
-                { name: 'All Files', extensions: ['*'] }
-            ]
-        });
+        type ElectronRemote = { dialog: { showSaveDialog: (opts: { defaultPath: string; filters: Array<{ name: string; extensions: string[] }> }) => Promise<{ canceled: boolean; filePath?: string }> } };
+        const remote = desktopRequire<ElectronRemote>('@electron/remote');
+        const fsMod = getFs();
+        if (remote && fsMod) {
+            const result = await remote.dialog.showSaveDialog({
+                defaultPath: defaultName,
+                filters: [
+                    { name: 'CSV Files', extensions: [format.fileExtension] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
+            });
 
-        if (!result.canceled && result.filePath) {
-            // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: save dialog writes to filesystem
-            require('node:fs').writeFileSync(result.filePath, csvContent, 'utf-8');
-            return result.filePath;
+            if (!result.canceled && result.filePath) {
+                fsMod.writeFileSync(result.filePath, csvContent, 'utf-8');
+                return result.filePath;
+            }
+            return null; // User cancelled
         }
-        return null; // User cancelled
     } catch {
         // @electron/remote unavailable — fall back to Downloads folder
     }
 
     // Fallback: write to Downloads folder
     try {
-        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: resolve Downloads folder path
-        const nodePath = require('node:path');
-        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: resolve user home directory
-        const downloadsDir = nodePath.join(require('node:os').homedir(), 'Downloads');
-        const filePath = nodePath.join(downloadsDir, defaultName);
-        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: write CSV to Downloads folder
-        require('node:fs').writeFileSync(filePath, csvContent, 'utf-8');
-        return filePath;
+        const fsMod = getFs();
+        const pathMod = getPath();
+        const osMod = getOs();
+        if (fsMod && pathMod && osMod) {
+            const downloadsDir = pathMod.join(osMod.homedir(), 'Downloads');
+            const filePath = pathMod.join(downloadsDir, defaultName);
+            fsMod.writeFileSync(filePath, csvContent, 'utf-8');
+            return filePath;
+        }
+        throw new Error('Node modules unavailable');
     } catch {
         await navigator.clipboard.writeText(csvContent);
         new Notice('Could not save file — copied to clipboard instead', 4000);

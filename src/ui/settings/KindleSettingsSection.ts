@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Kindle, Amazon are brand names; placeholders contain email/URL formats */
 /**
  * Kindle Settings Section
  *
@@ -126,12 +125,15 @@ export class KindleSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl)
             .setName(t.settings.kindle.amazonEmail)
             .setDesc(t.settings.kindle.amazonEmailDesc)
-            .addText(text => text
-                .setPlaceholder('you@example.com')
-                .setValue(storedEmail || '')
-                .onChange(async (value) => {
-                    await storeAmazonEmail(this.plugin, value);
-                }));
+            .addText(text => {
+                const emailPlaceholder = 'you@example.com';
+                return text
+                    .setPlaceholder(emailPlaceholder)
+                    .setValue(storedEmail || '')
+                    .onChange(async (value) => {
+                        await storeAmazonEmail(this.plugin, value);
+                    });
+            });
 
         // Amazon Password — stored in SecretStorage for auto-fill during embedded login
         const storedPassword = await getStoredAmazonPassword(this.plugin);
@@ -169,7 +171,7 @@ export class KindleSettingsSection extends BaseSettingSection {
                     dropdown.addOption(folder, folder);
                 }
             }
-            dropdown.addOption('__custom__', '— Custom path —');
+            dropdown.addOption('__custom__', 'Custom path');
 
             const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
             dropdown.setValue(isCustom ? '__custom__' : currentResolved);

@@ -96,7 +96,7 @@ export class RegistryService {
         }
 
         const existingEntry = this.getEntry(scopeKey);
-        const packHash = computePackHash(manifest.entries.map(e => e.sha256));
+        const packHash = await computePackHash(manifest.entries.map(e => e.sha256));
 
         let revision = 1;
         if (existingEntry && existingEntry.packHash !== packHash) {

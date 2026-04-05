@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Provider names (Ollama), URLs, and technical terms */
 import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -66,7 +65,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 .addOption('local-onnx', t.settings.semanticSearch.localOnnxLabel)
                 .addOption('openai', 'OpenAI')
                 .addOption('gemini', 'Google Gemini')
-                .addOption('ollama', 'Ollama (Local)')
+                .addOption('ollama', 'Ollama (local)')
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('cohere', 'Cohere')
                 .addOption('voyage', 'Voyage AI')
@@ -193,13 +192,16 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.embeddingEndpoint.name)
                 .setDesc(t.settings.semanticSearch.embeddingEndpoint.description)
-                .addText(text => text
-                    .setPlaceholder('http://localhost:11434')
-                    .setValue(plugin.settings.embeddingEndpoint)
-                    .onChange((value) => {
-                        plugin.settings.embeddingEndpoint = value;
-                        void plugin.saveSettings();
-                    }));
+                .addText(text => {
+                    const endpointPlaceholder = 'http://localhost:11434';
+                    return text
+                        .setPlaceholder(endpointPlaceholder)
+                        .setValue(plugin.settings.embeddingEndpoint)
+                        .onChange((value) => {
+                            plugin.settings.embeddingEndpoint = value;
+                            void plugin.saveSettings();
+                        });
+                });
 
             // Local Setup Wizard button
             new Setting(sectionEl)
@@ -268,16 +270,19 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             new Setting(sectionEl)
                 .setName(t.settings.semanticSearch.indexExcludedFolders.name)
                 .setDesc(t.settings.semanticSearch.indexExcludedFolders.description)
-                .addTextArea(text => text
-                    .setPlaceholder('folder1\nfolder2\nfolder3')
-                    .setValue(plugin.settings.indexExcludedFolders.join('\n'))
-                    .onChange((value) => {
-                        plugin.settings.indexExcludedFolders = value
-                            .split('\n')
-                            .map(f => f.trim())
-                            .filter(f => f.length > 0);
-                        void plugin.saveSettings();
-                    }));
+                .addTextArea(text => {
+                    const foldersPlaceholder = 'folder1\nfolder2\nfolder3';
+                    return text
+                        .setPlaceholder(foldersPlaceholder)
+                        .setValue(plugin.settings.indexExcludedFolders.join('\n'))
+                        .onChange((value) => {
+                            plugin.settings.indexExcludedFolders = value
+                                .split('\n')
+                                .map(f => f.trim())
+                                .filter(f => f.length > 0);
+                            void plugin.saveSettings();
+                        });
+                });
         }
 
         // Chunk size

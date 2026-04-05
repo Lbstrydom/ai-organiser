@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Dynamic require() for Electron desktop-only paths and code-splitting */
 /**
  * Audio Transcription Service
  * Handles transcription of audio files using Whisper API (OpenAI or Groq)
  */
 
 import { App, TFile, requestUrl } from 'obsidian';
+import { getFs, getPath } from '../utils/desktopRequire';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
 
@@ -416,11 +416,17 @@ export async function transcribeExternalAudio(
     options: TranscriptionOptions
 ): Promise<TranscriptionResult> {
     try {
-        // Use Node.js fs to read external file
-        // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: reads external audio files
-        const { promises: fs } = require('fs');
-        // eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: path manipulation for external files
-        const path = require('path');
+        // Use Node.js fs to read external file (desktop-only)
+        const fsMod = getFs();
+        const pathMod = getPath();
+        if (!fsMod || !pathMod) {
+            return {
+                success: false,
+                error: 'External audio transcription requires desktop Obsidian'
+            };
+        }
+        const fs = fsMod.promises;
+        const path = pathMod;
 
         // Normalize the file path
         let normalizedPath = filePath;
@@ -468,7 +474,6 @@ export async function transcribeExternalAudio(
         );
 
         // Make the API request
-        const { requestUrl } = require('obsidian');
         const response = await requestUrl({
             url: endpoint,
             method: 'POST',
@@ -562,8 +567,6 @@ export function parseWhisperSegments(rawSegments: unknown): WhisperSegment[] | u
 // CHUNKED TRANSCRIPTION FOR VERY LONG FILES
 // ============================================================================
 
-// eslint-disable-next-line import/no-nodejs-modules -- Electron desktop-only: chunked audio file I/O
-import * as fs from 'fs';
 import {
     ChunkInfo,
     cleanupChunks,
@@ -622,8 +625,12 @@ export async function transcribeChunkedAudio(
         });
 
         try {
-            // Read chunk file
-            const audioBuffer = fs.readFileSync(chunk.path);
+            // Read chunk file (desktop-only: fs available in Electron)
+            const fsMod = getFs();
+            if (!fsMod) {
+                return { success: false, error: 'Chunked transcription requires desktop Obsidian' };
+            }
+            const audioBuffer = fsMod.readFileSync(chunk.path);
             const audioData = new Uint8Array(audioBuffer);
 
             // Report uploading (chunkProgress = 0.5)

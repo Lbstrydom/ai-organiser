@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { MinutesCreationModal } from '../ui/modals/MinutesCreationModal';
 import { extractMinutesJsonFromNote, generateMinutesDocx } from '../services/export/minutesDocxGenerator';
 import { sanitizeFileName } from '../utils/minutesUtils';
+import { desktopRequire, getFs } from '../utils/desktopRequire';
 
 export function registerMinutesCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
@@ -72,8 +73,12 @@ async function saveDocxWithDialog(baseName: string, buffer: ArrayBuffer): Promis
     const defaultName = `${baseName}.docx`;
 
     try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Electron desktop-only: dynamic require
-        const remote = require('@electron/remote');
+        type ElectronRemote = { dialog: { showSaveDialog: (opts: { defaultPath: string; filters: Array<{ name: string; extensions: string[] }> }) => Promise<{ canceled: boolean; filePath?: string }> } };
+        const remote = desktopRequire<ElectronRemote>('@electron/remote');
+        const fsMod = getFs();
+        if (!remote || !fsMod) {
+            return null;
+        }
         const result = await remote.dialog.showSaveDialog({
             defaultPath: defaultName,
             filters: [
@@ -83,9 +88,7 @@ async function saveDocxWithDialog(baseName: string, buffer: ArrayBuffer): Promis
         });
 
         if (!result.canceled && result.filePath) {
-            // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: save dialog writes DOCX to filesystem
-            const fs = require('node:fs');
-            fs.writeFileSync(result.filePath, Buffer.from(buffer));
+            fsMod.writeFileSync(result.filePath, Buffer.from(buffer));
             return result.filePath;
         }
         return null; // User cancelled

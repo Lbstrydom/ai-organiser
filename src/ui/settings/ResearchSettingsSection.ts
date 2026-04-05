@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- Placeholders contain domain names and technical terms */
 /**
  * Research Settings Section
  *
@@ -174,7 +173,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .setName(rt.preferredSites || 'Priority Sites')
             .setDesc(rt.preferredSitesDesc || 'Comma-separated domains to prioritize (e.g., pubmed.gov, nature.com)')
             .addText(text => text
-                .setPlaceholder('pubmed.gov, nature.com')
+                .setPlaceholder(rt.preferredSitesPlaceholder || 'e.g., pubmed.gov, nature.com')
                 .setValue(this.plugin.settings.researchPreferredSites)
                 .onChange(async v => {
                     this.plugin.settings.researchPreferredSites = v;
@@ -185,7 +184,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .setName(rt.excludedSites || 'Excluded Sites')
             .setDesc(rt.excludedSitesDesc || 'Comma-separated domains to exclude (e.g., pinterest.com)')
             .addText(text => text
-                .setPlaceholder('pinterest.com, quora.com')
+                .setPlaceholder(rt.excludedSitesPlaceholder || 'e.g., pinterest.com, quora.com')
                 .setValue(this.plugin.settings.researchExcludedSites)
                 .onChange(async v => {
                     this.plugin.settings.researchExcludedSites = v;
@@ -212,7 +211,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .addDropdown(dd => {
                 dd.addOption('cursor', 'Insert at cursor');
                 dd.addOption('section', 'Add as section');
-                dd.addOption('pending', 'Save to Pending');
+                dd.addOption('pending', 'Save to pending');
                 dd.setValue(this.plugin.settings.researchDefaultOutput)
                     .onChange(async v => {
                         this.plugin.settings.researchDefaultOutput = v as typeof this.plugin.settings.researchDefaultOutput;
@@ -396,10 +395,10 @@ export class ResearchSettingsSection extends BaseSettingSection {
 
             if (this.plugin.settings.researchPerspectivePreset === 'custom') {
                 new Setting(this.containerEl)
-                    .setName(rt.perspectiveCustom || 'Custom Perspectives')
+                    .setName(rt.perspectiveCustom || 'Custom perspectives')
                     .setDesc(rt.perspectiveCustomDesc || 'Comma-separated perspective names')
                     .addText(text => text
-                        .setPlaceholder('economic, ethical, technological')
+                        .setPlaceholder(rt.perspectiveCustomPlaceholder || 'e.g., economic, ethical, technological')
                         .setValue(this.plugin.settings.researchCustomPerspectives)
                         .onChange(async v => {
                             this.plugin.settings.researchCustomPerspectives = v;
@@ -437,7 +436,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 .setName(rt.zoteroCollection || 'Zotero Collection')
                 .setDesc(rt.zoteroCollectionDesc || 'Target collection name in Zotero')
                 .addText(text => text
-                    .setPlaceholder('AI Organiser Research')
+                    .setPlaceholder('AI Organiser research')
                     .setValue(this.plugin.settings.researchZoteroCollection)
                     .onChange(async v => {
                         this.plugin.settings.researchZoteroCollection = v;

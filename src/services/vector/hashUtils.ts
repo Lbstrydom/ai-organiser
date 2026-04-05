@@ -1,13 +1,19 @@
 /**
- * Hash helpers for vector indexing
+ * Hash helpers for vector indexing. Uses Web Crypto API (available on both
+ * desktop and mobile Obsidian, and in Node 18+ test environments).
  */
-
-// eslint-disable-next-line import/no-nodejs-modules -- Node.js crypto for content hashing (available in Electron runtime)
-import { createHash } from 'crypto';
 
 /**
- * Create a stable MD5 hash for content change detection
+ * Create a stable SHA-256 hash for content change detection.
+ * Returns a hex-encoded string.
  */
-export function createContentHash(content: string): string {
-    return createHash('md5').update(content, 'utf8').digest('hex');
+export async function createContentHash(content: string): Promise<string> {
+    const data = new TextEncoder().encode(content);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const bytes = new Uint8Array(hashBuffer);
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
 }

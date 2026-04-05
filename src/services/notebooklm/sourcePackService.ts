@@ -197,7 +197,7 @@ export class SourcePackService {
 
                 try {
                     const content = await this.app.vault.read(file);
-                    const contentHash = computeSHA256(content);
+                    const contentHash = await computeSHA256(content);
 
                     // Generate PDF
                     const pdfBuffer = await this.pdfGenerator.generate(
@@ -345,7 +345,7 @@ export class SourcePackService {
         packFolderPath: string
     ): Promise<PackEntry> {
         const content = await this.app.vault.readBinary(file);
-        const contentHash = computeBinarySHA256(content);
+        const contentHash = await computeBinarySHA256(content);
 
         // Generate safe filename
         const safeName = this.sanitizeFilename(file.basename);

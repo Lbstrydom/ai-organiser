@@ -133,17 +133,19 @@ export class LLMSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.localEndpoint)
             .setDesc(this.plugin.t.settings.llm.localEndpointDesc)
-            .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
-                .setPlaceholder('http://localhost:11434/v1/chat/completions')
-                .setValue(this.plugin.settings.localEndpoint)
-                .onChange((value) => {
-                    this.plugin.settings.localEndpoint = value;
-                    void this.plugin.saveSettings();
+            .addText(text => {
+                const endpointPlaceholder = 'http://localhost:11434/v1/chat/completions';
+                return text
+                    .setPlaceholder(endpointPlaceholder)
+                    .setValue(this.plugin.settings.localEndpoint)
+                    .onChange((value) => {
+                        this.plugin.settings.localEndpoint = value;
+                        void this.plugin.saveSettings();
 
-                    // Refresh the settings to update the model dropdown
-                    this.settingTab.display();
-                }));
+                        // Refresh the settings to update the model dropdown
+                        this.settingTab.display();
+                    });
+            });
 
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.modelName)

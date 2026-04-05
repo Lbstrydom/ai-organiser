@@ -6,6 +6,7 @@
 import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
+import { getPath } from '../utils/desktopRequire';
 import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
 import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
@@ -1877,8 +1878,11 @@ async function handleAudioSummarization(
             new Notice(plugin.t.messages.mobileExternalNotSupported);
             return;
         }
-        // eslint-disable-next-line import/no-nodejs-modules, @typescript-eslint/no-require-imports -- Electron desktop-only: extract basename from external audio file path
-        const path = require('path');
+        const path = getPath();
+        if (!path) {
+            new Notice(plugin.t.messages.mobileExternalNotSupported);
+            return;
+        }
         audioName = path.basename(externalPath, path.extname(externalPath));
         audioPath = externalPath;
 

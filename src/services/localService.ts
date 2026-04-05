@@ -331,8 +331,8 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
             stream: true,
         };
 
-        // eslint-disable-next-line no-restricted-globals -- SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await fetch(url, {
+        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+        const response = await globalThis.fetch(url, {
             method: 'POST',
             headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
             body: JSON.stringify(body),

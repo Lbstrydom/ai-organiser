@@ -65,14 +65,16 @@ export class MobileSettingsSection extends BaseSettingSection {
             new Setting(containerEl)
                 .setName(t.settings.mobile.customEndpoint)
                 .setDesc(t.settings.mobile.customEndpointDesc)
-                .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case
-                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions')
-                    .setValue(plugin.settings.mobileCustomEndpoint)
-                    .onChange((value) => {
-                        plugin.settings.mobileCustomEndpoint = value.trim();
-                        void plugin.saveSettings();
-                    }));
+                .addText(text => {
+                    const customEndpointPlaceholder = 'http://your-api-endpoint/v1/chat/completions';
+                    return text
+                        .setPlaceholder(customEndpointPlaceholder)
+                        .setValue(plugin.settings.mobileCustomEndpoint)
+                        .onChange((value) => {
+                            plugin.settings.mobileCustomEndpoint = value.trim();
+                            void plugin.saveSettings();
+                        });
+                });
 
             new Setting(containerEl)
                 .setName(t.settings.mobile.fallbackModel)

@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Code-splitting: Obsidian module loaded dynamically */
-import { setIcon, Setting } from 'obsidian';
+import * as obsidianModule from 'obsidian';
+import { Notice, setIcon, Setting } from 'obsidian';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
@@ -32,8 +32,7 @@ export abstract class BaseSettingSection {
      */
     private isSettingGroupAvailable(): boolean {
         try {
-            const obsidianModule = require('obsidian');
-            return typeof obsidianModule.SettingGroup !== 'undefined';
+            return typeof (obsidianModule as Record<string, unknown>).SettingGroup !== 'undefined';
         } catch {
             return false;
         }
@@ -44,8 +43,7 @@ export abstract class BaseSettingSection {
      */
     private createNativeSettingGroup(container: HTMLElement, title: string, icon: string): HTMLElement {
         try {
-            const obsidianModule = require('obsidian');
-            const SettingGroup = obsidianModule.SettingGroup;
+            const SettingGroup = (obsidianModule as Record<string, unknown>).SettingGroup as (new (container: HTMLElement) => { setHeading: (t: string) => void; setIcon: (i: string) => void; settingEl?: HTMLElement }) | undefined;
             if (SettingGroup) {
                 const group = new SettingGroup(container);
                 group.setHeading(title);
@@ -154,7 +152,6 @@ export abstract class BaseSettingSection {
                         }
 
                         // Show confirmation
-                        const { Notice } = require('obsidian');
                         new Notice(t.secretStorage.keySaved || 'API key saved securely');
                     } else if (value && !useSecretStorage) {
                         onChange(value);
@@ -178,7 +175,6 @@ export abstract class BaseSettingSection {
                     }
 
                     // Show confirmation
-                    const { Notice } = require('obsidian');
                     new Notice(t.secretStorage.keySaved || 'API key saved securely');
                 }
             })(); });
