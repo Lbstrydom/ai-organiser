@@ -39,10 +39,8 @@ interface ElectronCookie {
 
 interface ElectronWebContents {
     executeJavaScript<T = unknown>(code: string): Promise<T>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron event handler signature varies by event type
-    on(event: string, handler: any): void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Electron event handler signature varies by event type
-    once(event: string, handler: any): void;
+    on(event: string, handler: (...args: unknown[]) => void): void;
+    once(event: string, handler: (...args: unknown[]) => void): void;
     session: {
         clearStorageData(options?: unknown): Promise<void>;
         cookies: { get(filter: Record<string, unknown>): Promise<ElectronCookie[]> };
@@ -525,7 +523,9 @@ async function performEmbeddedLogin(
         });
 
         // Monitor navigation for successful login
-        loginWin.webContents.on('did-navigate', async (_event: unknown, url: string) => {
+        loginWin.webContents.on('did-navigate', (..._args: unknown[]) => {
+            const url = _args[1] as string;
+            void (async () => {
             if (resolved) return;
 
             // Detect when user lands on the notebook or reader page (login complete)
@@ -615,6 +615,7 @@ async function performEmbeddedLogin(
                 processingNotebook = false;
                 onProgress?.('error');
             }
+            })();
         });
 
         // Load the notebook URL to start the login flow.

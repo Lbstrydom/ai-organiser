@@ -2256,7 +2256,7 @@ async function handleYouTubeSummarization(
         if (!proceed) return;
     }
 
-    new Notice('Processing YouTube video with Gemini...', 5000);
+    new Notice('Gemini is processing YouTube video...', 5000);
 
     // Build prompt for YouTube summarization
     const promptOptions: SummaryPromptOptions = {

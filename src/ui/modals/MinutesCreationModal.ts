@@ -312,7 +312,7 @@ export class MinutesCreationModal extends Modal {
         new Setting(topSection)
             .setName(t?.fieldLocation || 'Location')
             .addText(text => {
-                text.setPlaceholder('Boardroom or Zoom')
+                text.setPlaceholder('Boardroom or zoom')
                     .setValue(this.state.location)
                     .onChange(value => this.state.location = value.trim());
                 this.locationInputEl = text.inputEl;

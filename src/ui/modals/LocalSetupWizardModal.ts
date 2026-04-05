@@ -572,18 +572,18 @@ export class LocalSetupWizardModal extends Modal {
 
         // Whisper section
         const whisperEl = stepEl.createDiv('whisper-section');
-        whisperEl.createEl('h4', { text: 'Audio transcription (Whisper)' });
+        whisperEl.createEl('h4', { text: 'Whisper audio transcription' });
 
         if (this.status.whisper.available) {
             whisperEl.createEl('p', {
                 cls: 'status-success',
-                text: '✓ Whisper available via Ollama'
+                text: 'Whisper available via ollama'
             });
         } else {
-            whisperEl.createEl('p', { text: 'Local Whisper transcription requires Whisper.cpp. For now, use cloud transcription (OpenAI or Groq).' });
+            whisperEl.createEl('p', { text: 'Local transcription requires whisper.cpp. For now, use cloud transcription (OpenAI or groq).' });
 
             const whisperLink = whisperEl.createEl('a', {
-                text: 'Learn more about Whisper.cpp',
+                text: 'Whisper.cpp — learn more',
                 href: 'https://github.com/ggerganov/whisper.cpp'
             });
             whisperLink.setAttr('target', '_blank');

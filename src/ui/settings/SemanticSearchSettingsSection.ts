@@ -64,7 +64,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             .addDropdown(dropdown => dropdown
                 .addOption('local-onnx', t.settings.semanticSearch.localOnnxLabel)
                 .addOption('openai', 'OpenAI')
-                .addOption('gemini', 'Google Gemini')
+                .addOption('gemini', 'Gemini (google)')
                 .addOption('ollama', 'Ollama (local)')
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('cohere', 'Cohere')

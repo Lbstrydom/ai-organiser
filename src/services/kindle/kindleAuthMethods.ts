@@ -146,7 +146,7 @@ export class BookmarkletAuthMethod implements AuthMethod {
 
         // Draggable bookmarklet link
         const dragLink = step2.createEl('a', {
-            text: 'Copy Kindle cookies',
+            text: 'Kindle: copy cookies',
             cls: 'ai-organiser-kindle-bookmarklet-link',
             href: bookmarkletUrl,
         });

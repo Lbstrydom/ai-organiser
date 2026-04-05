@@ -173,8 +173,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                 .addDropdown(dropdown => {
                     dropdown
                         .addOption('auto', pdf?.providerAuto || 'Auto (use available key)')
-                        .addOption('claude', 'Claude (Anthropic)')
-                        .addOption('gemini', 'Gemini (Google)')
+                        .addOption('claude', 'Claude (anthropic)')
+                        .addOption('gemini', 'Gemini (google)')
                         .setValue(selectedPdfProvider)
                         .onChange((value) => {
                             this.plugin.settings.pdfProvider = value as 'auto' | 'claude' | 'gemini';
@@ -324,8 +324,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             .setDesc(at?.providerDesc || 'Choose which Whisper API to use for audio transcription')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('openai', 'OpenAI Whisper')
-                    .addOption('groq', 'Groq Whisper')
+                    .addOption('openai', 'OpenAI whisper')
+                    .addOption('groq', 'Groq whisper')
                     .setValue(selectedProvider)
                     .onChange((value) => {
                         this.plugin.settings.audioTranscriptionProvider = value as 'openai' | 'groq';

@@ -29,9 +29,9 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .setName(rt.provider || 'Search Provider')
             .setDesc(rt.providerDesc || 'Which search API to use for web research')
             .addDropdown(dd => {
-                dd.addOption('claude-web-search', rt.claudeWebSearch || 'Claude Web Search ($0.01/search)');
+                dd.addOption('claude-web-search', rt.claudeWebSearch || 'Claude web search ($0.01/search)');
                 dd.addOption('tavily', 'Tavily');
-                dd.addOption('brightdata-serp', 'Bright Data SERP');
+                dd.addOption('brightdata-serp', 'Bright data SERP');
                 dd.setValue(this.plugin.settings.researchProvider)
                     .onChange(async v => {
                         this.plugin.settings.researchProvider = v as typeof this.plugin.settings.researchProvider;
@@ -436,7 +436,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 .setName(rt.zoteroCollection || 'Zotero Collection')
                 .setDesc(rt.zoteroCollectionDesc || 'Target collection name in Zotero')
                 .addText(text => text
-                    .setPlaceholder('AI Organiser research')
+                    .setPlaceholder('AI organiser research')
                     .setValue(this.plugin.settings.researchZoteroCollection)
                     .onChange(async v => {
                         this.plugin.settings.researchZoteroCollection = v;

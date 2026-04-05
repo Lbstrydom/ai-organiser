@@ -22,9 +22,24 @@ export default defineConfig([
             'obsidianmd/platform': 'warn',
             'obsidianmd/regex-lookbehind': 'error',
             'obsidianmd/no-forbidden-elements': 'error',
-            'obsidianmd/ui/sentence-case': ['warn', {
-                brands: ['AI Organiser', 'Obsidian', 'Kindle', 'YouTube', 'Gemini', 'Claude', 'OpenAI', 'Groq', 'Cohere', 'Ollama', 'NotebookLM', 'Zotero', 'Mermaid', 'GTD', 'Anki', 'Brainscape', 'Bright Data', 'Tavily', 'Voyage AI', 'Siliconflow', 'Supabase', 'Whisper', 'Electron', 'Node.js', 'Markdown', 'Zoom', 'Amazon', 'Gmail', 'Google', 'Anthropic', 'Readability', 'Dataview', 'Bases', 'Dataverse'],
-                acronyms: ['AI', 'LLM', 'API', 'URL', 'PDF', 'CSV', 'HTML', 'CSS', 'JS', 'PPTX', 'DOCX', 'RAG', 'KPI', 'GTD', 'SSE', 'ONNX', 'WASM', 'CDP', 'FFmpeg', 'ASIN', 'ISBN', 'DOI', 'SERP', 'ID', 'OK', 'YAML', 'JSON', 'SVG', 'PNG', 'JPG', 'JPEG', 'MP3', 'MP4', 'MB', 'GB', 'KB', 'RTF', 'TXT', 'XLSX', 'IANA', 'UA', 'TLDR', 'TL;DR', 'UI', 'UX', 'GPU', 'CPU', 'RAM', 'USB', 'MIME', 'UTF', 'ASCII', 'HTTP', 'HTTPS', 'TCP', 'IP', 'DNS', 'JWT', 'OAuth', 'YAML'],
+            // Use plugin's DEFAULT brands list (bot uses it too).
+            // Only supply extras via acronyms so our domain-specific acronyms are recognized.
+            'obsidianmd/ui/sentence-case': ['error', {
+                acronyms: [
+                    // Plugin defaults (DEFAULT_ACRONYMS) — restated because the rule
+                    // REPLACES the default list rather than merging:
+                    'API', 'HTTP', 'HTTPS', 'URL', 'DNS', 'TCP', 'IP', 'SSH', 'TLS', 'SSL',
+                    'FTP', 'SFTP', 'SMTP', 'JSON', 'XML', 'HTML', 'CSS', 'PDF', 'CSV', 'YAML',
+                    'SQL', 'PNG', 'JPG', 'JPEG', 'GIF', 'SVG', '2FA', 'MFA', 'OAuth', 'JWT',
+                    'LDAP', 'SAML', 'SDK', 'IDE', 'CLI', 'GUI', 'CRUD', 'REST', 'SOAP', 'CPU',
+                    'GPU', 'RAM', 'SSD', 'USB', 'UI', 'OK', 'RSS', 'S3', 'WebDAV', 'ID',
+                    'UUID', 'GUID', 'SHA', 'MD5', 'ASCII', 'UTF-8', 'UTF-16', 'DOM', 'CDN',
+                    'FAQ', 'AI', 'ML',
+                    // Plugin-specific additions:
+                    'LLM', 'PPTX', 'DOCX', 'RAG', 'KPI', 'GTD', 'SSE', 'ONNX', 'WASM', 'CDP',
+                    'ASIN', 'ISBN', 'DOI', 'SERP', 'MP3', 'MP4', 'MB', 'GB', 'KB', 'RTF',
+                    'TXT', 'XLSX', 'IANA', 'UA', 'TLDR', 'UX', 'MIME', 'UTF', 'FFmpeg',
+                ],
             }],
 
             // Not applicable to this project
