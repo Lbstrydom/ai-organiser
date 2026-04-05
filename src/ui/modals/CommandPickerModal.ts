@@ -676,7 +676,7 @@ export function buildCommandCategories(
 				},
 				{
 					id: 'research-web',
-					name: (t.commands as any).researchWeb || 'Research',
+					name: (t.commands as Record<string, string>).researchWeb || 'Research',
 					icon: 'telescope',
 					description: desc.researchWeb || 'Web research with AI search, scoring, and citations',
 					aliases: ['research', 'search', 'web search', 'find sources', 'look up'],

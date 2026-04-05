@@ -67,9 +67,10 @@ export class VertexAdapter extends BaseAdapter {
         };
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
-            const content = response.predictions?.[0]?.candidates?.[0]?.content;
+            const responseObj = response as { predictions?: Array<{ candidates?: Array<{ content?: string }> }> };
+            const content = responseObj.predictions?.[0]?.candidates?.[0]?.content;
             if (!content) {
                 throw new Error('Invalid response format: missing content');
             }
@@ -82,8 +83,8 @@ export class VertexAdapter extends BaseAdapter {
 
             return {
                 text: content,
-                matchedExistingTags: jsonContent.matchedTags,
-                suggestedTags: jsonContent.newTags
+                matchedExistingTags: jsonContent.matchedTags as string[],
+                suggestedTags: jsonContent.newTags as string[]
             };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -101,11 +102,12 @@ export class VertexAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
-        const message = 
-            error.error?.message ||
-            error.response?.data?.error?.message ||
-            error.message ||
+    public extractError(error: unknown): string {
+        const err = error as { error?: { message?: string }; response?: { data?: { error?: { message?: string } } }; message?: string };
+        const message =
+            err.error?.message ||
+            err.response?.data?.error?.message ||
+            err.message ||
             'Unknown error occurred';
         return message;
     }

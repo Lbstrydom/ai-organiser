@@ -98,7 +98,7 @@ export class QuickPeekModal extends Modal {
         this.contentEl.empty();
 
         // Title
-        this.titleEl.setText('⚡ Quick Peek'); // eslint-disable-line obsidianmd/ui/sentence-case -- feature name
+        this.titleEl.setText('Quick peek');
 
         if (this.phase !== 'done') {
             this.renderProgress();

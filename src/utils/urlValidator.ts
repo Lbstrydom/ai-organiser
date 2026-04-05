@@ -74,7 +74,7 @@ export function validateUrl(input: string): UrlValidationResult {
 
         return { valid: true, url: parsed.href };
 
-    } catch (_e) {
+    } catch {
         return { valid: false, error: 'Invalid URL format' };
     }
 }

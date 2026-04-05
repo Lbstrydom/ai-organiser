@@ -94,7 +94,7 @@ export default class AIOrganiserPlugin extends Plugin {
         return this._documentExtractionService ??= new DocumentExtractionService(this.app);
     }
 
-    constructor(app: App, manifest: any) {
+    constructor(app: App, manifest: import('obsidian').PluginManifest) {
         super(app, manifest);
         this.llmService = new LocalLLMService({
             endpoint: DEFAULT_SETTINGS.localEndpoint,
@@ -366,7 +366,7 @@ export default class AIOrganiserPlugin extends Plugin {
             this.notebookLMStatusBarEl.addClass('ai-organiser-notebooklm-status');
             this.notebookLMStatusBarEl.hide();
             this.notebookLMStatusBarEl.addEventListener('click', () => {
-                (this.app as any).commands.executeCommandById('ai-organiser:notebooklm-export');
+                (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:notebooklm-export');
             });
 
             // Debounced metadata listener to update count
@@ -409,7 +409,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
             } catch (error) {
                 logger.error('Core', 'Failed to initialize vector store', error);
-                new Notice('Failed to initialize semantic search: ' + (error as any).message, 5000);
+                new Notice('Failed to initialize semantic search: ' + (error instanceof Error ? error.message : String(error)), 5000);
             }
         }
 
@@ -535,7 +535,7 @@ export default class AIOrganiserPlugin extends Plugin {
             const updateBtn = btnRow.createEl('button', { text: updateText, cls: 'mod-cta' });
             updateBtn.addClass('ai-organiser-mr-8');
             updateBtn.addEventListener('click', () => {
-                (this.app as any).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
+                (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
                 noticeRef?.hide();
             });
 
@@ -656,7 +656,7 @@ export default class AIOrganiserPlugin extends Plugin {
         const categories = buildCommandCategories(this.t, (commandId: string) => {
             // Execute the command via Obsidian's command system
             // @ts-ignore - commands API is internal but stable
-            (this.app as any).commands.executeCommandById(commandId);
+            (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(commandId);
         });
 
         const modal = new CommandPickerModal(this.app, this.t, categories);
@@ -724,7 +724,7 @@ export default class AIOrganiserPlugin extends Plugin {
             void this.app.workspace.revealLeaf(leaf);
         } catch (error) {
             logger.error('Core', 'Tag network error', error);
-            new Notice(this.t.messages.failedToBuildNetwork + ': ' + (error as any).message, 4000);
+            new Notice(this.t.messages.failedToBuildNetwork + ': ' + (error instanceof Error ? error.message : String(error)), 4000);
         }
     }
 
@@ -775,7 +775,7 @@ export default class AIOrganiserPlugin extends Plugin {
             try {
                 await this.tagOperations.clearDirectoryTags(files);
                 new Notice(this.t.messages.successfullyClearedAllVault, 3000);
-            } catch (_error) {
+            } catch {
                 new Notice(this.t.messages.failedToClearVaultTags, 4000);
             }
         }
@@ -798,7 +798,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public handleTagUpdateResult(result: TagOperationResult | null | undefined, silent = false): void {
         if (!result) {
-            if (!silent) { new Notice('Failed to update tags: No result returned', 3000); } // eslint-disable-line obsidianmd/ui/sentence-case
+            if (!silent) { new Notice('Failed to update tags: no result returned', 3000); }
             return;
         }
 
@@ -841,7 +841,7 @@ export default class AIOrganiserPlugin extends Plugin {
                         new Notice(`Progress: ${processed}/${files.length} files processed`, 3000);
                         lastNotice = Date.now();
                     }
-                } catch (_error) {
+                } catch {
                     new Notice(`Error processing ${file.path}`, 4000);
                 }
             }
@@ -850,7 +850,7 @@ export default class AIOrganiserPlugin extends Plugin {
             await this.suggestBackNovelDisciplines();
 
             new Notice(`Successfully tagged ${successful} out of ${files.length} files`, 4000);
-        } catch (_error) {
+        } catch {
             new Notice('Failed to complete batch processing', 4000);
         } finally {
             this.novelDisciplineCollector = null;
@@ -884,7 +884,7 @@ export default class AIOrganiserPlugin extends Plugin {
             if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
                 await this.showSuggestionModal(activeFile, result.suggestedTitle, result.suggestedFolder);
             }
-        } catch (_error) {
+        } catch {
             new Notice('Failed to analyze note. Please check console for details.', 4000);
         } finally {
             this.novelDisciplineCollector = null;

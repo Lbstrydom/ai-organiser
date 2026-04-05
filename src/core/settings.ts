@@ -739,7 +739,7 @@ export function getChatRootFullPath(settings: AIOrganiserSettings): string {
  * Called from loadSettings() in main.ts.
  * All migration logic lives here for testability.
  */
-export function migrateOldSettings(oldSettings: Record<string, any> | null): Record<string, any> | null {
+export function migrateOldSettings(oldSettings: Record<string, unknown> | null): Record<string, unknown> | null {
     if (!oldSettings) return oldSettings;
 
     // Migrate old Ollama settings to local

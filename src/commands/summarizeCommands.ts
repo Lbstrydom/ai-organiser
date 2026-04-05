@@ -45,7 +45,6 @@ import {
     formatDuration,
     ensureNoteStructureIfEnabled
 } from '../utils/noteStructure';
-import { SummarizeSourceModal, SummarizeSourceOption } from '../ui/modals/SummarizeSourceModal';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
 import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
@@ -105,7 +104,7 @@ async function updateNoteMetadataAfterSummary(
     if (!file) return;
 
     // Build minimal metadata - just summary and source URL
-    const metadata: any = {
+    const metadata: Record<string, unknown> = {
         summary: summaryHook
     };
 
@@ -235,8 +234,8 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
         id: 'smart-summarize',
         name: plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summarize',
         icon: 'file-text',
-        callback: async () => {
-            await executeSmartSummarize(plugin, pdfService);
+        callback: () => {
+            executeSmartSummarize(plugin, pdfService);
         }
     });
 
@@ -245,7 +244,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
         id: 'record-audio',
         name: plugin.t.commands.recordAudio || 'Record Audio',
         icon: 'mic',
-        callback: async () => {
+        callback: () => {
             if (!isRecordingSupported()) {
                 new Notice(plugin.t.recording?.notSupported || 'Audio recording not supported');
                 return;
@@ -255,10 +254,10 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     });
 }
 
-async function executeSmartSummarize(
+function executeSmartSummarize(
     plugin: AIOrganiserPlugin,
     pdfService: PdfService
-): Promise<void> {
+): void {
     if (!plugin.settings.enableWebSummarization) {
         new Notice(plugin.t.messages.webSummarizationDisabled);
         return;
@@ -1200,86 +1199,7 @@ Provide a unified summary that:
     return prompt;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function handleSmartTarget(
-    plugin: AIOrganiserPlugin,
-    pdfService: PdfService,
-    editor: Editor,
-    target: SmartSummarizeTarget,
-    personaPrompt: string,
-    personaId?: string
-): Promise<void> {
-    if (target.type === 'selection-text') {
-        await handleTextSummarization(plugin, editor, target.text, personaPrompt);
-        return;
-    }
-
-    if (target.type === 'url') {
-        if (isYouTubeUrl(target.url)) {
-            await handleYouTubeSummarization(plugin, editor, target.url, personaPrompt, undefined, personaId);
-            return;
-        }
-        await handleUrlSummarization(plugin, pdfService, editor, target.url, personaPrompt, undefined, personaId);
-        return;
-    }
-
-    if (target.type === 'internal-pdf') {
-        if (!(await canSummarizePdf(plugin))) {
-            new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
-            return;
-        }
-        await handlePdfSummarization(plugin, pdfService, editor, target.file, personaPrompt, undefined, personaId);
-        return;
-    }
-
-    if (target.type === 'external-pdf') {
-        if (Platform.isMobile) {
-            new Notice(plugin.t.messages.externalFilesDesktopOnly || 'External files are desktop-only');
-            return;
-        }
-        if (!(await canSummarizePdf(plugin))) {
-            new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
-            return;
-        }
-        await handleExternalPdfSummarization(plugin, pdfService, editor, target.path, personaPrompt, undefined, personaId);
-        return;
-    }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function openSummarizeSourceModal(
-    plugin: AIOrganiserPlugin,
-    pdfService: PdfService,
-    editor: Editor,
-    view: MarkdownView,
-    detectedSource?: SummarizeSourceOption
-): void {
-    const modal = new SummarizeSourceModal(plugin.app, plugin, (source: SummarizeSourceOption) => { void (async () => {
-        const defaultPersonaId = plugin.settings.defaultSummaryPersona;
-        const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(defaultPersonaId);
-
-        switch (source) {
-            case 'note':
-                void summarizeCurrentNote(plugin, editor, view, personaPrompt);
-                break;
-            case 'url':
-                void openUrlSummarizeModal(plugin, pdfService, editor);
-                break;
-            case 'pdf':
-                void openPdfSummarizeModal(plugin, pdfService, editor, view);
-                break;
-            case 'youtube':
-                void openYouTubeSummarizeModal(plugin, editor);
-                break;
-            case 'audio':
-                void openAudioSummarizeModal(plugin, editor);
-                break;
-            default:
-                break;
-        }
-    })(); }, detectedSource);
-    modal.open();
-}
+// Removed dead functions: handleSmartTarget, openSummarizeSourceModal (unused)
 
 async function summarizeCurrentNote(
     plugin: AIOrganiserPlugin,
@@ -1301,6 +1221,7 @@ async function summarizeCurrentNote(
     await handleTextSummarization(plugin, editor, content, personaPrompt);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exported helper retained for future reuse
 async function openUrlSummarizeModal(
     plugin: AIOrganiserPlugin,
     pdfService: PdfService,
@@ -1321,6 +1242,7 @@ async function openUrlSummarizeModal(
     modal.open();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exported helper retained for future reuse
 async function openPdfSummarizeModal(
     plugin: AIOrganiserPlugin,
     pdfService: PdfService,
@@ -1352,7 +1274,7 @@ async function openPdfSummarizeModal(
         logger.debug('Summary', 'Embedded PDFs found:', embeddedPdfs.map(f => f.path));
     }
 
-    let pdfs = await pdfService.getPdfsInAttachments();
+    let pdfs = pdfService.getPdfsInAttachments();
     if (pdfs.length === 0) {
         pdfs = pdfService.getAllPdfs();
     }
@@ -1387,6 +1309,7 @@ async function openPdfSummarizeModal(
     modal.open();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exported helper retained for future reuse
 async function openYouTubeSummarizeModal(
     plugin: AIOrganiserPlugin,
     editor: Editor
@@ -1406,6 +1329,7 @@ async function openYouTubeSummarizeModal(
     modal.open();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exported helper retained for future reuse
 async function openAudioSummarizeModal(
     plugin: AIOrganiserPlugin,
     editor: Editor
@@ -1435,41 +1359,9 @@ async function openAudioSummarizeModal(
     modal.open();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function detectTargetFromFrontmatter(
-    plugin: AIOrganiserPlugin,
-    file: TFile
-): SmartSummarizeTarget {
-    const cache = plugin.app.metadataCache.getFileCache(file);
-    const frontmatter = cache?.frontmatter || {};
+// Removed dead functions: detectTargetFromFrontmatter, normalizeFrontmatterValue (unused)
 
-    const pdfValue = normalizeFrontmatterValue(frontmatter.pdf);
-    if (pdfValue) {
-        const target = detectTargetFromText(plugin, pdfValue, file, false);
-        if (target.type !== 'none') {
-            return target;
-        }
-    }
-
-    const urlValue = normalizeFrontmatterValue(frontmatter.url);
-    if (urlValue) {
-        return { type: 'url', url: urlValue };
-    }
-
-    return { type: 'none' };
-}
-
-function normalizeFrontmatterValue(value: unknown): string | null {
-    if (typeof value === 'string') {
-        return value.trim();
-    }
-    if (Array.isArray(value)) {
-        const first = value.find(item => typeof item === 'string');
-        return typeof first === 'string' ? first.trim() : null;
-    }
-    return null;
-}
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- exported helper retained for future reuse
 function detectTargetFromText(
     plugin: AIOrganiserPlugin,
     text: string,
@@ -2455,96 +2347,7 @@ async function handleYouTubeSummarization(
 /**
  * Summarize YouTube transcript and insert into editor
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function summarizeYouTubeAndInsert(
-    plugin: AIOrganiserPlugin,
-    editor: Editor,
-    transcript: string,
-    videoInfo: YouTubeVideoInfo | undefined,
-    personaPrompt: string,
-    transcriptPath?: string | null,
-    userContext?: string,
-    personaId?: string
-): Promise<void> {
-    const promptOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt: personaPrompt,
-        userContext: userContext,
-    };
-
-    const promptTemplate = buildSummaryPrompt(promptOptions);
-    const prompt = insertContentIntoPrompt(promptTemplate, transcript);
-
-    try {
-        const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
-
-        if (response.success && response.content) {
-            await insertYouTubeSummary(editor, response.content, videoInfo, plugin, transcriptPath, true);
-
-            // Update metadata with persona if structured metadata is enabled
-            if (plugin.settings.enableStructuredMetadata && personaId) {
-                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                if (view && videoInfo) {
-                    await updateNoteMetadataAfterSummary(
-                        plugin,
-                        view,
-                        createSummaryHook(response.content),
-                        [],
-                        'research',
-                        'youtube',
-                        getYouTubeUrl(videoInfo.videoId),
-                        personaId
-                    );
-                }
-            }
-        } else {
-            new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        new Notice(`Error summarizing: ${errorMessage}`);
-    }
-}
-
-/**
- * Summarize YouTube transcript in chunks
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function summarizeYouTubeInChunks(
-    plugin: AIOrganiserPlugin,
-    editor: Editor,
-    transcript: string,
-    videoInfo: YouTubeVideoInfo | undefined,
-    provider: string,
-    personaPrompt: string,
-    transcriptPath?: string | null,
-    userContext?: string,
-    personaId?: string
-): Promise<void> {
-    const { finalContent } = await withBusyIndicator(plugin, async () => {
-        const result = await summarizeContentInChunks(plugin, transcript, provider, personaPrompt, userContext);
-        return { finalContent: result };
-    });
-
-    await insertYouTubeSummary(editor, finalContent, videoInfo, plugin, transcriptPath, true);
-
-    if (plugin.settings.enableStructuredMetadata && personaId) {
-        const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view && videoInfo) {
-            await updateNoteMetadataAfterSummary(
-                plugin,
-                view,
-                createSummaryHook(finalContent),
-                [],
-                'research',
-                'youtube',
-                getYouTubeUrl(videoInfo.videoId),
-                personaId
-            );
-        }
-    }
-}
+// Removed dead functions: summarizeYouTubeAndInsert, summarizeYouTubeInChunks (unused)
 
 /**
  * Insert YouTube summary into editor with metadata

@@ -1,7 +1,7 @@
 import { Setting, ButtonComponent, Notice, requestUrl } from 'obsidian';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
-import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
+import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from '../../services/adapters/providerRegistry';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
@@ -126,8 +126,6 @@ export class LLMSettingsSection extends BaseSettingSection {
     }
 
     private getProviderOptions(): Record<string, string> {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports -- Code-splitting: provider options loaded on demand
-        const { buildProviderOptions } = require('../../services/adapters/providerRegistry');
         return buildProviderOptions(this.plugin.t.dropdowns);
     }
 
@@ -136,7 +134,8 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setName(this.plugin.t.settings.llm.localEndpoint)
             .setDesc(this.plugin.t.settings.llm.localEndpointDesc)
             .addText(text => text
-                .setPlaceholder('http://localhost:11434/v1/chat/completions') // eslint-disable-line obsidianmd/ui/sentence-case -- URL
+                // eslint-disable-next-line obsidianmd/ui/sentence-case
+                .setPlaceholder('http://localhost:11434/v1/chat/completions')
                 .setValue(this.plugin.settings.localEndpoint)
                 .onChange((value) => {
                     this.plugin.settings.localEndpoint = value;
@@ -498,7 +497,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             if (response.status >= 400) {
                 new Notice(this.plugin.t.messages.localServiceNotRunning, 10000);
             }
-        } catch (_error) {
+        } catch {
             new Notice(this.plugin.t.messages.localServiceNotAvailable, 10000);
         }
     }

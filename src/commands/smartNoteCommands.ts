@@ -179,7 +179,7 @@ async function executeGenerateMermaidDiagram(plugin: AIOrganiserPlugin): Promise
 /**
  * Open MermaidChatModal to edit (or create) a Mermaid diagram
  */
-async function executeEditMermaidDiagram(plugin: AIOrganiserPlugin): Promise<void> {
+function executeEditMermaidDiagram(plugin: AIOrganiserPlugin): void {
     const view = getActiveMarkdownView(plugin);
     if (!view?.file) {
         new Notice(plugin.t.messages.openNote);

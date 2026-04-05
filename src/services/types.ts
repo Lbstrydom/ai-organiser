@@ -74,7 +74,7 @@ export interface LLMService {
 
     testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }>;
 
-    formatRequest(prompt: string, language?: string): any;
+    formatRequest(prompt: string, language?: string): Record<string, unknown>;
 
     dispose(): Promise<void>;
 

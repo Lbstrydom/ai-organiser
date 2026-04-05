@@ -148,7 +148,7 @@ export class UnifiedChatModal extends Modal {
         this.globalMemoryService = new GlobalMemoryService(this.app, this.plugin.settings);
 
         this.ctx = await this.buildContext();
-        const researchHandler = new ResearchModeHandler(this.plugin as any);
+        const researchHandler = new ResearchModeHandler(this.plugin as unknown as import('../../main').default);
         researchHandler.setFillInputCallback((text: string) => {
             if (this.inputArea) {
                 this.inputArea.setValue(text);
@@ -243,7 +243,7 @@ export class UnifiedChatModal extends Modal {
         return {
             app: this.app,
             plugin: this.plugin,
-            fullPlugin: this.plugin as any, // Cast to full plugin type
+            fullPlugin: this.plugin as unknown as import('../../main').default, // Cast to full plugin type
             options: {
                 ...this.options,
                 noteFile: activeFile || undefined
@@ -301,7 +301,7 @@ export class UnifiedChatModal extends Modal {
             { mode: 'note', label: t.modeNote },
             { mode: 'vault', label: t.modeVault },
             { mode: 'highlight', label: t.modeHighlight },
-            { mode: 'research', label: (t as any).modeResearch || 'Research' },
+            { mode: 'research', label: (t as Record<string, string>).modeResearch || 'Research' },
             { mode: 'free', label: t.modeFree },
             { mode: 'presentation', label: t.modePresentation },
         ];
@@ -964,7 +964,7 @@ export class UnifiedChatModal extends Modal {
             let resolved = false;
             const modal = new FolderScopePickerModal(
                 this.app,
-                this.plugin as unknown as any,
+                this.plugin as unknown as import('../../main').default,
                 {
                     title: t.exportTitle,
                     allowSkip: false,
@@ -989,7 +989,7 @@ export class UnifiedChatModal extends Modal {
         });
     }
 
-    private async handleInsertLastAnswer(): Promise<void> {
+    private handleInsertLastAnswer(): void {
         const editor = this.app.workspace.activeEditor?.editor;
         if (!editor) {
             this.notify(this.plugin.t.modals.unifiedChat.noEditor);

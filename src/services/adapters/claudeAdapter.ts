@@ -50,15 +50,15 @@ export class ClaudeAdapter extends BaseAdapter {
      * - Bumps `max_tokens` to 16000 to accommodate thinking + output
      * - Removes temperature (incompatible with thinking)
      */
-    private applyThinkingParams(body: any): any {
+    private applyThinkingParams(body: Record<string, unknown>): Record<string, unknown> {
         if (!this.useAdaptiveThinking) return body;
 
-        const result = { ...body };
+        const result: Record<string, unknown> = { ...body };
         result.thinking = { type: 'adaptive' };
         // Thinking requires a larger token budget (thinking + visible output).
         // 64 000 gives ample room: even if thinking uses ~50 000 tokens the
         // remaining 14 000 suffice for structured JSON outputs.
-        result.max_tokens = Math.max(result.max_tokens || 0, 64000);
+        result.max_tokens = Math.max((result.max_tokens as number) || 0, 64000);
         // Temperature is not compatible with thinking
         delete result.temperature;
         return result;
@@ -68,8 +68,8 @@ export class ClaudeAdapter extends BaseAdapter {
      * Formats a request for Claude's Messages API
      * Claude requires 'system' as a separate parameter, not in messages array
      */
-    public formatRequest(prompt: string, _language?: string): any {
-        const body: any = {
+    public formatRequest(prompt: string, _language?: string): Record<string, unknown> {
+        const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: 1024,
             system: SYSTEM_PROMPT,
@@ -84,8 +84,8 @@ export class ClaudeAdapter extends BaseAdapter {
         return 'image+document';
     }
 
-    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): any {
-        const contentItems: any[] = parts.map(part => {
+    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): Record<string, unknown> {
+        const contentItems = parts.map((part): Record<string, unknown> | null => {
             if (part.type === 'text') {
                 return { type: 'text', text: part.text };
             } else if (part.type === 'image') {
@@ -108,9 +108,9 @@ export class ClaudeAdapter extends BaseAdapter {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter((item): item is Record<string, unknown> => item !== null);
 
-        const body: any = {
+        const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: options?.maxTokens || 4096,
             messages: [
@@ -136,14 +136,15 @@ export class ClaudeAdapter extends BaseAdapter {
      * Handles both standard responses (content[0].text) and adaptive thinking
      * responses where content array contains thinking blocks followed by text blocks.
      */
-    public parseResponseContent(response: any): string {
-        if (!response?.content || !Array.isArray(response.content)) {
+    public parseResponseContent(response: unknown): string {
+        const responseObj = response as { content?: Array<{ type?: string; text?: string }> };
+        if (!responseObj?.content || !Array.isArray(responseObj.content)) {
             return '';
         }
 
         // Find text blocks — skip thinking blocks
         const textParts: string[] = [];
-        for (const block of response.content) {
+        for (const block of responseObj.content) {
             if (block.type === 'text' && block.text) {
                 textParts.push(block.text);
             }
@@ -155,7 +156,7 @@ export class ClaudeAdapter extends BaseAdapter {
     supportsStreaming() { return true; }
 
     formatStreamingRequest(prompt: string) {
-        const body: any = {
+        const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: 4096,
             system: 'You are a helpful assistant that summarizes content accurately and thoroughly.',

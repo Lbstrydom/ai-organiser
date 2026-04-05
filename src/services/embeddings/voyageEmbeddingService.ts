@@ -138,7 +138,7 @@ export class VoyageEmbeddingService implements IEmbeddingService {
                 }
 
                 // Sort by index to maintain order
-                const sortedData = data.data.sort((a: any, b: any) => a.index - b.index);
+                const sortedData = data.data.sort((a: { index: number }, b: { index: number }) => a.index - b.index);
                 for (const item of sortedData) {
                     allEmbeddings.push(item.embedding);
                 }

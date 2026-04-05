@@ -16,7 +16,7 @@ import {
     replaceMainContent,
     ensureStandardStructure,
     PendingSource,
-    SourceType,
+    NoteSourceType,
     getTodayDate,
     addToReferencesSection,
     extractSourcesFromPending,
@@ -90,7 +90,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         id: 'add-to-pending-integration',
         name: plugin.t.commands.addToPendingIntegration,
         icon: 'plus-circle',
-        editorCallback: async (editor: Editor) => {
+        editorCallback: (editor: Editor) => {
             const modal = new AddContentModal(plugin.app, plugin.t, (result) => {
                 if (result) {
                     addToPendingIntegration(editor, result);
@@ -322,7 +322,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         id: 'quick-add-text-pending',
         name: plugin.t.commands.quickAddTextPending,
         icon: 'text',
-        editorCallback: async (editor: Editor) => {
+        editorCallback: (editor: Editor) => {
             const modal = new QuickTextModal(plugin.app, plugin.t, (text) => {
                 if (text) {
                     // Simple format - just number and content
@@ -346,7 +346,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
         id: 'quick-add-url-pending',
         name: plugin.t.commands.quickAddUrlPending,
         icon: 'link',
-        editorCallback: async (editor: Editor) => {
+        editorCallback: (editor: Editor) => {
             const modal = new QuickUrlModal(plugin.app, plugin.t, (url) => {
                 if (url) {
                     const defaultTitle = getDefaultSourceTitle(plugin.t, 'web');
@@ -585,10 +585,8 @@ export function truncatePendingContentForIntegration(
     };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-deprecated -- SourceType still used in integration UI
-function getDefaultSourceTitle(t: Translations, type: SourceType): string {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const typeLabels = t.modals.addContent.types as Record<SourceType, string>;
+function getDefaultSourceTitle(t: Translations, type: NoteSourceType): string {
+    const typeLabels = t.modals.addContent.types as Record<NoteSourceType, string>;
     return typeLabels[type] || t.modals.addContent.defaultTitle;
 }
 
@@ -681,7 +679,7 @@ async function extractPendingEmbedText(
  * Detect content type from text
  */
 function detectContentType(text: string, t: Translations): {
-    type: SourceType; // eslint-disable-line @typescript-eslint/no-deprecated
+    type: NoteSourceType;
     title?: string;
     link?: string;
     isInternal?: boolean;
@@ -966,7 +964,7 @@ class AddContentModal extends Modal {
 
         contentEl.createEl('h2', { text: this.t.modals.addContent.title });
 
-        let selectedType: SourceType = 'manual'; // eslint-disable-line @typescript-eslint/no-deprecated
+        let selectedType: NoteSourceType = 'manual';
         let title = '';
         let link = '';
         let content = '';
@@ -985,7 +983,7 @@ class AddContentModal extends Modal {
                     .addOption('note', this.t.modals.addContent.types.note)
                     .setValue('manual')
                     .onChange(value => {
-                        selectedType = value as SourceType; // eslint-disable-line @typescript-eslint/no-deprecated
+                        selectedType = value as NoteSourceType;
                     });
             });
 

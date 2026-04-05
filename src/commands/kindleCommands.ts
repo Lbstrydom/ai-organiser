@@ -13,7 +13,7 @@ export function registerKindleCommands(plugin: AIOrganiserPlugin): void {
         id: 'kindle-sync',
         name: t.commands.kindleSync,
         icon: 'book-open',
-        callback: async () => {
+        callback: () => {
             new KindleSyncModal(plugin.app, plugin).open();
         }
     });

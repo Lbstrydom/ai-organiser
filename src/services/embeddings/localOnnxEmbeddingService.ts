@@ -6,8 +6,10 @@ const MODEL_DIMENSIONS: Record<string, number> = {
     'nomic-ai/nomic-embed-text-v1.5': 768,
 };
 
+type FeatureExtractionPipeline = (text: string | string[], options?: { pooling?: 'none' | 'cls' | 'mean'; normalize?: boolean }) => Promise<{ data: Float32Array }>;
+
 export class LocalOnnxEmbeddingService implements IEmbeddingService {
-    private pipeline: any = null;
+    private pipeline: FeatureExtractionPipeline | null = null;
     private modelId: string;
 
     constructor(modelId = 'Xenova/all-MiniLM-L6-v2') {
@@ -67,16 +69,17 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         }
     }
 
-    async dispose(): Promise<void> {
+    dispose(): Promise<void> {
         this.pipeline = null;
+        return Promise.resolve();
     }
 
-    private async getPipeline(): Promise<any> {
+    private async getPipeline(): Promise<FeatureExtractionPipeline> {
         if (this.pipeline) return this.pipeline;
         // Dynamic import — not bundled by default
         // @ts-ignore — optional peer dependency
         const { pipeline } = await import('@xenova/transformers');
-        this.pipeline = await pipeline('feature-extraction', this.modelId);
+        this.pipeline = (await pipeline('feature-extraction', this.modelId)) as unknown as FeatureExtractionPipeline;
         return this.pipeline;
     }
 }

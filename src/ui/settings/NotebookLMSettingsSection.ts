@@ -1,4 +1,3 @@
-/* eslint-disable obsidianmd/ui/sentence-case -- NotebookLM is a brand name */
 /**
  * NotebookLM Settings Section
  * Settings UI for configuring NotebookLM source pack exports (PDF-based)
@@ -19,7 +18,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         super(plugin, containerEl, settingTab);
     }
 
-    async display(): Promise<void> {
+    display(): void {
         const { containerEl, plugin } = this;
         const t = plugin.t.settings.notebookLM;
 
@@ -28,10 +27,11 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Selection tag
         new Setting(containerEl)
-            .setName(t?.selectionTag || 'Selection Tag')
+            .setName(t?.selectionTag || 'Selection tag')
             .setDesc(t?.selectionTagDesc || 'Tag to mark notes for export. Use Ctrl+P → "NotebookLM: Toggle Selection" to tag notes.')
             .addText(text =>
                 text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case
                     .setPlaceholder('notebooklm')
                     .setValue(plugin.settings.notebooklmSelectionTag)
                     .onChange(value => {
@@ -42,7 +42,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Export folder - with folder picker
         const exportFolderSetting = new Setting(containerEl)
-            .setName(t?.exportFolder || 'Export Folder')
+            .setName(t?.exportFolder || 'Export folder')
             .setDesc(t?.exportFolderDesc || 'Folder for PDF exports');
 
         // Add dropdown with existing folders
@@ -60,7 +60,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
                 }
             }
 
-            dropdown.addOption('__custom__', '— Custom path —');
+            dropdown.addOption('__custom__', '— custom path —');
 
             const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
             dropdown.setValue(isCustom ? '__custom__' : currentResolved);
@@ -190,7 +190,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         pdfWarningBox.addClass('ai-organiser-p-12');
         pdfWarningBox.addClass('ai-organiser-bg-warning');
         pdfWarningBox.addClass('ai-organiser-rounded-md');
-        pdfWarningBox.createEl('strong', { text: '\u26A0\uFE0F v1 Limitations:' });
+        pdfWarningBox.createEl('strong', { text: '\u26A0\uFE0F v1 limitations:' });
         pdfWarningBox.createEl('br');
         pdfWarningBox.appendText('\u2022 Latin alphabet only (CJK/RTL not yet supported)');
         pdfWarningBox.createEl('br');

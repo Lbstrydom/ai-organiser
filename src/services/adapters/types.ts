@@ -27,12 +27,13 @@ export interface AdapterConfig {
 
 export interface RequestBody {
     model?: string;
-    messages: Array<{
+    messages?: Array<{
         role: string;
         content: string;
     }>;
     max_tokens?: number;
     temperature?: number;
+    [key: string]: unknown;
 }
 
 export interface AdapterRequestParams {
@@ -72,10 +73,11 @@ export interface LLMServiceProvider {
     requestFormat: {
         url?: string;
         headers?: Record<string, string>;
-        body?: any;
+        body?: Record<string, unknown>;
     };
     responseFormat: {
         path: (string | number)[];
         errorPath?: (string | number)[];
+        contentPath?: (string | number)[];
     };
 }

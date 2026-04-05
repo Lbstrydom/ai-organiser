@@ -120,7 +120,7 @@ export function isPathExcluded(path: string, excludedPatterns: string[]): boolea
             else if (path === pattern || path.startsWith(pattern)) {
                 return true;
             }
-        } catch (_error) {
+        } catch {
             // Invalid exclusion pattern — skip
         }
     }

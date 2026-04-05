@@ -245,7 +245,7 @@ export async function generatePptx(
             const remainingH = bodyMaxH - (bodyY - 1.2) + 1;
             if (remainingH < 1) break; // Not enough room
 
-            const tableData: any[][] = [];
+            const tableData: Array<Array<{ text: string; options: Record<string, unknown> }>> = [];
 
             // Header row
             tableData.push(table.headers.map(h => ({

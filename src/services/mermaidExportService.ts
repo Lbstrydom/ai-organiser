@@ -34,7 +34,7 @@ export class MermaidExportService {
             const folder = this.getOutputFolder();
             await this.ensureFolder(folder);
             const path = normalizePath(`${folder}/${baseName}.mermaid`);
-            const safePath = await this.getAvailablePath(path, '.mermaid');
+            const safePath = this.getAvailablePath(path, '.mermaid');
             await this.app.vault.create(safePath, code);
             new Notice(t.exportSavedMermaid);
         } catch {
@@ -80,7 +80,7 @@ export class MermaidExportService {
             const folder = this.getOutputFolder();
             await this.ensureFolder(folder);
             const path = normalizePath(`${folder}/${baseName}.svg`);
-            const safePath = await this.getAvailablePath(path, '.svg');
+            const safePath = this.getAvailablePath(path, '.svg');
             await this.app.vault.create(safePath, svgContent);
             new Notice(t.exportSavedSVG);
         } catch {
@@ -116,7 +116,7 @@ export class MermaidExportService {
             const folder = this.getOutputFolder();
             await this.ensureFolder(folder);
             const path = normalizePath(`${folder}/${baseName}.png`);
-            const safePath = await this.getAvailablePath(path, '.png');
+            const safePath = this.getAvailablePath(path, '.png');
             await this.app.vault.createBinary(safePath, buffer);
             // §4.3.5 Save alt-text as companion sidecar file
             if (altText) {
@@ -307,7 +307,7 @@ export class MermaidExportService {
         }
     }
 
-    private async getAvailablePath(initialPath: string, ext: string): Promise<string> {
+    private getAvailablePath(initialPath: string, ext: string): string {
         if (!this.app.vault.getAbstractFileByPath(initialPath)) return initialPath;
         const withoutExt = initialPath.slice(0, initialPath.length - ext.length);
         for (let i = 2; i <= 999; i++) {

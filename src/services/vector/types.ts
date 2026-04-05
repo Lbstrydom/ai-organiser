@@ -76,7 +76,7 @@ export interface IVectorStore {
      * Search by content (embeds query automatically)
      * @param filter Optional predicate to include only matching documents
      */
-    searchByContent(query: string, embeddingService: any, topK?: number, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]>;
+    searchByContent(query: string, embeddingService: import('../embeddings/types').IEmbeddingService | null | undefined, topK?: number, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]>;
 
     /**
      * Get document by ID

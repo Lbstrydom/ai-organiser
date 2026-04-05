@@ -298,7 +298,7 @@ Language: ${outputLanguage}.`;
 }
 
 function buildSharedPromptSuffix(options: MinutesStylePromptOptions): string {
-    const { useGTD, dualOutput, meetingContext: _meetingContext, outputAudience: _outputAudience, styleReference, customInstructions } = options;
+    const { useGTD, dualOutput, styleReference, customInstructions } = options;
 
     // Response format
     const responseFormatSection = dualOutput

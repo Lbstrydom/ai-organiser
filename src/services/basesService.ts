@@ -13,7 +13,7 @@ export interface BasesPlugin extends Plugin {
     api?: {
         version: string;
         apiVersion: string;
-        registerTemplate?: (id: string, template: any) => void;
+        registerTemplate?: (id: string, template: unknown) => void;
         createDashboard?: (path: string, content: string) => Promise<TFile>;
     };
     settings?: {
@@ -72,7 +72,7 @@ export class BasesService {
      * Get the Bases API object if exposed
      */
      
-    public getBasesApi(): any {
+    public getBasesApi(): BasesPlugin['api'] | null {
         const bases = this.getBasesPlugin();
         return bases?.api || null;
     }

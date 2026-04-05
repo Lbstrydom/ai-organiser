@@ -78,7 +78,7 @@ export abstract class BaseLLMService {
      * @param message - Message to log
      * @param data - Optional data to log
      */
-    protected debugLog(message: string, data?: any): void {
+    protected debugLog(message: string, data?: unknown): void {
         logger.debug('LLM', message, data);
     }
 
@@ -89,7 +89,7 @@ export abstract class BaseLLMService {
      * @param language - Optional language code
      * @returns Formatted request body
      */
-    public formatRequest(prompt: string, _language?: string): any {
+    public formatRequest(prompt: string, _language?: string): Record<string, unknown> {
         // Default OpenAI-compatible format
         return {
             model: this.modelName,
@@ -136,7 +136,7 @@ export abstract class BaseLLMService {
      * Cleans up all active requests
      * Should be called when the service is no longer needed
      */
-    public async dispose(): Promise<void> {
+    public dispose(): Promise<void> {
         // Cancel all active requests
         this.activeRequests.forEach(request => {
             if (request.timeoutId) {
@@ -145,6 +145,7 @@ export abstract class BaseLLMService {
             request.controller.abort(new Error('Service disposed'));
         });
         this.activeRequests.clear();
+        return Promise.resolve();
     }
 
     /**
@@ -284,12 +285,12 @@ export abstract class BaseLLMService {
                         this.debugLog(`Found hybrid format - suggestedTags:`, jsonResponse.suggestedTags);
 
                         const sanitizedMatched = jsonResponse.matchedExistingTags
-                            .map((tag: any) => this.sanitizeTag(String(tag)))
+                            .map((tag: unknown) => this.sanitizeTag(String(tag)))
                             .filter((tag: string) => tag.length > 0)
                             .slice(0, maxTags);
 
                         const sanitizedSuggested = jsonResponse.suggestedTags
-                            .map((tag: any) => this.sanitizeTag(String(tag)))
+                            .map((tag: unknown) => this.sanitizeTag(String(tag)))
                             .filter((tag: string) => tag.length > 0)
                             .slice(0, maxTags);
 
@@ -306,11 +307,11 @@ export abstract class BaseLLMService {
                     if (Array.isArray(jsonResponse.matchedTags) && Array.isArray(jsonResponse.newTags)) {
                         return {
                             matchedExistingTags: jsonResponse.matchedTags
-                                .map((tag: any) => this.sanitizeTag(String(tag)))
+                                .map((tag: unknown) => this.sanitizeTag(String(tag)))
                                 .filter((tag: string) => tag.length > 0)
                                 .slice(0, maxTags),
                             suggestedTags: jsonResponse.newTags
-                                .map((tag: any) => this.sanitizeTag(String(tag)))
+                                .map((tag: unknown) => this.sanitizeTag(String(tag)))
                                 .filter((tag: string) => tag.length > 0)
                                 .slice(0, maxTags)
                         };
@@ -353,7 +354,7 @@ export abstract class BaseLLMService {
                 if (Array.isArray(jsonResponse.matchedTags) && mode === TaggingMode.PredefinedTags) {
                     return {
                         matchedExistingTags: jsonResponse.matchedTags
-                            .map((tag: any) => this.sanitizeTag(String(tag)))
+                            .map((tag: unknown) => this.sanitizeTag(String(tag)))
                             .filter((tag: string) => tag.length > 0)
                             .slice(0, maxTags),
                         suggestedTags: []
@@ -364,12 +365,12 @@ export abstract class BaseLLMService {
                     return {
                         matchedExistingTags: [],
                         suggestedTags: jsonResponse.newTags
-                            .map((tag: any) => this.sanitizeTag(String(tag)))
+                            .map((tag: unknown) => this.sanitizeTag(String(tag)))
                             .filter((tag: string) => tag.length > 0)
                             .slice(0, maxTags)
                     };
                 }
-            } catch (_e) {
+            } catch {
                 // Not JSON, might be wrapped in markdown code fences
                 this.debugLog(`Initial JSON parse failed, trying to extract from markdown`);
             }
@@ -391,12 +392,12 @@ export abstract class BaseLLMService {
                             this.debugLog(`Found hybrid format in code block - suggestedTags:`, jsonResponse.suggestedTags);
 
                             const sanitizedMatched = jsonResponse.matchedExistingTags
-                                .map((tag: any) => this.sanitizeTag(String(tag)))
+                                .map((tag: unknown) => this.sanitizeTag(String(tag)))
                                 .filter((tag: string) => tag.length > 0)
                                 .slice(0, maxTags);
 
                             const sanitizedSuggested = jsonResponse.suggestedTags
-                                .map((tag: any) => this.sanitizeTag(String(tag)))
+                                .map((tag: unknown) => this.sanitizeTag(String(tag)))
                                 .filter((tag: string) => tag.length > 0)
                                 .slice(0, maxTags);
 
@@ -515,7 +516,7 @@ export abstract class BaseLLMService {
      * @param content - Raw content to process (string or object)
      * @returns Object with tags array
      */
-    protected processTagsFromResponse(content: any): { tags: string[] } {
+    protected processTagsFromResponse(content: unknown): { tags: string[] } {
         try {
             // console.log('Processing tags from raw response:', JSON.stringify(content));
             
@@ -539,30 +540,33 @@ export abstract class BaseLLMService {
                     .join(', ');
                 // console.log('Response is array, joined as:', textContent);
             } else if (typeof content === 'object' && content !== null) {
+                const contentObj = content as Record<string, unknown>;
                 //console.log('Response is object:', JSON.stringify(content));
                 // Try multiple ways to extract tags
                 // First check for standard tag fields
                 const candidateFields = ['tags', 'tag', 'matchedExistingTags', 'suggestedTags', 'matchedTags', 'newTags', 'content', 'results'];
-                
+
                 for (const field of candidateFields) {
-                    if (Array.isArray(content[field])) {
+                    const fieldVal = contentObj[field];
+                    if (Array.isArray(fieldVal)) {
                         // Prioritize array fields
-                        textContent = content[field]
-                            .filter((tag: any) => tag !== null && tag !== undefined)
+                        textContent = fieldVal
+                            .filter((tag: unknown) => tag !== null && tag !== undefined)
+                            .map((tag: unknown) => String(tag))
                             .join(', ');
                         //console.log(`Found array field "${field}":`, textContent);
                         break;
-                    } else if (typeof content[field] === 'string' && content[field].trim()) {
+                    } else if (typeof fieldVal === 'string' && fieldVal.trim()) {
                         // String fields can also be used
-                        textContent = content[field].trim();
+                        textContent = fieldVal.trim();
                         //console.log(`Found string field "${field}":`, textContent);
                         break;
                     }
                 }
-                
+
                 // If no standard fields, try to extract any possible string
                 if (!textContent) {
-                    for (const [_key, value] of Object.entries(content)) {
+                    for (const value of Object.values(contentObj)) {
                         if (typeof value === 'string' && value.trim()) {
                             textContent = value.trim();
                             //console.log(`Using string value from field "${key}":`, textContent);
@@ -570,7 +574,8 @@ export abstract class BaseLLMService {
                         } else if (Array.isArray(value) && value.length > 0) {
                             // Try simple arrays
                             textContent = value
-                                .filter((item: any) => item !== null && item !== undefined)
+                                .filter((item: unknown) => item !== null && item !== undefined)
+                                .map((item: unknown) => String(item))
                                 .join(', ');
                             //console.log(`Using array value from field "${key}":`, textContent);
                             break;
@@ -601,11 +606,11 @@ export abstract class BaseLLMService {
                     } else if (typeof jsonContent === 'object' && jsonContent !== null && Array.isArray(jsonContent.tags)) {
                         // Use JSON object with tags field
                         tags = jsonContent.tags
-                            .map((tag: any) => typeof tag === 'string' ? tag.trim() : String(tag).trim())
+                            .map((tag: unknown) => typeof tag === 'string' ? tag.trim() : String(tag).trim())
                             .filter((tag: string) => tag.length > 0);
                         //console.log('Parsed JSON object with tags field:', tags);
                     }
-                } catch (_jsonError) {
+                } catch {
                     // Not valid JSON, continue with text parsing;
                 }
             }
@@ -657,7 +662,7 @@ export abstract class BaseLLMService {
 
             // console.log('Final extracted tags:', uniqueTags);
             return { tags: uniqueTags };
-        } catch (_error) {
+        } catch {
             return { tags: [] };
         }
     }
@@ -824,7 +829,7 @@ export abstract class BaseLLMService {
 
                 // Extract tags
                 if (Array.isArray(parsed.tags)) {
-                    result.tags = parsed.tags.map((t: any) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
+                    result.tags = parsed.tags.map((t: unknown) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
                 }
 
                 // Fallback: handle 3-tier taxonomy format { theme, discipline, topics }
@@ -833,7 +838,7 @@ export abstract class BaseLLMService {
                     if (parsed.theme) tierTags.push(this.sanitizeTag(String(parsed.theme)));
                     if (parsed.discipline) tierTags.push(this.sanitizeTag(String(parsed.discipline)));
                     if (Array.isArray(parsed.topics)) {
-                        tierTags.push(...parsed.topics.map((t: any) => this.sanitizeTag(String(t))));
+                        tierTags.push(...parsed.topics.map((t: unknown) => this.sanitizeTag(String(t))));
                     }
                     result.tags = tierTags.filter(t => t.length > 0);
                 }
@@ -889,7 +894,7 @@ export abstract class BaseLLMService {
                         if (parsed.theme) tags.push(this.sanitizeTag(String(parsed.theme)));
                         if (parsed.discipline) tags.push(this.sanitizeTag(String(parsed.discipline)));
                         if (Array.isArray(parsed.topics)) {
-                            tags.push(...parsed.topics.map((t: any) => this.sanitizeTag(String(t))));
+                            tags.push(...parsed.topics.map((t: unknown) => this.sanitizeTag(String(t))));
                         }
                         return tags.filter(t => t.length > 0);
                     }
@@ -898,7 +903,7 @@ export abstract class BaseLLMService {
                     const tagFields = ['tags', 'suggestedTags', 'newTags', 'matchedTags'];
                     for (const field of tagFields) {
                         if (Array.isArray(parsed[field])) {
-                            return parsed[field].map((t: any) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
+                            return parsed[field].map((t: unknown) => this.sanitizeTag(String(t))).filter((t: string) => t.length > 0);
                         }
                     }
                 }

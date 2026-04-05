@@ -47,7 +47,7 @@ export class BrightDataSerpAdapter implements SearchProvider {
         });
 
         const data = response.json;
-        return (data.organic || []).map((item: any): SearchResult => ({
+        return (data.organic || []).map((item: { title?: string; link?: string; url?: string; description?: string; snippet?: string; rank?: number }): SearchResult => ({
             title: item.title || '',
             url: item.link || item.url || '',
             snippet: item.description || item.snippet || '',

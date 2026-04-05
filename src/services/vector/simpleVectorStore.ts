@@ -53,7 +53,7 @@ export class SimpleVectorStore implements IVectorStore {
         version: INDEX_SCHEMA_VERSION
     };
 
-    async upsert(documents: VectorDocument[]): Promise<void> {
+    upsert(documents: VectorDocument[]): Promise<void> {
         for (const doc of documents) {
             this.documents.set(doc.id, doc);
             if (doc.embedding) {
@@ -65,18 +65,20 @@ export class SimpleVectorStore implements IVectorStore {
         this.metadata.lastUpdated = Date.now();
         // Lazy Migration Strategy: see voyVectorStore.ts upsert() for rationale.
         this.metadata.version = INDEX_SCHEMA_VERSION;
+        return Promise.resolve();
     }
 
-    async remove(ids: string[]): Promise<void> {
+    remove(ids: string[]): Promise<void> {
         for (const id of ids) {
             this.documents.delete(id);
             this.embeddings.delete(id);
         }
         this.metadata.totalDocuments = this.documents.size;
         this.metadata.lastUpdated = Date.now();
+        return Promise.resolve();
     }
 
-    async search(queryVector: number[], topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
+    search(queryVector: number[], topK: number = 5, filter?: (doc: VectorDocument) => boolean): Promise<SearchResult[]> {
         const results: Array<{ id: string; score: number }> = [];
 
         for (const [id, embedding] of this.embeddings.entries()) {
@@ -95,16 +97,16 @@ export class SimpleVectorStore implements IVectorStore {
         results.sort((a, b) => b.score - a.score);
 
         // Return top K results
-        return results.slice(0, topK).map(r => ({
+        return Promise.resolve(results.slice(0, topK).map(r => ({
             document: this.documents.get(r.id)!,
             score: r.score,
             highlightedText: this.documents.get(r.id)?.content.substring(0, 200) || ''
-        }));
+        })));
     }
 
     async searchByContent(
         query: string,
-        embeddingService: any,
+        embeddingService: import('../embeddings/types').IEmbeddingService | null | undefined,
         topK: number = 5,
         filter?: (doc: VectorDocument) => boolean
     ): Promise<SearchResult[]> {
@@ -129,12 +131,12 @@ export class SimpleVectorStore implements IVectorStore {
         }
     }
 
-    async getDocument(id: string): Promise<VectorDocument | null> {
-        return this.documents.get(id) || null;
+    getDocument(id: string): Promise<VectorDocument | null> {
+        return Promise.resolve(this.documents.get(id) || null);
     }
 
-    async getDocumentsByFile(filePath: string): Promise<VectorDocument[]> {
-        return [...this.documents.values()].filter(d => d.filePath === filePath);
+    getDocumentsByFile(filePath: string): Promise<VectorDocument[]> {
+        return Promise.resolve([...this.documents.values()].filter(d => d.filePath === filePath));
     }
 
     async removeFile(filePath: string): Promise<void> {
@@ -159,17 +161,18 @@ export class SimpleVectorStore implements IVectorStore {
         this.fileChangeTracker.removeHash(oldPath);
     }
 
-    async getMetadata(): Promise<IndexMetadata> {
-        return { ...this.metadata };
+    getMetadata(): Promise<IndexMetadata> {
+        return Promise.resolve({ ...this.metadata });
     }
 
-    async clear(): Promise<void> {
+    clear(): Promise<void> {
         this.documents.clear();
         this.embeddings.clear();
         this.fileChangeTracker.clear();
         this.metadata.totalDocuments = 0;
         this.metadata.totalNotes = 0;
         this.metadata.lastUpdated = Date.now();
+        return Promise.resolve();
     }
 
     async rebuild(documents: VectorDocument[]): Promise<void> {

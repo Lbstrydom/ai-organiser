@@ -23,7 +23,7 @@ export class WriterService {
 
         const existingFile = this.app.vault.getAbstractFileByPath(readmePath);
         if (existingFile) {
-            await this.app.vault.modify(existingFile as any, content);
+            await this.app.vault.modify(existingFile as import('obsidian').TFile, content);
         } else {
             await this.app.vault.create(readmePath, content);
         }
@@ -38,7 +38,7 @@ export class WriterService {
 
         const existingFile = this.app.vault.getAbstractFileByPath(manifestPath);
         if (existingFile) {
-            await this.app.vault.modify(existingFile as any, content);
+            await this.app.vault.modify(existingFile as import('obsidian').TFile, content);
         } else {
             await this.app.vault.create(manifestPath, content);
         }
@@ -53,7 +53,7 @@ export class WriterService {
 
         const existingFile = this.app.vault.getAbstractFileByPath(changelogPath);
         if (existingFile) {
-            await this.app.vault.modify(existingFile as any, content);
+            await this.app.vault.modify(existingFile as import('obsidian').TFile, content);
         } else {
             await this.app.vault.create(changelogPath, content);
         }

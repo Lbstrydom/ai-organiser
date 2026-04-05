@@ -9,6 +9,7 @@ import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings, getPluginManagedFolders } from '../../core/settings';
 import { createContentHash } from './hashUtils';
+import type { IEmbeddingService } from '../embeddings/types';
 import { getTranslations } from '../../i18n';
 import { logger } from '../../utils/logger';
 
@@ -114,7 +115,7 @@ export class VectorStoreService {
     private static readonly BULK_RENAME_THRESHOLD = 10;
     private static readonly RENAME_DEBOUNCE_MS = 500;
     private vectorStore: IVectorStore | null = null;
-    private embeddingService: any;
+    private embeddingService: IEmbeddingService | null;
     private app: App;
     private settings: AIOrganiserSettings;
     private isIndexing = false;
@@ -128,7 +129,7 @@ export class VectorStoreService {
     constructor(
         app: App,
         settings: AIOrganiserSettings,
-        embeddingService: any
+        embeddingService: IEmbeddingService | null
     ) {
         this.app = app;
         this.settings = settings;
@@ -145,7 +146,7 @@ export class VectorStoreService {
 
         try {
             // Get embedding dimensions
-            const embeddingInfo = await this.embeddingService?.getModelInfo?.();
+            const embeddingInfo = this.embeddingService?.getModelInfo?.();
             const dims = embeddingInfo?.dimensions || 1536;
             const storagePath = this.settings.pluginFolder || 'AI-Organiser';
             const t = getTranslations(this.settings.interfaceLanguage);
@@ -176,7 +177,7 @@ export class VectorStoreService {
             this.vectorStore = new VoyVectorStore(this.app, dims, storagePath);
 
             // Set embedding metadata
-            (this.vectorStore as any).setEmbeddingMetadata?.(
+            (this.vectorStore as IVectorStore & { setEmbeddingMetadata?: (dims: number, model: string) => void }).setEmbeddingMetadata?.(
                 dims,
                 this.settings.embeddingModel
             );
@@ -195,9 +196,9 @@ export class VectorStoreService {
             // Fallback to simple in-memory store
             this.vectorStore = new SimpleVectorStore();
             
-            const embeddingInfo = await this.embeddingService?.getModelInfo?.();
+            const embeddingInfo = this.embeddingService?.getModelInfo?.();
             if (embeddingInfo) {
-                (this.vectorStore as any).setEmbeddingMetadata?.(
+                (this.vectorStore as IVectorStore & { setEmbeddingMetadata?: (dims: number, model: string) => void }).setEmbeddingMetadata?.(
                     embeddingInfo.dimensions || 1536,
                     this.settings.embeddingModel
                 );
@@ -218,7 +219,7 @@ export class VectorStoreService {
      * Update embedding service and reinitialize if needed
      */
     public async updateEmbeddingService(
-        embeddingService: any,
+        embeddingService: IEmbeddingService | null,
         shouldClear: boolean = false
     ): Promise<void> {
         this.embeddingService = embeddingService;
@@ -508,7 +509,7 @@ export class VectorStoreService {
         }));
 
         // Listen for file rename
-        this.fileEventRefs.push(this.app.vault.on('rename', async (file, oldPath) => {
+        this.fileEventRefs.push(this.app.vault.on('rename', (file, oldPath) => {
             if (file instanceof TFile && file.extension === 'md' && !this.isIndexing) {
                 this.queueRenameNote(oldPath, file.path);
             }
@@ -654,7 +655,7 @@ export class VectorStoreService {
                     }
                 }).catch(err => {
                     logger.error('Search', 'Auto-rebuild failed', err);
-                    new Notice('Index auto-rebuild failed. Rebuild manually via Settings.', 5000); // eslint-disable-line obsidianmd/ui/sentence-case -- Settings is a proper noun (Obsidian UI element)
+                    new Notice('Index auto-rebuild failed. Rebuild manually via settings.', 5000);
                 });
             } else {
                 const msg = `Vector index version ${metadata?.version ?? 'unknown'} is outdated (current: ${INDEX_SCHEMA_VERSION}). Rebuild via Settings → Vault Intelligence → Semantic Search → Build Index.`;

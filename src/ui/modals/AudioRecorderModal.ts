@@ -96,7 +96,7 @@ export class AudioRecorderModal extends Modal {
 
         // Size display
         this.sizeEl = contentEl.createDiv({ cls: 'ai-organiser-audio-recorder-size' });
-        this.sizeEl.textContent = '0.0 MB'; // eslint-disable-line obsidianmd/ui/sentence-case -- file size label
+        this.sizeEl.textContent = '0.0 MB';
 
         // Max time hint (mobile only, when auto-transcribe makes sense)
         if (Platform.isMobile) {
@@ -264,12 +264,13 @@ export class AudioRecorderModal extends Modal {
             this.contentEl.addClass('ai-organiser-audio-recorder-recording');
             this.renderControls();
             this.startTimer();
-        } catch (err: any) {
-            if (err?.name === 'NotAllowedError') {
+        } catch (err: unknown) {
+            const errObj = err as { name?: string; message?: string };
+            if (errObj?.name === 'NotAllowedError') {
                 const t = this.plugin.t.recording;
                 new Notice(t?.micPermissionDenied || 'Microphone access denied. Check permissions.');
             } else {
-                new Notice('Failed to start recording: ' + (err?.message || 'Unknown error'));
+                new Notice('Failed to start recording: ' + (errObj?.message || 'Unknown error'));
             }
         }
     }
@@ -282,8 +283,9 @@ export class AudioRecorderModal extends Modal {
             this.stopTimer();
             this.renderControls();
             this.updateAutoTranscribeState();
-        } catch (err: any) {
-            new Notice('Failed to stop recording: ' + (err?.message || 'Unknown error'));
+        } catch (err: unknown) {
+            const errObj = err as { name?: string; message?: string };
+            new Notice('Failed to stop recording: ' + (errObj?.message || 'Unknown error'));
         }
     }
 
@@ -394,8 +396,9 @@ export class AudioRecorderModal extends Modal {
             }
 
             this.close();
-        } catch (err: any) {
-            new Notice('Failed to save recording: ' + (err?.message || 'Unknown error'));
+        } catch (err: unknown) {
+            const errObj = err as { name?: string; message?: string };
+            new Notice('Failed to save recording: ' + (errObj?.message || 'Unknown error'));
             this.state = 'stopped';
             this.renderControls();
             if (this.statusEl) this.statusEl.textContent = '';

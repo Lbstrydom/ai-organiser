@@ -19,7 +19,7 @@ export class ZoteroBridgeService {
     /** Check if Zotero connector plugin is available. */
     isAvailable(app: App): boolean {
         if (Platform.isMobile) return false;
-        return (app as any).plugins?.enabledPlugins?.has(ZOTERO_CONNECTOR_PLUGIN_ID) ?? false;
+        return (app as App & { plugins?: { enabledPlugins?: Set<string> } }).plugins?.enabledPlugins?.has(ZOTERO_CONNECTOR_PLUGIN_ID) ?? false;
     }
 
     /** Whether the Zotero button should be shown (always on desktop for discoverability). */
@@ -70,7 +70,7 @@ export class ZoteroBridgeService {
         collection?: string,
     ): Promise<{ success: boolean; error?: string }> {
         try {
-            const payload: any[] = items.map(item => ({
+            const payload: Array<CslJsonItem & { collections?: string[] }> = items.map(item => ({
                 ...item,
                 ...(collection ? { collections: [collection] } : {}),
             }));

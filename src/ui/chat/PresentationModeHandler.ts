@@ -546,7 +546,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private renderVersionNav(container: HTMLElement): void {
         const nav = container.createEl('div', { cls: 'ai-organiser-pres-version-nav' });
 
-        const prevBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: '◄ Prev' }); // eslint-disable-line obsidianmd/ui/sentence-case
+        const prevBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: '◄ prev' });
         prevBtn.disabled = this.versionIndex <= 0;
         prevBtn.addEventListener('click', () => this.restoreVersion(this.versionIndex - 1));
 
@@ -593,7 +593,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private getLLMContext(ctx: ModalContext): LLMFacadeContext {
-        return pluginContext(ctx.fullPlugin as any);
+        return pluginContext(ctx.fullPlugin);
     }
 
     private async getTheme(ctx: ModalContext): Promise<BrandTheme> {

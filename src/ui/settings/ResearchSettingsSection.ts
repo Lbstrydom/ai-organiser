@@ -20,7 +20,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
     }
 
     async display(): Promise<void> {
-        const t = this.plugin.t.settings as any;
+        const t = this.plugin.t.settings as unknown as Record<string, Record<string, string>>;
         const rt = t.research || {};
 
         this.createSectionHeader(rt.title || 'Research Assistant', 'telescope', 2);
@@ -35,7 +35,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 dd.addOption('brightdata-serp', 'Bright Data SERP');
                 dd.setValue(this.plugin.settings.researchProvider)
                     .onChange(async v => {
-                        this.plugin.settings.researchProvider = v as any;
+                        this.plugin.settings.researchProvider = v as typeof this.plugin.settings.researchProvider;
                         await this.plugin.saveSettings();
                         this.settingTab.display();
                     });
@@ -215,7 +215,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 dd.addOption('pending', 'Save to Pending');
                 dd.setValue(this.plugin.settings.researchDefaultOutput)
                     .onChange(async v => {
-                        this.plugin.settings.researchDefaultOutput = v as any;
+                        this.plugin.settings.researchDefaultOutput = v as typeof this.plugin.settings.researchDefaultOutput;
                         await this.plugin.saveSettings();
                     });
             });

@@ -4,6 +4,11 @@ import { logger } from '../utils/logger';
 import { getLanguageNameForPrompt } from './languages';
 import {
     Action,
+    Decision,
+    Risk,
+    NotablePoint,
+    OpenQuestion,
+    DeferredItem,
     IntermediateMergeContext,
     MeetingMetadata,
     MinutesJSON,
@@ -72,11 +77,11 @@ export interface MinutesGenerationResult {
 interface ChunkExtract {
     chunkIndex: number;
     actions: Action[];
-    decisions: any[];
-    risks: any[];
-    notable_points: any[];
-    open_questions: any[];
-    deferred_items: any[];
+    decisions: Decision[];
+    risks: Risk[];
+    notable_points: NotablePoint[];
+    open_questions: OpenQuestion[];
+    deferred_items: DeferredItem[];
 }
 
 // Use shared CHUNK_TOKEN_LIMIT from constants
@@ -587,15 +592,16 @@ export class MinutesService {
     }
 
     private parseChunkExtract(responseText: string): Omit<ChunkExtract, 'chunkIndex'> {
-        const parsed = tryExtractJson(responseText) as any;
+        const parsed = tryExtractJson(responseText) as Partial<ChunkExtract> | null;
         if (!parsed || typeof parsed !== 'object') {
             throw new Error('Failed to extract JSON from chunk response');
         }
 
         const fields = ['actions', 'decisions', 'risks', 'notable_points', 'open_questions', 'deferred_items'] as const;
         let missingCount = 0;
+        const parsedRec = parsed as Record<string, unknown>;
         for (const field of fields) {
-            if (!Array.isArray(parsed[field])) {
+            if (!Array.isArray(parsedRec[field])) {
                 missingCount++;
                 logger.warn('Minutes', `parseChunkExtract: missing field "${field}", defaulting to []`);
             }
@@ -635,7 +641,7 @@ export class MinutesService {
                     const key = this.normalizeForDedup(item.text);
                     if (!seenSets[field].has(key)) {
                         seenSets[field].add(key);
-                        merged[field].push(item);
+                        (merged[field] as Array<typeof item>).push(item);
                     }
                 }
             }
@@ -659,11 +665,12 @@ export class MinutesService {
     private demoteLowConfidenceItems(extract: ChunkExtract): ChunkExtract {
         const demotable = ['actions', 'decisions', 'notable_points'] as const;
         const result = { ...extract };
-        const demoted: any[] = [];
+        const demoted: OpenQuestion[] = [];
 
         for (const field of demotable) {
-            const kept: any[] = [];
-            for (const item of result[field]) {
+            const items = result[field] as Array<{ confidence?: string; text?: string }>;
+            const kept: Array<{ confidence?: string; text?: string }> = [];
+            for (const item of items) {
                 if (item.confidence === 'low') {
                     demoted.push({
                         id: `Q${demoted.length + result.open_questions.length + 1}`,
@@ -674,7 +681,7 @@ export class MinutesService {
                     kept.push(item);
                 }
             }
-            (result as any)[field] = kept;
+            (result as Record<string, unknown>)[field] = kept;
         }
 
         result.open_questions = [...result.open_questions, ...demoted];

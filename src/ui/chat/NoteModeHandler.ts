@@ -30,13 +30,13 @@ export class NoteModeHandler implements ChatModeHandler {
         });
     }
 
-    async buildPrompt(query: string, history: string, ctx: ModalContext) {
+    buildPrompt(query: string, history: string, ctx: ModalContext) {
         const t = ctx.plugin.t.modals.unifiedChat;
         const noteTitle = ctx.options.noteTitle || t.modeNote;
         const noteContent = ctx.options.noteContent || '';
-        return {
+        return Promise.resolve({
             prompt: buildNoteChatPrompt(query, noteContent, noteTitle, history)
-        };
+        });
     }
 
     getActionDescriptors(_t: Translations): [] {

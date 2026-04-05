@@ -22,7 +22,7 @@ const mockDictionaryService = {
 
 // Mock LLMService
 const mockLLMService = {
-    analyzeTags: vi.fn() as ReturnType<typeof vi.fn>
+    generateTags: vi.fn() as ReturnType<typeof vi.fn>
 };
 
 // Sample test data
@@ -303,8 +303,8 @@ describe('DictionaryController', () => {
 
     describe('extractTermsFromContent', () => {
         it('should extract terms from documents', async () => {
-            mockLLMService.analyzeTags.mockResolvedValue({
-                suggestedTags: ['john-smith-person', 'api-acronym'],
+            mockLLMService.generateTags.mockResolvedValue({
+                success: true, tags: ['john-smith-person', 'api-acronym'],
                 matchedExistingTags: []
             });
 
@@ -327,8 +327,8 @@ describe('DictionaryController', () => {
         });
 
         it('should handle terms without category suffix', async () => {
-            mockLLMService.analyzeTags.mockResolvedValue({
-                suggestedTags: ['project-phoenix', 'database'],
+            mockLLMService.generateTags.mockResolvedValue({
+                success: true, tags: ['project-phoenix', 'database'],
                 matchedExistingTags: []
             });
 
@@ -345,8 +345,8 @@ describe('DictionaryController', () => {
         });
 
         it('should deduplicate extracted terms (case-insensitive)', async () => {
-            mockLLMService.analyzeTags.mockResolvedValue({
-                suggestedTags: ['john-smith-person', 'John-Smith-person', 'api-acronym'],
+            mockLLMService.generateTags.mockResolvedValue({
+                success: true, tags: ['john-smith-person', 'John-Smith-person', 'api-acronym'],
                 matchedExistingTags: []
             });
 
@@ -373,8 +373,8 @@ describe('DictionaryController', () => {
         });
 
         it('should return error when LLM returns no tags', async () => {
-            mockLLMService.analyzeTags.mockResolvedValue({
-                suggestedTags: [],
+            mockLLMService.generateTags.mockResolvedValue({
+                success: true, tags: [],
                 matchedExistingTags: []
             });
 
@@ -390,7 +390,7 @@ describe('DictionaryController', () => {
         });
 
         it('should return error on LLM failure', async () => {
-            mockLLMService.analyzeTags.mockRejectedValue(
+            mockLLMService.generateTags.mockRejectedValue(
                 new Error('LLM error')
             );
 

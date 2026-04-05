@@ -2,7 +2,7 @@ import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class SketchSettingsSection extends BaseSettingSection {
-    async display(): Promise<void> {
+    display(): void {
         const t = this.plugin.t.settings.sketch;
         this.createSectionHeader(t?.title || 'Sketch Pad', 'pencil', 2);
 

@@ -894,7 +894,7 @@ export class MermaidChatModal extends Modal {
     }
 
     /** Prompt user to pick an existing .canvas file and append the diagram to it. */
-    private async promptAppendToCanvas(): Promise<void> {
+    private promptAppendToCanvas(): void {
         if (!this.currentDiagram) return;
         const canvasFiles = this.app.vault.getFiles().filter(f => f.extension === 'canvas');
         if (canvasFiles.length === 0) {

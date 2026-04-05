@@ -36,7 +36,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return null;
     }
 
-    private async makeRequest(prompt: string, timeoutMs: number): Promise<any> {
+    private async makeRequest(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
         try {
             const validationError = this.validateCloudConfig();
             if (validationError) {
@@ -63,7 +63,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         }
     }
 
-    private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<any> {
+    private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
         let lastError: Error | null = null;
 
         for (let i = 0; i < this.MAX_RETRIES; i++) {
@@ -358,7 +358,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @param prompt - The user prompt
      * @returns Request body object
      */
-    private buildSummarizeRequestBody(prompt: string, options?: SummarizeOptions): any {
+    private buildSummarizeRequestBody(prompt: string, options?: SummarizeOptions): Record<string, unknown> {
         // Use a neutral, general-purpose system prompt
         const summarizeSystemPrompt = 'You are a helpful assistant that summarizes content accurately and thoroughly.';
 
@@ -409,7 +409,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             const defaultTokens = isReasoningModel ? 16384 : 8192;
             const tokenBudget = options?.maxTokens || defaultTokens;
 
-            const baseRequest: any = {
+            const baseRequest: Record<string, unknown> = {
                 model: modelName,
                 messages: [
                     { role: 'system', content: summarizeSystemPrompt },
@@ -438,7 +438,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * - maxTokens: override the default token budget
      * - When thinking is active and no explicit maxTokens, uses 64K default
      */
-    private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): any {
+    private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): Record<string, unknown> {
         const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
         const thinkingMode = this.adapter['config']?.thinkingMode;
         const modelSupportsThinking = thinkingMode === 'adaptive' && (modelName.startsWith('claude-opus-4-6') || modelName.startsWith('claude-sonnet-4-6'));
@@ -456,7 +456,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             maxTokens = useThinking ? 64000 : 8192;
         }
 
-        const body: any = {
+        const body: Record<string, unknown> = {
             model: modelName,
             max_tokens: maxTokens,
             system: systemPrompt,

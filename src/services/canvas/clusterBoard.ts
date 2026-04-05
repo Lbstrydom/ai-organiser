@@ -190,7 +190,7 @@ function extractIndexes(cluster: Record<string, unknown>, noteCount: number): nu
     if (!Array.isArray(candidates)) return [];
 
     const indexes = candidates
-        .map((value: any) => typeof value === 'number' ? value : Number(value))
+        .map((value: unknown) => typeof value === 'number' ? value : Number(value))
         .filter((value: number) => Number.isFinite(value) && value >= 0 && value < noteCount);
 
     return Array.from(new Set(indexes));

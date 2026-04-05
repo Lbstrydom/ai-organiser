@@ -5,8 +5,6 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
     try {
         const baseUrl = normalizeEndpoint(endpoint);
         const isOllama = baseUrl.includes('localhost:11434') || baseUrl.includes('ollama');
-        const _isLocalAI = baseUrl.includes('localhost:8080') || baseUrl.includes('localai');
-        const _isLMStudio = baseUrl.includes('localhost:1234') || baseUrl.includes('lm_studio');
 
         // Special handling for Ollama
         if (isOllama) {
@@ -21,7 +19,7 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
                 if (ollamaResponse.status < 400) {
                     const ollamaData = ollamaResponse.json;
                     if (ollamaData.models && Array.isArray(ollamaData.models)) {
-                        return ollamaData.models.map((model: any) => model.name);
+                        return ollamaData.models.map((model: { name: string }) => model.name);
                     }
                 }
 
@@ -35,10 +33,10 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
                 if (ollamaListResponse.status < 400) {
                     const ollamaListData = ollamaListResponse.json;
                     if (Array.isArray(ollamaListData.models)) {
-                        return ollamaListData.models.map((model: any) => model.name);
+                        return ollamaListData.models.map((model: { name: string }) => model.name);
                     }
                 }
-            } catch (_error) {
+            } catch {
                 // Will fall back to standard endpoint
             }
         }
@@ -72,9 +70,9 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
             if (Array.isArray(data)) {
                 models = data.map(model => typeof model === 'string' ? model : model.id || model.name);
             } else if (data.data && Array.isArray(data.data)) {
-                models = data.data.map((model: any) => model.id || model.name);
+                models = data.data.map((model: { id?: string; name?: string }) => model.id || model.name);
             } else if (data.models && Array.isArray(data.models)) {
-                models = data.models.map((model: any) => model.id || model.name);
+                models = data.models.map((model: { id?: string; name?: string }) => model.id || model.name);
             }
 
             if (models.length === 0) {
@@ -91,12 +89,12 @@ export async function fetchLocalModels(endpoint: string): Promise<string[]> {
             }
             
             return models;
-        } catch (_error) {
+        } catch {
             // Failed to fetch from standard endpoint
         }
         
         return []; // Return empty array if all attempts fail
-    } catch (_error) {
+    } catch {
         return [];
     }
 }

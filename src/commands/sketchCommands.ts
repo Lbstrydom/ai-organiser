@@ -7,7 +7,7 @@ export function registerSketchCommands(plugin: AIOrganiserPlugin): void {
         id: 'new-sketch',
         name: plugin.t.commands.newSketch || 'New Sketch',
         icon: 'pencil',
-        editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
+        editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
             const view = ctx instanceof MarkdownView ? ctx : null;
             if (!view) {
                 new Notice(plugin.t.messages.openNoteFirst || 'Open a note first');

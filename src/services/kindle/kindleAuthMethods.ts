@@ -120,8 +120,8 @@ export class BookmarkletAuthMethod implements AuthMethod {
         return true;
     }
 
-    async start(_region: string, _onProgress?: (phase: string) => void): Promise<AuthMethodResult> {
-        return { success: false, error: 'interactive' };
+    start(_region: string, _onProgress?: (phase: string) => void): Promise<AuthMethodResult> {
+        return Promise.resolve({ success: false, error: 'interactive' });
     }
 
     renderManualUI(
@@ -146,7 +146,8 @@ export class BookmarkletAuthMethod implements AuthMethod {
 
         // Draggable bookmarklet link
         const dragLink = step2.createEl('a', {
-            text: '\uD83D\uDCCB Copy Kindle cookies', // eslint-disable-line obsidianmd/ui/sentence-case -- Kindle is a brand name
+            // eslint-disable-next-line obsidianmd/ui/sentence-case
+            text: '\uD83D\uDCCB Copy Kindle cookies',
             cls: 'ai-organiser-kindle-bookmarklet-link',
             href: bookmarkletUrl,
         });
@@ -196,8 +197,8 @@ export class ConsoleAuthMethod implements AuthMethod {
         return true;
     }
 
-    async start(_region: string, _onProgress?: (phase: string) => void): Promise<AuthMethodResult> {
-        return { success: false, error: 'interactive' };
+    start(_region: string, _onProgress?: (phase: string) => void): Promise<AuthMethodResult> {
+        return Promise.resolve({ success: false, error: 'interactive' });
     }
 
     renderManualUI(

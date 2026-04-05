@@ -18,7 +18,7 @@ import { syncFromClippings, syncFromAmazon, getNewHighlights } from '../../servi
 import type { KindleBook, KindleSyncProgress, KindleScrapedBook } from '../../services/kindle/kindleTypes';
 import { generateBookKey } from '../../services/kindle/kindleTypes';
 import { getStoredCookies, clearCookies, validateCookies } from '../../services/kindle/kindleAuthService';
-import { setScraperDebugMode, consumePreScrapedBooks } from '../../services/kindle/kindleScraperService';
+import { consumePreScrapedBooks } from '../../services/kindle/kindleScraperService';
 import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { KindleLoginModal } from './KindleLoginModal';
 import { summarizeText, pluginContext } from '../../services/llmFacade';
@@ -40,7 +40,7 @@ class VaultTextFilePicker extends FuzzySuggestModal<TFile> {
         super(app);
         this.textFiles = textFiles;
         this.onChooseFile = onChoose;
-        this.setPlaceholder('Select a .txt file');
+        this.setPlaceholder('Select a text file');
     }
 
     getItems(): TFile[] {
@@ -591,8 +591,7 @@ export class KindleSyncModal extends Modal {
     }
 
     private async startAmazonSync(): Promise<void> {
-        // Wire up debug mode for scraper logging
-        setScraperDebugMode(this.plugin.settings.debugMode); // eslint-disable-line @typescript-eslint/no-deprecated -- still functional, migration pending
+        // Debug mode is handled by global logger singleton (no-op retained here)
 
         // Privacy gate
         const proceed = await ensurePrivacyConsent(this.plugin, 'cloud');

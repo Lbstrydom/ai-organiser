@@ -70,13 +70,14 @@ export class SecretStorageService implements ISecretStorageService {
     /**
      * Get a secret by ID from SecretStorage
      */
+    // eslint-disable-next-line @typescript-eslint/require-await
     async getSecret(id: string): Promise<string | null> {
         if (!this.isAvailable()) {
             return null;
         }
 
         try {
-            const value = await (this.app as any).secretStorage.getSecret(id);
+            const value = (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): string | null; setSecret(id: string, value: string): void } }).secretStorage.getSecret(id);
             return value || null;
         } catch (error) {
             logger.error('Core', `SecretStorage: Failed to get secret ${id}:`, error);
@@ -87,13 +88,14 @@ export class SecretStorageService implements ISecretStorageService {
     /**
      * Set a secret by ID in SecretStorage
      */
+    // eslint-disable-next-line @typescript-eslint/require-await
     async setSecret(id: string, value: string): Promise<void> {
         if (!this.isAvailable()) {
             throw new Error('SecretStorage not available');
         }
 
         try {
-            await (this.app as any).secretStorage.setSecret(id, value);
+            (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): string | null; setSecret(id: string, value: string): void } }).secretStorage.setSecret(id, value);
         } catch (error) {
             logger.error('Core', `SecretStorage: Failed to set secret ${id}:`, error);
             throw error;
@@ -103,17 +105,18 @@ export class SecretStorageService implements ISecretStorageService {
     /**
      * Remove a secret by ID from SecretStorage
      */
-    async removeSecret(id: string): Promise<void> {
+    removeSecret(id: string): Promise<void> {
         if (!this.isAvailable()) {
-            return;
+            return Promise.resolve();
         }
 
         try {
             // SecretStorage has no delete method - set to empty string to clear
-            (this.app as any).secretStorage.setSecret(id, '');
+            (this.app as import('obsidian').App & { secretStorage: { getSecret(id: string): Promise<string | null>; setSecret(id: string, value: string): Promise<void> } }).secretStorage.setSecret(id, '');
         } catch (error) {
             logger.error('Core', `SecretStorage: Failed to remove secret ${id}:`, error);
         }
+        return Promise.resolve();
     }
 
     /**
@@ -218,7 +221,7 @@ export class SecretStorageService implements ISecretStorageService {
                             secretId,
                             success: true,
                         });
-                    } catch (_error) {
+                    } catch {
                         entries.push({
                             field: 'cloudApiKey',
                             secretId,
@@ -242,7 +245,7 @@ export class SecretStorageService implements ISecretStorageService {
                                     secretId,
                                     success: true,
                                 });
-                            } catch (_error) {
+                            } catch {
                                 entries.push({
                                     field: `providerSettings.${provider}.apiKey`,
                                     secretId,
@@ -264,7 +267,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.EMBEDDING,
                         success: true,
                     });
-                } catch (_error) {
+                } catch {
                     entries.push({
                         field: 'embeddingApiKey',
                         secretId: PLUGIN_SECRET_IDS.EMBEDDING,
@@ -283,7 +286,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.YOUTUBE,
                         success: true,
                     });
-                } catch (_error) {
+                } catch {
                     entries.push({
                         field: 'youtubeGeminiApiKey',
                         secretId: PLUGIN_SECRET_IDS.YOUTUBE,
@@ -302,7 +305,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.PDF,
                         success: true,
                     });
-                } catch (_error) {
+                } catch {
                     entries.push({
                         field: 'pdfApiKey',
                         secretId: PLUGIN_SECRET_IDS.PDF,
@@ -321,7 +324,7 @@ export class SecretStorageService implements ISecretStorageService {
                         secretId: PLUGIN_SECRET_IDS.AUDIO,
                         success: true,
                     });
-                } catch (_error) {
+                } catch {
                     entries.push({
                         field: 'audioTranscriptionApiKey',
                         secretId: PLUGIN_SECRET_IDS.AUDIO,

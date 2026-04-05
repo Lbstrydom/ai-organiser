@@ -103,7 +103,7 @@ async function searchYouTube(query: string): Promise<ResourceSearchResult[]> {
                                 if (videoRenderer) {
                                     const videoId = videoRenderer.videoId;
                                     const title = videoRenderer.title?.runs?.[0]?.text;
-                                    const description = videoRenderer.descriptionSnippet?.runs?.map((r: any) => r.text).join('') || '';
+                                    const description = videoRenderer.descriptionSnippet?.runs?.map((r: { text: string }) => r.text).join('') || '';
 
                                     if (videoId && title) {
                                         results.push({

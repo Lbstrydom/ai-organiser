@@ -39,7 +39,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         id: 'chat-with-ai',
         name: plugin.t.commands.chatWithAI,
         icon: 'message-circle',
-        callback: async () => {
+        callback: () => {
             const activeEditor = plugin.app.workspace.activeEditor?.editor;
             const activeFile = plugin.app.workspace.getActiveFile();
             const content = activeEditor?.getValue() || undefined;
@@ -60,7 +60,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         id: 'presentation-chat',
         name: plugin.t.commands.presentationChat,
         icon: 'presentation',
-        callback: async () => {
+        callback: () => {
             const activeEditor = plugin.app.workspace.activeEditor?.editor;
             const activeFile = plugin.app.workspace.getActiveFile();
             const content = activeEditor?.getValue() || undefined;
@@ -124,7 +124,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
                 ensureNoteStructureIfEnabled(editor, plugin.settings);
                 new Notice(plugin.t.messages.insertedRelatedNotes.replace('{count}', String(related.length)));
             } catch (error) {
-                notify(plugin.t.messages.semanticSearchDisabled + ': ' + (error as any).message);
+                notify(plugin.t.messages.semanticSearchDisabled + ': ' + (error instanceof Error ? error.message : String(error)));
             }
         }
     });

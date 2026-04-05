@@ -310,7 +310,7 @@ export async function resolveTheme(
 // ── Path Resolution (M5 fix — uses settings helpers) ────────────────────────
 
 function getBrandPath(settings: AIOrganiserSettings): string {
-    const custom = (settings as any).presentationBrandGuidelinesPath;
+    const custom = (settings as AIOrganiserSettings & { presentationBrandGuidelinesPath?: string }).presentationBrandGuidelinesPath;
     if (custom && typeof custom === 'string' && custom.trim()) return custom.trim();
     const configFolder = settings.configFolderPath || 'Config';
     return `${settings.pluginFolder}/${configFolder}/brand-guidelines.md`;

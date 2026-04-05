@@ -137,7 +137,7 @@ function tryExtractStructuredFields(text: string): StructuredSummaryResponse | n
         summary_hook: summaryHook,
         body_content: bodyContent,
         suggested_tags: suggestedTags,
-        content_type: contentType as any,
+        content_type: contentType as StructuredSummaryResponse['content_type'],
     };
 
     return isValidStructuredResponse(result) ? result : null;
@@ -215,35 +215,36 @@ export function parseStructuredResponse(
  * Validate that parsed JSON has required structure
  * Also sanitizes body_content and summary_hook
  */
-function isValidStructuredResponse(obj: any): obj is StructuredSummaryResponse {
+function isValidStructuredResponse(obj: unknown): obj is StructuredSummaryResponse {
     const VALID_CONTENT_TYPES = ['note', 'research', 'meeting', 'project', 'reference'];
+
+    if (!obj || typeof obj !== 'object') return false;
+    const rec = obj as Record<string, unknown>;
 
     // Only require the two essential string fields
     const hasRequiredFields = (
-        obj &&
-        typeof obj === 'object' &&
-        typeof obj.summary_hook === 'string' &&
-        typeof obj.body_content === 'string'
+        typeof rec.summary_hook === 'string' &&
+        typeof rec.body_content === 'string'
     );
 
     if (!hasRequiredFields) return false;
 
     // Coerce missing/invalid optional fields to safe defaults instead of rejecting
-    if (!Array.isArray(obj.suggested_tags)) {
-        obj.suggested_tags = [];
+    if (!Array.isArray(rec.suggested_tags)) {
+        rec.suggested_tags = [];
     }
-    if (typeof obj.content_type !== 'string' || !VALID_CONTENT_TYPES.includes(obj.content_type)) {
-        obj.content_type = 'note';
+    if (typeof rec.content_type !== 'string' || !VALID_CONTENT_TYPES.includes(rec.content_type)) {
+        rec.content_type = 'note';
     }
 
     // Pass through companion_content if present and valid; strip if wrong type
-    if ('companion_content' in obj && typeof obj.companion_content !== 'string') {
-        delete obj.companion_content;
+    if ('companion_content' in rec && typeof rec.companion_content !== 'string') {
+        delete rec.companion_content;
     }
 
     // Sanitize content
-    obj.summary_hook = sanitizeSummaryHookContent(obj.summary_hook);
-    obj.body_content = sanitizeBodyContent(obj.body_content);
+    rec.summary_hook = sanitizeSummaryHookContent(rec.summary_hook as string);
+    rec.body_content = sanitizeBodyContent(rec.body_content as string);
 
     return true;
 }

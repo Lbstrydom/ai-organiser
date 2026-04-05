@@ -545,7 +545,14 @@ export async function summarizeYouTubeWithGemini(
 /**
  * Extract caption tracks from YouTube page HTML using multiple patterns
  */
-function extractCaptionTracksFromHtml(html: string): any[] | null {
+interface YouTubeCaptionTrack {
+    baseUrl?: string;
+    languageCode?: string;
+    kind?: string;
+    name?: { simpleText?: string };
+}
+
+function extractCaptionTracksFromHtml(html: string): YouTubeCaptionTrack[] | null {
     // Pattern 1: Standard captionTracks in ytInitialPlayerResponse
     const pattern1 = /"captionTracks"\s*:\s*(\[[\s\S]*?\])(?=\s*[,}])/;
     const match1 = pattern1.exec(html);
@@ -595,15 +602,15 @@ function extractCaptionTracksFromHtml(html: string): any[] | null {
  * Select the best caption track from available tracks
  * Prefers English, then auto-generated, then first available
  */
-function selectBestCaptionTrack(captionTracks: any[]): any {
+function selectBestCaptionTrack(captionTracks: YouTubeCaptionTrack[]): YouTubeCaptionTrack {
     // Prefer English captions
-    let track = captionTracks.find((t: any) =>
+    let track = captionTracks.find((t: YouTubeCaptionTrack) =>
         t.languageCode === 'en' || t.languageCode?.startsWith('en')
     );
 
     // Fall back to auto-generated captions
     if (!track) {
-        track = captionTracks.find((t: any) =>
+        track = captionTracks.find((t: YouTubeCaptionTrack) =>
             t.kind === 'asr' || t.name?.simpleText?.includes('auto')
         );
     }

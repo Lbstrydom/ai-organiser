@@ -143,7 +143,7 @@ export class ExportModal extends Modal {
         modal.open();
     }
 
-    private async doExport(btn: any): Promise<void> {
+    private async doExport(btn: import('obsidian').ButtonComponent): Promise<void> {
         const t = this.plugin.t;
 
         if (this.notes.length === 0) {

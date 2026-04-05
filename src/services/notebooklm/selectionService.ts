@@ -51,7 +51,7 @@ export class SelectionService {
      * @param recursive Include subfolders (default: true)
      * @returns Selection result
      */
-    async selectByFolder(folderPath: string, recursive: boolean = true): Promise<SelectionResult> {
+    selectByFolder(folderPath: string, recursive: boolean = true): Promise<SelectionResult> {
         const files: TFile[] = [];
 
         const allFiles = this.app.vault.getMarkdownFiles();
@@ -66,11 +66,11 @@ export class SelectionService {
             }
         }
 
-        return {
+        return Promise.resolve({
             files,
             selectionMethod: 'folder',
             scopeValue: folderPath
-        };
+        });
     }
 
     /**
@@ -78,7 +78,7 @@ export class SelectionService {
      * @param filePaths Array of vault-relative file paths
      * @returns Selection result
      */
-    async selectManual(filePaths: string[]): Promise<SelectionResult> {
+    selectManual(filePaths: string[]): Promise<SelectionResult> {
         const files: TFile[] = [];
 
         for (const path of filePaths) {
@@ -88,11 +88,11 @@ export class SelectionService {
             }
         }
 
-        return {
+        return Promise.resolve({
             files,
             selectionMethod: 'manual',
             scopeValue: `${files.length} notes`
-        };
+        });
     }
 
     /**

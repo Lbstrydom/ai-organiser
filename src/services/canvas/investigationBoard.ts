@@ -172,8 +172,8 @@ export function getFallbackEdgeLabel(score: number, strings: EdgeLabelStrings = 
     return strings.looselyRelated;
 }
 
-function extractLabelArray(parsed: any, pairCount: number): (string | undefined)[] | null {
-    const labels = parsed?.labels;
+function extractLabelArray(parsed: unknown, pairCount: number): (string | undefined)[] | null {
+    const labels = (parsed as { labels?: unknown } | null | undefined)?.labels;
     if (!Array.isArray(labels)) return null;
 
     const output = Array.from({ length: pairCount }, () => undefined as string | undefined);

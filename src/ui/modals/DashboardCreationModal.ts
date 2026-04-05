@@ -37,7 +37,7 @@ export class DashboardCreationModal extends Modal {
     /**
      * Render modal content
      */
-    private async renderContent() {
+    private renderContent(): void {
         const container = this.contentEl.createDiv({ cls: 'ai-organiser-dashboard-modal' });
 
         // Description
@@ -131,7 +131,7 @@ export class DashboardCreationModal extends Modal {
             this.targetFolder = folder;
             this.isEditingFolder = false;
             this.contentEl.empty();
-            await this.renderContent();
+            this.renderContent();
             new Notice(this.plugin.t.modals.dashboardCreation.folderSelected.replace('{folder}', trimmedPath));
         } else if (folder) {
             // Path exists but is a file, not a folder
@@ -145,7 +145,7 @@ export class DashboardCreationModal extends Modal {
                     this.targetFolder = newFolder;
                     this.isEditingFolder = false;
                     this.contentEl.empty();
-                    await this.renderContent();
+                    this.renderContent();
                     new Notice(this.plugin.t.modals.dashboardCreation.folderCreated.replace('{folder}', trimmedPath));
                 }
             } catch (error) {

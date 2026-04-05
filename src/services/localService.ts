@@ -57,7 +57,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         return null;
     }
 
-    private async makeRequest(options: RequestInit, timeoutMs: number): Promise<any> {
+    private async makeRequest(options: RequestInit, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
         try {
             // Merge the stored authentication headers with the request headers
             const mergedHeaders = {
@@ -87,7 +87,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         }
     }
 
-    private async makeRequestWithRetry(options: RequestInit, timeoutMs: number): Promise<any> {
+    private async makeRequestWithRetry(options: RequestInit, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
         let lastError: Error | null = null;
 
         for (let i = 0; i < this.MAX_RETRIES; i++) {
@@ -153,7 +153,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                 if (!data.choices || !Array.isArray(data.choices)) {
                     throw new Error('Invalid response format');
                 }
-            } catch (_parseError) {
+            } catch {
                 throw new Error('Failed to parse response from local service');
             }
 

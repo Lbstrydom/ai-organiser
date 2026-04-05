@@ -62,7 +62,7 @@ export async function ensureFolderExists(vault: Vault, folderPath: string): Prom
     }
 }
 
-export async function getAvailableFilePath(
+export function getAvailableFilePath(
     vault: Vault,
     folderPath: string,
     fileName: string
@@ -70,7 +70,7 @@ export async function getAvailableFilePath(
     const normalizedFolder = normalizePath(folderPath);
     const basePath = normalizedFolder ? `${normalizedFolder}/${fileName}` : fileName;
     const existing = vault.getAbstractFileByPath(basePath);
-    if (!existing) return basePath;
+    if (!existing) return Promise.resolve(basePath);
 
     const extensionIndex = fileName.lastIndexOf('.');
     const baseName = extensionIndex > -1 ? fileName.substring(0, extensionIndex) : fileName;
@@ -83,7 +83,7 @@ export async function getAvailableFilePath(
             ? `${normalizedFolder}/${baseName} (${counter})${extension}`
             : `${baseName} (${counter})${extension}`;
         if (!vault.getAbstractFileByPath(candidate)) {
-            return candidate;
+            return Promise.resolve(candidate);
         }
         counter++;
     }

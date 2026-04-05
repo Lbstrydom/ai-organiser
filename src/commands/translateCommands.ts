@@ -87,7 +87,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
         id: 'smart-translate',
         name: plugin.t.commands.translate || plugin.t.commands.translateNote || 'Translate',
         icon: 'languages',
-        callback: async () => {
+        callback: () => {
             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
             if (!view?.file) {
                 new Notice(plugin.t.messages.openNote);

@@ -106,7 +106,7 @@ export class SourcePackService {
 
         // Estimate size (rough: 50KB per note as PDF, actual size for linked docs)
         const estimatedNotesSize = selection.files.length * 50 * 1024;
-        const estimatedAttachmentsSize = await this.estimateAttachmentsSize(uniqueLinkedDocs);
+        const estimatedAttachmentsSize = this.estimateAttachmentsSize(uniqueLinkedDocs);
         const estimatedSizeBytes = estimatedNotesSize + estimatedAttachmentsSize;
 
         // Check NotebookLM limits (notes + attachments count toward 50-source limit)
@@ -389,7 +389,7 @@ export class SourcePackService {
     /**
      * Estimate total size of attachments
      */
-    private async estimateAttachmentsSize(linkedDocs: LinkedDocument[]): Promise<number> {
+    private estimateAttachmentsSize(linkedDocs: LinkedDocument[]): number {
         let totalSize = 0;
 
         for (const doc of linkedDocs) {

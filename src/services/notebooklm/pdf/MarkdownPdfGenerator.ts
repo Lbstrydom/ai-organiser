@@ -27,7 +27,7 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
      * @param config - PDF configuration
      * @returns PDF as ArrayBuffer
      */
-    async generate(
+    generate(
         title: string,
         markdownContent: string,
         config: PdfConfig
@@ -36,7 +36,7 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: config.pageSize as any,
+            format: config.pageSize as string | number[],
         });
 
         // Set font
@@ -248,6 +248,6 @@ export class MarkdownPdfGenerator implements IPdfGenerator {
 
         // Convert to ArrayBuffer
         const pdfBytes = doc.output('arraybuffer');
-        return pdfBytes;
+        return Promise.resolve(pdfBytes);
     }
 }

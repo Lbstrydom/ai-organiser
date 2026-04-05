@@ -105,7 +105,7 @@ export class VoyVectorStore implements IVectorStore {
             logger.debug('Search', 'Voy vector store initialized');
         } catch (error) {
             logger.error('Search', 'Failed to initialize Voy:', error);
-            throw new Error('Voy initialization failed: ' + (error as any).message);
+            throw new Error('Voy initialization failed: ' + (error instanceof Error ? error.message : String(error)));
         }
     }
 
@@ -230,7 +230,7 @@ export class VoyVectorStore implements IVectorStore {
 
     async searchByContent(
         query: string,
-        embeddingService: any,
+        embeddingService: import('../embeddings/types').IEmbeddingService | null | undefined,
         topK: number = 5,
         filter?: (doc: VectorDocument) => boolean
     ): Promise<SearchResult[]> {
@@ -253,12 +253,12 @@ export class VoyVectorStore implements IVectorStore {
         }
     }
 
-    async getDocument(id: string): Promise<VectorDocument | null> {
-        return this.documents.get(id) || null;
+    getDocument(id: string): Promise<VectorDocument | null> {
+        return Promise.resolve(this.documents.get(id) || null);
     }
 
-    async getDocumentsByFile(filePath: string): Promise<VectorDocument[]> {
-        return [...this.documents.values()].filter(d => d.filePath === filePath);
+    getDocumentsByFile(filePath: string): Promise<VectorDocument[]> {
+        return Promise.resolve([...this.documents.values()].filter(d => d.filePath === filePath));
     }
 
     async removeFile(filePath: string): Promise<void> {
@@ -296,8 +296,8 @@ export class VoyVectorStore implements IVectorStore {
         this.fileChangeTracker.removeHash(oldPath);
     }
 
-    async getMetadata(): Promise<IndexMetadata> {
-        return { ...this.metadata };
+    getMetadata(): Promise<IndexMetadata> {
+        return Promise.resolve({ ...this.metadata });
     }
 
     async clear(): Promise<void> {

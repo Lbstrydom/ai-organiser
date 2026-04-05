@@ -1,6 +1,7 @@
 import { requestUrl } from "obsidian";
 import { BaseAdapter } from "./baseAdapter";
 import { AdapterConfig, RequestBody } from "./types";
+import { ConnectionTestResult, ConnectionTestError } from "../types";
 
 export class SiliconflowAdapter extends BaseAdapter {
   constructor(config: AdapterConfig) {
@@ -52,7 +53,7 @@ export class SiliconflowAdapter extends BaseAdapter {
     return null;
   }
 
-  async testConnection(): Promise<{ result: any; error?: any }> {
+  async testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }> {
     try {
       const response = await requestUrl({
         url: `${this.getEndpoint()}/v1/chat/completions`,
@@ -62,24 +63,25 @@ export class SiliconflowAdapter extends BaseAdapter {
       });
 
       if (response.status >= 400) {
-        const error = response.json;
-        return { result: null, error: error.error?.message || 'Connection test failed' };
+        const error = response.json as { error?: { message?: string } };
+        return { result: ConnectionTestResult.Failed, error: { type: 'unknown', message: error.error?.message || 'Connection test failed' } };
       }
 
-      return { result: { success: true } };
+      return { result: ConnectionTestResult.Success };
     } catch (error) {
-      return { result: null, error: error instanceof Error ? error.message : 'Unknown error' };
+      return { result: ConnectionTestResult.Failed, error: { type: 'unknown', message: error instanceof Error ? error.message : 'Unknown error' } };
     }
   }
 
-  parseResponse(response: any): any {
+  parseResponse(response: unknown): import('./types').BaseResponse {
     try {
-      let result = response;
+      let result: unknown = response;
       for (const key of this.provider.responseFormat.path) {
-        result = result[key];
+        result = (result as Record<string, unknown>)[key];
       }
-      return result;
-    } catch (_error) {
+      const text = typeof result === 'string' ? result : '';
+      return { text, matchedExistingTags: [], suggestedTags: [] };
+    } catch {
       throw new Error('Failed to parse Siliconflow response');
     }
   }

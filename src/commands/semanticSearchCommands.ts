@@ -59,7 +59,7 @@ class SemanticSearchResultsModal extends Modal {
         this.titleEl.setText(this.plugin.t.modals.semanticSearch.title);
     }
 
-    async onOpen(): Promise<void> {
+    onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-organiser-semantic-search');
@@ -182,9 +182,9 @@ class SemanticSearchResultsModal extends Modal {
                 return;
             }
 
-            const embeddingService =
+            const embeddingService: import('../services/embeddings/types').IEmbeddingService | null | undefined =
                 this.plugin.embeddingService ||
-                (this.plugin.llmService as any).getEmbeddingService?.();
+                (this.plugin.llmService as { getEmbeddingService?: () => import('../services/embeddings/types').IEmbeddingService | null | undefined }).getEmbeddingService?.();
 
             // Determine search query: optionally expand with LLM
             let searchQuery = this.query.trim();
@@ -229,7 +229,7 @@ class SemanticSearchResultsModal extends Modal {
             this.resultsDiv.empty();
             this.displayResults(this.resultsDiv);
         } catch (error) {
-            new Notice('Search error: ' + (error as any).message, 5000);
+            new Notice('Search error: ' + (error instanceof Error ? error.message : String(error)), 5000);
             logger.error('Search', 'Semantic search error:', error);
         } finally {
             this.isSearching = false;
@@ -317,8 +317,8 @@ class SemanticSearchResultsModal extends Modal {
             .setButtonText(t.exportSelected)
             .setCta()
             .setDisabled(this.selectedResults.size === 0)
-            .onClick(async () => {
-                await this.openExportModal();
+            .onClick(() => {
+                this.openExportModal();
             });
 
         const listEl = container.createDiv({ cls: 'ai-organiser-semantic-search-list' });
@@ -423,7 +423,7 @@ class SemanticSearchResultsModal extends Modal {
         }
     }
 
-    private async openExportModal(): Promise<void> {
+    private openExportModal(): void {
         if (this.selectedResults.size === 0) {
             new Notice(this.plugin.t.modals.exportSearchResults.noNotesSelected);
             return;
@@ -474,7 +474,7 @@ class ExportSearchResultsModal extends Modal {
         return '';
     }
 
-    async onOpen(): Promise<void> {
+    onOpen(): void {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-organiser-export-search-results');
@@ -595,8 +595,8 @@ class ExportSearchResultsModal extends Modal {
             });
     }
 
-    private async refresh(): Promise<void> {
-        await this.onOpen();
+    private refresh(): void {
+        this.onOpen();
     }
 
     private async performExport(): Promise<void> {
@@ -681,7 +681,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
     plugin.addCommand({
         id: 'semantic-search',
         name: plugin.t.commands.searchSemanticVault,
-        callback: async () => {
+        callback: () => {
             if (!plugin.settings.enableSemanticSearch) {
                 new Notice(plugin.t.messages.semanticSearchDisabled);
                 return;
@@ -701,7 +701,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
     plugin.addCommand({
         id: 'manage-index',
         name: plugin.t.commands.manageIndex,
-        callback: async () => {
+        callback: () => {
             const modal = new ManageIndexModal(plugin.app, plugin);
             modal.open();
         }

@@ -25,6 +25,32 @@ import { getNotebookUrl, REGION_DOMAINS, validateCookies } from './kindleAuthSer
 import { parseBookListHTML, parseHighlightsHTML } from './kindleScraperService';
 import { logger } from '../../utils/logger';
 
+// Electron BrowserWindow surface used in this module. Typed loosely because
+// @electron/remote isn't bundled with types and the runtime shape depends on
+// the host Electron version.
+interface ElectronWebContents {
+    executeJavaScript<T = unknown>(code: string): Promise<T>;
+    on(event: string, handler: (...args: unknown[]) => void): void;
+    once(event: string, handler: (...args: unknown[]) => void): void;
+    session: { clearStorageData(options?: unknown): Promise<void> };
+    getURL(): string;
+}
+
+interface ElectronBrowserWindow {
+    loadURL(url: string): Promise<void> | void;
+    webContents: ElectronWebContents;
+    on(event: string, handler: (...args: unknown[]) => void): void;
+    once(event: string, handler: (...args: unknown[]) => void): void;
+    show(): void;
+    close(): void;
+    destroy(): void;
+    isDestroyed(): boolean;
+}
+
+interface ElectronBrowserWindowConstructor {
+    new(options: unknown): ElectronBrowserWindow;
+}
+
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for overall login flow
 const BOOK_RENDER_WAIT_MS = 30 * 1000; // 30 seconds for JS rendering after page load
 const BOOK_RENDER_POLL_MS = 500; // 0.5s polling interval
@@ -72,7 +98,7 @@ interface PageSnapshot {
  * `[data-asin]`, non-placeholder `[id^="kp-notebook-library-"]`)
  * and loading indicator visibility.
  */
-async function waitForLibraryRender(win: any): Promise<LibraryReadiness> {
+async function waitForLibraryRender(win: ElectronBrowserWindow): Promise<LibraryReadiness> {
     const placeholdersJson = JSON.stringify(PLACEHOLDER_IDS);
     const script = `
         (() => new Promise(resolve => {
@@ -162,7 +188,7 @@ function booksFromSnapshot(snapshot: PageSnapshot): KindleScrapedBook[] {
  * This handles virtualized/infinite-scroll libraries where not all cards are
  * present in the initial HTML snapshot.
  */
-async function harvestBooksFromDom(win: any): Promise<LibraryHarvestMetrics> {
+async function harvestBooksFromDom(win: ElectronBrowserWindow): Promise<LibraryHarvestMetrics> {
     const placeholdersJson = JSON.stringify(PLACEHOLDER_IDS);
     const script = `
         (async () => {
@@ -613,7 +639,7 @@ async function performEmbeddedLogin(
  * - `did-finish-load` event + polling wait ensures JS has rendered books
  */
 async function scrapeBookListHidden(
-    BrowserWindow: any,
+    BrowserWindow: ElectronBrowserWindowConstructor,
     notebookUrl: string,
 ): Promise<KindleScrapedBook[]> {
     const first = await loadPageSnapshot(BrowserWindow, notebookUrl);
@@ -643,7 +669,7 @@ async function scrapeBookListHidden(
  * then polls for library elements to appear (up to 30s) before extracting.
  */
 function loadPageSnapshot(
-    BrowserWindow: any,
+    BrowserWindow: ElectronBrowserWindowConstructor,
     url: string,
 ): Promise<PageSnapshot> {
     return new Promise((resolve, reject) => {
@@ -666,7 +692,8 @@ function loadPageSnapshot(
         }, SCRAPE_SAFETY_TIMEOUT_MS);
 
         // Wait for the page to fully load (including subresources)
-        scrapeWin.webContents.once('did-finish-load', async () => {
+        scrapeWin.webContents.once('did-finish-load', () => {
+            void (async () => {
             try {
                 logger.debug('Kindle', 'Scrape page loaded, polling for book elements…');
 
@@ -709,11 +736,12 @@ function loadPageSnapshot(
                 try { scrapeWin.destroy(); } catch { /* already destroyed */ }
                 reject(err instanceof Error ? err : new Error(String(err)));
             }
+            })();
         });
 
         // Navigate to the target URL. Since the partition has auth cookies,
         // the page should load authenticated without a login redirect.
-        scrapeWin.loadURL(url);
+        void scrapeWin.loadURL(url);
     });
 }
 
@@ -758,7 +786,7 @@ export function isEmbeddedAvailable(): boolean {
 /**
  * Navigate a BrowserWindow to a URL and wait for did-finish-load.
  */
-function navigateAndWait(win: any, url: string): Promise<void> {
+function navigateAndWait(win: ElectronBrowserWindow, url: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => {
             reject(new Error('Highlight page load timeout'));
@@ -769,7 +797,7 @@ function navigateAndWait(win: any, url: string): Promise<void> {
             resolve();
         });
 
-        win.loadURL(url);
+        void win.loadURL(url);
     });
 }
 
@@ -777,7 +805,7 @@ function navigateAndWait(win: any, url: string): Promise<void> {
  * Poll for highlight text elements to appear in the rendered DOM.
  * Returns readiness info including auth redirect detection and element count.
  */
-async function waitForHighlightRender(win: any): Promise<HighlightReadiness> {
+async function waitForHighlightRender(win: ElectronBrowserWindow): Promise<HighlightReadiness> {
     const script = `
         (() => new Promise(resolve => {
             const started = Date.now();
@@ -864,7 +892,7 @@ async function waitForHighlightRender(win: any): Promise<HighlightReadiness> {
  * Scroll and click "load more" to expand all highlights on the page.
  * Mirrors the harvestBooksFromDom pattern but for highlight elements.
  */
-async function expandAllHighlights(win: any): Promise<{ rounds: number; finalCount: number }> {
+async function expandAllHighlights(win: ElectronBrowserWindow): Promise<{ rounds: number; finalCount: number }> {
     const script = `
         (async () => {
             const timeoutMs = ${HIGHLIGHT_HARVEST_TIMEOUT_MS};

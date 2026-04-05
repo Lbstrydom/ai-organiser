@@ -116,7 +116,7 @@ export class ImageProcessorService {
         const longestEdge = Math.max(originalWidth, originalHeight);
 
         if (longestEdge > opts.maxDimension) {
-            canvas = await this.resize(img, opts.maxDimension);
+            canvas = this.resize(img, opts.maxDimension);
             wasResized = true;
         } else {
             // No resize needed — draw to canvas at original size
@@ -129,7 +129,7 @@ export class ImageProcessorService {
         }
 
         // Convert canvas to base64 and validate actual MIME type returned
-        const { base64, actualMediaType } = await this.canvasToBase64(canvas, targetMediaType, opts.quality);
+        const { base64, actualMediaType } = this.canvasToBase64(canvas, targetMediaType, opts.quality);
         const processedSizeBytes = Math.ceil((base64.length * 3) / 4); // Estimate from base64 length
 
         // Optionally capture raw blob for vault replacement
@@ -222,7 +222,7 @@ export class ImageProcessorService {
         const longestEdge = Math.max(img.naturalWidth, img.naturalHeight);
 
         if (longestEdge > opts.maxDimension) {
-            canvas = await this.resize(img, opts.maxDimension);
+            canvas = this.resize(img, opts.maxDimension);
             wasResized = true;
         } else {
             canvas = document.createElement('canvas');
@@ -244,7 +244,7 @@ export class ImageProcessorService {
         }
 
         // Export canvas and validate actual MIME type returned
-        const { base64: processedBase64, actualMediaType } = await this.canvasToBase64(
+        const { base64: processedBase64, actualMediaType } = this.canvasToBase64(
             canvas,
             requestedMediaType,
             opts.quality
@@ -328,8 +328,8 @@ export class ImageProcessorService {
      * Load heic2any library from CDN at runtime (same pattern as D3.js in TagNetworkView)
      * Library is only loaded when a HEIC file is actually encountered.
      */
-    private async loadHeicConverter(): Promise<any> {
-        const win = globalThis as any;
+    private async loadHeicConverter(): Promise<(options: { blob: Blob; toType?: string; quality?: number }) => Promise<Blob>> {
+        const win = globalThis as typeof globalThis & { heic2any?: (options: { blob: Blob; toType?: string; quality?: number }) => Promise<Blob> };
         if (win.heic2any) return win.heic2any;
 
         const cdnUrls = [
@@ -461,7 +461,7 @@ export class ImageProcessorService {
      * @param maxDimension - Max width or height
      * @returns Canvas with resized image
      */
-    async resize(img: HTMLImageElement, maxDimension: number): Promise<HTMLCanvasElement> {
+    resize(img: HTMLImageElement, maxDimension: number): HTMLCanvasElement {
         const width = img.naturalWidth;
         const height = img.naturalHeight;
         const aspectRatio = width / height;
@@ -498,11 +498,11 @@ export class ImageProcessorService {
      * Returns both the base64 string and the ACTUAL media type returned by toDataURL()
      * (browser may fall back to different format if requested format not supported)
      */
-    private async canvasToBase64(
+    private canvasToBase64(
         canvas: HTMLCanvasElement,
         requestedMediaType: string,
         quality: number
-    ): Promise<{ base64: string; actualMediaType: string }> {
+    ): { base64: string; actualMediaType: string } {
         const dataUrl = canvas.toDataURL(requestedMediaType, quality);
         // Extract actual MIME type from data URL prefix
         const matches = dataUrl.match(/^data:([^;]+);base64,(.*)$/);
@@ -603,7 +603,7 @@ export class ImageProcessorService {
             const dir = file.parent?.path || '';
             const baseName = file.basename;
             newPath = await getAvailableFilePath(this.app.vault, dir, `${baseName}.${newExt}`);
-            await (this.app as any).fileManager.renameFile(file, newPath);
+            await this.app.fileManager.renameFile(file, newPath);
         }
 
         // 3. Count backlinks referencing the new path
@@ -617,7 +617,7 @@ export class ImageProcessorService {
     }
 
     private countBacklinks(filePath: string): number {
-        const resolved = (this.app.metadataCache as any).resolvedLinks;
+        const resolved = this.app.metadataCache.resolvedLinks as Record<string, Record<string, number>> | undefined;
         if (!resolved) return 0;
         let count = 0;
         for (const sourcePath in resolved) {

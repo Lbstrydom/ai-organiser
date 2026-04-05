@@ -132,15 +132,15 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     unavailableReason(t: Translations): string {
-        return (t.modals.unifiedChat as any).researchUnavailable || 'Configure a search provider in Settings → Research Assistant';
+        return (t.modals.unifiedChat as Record<string, string>).researchUnavailable || 'Configure a search provider in Settings → Research Assistant';
     }
 
     getIntroMessage(t: Translations): string {
-        return (t.modals.unifiedChat as any).introResearch || 'What would you like to research? I\'ll search the web and help you find relevant sources.';
+        return (t.modals.unifiedChat as Record<string, string>).introResearch || 'What would you like to research? I\'ll search the web and help you find relevant sources.';
     }
 
     getPlaceholder(t: Translations): string {
-        return (t.modals.unifiedChat as any).placeholderResearch || 'Describe what you\'re looking for...';
+        return (t.modals.unifiedChat as Record<string, string>).placeholderResearch || 'Describe what you\'re looking for...';
     }
 
     renderContextPanel(container: HTMLElement, ctx: ModalContext): void {
@@ -199,7 +199,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 ctx.options.noteContent ? ctx.app.workspace.getActiveFile() ?? undefined : undefined,
             );
             if (precheck && precheck.relatedNotes.length > 0) {
-                const t = ctx.plugin.t.modals.unifiedChat as any;
+                const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
                 const noteList = precheck.relatedNotes
                     .map(n => `- **${n.path}** (${Math.round(n.similarity * 100)}%) — ${n.excerpt}`)
                     .join('\n');
@@ -247,7 +247,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         const session = await this.orchestrator.findResumableSession();
         if (!session) return null;
 
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         this.searchResults = session.searchResults;
         this.selectedUrls = session.selectedUrls;
         this.sourceSummaries = session.sourceSummaries;
@@ -269,7 +269,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private async executeSearchCycle(query: string, ctx: ModalContext, language?: string): Promise<SendResult> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         this.setPhase('searching');
         this.rerenderContextPanel();
         this.lastQuestion = query;
@@ -384,7 +384,7 @@ export class ResearchModeHandler implements ChatModeHandler {
      * Phase 3: academic/perspective system prompt, multi-turn follow-ups.
      */
     private async executeClaudeWebSearchCycle(query: string, ctx: ModalContext, language?: string): Promise<SendResult> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
 
         // Phase 3.2: resolve perspective names for system prompt
         let perspectives: string[] | undefined;
@@ -614,7 +614,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 case 'insert-at-cursor': await this.actionInsertAtCursor(ctx, cb); break;
                 case 'add-as-section': await this.actionAddAsSection(ctx, cb); break;
                 case 'save-to-pending': this.actionSaveToPending(ctx, cb); break;
-                case 'save-findings': await this.actionSaveFindings(ctx, cb); break;
+                case 'save-findings': this.actionSaveFindings(ctx, cb); break;
                 case 'send-to-zotero': await this.actionSendToZotero(ctx, cb); break;
             }
         } finally {
@@ -634,7 +634,6 @@ export class ResearchModeHandler implements ChatModeHandler {
         // Use vault context to answer the question via LLM
         cb.showThinking();
         try {
-            const _language = ctx.fullPlugin.settings.summaryLanguage;
             const context = precheck.relatedNotes
                 .map(n => `### ${n.path}\n${n.excerpt}`)
                 .join('\n\n');
@@ -673,21 +672,21 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private async actionReadSelected(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const language = ctx.fullPlugin.settings.summaryLanguage;
         this.setPhase('extracting');
         this.rerenderContextPanel();
         cb.showThinking();
         try {
             // Escalation consent callback — asks user before using paid Bright Data tiers
-            const onEscalation: EscalationConsentFn = async (url, tier) => {
+            const onEscalation: EscalationConsentFn = (url, tier) => {
                 const title = this.searchResults.find(r => r.url === url)?.title || url;
                 const msgKey = tier === 'web-unlocker' ? 'escalateWebUnlocker' : 'escalateScrapingBrowser';
                 const message = (t[msgKey] || '{title} — needs deeper extraction.').replace('{title}', title);
                 cb.addSystemNotice(message);
                 // Auto-approve: the user already clicked "Read Selected" knowing paid tiers may be used.
                 // The system notice informs them which tier is being used.
-                return true;
+                return Promise.resolve(true);
             };
 
             const extractions = await this.orchestrator.extractSources(
@@ -772,7 +771,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private async actionInsertAtCursor(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const editor = cb.getEditor();
         if (!editor || !this.lastSynthesis) return;
         editor.replaceSelection(this.lastSynthesis);
@@ -783,7 +782,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private async actionAddAsSection(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const editor = cb.getEditor();
         if (!editor || !this.lastSynthesis) return;
         appendAsNewSections(editor, this.lastSynthesis);
@@ -794,7 +793,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private actionSaveToPending(ctx: ModalContext, cb: ActionCallbacks): void {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const editor = cb.getEditor();
         if (!editor) return;
         const urls = this.selectedUrls.map(u => `- ${u}`).join('\n');
@@ -808,8 +807,8 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     // Phase 3: Save extracted findings as a separate research note (with folder picker)
-    private async actionSaveFindings(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+    private actionSaveFindings(ctx: ModalContext, cb: ActionCallbacks): void {
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         // Capture active file path synchronously — avoids race if user switches notes
         const activeFile = ctx.app.workspace.getActiveFile();
         const defaultFolder = activeFile?.parent?.path
@@ -830,7 +829,7 @@ export class ResearchModeHandler implements ChatModeHandler {
 
     /** Persist research findings to a note in the chosen folder */
     private async doSaveFindings(folder: string, ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         try {
             await ensureFolderExists(ctx.app.vault, folder);
 
@@ -877,7 +876,7 @@ export class ResearchModeHandler implements ChatModeHandler {
 
     // Phase 3: Send sources to Zotero or copy CSL-JSON to clipboard
     private async actionSendToZotero(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         if (this.sourceMetadata.length === 0) return;
 
         const cslItems = this.zoteroBridge.toCslJson(this.sourceMetadata);
@@ -970,7 +969,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         const status = this.usageService.getBudgetStatus();
         if (status.level === 'ok') return;
 
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const banner = container.createEl('div', {
             cls: `ai-organiser-research-budget-banner ai-organiser-research-budget-${status.level}`,
         });
@@ -991,7 +990,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private renderControlsRow(container: HTMLElement, ctx: ModalContext): void {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const row = container.createEl('div', { cls: 'ai-organiser-research-controls' });
 
         // Provider dropdown (populated dynamically from configured providers)
@@ -1079,7 +1078,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         const spans = extractHighlightSpans(content);
         if (spans.length === 0) return;
 
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const section = container.createEl('div', { cls: 'ai-organiser-research-highlights' });
         section.createEl('div', {
             cls: 'ai-organiser-research-highlights-label',
@@ -1133,7 +1132,7 @@ export class ResearchModeHandler implements ChatModeHandler {
             stepEl.createEl('span', { cls: 'ai-organiser-research-step-dot', text: isComplete ? '✓' : '' });
 
             if (!Platform.isMobile) {
-                const ct = this.lastCtx?.plugin.t.modals.unifiedChat as any;
+                const ct = this.lastCtx?.plugin.t.modals.unifiedChat as Record<string, string>;
                 const label = stepEl.createEl('span', {
                     cls: 'ai-organiser-research-step-label',
                     text: ct?.[step.key] || step.key,
@@ -1155,7 +1154,7 @@ export class ResearchModeHandler implements ChatModeHandler {
 
     /** Wraps result cards in a collapsible <details> — auto-collapsed in done phase. */
     private renderResultsSection(container: HTMLElement, ctx: ModalContext): void {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const isDone = this.phase === 'done' || this.phase === 'synthesizing';
 
         const summaryText = (t.researchResultsSummary || '{total} sources found · {selected} selected')
@@ -1190,7 +1189,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     private renderResultCards(container: HTMLElement, ctx: ModalContext): void {
-        const t = ctx.plugin.t.modals.unifiedChat as any;
+        const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
 
         const resultsContainer = container.createEl('div', {
             cls: 'ai-organiser-research-results',

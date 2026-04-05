@@ -71,9 +71,9 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 .addOption('cohere', 'Cohere')
                 .addOption('voyage', 'Voyage AI')
                 .setValue(plugin.settings.embeddingProvider)
-                .onChange((value: any) => {
+                .onChange((value: string) => {
                     const previousDefault = this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
-                    plugin.settings.embeddingProvider = value;
+                    plugin.settings.embeddingProvider = value as typeof plugin.settings.embeddingProvider;
 
                     // Auto-set embedding model if empty or was the previous default
                     const newDefault = this.getDefaultEmbeddingModel(value);
@@ -110,7 +110,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     cls: 'mod-cta'
                 });
                 switchBtn.addEventListener('click', () => {
-                    plugin.settings.embeddingProvider = 'local-onnx' as any;
+                    plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
                     plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
                     void plugin.saveSettings();
                     void this.display();
@@ -334,7 +334,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     .setButtonText(t.settings.semanticSearch.manageIndexButton)
                     .setIcon('database')
                     .onClick(() => {
-                        (plugin.app as any).commands.executeCommandById('ai-organiser:manage-index');
+                        (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:manage-index');
                     });
             });
 

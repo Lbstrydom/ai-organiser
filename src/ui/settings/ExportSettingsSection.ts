@@ -38,7 +38,7 @@ export class ExportSettingsSection extends BaseSettingSection {
                     dropdown.addOption(folder, folder);
                 }
             }
-            dropdown.addOption('__custom__', '— Custom path —'); // eslint-disable-line obsidianmd/ui/sentence-case
+            dropdown.addOption('__custom__', '— custom path —');
 
             const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
             dropdown.setValue(isCustom ? '__custom__' : currentResolved);

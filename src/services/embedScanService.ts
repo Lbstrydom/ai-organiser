@@ -101,7 +101,7 @@ export function classifyExtension(ext: string): EmbedTargetType {
     if (VIDEO_EXTENSIONS.includes(lower)) return 'video';
     // Document extensions are stored without dots in ALL_DOCUMENT_EXTENSIONS
     const withoutDot = lower.startsWith('.') ? lower.slice(1) : lower;
-    if (ALL_DOCUMENT_EXTENSIONS.includes(withoutDot as any)) return 'document';
+    if ((ALL_DOCUMENT_EXTENSIONS as readonly string[]).includes(withoutDot)) return 'document';
     return 'other';
 }
 

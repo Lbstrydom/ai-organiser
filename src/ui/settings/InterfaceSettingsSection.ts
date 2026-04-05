@@ -59,7 +59,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                     .addOptions(options)
                     .setValue(this.plugin.settings.language)
                     .onChange((value) => {
-                        this.plugin.settings.language = value as any;
+                        this.plugin.settings.language = value as typeof this.plugin.settings.language;
                         void this.plugin.saveSettings();
                     });
             });

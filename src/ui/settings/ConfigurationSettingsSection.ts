@@ -737,7 +737,7 @@ class DisciplineSuggestionModal extends Modal {
         });
 
         // Store updateCount for use in renderDisciplineList
-        (this as any).updateCount = updateCount;
+        (this as unknown as { updateCount?: () => void }).updateCount = updateCount;
     }
 
     private renderDisciplineList(): void {
@@ -763,7 +763,8 @@ class DisciplineSuggestionModal extends Modal {
             checkbox.addEventListener('change', () => {
                 discipline.selected = checkbox.checked;
                 itemEl.toggleClass('ai-organiser-opacity-50', !discipline.selected);
-                if ((this as any).updateCount) (this as any).updateCount();
+                const self = this as unknown as { updateCount?: () => void };
+                if (self.updateCount) self.updateCount();
             });
 
             // Editable name input
@@ -950,7 +951,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                     // Navigate to folder by opening taxonomy.md if it exists
                         const taxonomyFile = this.plugin.app.vault.getAbstractFileByPath(`${folderPath}/taxonomy.md`);
                     if (taxonomyFile) {
-                        await leaf.openFile(taxonomyFile as any);
+                        await leaf.openFile(taxonomyFile as import('obsidian').TFile);
                     }
                 }
             } else {
@@ -1058,7 +1059,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 this.plugin.app,
                 'theme',
                 existingThemes.length,
-                (choice: 'review' | 'fresh') => { void (async () => {
+                (choice: 'review' | 'fresh') => {
                     if (choice === 'review') {
                         // Show context choice for review
                         const contextModal = new ReviewContextModal(
@@ -1078,7 +1079,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                         // Fresh analysis - show original choice modal
                         this.showFreshThemeAnalysisChoice(button);
                     }
-                })(); }
+                }
             );
             reviewModal.open();
         } else {
@@ -1337,7 +1338,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 return;
             }
 
-            let content = await this.plugin.app.vault.read(file as any);
+            let content = await this.plugin.app.vault.read(file as import('obsidian').TFile);
 
             // Find and replace the themes section
             const themesTableRegex = /(## Themes[\s\S]*?\| Name \| Description \| Use When \|\n\|[-|]+\|\n)([\s\S]*?)(\n---|\n## |$)/;
@@ -1359,14 +1360,14 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 }
             }
 
-            await this.plugin.app.vault.modify(file as any, content);
+            await this.plugin.app.vault.modify(file as import('obsidian').TFile, content);
             this.plugin.configService.invalidateCache();
 
             new Notice(`Updated taxonomy with ${themes.length} themes`);
 
             const leaf = this.plugin.app.workspace.getLeaf(false);
             if (leaf) {
-                await leaf.openFile(file as any);
+                await leaf.openFile(file as import('obsidian').TFile);
             }
 
         } catch (error) {
@@ -1397,7 +1398,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 this.plugin.app,
                 'discipline',
                 existingDisciplines.length,
-                (choice: 'review' | 'fresh') => { void (async () => {
+                (choice: 'review' | 'fresh') => {
                     if (choice === 'review') {
                         // Show context choice for review
                         const contextModal = new ReviewContextModal(
@@ -1417,7 +1418,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                         // Fresh analysis - show original choice modal
                         this.showFreshDisciplineAnalysisChoice(button);
                     }
-                })(); }
+                }
             );
             reviewModal.open();
         } else {
@@ -1711,7 +1712,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 return;
             }
 
-            let content = await this.plugin.app.vault.read(file as any);
+            let content = await this.plugin.app.vault.read(file as import('obsidian').TFile);
 
             // Find and replace the disciplines section
             const disciplinesTableRegex = /(## Disciplines[\s\S]*?\| Name \| Description \| Use When \|\n\|[-|]+\|\n)([\s\S]*?)(\n---|\n## |$)/;
@@ -1728,7 +1729,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
                 content += `\n\n## Disciplines\n\nSecond-level tags representing academic or professional fields.\n\n| Name | Description | Use When |\n|------|-------------|----------|\n${newDisciplinesTable}\n`;
             }
 
-            await this.plugin.app.vault.modify(file as any, content);
+            await this.plugin.app.vault.modify(file as import('obsidian').TFile, content);
 
             // Invalidate cache so new disciplines are loaded
             this.plugin.configService.invalidateCache();
@@ -1738,7 +1739,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             // Open the taxonomy file
             const leaf = this.plugin.app.workspace.getLeaf(false);
             if (leaf) {
-                await leaf.openFile(file as any);
+                await leaf.openFile(file as import('obsidian').TFile);
             }
 
         } catch (error) {

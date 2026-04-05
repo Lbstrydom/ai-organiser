@@ -34,7 +34,7 @@ export class TagNetworkManager {
         this.app = app;
     }
 
-    async buildTagNetwork(files?: TFile[]): Promise<Map<string, TagData>> {
+    buildTagNetwork(files?: TFile[]): Promise<Map<string, TagData>> {
         this.tagData.clear();
         const allFiles = files || this.app.vault.getMarkdownFiles();
         
@@ -77,9 +77,9 @@ export class TagNetworkManager {
             }
         }
         
-        return this.tagData;
+        return Promise.resolve(this.tagData);
     }
-    
+
     getNetworkData(): NetworkData {
         const nodes: NetworkNode[] = [];
         const edges: NetworkEdge[] = [];

@@ -172,7 +172,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                         item.setTitle(plugin.t.contextMenu.digitise || 'AI: Digitise')
                             .setIcon('sparkles')
                             .onClick(() => {
-                                (plugin.app as any).commands.executeCommandById('ai-organiser:digitise-image');
+                                (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:digitise-image');
                             });
                     });
                 }
@@ -181,7 +181,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                         item.setTitle(plugin.t.contextMenu.editDiagram || 'AI: Edit Diagram')
                             .setIcon('git-branch')
                             .onClick(() => {
-                                (plugin.app as any).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
+                                (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
                             });
                     });
                 }

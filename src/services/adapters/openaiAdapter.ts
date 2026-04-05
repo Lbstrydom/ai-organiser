@@ -30,14 +30,14 @@ export class OpenAIAdapter extends BaseAdapter {
         return 'image';
     }
 
-    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): any {
+    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): Record<string, unknown> {
         // Hard error for document parts — OpenAI doesn't support PDF/documents
         const hasDocument = parts.some(p => p.type === 'document');
         if (hasDocument) {
             throw new Error('OpenAI does not support document/PDF content. Use Claude or Gemini for PDF processing.');
         }
 
-        const contentItems: any[] = parts.map(part => {
+        const contentItems = parts.map((part): Record<string, unknown> | null => {
             if (part.type === 'text') {
                 return { type: 'text', text: part.text };
             } else if (part.type === 'image') {
@@ -49,7 +49,7 @@ export class OpenAIAdapter extends BaseAdapter {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter((item): item is Record<string, unknown> => item !== null);
 
         // Consistent token handling with text path — reasoning models need max_completion_tokens
         const modelName = this.config.modelName || '';

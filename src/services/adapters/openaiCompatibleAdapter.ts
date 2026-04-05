@@ -22,8 +22,8 @@ export class OpenAICompatibleAdapter extends BaseAdapter {
         };
     }
 
-    public formatRequest(prompt: string): RequestBody & Record<string, any> {
-        const body: RequestBody & Record<string, any> = {
+    public formatRequest(prompt: string): RequestBody {
+        const body: RequestBody = {
             model: this.config.modelName,
             messages: [{
                 role: 'system',
@@ -44,16 +44,17 @@ export class OpenAICompatibleAdapter extends BaseAdapter {
         return body;
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
+            const responseObj = response as { choices?: Array<{ message?: { content?: string }; text?: string }> };
             let content: string;
-            
+
             // Handle different response formats
-            if (response.choices?.[0]?.message?.content) {
-                content = response.choices[0].message.content;
-            } else if (response.choices?.[0]?.text) {
+            if (responseObj.choices?.[0]?.message?.content) {
+                content = responseObj.choices[0].message.content;
+            } else if (responseObj.choices?.[0]?.text) {
                 // Some OpenAI-compatible APIs might use 'text' instead of 'message.content'
-                content = response.choices[0].text;
+                content = responseObj.choices[0].text;
             } else {
                 throw new Error('Invalid response format: missing content');
             }
@@ -66,8 +67,8 @@ export class OpenAICompatibleAdapter extends BaseAdapter {
 
             return {
                 text: content,
-                matchedExistingTags: jsonContent.matchedTags,
-                suggestedTags: jsonContent.newTags
+                matchedExistingTags: jsonContent.matchedTags as string[],
+                suggestedTags: jsonContent.newTags as string[]
             };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -88,15 +89,16 @@ export class OpenAICompatibleAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
+    public extractError(error: unknown): string {
+        const err = error as { response?: { data?: { error?: { message?: string }; message?: string } }; message?: string };
         // Handle different error response formats
-        if (error.response?.data?.error?.message) {
-            return error.response.data.error.message;
+        if (err.response?.data?.error?.message) {
+            return err.response.data.error.message;
         }
-        if (error.response?.data?.message) {
-            return error.response.data.message;
+        if (err.response?.data?.message) {
+            return err.response.data.message;
         }
-        return error.message || 'Unknown error occurred';
+        return err.message || 'Unknown error occurred';
     }
 
     public getHeaders(): Record<string, string> {

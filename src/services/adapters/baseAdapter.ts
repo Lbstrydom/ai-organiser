@@ -1,12 +1,12 @@
 import { BaseLLMService } from "../baseService";
-import { AdapterConfig, ContentPart, MultimodalCapability } from "./types";
+import { ConnectionTestResult, ConnectionTestError } from "../types";
+import { AdapterConfig, BaseResponse, ContentPart, MultimodalCapability, LLMServiceProvider } from "./types";
 import { SYSTEM_PROMPT } from "../../utils/constants";
-import { TaggingMode } from "../prompts/types";
 import { extractTextFromParts } from "../../utils/adapterUtils";
 
 export abstract class BaseAdapter extends BaseLLMService {
     protected config: AdapterConfig;
-    protected provider: any;
+    protected provider!: LLMServiceProvider;
 
     /**
      * Formats a request for the cloud service
@@ -15,7 +15,7 @@ export abstract class BaseAdapter extends BaseLLMService {
      * @param language - Optional language code
      * @returns Formatted request body
      */
-    public formatRequest(prompt: string, language?: string): any {
+    public formatRequest(prompt: string, language?: string): Record<string, unknown> {
         if (this.provider?.requestFormat?.body) {
             // For providers that need specific request format
             return {
@@ -31,36 +31,38 @@ export abstract class BaseAdapter extends BaseLLMService {
         return super.formatRequest(prompt, language);
     }
 
-    public parseResponse(response: any): any {
+    public parseResponse(response: unknown): BaseResponse {
         if (!this.provider?.responseFormat?.path) {
             throw new Error('Provider response format not configured');
         }
 
         try {
-            if (response.error && this.provider.responseFormat.errorPath) {
-                let errorMsg = response;
+            const responseObj = response as Record<string, unknown>;
+            if (responseObj.error && this.provider.responseFormat.errorPath) {
+                let errorMsg: unknown = responseObj;
                 for (const key of this.provider.responseFormat.errorPath) {
-                    errorMsg = errorMsg[key];
+                    errorMsg = (errorMsg as Record<string, unknown>)[key];
                 }
-                throw new Error(errorMsg || 'Unknown error');
+                throw new Error(typeof errorMsg === 'string' ? errorMsg : 'Unknown error');
             }
 
-            let result = response;
+            let result: unknown = responseObj;
             for (const key of this.provider.responseFormat.path) {
                 if (!result || typeof result !== 'object') {
                     throw new Error('Invalid response structure');
                 }
-                result = result[key];
+                result = (result as Record<string, unknown>)[key];
             }
 
             // Extract JSON from content if needed
             if (typeof result === 'string') {
+                const resultStr: string = result;
                 try {
-                    result = this.extractJsonFromContent(result);
-                } catch (_error) {
+                    result = this.extractJsonFromContent(resultStr);
+                } catch {
                     //console.error('Failed to parse JSON from response:', _error);
                     // If JSON parsing fails, try to extract tags directly
-                    const tags = this.extractTagsFromText(result);
+                    const tags = this.extractTagsFromText(resultStr);
                     result = {
                         matchedTags: [],
                         newTags: tags
@@ -68,18 +70,21 @@ export abstract class BaseAdapter extends BaseLLMService {
                 }
             }
 
+            const resultObj = (result && typeof result === 'object' ? result : {}) as Record<string, unknown>;
+
             // Ensure both matchedTags and newTags are arrays of strings
-            if (result.matchedTags && !Array.isArray(result.matchedTags)) {
-                result.matchedTags = [];
+            if (resultObj.matchedTags && !Array.isArray(resultObj.matchedTags)) {
+                resultObj.matchedTags = [];
             }
-            if (result.newTags && !Array.isArray(result.newTags)) {
-                result.newTags = [];
+            if (resultObj.newTags && !Array.isArray(resultObj.newTags)) {
+                resultObj.newTags = [];
             }
 
-            result.matchedTags = (result.matchedTags || []).map((tag: any) => String(tag).trim());
-            result.newTags = (result.newTags || []).map((tag: any) => String(tag).trim());
+            const matchedExistingTags = ((resultObj.matchedTags as unknown[]) || []).map((tag: unknown) => String(tag).trim());
+            const suggestedTags = ((resultObj.newTags as unknown[]) || []).map((tag: unknown) => String(tag).trim());
 
-            return result;
+            const text = typeof resultObj.text === 'string' ? resultObj.text : '';
+            return { text, matchedExistingTags, suggestedTags };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             throw new Error(`Failed to parse response: ${message}`);
@@ -119,30 +124,25 @@ export abstract class BaseAdapter extends BaseLLMService {
             ...config,
             endpoint: config.endpoint ?? "",
             modelName: config.modelName ?? ""
-        }, null as any);  // Pass null for app as it's not needed in the adapter
+        }, null as never);  // Pass null for app as it's not needed in the adapter
         this.config = config;
     }
 
-    async analyzeTags(content: string, existingTags: string[]): Promise<any> {
-        const prompt = this.buildPrompt(content, existingTags, TaggingMode.Hybrid, 10, this.config.language); // eslint-disable-line @typescript-eslint/no-deprecated -- legacy tagging mode
-        const response = await this.makeRequest(prompt);
-        return this.parseResponse(response);
-    }
-
-    async testConnection(): Promise<{ result: any; error?: any }> {
+    async testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }> {
         try {
             await this.makeRequest('test');
-            return { result: { success: true } };
+            return { result: ConnectionTestResult.Success };
         } catch (error) {
-            return { result: { success: false }, error };
+            const err = error as { message?: string };
+            return { result: ConnectionTestResult.Failed, error: { type: 'unknown', message: err?.message || 'Unknown error' } };
         }
     }
 
-    protected async makeRequest(_prompt: string): Promise<any> {
+    protected makeRequest(_prompt: string): Promise<unknown> {
         // This method should not be called directly.
         // HTTP requests should be made through CloudLLMService which uses Obsidian's requestUrl
         // to avoid CORS issues. Adapters are meant to format/parse requests, not make them.
-        throw new Error('BaseAdapter.makeRequest should not be called directly. Use CloudLLMService instead.');
+        return Promise.reject(new Error('BaseAdapter.makeRequest should not be called directly. Use CloudLLMService instead.'));
     }
 
     getEndpoint(): string {
@@ -155,7 +155,7 @@ export abstract class BaseAdapter extends BaseLLMService {
         };
     }
 
-    protected extractJsonFromContent(content: string): any {
+    protected extractJsonFromContent(content: string): Record<string, unknown> {
         try {
             const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
             if (jsonMatch) {
@@ -178,7 +178,7 @@ export abstract class BaseAdapter extends BaseLLMService {
      * @param prompt - The prompt containing summarization instructions and content
      * @returns Formatted request body
      */
-    public formatSummarizeRequest?(prompt: string): any;
+    public formatSummarizeRequest?(prompt: string): Record<string, unknown>;
 
     /** Whether this adapter supports SSE streaming. Default: false. */
     supportsStreaming?(): boolean;
@@ -221,24 +221,26 @@ export abstract class BaseAdapter extends BaseLLMService {
      * @param response The response object from the cloud provider
      * @returns The extracted content as a string
      */
-    public parseResponseContent(response: any): string {
+    public parseResponseContent(response: unknown): string {
         try {
+            const responseObj = response as Record<string, unknown>;
             if (!this.provider?.responseFormat?.contentPath) {
                 // Default OpenAI-like format
-                return response.choices?.[0]?.message?.content || '';
+                const choices = responseObj?.choices as Array<{ message?: { content?: string } }> | undefined;
+                return choices?.[0]?.message?.content || '';
             }
 
             // Follow provider-specific content path
-            let content = response;
+            let content: unknown = response;
             for (const key of this.provider.responseFormat.contentPath) {
                 if (!content || typeof content !== 'object') {
                     throw new Error('Invalid response structure');
                 }
-                content = content[key];
+                content = (content as Record<string, unknown>)[key];
             }
             
             return typeof content === 'string' ? content : JSON.stringify(content);
-        } catch (_error) {
+        } catch {
             return '';
         }
     }
@@ -271,7 +273,7 @@ export abstract class BaseAdapter extends BaseLLMService {
      * @param options - Optional request options
      * @returns Formatted request body
      */
-    formatMultimodalRequest(parts: ContentPart[], _options?: { maxTokens?: number }): any {
+    formatMultimodalRequest(parts: ContentPart[], _options?: { maxTokens?: number }): Record<string, unknown> {
         const textContent = extractTextFromParts(parts);
         return this.formatRequest(textContent);
     }

@@ -553,7 +553,7 @@ export async function needsChunking(
 
         return { needsChunking: false, estimatedDuration: duration };
 
-    } catch (_error) {
+    } catch {
         // If we can't determine duration, fall back to file size heuristic
         const fileSize = file.stat.size;
         // If file is > 100MB, likely needs chunking

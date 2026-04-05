@@ -33,7 +33,7 @@ export class ExcludedFilesModal extends Modal {
             try {
                 this.cachedPaths = getVaultItems(this.app);
                 this.hasLoadedPaths = true;
-            } catch (_error) {
+            } catch {
                 this.cachedPaths = [];
             }
         }
@@ -402,7 +402,7 @@ export class ExcludedFilesModal extends Modal {
             
             // Display the dropdown
             this.pathDropdownContainer.addClass('ai-organiser-block');
-        } catch (_error) {
+        } catch {
             
             // Show error state
             const errorEl = this.pathDropdownContainer.createDiv({

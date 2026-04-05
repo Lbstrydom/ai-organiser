@@ -80,7 +80,7 @@ export class BatchProcessor {
                     lastNoticeTime = currentTime;
                 }
 
-            } catch (_error) {
+            } catch {
                 // Error processing batch — continue with next item
             }
         }

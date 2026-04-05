@@ -54,7 +54,7 @@ export class MermaidContextService {
         const [siblingLabels, backlinkText, ragText] = await Promise.all([
             Promise.resolve(this.gatherSiblingDiagrams(content, currentDiagramCode)),
             settings.mermaidChatIncludeBacklinks
-                ? this.gatherBacklinkContext(file)
+                ? Promise.resolve(this.gatherBacklinkContext(file))
                 : Promise.resolve(''),
             (settings.mermaidChatIncludeRAG &&
              this.plugin.vectorStore &&
@@ -124,7 +124,7 @@ export class MermaidContextService {
     }
 
     /** Fetch the basenames of notes that link back to this file. */
-    private async gatherBacklinkContext(file: TFile): Promise<string> {
+    private gatherBacklinkContext(file: TFile): string {
         try {
             const resolvedLinks = this.app.metadataCache.resolvedLinks;
             const titles: string[] = [];

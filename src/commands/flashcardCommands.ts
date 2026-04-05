@@ -43,7 +43,7 @@ export function registerFlashcardCommands(plugin: AIOrganiserPlugin): void {
 /**
  * Export flashcards — opens modal, dispatches to correct source handler.
  */
-export async function exportFlashcards(plugin: AIOrganiserPlugin): Promise<void> {
+export function exportFlashcards(plugin: AIOrganiserPlugin): void {
     const visionService = new VisionService(plugin);
     const visionSupported = visionService.canDigitise().supported;
 

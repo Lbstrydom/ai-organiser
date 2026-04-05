@@ -9,7 +9,6 @@ import { logger } from '../../utils/logger';
 import { DictionaryService, Dictionary, DictionaryEntry } from '../../services/dictionaryService';
 import { LLMService, type LanguageCode } from '../../services/types';
 import { buildTermExtractionPrompt } from '../../services/prompts/dictionaryPrompts';
-import { TaggingMode } from '../../services/prompts/types';
 
 export interface TermExtractionOptions {
     documents: Array<{ name: string; content: string }>;
@@ -201,20 +200,16 @@ export class DictionaryController {
                 options.language
             );
 
-            // Call LLM service
-            // eslint-disable-next-line @typescript-eslint/no-deprecated -- legacy API still functional
-            const response = await llmService.analyzeTags(
-                prompt,
-                [],
-                TaggingMode.GenerateNew, // eslint-disable-line @typescript-eslint/no-deprecated
-                50,
-                options.language || 'en'
-            );
+            // Call LLM service with taxonomy-based tag generation
+            const tagsResponse = await llmService.generateTags(prompt);
 
-            if (!response.suggestedTags || response.suggestedTags.length === 0) {
+            if (!tagsResponse.success || !tagsResponse.tags || tagsResponse.tags.length === 0) {
                 errors.push('LLM did not extract any terms');
                 return { errors };
             }
+
+            // Adapt to the shape expected downstream
+            const response = { suggestedTags: tagsResponse.tags };
 
             // Parse extracted terms into entries
             // LLM returns tags in format: "term-person" or "term" or "term-acronym"

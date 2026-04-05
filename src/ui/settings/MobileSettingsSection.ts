@@ -66,7 +66,8 @@ export class MobileSettingsSection extends BaseSettingSection {
                 .setName(t.settings.mobile.customEndpoint)
                 .setDesc(t.settings.mobile.customEndpointDesc)
                 .addText(text => text
-                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions') // eslint-disable-line obsidianmd/ui/sentence-case -- URL
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case
+                    .setPlaceholder('http://your-api-endpoint/v1/chat/completions')
                     .setValue(plugin.settings.mobileCustomEndpoint)
                     .onChange((value) => {
                         plugin.settings.mobileCustomEndpoint = value.trim();

@@ -71,7 +71,7 @@ export class RelatedNotesView extends ItemView {
         return 'link-2';
     }
 
-    async onOpen(): Promise<void> {
+    onOpen(): Promise<void> {
         const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
         container.addClass('ai-organiser-related-notes-view-container');
@@ -124,6 +124,7 @@ export class RelatedNotesView extends ItemView {
                 }
             })
         );
+        return Promise.resolve();
     }
 
     private normalizeFolderPath(path: string | undefined | null): string | null {
@@ -272,7 +273,7 @@ export class RelatedNotesView extends ItemView {
 
         menu.addItem(item => {
             item
-                .setTitle('Copy as Markdown') // eslint-disable-line obsidianmd/ui/sentence-case -- Markdown is a proper noun
+                .setTitle('Copy as Markdown link')
                 .setIcon('copy')
                 .onClick(() => this.copyAsMarkdown());
         });
@@ -287,7 +288,7 @@ export class RelatedNotesView extends ItemView {
         menu.showAtMouseEvent(e as MouseEvent);
     }
 
-    private async onActiveNoteChanged(): Promise<void> {
+    private onActiveNoteChanged(): void {
         // Auto-update folder scope when not pinned
         if (!this.state.scopePinned) {
             const activeFile = this.app.workspace.getActiveFile();
@@ -389,7 +390,7 @@ export class RelatedNotesView extends ItemView {
             }
         } catch (error) {
             logger.error('UI', 'Error fetching related notes:', error);
-            this.state.error = (error as any).message || 'Failed to fetch related notes';
+            this.state.error = (error instanceof Error ? error.message : String(error)) || 'Failed to fetch related notes';
             this.renderErrorState();
         } finally {
             this.state.isLoading = false;

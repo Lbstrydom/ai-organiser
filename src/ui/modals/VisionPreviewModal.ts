@@ -116,7 +116,7 @@ export class VisionPreviewModal extends Modal {
             const pre = container.createEl('pre', { cls: 'vision-preview-error' });
             pre.createEl('div', { 
                 cls: 'callout callout-warning',
-                text: '⚠️ Render error — showing raw output below:' // eslint-disable-line obsidianmd/ui/sentence-case -- emoji-prefixed
+                text: 'Render error — showing raw output below:'
             });
             pre.createEl('code', { text: markdown });
         }

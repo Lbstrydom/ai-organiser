@@ -30,9 +30,8 @@ export async function generateDocx(
 
     const lines = parseMarkdown(markdownContent, false);
     const tables = extractTables(lines);
-    const _tableStartIndices = new Set(tables.map(t => t.startIndex));
 
-    const children: any[] = [];
+    const children: Array<import('docx').Paragraph | import('docx').Table | import('docx').TableOfContents> = [];
 
     // Title
     if (options.includeTitle && options.title) {
@@ -143,10 +142,10 @@ export async function generateDocx(
             config: [{
                 reference: 'default-numbering',
                 levels: [
-                    { level: 0, format: 'decimal' as any, text: '%1.', alignment: AlignmentType.START },
-                    { level: 1, format: 'lowerLetter' as any, text: '%2)', alignment: AlignmentType.START },
-                    { level: 2, format: 'lowerRoman' as any, text: '%3.', alignment: AlignmentType.START },
-                    { level: 3, format: 'decimal' as any, text: '%4.', alignment: AlignmentType.START },
+                    { level: 0, format: 'decimal' as (typeof import('docx').LevelFormat)[keyof typeof import('docx').LevelFormat], text: '%1.', alignment: AlignmentType.START },
+                    { level: 1, format: 'lowerLetter' as (typeof import('docx').LevelFormat)[keyof typeof import('docx').LevelFormat], text: '%2)', alignment: AlignmentType.START },
+                    { level: 2, format: 'lowerRoman' as (typeof import('docx').LevelFormat)[keyof typeof import('docx').LevelFormat], text: '%3.', alignment: AlignmentType.START },
+                    { level: 3, format: 'decimal' as (typeof import('docx').LevelFormat)[keyof typeof import('docx').LevelFormat], text: '%4.', alignment: AlignmentType.START },
                 ],
             }],
         },
@@ -165,9 +164,9 @@ export async function generateDocx(
 
 function buildDocxTable(
     table: MarkdownTable,
-    docx: any,
+    docx: Pick<typeof import('docx'), 'Table' | 'TableRow' | 'TableCell' | 'Paragraph' | 'TextRun' | 'WidthType' | 'ShadingType' | 'BorderStyle'>,
     docFont: string
-): any {
+): import('docx').Table {
     const { Table, TableRow, TableCell, Paragraph, TextRun, WidthType, ShadingType } = docx;
 
     const headerRow = new TableRow({

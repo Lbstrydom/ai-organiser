@@ -12,6 +12,14 @@
 import type { MinutesJSON, GTDAction } from '../prompts/minutesPrompts';
 import type { MinutesStyle } from '../../core/constants';
 import { stripConfidenceAnnotations, groupPointsBySubTopic, hasAnyAgendaRef } from '../../utils/minutesUtils';
+import type { Paragraph as DocxParagraph, Table as DocxTable } from 'docx';
+
+type DocxChild = DocxParagraph | DocxTable;
+// Subset of docx exports used by the grouped-agenda renderer.
+type DocxModuleSubset = Pick<
+    typeof import('docx'),
+    'Paragraph' | 'TextRun' | 'HeadingLevel' | 'Table' | 'TableRow' | 'TableCell' | 'WidthType' | 'ShadingType'
+>;
 
 export interface MinutesDocxOptions {
     /** Include confidentiality banner when level is not 'public' */
@@ -32,7 +40,7 @@ export async function generateMinutesDocx(
     const meta = json.metadata;
     const style: MinutesStyle = options.style || meta?.style || 'standard';
     const title = meta?.title || 'Meeting Minutes';
-    const children: any[] = [];
+    const children: DocxChild[] = [];
 
     // Belt-and-suspenders: deep-strip confidence annotations from all JSON text fields
     deepStripConfidence(json);
@@ -384,9 +392,9 @@ export async function generateMinutesDocx(
 
 function renderDocxAgendaGrouped(
     json: MinutesJSON,
-    children: any[],
+    children: DocxChild[],
     style: MinutesStyle,
-    docx: any
+    docx: DocxModuleSubset
 ): void {
     const { Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, ShadingType } = docx;
     const agenda = json.agenda || [];
@@ -559,11 +567,11 @@ export function extractMinutesJsonFromNote(content: string): MinutesJSON | null 
     }
 }
 
-function spacer(Paragraph: any): any {
+function spacer(Paragraph: DocxModuleSubset['Paragraph']): DocxParagraph {
     return new Paragraph({ children: [], spacing: { after: 100 } });
 }
 
-function heading2(text: string, docx: any): any {
+function heading2(text: string, docx: Pick<DocxModuleSubset, 'Paragraph' | 'TextRun' | 'HeadingLevel'>): DocxParagraph {
     const { Paragraph, TextRun, HeadingLevel } = docx;
     return new Paragraph({
         children: [new TextRun({ text, bold: true, size: 26, font: 'Calibri' })],
@@ -572,7 +580,7 @@ function heading2(text: string, docx: any): any {
     });
 }
 
-function boldLabel(text: string, docx: any): any {
+function boldLabel(text: string, docx: Pick<DocxModuleSubset, 'Paragraph' | 'TextRun'>): DocxParagraph {
     const { Paragraph, TextRun } = docx;
     return new Paragraph({
         children: [new TextRun({ text, bold: true, size: 22, font: 'Calibri' })],
@@ -580,7 +588,7 @@ function boldLabel(text: string, docx: any): any {
     });
 }
 
-function tableHeaderRow(headers: string[], docx: any): any {
+function tableHeaderRow(headers: string[], docx: Pick<DocxModuleSubset, 'TableRow' | 'TableCell' | 'Paragraph' | 'TextRun' | 'ShadingType'>): import('docx').TableRow {
     const { TableRow, TableCell, Paragraph, TextRun, ShadingType } = docx;
     return new TableRow({
         tableHeader: true,
@@ -593,7 +601,7 @@ function tableHeaderRow(headers: string[], docx: any): any {
     });
 }
 
-function tableDataRow(cells: string[], docx: any): any {
+function tableDataRow(cells: string[], docx: Pick<DocxModuleSubset, 'TableRow' | 'TableCell' | 'Paragraph' | 'TextRun'>): import('docx').TableRow {
     const { TableRow, TableCell, Paragraph, TextRun } = docx;
     return new TableRow({
         children: cells.map(c => new TableCell({
@@ -605,21 +613,24 @@ function tableDataRow(cells: string[], docx: any): any {
 }
 
 /** Recursively strip confidence annotations from all string values in a JSON object. */
-function deepStripConfidence(obj: any): void {
+function deepStripConfidence(obj: unknown): void {
     if (!obj || typeof obj !== 'object') return;
-    for (const key of Object.keys(obj)) {
-        if (typeof obj[key] === 'string') {
-            obj[key] = stripConfidenceAnnotations(obj[key]);
-        } else if (Array.isArray(obj[key])) {
-            for (let i = 0; i < obj[key].length; i++) {
-                if (typeof obj[key][i] === 'string') {
-                    obj[key][i] = stripConfidenceAnnotations(obj[key][i]);
-                } else if (typeof obj[key][i] === 'object') {
-                    deepStripConfidence(obj[key][i]);
+    const record = obj as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+        const value = record[key];
+        if (typeof value === 'string') {
+            record[key] = stripConfidenceAnnotations(value);
+        } else if (Array.isArray(value)) {
+            for (let i = 0; i < value.length; i++) {
+                const item = value[i];
+                if (typeof item === 'string') {
+                    value[i] = stripConfidenceAnnotations(item);
+                } else if (typeof item === 'object') {
+                    deepStripConfidence(item);
                 }
             }
-        } else if (typeof obj[key] === 'object') {
-            deepStripConfidence(obj[key]);
+        } else if (typeof value === 'object') {
+            deepStripConfidence(value);
         }
     }
 }

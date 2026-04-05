@@ -173,7 +173,7 @@ export class PdfService {
     /**
      * Get list of PDF files in attachments folder
      */
-    async getPdfsInAttachments(): Promise<TFile[]> {
+    getPdfsInAttachments(): TFile[] {
         const attachmentsFolder = this.getAttachmentsFolder();
         const files = this.app.vault.getFiles();
 
@@ -197,8 +197,8 @@ export class PdfService {
     /**
      * Get most recently added PDF (for auto-detection)
      */
-    async getMostRecentPdf(sinceTimestamp: number): Promise<TFile | null> {
-        const pdfs = await this.getPdfsInAttachments();
+    getMostRecentPdf(sinceTimestamp: number): TFile | null {
+        const pdfs = this.getPdfsInAttachments();
         const recent = pdfs.find(f => f.stat.mtime > sinceTimestamp);
         return recent || null;
     }

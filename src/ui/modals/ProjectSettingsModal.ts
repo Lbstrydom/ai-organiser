@@ -137,7 +137,7 @@ export class ProjectSettingsModal extends Modal {
 
         const addRow = container.createDiv({ cls: 'ai-organiser-project-settings-add-row' });
         const input = addRow.createEl('input', {
-            attr: { type: 'text', placeholder: '[[Note title]]' }, // eslint-disable-line obsidianmd/ui/sentence-case -- wikilink syntax
+            attr: { type: 'text', placeholder: '[[note title]]' },
         });
         const addBtn = addRow.createEl('button', { text: '+' });
         const doAdd = () => {

@@ -176,13 +176,13 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
         id: 'build-cluster-canvas',
         name: plugin.t.commands.buildClusterCanvas,
         icon: 'boxes',
-        callback: async () => {
+        callback: () => {
             if (Platform.isMobile) {
                 new Notice(plugin.t.canvas.desktopOnly);
                 return;
             }
 
-            const modal = new TagPickerModal(plugin.app, plugin.t, (tag) => { void (async () => {
+            const modal = new TagPickerModal(plugin.app, plugin.t, (tag) => {
                 const files = getFilesWithTag(plugin, tag);
 
                 // Show folder picker - default to current note folder or settings default
@@ -226,7 +226,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     })(); }
                 });
                 folderPicker.open();
-            })(); });
+            });
 
             modal.open();
         }

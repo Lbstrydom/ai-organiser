@@ -223,7 +223,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
         id: 'notebooklm-open-export-folder',
         name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
         icon: 'folder-open',
-        callback: async () => {
+        callback: () => {
             const exportFolder = getNotebookLMExportFullPath(plugin.settings);
 
             try {
@@ -236,7 +236,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
 
                 // Open folder in file explorer (desktop only)
                 if (Platform.isDesktopApp) {
-                    const adapter = plugin.app.vault.adapter as any;
+                    const adapter = plugin.app.vault.adapter as import('obsidian').DataAdapter & { getBasePath?: () => string };
                     const basePath = adapter.getBasePath?.() || '';
                     const folderPath = `${basePath}/${exportFolder}`;
 

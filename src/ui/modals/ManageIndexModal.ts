@@ -38,7 +38,7 @@ export class ManageIndexModal extends Modal {
         const hasEmbedding = !!this.plugin.embeddingService;
         if (!hasEmbedding) {
             contentEl.createEl('p', {
-                text: 'Embedding service not configured. Set an embedding provider and API key in Semantic Search settings before building.', // eslint-disable-line obsidianmd/ui/sentence-case -- Semantic Search is a proper noun
+                text: 'Embedding service not configured. Set an embedding provider and API key in semantic search settings before building.',
                 cls: 'ai-organiser-warning'
             });
         }
@@ -123,7 +123,7 @@ export class ManageIndexModal extends Modal {
             this.setStatus(msg, 'success');
             new Notice(msg);
         } catch (error) {
-            const msg = `${this.plugin.t.messages.indexBuildFailed}: ${(error as any).message}`;
+            const msg = `${this.plugin.t.messages.indexBuildFailed}: ${(error instanceof Error ? error.message : String(error))}`;
             this.setStatus(msg, 'error');
             new Notice(msg);
         }
@@ -148,7 +148,7 @@ export class ManageIndexModal extends Modal {
             this.setStatus(msg, 'success');
             new Notice(msg);
         } catch (error) {
-            const msg = `${this.plugin.t.messages.indexUpdateFailed}: ${(error as any).message}`;
+            const msg = `${this.plugin.t.messages.indexUpdateFailed}: ${(error instanceof Error ? error.message : String(error))}`;
             this.setStatus(msg, 'error');
             new Notice(msg);
         }
@@ -174,7 +174,7 @@ export class ManageIndexModal extends Modal {
             await this.onOpen();
         } catch (error) {
             statusNotice.hide();
-            new Notice(`${this.plugin.t.messages.indexClearFailed}: ${(error as any).message}`);
+            new Notice(`${this.plugin.t.messages.indexClearFailed}: ${(error instanceof Error ? error.message : String(error))}`);
         }
     }
 }

@@ -21,7 +21,7 @@ export interface ExecuteWithNoticeOptions {
      * Called on successful completion
      * @param result The successful result
      */
-    onSuccess?: (result: any) => void;
+    onSuccess?: (result: unknown) => void;
 
     /**
      * Called on error with error details

@@ -337,22 +337,9 @@ export async function showMultiImagePicker(plugin: AIOrganiserPlugin, images: TF
 /**
  * Load image as data URL for preview
  */
-async function loadImageDataUrl(app: any, file: TFile): Promise<string> {
+async function loadImageDataUrl(app: import('obsidian').App, file: TFile): Promise<string> {
     const arrayBuffer = await app.vault.readBinary(file);
     const blob = new Blob([arrayBuffer]);
-    
-    // Get media type from extension
-    const ext = file.extension.toLowerCase();
-    const mediaTypeMap: Record<string, string> = {
-        'png': 'image/png',
-        'jpg': 'image/jpeg',
-        'jpeg': 'image/jpeg',
-        'gif': 'image/gif',
-        'webp': 'image/webp',
-        'bmp': 'image/bmp',
-        'svg': 'image/svg+xml'
-    };
-    const _mediaType = mediaTypeMap[ext] || 'application/octet-stream';
 
     // Convert to base64 data URL
     return new Promise((resolve, reject) => {

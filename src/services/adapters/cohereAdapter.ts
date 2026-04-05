@@ -46,10 +46,11 @@ export class CohereAdapter extends BaseAdapter {
         };
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
             // Cohere v2 response: message.content[0].text
-            const content = response.message?.content?.[0]?.text;
+            const responseObj = response as { message?: { content?: Array<{ text?: string }> } };
+            const content = responseObj.message?.content?.[0]?.text;
             if (!content) {
                 throw new Error('Invalid response format: missing content');
             }
@@ -59,8 +60,8 @@ export class CohereAdapter extends BaseAdapter {
             }
             return {
                 text: content,
-                matchedExistingTags: jsonContent.matchedTags,
-                suggestedTags: jsonContent.newTags
+                matchedExistingTags: jsonContent.matchedTags as string[],
+                suggestedTags: jsonContent.newTags as string[]
             };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -81,9 +82,10 @@ export class CohereAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
-        return error.message ||
-            error.response?.data?.message ||
+    public extractError(error: unknown): string {
+        const err = error as { message?: string; response?: { data?: { message?: string } } };
+        return err.message ||
+            err.response?.data?.message ||
             'Unknown error occurred';
     }
 

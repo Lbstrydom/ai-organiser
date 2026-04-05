@@ -96,8 +96,8 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
             });
 
             // Store reference for progress updates
-            (progressNotice as any).__progressFill = progressFill;
-            (progressNotice as any).__progressText = wrapper.querySelector('.ai-organiser-embed-scan-progress-text');
+            (progressNotice as Notice & { __progressFill?: HTMLElement }).__progressFill = progressFill;
+            (progressNotice as Notice & { __progressText?: HTMLElement | null }).__progressText = wrapper.querySelector('.ai-organiser-embed-scan-progress-text');
         }
     }
 
@@ -107,8 +107,8 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
         onProgress: (current, total, currentFile) => {
             if (progressNotice) {
                 const pct = Math.round((current / total) * 100);
-                const fill = (progressNotice as any).__progressFill as HTMLElement;
-                const text = (progressNotice as any).__progressText as HTMLElement;
+                const fill = (progressNotice as Notice & { __progressFill?: HTMLElement }).__progressFill as HTMLElement;
+                const text = (progressNotice as Notice & { __progressText?: HTMLElement | null }).__progressText as HTMLElement;
                 if (fill) {
                     fill.addClass('ai-organiser-dynamic-width');
                     fill.setCssProps({ '--dynamic-width': `${pct}%` });

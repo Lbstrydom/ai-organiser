@@ -112,7 +112,7 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
                 if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
                     await plugin.showSuggestionModal(view.file!, result.suggestedTitle, result.suggestedFolder);
                 }
-            } catch (_error) {
+            } catch {
                 new Notice(plugin.t.messages.failedToGenerateTags);
             }
         })(); }

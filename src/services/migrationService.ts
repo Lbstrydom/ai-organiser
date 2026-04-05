@@ -57,7 +57,7 @@ export class MigrationService {
     /**
      * Analyze migration scope - count notes needing migration
      */
-    public async analyzeMigrationScope(folder?: TFolder): Promise<MigrationScope> {
+    public analyzeMigrationScope(folder?: TFolder): MigrationScope {
         const files = folder 
             ? this.getMarkdownFilesInFolder(folder)
             : this.app.vault.getMarkdownFiles();
@@ -102,7 +102,7 @@ export class MigrationService {
             const frontmatter = cache?.frontmatter;
             
             // Extract or determine metadata
-            const metadata: any = {};
+            const metadata: Record<string, unknown> = {};
             
             // Extract summary from note body if requested
             if (options.extractSummary) {
@@ -254,7 +254,7 @@ export class MigrationService {
     /**
      * Determine status based on existing tags or note state
      */
-    private determineStatus(file: TFile, frontmatter: any): 'processed' | 'pending' | 'error' {
+    private determineStatus(file: TFile, frontmatter: Record<string, unknown> | undefined): 'processed' | 'pending' | 'error' {
         // If note has tags, consider it processed
         if (frontmatter?.tags && Array.isArray(frontmatter.tags) && frontmatter.tags.length > 0) {
             return 'processed';
@@ -267,11 +267,11 @@ export class MigrationService {
     /**
      * Detect content type from note content and metadata
      */
-    private detectContentType(content: string, frontmatter: any): ContentType {
+    private detectContentType(content: string, frontmatter: Record<string, unknown> | undefined): ContentType {
         const lowerContent = content.toLowerCase();
-        
+
         // Check frontmatter type if exists
-        if (frontmatter?.type) {
+        if (frontmatter?.type && typeof frontmatter.type === 'string') {
             const type = frontmatter.type.toLowerCase();
             if (type === 'research' || type === 'meeting' || type === 'project' || type === 'reference') {
                 return type as ContentType;

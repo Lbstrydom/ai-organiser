@@ -30,11 +30,11 @@ export class GeminiAdapter extends BaseAdapter {
         return 'image+document';
     }
 
-    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): any {
+    formatMultimodalRequest(parts: ContentPart[], options?: { maxTokens?: number }): Record<string, unknown> {
         // Gemini uses OpenAI-compatible endpoint — format as OpenAI content array.
         // Binary content (images, PDFs) passed as data URIs via image_url type;
         // Gemini extracts the MIME type from the data URI and handles all formats.
-        const contentItems: any[] = parts.map(part => {
+        const contentItems = parts.map((part): Record<string, unknown> | null => {
             if (part.type === 'text') {
                 return { type: 'text', text: part.text };
             } else if (part.type === 'image' || part.type === 'document') {
@@ -46,7 +46,7 @@ export class GeminiAdapter extends BaseAdapter {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter((item): item is Record<string, unknown> => item !== null);
 
         return {
             model: this.config.modelName,

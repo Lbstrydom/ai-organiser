@@ -312,7 +312,7 @@ export class MinutesCreationModal extends Modal {
         new Setting(topSection)
             .setName(t?.fieldLocation || 'Location')
             .addText(text => {
-                text.setPlaceholder('Boardroom or Zoom') // eslint-disable-line obsidianmd/ui/sentence-case -- Zoom is a brand name
+                text.setPlaceholder('Boardroom or Zoom')
                     .setValue(this.state.location)
                     .onChange(value => this.state.location = value.trim());
                 this.locationInputEl = text.inputEl;
@@ -2034,7 +2034,7 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
-    private async loadParticipantListIntoTextarea(listId: string): Promise<void> {
+    private loadParticipantListIntoTextarea(listId: string): void {
         const list = this.state.availableParticipantLists.find(l => l.id === listId);
         if (!list) return;
 

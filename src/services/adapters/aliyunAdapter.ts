@@ -23,9 +23,10 @@ export class AliyunAdapter extends BaseAdapter {
         };
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
-            const content = response.choices?.[0]?.message?.content;
+            const responseObj = response as { choices?: Array<{ message?: { content?: string } }> };
+            const content = responseObj.choices?.[0]?.message?.content;
             if (!content) {
                 throw new Error('Invalid response format: missing content');
             }
@@ -34,7 +35,7 @@ export class AliyunAdapter extends BaseAdapter {
             let jsonContent;
             try {
                 jsonContent = this.extractJsonFromContent(content);
-            } catch (_jsonError) {
+            } catch {
                 //console.error('JSON extraction error:', jsonError);
                 
                 // Fallback: Try to parse the content directly if it might be JSON already
@@ -42,7 +43,7 @@ export class AliyunAdapter extends BaseAdapter {
                     if (typeof content === 'string' && (content.trim().startsWith('{') && content.trim().endsWith('}'))) {
                         jsonContent = JSON.parse(content);
                     }
-                } catch (_directParseError) {
+                } catch {
                     //console.error('Direct JSON parse error:', directParseError);
                 }
                 
@@ -114,11 +115,12 @@ export class AliyunAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
-        if (error.response?.data?.error?.message) {
-            return error.response.data.error.message;
+    public extractError(error: unknown): string {
+        const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+        if (err.response?.data?.error?.message) {
+            return err.response.data.error.message;
         }
-        return error.message || 'Unknown error occurred';
+        return err.message || 'Unknown error occurred';
     }
 
     public getHeaders(): Record<string, string> {

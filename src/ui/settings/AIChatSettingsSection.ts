@@ -21,7 +21,7 @@ export class AIChatSettingsSection extends BaseSettingSection {
             .setName(t.chatRootFolderTitle)
             .setDesc(t.chatRootFolderDesc)
             .addText(text => text
-                .setPlaceholder('AI Chat') // eslint-disable-line obsidianmd/ui/sentence-case -- feature name
+                .setPlaceholder('AI chat')
                 .setValue(plugin.settings.chatRootFolder || 'AI Chat')
                 .onChange(value => {
                     plugin.settings.chatRootFolder = value.trim() || 'AI Chat';
@@ -118,8 +118,8 @@ export class AIChatSettingsSection extends BaseSettingSection {
             .setName(t.refinementPassesTitle)
             .setDesc(t.refinementPassesDesc)
             .addDropdown(dd => dd
-                .addOption('1', '1 (Quick)') // eslint-disable-line obsidianmd/ui/sentence-case
-                .addOption('2', '2 (Thorough)') // eslint-disable-line obsidianmd/ui/sentence-case
+                .addOption('1', '1 (quick)')
+                .addOption('2', '2 (thorough)')
                 .setValue(String(plugin.settings.aichatRefinementPasses))
                 .onChange(value => {
                     plugin.settings.aichatRefinementPasses = value === '2' ? 2 : 1;

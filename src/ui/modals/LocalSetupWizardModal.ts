@@ -203,25 +203,6 @@ const LOCAL_MODEL_RECOMMENDATIONS: ModelRecommendation[] = [
 ];
 
 /**
- * Whisper model recommendations
- */
-interface WhisperModel {
-    name: string;
-    id: string;
-    sizeGB: number;
-    quality: 'basic' | 'good' | 'excellent';
-    description: string;
-}
-
-const _WHISPER_MODELS: WhisperModel[] = [
-    { name: 'Whisper Tiny', id: 'tiny', sizeGB: 0.075, quality: 'basic', description: 'Fastest, lowest accuracy. Good for clear audio.' },
-    { name: 'Whisper Base', id: 'base', sizeGB: 0.15, quality: 'basic', description: 'Fast with reasonable accuracy.' },
-    { name: 'Whisper Small', id: 'small', sizeGB: 0.5, quality: 'good', description: 'Good balance of speed and accuracy. Recommended.' },
-    { name: 'Whisper Medium', id: 'medium', sizeGB: 1.5, quality: 'good', description: 'High accuracy, slower processing.' },
-    { name: 'Whisper Large V3', id: 'large-v3', sizeGB: 3, quality: 'excellent', description: 'Best accuracy. Requires good hardware.' },
-];
-
-/**
  * Local AI setup status
  */
 interface LocalAIStatus {
@@ -243,7 +224,7 @@ interface LocalAIStatus {
 function getApproximateRAM(): number {
     // navigator.deviceMemory gives a rough estimate in GB
     // Falls back to 8GB if not available
-    const deviceMemory = (navigator as any).deviceMemory;
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     if (deviceMemory) {
         // deviceMemory is capped at 8 in some browsers, so multiply by 2 as estimate
         return Math.max(deviceMemory * 2, 8);
@@ -301,7 +282,7 @@ export class LocalSetupWizardModal extends Modal {
             if (response.status === 200) {
                 this.status.ollama.running = true;
                 this.status.ollama.installed = true;
-                this.status.ollama.models = response.json?.models?.map((m: any) => m.name) || [];
+                this.status.ollama.models = response.json?.models?.map((m: { name: string }) => m.name) || [];
             }
 
             // Try to get version

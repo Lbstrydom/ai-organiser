@@ -861,7 +861,7 @@ export async function fetchAllHighlights(
             if (authExpired) {
                 return { results: allResults, authExpired: true };
             }
-        } catch (_err) {
+        } catch {
             // Per-book isolation: failed book doesn't block others
             logger.error('Kindle', `Failed to fetch highlights for ASIN ${asin}`);
             allResults.set(asin, []);

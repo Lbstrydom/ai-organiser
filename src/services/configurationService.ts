@@ -960,10 +960,10 @@ gantt
     /**
      * Check if config files exist
      */
-    async configFilesExist(): Promise<boolean> {
+    configFilesExist(): Promise<boolean> {
         const paths = this.getConfigPaths();
         const taxonomyFile = this.app.vault.getAbstractFileByPath(paths.taxonomyFile);
-        return taxonomyFile !== null;
+        return Promise.resolve(taxonomyFile !== null);
     }
 
     /**

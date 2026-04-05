@@ -169,7 +169,7 @@ export class OllamaEmbeddingService implements IEmbeddingService {
 
             // Check if the model is available
             const models = response.json?.models || [];
-            const hasModel = models.some((m: any) =>
+            const hasModel = models.some((m: { name: string }) =>
                 m.name === this.model ||
                 m.name.startsWith(`${this.model}:`)
             );
@@ -219,7 +219,7 @@ export class OllamaEmbeddingService implements IEmbeddingService {
             const models = response.json?.models || [];
             // Filter for embedding models
             return models
-                .map((m: any) => m.name)
+                .map((m: { name: string }) => m.name)
                 .filter((name: string) =>
                     name.includes('embed') ||
                     name.includes('minilm') ||

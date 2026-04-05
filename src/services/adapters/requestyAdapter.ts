@@ -41,9 +41,10 @@ export class RequestyAdapter extends BaseAdapter {
         };
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
-            const content = response.choices?.[0]?.message?.content;
+            const responseObj = response as { choices?: Array<{ message?: { content?: string } }> };
+            const content = responseObj.choices?.[0]?.message?.content;
             if (!content) {
                 throw new Error('Invalid response format: missing content');
             }
@@ -55,8 +56,8 @@ export class RequestyAdapter extends BaseAdapter {
 
             return {
                 text: content,
-                matchedExistingTags: jsonContent.matchedTags,
-                suggestedTags: jsonContent.newTags
+                matchedExistingTags: jsonContent.matchedTags as string[],
+                suggestedTags: jsonContent.newTags as string[]
             };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -77,10 +78,11 @@ export class RequestyAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
-        return error.error?.message ||
-            error.response?.data?.error?.message ||
-            error.message ||
+    public extractError(error: unknown): string {
+        const err = error as { error?: { message?: string }; response?: { data?: { error?: { message?: string } } }; message?: string };
+        return err.error?.message ||
+            err.response?.data?.error?.message ||
+            err.message ||
             'Unknown error occurred';
     }
 

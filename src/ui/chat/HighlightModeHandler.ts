@@ -178,7 +178,7 @@ export class HighlightModeHandler implements ChatModeHandler {
         this.updateSelectedPassages();
     }
 
-    async buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
+    buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
         const t = ctx.plugin.t.modals.unifiedChat;
         if (ctx.options.editorSelection?.trim()) {
             this.selectionLocked = true;
@@ -188,16 +188,16 @@ export class HighlightModeHandler implements ChatModeHandler {
         this.updateSelectedPassages();
 
         if (this.selectedPassageTexts.length === 0) {
-            return {
+            return Promise.resolve({
                 prompt: '',
                 systemNotice: t.noPassagesSelected
-            };
+            });
         }
 
         const noteTitle = ctx.options.noteTitle || t.modeHighlight;
-        return {
+        return Promise.resolve({
             prompt: buildHighlightChatPrompt(query, this.selectedPassageTexts, noteTitle, history)
-        };
+        });
     }
 
     getActionDescriptors(_t: Translations): ActionDescriptor[] {

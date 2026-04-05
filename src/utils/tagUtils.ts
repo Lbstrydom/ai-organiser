@@ -7,14 +7,12 @@ import { logger } from './logger';
 // Re-export constants for backward compatibility
 export { TAG_RANGE, TAG_PREDEFINED_RANGE, TAG_GENERATE_RANGE };
 
-// Global debug mode flag (set by plugin)
-let _globalDebugMode = false;
-
-export function setGlobalDebugMode(enabled: boolean): void {
-    _globalDebugMode = enabled;
+// Global debug mode flag (set by plugin) — currently a no-op, retained for API compatibility
+export function setGlobalDebugMode(_enabled: boolean): void {
+    // no-op
 }
 
-function debugLog(message: string, data?: any): void {
+function debugLog(message: string, data?: unknown): void {
     logger.debug('Tags', message, data);
 }
 
@@ -63,7 +61,7 @@ export class TagUtils {
 
             return tags.filter(tag => tag !== null && tag !== undefined)
                 .map(tag => String(tag)); // Convert all tags to strings
-        } catch (_error) {
+        } catch {
             return [];
         }
     }
@@ -143,9 +141,9 @@ export class TagUtils {
                 frontmatterPosition.end.offset - 4    // Skip '\n---'
             );
             
-            let frontmatter: any;
+            let frontmatter: Record<string, unknown>;
             try {
-                frontmatter = yaml.load(frontmatterText) || {};
+                frontmatter = (yaml.load(frontmatterText) as Record<string, unknown>) || {};
             } catch (yamlError) {
                 //console.error('YAML parse error:', yamlError);
                 return { 
@@ -282,7 +280,7 @@ export class TagUtils {
                         };
                     }
                 }
-            } catch (_compareError) {
+            } catch {
                 // Tag comparison error — skip
             }
             
@@ -297,10 +295,10 @@ export class TagUtils {
                         frontmatterPosition.end.offset - 4    // Skip '\n---'
                     );
                     
-                    let frontmatter: any;
+                    let frontmatter: Record<string, unknown>;
                     try {
-                        frontmatter = yaml.load(frontmatterText) || {};
-                    } catch (_e) {
+                        frontmatter = (yaml.load(frontmatterText) as Record<string, unknown>) || {};
+                    } catch {
                         frontmatter = {};
                     }
                     
@@ -422,7 +420,7 @@ export class TagUtils {
      * @param tagDir - Directory to save tags file in (default: 'tags')
      * @throws {TagError} If file operations fail
      */
-    static async saveAllTags(app: App, tagDir: string = 'tags'): Promise<void> {
+    static saveAllTags(app: App, tagDir: string = 'tags'): Promise<void> {
         const tags = this.getAllTagsFromFrontmatter(app);
         const formattedTags = tags.map(tag => tag.startsWith('#') ? tag.substring(1) : tag).join('\n');
     
@@ -472,8 +470,9 @@ export class TagUtils {
                 }
             })(); }
         );
-        
+
         modal.open();
+        return Promise.resolve();
     }
 
     /**
@@ -499,7 +498,7 @@ export class TagUtils {
                 .map(line => line.trim())
                 .filter(Boolean)
                 .map(tag => this.formatTag(tag));
-        } catch (_error) {
+        } catch {
             return null;
         }
     }
@@ -527,7 +526,7 @@ export class TagUtils {
                         debugLog(`formatTag transformed: "${tagStr}" -> "${formatted}"`);
                     }
                     return keepHashPrefix ? `#${formatted}` : formatted;
-                } catch (_error) {
+                } catch {
                     return null;
                 }
             })
@@ -594,9 +593,9 @@ export class TagUtils {
                         frontmatterPosition.end.offset - 4    // Skip '\n---'
                     );
                     
-                    let frontmatter: any;
+                    let frontmatter: Record<string, unknown>;
                     try {
-                        frontmatter = yaml.load(frontmatterText) || {};
+                        frontmatter = (yaml.load(frontmatterText) as Record<string, unknown>) || {};
                     } catch (yamlError) {
                         //console.error('YAML parse error:', yamlError);
                         throw new Error(`YAML parse error: ${yamlError instanceof Error ? yamlError.message : String(yamlError)}`);
@@ -614,7 +613,7 @@ export class TagUtils {
                         newFrontmatter + 
                         '\n---' + 
                         content.substring(frontmatterPosition.end.offset);
-                } catch (_error) {
+                } catch {
                     // Fall back to creating new frontmatter
                     const yamlTags = finalTags.map(tag => `  - ${tag}`).join('\n');
                     newContent = `---\ntags:\n${yamlTags}\n---\n${content}`;
@@ -684,7 +683,7 @@ export class TagUtils {
                         // Invalid regex pattern - silently ignore and continue to next pattern
                     }
                 }
-            } catch (_error) {
+            } catch {
                 // If any pattern fails, continue with other patterns
             }
         }
@@ -767,7 +766,7 @@ export class TagUtils {
         try {
             const regex = new RegExp(regexPattern, 'i');
             return regex.test(str);
-        } catch (_e) {
+        } catch {
             return false;
         }
     }
@@ -782,7 +781,7 @@ export function extractTagsFromCache(cache: { tags?: Array<{ tag: string }>; fro
     if (!cache) return [];
 
     if (Array.isArray(cache.tags)) {
-        return cache.tags.map(entry => entry.tag || (entry as any));
+        return cache.tags.map(entry => entry.tag || (entry as unknown as string));
     }
 
     if (cache.frontmatter?.tags) {

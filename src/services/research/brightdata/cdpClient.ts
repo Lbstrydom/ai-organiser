@@ -9,11 +9,11 @@ export class CDPClient {
     private ws: WebSocket | null = null;
     private messageId = 0;
     private pending = new Map<number, {
-        resolve: (value: any) => void;
+        resolve: (value: unknown) => void;
         reject: (error: Error) => void;
         timer: ReturnType<typeof setTimeout>;
     }>();
-    private eventHandlers = new Map<string, ((params: any) => void)>();
+    private eventHandlers = new Map<string, ((params: unknown) => void)>();
     private timeout: number;
 
     constructor(timeout = 30_000) {
@@ -32,7 +32,7 @@ export class CDPClient {
     }
 
     /** Send CDP command and wait for response. */
-    async send(method: string, params?: Record<string, unknown>): Promise<any> {
+    async send(method: string, params?: Record<string, unknown>): Promise<unknown> {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             throw new Error('CDP not connected');
         }
@@ -64,7 +64,7 @@ export class CDPClient {
         const result = await this.send('Runtime.evaluate', {
             expression: 'document.documentElement.outerHTML',
             returnByValue: true,
-        });
+        }) as { exceptionDetails?: unknown; result: { value: string } };
         if (result.exceptionDetails) {
             throw new Error('Failed to extract page HTML');
         }
@@ -72,7 +72,7 @@ export class CDPClient {
     }
 
     /** Wait for a CDP event. */
-    private waitForEvent(eventName: string): Promise<any> {
+    private waitForEvent(eventName: string): Promise<unknown> {
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.eventHandlers.delete(eventName);
@@ -103,7 +103,7 @@ export class CDPClient {
     }
 
     /** Close WebSocket connection. Always call this to stop billing. */
-    async close(): Promise<void> {
+    close(): Promise<void> {
         for (const { timer, reject } of this.pending.values()) {
             clearTimeout(timer);
             reject(new Error('CDP connection closed'));
@@ -114,5 +114,6 @@ export class CDPClient {
             this.ws.close();
             this.ws = null;
         }
+        return Promise.resolve();
     }
 }

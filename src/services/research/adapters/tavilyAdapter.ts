@@ -40,7 +40,7 @@ export class TavilyAdapter implements SearchProvider {
             body: JSON.stringify(body),
         });
 
-        return (response.json.results || []).map((item: any) => ({
+        return (response.json.results || []).map((item: { title?: string; url?: string; content?: string; score?: number; raw_content?: string }) => ({
             title: item.title || '',
             url: item.url || '',
             snippet: item.content?.slice(0, 200) || '',

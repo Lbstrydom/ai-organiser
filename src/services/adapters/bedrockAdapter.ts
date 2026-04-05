@@ -61,17 +61,18 @@ export class BedrockAdapter extends BaseAdapter {
         };
     }
 
-    public parseResponse(response: any): BaseResponse {
+    public parseResponse(response: unknown): BaseResponse {
         try {
+            const responseObj = response as { completion?: string; results?: Array<{ outputText?: string }>; generation?: string };
             let content: string = '';
             const modelName = this.config.modelName || '';
-            
+
             if (modelName.includes('claude')) {
-                content = response.completion || '';
+                content = responseObj.completion || '';
             } else if (modelName.includes('titan')) {
-                content = response.results?.[0]?.outputText || '';
+                content = responseObj.results?.[0]?.outputText || '';
             } else {
-                content = response.generation || '';
+                content = responseObj.generation || '';
             }
 
             if (!content) {
@@ -86,8 +87,8 @@ export class BedrockAdapter extends BaseAdapter {
 
             return {
                 text: content,
-                matchedExistingTags: jsonContent.matchedTags,
-                suggestedTags: jsonContent.newTags
+                matchedExistingTags: jsonContent.matchedTags as string[],
+                suggestedTags: jsonContent.newTags as string[]
             };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -108,10 +109,11 @@ export class BedrockAdapter extends BaseAdapter {
         return null;
     }
 
-    public extractError(error: any): string {
-        return error.errorMessage ||
-            error.response?.data?.errorMessage ||
-            error.message ||
+    public extractError(error: unknown): string {
+        const err = error as { errorMessage?: string; response?: { data?: { errorMessage?: string } }; message?: string };
+        return err.errorMessage ||
+            err.response?.data?.errorMessage ||
+            err.message ||
             'Unknown error occurred';
     }
 

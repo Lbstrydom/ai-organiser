@@ -142,9 +142,9 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         let sub = this.createSubCollapsibleSection(content, 'sub-audio', t.audioTranscription?.title || 'Audio & Recording', 'mic');
         new AudioTranscriptionSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-digitisation', t.digitisation?.title || 'Smart Digitisation', 'scan');
-        await new DigitisationSettingsSection(this.plugin, sub, this).display();
+        new DigitisationSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-sketch', t.sketch?.title || 'Sketch Pad', 'pencil');
-        await new SketchSettingsSection(this.plugin, sub, this).display();
+        new SketchSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-kindle', t.kindle?.title || 'Kindle Highlights', 'book-open');
         await new KindleSettingsSection(this.plugin, sub, this).display();
 
@@ -193,7 +193,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         sub = this.createSubCollapsibleSection(content, 'sub-bases', t.bases?.title || 'Obsidian Bases', 'database');
         new BasesSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-notebooklm', t.notebookLM?.title || 'NotebookLM', 'book-open');
-        await new NotebookLMSettingsSection(this.plugin, sub, this).display();
+        new NotebookLMSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-newsletter', t.newsletter?.title || 'Newsletter Digest', 'mail');
         new NewsletterSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');

@@ -57,10 +57,96 @@ interface TagSearchState {
     suggestions: TagSuggestion[];
 }
 
+// Minimal D3 types — we load D3 v7 dynamically from CDN and don't bundle @types/d3.
+// These cover only the fluent API surface that TagNetworkView uses.
+// Data-bound callbacks accept any datum via generic to match D3's runtime behavior.
+type D3AttrValue = string | number | null | ((d: never, i?: number) => string | number | null);
+type D3TextValue = string | ((d: never) => string);
+
+interface D3Selection {
+    append(name: string): D3Selection;
+    selectAll(selector: string): D3Selection;
+    select(selector: string | HTMLElement): D3Selection;
+    data<T>(data: T[]): D3Selection;
+    join(name: string): D3Selection;
+    attr(name: string, value?: D3AttrValue): D3Selection;
+    style(name: string, value?: string | number | null): D3Selection;
+    text(value: D3TextValue): D3Selection;
+    on(event: string, handler: (...args: never[]) => void): D3Selection;
+    call(fn: unknown, ...args: unknown[]): D3Selection;
+    transition(): D3Selection;
+    duration(ms: number): D3Selection;
+    empty(): D3Selection;
+    remove(): D3Selection;
+    each(fn: (d: never) => void): D3Selection;
+    filter(fn: (d: never) => boolean): D3Selection;
+}
+
+interface D3Force {
+    id(fn: (d: SimNode) => string): D3Force;
+    distance(v: number): D3Force;
+    strength(v: number): D3Force;
+    radius(fn: (d: SimNode) => number): D3Force;
+}
+
+interface D3Simulation {
+    force(name: string, force: D3Force): D3Simulation;
+    on(event: string, handler: () => void): D3Simulation;
+    stop(): void;
+    alphaTarget(v: number): D3Simulation;
+    restart(): D3Simulation;
+}
+
+interface D3Zoom {
+    scaleExtent(range: [number, number]): D3Zoom;
+    on(event: string, handler: (event: D3ZoomEvent) => void): D3Zoom;
+    transform: unknown;
+}
+
+interface D3Drag {
+    on(event: string, handler: (event: D3DragEvent) => void): D3Drag;
+}
+
+interface D3Lib {
+    select(target: HTMLElement | string): D3Selection;
+    zoom(): D3Zoom;
+    forceSimulation(nodes: SimNode[]): D3Simulation;
+    forceLink(links: SimLink[]): D3Force;
+    forceManyBody(): D3Force;
+    forceCenter(x: number, y: number): D3Force;
+    forceCollide(): D3Force;
+    drag(): D3Drag;
+    zoomIdentity: { translate(x: number, y: number): { scale(k: number): unknown } };
+}
+
 declare global {
     interface Window {
-        d3: any;
+        d3: D3Lib;
     }
+}
+
+interface SimNode extends NetworkNode {
+    x?: number;
+    y?: number;
+    fx?: number | null;
+    fy?: number | null;
+}
+
+interface SimLink {
+    source: string | SimNode;
+    target: string | SimNode;
+    weight: number;
+}
+
+interface D3DragEvent {
+    active: boolean;
+    x: number;
+    y: number;
+    subject: SimNode;
+}
+
+interface D3ZoomEvent {
+    transform: unknown;
 }
 
 export class TagNetworkView extends ItemView {
@@ -114,9 +200,10 @@ export class TagNetworkView extends ItemView {
         this.render();
     }
 
-    async onClose(): Promise<void> {
+    onClose(): Promise<void> {
         this.disposeCleanup();
         this.contentEl.empty();
+        return Promise.resolve();
     }
 
     public onResize(): void {
@@ -452,15 +539,15 @@ export class TagNetworkView extends ItemView {
         const svg = d3.select(container).append('svg')
             .attr('width', width)
             .attr('height', height)
-            .attr('viewBox', [0, 0, width, height])
+            .attr('viewBox', `0 0 ${width} ${height}`)
             .attr('class', 'ai-organiser-tag-network-svg');
 
         const g = svg.append('g');
 
         const zoom = d3.zoom()
             .scaleExtent([0.1, 8])
-            .on('zoom', (event: { transform: any }) => {
-                g.attr('transform', event.transform);
+            .on('zoom', (event: D3ZoomEvent) => {
+                g.attr('transform', event.transform as D3AttrValue);
             });
         svg.call(zoom);
 
@@ -503,7 +590,7 @@ export class TagNetworkView extends ItemView {
             .attr('dy', 4);
 
         // ── Hover ──
-        const getId = (value: any) => (typeof value === 'string' ? value : value.id);
+        const getId = (value: string | SimNode) => (typeof value === 'string' ? value : value.id);
 
         let filterState: { selectedSet: Set<string>; neighborSet: Set<string> } | null = null;
 
@@ -529,13 +616,13 @@ export class TagNetworkView extends ItemView {
             labels.attr('opacity', (d: NetworkNode) =>
                 selectedSet.has(d.id) ? OPACITY_SELECTED : neighborSet.has(d.id) ? OPACITY_NEIGHBOR : OPACITY_FADED
             );
-            link.attr('stroke-opacity', (l: any) => {
+            link.attr('stroke-opacity', (l: SimLink) => {
                 const srcSelected = selectedSet.has(getId(l.source));
                 const tgtSelected = selectedSet.has(getId(l.target));
                 if (srcSelected && tgtSelected) return EDGE_OPACITY_BOTH_SELECTED;
                 if (srcSelected || tgtSelected) return EDGE_OPACITY_ONE_SELECTED;
                 return EDGE_OPACITY_NONE;
-            }).attr('stroke-width', (l: any) => {
+            }).attr('stroke-width', (l: SimLink) => {
                 const srcSelected = selectedSet.has(getId(l.source));
                 const tgtSelected = selectedSet.has(getId(l.target));
                 const baseWidth = Math.sqrt(l.weight);
@@ -545,20 +632,20 @@ export class TagNetworkView extends ItemView {
 
         node.on('mouseover', (event: MouseEvent, d: NetworkNode) => {
             node.attr('opacity', (n: NetworkNode) => {
-                const connected = links.some((l: any) =>
+                const connected = links.some((l: SimLink) =>
                     (getId(l.source) === d.id && getId(l.target) === n.id) ||
                     (getId(l.target) === d.id && getId(l.source) === n.id)
                 );
                 return n === d || connected ? OPACITY_SELECTED : OPACITY_FADED;
             });
             labels.attr('opacity', (n: NetworkNode) => {
-                const connected = links.some((l: any) =>
+                const connected = links.some((l: SimLink) =>
                     (getId(l.source) === d.id && getId(l.target) === n.id) ||
                     (getId(l.target) === d.id && getId(l.source) === n.id)
                 );
                 return n === d || connected ? OPACITY_SELECTED : OPACITY_FADED;
             });
-            link.attr('stroke-opacity', (l: any) =>
+            link.attr('stroke-opacity', (l: SimLink) =>
                 getId(l.source) === d.id || getId(l.target) === d.id ? EDGE_OPACITY_BOTH_SELECTED : EDGE_OPACITY_NONE
             );
 
@@ -568,7 +655,7 @@ export class TagNetworkView extends ItemView {
 
             const content = tooltip.querySelector('.tag-tooltip-content');
             if (content) {
-                const connectionCount = links.filter((l: any) =>
+                const connectionCount = links.filter((l: SimLink) =>
                     getId(l.source) === d.id || getId(l.target) === d.id
                 ).length;
                 const connectionText = t.tooltipConnections.replace('{count}', String(connectionCount));
@@ -607,16 +694,16 @@ export class TagNetworkView extends ItemView {
         // ── Tick ──
         simulation.on('tick', () => {
             link
-                .attr('x1', (d: any) => d.source.x)
-                .attr('y1', (d: any) => d.source.y)
-                .attr('x2', (d: any) => d.target.x)
-                .attr('y2', (d: any) => d.target.y);
+                .attr('x1', (d: SimLink) => (d.source as SimNode).x ?? 0)
+                .attr('y1', (d: SimLink) => (d.source as SimNode).y ?? 0)
+                .attr('x2', (d: SimLink) => (d.target as SimNode).x ?? 0)
+                .attr('y2', (d: SimLink) => (d.target as SimNode).y ?? 0);
             node
-                .attr('cx', (d: any) => d.x)
-                .attr('cy', (d: any) => d.y);
+                .attr('cx', (d: SimNode) => d.x ?? 0)
+                .attr('cy', (d: SimNode) => d.y ?? 0);
             labels
-                .attr('x', (d: any) => d.x)
-                .attr('y', (d: any) => d.y);
+                .attr('x', (d: SimNode) => d.x ?? 0)
+                .attr('y', (d: SimNode) => d.y ?? 0);
         });
 
         this.cleanup.push(() => simulation.stop());
@@ -626,13 +713,13 @@ export class TagNetworkView extends ItemView {
 
     // ── Zoom helper ─────────────────────────────────────────────
 
-    private zoomToNodes(svg: any, zoom: any, d3: any, matchingNodes: any[], width: number, height: number): void {
+    private zoomToNodes(svg: D3Selection, zoom: D3Zoom, d3: D3Lib, matchingNodes: SimNode[], width: number, height: number): void {
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (const n of matchingNodes) {
-            minX = Math.min(minX, n.x);
-            maxX = Math.max(maxX, n.x);
-            minY = Math.min(minY, n.y);
-            maxY = Math.max(maxY, n.y);
+            minX = Math.min(minX, n.x ?? 0);
+            maxX = Math.max(maxX, n.x ?? 0);
+            minY = Math.min(minY, n.y ?? 0);
+            maxY = Math.max(maxY, n.y ?? 0);
         }
         const cx = (minX + maxX) / 2;
         const cy = (minY + maxY) / 2;
@@ -730,18 +817,18 @@ export class TagNetworkView extends ItemView {
 
     // ── Utilities ───────────────────────────────────────────────
 
-    private createDrag(d3: any, simulation: any): any {
+    private createDrag(d3: D3Lib, simulation: D3Simulation): D3Drag {
         return d3.drag()
-            .on('start', (event: any) => {
+            .on('start', (event: D3DragEvent) => {
                 if (!event.active) simulation.alphaTarget(0.3).restart();
-                event.subject.fx = event.subject.x;
-                event.subject.fy = event.subject.y;
+                event.subject.fx = event.subject.x ?? 0;
+                event.subject.fy = event.subject.y ?? 0;
             })
-            .on('drag', (event: any) => {
+            .on('drag', (event: D3DragEvent) => {
                 event.subject.fx = event.x;
                 event.subject.fy = event.y;
             })
-            .on('end', (event: any) => {
+            .on('end', (event: D3DragEvent) => {
                 if (!event.active) simulation.alphaTarget(0);
                 event.subject.fx = null;
                 event.subject.fy = null;

@@ -6,7 +6,7 @@ import { BaseSettingSection } from './BaseSettingSection';
 import type { DigitiseMode } from '../../services/visionService';
 
 export class DigitisationSettingsSection extends BaseSettingSection {
-    async display(): Promise<void> {
+    display(): void {
         const { containerEl } = this;
         const t = this.plugin.t.settings.digitisation;
 

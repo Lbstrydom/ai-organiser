@@ -129,7 +129,7 @@ export class GeminiEmbeddingService implements IEmbeddingService {
                 return { success: false, error: 'Invalid response format' };
             }
 
-            const embeddings = data.embeddings.map((e: any) => e.values);
+            const embeddings = data.embeddings.map((e: { values: number[] }) => e.values);
             const totalTokens = validTexts.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0);
 
             return {

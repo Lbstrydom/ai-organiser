@@ -60,7 +60,7 @@ export class BasesSettingsSection extends BaseSettingSection {
                     .setIcon('database')
                     .onClick(() => {
                         // Trigger migration command
-                        (this.plugin.app as any).commands.executeCommandById('ai-organiser:upgrade-metadata');
+                        (this.plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:upgrade-metadata');
                     });
             });
     }

@@ -211,7 +211,8 @@ export class ResearchOrchestrator {
         }
 
         try {
-            const assessments = JSON.parse(response.content);
+            interface TriageAssessment { url: string; score: number; assessment?: string; selected?: boolean }
+            const assessments = JSON.parse(response.content) as TriageAssessment[];
             for (const a of assessments) {
                 const result = results.find(r => r.url === a.url);
                 if (result) {
@@ -221,8 +222,8 @@ export class ResearchOrchestrator {
             }
             results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
             const preSelected = assessments
-                .filter((a: any) => a.selected)
-                .map((a: any) => a.url);
+                .filter((a: TriageAssessment) => a.selected)
+                .map((a: TriageAssessment) => a.url);
 
             // Phase 3: apply quality scoring if enabled
             if (this.qualityService && this.plugin.settings.enableResearchQualityScoring) {
@@ -872,12 +873,14 @@ export class ResearchOrchestrator {
 
             if (!context?.chunks?.length) return null;
 
-            const maxSimilarity = Math.max(...context.chunks.map((c: any) => c.similarity ?? 0));
+            interface ContextChunk { similarity?: number; filePath?: string; path?: string; content?: string }
+            const chunks = context.chunks as ContextChunk[];
+            const maxSimilarity = Math.max(...chunks.map((c) => c.similarity ?? 0));
             if (maxSimilarity < minSimilarity) return null;
 
-            const relatedNotes = context.chunks
+            const relatedNotes = chunks
                 .slice(0, 5)
-                .map((c: any) => ({
+                .map((c) => ({
                     path: c.filePath || c.path || 'Unknown',
                     similarity: c.similarity ?? 0,
                     excerpt: (c.content || '').slice(0, PRECHECK_EXCERPT_LENGTH),

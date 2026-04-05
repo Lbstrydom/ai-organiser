@@ -177,7 +177,7 @@ export class ResearchUsageService {
             if (!file || !(file instanceof TFile)) return createEmptyLedger();
 
             const content = await this.app.vault.read(file);
-            let parsed: any;
+            let parsed: unknown;
             try {
                 parsed = JSON.parse(content);
             } catch {
@@ -187,7 +187,8 @@ export class ResearchUsageService {
                 return createEmptyLedger();
             }
 
-            if (!parsed.version || typeof parsed.version !== 'number') {
+            const parsedRec = parsed as { version?: unknown } | null;
+            if (!parsedRec?.version || typeof parsedRec.version !== 'number') {
                 // Parsed but malformed — rename to backup, start fresh
                 logger.warn('Research', 'Research usage ledger malformed, creating backup and starting fresh');
                 await this.app.vault.rename(file, this.filePath + '.bak');

@@ -29,10 +29,8 @@ export interface IndexedAttachmentEntry extends AttachmentEntry {
 }
 
 // Budget fractions
-const _BUDGET_FRACTION_SYSTEM = 0.02;
 const BUDGET_FRACTION_PROJECT_INSTRUCTIONS = 0.05;
 const BUDGET_FRACTION_PROJECT_MEMORY = 0.03;
-const _BUDGET_FRACTION_GLOBAL_MEMORY = 0.03;
 const BUDGET_FRACTION_HISTORY = 0.30;
 const BUDGET_FRACTION_INDEXED_RAG = 0.25;
 const BUDGET_FRACTION_FLAT_ATT = 0.20;

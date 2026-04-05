@@ -73,7 +73,7 @@ export class MigrationModal extends Modal {
     /**
      * Stage 1: Analysis
      */
-    private async renderAnalysisStage() {
+    private renderAnalysisStage(): void {
         this.titleEl.setText(this.plugin.t.modals.migration.title);
         
         const container = this.contentEl.createDiv({ cls: 'ai-organiser-migration-modal' });
@@ -88,7 +88,7 @@ export class MigrationModal extends Modal {
         
         // Analyze scope
         try {
-            this.migrationScope = await this.migrationService.analyzeMigrationScope(this.targetFolder || undefined);
+            this.migrationScope = this.migrationService.analyzeMigrationScope(this.targetFolder || undefined);
             
             // Clear loading state
             container.empty();

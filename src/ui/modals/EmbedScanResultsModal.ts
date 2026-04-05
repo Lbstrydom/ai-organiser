@@ -590,7 +590,6 @@ export class EmbedScanResultsModal extends Modal {
             this.createCheckbox(row, file.path);
 
             const icon = row.createSpan({ cls: 'ai-organiser-embed-scan-type-icon' });
-            const _ext = `.${file.extension}`;
             setIcon(icon, getEmbedTypeIcon(
                 (['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tiff','tif','avif'].includes(file.extension)) ? 'image'
                 : file.extension === 'pdf' ? 'pdf'
