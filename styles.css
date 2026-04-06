@@ -7070,3 +7070,28 @@
     font-weight: 700;
     line-height: 1.4;
 }
+
+/* ── Command Picker modal overrides ──
+   JS sets CSS custom properties (--bg, --shadow, etc.) via setCssProps()
+   and adds these classes so the rules below consume those vars.           */
+.ai-organiser-bg-custom {
+    background: var(--bg) !important;
+}
+.ai-organiser-shadow-custom {
+    box-shadow: var(--shadow) !important;
+}
+.ai-organiser-border-custom {
+    border: var(--border) !important;
+}
+.ai-organiser-overflow-custom {
+    overflow: var(--overflow) !important;
+}
+.ai-organiser-pad-custom {
+    padding: var(--pad) !important;
+}
+.ai-organiser-margin-custom {
+    margin: var(--margin) !important;
+}
+.ai-organiser-items-start {
+    align-items: flex-start !important;
+}
