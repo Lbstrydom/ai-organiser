@@ -78,10 +78,15 @@ export class SlideIframePreview {
     applyDomFixes(fixes: DomFix[]): void {
         const doc = this.getIframeDocument();
         if (!doc) return;
-        for (const fix of fixes) {
-            const el = doc.querySelector(fix.selector);
-            if (el) (el as HTMLElement).style.setProperty(fix.property, fix.value);
-        }
+        // Inject a <style> into the iframe document instead of using inline
+        // style.setProperty (which violates no-static-styles-assignment).
+        const rules = fixes
+            .map(fix => `${fix.selector} { ${fix.property}: ${fix.value} !important; }`)
+            .join('\n');
+        if (!rules) return;
+        const style = doc.createElement('style');
+        style.textContent = rules;
+        doc.head.appendChild(style);
     }
 
     setQuality(result: QualityResult | null): void {
