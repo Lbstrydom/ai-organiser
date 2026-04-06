@@ -542,6 +542,23 @@ Version is stored in three places (must stay in sync):
 
 Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 
+## ESLint (Obsidian Review Bot Compliance)
+
+**Config**: `eslint.config.mjs` using `eslint-plugin-obsidianmd` with `recommendedWithLocalesEn` — matches the exact config the Obsidian review bot runs on PR submissions.
+
+**Full bot rules reference**: [docs/obsidian-review-bot.md](docs/obsidian-review-bot.md)
+
+Run `npm run lint` before submitting PRs. Key rules:
+- `sentence-case` + `sentence-case-locale-module` — ALL UI strings and i18n values must be sentence case
+- `no-static-styles-assignment` — use CSS classes, not `element.style.*`
+- `no-tfile-tfolder-cast` — use `instanceof TFile` checks, not `as TFile`
+- `prefer-file-manager-trash-file` — use `fileManager.trashFile()`, not `vault.delete()`
+- `no-explicit-any` — use `unknown` + type guards (bot rejects eslint-disable for this rule)
+- `no-misused-promises` / `no-floating-promises` — all promises awaited, caught, or voided
+- `import/no-nodejs-modules` — use `desktopRequire()` helper (bot rejects eslint-disable)
+
+The precommit script runs lint + full test suite: `npm run precommit`.
+
 ## Known Constraints
 
 - Obsidian API externals must match platform version (defined in `esbuild.config.mjs`)
