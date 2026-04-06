@@ -7071,17 +7071,44 @@
     line-height: 1.4;
 }
 
-/* ── Command Picker modal overrides ──
-   JS sets CSS custom properties (--bg, --shadow, etc.) via setCssProps()
-   and adds these classes so the rules below consume those vars.           */
+/* ── CSS-variable utility classes ──
+   JS sets CSS custom properties via setCssProps() and adds these classes
+   so the rules below consume those vars. Keep alphabetical.              */
 .ai-organiser-bg-custom {
     background: var(--bg) !important;
 }
-.ai-organiser-shadow-custom {
-    box-shadow: var(--shadow) !important;
-}
 .ai-organiser-border-custom {
     border: var(--border) !important;
+}
+.ai-organiser-border-left-custom {
+    border-left: var(--border-left) !important;
+}
+.ai-organiser-h-auto {
+    height: auto !important;
+}
+.ai-organiser-h-custom {
+    height: var(--h) !important;
+}
+.ai-organiser-items-start {
+    align-items: flex-start !important;
+}
+.ai-organiser-margin-custom {
+    margin: var(--margin) !important;
+}
+.ai-organiser-max-h-custom {
+    max-height: var(--max-h) !important;
+}
+.ai-organiser-max-w-custom {
+    max-width: var(--max-w) !important;
+}
+.ai-organiser-min-h-custom {
+    min-height: var(--min-h) !important;
+}
+.ai-organiser-min-w-custom {
+    min-width: var(--min-w) !important;
+}
+.ai-organiser-ml-custom {
+    margin-left: var(--ml) !important;
 }
 .ai-organiser-overflow-custom {
     overflow: var(--overflow) !important;
@@ -7089,9 +7116,21 @@
 .ai-organiser-pad-custom {
     padding: var(--pad) !important;
 }
-.ai-organiser-margin-custom {
-    margin: var(--margin) !important;
+.ai-organiser-pl-custom {
+    padding-left: var(--pl) !important;
 }
-.ai-organiser-items-start {
-    align-items: flex-start !important;
+.ai-organiser-pos-custom {
+    position: var(--pos) !important;
+}
+.ai-organiser-shadow-custom {
+    box-shadow: var(--shadow) !important;
+}
+.ai-organiser-w-custom {
+    width: var(--w) !important;
+}
+.ai-organiser-w-full {
+    width: 100% !important;
+}
+.ai-organiser-z-custom {
+    z-index: var(--z) !important;
 }
