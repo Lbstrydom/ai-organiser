@@ -580,7 +580,8 @@ export class LocalSetupWizardModal extends Modal {
                 text: 'Whisper available via ollama'
             });
         } else {
-            whisperEl.createEl('p', { text: 'Local transcription requires whisper.cpp. For now, use cloud transcription (OpenAI or groq).' });
+            const whisperMsg = 'Local transcription requires whisper.cpp. For now, use cloud transcription (OpenAI or groq).';
+            whisperEl.createEl('p', { text: whisperMsg });
 
             const whisperLink = whisperEl.createEl('a', {
                 text: 'Whisper.cpp — learn more',

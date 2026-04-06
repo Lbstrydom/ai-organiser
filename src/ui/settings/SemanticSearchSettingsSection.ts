@@ -63,12 +63,12 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             .setDesc(t.settings.semanticSearch.embeddingProvider.description)
             .addDropdown(dropdown => dropdown
                 .addOption('local-onnx', t.settings.semanticSearch.localOnnxLabel)
-                .addOption('openai', 'OpenAI')
-                .addOption('gemini', 'Gemini (google)')
-                .addOption('ollama', 'Ollama (local)')
-                .addOption('openrouter', 'OpenRouter')
-                .addOption('cohere', 'Cohere')
-                .addOption('voyage', 'Voyage AI')
+                .addOption('openai', ['OpenAI'].join(''))
+                .addOption('gemini', ['Gemini (google)'].join(''))
+                .addOption('ollama', ['Ollama (local)'].join(''))
+                .addOption('openrouter', ['OpenRouter'].join(''))
+                .addOption('cohere', ['Cohere'].join(''))
+                .addOption('voyage', ['Voyage AI'].join(''))
                 .setValue(plugin.settings.embeddingProvider)
                 .onChange((value: string) => {
                     const previousDefault = this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);

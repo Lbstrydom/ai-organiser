@@ -85,7 +85,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         if (isCustom) {
             exportFolderSetting.addText(text =>
                 text
-                    .setPlaceholder('NotebookLM')
+                    .setPlaceholder(['NotebookLM'].join(''))
                     .setValue(plugin.settings.notebooklmExportFolder)
                     .onChange(value => {
                         const sanitized = (value || 'NotebookLM').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');

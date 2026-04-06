@@ -350,7 +350,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.preview.navigateToSlide(this.activeSlideIndex);
 
             callbacks.addSystemNotice('PPTX exported — check your downloads folder.');
-            new Notice('PPTX exported');
+            new Notice('Pptx exported');
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Export failed';
             callbacks.addSystemNotice(`PPTX export failed: ${msg}`);

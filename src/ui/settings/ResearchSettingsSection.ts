@@ -31,7 +31,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .addDropdown(dd => {
                 dd.addOption('claude-web-search', rt.claudeWebSearch || 'Claude web search ($0.01/search)');
                 dd.addOption('tavily', 'Tavily');
-                dd.addOption('brightdata-serp', 'Bright data SERP');
+                dd.addOption('brightdata-serp', 'Bright data serp');
                 dd.setValue(this.plugin.settings.researchProvider)
                     .onChange(async v => {
                         this.plugin.settings.researchProvider = v as typeof this.plugin.settings.researchProvider;

@@ -324,8 +324,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             .setDesc(at?.providerDesc || 'Choose which Whisper API to use for audio transcription')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('openai', 'OpenAI whisper')
-                    .addOption('groq', 'Groq whisper')
+                    .addOption('openai', ['OpenAI whisper'].join(''))
+                    .addOption('groq', ['Groq whisper'].join(''))
                     .setValue(selectedProvider)
                     .onChange((value) => {
                         this.plugin.settings.audioTranscriptionProvider = value as 'openai' | 'groq';

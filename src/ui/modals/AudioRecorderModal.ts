@@ -96,7 +96,7 @@ export class AudioRecorderModal extends Modal {
 
         // Size display
         this.sizeEl = contentEl.createDiv({ cls: 'ai-organiser-audio-recorder-size' });
-        this.sizeEl.textContent = '0.0 MB';
+        this.sizeEl.textContent = '0.0 mb';
 
         // Max time hint (mobile only, when auto-transcribe makes sense)
         if (Platform.isMobile) {

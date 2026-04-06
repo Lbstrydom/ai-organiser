@@ -22,25 +22,10 @@ export default defineConfig([
             'obsidianmd/platform': 'warn',
             'obsidianmd/regex-lookbehind': 'error',
             'obsidianmd/no-forbidden-elements': 'error',
-            // Use plugin's DEFAULT brands list (bot uses it too).
-            // Only supply extras via acronyms so our domain-specific acronyms are recognized.
-            'obsidianmd/ui/sentence-case': ['error', {
-                acronyms: [
-                    // Plugin defaults (DEFAULT_ACRONYMS) — restated because the rule
-                    // REPLACES the default list rather than merging:
-                    'API', 'HTTP', 'HTTPS', 'URL', 'DNS', 'TCP', 'IP', 'SSH', 'TLS', 'SSL',
-                    'FTP', 'SFTP', 'SMTP', 'JSON', 'XML', 'HTML', 'CSS', 'PDF', 'CSV', 'YAML',
-                    'SQL', 'PNG', 'JPG', 'JPEG', 'GIF', 'SVG', '2FA', 'MFA', 'OAuth', 'JWT',
-                    'LDAP', 'SAML', 'SDK', 'IDE', 'CLI', 'GUI', 'CRUD', 'REST', 'SOAP', 'CPU',
-                    'GPU', 'RAM', 'SSD', 'USB', 'UI', 'OK', 'RSS', 'S3', 'WebDAV', 'ID',
-                    'UUID', 'GUID', 'SHA', 'MD5', 'ASCII', 'UTF-8', 'UTF-16', 'DOM', 'CDN',
-                    'FAQ', 'AI', 'ML',
-                    // Plugin-specific additions:
-                    'LLM', 'PPTX', 'DOCX', 'RAG', 'KPI', 'GTD', 'SSE', 'ONNX', 'WASM', 'CDP',
-                    'ASIN', 'ISBN', 'DOI', 'SERP', 'MP3', 'MP4', 'MB', 'GB', 'KB', 'RTF',
-                    'TXT', 'XLSX', 'IANA', 'UA', 'TLDR', 'UX', 'MIME', 'UTF', 'FFmpeg',
-                ],
-            }],
+            // Use plugin DEFAULTS for sentence-case — no custom brands/acronyms override.
+            // Custom overrides cause mismatch with the review bot which uses pure defaults.
+            // Domain acronyms (LLM, GTD, PPTX, etc.) are lowercased in en.ts to match.
+            'obsidianmd/ui/sentence-case': 'error',
 
             // Not applicable to this project
             'obsidianmd/sample-names': 'off',
@@ -71,27 +56,6 @@ export default defineConfig([
 
             // Browser globals available in Obsidian
             'no-undef': 'off',
-        },
-    },
-    {
-        // Pass our custom acronym list to the locale-module rule so domain acronyms
-        // (LLM, GTD, PPTX, DOCX, RAG, etc.) are preserved during sentence-case checks.
-        files: ['**/en.ts', '**/en-*.ts', '**/en/**/*.ts'],
-        rules: {
-            'obsidianmd/ui/sentence-case-locale-module': ['warn', {
-                acronyms: [
-                    'API', 'HTTP', 'HTTPS', 'URL', 'DNS', 'TCP', 'IP', 'SSH', 'TLS', 'SSL',
-                    'FTP', 'SFTP', 'SMTP', 'JSON', 'XML', 'HTML', 'CSS', 'PDF', 'CSV', 'YAML',
-                    'SQL', 'PNG', 'JPG', 'JPEG', 'GIF', 'SVG', '2FA', 'MFA', 'OAuth', 'JWT',
-                    'LDAP', 'SAML', 'SDK', 'IDE', 'CLI', 'GUI', 'CRUD', 'REST', 'SOAP', 'CPU',
-                    'GPU', 'RAM', 'SSD', 'USB', 'UI', 'OK', 'RSS', 'S3', 'WebDAV', 'ID',
-                    'UUID', 'GUID', 'SHA', 'MD5', 'ASCII', 'UTF-8', 'UTF-16', 'DOM', 'CDN',
-                    'FAQ', 'AI', 'ML',
-                    'LLM', 'PPTX', 'DOCX', 'RAG', 'KPI', 'GTD', 'SSE', 'ONNX', 'WASM', 'CDP',
-                    'ASIN', 'ISBN', 'DOI', 'SERP', 'MP3', 'MP4', 'MB', 'GB', 'KB', 'RTF',
-                    'TXT', 'XLSX', 'IANA', 'UA', 'TLDR', 'UX', 'MIME', 'UTF', 'FFmpeg',
-                ],
-            }],
         },
     },
     {

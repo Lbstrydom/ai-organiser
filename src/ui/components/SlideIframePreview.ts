@@ -167,7 +167,7 @@ export class SlideIframePreview {
         // Disclaimer
         wrapper.createEl('div', {
             cls: 'ai-organiser-pres-disclaimer',
-            text: 'Preview. Final PPTX may have minor layout differences.',
+            text: 'Preview. Final pptx may have minor layout differences.',
         });
 
         // ResizeObserver for responsive scaling (M12)
