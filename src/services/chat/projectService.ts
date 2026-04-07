@@ -2,6 +2,8 @@ import { App, TFile } from 'obsidian';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { getChatRootFullPath } from '../../core/settings';
 import { ensureFolderExists } from '../../utils/minutesUtils';
+import { logger } from '../../utils/logger';
+import { type Result, ok, err } from '../../core/result';
 
 export interface ProjectConfig {
     id: string;
@@ -26,6 +28,17 @@ export interface Project {
     pinnedLinks: string[];
     createdAt: string;
 }
+
+export interface ProjectTreeNode {
+    type: 'project' | 'group';
+    name: string;
+    path: string;                    // vault folder path
+    children: ProjectTreeNode[];
+    project?: ProjectConfig;         // only if type === 'project'
+    depth: number;                   // distance from Projects/ root
+}
+
+export const MAX_PROJECT_DEPTH = 3;
 
 const PLACEHOLDER_INSTRUCTIONS = '_No instructions configured._';
 const PLACEHOLDER_MEMORY = '_No memories yet._';
@@ -332,5 +345,263 @@ export class ProjectService {
             });
         }
         return results;
+    }
+
+    // ── Tree / Group / Nesting ─────────────────────────────────────────
+
+    /**
+     * Recursively scan `{chatRoot}/Projects/` and return a tree of projects
+     * and organizational groups. Folders with `_project.md` are projects;
+     * folders without are groups.
+     */
+    async listProjectTree(): Promise<Result<ProjectTreeNode[]>> {
+        const rootPath = this.getProjectsRoot();
+        const folder = this.app.vault.getFolderByPath(rootPath);
+        if (!folder) return ok([]);
+
+        try {
+            const children = await this.buildTreeChildren(folder, 0);
+            return ok(children);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error('ProjectService', `listProjectTree failed: ${msg}`);
+            return err(`Failed to list project tree: ${msg}`);
+        }
+    }
+
+    /**
+     * Create an organizational group folder (no `_project.md`).
+     */
+    async createGroup(name: string, parentPath?: string): Promise<Result<string>> {
+        const trimmed = name.trim();
+        if (!trimmed) return err('Group name cannot be empty');
+
+        const slug = slugify(trimmed);
+        if (!slug) return err('Group name contains only invalid characters');
+
+        const parent = parentPath ?? this.getProjectsRoot();
+        const targetPath = `${parent}/${slug}`;
+
+        // Depth check (M9)
+        const depth = this.getDepth(targetPath);
+        if (depth > MAX_PROJECT_DEPTH) {
+            return err(`Maximum nesting depth of ${MAX_PROJECT_DEPTH} exceeded`);
+        }
+
+        // Sibling collision check (M8)
+        if (this.hasSiblingCollision(parent, trimmed)) {
+            return err(`A sibling with name "${trimmed}" already exists`);
+        }
+
+        try {
+            await ensureFolderExists(this.app.vault, targetPath);
+            logger.debug('ProjectService', `Created group: ${targetPath}`);
+            return ok(targetPath);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return err(`Failed to create group: ${msg}`);
+        }
+    }
+
+    /**
+     * Create a project inside a specific parent folder.
+     * Unlike `createProject()`, returns `Result<string>` and supports nesting.
+     */
+    async createProjectInGroup(name: string, parentPath: string, instructions = ''): Promise<Result<string>> {
+        const trimmed = name.trim();
+        if (!trimmed) return err('Project name cannot be empty');
+
+        const slug = slugify(trimmed) || 'project';
+        const folderPath = `${parentPath}/${slug}`;
+
+        // Depth check (M9)
+        const depth = this.getDepth(folderPath);
+        if (depth > MAX_PROJECT_DEPTH) {
+            return err(`Maximum nesting depth of ${MAX_PROJECT_DEPTH} exceeded`);
+        }
+
+        // Sibling collision check (M8)
+        if (this.hasSiblingCollision(parentPath, trimmed)) {
+            return err(`A sibling with name "${trimmed}" already exists`);
+        }
+
+        try {
+            await ensureFolderExists(this.app.vault, folderPath);
+
+            const id = crypto.randomUUID();
+            const config: ProjectConfig = {
+                id, name: trimmed, slug, folderPath,
+                instructions,
+                memory: [],
+                pinnedFiles: [],
+                created: new Date().toISOString().slice(0, 10),
+            };
+
+            await this.app.vault.create(`${folderPath}/_project.md`, buildProjectMd(config));
+            logger.debug('ProjectService', `Created project in group: ${folderPath}`);
+            return ok(id);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return err(`Failed to create project: ${msg}`);
+        }
+    }
+
+    /**
+     * Move a project to a new parent folder. Identity is UUID-based (H1).
+     */
+    async moveProject(projectId: string, newParentPath: string): Promise<Result<void>> {
+        // Find project by UUID (H1)
+        const allProjects = await this.listAllProjectsRecursive();
+        const config = allProjects.find(p => p.id === projectId);
+        if (!config) return err(`Project with id "${projectId}" not found`);
+
+        const oldFolder = this.app.vault.getFolderByPath(config.folderPath);
+        if (!oldFolder) return err(`Project folder not found at "${config.folderPath}"`);
+
+        const slug = config.folderPath.split('/').pop() ?? config.slug;
+        const newPath = `${newParentPath}/${slug}`;
+
+        // Prevent circular move (move into own subtree)
+        if (newParentPath === config.folderPath || newParentPath.startsWith(config.folderPath + '/')) {
+            return err('Cannot move a project into its own subtree');
+        }
+
+        // Depth check (M9)
+        const depth = this.getDepth(newPath);
+        if (depth > MAX_PROJECT_DEPTH) {
+            return err(`Maximum nesting depth of ${MAX_PROJECT_DEPTH} exceeded`);
+        }
+
+        // Sibling collision at target (M8)
+        if (this.hasSiblingCollision(newParentPath, config.name)) {
+            return err(`A sibling with name "${config.name}" already exists at the target`);
+        }
+
+        try {
+            await ensureFolderExists(this.app.vault, newParentPath);
+            await this.app.vault.rename(oldFolder, newPath);
+
+            // Update folderPath in _project.md
+            const updatedConfig: ProjectConfig = { ...config, folderPath: newPath, slug };
+            const projectFile = this.app.vault.getAbstractFileByPath(`${newPath}/_project.md`);
+            if (projectFile instanceof TFile) {
+                await this.app.vault.modify(projectFile, buildProjectMd(updatedConfig));
+            }
+
+            logger.debug('ProjectService', `Moved project ${projectId} to ${newPath}`);
+            return ok(undefined);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return err(`Failed to move project: ${msg}`);
+        }
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────
+
+    private getProjectsRoot(): string {
+        const rootPath = getChatRootFullPath(this.settings);
+        return `${rootPath}/Projects`;
+    }
+
+    /**
+     * Compute depth relative to Projects/ root.
+     * e.g. "AI Chat/Projects/group/project" → depth 2
+     */
+    private getDepth(path: string): number {
+        const root = this.getProjectsRoot();
+        const relative = path.startsWith(root + '/')
+            ? path.slice(root.length + 1)
+            : path;
+        return relative.split('/').filter(Boolean).length;
+    }
+
+    /**
+     * Case-insensitive sibling collision check (M8).
+     */
+    private hasSiblingCollision(parentPath: string, name: string): boolean {
+        const parentFolder = this.app.vault.getFolderByPath(parentPath);
+        if (!parentFolder) return false;
+
+        const targetSlug = slugify(name).toLowerCase();
+        for (const child of parentFolder.children) {
+            if (child instanceof TFile) continue;
+            const childName = child.path.split('/').pop() ?? '';
+            if (childName.toLowerCase() === targetSlug) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Recursively build tree nodes from a folder's children.
+     * Uses the same pattern as `listProjects()`: skip TFile instances,
+     * treat remaining children as folders.
+     */
+    private async buildTreeChildren(folder: { children: Array<{ path: string; children?: unknown[] }> }, currentDepth: number): Promise<ProjectTreeNode[]> {
+        const nodes: ProjectTreeNode[] = [];
+
+        for (const child of folder.children) {
+            if (child instanceof TFile) continue;
+            // Remaining children are folders (TFolder or mock equivalent)
+            if (!('children' in child)) continue;
+
+            const childDepth = currentDepth + 1;
+            if (childDepth > MAX_PROJECT_DEPTH) continue;
+
+            const projectFile = this.app.vault.getAbstractFileByPath(`${child.path}/_project.md`);
+            if (projectFile instanceof TFile) {
+                // Project node
+                const content = await this.app.vault.read(projectFile);
+                const config = parseProjectMd(content, child.path);
+                if (config) {
+                    nodes.push({
+                        type: 'project',
+                        name: config.name,
+                        path: child.path,
+                        children: [],
+                        project: config,
+                        depth: childDepth,
+                    });
+                }
+            } else {
+                // Group node — recurse into children
+                const childFolder = child as { path: string; children: Array<{ path: string; children?: unknown[] }> };
+                const children = await this.buildTreeChildren(childFolder, childDepth);
+                nodes.push({
+                    type: 'group',
+                    name: child.path.split('/').pop() ?? '',
+                    path: child.path,
+                    children,
+                    depth: childDepth,
+                });
+            }
+        }
+
+        // Sort: groups first, then projects, alphabetically within each
+        nodes.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'group' ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return nodes;
+    }
+
+    /**
+     * List all projects recursively (for UUID-based lookup in moveProject).
+     */
+    private async listAllProjectsRecursive(): Promise<ProjectConfig[]> {
+        const result = await this.listProjectTree();
+        if (!result.ok) return [];
+
+        const configs: ProjectConfig[] = [];
+        const walk = (nodes: ProjectTreeNode[]) => {
+            for (const node of nodes) {
+                if (node.type === 'project' && node.project) {
+                    configs.push(node.project);
+                }
+                walk(node.children);
+            }
+        };
+        walk(result.value);
+        return configs;
     }
 }
