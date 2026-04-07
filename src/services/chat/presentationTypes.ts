@@ -68,8 +68,14 @@ export interface AuditResult {
 
 export type FindingSeverity = 'HIGH' | 'MEDIUM' | 'LOW';
 
+export type QualityFindingCategory =
+    | 'colour' | 'typography' | 'overflow' | 'density' | 'gestalt' | 'consistency'
+    | 'spacing' | 'contrast' | 'alignment' | 'visual-balance'
+    | 'structure';
+
 export interface QualityFinding {
     slideIndex?: number;
+    category?: QualityFindingCategory;
     issue: string;
     suggestion: string;
     severity: FindingSeverity;

@@ -26,6 +26,7 @@ import {
     migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
 import { generateHtmlStream, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
+import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import {
     isBrandAvailable, resolveTheme,
@@ -186,6 +187,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.runQualityCheck();
                 this.phase = 'preview-ready';
 
+                // Launch background quality scan (non-blocking)
+                void this.runBackgroundQualityScan(llmCtx, abort.signal);
+
                 const title = extractDeckTitle(this.html);
                 const count = countSlides(this.html);
                 return {
@@ -217,6 +221,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.pushVersion(query);
                 this.runQualityCheck();
                 this.phase = 'preview-ready';
+
+                // Launch background quality scan (non-blocking)
+                void this.runBackgroundQualityScan(llmCtx, abort.signal);
 
                 const count = countSlides(this.html);
                 return {
@@ -639,6 +646,24 @@ export class PresentationModeHandler implements ChatModeHandler {
             hasSlides: result.hasSlides,
         });
         this.preview.setReliability(tier);
+    }
+
+    private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal): Promise<void> {
+        if (!this.html) return;
+        const slideCount = countSlides(this.html);
+
+        const fastResult = await runFastScan(ctx, this.html, slideCount, signal);
+        if (signal.aborted || !fastResult.ok) return;
+
+        // Merge with existing deterministic findings
+        const merged = deduplicateFindings(
+            this.qualityResult?.findings ?? [],
+            fastResult.value.findings
+        );
+        if (this.qualityResult) {
+            this.qualityResult = { ...this.qualityResult, findings: merged };
+            this.preview?.setQuality(this.qualityResult);
+        }
     }
 
     private runQualityCheck(auditViolationCount = 0): void {
