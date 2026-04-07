@@ -345,3 +345,54 @@ Phase 3: Integration + Polish             ← Connects both features
 ```
 
 Estimated: ~35 new tests, 4 new files, 6 modified files, ~25 i18n strings.
+
+---
+
+## 10. Audit Remediation (GPT-5.4 Round 1)
+
+**Verdict**: SIGNIFICANT_GAPS — H:6 M:5 L:0. All accepted.
+
+### [H1] Project identity must be UUID, not folder path
+
+Move operations update `folderPath` in `_project.md` but `id` (UUID) remains primary key. All references (conversation `project_id`, persistence cache keys, resume picker) use UUID. `findProject()` scans by UUID matching in `_project.md` frontmatter, not by path.
+
+### [H2] Persistence service must handle nested project paths
+
+`buildFilePath()` already uses `state.projectFolderPath` when set. The fix is ensuring `loadProjectContext()` passes the resolved nested path. `listRecent(projectId)` filters by `project_id` frontmatter, not folder path — works regardless of nesting depth.
+
+### [H3] Replace `listRecent(999)` with proper `listAll()`
+
+Add `listAll(filters?)` to `ConversationPersistenceService` that scans the full `Conversations/` + `Projects/` tree. Returns an async generator or paginated results for large vaults. The search service calls this instead of abusing `listRecent()`.
+
+### [H4] All new service functions return `Result<T>`
+
+`ChatSearchService.search()` → `Result<SearchResult[]>`
+`ProjectService.createGroup()` → `Result<string>`
+`ProjectService.moveProject()` → `Result<void>`
+`ProjectService.listProjectTree()` → `Result<ProjectTreeNode[]>`
+
+### [H5] Replace `Menu` with custom `ProjectTreeModal`
+
+A custom modal (not Obsidian's `Menu`) renders the tree with expand/collapse, ARIA tree roles, keyboard navigation (ArrowUp/Down/Left/Right for tree), and mobile-friendly touch targets.
+
+### [H6] Proper conversation content parser for search
+
+Add `extractSearchableContent(fileContent)` that strips frontmatter, strips the `<!-- chat-state-b64:... -->` blob, and returns only the readable message text. Search operates on this cleaned content, not raw file bytes.
+
+### [M8] Validation on create/move
+
+`createGroup()` and `createProject()` check for sibling name collisions (case-insensitive). `moveProject()` validates no circular nesting and target exists. Return `err('Name already exists')` on collision.
+
+### [M9] Depth limit enforced in create/move
+
+```typescript
+const MAX_PROJECT_DEPTH = 3;
+function getDepth(path: string, rootPath: string): number {
+    return path.replace(rootPath, '').split('/').filter(Boolean).length;
+}
+```
+`createGroup()` and `createProject()` check depth before creating. `moveProject()` checks depth of target + subtree.
+
+### [M10] Safe excerpt rendering
+
+Search results use `createEl('mark')` for highlighted matches, not `innerHTML`. The excerpt builder returns an array of `{ text: string, highlight: boolean }` segments that are rendered via safe DOM methods.

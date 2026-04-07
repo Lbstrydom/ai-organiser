@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Menu, Modal, Notice, TFile, TextAreaComponent, setIcon } from 'obsidian';
+import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Modal, Notice, TFile, TextAreaComponent, setIcon } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { enableAutoExpand } from '../../utils/uiUtils';
 import { ensureNoteStructureIfEnabled } from '../../utils/noteStructure';
@@ -22,6 +22,7 @@ import { ProjectService } from '../../services/chat/projectService';
 import { GlobalMemoryService } from '../../services/chat/globalMemoryService';
 import { ChatResumePickerModal } from './ChatResumePickerModal';
 import { ChatSearchModal } from './ChatSearchModal';
+import { ProjectTreePickerModal } from './ProjectTreePickerModal';
 import { ChatSearchService } from '../../services/chat/chatSearchService';
 import type { ConversationState } from '../../utils/chatExportUtils';
 
@@ -495,44 +496,26 @@ export class UnifiedChatModal extends Modal {
         });
         setIcon(btn, 'folder');
         btn.createSpan({ text: ` ${this.activeProjectId ? (this.freeChatHandler?.getProjectName() ?? t.projectDropdownLabel) : t.projectDropdownLabel} ▾` });
-        btn.addEventListener('click', (e) => void this.buildProjectMenu(e));
+        btn.addEventListener('click', () => this.openProjectTreePicker());
     }
 
-    private async buildProjectMenu(e: MouseEvent): Promise<void> {
-        const t = this.plugin.t.modals.unifiedChat;
-        const menu = new Menu();
-        menu.addItem(item => item
-            .setTitle(t.projectDropdownNew)
-            .setIcon('folder-plus')
-            .onClick(async () => {
-                const name = await this.promptProjectName();
-                if (name && this.projectService) {
-                    const projectId = await this.projectService.createProject(name);
-                    this.persistenceService?.startNew('free');
-                    await this.loadProjectContext(projectId);
-                    this.renderActionsBar();
-                    this.renderContextPanel();
-                }
-            })
+    private openProjectTreePicker(): void {
+        if (!this.projectService) return;
+        const modal = new ProjectTreePickerModal(
+            this.app,
+            this.plugin.t,
+            this.projectService,
+            {
+                onSelectProject: (projectId: string) => {
+                    void this.switchToProject(projectId);
+                },
+                onLeaveProject: () => {
+                    this.leaveProject();
+                },
+            },
+            this.activeProjectId,
         );
-        menu.addSeparator();
-        const projects = await this.projectService!.listProjects();
-        for (const project of projects) {
-            menu.addItem(item => item
-                .setTitle(project.name)
-                .setIcon('folder')
-                .onClick(() => void this.switchToProject(project.id))
-            );
-        }
-        if (this.activeProjectId) {
-            menu.addSeparator();
-            menu.addItem(item => item
-                .setTitle(t.projectDropdownLeave)
-                .setIcon('x')
-                .onClick(() => this.leaveProject())
-            );
-        }
-        menu.showAtMouseEvent(e);
+        modal.open();
     }
 
     private async switchToProject(projectId: string): Promise<void> {
