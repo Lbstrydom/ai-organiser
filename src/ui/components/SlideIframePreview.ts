@@ -9,7 +9,7 @@
  * announced via live region, keyboard navigation via ArrowLeft/ArrowRight.
  */
 
-import type { DomFix, QualityResult } from '../../services/chat/presentationTypes';
+import type { DomFix, QualityResult, ReliabilityTier } from '../../services/chat/presentationTypes';
 import { SLIDE_WIDTH, SLIDE_HEIGHT, DECK_CLASSES } from '../../services/chat/presentationConstants';
 
 export interface PreviewOptions {
@@ -26,6 +26,7 @@ export class SlideIframePreview {
     private currentSlideIndex = 0;
     private slideCount = 0;
     private qualityResult: QualityResult | null = null;
+    private reliability: ReliabilityTier | null = null;
     private state: PreviewState = 'idle';
     private resizeObserver: ResizeObserver | null = null;
     private renderToken = 0; // Guard stale iframe load callbacks (M13)
@@ -95,6 +96,12 @@ export class SlideIframePreview {
     setQuality(result: QualityResult | null): void {
         this.qualityResult = result;
         this.renderQualityBadge();
+    }
+
+    /** Set the reliability tier and render the badge. */
+    setReliability(tier: ReliabilityTier | null): void {
+        this.reliability = tier;
+        this.renderReliabilityBadge();
     }
 
     dispose(): void {
@@ -340,5 +347,31 @@ export class SlideIframePreview {
         badge.className = `ai-organiser-pres-quality-badge ${cls}`;
         badge.textContent = `Quality: ${score}/100`;
         container.appendChild(badge);
+    }
+
+    // ── Reliability Badge ────────────────────────────────────────────────────
+
+    private renderReliabilityBadge(): void {
+        const container = this.container.querySelector('.ai-organiser-pres-quality-container');
+        if (!container) return;
+
+        // Remove existing reliability badge if present
+        const existing = container.querySelector('.ai-organiser-pres-reliability-badge');
+        if (existing) existing.remove();
+
+        if (!this.reliability || this.state !== 'ready') return;
+
+        const labels: Record<ReliabilityTier, { text: string; cls: string }> = {
+            'ok': { text: '\u2713 OK', cls: 'reliability-ok' },
+            'warning': { text: '\u26A0 Warning', cls: 'reliability-warning' },
+            'structurally-damaged': { text: '\u2715 Damaged', cls: 'reliability-damaged' },
+            'unreliable': { text: '\u2715\u2715 Unreliable', cls: 'reliability-unreliable' },
+        };
+
+        const info = labels[this.reliability];
+        const badge = document.createElement('div');
+        badge.className = `ai-organiser-pres-reliability-badge ${info.cls}`;
+        badge.textContent = info.text;
+        container.insertBefore(badge, container.firstChild);
     }
 }

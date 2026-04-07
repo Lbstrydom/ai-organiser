@@ -82,6 +82,43 @@ export interface QualityResult {
     findings: QualityFinding[];
 }
 
+// ── Reliability Classification (Phase 3) ───────────────────────────────────
+
+/** Four-tier reliability signal for generated decks. */
+export type ReliabilityTier = 'ok' | 'warning' | 'structurally-damaged' | 'unreliable';
+
+/** Thresholds for reliability classification. */
+const REJECTION_WARNING_THRESHOLD = 10;
+const REJECTION_UNRELIABLE_THRESHOLD = 50;
+
+/**
+ * Classify deck reliability based on sanitizer rejections and structural integrity.
+ *
+ * - `ok`: 0 rejections, structure intact
+ * - `warning`: 1-10 rejections, structure intact
+ * - `structurally-damaged`: Missing .deck or .slide, or >10 rejections
+ * - `unreliable`: DOM parse timeout or >50 rejections
+ */
+export function classifyReliability(options: {
+    rejectionCount: number;
+    hasDeckRoot: boolean;
+    hasSlides: boolean;
+    parseTimedOut?: boolean;
+}): ReliabilityTier {
+    const { rejectionCount, hasDeckRoot, hasSlides, parseTimedOut } = options;
+
+    if (parseTimedOut || rejectionCount > REJECTION_UNRELIABLE_THRESHOLD) {
+        return 'unreliable';
+    }
+    if (!hasDeckRoot || !hasSlides || rejectionCount > REJECTION_WARNING_THRESHOLD) {
+        return 'structurally-damaged';
+    }
+    if (rejectionCount > 0) {
+        return 'warning';
+    }
+    return 'ok';
+}
+
 // ── Deterministic Quality Checks (run on iframe DOM) ────────────────────────
 
 export interface SlideInfo {

@@ -6927,6 +6927,32 @@
     color: var(--color-red);
 }
 
+/* ── Reliability Badge ── */
+.ai-organiser-pres-reliability-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+    display: inline-block;
+    margin-right: 6px;
+}
+.ai-organiser-pres-reliability-badge.reliability-ok {
+    background: color-mix(in srgb, var(--color-green) 15%, transparent);
+    color: var(--color-green);
+}
+.ai-organiser-pres-reliability-badge.reliability-warning {
+    background: color-mix(in srgb, var(--color-yellow) 15%, transparent);
+    color: var(--color-yellow);
+}
+.ai-organiser-pres-reliability-badge.reliability-damaged {
+    background: color-mix(in srgb, var(--color-orange) 15%, transparent);
+    color: var(--color-orange);
+}
+.ai-organiser-pres-reliability-badge.reliability-unreliable {
+    background: color-mix(in srgb, var(--color-red) 15%, transparent);
+    color: var(--color-red);
+}
+
 /* Findings */
 .ai-organiser-pres-findings {
     font-size: 12px;

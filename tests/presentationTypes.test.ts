@@ -3,6 +3,7 @@ import {
     runStructureChecks,
     computeQualityScore,
     migratePresentationSession,
+    classifyReliability,
     MAX_VERSIONS,
     type SlideInfo,
 } from '../src/services/chat/presentationTypes';
@@ -151,6 +152,48 @@ describe('migratePresentationSession', () => {
     it('defaults brandEnabled to false', () => {
         const result = migratePresentationSession({ schemaVersion: 1, html: '<div>x</div>' });
         expect(result!.brandEnabled).toBe(false);
+    });
+});
+
+// ── Reliability Classification ──────────────────────────────────────────────
+
+describe('classifyReliability', () => {
+    const base = { rejectionCount: 0, hasDeckRoot: true, hasSlides: true };
+
+    it('returns ok when clean', () => {
+        expect(classifyReliability(base)).toBe('ok');
+    });
+
+    it('returns warning for 1 rejection', () => {
+        expect(classifyReliability({ ...base, rejectionCount: 1 })).toBe('warning');
+    });
+
+    it('returns warning for 10 rejections', () => {
+        expect(classifyReliability({ ...base, rejectionCount: 10 })).toBe('warning');
+    });
+
+    it('returns structurally-damaged for >10 rejections', () => {
+        expect(classifyReliability({ ...base, rejectionCount: 11 })).toBe('structurally-damaged');
+    });
+
+    it('returns structurally-damaged when deck root missing', () => {
+        expect(classifyReliability({ ...base, hasDeckRoot: false })).toBe('structurally-damaged');
+    });
+
+    it('returns structurally-damaged when slides missing', () => {
+        expect(classifyReliability({ ...base, hasSlides: false })).toBe('structurally-damaged');
+    });
+
+    it('returns unreliable for >50 rejections', () => {
+        expect(classifyReliability({ ...base, rejectionCount: 51 })).toBe('unreliable');
+    });
+
+    it('returns unreliable on parse timeout', () => {
+        expect(classifyReliability({ ...base, parseTimedOut: true })).toBe('unreliable');
+    });
+
+    it('parse timeout takes precedence over missing structure', () => {
+        expect(classifyReliability({ ...base, hasDeckRoot: false, parseTimedOut: true })).toBe('unreliable');
     });
 });
 

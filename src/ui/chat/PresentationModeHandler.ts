@@ -23,9 +23,10 @@ import type { LLMFacadeContext } from '../../services/llmFacade';
 import {
     type PresentationPhase, type PresentationVersion, type QualityResult,
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
-    migratePresentationSession,
+    migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
 import { generateHtmlStream, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
+import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import {
     isBrandAvailable, resolveTheme,
     type BrandTheme,
@@ -174,6 +175,8 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.html = result.value;
                 this.activeSlideIndex = 0;
                 this.pushVersion(query);
+
+                this.updateReliability();
 
                 // Run initial brand audit if enabled
                 if (this.brandEnabled && theme.auditChecklist.length > 0) {
@@ -624,6 +627,18 @@ export class PresentationModeHandler implements ChatModeHandler {
         return content.length > budget
             ? truncateAtBoundary(content, budget, '\n\n[Content truncated...]')
             : content;
+    }
+
+    /** Phase 3: classify and display reliability from sanitizer results. */
+    private updateReliability(): void {
+        if (!this.html || !this.preview) return;
+        const result = sanitizePresentation(this.html);
+        const tier = classifyReliability({
+            rejectionCount: result.rejectionCount,
+            hasDeckRoot: result.hasDeckRoot,
+            hasSlides: result.hasSlides,
+        });
+        this.preview.setReliability(tier);
     }
 
     private runQualityCheck(auditViolationCount = 0): void {
