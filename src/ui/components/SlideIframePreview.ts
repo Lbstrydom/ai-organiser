@@ -30,6 +30,8 @@ export class SlideIframePreview {
     private resizeObserver: ResizeObserver | null = null;
     private renderToken = 0; // Guard stale iframe load callbacks (M13)
     private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+    private keyHandlerTarget: HTMLElement | null = null; // Track actual listener target (M3)
+    private domFixStyle: HTMLStyleElement | null = null; // Reusable style tag for applyDomFixes (M4)
 
     // Nav refs
     private navContainer: HTMLElement | null = null;
@@ -78,15 +80,16 @@ export class SlideIframePreview {
     applyDomFixes(fixes: DomFix[]): void {
         const doc = this.getIframeDocument();
         if (!doc) return;
-        // Inject a <style> into the iframe document instead of using inline
-        // style.setProperty (which violates no-static-styles-assignment).
+        // M4: Reuse a single <style> tag to avoid accumulating duplicate rules
         const rules = fixes
             .map(fix => `${fix.selector} { ${fix.property}: ${fix.value} !important; }`)
             .join('\n');
         if (!rules) return;
-        const style = doc.createElement('style');
-        style.textContent = rules;
-        doc.head.appendChild(style);
+        if (!this.domFixStyle?.parentNode) {
+            this.domFixStyle = doc.createElement('style');
+            doc.head.appendChild(this.domFixStyle);
+        }
+        this.domFixStyle.textContent = rules;
     }
 
     setQuality(result: QualityResult | null): void {
@@ -98,8 +101,11 @@ export class SlideIframePreview {
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
         if (this.keyHandler) {
-            this.container.removeEventListener('keydown', this.keyHandler);
+            // M3: Remove from actual target (wrapper), not this.container
+            const target = this.keyHandlerTarget ?? this.container;
+            target.removeEventListener('keydown', this.keyHandler);
             this.keyHandler = null;
+            this.keyHandlerTarget = null;
         }
         this.renderToken++; // Invalidate pending loads
         this.container.empty();
@@ -114,15 +120,38 @@ export class SlideIframePreview {
         this.renderToken++; // Invalidate prior iframe loads (M13)
         this.container.empty();
 
-        if (this.state === 'idle') return;
+        if (this.state === 'idle') {
+            // H2: Full state reset when returning to idle
+            this.resizeObserver?.disconnect();
+            this.resizeObserver = null;
+            this.iframe = null;
+            this.slideCount = 0;
+            this.currentSlideIndex = 0;
+            this.navStylesInjected = false;
+            this.domFixStyle = null;
+            this.navContainer = null;
+            this.navCounter = null;
+            this.prevBtn = null;
+            this.nextBtn = null;
+            this.liveRegion = null;
+            this.iframeWrapper = null;
+            this.statusEl = null;
+            this.keyHandlerTarget = null;
+            return;
+        }
 
         const wrapper = this.container.createEl('div', {
             cls: 'ai-organiser-pres-preview',
             attr: { role: 'region', 'aria-label': 'Slide preview' },
         });
 
+        // H3: Reset per-iframe flags so new iframes get their own styles
+        this.navStylesInjected = false;
+        this.domFixStyle = null;
+
         // Make wrapper focusable for keyboard nav (H5)
         wrapper.tabIndex = 0;
+        this.keyHandlerTarget = wrapper; // M3: Track actual listener target
         this.keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'ArrowLeft') { this.goToSlide(this.currentSlideIndex - 1); e.preventDefault(); }
             if (e.key === 'ArrowRight') { this.goToSlide(this.currentSlideIndex + 1); e.preventDefault(); }

@@ -7258,6 +7258,26 @@
 .ai-organiser-line-height-normal  { line-height: 1.4; }
 .ai-organiser-line-height-relaxed { line-height: 1.6; }
 
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+    .ai-organiser-busy-indicator.ai-organiser-busy-active,
+    .ai-organiser-chat-thinking-dots,
+    .ai-organiser-audio-recorder-recording .ai-organiser-audio-recorder-timer,
+    .ai-organiser-pres-build-status-text {
+        animation: none;
+    }
+    .ai-organiser-spinner,
+    .ai-organiser-testing-spinner,
+    .ai-organiser-related-notes-refresh-btn.loading,
+    .ai-organiser-chat-loading-spinner,
+    .ai-organiser-pres-build-spinner {
+        animation: ai-organiser-spin 4s linear infinite;
+    }
+    .ai-organiser-shake {
+        animation: none;
+    }
+}
+
 /* ── Touch & Interaction ── */
 .ai-organiser-touch-none { touch-action: none; }
 .ai-organiser-truncate {
