@@ -40,6 +40,7 @@ export function buildPresentationSystemPrompt(options: {
 </design_principles>
 
 <requirements>
+- Wrap your complete HTML output between ---HTML_START--- and ---HTML_END--- markers
 - Return ONLY the HTML content of a presentation (no markdown, no explanation)
 - Start with <div class="deck" data-title="Deck Title"> and end with </div>
 - Each slide is a <section class="slide [type]"> where type is one of: slide-title, slide-content, slide-section, slide-closing
@@ -150,6 +151,16 @@ export function extractHtmlFromResponse(response: string): string | null {
     if (!response?.trim()) return null;
 
     const trimmed = response.trim();
+
+    // Try: content between ---HTML_START--- and ---HTML_END--- markers
+    const startMarker = '---HTML_START---';
+    const endMarker = '---HTML_END---';
+    const startIdx = trimmed.indexOf(startMarker);
+    const endIdx = trimmed.indexOf(endMarker);
+    if (startIdx >= 0 && endIdx > startIdx) {
+        const inner = trimmed.slice(startIdx + startMarker.length, endIdx).trim();
+        if (inner.includes('<div') || inner.includes('<section')) return inner;
+    }
 
     // Try: content inside ```html fences
     const fenceMatch = /```(?:html)?\s*\n([\s\S]*?)\n```/i.exec(trimmed);

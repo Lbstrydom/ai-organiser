@@ -7,7 +7,7 @@
  */
 
 import type { LLMFacadeContext } from '../llmFacade';
-import { summarizeText } from '../llmFacade';
+import { summarizeText, summarizeTextStream } from '../llmFacade';
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { AuditResult, DomFix } from './presentationTypes';
@@ -22,6 +22,8 @@ import {
     wrapInDocument,
 } from '../prompts/presentationChatPrompts';
 import { GENERATION_TIMEOUT, REFINEMENT_TIMEOUT, AUDIT_TIMEOUT } from './presentationConstants';
+import { StreamingHtmlAssembler } from './streamingHtmlAssembler';
+import type { StreamingCheckpoint } from './streamingHtmlAssembler';
 import { tryExtractJson } from '../../utils/responseParser';
 import { logger } from '../../utils/logger';
 
@@ -106,6 +108,76 @@ export async function generateHtml(
         label: 'Generation',
         language: options.outputLanguage,
     });
+}
+
+// ── Streaming Generation ───────────────────────────────────────────────────
+
+export interface StreamGenerateOptions extends GenerateOptions {
+    onCheckpoint: (checkpoint: StreamingCheckpoint) => void;
+    debounceMs?: number;
+}
+
+export async function generateHtmlStream(
+    context: LLMFacadeContext,
+    options: StreamGenerateOptions
+): Promise<Result<string>> {
+    if (options.signal?.aborted) return err('Aborted');
+
+    try {
+        const systemPrompt = buildPresentationSystemPrompt({
+            cssTheme: options.theme.css,
+            outputLanguage: options.outputLanguage,
+            brandRules: options.theme.promptRules || undefined,
+        });
+        const userPrompt = buildGenerationPrompt({
+            userQuery: options.userQuery,
+            noteContent: options.noteContent,
+            conversationHistory: options.conversationHistory,
+        });
+        const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+        const assembler = new StreamingHtmlAssembler({
+            cssTheme: options.theme.css,
+            language: options.outputLanguage,
+            onCheckpoint: options.onCheckpoint,
+            debounceMs: options.debounceMs,
+        });
+
+        const result = await summarizeTextStream(
+            context,
+            fullPrompt,
+            (chunk: string) => assembler.addChunk(chunk),
+            options.signal
+        );
+
+        const streamResult = assembler.finalize();
+
+        if (options.signal?.aborted) {
+            assembler.dispose();
+            return err('Aborted');
+        }
+
+        if (!result.success || !streamResult.fullResponse) {
+            assembler.dispose();
+            return err(result.error || 'Generation: LLM returned empty response');
+        }
+
+        const deckHtml = extractHtmlFromResponse(streamResult.fullResponse);
+        if (!deckHtml) {
+            return err('Generation: failed to extract HTML from response');
+        }
+
+        const validation = validateDeckHtml(deckHtml);
+        if (!validation.ok) {
+            return err(`Generation: ${validation.error}`);
+        }
+
+        return ok(wrapInDocument(validation.sanitized, options.theme.css, options.outputLanguage));
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('Presentation', `Streaming generation failed: ${msg}`);
+        return err(`Generation: ${msg}`);
+    }
 }
 
 // ── Refinement ──────────────────────────────────────────────────────────────

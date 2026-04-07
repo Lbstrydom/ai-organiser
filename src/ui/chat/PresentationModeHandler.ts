@@ -25,7 +25,7 @@ import {
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession,
 } from '../../services/chat/presentationTypes';
-import { generateHtml, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
+import { generateHtmlStream, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
 import {
     isBrandAvailable, resolveTheme,
     type BrandTheme,
@@ -145,16 +145,22 @@ export class PresentationModeHandler implements ChatModeHandler {
             const noteContent = this.truncateNoteContent(ctx);
 
             if (!this.html) {
-                // Initial generation
+                // Initial generation — streaming for live preview
                 this.phase = 'generating';
 
-                const result = await generateHtml(llmCtx, {
+                const result = await generateHtmlStream(llmCtx, {
                     userQuery: query,
                     noteContent,
                     conversationHistory: history,
                     outputLanguage: ctx.plugin.settings.summaryLanguage,
                     theme,
                     signal: abort.signal,
+                    onCheckpoint: (checkpoint) => {
+                        if (abort.signal.aborted) return;
+                        if (this.preview) {
+                            this.preview.setHtml(checkpoint.html);
+                        }
+                    },
                 });
 
                 if (abort.signal.aborted) return { prompt: '', directResponse: 'Operation cancelled.' };
