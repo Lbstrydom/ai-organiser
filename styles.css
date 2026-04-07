@@ -2403,6 +2403,98 @@
     cursor: not-allowed;
 }
 
+/* ── Chat Search Modal ── */
+.ai-organiser-chat-search-modal { width: 550px; max-width: 90vw; }
+.ai-organiser-chat-search-input-row { padding: 0 0 var(--size-4-2) 0; }
+.ai-organiser-chat-search-input {
+    width: 100%;
+    padding: var(--size-4-2);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    font-size: 14px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+}
+.ai-organiser-chat-search-input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+.ai-organiser-chat-search-filters {
+    display: flex;
+    gap: var(--size-4-2);
+    padding-bottom: var(--size-4-2);
+}
+.ai-organiser-chat-search-filters select {
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+}
+.ai-organiser-chat-search-results {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+}
+.ai-organiser-chat-search-result {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--background-modifier-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ai-organiser-chat-search-result:last-child { border-bottom: none; }
+.ai-organiser-chat-search-result:hover { background: var(--background-secondary); }
+.ai-organiser-chat-search-result.is-selected {
+    background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+.ai-organiser-chat-search-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ai-organiser-chat-search-title {
+    font-weight: 600;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-organiser-chat-search-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.ai-organiser-chat-search-excerpt {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-organiser-chat-search-excerpt mark {
+    background: var(--text-highlight-bg);
+    color: var(--text-normal);
+    font-style: normal;
+    border-radius: 2px;
+    padding: 0 2px;
+}
+.ai-organiser-chat-search-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--size-4-2);
+}
+.ai-organiser-chat-search-empty {
+    text-align: center;
+    color: var(--text-faint);
+    padding: var(--size-4-4);
+    font-size: 13px;
+}
+
 .ai-organiser-chat-actions {
     display: flex;
     gap: var(--size-2-2);

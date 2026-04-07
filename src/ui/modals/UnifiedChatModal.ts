@@ -21,6 +21,8 @@ import { ConversationPersistenceService } from '../../services/chat/conversation
 import { ProjectService } from '../../services/chat/projectService';
 import { GlobalMemoryService } from '../../services/chat/globalMemoryService';
 import { ChatResumePickerModal } from './ChatResumePickerModal';
+import { ChatSearchModal } from './ChatSearchModal';
+import { ChatSearchService } from '../../services/chat/chatSearchService';
 import type { ConversationState } from '../../utils/chatExportUtils';
 
 
@@ -328,6 +330,35 @@ export class UnifiedChatModal extends Modal {
                 button.setAttr('disabled', 'true');
             }
         }
+
+        // Search button
+        const searchBtn = this.modeBarEl.createEl('button', {
+            cls: 'ai-organiser-chat-mode-tab',
+            attr: { 'aria-label': 'Search conversations' },
+        });
+        setIcon(searchBtn, 'search');
+        searchBtn.addEventListener('click', () => this.openChatSearch());
+    }
+
+    private openChatSearch(): void {
+        const searchService = new ChatSearchService(this.app, this.plugin.settings);
+        const modal = new ChatSearchModal(this.app, this.plugin.t, searchService, {
+            onSelect: (filePath, projectId) => {
+                void this.loadConversationFromSearch(filePath, projectId);
+            },
+        });
+        modal.open();
+    }
+
+    private async loadConversationFromSearch(filePath: string, projectId?: string): Promise<void> {
+        if (projectId) {
+            await this.loadProjectContext(projectId);
+        }
+        const mode = await this.resumeConversation(filePath);
+        if (mode && mode !== this.activeMode) {
+            this.switchMode(mode);
+        }
+        this.renderAll();
     }
 
     private renderContextPanel(): void {
