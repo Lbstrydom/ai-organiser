@@ -53,3 +53,4 @@ test*.txt
 
 # Brand guidelines (local only — not pushed to public repo)
 AI-Organiser/Config/brand-guidelines.md
+.audit/
