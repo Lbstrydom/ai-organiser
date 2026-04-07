@@ -31,6 +31,7 @@ docs/STATUS.md
 docs/usertest.md
 docs/plans/*
 !docs/plans/pres-engine-v2.md
+!docs/plans/chat-search-subprojects.md
 docs/completed/
 docs/mobile/
 docs/sert/
