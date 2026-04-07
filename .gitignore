@@ -54,3 +54,19 @@ test*.txt
 # Brand guidelines (local only — not pushed to public repo)
 AI-Organiser/Config/brand-guidelines.md
 .audit/
+
+# Audit-loop operational state (auto-managed)
+.audit/local/
+.audit/staging/
+.audit/quarantine/
+.audit/**/*.lock
+.audit/outcomes.jsonl
+.audit/experiments.jsonl
+.audit/experiment-manifests/
+.audit/prompt-revisions/
+.audit/bandit-state.json
+.audit/fp-tracker.json
+.audit/remediation-tasks.jsonl
+.audit/pipeline-state.json
+.audit/session-ledger.json
+.audit-loop-install-receipt.json
