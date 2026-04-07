@@ -264,7 +264,11 @@ describe('NewsletterService integration', () => {
             vault.create.mockImplementation(async (path: string, content: string) => {
                 createCalls.count++;
                 if (createCalls.count === 2) throw new Error('Disk full');
-                vault.files.set(path, { path, content });
+                const tf = new TFile();
+                tf.path = path;
+                tf.name = path.split('/').pop() ?? path;
+                vault.files.set(path, { path, content, tfile: tf });
+                return tf;
             });
 
             mockFetchResponse([
@@ -280,7 +284,11 @@ describe('NewsletterService integration', () => {
 
             // Retry — restore normal create
             vault.create.mockImplementation(async (path: string, content: string) => {
-                vault.files.set(path, { path, content });
+                const tf = new TFile();
+                tf.path = path;
+                tf.name = path.split('/').pop() ?? path;
+                vault.files.set(path, { path, content, tfile: tf });
+                return tf;
             });
             mockFetchResponse([
                 makeRaw({ id: 'msg-1', subject: 'First' }),
@@ -422,10 +430,12 @@ describe('NewsletterService integration', () => {
                 const { TFile: MockTFile } = await import('obsidian');
                 const file = new MockTFile();
                 (file as any).path = path;
-                vault.files.set(path, { path, content });
+                (file as any).name = path.split('/').pop() ?? path;
+                vault.files.set(path, { path, content, tfile: file });
                 const origGet = vault.getAbstractFileByPath.bind(vault);
                 vault.getAbstractFileByPath = (p: string) =>
                     vault.files.has(p) ? (file as any) : origGet(p);
+                return file;
             });
 
             mockFetchResponse([makeRaw()]);
@@ -441,10 +451,12 @@ describe('NewsletterService integration', () => {
                 const { TFile: MockTFile } = await import('obsidian');
                 const file = new MockTFile();
                 (file as any).path = path;
-                vault.files.set(path, { path, content });
+                (file as any).name = path.split('/').pop() ?? path;
+                vault.files.set(path, { path, content, tfile: file });
                 const origGet = vault.getAbstractFileByPath.bind(vault);
                 vault.getAbstractFileByPath = (p: string) =>
                     vault.files.has(p) ? (file as any) : origGet(p);
+                return file;
             });
 
             mockFetchResponse([makeRaw()]);

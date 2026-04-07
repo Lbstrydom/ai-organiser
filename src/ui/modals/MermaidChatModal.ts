@@ -1020,7 +1020,7 @@ class CanvasPickerModal extends FuzzySuggestModal<TFile> {
         private readonly onSelect: (file: TFile) => void,
     ) {
         super(app);
-        this.setPlaceholder('Select a canvas file…');
+        this.setPlaceholder('Select a canvas file...');
     }
 
     getItems(): TFile[] {

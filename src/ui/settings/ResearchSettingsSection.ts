@@ -22,11 +22,11 @@ export class ResearchSettingsSection extends BaseSettingSection {
         const t = this.plugin.t.settings as unknown as Record<string, Record<string, string>>;
         const rt = t.research || {};
 
-        this.createSectionHeader(rt.title || 'Research Assistant', 'telescope', 2);
+        this.createSectionHeader(rt.title || 'Research assistant', 'telescope', 2);
 
         // Search Provider
         new Setting(this.containerEl)
-            .setName(rt.provider || 'Search Provider')
+            .setName(rt.provider || 'Search provider')
             .setDesc(rt.providerDesc || 'Which search API to use for web research')
             .addDropdown(dd => {
                 dd.addOption('claude-web-search', rt.claudeWebSearch || 'Claude web search ($0.01/search)');
@@ -44,7 +44,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         const provider = this.plugin.settings.researchProvider;
         if (provider === 'tavily') {
             this.renderApiKeyField({
-                name: rt.apiKey || 'API Key',
+                name: rt.apiKey || 'API key',
                 desc: rt.apiKeyDesc || 'Your Tavily API key (stored securely)',
                 secretId: PLUGIN_SECRET_IDS.RESEARCH_TAVILY_API_KEY,
                 currentValue: '',
@@ -57,15 +57,15 @@ export class ResearchSettingsSection extends BaseSettingSection {
             });
         } else if (provider === 'brightdata-serp') {
             this.renderApiKeyField({
-                name: rt.serpKey || 'SERP API Key',
-                desc: rt.serpKeyDesc || 'Bright Data SERP API key for web search',
+                name: rt.serpKey || 'Serp API key',
+                desc: rt.serpKeyDesc || 'Bright data serp API key for web search',
                 secretId: PLUGIN_SECRET_IDS.BRIGHT_DATA_SERP_KEY,
                 currentValue: '',
                 onChange: () => {},
             });
         } else if (provider === 'claude-web-search') {
             this.renderApiKeyField({
-                name: rt.apiKey || 'API Key',
+                name: rt.apiKey || 'API key',
                 desc: rt.claudeWebSearchKeyDesc || 'Claude API key for web search (stored securely)',
                 secretId: PLUGIN_SECRET_IDS.RESEARCH_CLAUDE_WEB_SEARCH_KEY,
                 currentValue: '',
@@ -76,17 +76,17 @@ export class ResearchSettingsSection extends BaseSettingSection {
             if (this.plugin.settings.cloudServiceType === 'claude') {
                 new Setting(this.containerEl)
                     .addButton(btn => btn
-                        .setButtonText(rt.useMainClaudeKey || 'Use main Claude API key')
+                        .setButtonText(rt.useMainClaudeKey || 'Use main claude API key')
                         .onClick(async () => {
                             const mainKey = await this.plugin.secretStorageService.getSecret('anthropic-api-key');
                             if (mainKey) {
                                 await this.plugin.secretStorageService.setSecret(
                                     PLUGIN_SECRET_IDS.RESEARCH_CLAUDE_WEB_SEARCH_KEY, mainKey,
                                 );
-                                new Notice(rt.keyCopied || 'Main Claude API key copied to research key');
+                                new Notice(rt.keyCopied || 'Main claude API key copied to research key');
                                 this.settingTab.display();
                             } else {
-                                new Notice(rt.noMainKey || 'No main Claude API key found');
+                                new Notice(rt.noMainKey || 'No main claude API key found');
                             }
                         }));
             }
@@ -116,7 +116,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                     }));
 
             this.containerEl.createEl('div', {
-                text: rt.claudeWebSearchInfo || 'Claude Web Search: $0.01/search. Uses Claude\'s built-in web search with dynamic filtering and native citations.',
+                text: rt.claudeWebSearchInfo || 'Claude web search: $0.01/search. Uses claude\'s built-in web search with dynamic filtering and native citations.',
                 cls: 'setting-item-description ai-organiser-info-box',
             });
         }
@@ -124,9 +124,9 @@ export class ResearchSettingsSection extends BaseSettingSection {
         // Test Connection button with inline status
         const testContainer = this.containerEl.createDiv('ai-organiser-connection-test-container');
         new Setting(testContainer)
-            .setName(rt.testConnection || 'Test Connection')
+            .setName(rt.testConnection || 'Test connection')
             .addButton(btn => btn
-                .setButtonText(rt.testConnection || 'Test Connection')
+                .setButtonText(rt.testConnection || 'Test connection')
                 .onClick(async () => {
                     try {
                         btn.setButtonText('Testing...');
@@ -141,9 +141,9 @@ export class ResearchSettingsSection extends BaseSettingSection {
                             // Lightweight check — verify API key is configured without making a paid search call
                             const provider = searchService.getProvider('claude-web-search');
                             if (provider && await provider.isConfigured()) {
-                                msg = 'Claude Web Search configured ✓';
+                                msg = 'Claude web search configured \u2713';
                             } else {
-                                throw new Error('No API key configured for Claude Web Search');
+                                throw new Error('No API key configured for claude web search');
                             }
                         } else {
                             const results = await searchService.search(['test'], { maxResults: 1 });
@@ -158,7 +158,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                         statusContainer.className = 'ai-organiser-connection-test-status error';
                         statusEl.textContent = `Connection failed: ${errMsg}`;
                     } finally {
-                        btn.setButtonText(rt.testConnection || 'Test Connection');
+                        btn.setButtonText(rt.testConnection || 'Test connection');
                         btn.setDisabled(false);
                     }
                 }));
@@ -167,10 +167,10 @@ export class ResearchSettingsSection extends BaseSettingSection {
         statusContainer.addClass('ai-organiser-hidden');
 
         // Preferred Sources
-        this.containerEl.createEl('h4', { text: rt.preferredSitesHeader || 'Source Preferences' });
+        this.containerEl.createEl('h4', { text: rt.preferredSitesHeader || 'Source preferences' });
 
         new Setting(this.containerEl)
-            .setName(rt.preferredSites || 'Priority Sites')
+            .setName(rt.preferredSites || 'Priority sites')
             .setDesc(rt.preferredSitesDesc || 'Comma-separated domains to prioritize (e.g., pubmed.gov, nature.com)')
             .addText(text => text
                 .setPlaceholder(rt.preferredSitesPlaceholder || 'e.g., pubmed.gov, nature.com')
@@ -181,7 +181,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(rt.excludedSites || 'Excluded Sites')
+            .setName(rt.excludedSites || 'Excluded sites')
             .setDesc(rt.excludedSitesDesc || 'Comma-separated domains to exclude (e.g., pinterest.com)')
             .addText(text => text
                 .setPlaceholder(rt.excludedSitesPlaceholder || 'e.g., pinterest.com, quora.com')
@@ -195,7 +195,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         this.containerEl.createEl('h4', { text: rt.outputHeader || 'Output' });
 
         new Setting(this.containerEl)
-            .setName(rt.outputFolder || 'Output Folder')
+            .setName(rt.outputFolder || 'Output folder')
             .setDesc(rt.outputFolderDesc || 'Subfolder under your plugin folder for research notes')
             .addText(text => text
                 .setPlaceholder('Research')
@@ -206,7 +206,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(rt.defaultOutput || 'Default Output')
+            .setName(rt.defaultOutput || 'Default output')
             .setDesc(rt.defaultOutputDesc || 'Where to put research results by default')
             .addDropdown(dd => {
                 dd.addOption('cursor', 'Insert at cursor');
@@ -220,7 +220,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             });
 
         new Setting(this.containerEl)
-            .setName(rt.includeCitations || 'Include Citations')
+            .setName(rt.includeCitations || 'Include citations')
             .setDesc(rt.includeCitationsDesc || 'Add numbered source references to the synthesis')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.researchIncludeCitations)
@@ -230,7 +230,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         // Deep Extraction (Bright Data)
-        this.containerEl.createEl('h4', { text: rt.brightDataSection || 'Deep Extraction (Bright Data)' });
+        this.containerEl.createEl('h4', { text: rt.brightDataSection || 'Deep extraction (Bright data)' });
 
         this.containerEl.createEl('div', {
             text: rt.brightDataInfo || 'For sites that block direct access. Optional — most sites work without this.',
@@ -238,7 +238,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         });
 
         this.renderApiKeyField({
-            name: rt.webUnlockerKey || 'Web Unlocker API Key',
+            name: rt.webUnlockerKey || 'Web unlocker API key',
             desc: rt.webUnlockerKeyDesc || 'For bypassing anti-bot protection (Cloudflare, etc.)',
             secretId: PLUGIN_SECRET_IDS.BRIGHT_DATA_WEB_UNLOCKER_KEY,
             currentValue: '',
@@ -246,18 +246,18 @@ export class ResearchSettingsSection extends BaseSettingSection {
         });
 
         this.renderApiKeyField({
-            name: rt.scrapingBrowserUrl || 'Scraping Browser URL',
-            desc: rt.scrapingBrowserDesc || 'WSS endpoint for full browser rendering. Most expensive — last resort.',
+            name: rt.scrapingBrowserUrl || 'Scraping browser URL',
+            desc: rt.scrapingBrowserDesc || 'WSS endpoint for full browser rendering. Most expensive \u2014 last resort.',
             secretId: PLUGIN_SECRET_IDS.BRIGHT_DATA_BROWSER,
             currentValue: '',
             onChange: () => {},
         });
 
         // Budget & Guardrails
-        this.containerEl.createEl('h4', { text: rt.budgetSection || 'Budget & Guardrails' });
+        this.containerEl.createEl('h4', { text: rt.budgetSection || 'Budget & guardrails' });
 
         new Setting(this.containerEl)
-            .setName(rt.monthlyBudget || 'Monthly Budget (USD)')
+            .setName(rt.monthlyBudget || 'Monthly budget (USD)')
             .setDesc(rt.monthlyBudgetDesc || 'Maximum estimated monthly spend on paid extraction services')
             .addText(text => text
                 .setPlaceholder('10')
@@ -271,7 +271,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(rt.warnThreshold || 'Warn Threshold (%)')
+            .setName(rt.warnThreshold || 'Warn threshold (%)')
             .setDesc(rt.warnThresholdDesc || 'Show a warning when spend reaches this percentage of the budget')
             .addText(text => text
                 .setPlaceholder('80')
@@ -285,7 +285,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(rt.blockAtLimit || 'Block at Limit')
+            .setName(rt.blockAtLimit || 'Block at limit')
             .setDesc(rt.blockAtLimitDesc || 'Prevent paid operations when the monthly budget is reached')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.researchBlockAtLimit)
@@ -300,10 +300,10 @@ export class ResearchSettingsSection extends BaseSettingSection {
         const summary = usageService.getUsageSummary();
 
         new Setting(this.containerEl)
-            .setName(rt.currentUsage || 'Current Usage')
+            .setName(rt.currentUsage || 'Current usage')
             .setDesc(`${summary.estimatedUsd} estimated · ${summary.operations} operations · ${summary.status}`)
             .addButton(btn => btn
-                .setButtonText(rt.resetUsage || 'Reset Usage')
+                .setButtonText(rt.resetUsage || 'Reset usage')
                 .onClick(() => { void (async () => {
                     if (await this.plugin.showConfirmationDialog(rt.resetUsageConfirm || 'Reset usage counter to zero?')) {
                         await usageService.resetUsage();
@@ -313,10 +313,10 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 })(); }));
 
         // Quality & Academic
-        this.containerEl.createEl('h4', { text: rt.qualitySection || 'Quality & Academic' });
+        this.containerEl.createEl('h4', { text: rt.qualitySection || 'Quality & academic' });
 
         new Setting(this.containerEl)
-            .setName(rt.qualityScoring || 'Quality Scoring')
+            .setName(rt.qualityScoring || 'Quality scoring')
             .setDesc(rt.qualityScoringDesc || 'Score and rank results by relevance, authority, freshness, depth, and diversity')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableResearchQualityScoring)
@@ -326,11 +326,11 @@ export class ResearchSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(rt.citationStyle || 'Citation Style')
+            .setName(rt.citationStyle || 'Citation style')
             .setDesc(rt.citationStyleDesc || 'How to format citations in the synthesis')
             .addDropdown(dd => {
                 dd.addOption('numeric', rt.citationNumeric || 'Numeric [1], [2]');
-                dd.addOption('author-year', rt.citationAuthorYear || 'Author-Year (Smith, 2024)');
+                dd.addOption('author-year', rt.citationAuthorYear || 'Author-year (Smith, 2024)');
                 dd.setValue(this.plugin.settings.researchCitationStyle)
                     .onChange(async v => {
                         this.plugin.settings.researchCitationStyle = v as 'numeric' | 'author-year';
@@ -339,10 +339,10 @@ export class ResearchSettingsSection extends BaseSettingSection {
             });
 
         // Smart Research
-        this.containerEl.createEl('h4', { text: rt.smartSection || 'Smart Research' });
+        this.containerEl.createEl('h4', { text: rt.smartSection || 'Smart research' });
 
         new Setting(this.containerEl)
-            .setName(rt.vaultPrecheck || 'Vault Pre-check')
+            .setName(rt.vaultPrecheck || 'Vault pre-check')
             .setDesc(rt.vaultPrecheckDesc || 'Check vault for existing relevant notes before searching the web')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableResearchVaultPrecheck)
@@ -354,7 +354,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
 
         if (this.plugin.settings.enableResearchVaultPrecheck) {
             new Setting(this.containerEl)
-                .setName(rt.vaultPrecheckSimilarity || 'Minimum Similarity')
+                .setName(rt.vaultPrecheckSimilarity || 'Minimum similarity')
                 .setDesc(rt.vaultPrecheckSimilarityDesc || 'Minimum similarity score for vault pre-check results (0.3–0.9)')
                 .addSlider(slider => slider
                     .setLimits(0.3, 0.9, 0.05)
@@ -367,7 +367,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         }
 
         new Setting(this.containerEl)
-            .setName(rt.perspectives || 'Multi-Perspective Queries')
+            .setName(rt.perspectives || 'Multi-perspective queries')
             .setDesc(rt.perspectivesDesc || 'Generate queries from multiple research perspectives')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableResearchPerspectiveQueries)
@@ -379,7 +379,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
 
         if (this.plugin.settings.enableResearchPerspectiveQueries) {
             new Setting(this.containerEl)
-                .setName(rt.perspectivePreset || 'Perspective Preset')
+                .setName(rt.perspectivePreset || 'Perspective preset')
                 .addDropdown(dd => {
                     dd.addOption('balanced', 'Balanced');
                     dd.addOption('critical', 'Critical');
@@ -408,7 +408,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         }
 
         new Setting(this.containerEl)
-            .setName(rt.streaming || 'Streaming Synthesis')
+            .setName(rt.streaming || 'Streaming synthesis')
             .setDesc(rt.streamingDesc || 'Show synthesis as it\'s generated (experimental)')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableResearchStreamingSynthesis)
@@ -421,7 +421,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
         this.containerEl.createEl('h4', { text: rt.integrationsSection || 'Integrations' });
 
         new Setting(this.containerEl)
-            .setName(rt.zotero || 'Zotero Integration')
+            .setName(rt.zotero || 'Zotero integration')
             .setDesc(rt.zoteroDesc || 'Send research references to Zotero (requires obsidian-zotero-desktop-connector, desktop only)')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableResearchZoteroIntegration)
@@ -433,7 +433,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
 
         if (this.plugin.settings.enableResearchZoteroIntegration) {
             new Setting(this.containerEl)
-                .setName(rt.zoteroCollection || 'Zotero Collection')
+                .setName(rt.zoteroCollection || 'Zotero collection')
                 .setDesc(rt.zoteroCollectionDesc || 'Target collection name in Zotero')
                 .addText(text => text
                     .setPlaceholder('AI organiser research')

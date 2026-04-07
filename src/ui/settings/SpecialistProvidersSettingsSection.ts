@@ -20,7 +20,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         const mainProvider = this.plugin.settings.cloudServiceType;
 
         // Section header
-        this.createSectionHeader(sp?.title || 'Specialist Providers', 'key');
+        this.createSectionHeader(sp?.title || 'Specialist providers', 'key');
 
         // Description
         const descEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
@@ -72,19 +72,19 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         const hasGeminiKey = hasGeminiSecret || hasGeminiPlainKey || hasDedicatedYouTubeKey;
 
         // Sub-header
-        this.containerEl.createEl('h4', { text: sp?.youtubeHeader || '🎬 YouTube — Gemini' });
+        this.containerEl.createEl('h4', { text: sp?.youtubeHeader || '🎬 YouTube — gemini' });
 
         if (hasGeminiKey) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
             statusEl.createEl('span', {
-                text: yt?.usingMainKey || 'Using your Gemini API key',
+                text: yt?.usingMainKey || 'Using your gemini API key',
                 cls: 'ai-organiser-status-success'
             });
         }
 
         if (!hasGeminiKey) {
             this.renderApiKeyField({
-                name: yt?.apiKey || 'Gemini API Key',
+                name: yt?.apiKey || 'Gemini API key',
                 desc: yt?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.',
                 secretId: PLUGIN_SECRET_IDS.YOUTUBE,
                 currentValue: this.plugin.settings.youtubeGeminiApiKey,
@@ -97,7 +97,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
             const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });
             linkEl.createEl('a', {
-                text: yt?.getApiKey || 'Get a free Gemini API key from Google AI Studio',
+                text: yt?.getApiKey || 'Get a free gemini API key from google AI studio',
                 href: 'https://aistudio.google.com/apikey'
             });
         }
@@ -107,8 +107,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             .setName(yt?.model || 'Gemini model')
             .setDesc(yt?.modelDesc || 'Model to use for YouTube video analysis')
             .addDropdown(dropdown => {
-                const flashLabel = 'Gemini 3 Flash (recommended)';
-                const proLabel = 'Gemini 3.1 Pro (higher quality)';
+                const flashLabel = 'Gemini 3 flash (recommended)';
+                const proLabel = 'Gemini 3.1 pro (higher quality)';
                 dropdown
                     .addOption('gemini-3-flash-preview', flashLabel)
                     .addOption('gemini-3.1-pro-preview', proLabel)
@@ -156,7 +156,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         );
 
         // Sub-header
-        this.containerEl.createEl('h4', { text: sp?.pdfHeader || '📄 PDF — Claude or Gemini' });
+        this.containerEl.createEl('h4', { text: sp?.pdfHeader || '📄 PDF — claude or gemini' });
 
         if (hasPdfCapableKey && effectiveProvider) {
             const providerLabel = effectiveProvider.charAt(0).toUpperCase() + effectiveProvider.slice(1);
@@ -168,7 +168,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
         if (!isPdfCapableMainProvider) {
             new Setting(this.containerEl)
-                .setName(pdf?.provider || 'PDF Provider')
+                .setName(pdf?.provider || 'PDF provider')
                 .setDesc(pdf?.providerDesc || 'Choose which multimodal provider to use for PDF processing')
                 .addDropdown(dropdown => {
                     dropdown
@@ -204,12 +204,12 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                 const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });
                 if (selectedPdfProvider === 'claude') {
                     linkEl.createEl('a', {
-                        text: pdf?.getClaudeKey || 'Get a Claude API key from Anthropic Console',
+                        text: pdf?.getClaudeKey || 'Get a claude API key from anthropic console',
                         href: 'https://console.anthropic.com/settings/keys'
                     });
                 } else {
                     linkEl.createEl('a', {
-                        text: pdf?.getGeminiKey || 'Get a free Gemini API key from Google AI Studio',
+                        text: pdf?.getGeminiKey || 'Get a free gemini API key from google AI studio',
                         href: 'https://aistudio.google.com/apikey'
                     });
                 }
@@ -222,15 +222,15 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                     .addDropdown(dropdown => {
                         const claudeLabels = {
                             default: 'Default (claude-sonnet-4-6)',
-                            sonnet: 'Claude Sonnet 4.6 (recommended)',
-                            opus: 'Claude Opus 4.6 (highest quality)',
-                            sonnet45: 'Claude Sonnet 4.5 (legacy)',
-                            haiku: 'Claude Haiku 4.5 (fastest)',
+                            sonnet: 'Claude sonnet 4.6 (recommended)',
+                            opus: 'Claude opus 4.6 (highest quality)',
+                            sonnet45: 'Claude sonnet 4.5 (legacy)',
+                            haiku: 'Claude haiku 4.5 (fastest)',
                         };
                         const geminiLabels = {
                             default: 'Default (gemini-3-flash-preview)',
-                            flash: 'Gemini 3 Flash (recommended)',
-                            pro: 'Gemini 3.1 Pro (higher quality)',
+                            flash: 'Gemini 3 flash (recommended)',
+                            pro: 'Gemini 3.1 pro (higher quality)',
                         };
                         if (selectedPdfProvider === 'claude') {
                             dropdown
@@ -302,7 +302,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                                (selectedProvider === 'groq' && hasGroqKey);
 
         // Sub-header
-        this.containerEl.createEl('h4', { text: sp?.audioHeader || '🎙️ Audio Transcription — Whisper' });
+        this.containerEl.createEl('h4', { text: sp?.audioHeader || '🎙️ Audio transcription — whisper' });
 
         if (hasInheritedKey || hasDedicatedAudioKey) {
             const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
@@ -320,8 +320,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         }
 
         new Setting(this.containerEl)
-            .setName(at?.provider || 'Transcription Provider')
-            .setDesc(at?.providerDesc || 'Choose which Whisper API to use for audio transcription')
+            .setName(at?.provider || 'Transcription provider')
+            .setDesc(at?.providerDesc || 'Choose which whisper API to use for audio transcription')
             .addDropdown(dropdown => {
                 dropdown
                     .addOption('openai', ['OpenAI whisper'].join(''))
@@ -371,13 +371,13 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         const currentProvider = this.plugin.settings.flashcardProvider;
 
         // Sub-header
-        this.containerEl.createEl('h4', { text: sp?.flashcardHeader || '🃏 Flashcards — Claude Recommended' });
+        this.containerEl.createEl('h4', { text: sp?.flashcardHeader || '🃏 Flashcards — claude recommended' });
 
         let modelSetting: Setting | undefined;
 
         new Setting(this.containerEl)
-            .setName(exportT?.flashcardProvider || 'Flashcard LLM Provider')
-            .setDesc(exportT?.flashcardProviderDesc || 'Claude Sonnet 4.5 is recommended for best flashcard quality.')
+            .setName(exportT?.flashcardProvider || 'Flashcard provider')
+            .setDesc(exportT?.flashcardProviderDesc || 'Claude sonnet 4.5 is recommended for best flashcard quality.')
             .addDropdown(dropdown => {
                 dropdown.addOption('main', exportT?.flashcardProviderMain || 'Use main provider');
                 for (const [key, label] of Object.entries(providerOptions)) {
@@ -400,7 +400,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             : PROVIDER_DEFAULT_MODEL[currentProvider] || '';
 
         modelSetting = new Setting(this.containerEl)
-            .setName(exportT?.flashcardModel || 'Flashcard Model')
+            .setName(exportT?.flashcardModel || 'Flashcard model')
             .setDesc(exportT?.flashcardModelDesc || 'Override the default model. Leave empty for provider default.')
             .addText(text => {
                 text
@@ -424,12 +424,12 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         const currentProvider = this.plugin.settings.auditProvider;
 
         // Sub-header
-        this.containerEl.createEl('h4', { text: sp?.auditHeader || 'LLM Audit — Opus Recommended' });
+        this.containerEl.createEl('h4', { text: sp?.auditHeader || 'Audit — opus recommended' });
 
         // Enable toggle
         new Setting(this.containerEl)
-            .setName(sp?.auditEnable || 'Enable LLM Audit')
-            .setDesc(sp?.auditEnableDesc || 'Uses a reasoning model to validate LLM outputs. Adds latency and API cost. Disabled by default.')
+            .setName(sp?.auditEnable || 'Enable audit')
+            .setDesc(sp?.auditEnableDesc || 'Uses a reasoning model to validate outputs. Adds latency and API cost. Disabled by default.')
             .addToggle(toggle => {
                 toggle
                     .setValue(this.plugin.settings.enableLLMAudit)
@@ -445,8 +445,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         let modelSetting: Setting | undefined;
 
         new Setting(this.containerEl)
-            .setName(sp?.auditProvider || 'Audit LLM Provider')
-            .setDesc(sp?.auditProviderDesc || 'Claude Opus is recommended for strongest reasoning.')
+            .setName(sp?.auditProvider || 'Audit provider')
+            .setDesc(sp?.auditProviderDesc || 'Claude opus is recommended for strongest reasoning.')
             .addDropdown(dropdown => {
                 dropdown.addOption('main', sp?.auditProviderMain || 'Use main provider');
                 for (const [key, label] of Object.entries(providerOptions)) {
@@ -469,7 +469,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             : PROVIDER_DEFAULT_MODEL[currentProvider] || '';
 
         modelSetting = new Setting(this.containerEl)
-            .setName(sp?.auditModel || 'Audit Model')
+            .setName(sp?.auditModel || 'Audit model')
             .setDesc(sp?.auditModelDesc || 'Override the default model. Leave empty for provider default.')
             .addText(text => {
                 text
@@ -492,12 +492,12 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
         const providerOptions = buildProviderOptions(this.plugin.t.dropdowns);
         const currentProvider = this.plugin.settings.quickPeekProvider;
 
-        this.containerEl.createEl('h4', { text: sp?.quickPeekHeader || '⚡ Quick Peek — Fast Triage' });
+        this.containerEl.createEl('h4', { text: sp?.quickPeekHeader || '⚡ Quick peek — fast triage' });
 
         let modelSetting: Setting | undefined;
 
         new Setting(this.containerEl)
-            .setName(sp?.quickPeekProvider || 'Quick Peek Provider')
+            .setName(sp?.quickPeekProvider || 'Quick peek provider')
             .setDesc(sp?.quickPeekProviderDesc || 'LLM provider for quick triage summaries. Choose a fast, cheap model.')
             .addDropdown(dropdown => {
                 dropdown.addOption('main', sp?.quickPeekProviderMain || 'Use main provider');
@@ -520,7 +520,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             : PROVIDER_DEFAULT_MODEL[currentProvider] || '';
 
         modelSetting = new Setting(this.containerEl)
-            .setName(sp?.quickPeekModel || 'Quick Peek Model')
+            .setName(sp?.quickPeekModel || 'Quick peek model')
             .setDesc(sp?.quickPeekModelDesc || 'Model override (empty = provider default)')
             .addText(text => {
                 text

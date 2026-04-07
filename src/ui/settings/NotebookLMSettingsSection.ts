@@ -23,7 +23,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         const t = plugin.t.settings.notebookLM;
 
         // Subsection header (under Integrations)
-        this.createSectionHeader(t?.title || 'NotebookLM Export', 'book-open', 2);
+        this.createSectionHeader(t?.title || 'NotebookLM export', 'book-open', 2);
 
         // Selection tag
         new Setting(containerEl)
@@ -109,11 +109,11 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
         infoBox.createEl('em', { text: 'Use Ctrl+P \u2192 "NotebookLM: Export Source Pack" to export tagged notes as PDFs.' });
 
         // === PDF GENERATION SETTINGS ===
-        containerEl.createEl('h4', { text: t?.pdfSettingsTitle || 'PDF Generation Settings' });
+        containerEl.createEl('h4', { text: t?.pdfSettingsTitle || 'PDF generation settings' });
 
         // Page size
         new Setting(containerEl)
-            .setName(t?.pdfPageSize || 'Page Size')
+            .setName(t?.pdfPageSize || 'Page size')
             .setDesc(t?.pdfPageSizeDesc || 'PDF page dimensions')
             .addDropdown(dropdown =>
                 dropdown
@@ -129,7 +129,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Font name
         new Setting(containerEl)
-            .setName(t?.pdfFontName || 'Font Name')
+            .setName(t?.pdfFontName || 'Font name')
             .setDesc(t?.pdfFontNameDesc || 'Font family for PDF text. Supported: helvetica, times, courier')
             .addDropdown(dropdown =>
                 dropdown
@@ -145,7 +145,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Font size
         new Setting(containerEl)
-            .setName(t?.pdfFontSize || 'Font Size')
+            .setName(t?.pdfFontSize || 'Font size')
             .setDesc(t?.pdfFontSizeDesc || 'Base font size in points (9-14 recommended)')
             .addSlider(slider =>
                 slider
@@ -160,7 +160,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Include frontmatter
         new Setting(containerEl)
-            .setName(t?.pdfIncludeFrontmatter || 'Include Frontmatter')
+            .setName(t?.pdfIncludeFrontmatter || 'Include frontmatter')
             .setDesc(t?.pdfIncludeFrontmatterDesc || 'Show YAML frontmatter as metadata block in PDF')
             .addToggle(toggle =>
                 toggle
@@ -173,7 +173,7 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
 
         // Include title
         new Setting(containerEl)
-            .setName(t?.pdfIncludeTitle || 'Include Title')
+            .setName(t?.pdfIncludeTitle || 'Include title')
             .setDesc(t?.pdfIncludeTitleDesc || 'Add note title as H1 heading at top of PDF')
             .addToggle(toggle =>
                 toggle

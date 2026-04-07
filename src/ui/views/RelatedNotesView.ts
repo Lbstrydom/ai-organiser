@@ -64,7 +64,7 @@ export class RelatedNotesView extends ItemView {
 
     getDisplayText(): string {
         const t = this.plugin.t?.modals?.relatedNotes;
-        return t?.title || 'Related Notes';
+        return t?.title || 'Related notes';
     }
 
     getIcon(): string {
@@ -147,7 +147,7 @@ export class RelatedNotesView extends ItemView {
 
         // Left group: title + scope button
         const leftGroup = header.createEl('div', { cls: 'ai-organiser-related-notes-header-left' });
-        leftGroup.createEl('h3', { text: t?.title || 'Related Notes', cls: 'ai-organiser-related-notes-title' });
+        leftGroup.createEl('h3', { text: t?.title || 'Related notes', cls: 'ai-organiser-related-notes-title' });
 
         // Scope button
         const scopeBtn = leftGroup.createEl('button', {

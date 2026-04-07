@@ -12,7 +12,7 @@ export class DigitisationSettingsSection extends BaseSettingSection {
 
         // Section header
         this.createSectionHeader(
-            t?.title || 'Smart Digitisation',
+            t?.title || 'Smart digitisation',
             'sparkles',
             2
         );
@@ -23,7 +23,7 @@ export class DigitisationSettingsSection extends BaseSettingSection {
 
         // Default mode setting
         new Setting(containerEl)
-            .setName(t?.defaultMode || 'Default Digitisation Mode')
+            .setName(t?.defaultMode || 'Default digitisation mode')
             .setDesc(t?.defaultModeDesc || 'Choose how images are analyzed by default. "Auto" lets the AI determine the content type.')
             .addDropdown(dropdown => {
                 const modes: Record<DigitiseMode, string> = {
@@ -48,7 +48,7 @@ export class DigitisationSettingsSection extends BaseSettingSection {
 
         // Max dimension setting
         new Setting(containerEl)
-            .setName(t?.maxDimension || 'Maximum Image Dimension')
+            .setName(t?.maxDimension || 'Maximum image dimension')
             .setDesc(t?.maxDimensionDesc || 'Resize images to this maximum width/height before sending to AI. Lower values use fewer tokens but may reduce OCR accuracy.')
             .addSlider(slider => {
                 slider
@@ -73,7 +73,7 @@ export class DigitisationSettingsSection extends BaseSettingSection {
 
         // Image quality setting
         new Setting(containerEl)
-            .setName(t?.imageQuality || 'Image Quality')
+            .setName(t?.imageQuality || 'Image quality')
             .setDesc(t?.imageQualityDesc || 'JPEG compression quality (0.1-1.0). Higher quality preserves detail but increases file size and token usage.')
             .addSlider(slider => {
                 slider
@@ -97,11 +97,11 @@ export class DigitisationSettingsSection extends BaseSettingSection {
             });
 
         // --- Image Compression (Phase 5) ---
-        containerEl.createEl('h4', { text: t?.offerCompression || 'Image Compression' });
+        containerEl.createEl('h4', { text: t?.offerCompression || 'Image compression' });
 
         // Offer vault replacement dropdown (image-scoped; audio uses postRecordingStorage)
         new Setting(containerEl)
-            .setName(t?.offerCompression || 'Offer Image Replacement')
+            .setName(t?.offerCompression || 'Offer image replacement')
             .setDesc(t?.offerCompressionDesc || 'After digitising an image, offer to replace the original with the processed version.')
             .addDropdown(dropdown => {
                 dropdown
@@ -119,7 +119,7 @@ export class DigitisationSettingsSection extends BaseSettingSection {
         // Large file threshold slider (only shown when mode is 'large-files')
         if (this.plugin.settings.offerMediaCompression === 'large-files') {
             new Setting(containerEl)
-                .setName(t?.threshold || 'Large File Threshold')
+                .setName(t?.threshold || 'Large file threshold')
                 .setDesc(t?.thresholdDesc || 'Only offer compression for files larger than this size (in MB).')
                 .addSlider(slider => {
                     const currentMB = Math.round(this.plugin.settings.mediaCompressionThreshold / (1024 * 1024));

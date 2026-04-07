@@ -15,11 +15,25 @@ import { SimpleVectorStore } from '../src/services/vector/simpleVectorStore';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { App, TFile } from 'obsidian';
 import { clearMockNotices, mockNotices } from './mocks/obsidian';
+import type { IEmbeddingService } from '../src/services/embeddings/types';
+
+/** Minimal mock satisfying IEmbeddingService for constructor calls */
+function mockEmbeddingService(): IEmbeddingService {
+    return {
+        generateEmbedding: vi.fn().mockResolvedValue({ embedding: [], tokens: 0 }),
+        batchGenerateEmbeddings: vi.fn().mockResolvedValue({ embeddings: [], totalTokens: 0, errors: [] }),
+        getModelDimensions: vi.fn().mockReturnValue(384),
+        getModelName: vi.fn().mockReturnValue('test-model'),
+        getModelInfo: vi.fn().mockReturnValue({ name: 'test-model', dimensions: 384, maxTokens: 512 }),
+        testConnection: vi.fn().mockResolvedValue({ success: true }),
+        dispose: vi.fn().mockResolvedValue(undefined),
+    };
+}
 
 describe('AIOrganiserPlugin.saveSettings', () => {
     it('does not reinitialize embeddings for non-embedding changes', async () => {
         const app = new App();
-        const plugin = new AIOrganiserPlugin(app as any, { id: 'test', version: '1.0.0' });
+        const plugin = new AIOrganiserPlugin(app as any, { id: 'test', version: '1.0.0', name: 'Test', author: 'Test', minAppVersion: '0.0.0', description: 'Test' });
         plugin.settings = { ...DEFAULT_SETTINGS };
         (plugin as any).lastEmbeddingConfig = {
             provider: plugin.settings.embeddingProvider,
@@ -48,7 +62,7 @@ describe('AIOrganiserPlugin.saveSettings', () => {
 
     it('clears index when embedding settings change', async () => {
         const app = new App();
-        const plugin = new AIOrganiserPlugin(app as any, { id: 'test', version: '1.0.0' });
+        const plugin = new AIOrganiserPlugin(app as any, { id: 'test', version: '1.0.0', name: 'Test', author: 'Test', minAppVersion: '0.0.0', description: 'Test' });
         plugin.settings = { ...DEFAULT_SETTINGS, enableSemanticSearch: true };
         (plugin as any).lastEmbeddingConfig = {
             provider: plugin.settings.embeddingProvider,
@@ -105,7 +119,7 @@ describe('VectorStoreService rename behavior', () => {
 
     it('re-embeds on rename when embedding service is available', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
         const vectorStore = {
             removeFile: vi.fn(),
             renameFile: vi.fn()
@@ -156,7 +170,7 @@ describe('VectorStoreService rename batching', () => {
 
     it('re-embeds each file for small rename batches', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
         const vectorStore = {
             renameFile: vi.fn()
         };
@@ -180,7 +194,7 @@ describe('VectorStoreService rename batching', () => {
 
     it('uses lightweight rename for large batches and shows notice', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
         const vectorStore = {
             renameFile: vi.fn()
         };
@@ -245,7 +259,7 @@ describe('SimpleVectorStore upsert stamps version', () => {
 describe('VectorStoreService rebuildVault', () => {
     it('clears index then reindexes all files', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
 
         const clearFn = vi.fn();
         const vectorStore = {
@@ -275,7 +289,7 @@ describe('VectorStoreService rebuildVault', () => {
 
     it('resets hasWarnedIndexVersion after rebuild', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
 
         const vectorStore = {
             clear: vi.fn(),
@@ -298,7 +312,7 @@ describe('VectorStoreService rebuildVault', () => {
 describe('VectorStoreService indexVault does NOT reset warning flag', () => {
     it('keeps hasWarnedIndexVersion true after incremental index', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
 
         const vectorStore = {
             getMetadata: vi.fn().mockResolvedValue({ version: INDEX_SCHEMA_VERSION })
@@ -349,7 +363,7 @@ describe('SimpleVectorStore version stamp with empty embeddings', () => {
 describe('VectorStoreService rebuildVault awaits load before clear', () => {
     it('resolves loadPromise before calling clear', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
 
         const callOrder: string[] = [];
         const loadPromise = new Promise<void>((resolve) => {
@@ -380,7 +394,7 @@ describe('VectorStoreService rebuildVault awaits load before clear', () => {
 describe('VectorStoreService rebuildVault clears search cache', () => {
     it('calls searchCache.clear() during rebuild', async () => {
         const app = new App();
-        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, {});
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
 
         const vectorStore = {
             clear: vi.fn(),

@@ -9,7 +9,7 @@ export class TaggingSettingsSection extends BaseSettingSection {
 
         // Max Tags Setting
         new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.tagging.maxTags || 'Maximum Tags')
+            .setName(this.plugin.t.settings.tagging.maxTags || 'Maximum tags')
             .setDesc(this.plugin.t.settings.tagging.maxTagsDesc || 'Maximum number of tags to generate per note (1-10)')
             .addSlider(slider => {
                 const container = slider.sliderEl.parentElement;

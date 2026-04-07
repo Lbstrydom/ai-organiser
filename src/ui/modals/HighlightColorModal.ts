@@ -44,7 +44,7 @@ export class HighlightColorModal extends Modal {
         contentEl.addClass('ai-organiser-modal', 'highlight-color-modal');
 
         // Title
-        contentEl.createEl('h2', { text: t?.title || 'Highlight Text' });
+        contentEl.createEl('h2', { text: t?.title || 'Highlight text' });
 
         // Description
         contentEl.createEl('p', {
@@ -83,7 +83,7 @@ export class HighlightColorModal extends Modal {
 
         // Clear highlight option
         const clearBtn = contentEl.createDiv({ cls: 'ai-organiser-highlight-clear-btn' });
-        clearBtn.setText(t?.clearHighlight || 'Remove Highlight');
+        clearBtn.setText(t?.clearHighlight || 'Remove highlight');
         clearBtn.addEventListener('click', () => {
             this.onSelect({ id: 'clear', name: 'Clear', color: '' });
             this.close();

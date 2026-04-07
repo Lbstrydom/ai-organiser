@@ -11,7 +11,7 @@ export class MinutesSettingsSection extends BaseSettingSection {
 
     display(): void {
         const t = this.plugin.t;
-        this.createSectionHeader(t.settings.minutes?.title || 'Meeting Minutes', 'clipboard-check');
+        this.createSectionHeader(t.settings.minutes?.title || 'Meeting minutes', 'clipboard-check');
 
         if (t.settings.minutes?.description) {
             this.containerEl.createEl('p', {
@@ -49,7 +49,7 @@ export class MinutesSettingsSection extends BaseSettingSection {
             .setName(t.settings.minutes?.style || 'Minutes style')
             .setDesc(t.settings.minutes?.styleDesc || 'Default output format for meeting minutes')
             .addDropdown(dropdown => dropdown
-                .addOption('smart-brevity', t.settings.minutes?.styleSmartBrevity || 'Smart Brevity \u2014 fast executive scan')
+                .addOption('smart-brevity', t.settings.minutes?.styleSmartBrevity || 'Smart brevity \u2014 fast executive scan')
                 .addOption('standard', t.settings.minutes?.styleStandard || 'Standard \u2014 key points, decisions, actions')
                 .addOption('detailed', t.settings.minutes?.styleDetailed || 'Detailed \u2014 formal governance minutes')
                 .setValue(this.plugin.settings.minutesStyle)
@@ -59,7 +59,7 @@ export class MinutesSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(this.containerEl)
-            .setName(t.settings.minutes?.obsidianTasks || 'Obsidian Tasks format')
+            .setName(t.settings.minutes?.obsidianTasks || 'Obsidian tasks format')
             .setDesc(t.settings.minutes?.obsidianTasksDesc || 'Add actions as - [ ] tasks below the minutes')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.minutesObsidianTasksFormat)

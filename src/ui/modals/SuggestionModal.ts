@@ -54,7 +54,7 @@ export class SuggestionModal extends Modal {
             const titleContainer = contentEl.createDiv({ cls: 'ai-organiser-suggestion-item' });
 
             new Setting(titleContainer)
-                .setName(this.t.modals.suggestion?.titleLabel || 'Suggested Title')
+                .setName(this.t.modals.suggestion?.titleLabel || 'Suggested title')
                 .setDesc(`${this.t.modals.suggestion?.currentLabel || 'Current'}: ${this.currentTitle}`)
                 .addToggle(toggle => toggle
                     .setValue(this.applyTitle)
@@ -73,7 +73,7 @@ export class SuggestionModal extends Modal {
             const folderContainer = contentEl.createDiv({ cls: 'ai-organiser-suggestion-item' });
 
             new Setting(folderContainer)
-                .setName(this.t.modals.suggestion?.folderLabel || 'Suggested Folder')
+                .setName(this.t.modals.suggestion?.folderLabel || 'Suggested folder')
                 .setDesc(`${this.t.modals.suggestion?.currentLabel || 'Current'}: ${this.currentFolder || '(root)'}`)
                 .addToggle(toggle => toggle
                     .setValue(this.applyFolder)
@@ -98,7 +98,7 @@ export class SuggestionModal extends Modal {
         // Buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText(this.t.modals.suggestion?.applyButton || 'Apply Selected')
+                .setButtonText(this.t.modals.suggestion?.applyButton || 'Apply selected')
                 .setCta()
                 .onClick(() => {
                     this.close();

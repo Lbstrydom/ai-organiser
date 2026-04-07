@@ -68,7 +68,7 @@ export class UrlInputModal extends Modal {
 
         // Persona selection dropdown
         new Setting(contentEl)
-            .setName(this.t.modals.urlInput.personaLabel || 'Summary Style')
+            .setName(this.t.modals.urlInput.personaLabel || 'Summary style')
             .setDesc(this.t.modals.urlInput.personaDesc || 'Choose how to format the summary')
             .addDropdown(dropdown => {
                 for (const persona of this.personas) {
@@ -84,7 +84,7 @@ export class UrlInputModal extends Modal {
 
         // Companion toggle (visible only when Study persona is selected)
         const companionSetting = new Setting(contentEl)
-            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setName(this.t.settings.summarization.enableCompanion || 'Study companion notes')
             .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
             .addToggle(toggle => toggle
                 .setValue(this.includeCompanion)
@@ -95,7 +95,7 @@ export class UrlInputModal extends Modal {
 
         // Optional context field
         new Setting(contentEl)
-            .setName(this.t.modals.urlInput.contextLabel || 'Additional Context')
+            .setName(this.t.modals.urlInput.contextLabel || 'Additional context')
             .setDesc(this.t.modals.urlInput.contextDesc || 'Optional: Guide the summary focus (e.g., "focus on the technical details" or "I\'m interested in the business implications")')
             .addTextArea(text => {
                 text.setPlaceholder(this.t.modals.urlInput.contextPlaceholder || 'e.g., Focus on the financial implications...')

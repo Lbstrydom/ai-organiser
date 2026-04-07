@@ -274,7 +274,7 @@ export class MinutesCreationModal extends Modal {
         new Setting(topSection)
             .setName(t?.fieldTitle || 'Meeting title')
             .addText(text => {
-                text.setPlaceholder('Weekly sync')
+                text.setPlaceholder('Weekly sync meeting')
                     .setValue(this.state.title)
                     .onChange(value => this.state.title = value.trim());
                 this.titleInputEl = text.inputEl;
@@ -312,7 +312,7 @@ export class MinutesCreationModal extends Modal {
         new Setting(topSection)
             .setName(t?.fieldLocation || 'Location')
             .addText(text => {
-                text.setPlaceholder('Boardroom or zoom')
+                text.setPlaceholder('Boardroom or Zoom')
                     .setValue(this.state.location)
                     .onChange(value => this.state.location = value.trim());
                 this.locationInputEl = text.inputEl;
@@ -439,7 +439,7 @@ export class MinutesCreationModal extends Modal {
             });
 
         new Setting(topSection)
-            .setName(t?.fieldObsidianTasks || 'Obsidian Tasks format')
+            .setName(t?.fieldObsidianTasks || 'Obsidian tasks format')
             .setDesc(t?.fieldObsidianTasksDesc || 'Add actions as - [ ] checkboxes')
             .addToggle(toggle => {
                 toggle.setValue(this.state.obsidianTasks);

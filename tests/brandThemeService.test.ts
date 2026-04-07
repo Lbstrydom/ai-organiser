@@ -22,7 +22,7 @@ describe('PRESENTATION_ICONS', () => {
 
     it('icon names use kebab-case only', () => {
         for (const name of Object.keys(PRESENTATION_ICONS)) {
-            expect(name).toMatch(/^[a-z][a-z0-9-]*$/, `icon "${name}" is not kebab-case`);
+            expect(name, `icon "${name}" is not kebab-case`).toMatch(/^[a-z][a-z0-9-]*$/);
         }
     });
 });

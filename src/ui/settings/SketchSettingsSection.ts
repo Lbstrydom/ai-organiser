@@ -4,10 +4,10 @@ import { BaseSettingSection } from './BaseSettingSection';
 export class SketchSettingsSection extends BaseSettingSection {
     display(): void {
         const t = this.plugin.t.settings.sketch;
-        this.createSectionHeader(t?.title || 'Sketch Pad', 'pencil', 2);
+        this.createSectionHeader(t?.title || 'Sketch pad', 'pencil', 2);
 
         new Setting(this.containerEl)
-            .setName(t?.outputFolder || 'Sketch Output Folder')
+            .setName(t?.outputFolder || 'Sketch output folder')
             .setDesc(t?.outputFolderDesc || 'Where sketch PNG files are saved')
             .addText((text) =>
                 text
@@ -20,7 +20,7 @@ export class SketchSettingsSection extends BaseSettingSection {
             );
 
         new Setting(this.containerEl)
-            .setName(t?.autoDigitise || 'Auto Digitise')
+            .setName(t?.autoDigitise || 'Auto digitise')
             .setDesc(t?.autoDigitiseDesc || 'Automatically run Digitise after saving a sketch')
             .addToggle((toggle) =>
                 toggle
@@ -32,7 +32,7 @@ export class SketchSettingsSection extends BaseSettingSection {
             );
 
         new Setting(this.containerEl)
-            .setName(t?.defaultPenColour || 'Default Pen Colour')
+            .setName(t?.defaultPenColour || 'Default pen colour')
             .setDesc(t?.defaultPenColourDesc || 'Pen color when opening the sketch pad')
             .addDropdown((dropdown) => {
                 dropdown
@@ -47,7 +47,7 @@ export class SketchSettingsSection extends BaseSettingSection {
             });
 
         new Setting(this.containerEl)
-            .setName(t?.defaultPenWidth || 'Default Pen Width')
+            .setName(t?.defaultPenWidth || 'Default pen width')
             .setDesc(t?.defaultPenWidthDesc || 'Pen thickness from 1 to 8')
             .addSlider((slider) =>
                 slider

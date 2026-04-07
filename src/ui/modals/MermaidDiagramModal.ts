@@ -60,7 +60,7 @@ export class MermaidDiagramModal extends Modal {
         contentEl.addClass('ai-organiser-modal');
 
         // Title
-        contentEl.createEl('h2', { text: t?.title || 'Generate Mermaid Diagram' });
+        contentEl.createEl('h2', { text: t?.title || 'Generate Mermaid diagram' });
 
         // Description
         contentEl.createEl('p', {
@@ -70,7 +70,7 @@ export class MermaidDiagramModal extends Modal {
 
         // Diagram type dropdown
         new Setting(contentEl)
-            .setName(t?.typeLabel || 'Diagram Type')
+            .setName(t?.typeLabel || 'Diagram type')
             .setDesc(t?.typeDesc || 'Select the type of diagram to generate')
             .addDropdown(dropdown => {
                 for (const type of DIAGRAM_TYPES) {
@@ -125,7 +125,7 @@ export class MermaidDiagramModal extends Modal {
         new Setting(contentEl)
             .addButton(button => {
                 button
-                    .setButtonText(t?.generateButton || 'Generate Diagram')
+                    .setButtonText(t?.generateButton || 'Generate diagram')
                     .setCta()
                     .onClick(async () => {
                         if (!this.instruction.trim()) {

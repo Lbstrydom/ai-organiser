@@ -40,7 +40,7 @@ class VaultTextFilePicker extends FuzzySuggestModal<TFile> {
         super(app);
         this.textFiles = textFiles;
         this.onChooseFile = onChoose;
-        this.setPlaceholder('Select a text file');
+        this.setPlaceholder('Select a text file...');
     }
 
     getItems(): TFile[] {

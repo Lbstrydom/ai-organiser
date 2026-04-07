@@ -45,7 +45,7 @@ export class YouTubeInputModal extends Modal {
         const { contentEl } = this;
         contentEl.addClass('ai-organiser-modal-content');
 
-        contentEl.createEl('h2', { text: this.t.modals.youtubeInput?.title || 'Summarize YouTube Video' });
+        contentEl.createEl('h2', { text: this.t.modals.youtubeInput?.title || 'Summarize YouTube video' });
 
         // Info notice about captions requirement
         const noticeEl = contentEl.createEl('div', { cls: 'ai-organiser-notice' });
@@ -76,7 +76,7 @@ export class YouTubeInputModal extends Modal {
 
         // Persona selection dropdown
         new Setting(contentEl)
-            .setName(this.t.modals.youtubeInput?.personaLabel || 'Summary Style')
+            .setName(this.t.modals.youtubeInput?.personaLabel || 'Summary style')
             .setDesc(this.t.modals.youtubeInput?.personaDesc || 'Choose how to format the summary')
             .addDropdown(dropdown => {
                 for (const persona of this.personas) {
@@ -92,7 +92,7 @@ export class YouTubeInputModal extends Modal {
 
         // Companion toggle (visible only when Study persona is selected)
         const companionSetting = new Setting(contentEl)
-            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setName(this.t.settings.summarization.enableCompanion || 'Study companion notes')
             .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
             .addToggle(toggle => toggle
                 .setValue(this.includeCompanion)
@@ -103,7 +103,7 @@ export class YouTubeInputModal extends Modal {
 
         // Optional context field
         new Setting(contentEl)
-            .setName(this.t.modals.youtubeInput?.contextLabel || 'Additional Context')
+            .setName(this.t.modals.youtubeInput?.contextLabel || 'Additional context')
             .setDesc(this.t.modals.youtubeInput?.contextDesc || 'Optional: Guide the summary focus (e.g., "focus on the main argument" or "extract actionable tips")')
             .addTextArea(text => {
                 text.setPlaceholder(this.t.modals.youtubeInput?.contextPlaceholder || 'e.g., I\'m interested in the coding examples...')

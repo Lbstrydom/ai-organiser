@@ -83,7 +83,7 @@ function addQuickPeekSelectionItem(
     const inSelection = getQuickPeekSources(detected).filter(s => s.lineNumber >= from && s.lineNumber <= to);
     if (inSelection.length === 0) return;
     menu.addItem((item) => {
-        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick Peek')
+        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick peek')
             .setIcon('zap')
             .onClick(() => quickPeekFromSelection(plugin, editor, inSelection));
     });
@@ -102,7 +102,7 @@ function addQuickPeekCursorItem(
     const onLine = getQuickPeekSources(detected).filter(s => s.lineNumber === cursorLine);
     if (onLine.length === 0) return;
     menu.addItem((item) => {
-        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick Peek')
+        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick peek')
             .setIcon('zap')
             .onClick(() => quickPeekFromSelection(plugin, editor, onLine));
     });
@@ -152,7 +152,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                 menu.addSeparator();
 
                 menu.addItem((item) => {
-                    item.setTitle(plugin.t.contextMenu.addToPending || 'Add to Pending')
+                    item.setTitle(plugin.t.contextMenu.addToPending || 'Add to pending')
                         .setIcon('inbox')
                         .onClick(() => { dropSelectionToPending(plugin, editor); });
                 });
@@ -169,7 +169,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                 if (hasSelection) menu.addSeparator();
                 if (onImage) {
                     menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.digitise || 'AI: Digitise')
+                        item.setTitle(plugin.t.contextMenu.digitise || 'AI: digitise')
                             .setIcon('sparkles')
                             .onClick(() => {
                                 (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:digitise-image');
@@ -178,7 +178,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                 }
                 if (onMermaid) {
                     menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.editDiagram || 'AI: Edit Diagram')
+                        item.setTitle(plugin.t.contextMenu.editDiagram || 'AI: edit diagram')
                             .setIcon('git-branch')
                             .onClick(() => {
                                 (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');

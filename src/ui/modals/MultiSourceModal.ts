@@ -524,7 +524,7 @@ export class MultiSourceModal extends Modal {
         // Language Selector (Translate Mode)
         if (this.config.showLanguageSelector) {
             new Setting(settingsSection)
-                .setName(t?.languageLabel || 'Target Language')
+                .setName(t?.languageLabel || 'Target language')
                 .setDesc(t?.languageDesc || 'Language to translate all content into')
                 .addDropdown(dropdown => {
                      COMMON_LANGUAGES.forEach(lang => {
@@ -543,7 +543,7 @@ export class MultiSourceModal extends Modal {
         let companionToggleEl: HTMLElement | null = null;
         if (!this.config.hidePersona && this.personas.length > 0) {
             new Setting(settingsSection)
-                .setName(t?.persona || 'Summary Style')
+                .setName(t?.persona || 'Summary style')
                 .setDesc(t?.personaDesc || 'Choose how the summary should be written')
                 .addDropdown(dropdown => {
                     for (const persona of this.personas) {
@@ -561,7 +561,7 @@ export class MultiSourceModal extends Modal {
 
             // Companion toggle (visible only when Study persona is selected)
             const companionSetting = new Setting(settingsSection)
-                .setName(this.plugin.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+                .setName(this.plugin.t.settings.summarization.enableCompanion || 'Study companion notes')
                 .setDesc(this.plugin.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
                 .addToggle(toggle => toggle
                     .setValue(this.includeCompanion)
@@ -574,7 +574,7 @@ export class MultiSourceModal extends Modal {
         // Focus context input (Summarize Mode)
         if (!this.config.hideFocusContext) {
             new Setting(settingsSection)
-                .setName(t?.focusContext || 'Focus Context')
+                .setName(t?.focusContext || 'Focus context')
                 .setDesc(t?.focusContextDesc || 'Optional: Specify what aspects to focus on')
                 .addText(text => text
                     .setPlaceholder(t?.focusPlaceholder || 'e.g., "key findings" or "action items"')

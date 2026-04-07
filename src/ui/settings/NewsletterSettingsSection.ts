@@ -63,7 +63,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         const t = this.plugin.t;
         const nl = t.settings.newsletter;
 
-        this.createSectionHeader(nl?.title || 'Newsletter Digest', 'mail', 2);
+        this.createSectionHeader(nl?.title || 'Newsletter digest', 'mail', 2);
 
         if (nl?.description) {
             this.containerEl.createEl('p', {
@@ -91,8 +91,8 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl)
             .setName(nl?.source || 'Connection method')
             .addDropdown(dropdown => dropdown
-                .addOption('apps-script', nl?.sourceAppsScript || 'Google Apps Script (recommended)')
-                .addOption('gmail-api', (nl?.sourceGmailApi || 'Gmail API (desktop only)') + ' — coming soon')
+                .addOption('apps-script', nl?.sourceAppsScript || 'Google apps script (recommended)')
+                .addOption('gmail-api', (nl?.sourceGmailApi || 'Gmail API (desktop only)') + ' \u2014 coming soon')
                 .setValue(this.plugin.settings.newsletterSource)
                 .onChange(value => {
                     this.plugin.settings.newsletterSource = value as 'apps-script' | 'gmail-api';
@@ -104,7 +104,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         if (this.plugin.settings.newsletterSource !== 'gmail-api') {
             // Script URL
             new Setting(this.containerEl)
-                .setName(nl?.scriptUrl || 'Apps Script URL')
+                .setName(nl?.scriptUrl || 'Apps script URL')
                 .setDesc(nl?.scriptUrlDesc || 'Paste the web app URL from your deployed Apps Script')
                 .addText(text => text
                     .setPlaceholder(nl?.scriptUrlPlaceholder || 'https://script.google.com/macros/s/.../exec')
@@ -127,7 +127,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
             });
 
             // Setup instructions
-            this.containerEl.createEl('h4', { text: nl?.setupTitle || 'Setup Instructions' });
+            this.containerEl.createEl('h4', { text: nl?.setupTitle || 'Setup instructions' });
 
             const infoBox = this.containerEl.createDiv({ cls: 'setting-item-description' });
             const steps = [
@@ -142,9 +142,9 @@ export class NewsletterSettingsSection extends BaseSettingSection {
 
             // Copy Script Template button
             new Setting(this.containerEl)
-                .setName(nl?.copyTemplate || 'Copy Script Template')
+                .setName(nl?.copyTemplate || 'Copy script template')
                 .addButton(btn => btn
-                    .setButtonText(nl?.copyTemplate || 'Copy Script Template')
+                    .setButtonText(nl?.copyTemplate || 'Copy script template')
                     .onClick(async () => {
                         await navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE);
                         new Notice(nl?.copyTemplateSuccess || 'Script template copied to clipboard');
@@ -165,9 +165,9 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         // Test Connection button — only shown when script URL is set
         if (this.plugin.settings.newsletterScriptUrl?.trim()) {
             new Setting(this.containerEl)
-                .setName(nl?.testConnection || 'Test Connection')
+                .setName(nl?.testConnection || 'Test connection')
                 .addButton(btn => btn
-                    .setButtonText(nl?.testConnection || 'Test Connection')
+                    .setButtonText(nl?.testConnection || 'Test connection')
                     .onClick(async () => {
                         btn.setDisabled(true);
                         btn.setButtonText('Testing...');
@@ -188,7 +188,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                             new Notice((nl?.testConnectionFailed || 'Connection failed: {error}').replace('{error}', msg), 6000);
                         } finally {
                             btn.setDisabled(false);
-                            btn.setButtonText(nl?.testConnection || 'Test Connection');
+                            btn.setButtonText(nl?.testConnection || 'Test connection');
                         }
                     }));
         }
@@ -293,9 +293,9 @@ export class NewsletterSettingsSection extends BaseSettingSection {
 
         // Fetch Now button
         new Setting(this.containerEl)
-            .setName(nl?.fetchNow || 'Fetch Now')
+            .setName(nl?.fetchNow || 'Fetch now')
             .addButton(btn => btn
-                .setButtonText(nl?.fetchNow || 'Fetch Now')
+                .setButtonText(nl?.fetchNow || 'Fetch now')
                 .setCta()
                 .onClick(async () => {
                     btn.setDisabled(true);
@@ -311,7 +311,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         new Notice((nl?.fetchError || 'Failed to fetch: {error}').replace('{error}', msg));
                     } finally {
                         btn.setDisabled(false);
-                        btn.setButtonText(nl?.fetchNow || 'Fetch Now');
+                        btn.setButtonText(nl?.fetchNow || 'Fetch now');
                     }
                 }));
 

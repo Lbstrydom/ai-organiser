@@ -95,7 +95,7 @@ export class FlashcardExportModal extends Modal {
 
         const modalT = this.t.modals.flashcardExport;
 
-        contentEl.createEl('h2', { text: modalT?.title || 'Export Flashcards' });
+        contentEl.createEl('h2', { text: modalT?.title || 'Export flashcards' });
 
         // Description
         contentEl.createEl('p', {
@@ -109,8 +109,8 @@ export class FlashcardExportModal extends Modal {
             .setDesc(modalT?.sourceDesc || 'Where to get the content for flashcard generation')
             .addDropdown(dropdown => {
                 const sourceLabels: Record<FlashcardSource, string> = {
-                    'current-note': modalT?.sourceCurrent || 'Current Note',
-                    'multiple-notes': modalT?.sourceMultiNote || 'Multiple Notes',
+                    'current-note': modalT?.sourceCurrent || 'Current note',
+                    'multiple-notes': modalT?.sourceMultiNote || 'Multiple notes',
                     'screenshot': modalT?.sourceScreenshot || 'Screenshot'
                 };
                 for (const source of FLASHCARD_SOURCES) {
@@ -132,7 +132,7 @@ export class FlashcardExportModal extends Modal {
 
         // Card style selection dropdown (disabled for screenshot)
         new Setting(contentEl)
-            .setName(modalT?.styleLabel || 'Card Style')
+            .setName(modalT?.styleLabel || 'Card style')
             .setDesc(this.selectedSource === 'screenshot'
                 ? (modalT?.screenshotStyleLocked || 'Screenshot source always uses multiple choice style')
                 : (modalT?.styleDesc || 'Choose between standard Q&A or multiple choice format'))
@@ -149,7 +149,7 @@ export class FlashcardExportModal extends Modal {
 
         // Format selection dropdown
         new Setting(contentEl)
-            .setName(modalT?.formatLabel || 'Export Format')
+            .setName(modalT?.formatLabel || 'Export format')
             .setDesc(modalT?.formatDesc || 'Choose the flashcard application format')
             .addDropdown(dropdown => {
                 for (const format of FLASHCARD_FORMATS) {
@@ -168,7 +168,7 @@ export class FlashcardExportModal extends Modal {
 
         // Optional context textarea
         new Setting(contentEl)
-            .setName(modalT?.contextLabel || 'Additional Context (Optional)')
+            .setName(modalT?.contextLabel || 'Additional context (optional)')
             .setDesc(modalT?.contextDesc || 'Provide focus areas or specific instructions for card generation')
             .addTextArea(text => {
                 text.setPlaceholder(modalT?.contextPlaceholder || 'e.g., "Focus on key definitions and formulas" or "Create cards for exam preparation"')
@@ -186,7 +186,7 @@ export class FlashcardExportModal extends Modal {
                 .onClick(() => this.close())
             )
             .addButton(btn => btn
-                .setButtonText(modalT?.exportButton || 'Generate Flashcards')
+                .setButtonText(modalT?.exportButton || 'Generate flashcards')
                 .setCta()
                 .onClick(() => this.submit())
             );
@@ -227,7 +227,7 @@ export class FlashcardExportModal extends Modal {
 
                 new Setting(contentEl)
                     .addButton(btn => btn
-                        .setButtonText(`+ ${modalT?.addNote || 'Add Note'}`)
+                        .setButtonText(`+ ${modalT?.addNote || 'Add note'}`)
                         .onClick(() => this.openNotePicker()));
                 break;
             }
@@ -257,7 +257,7 @@ export class FlashcardExportModal extends Modal {
 
                 new Setting(contentEl)
                     .addButton(btn => btn
-                        .setButtonText(modalT?.selectImage || 'Choose Image')
+                        .setButtonText(modalT?.selectImage || 'Choose image')
                         .onClick(() => this.openImagePicker()));
                 break;
             }

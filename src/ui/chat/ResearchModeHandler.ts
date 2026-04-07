@@ -1061,7 +1061,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         const academicLabel = row.createEl('label', { cls: 'ai-organiser-research-toggle-label' });
         const academicCheckbox = academicLabel.createEl('input', { type: 'checkbox' });
         (academicCheckbox).checked = this.academicMode;
-        academicLabel.createEl('span', { text: t.researchAcademicMode || 'Academic Mode' });
+        academicLabel.createEl('span', { text: t.researchAcademicMode || 'Academic mode' });
         academicCheckbox.addEventListener('change', () => {
             this.academicMode = (academicCheckbox).checked;
         });
@@ -1286,7 +1286,7 @@ export class ResearchModeHandler implements ChatModeHandler {
 
         if (this.phase === 'reviewing') {
             new ButtonComponent(actionsBar)
-                .setButtonText(t.searchAgain || 'Search Again')
+                .setButtonText(t.searchAgain || 'Search again')
                 .setTooltip(t.searchAgainTooltip || 'Run an additional search')
                 .onClick(() => {
                     // Set flag to bypass contextual answer on next send (AD-5 explicit bypass)

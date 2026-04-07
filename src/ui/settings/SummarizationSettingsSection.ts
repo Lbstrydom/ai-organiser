@@ -31,7 +31,7 @@ export class SummarizationSettingsSection extends BaseSettingSection {
 
     // Enable summarization feature toggle
     new Setting(containerEl)
-      .setName(t.enableFeature || 'Enable Summarization')
+      .setName(t.enableFeature || 'Enable summarization')
       .setDesc(t.enableFeatureDesc || 'Enable URL and PDF summarization commands')
       .addToggle(toggle =>
         toggle
@@ -43,11 +43,11 @@ export class SummarizationSettingsSection extends BaseSettingSection {
       );
 
     // Summary Output Options subheader
-    containerEl.createEl('h4', { text: t.outputOptions || 'Output Options' });
+    containerEl.createEl('h4', { text: t.outputOptions || 'Output options' });
 
     // Default Summary Persona
     new Setting(containerEl)
-      .setName(t.defaultPersona || 'Default Summary Style')
+      .setName(t.defaultPersona || 'Default summary style')
       .setDesc(t.defaultPersonaDesc || 'Choose the default note-taking style for summaries. You can override this when summarizing.')
       .addDropdown(dropdown => {
         for (const persona of this.personas) {
@@ -62,11 +62,11 @@ export class SummarizationSettingsSection extends BaseSettingSection {
 
     // Edit summary personas button
     new Setting(containerEl)
-      .setName(t.editPersonas || 'Edit Summary Personas')
+      .setName(t.editPersonas || 'Edit summary personas')
       .setDesc(t.editPersonasDesc || 'Customize how summaries are formatted by editing the personas file')
       .addButton(button =>
         button
-          .setButtonText(t.openPersonasFile || 'Open Personas File')
+          .setButtonText(t.openPersonasFile || 'Open personas file')
           .onClick(async () => {
             await plugin.configService.openConfigFile('summaryPersonas');
           })
@@ -102,7 +102,7 @@ export class SummarizationSettingsSection extends BaseSettingSection {
       );
 
     // Multi-source Documents subheader
-    containerEl.createEl('h4', { text: t.multiSourceDocuments || 'Multi-Source Documents' });
+    containerEl.createEl('h4', { text: t.multiSourceDocuments || 'Multi-source documents' });
 
     // Multi-source max document characters
     new Setting(containerEl)
@@ -138,11 +138,11 @@ export class SummarizationSettingsSection extends BaseSettingSection {
       );
 
     // Transcript Settings subheader
-    containerEl.createEl('h4', { text: t.transcriptOptions || 'Transcript Options' });
+    containerEl.createEl('h4', { text: t.transcriptOptions || 'Transcript options' });
 
     // Save transcripts setting
     new Setting(containerEl)
-      .setName(t.saveTranscripts || 'Save Transcripts')
+      .setName(t.saveTranscripts || 'Save transcripts')
       .setDesc(t.saveTranscriptsDesc || 'Save full transcripts from audio and YouTube for later reference')
       .addDropdown(dropdown =>
         dropdown
@@ -157,7 +157,7 @@ export class SummarizationSettingsSection extends BaseSettingSection {
 
     // Transcript folder
     new Setting(containerEl)
-      .setName(t.transcriptFolder || 'Transcript Folder')
+      .setName(t.transcriptFolder || 'Transcript folder')
       .setDesc(t.transcriptFolderDesc || 'Folder where transcript files will be saved')
       .addText(text =>
         text
@@ -170,11 +170,11 @@ export class SummarizationSettingsSection extends BaseSettingSection {
       );
 
     // Advanced Options subheader
-    containerEl.createEl('h4', { text: t.advancedOptions || 'Advanced Options' });
+    containerEl.createEl('h4', { text: t.advancedOptions || 'Advanced options' });
 
     // Summarization timeout (power user setting)
     new Setting(containerEl)
-      .setName(t.timeout || 'Request Timeout')
+      .setName(t.timeout || 'Request timeout')
       .setDesc(t.timeoutDesc || 'Seconds to wait for AI response. Increase for slow models or large content (30-900 seconds).')
       .addSlider(slider =>
         slider

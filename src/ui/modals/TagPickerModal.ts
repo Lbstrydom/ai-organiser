@@ -11,7 +11,7 @@ export class TagPickerModal extends FuzzySuggestModal<string> {
         this.tags = this.getTags(app);
 
         this.setPlaceholder(t.modals.tagPicker?.placeholder ?? 'Select a tag...');
-        this.setTitle(t.modals.tagPicker?.title ?? 'Select Tag');
+        this.setTitle(t.modals.tagPicker?.title ?? 'Select tag');
 
         if (this.tags.length === 0) {
             new Notice(t.modals.tagPicker?.noTags ?? 'No tags found');

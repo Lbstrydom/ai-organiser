@@ -60,7 +60,7 @@ export class PdfSelectModal extends Modal {
 
         // Persona selection dropdown at the top
         new Setting(contentEl)
-            .setName(this.t.modals.pdfSelect.personaLabel || 'Summary Style')
+            .setName(this.t.modals.pdfSelect.personaLabel || 'Summary style')
             .setDesc(this.t.modals.pdfSelect.personaDesc || 'Choose how to format the summary')
             .addDropdown(dropdown => {
                 for (const persona of this.personas) {
@@ -76,7 +76,7 @@ export class PdfSelectModal extends Modal {
 
         // Companion toggle (visible only when Study persona is selected)
         const companionSetting = new Setting(contentEl)
-            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setName(this.t.settings.summarization.enableCompanion || 'Study companion notes')
             .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
             .addToggle(toggle => toggle
                 .setValue(this.includeCompanion)
@@ -87,7 +87,7 @@ export class PdfSelectModal extends Modal {
 
         // Optional context field
         new Setting(contentEl)
-            .setName(this.t.modals.pdfSelect.contextLabel || 'Additional Context')
+            .setName(this.t.modals.pdfSelect.contextLabel || 'Additional context')
             .setDesc(this.t.modals.pdfSelect.contextDesc || 'Optional: Guide the summary focus (e.g., "focus on chapter 3" or "extract the key findings")')
             .addTextArea(text => {
                 text.setPlaceholder(this.t.modals.pdfSelect.contextPlaceholder || 'e.g., Focus on the methodology section...')
@@ -129,7 +129,7 @@ export class PdfSelectModal extends Modal {
         // Add browse button for external files (desktop only)
         if (!Platform.isMobile && this.onExternalSelect) {
             const browseSection = new Setting(contentEl)
-                .setName(this.t.modals.pdfSelect.browseLabel || 'Browse External')
+                .setName(this.t.modals.pdfSelect.browseLabel || 'Browse external')
                 .setDesc(this.t.modals.pdfSelect.browseDesc || 'Select a PDF from outside your vault (Google Drive, OneDrive, etc.)');
 
             browseSection.addButton(btn => btn

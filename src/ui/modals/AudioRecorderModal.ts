@@ -88,7 +88,7 @@ export class AudioRecorderModal extends Modal {
         }
 
         // Title
-        contentEl.createEl('h2', { text: t?.title || 'Record Audio' });
+        contentEl.createEl('h2', { text: t?.title || 'Record audio' });
 
         // Timer display
         this.timerEl = contentEl.createDiv({ cls: 'ai-organiser-audio-recorder-timer' });

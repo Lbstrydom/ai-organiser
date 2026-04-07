@@ -41,7 +41,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
             });
 
         // === Output Language Settings ===
-        this.containerEl.createEl('h2', { text: this.plugin.t.settings.interface.outputLanguage || 'Output Language' });
+        this.containerEl.createEl('h2', { text: this.plugin.t.settings.interface.outputLanguage || 'Output language' });
 
         this.containerEl.createEl('p', {
             cls: 'setting-item-description',
@@ -50,7 +50,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
         // Tag output language
         new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.tagging.outputLanguage || 'Tag Generation Language')
+            .setName(this.plugin.t.settings.tagging.outputLanguage || 'Tag generation language')
             .setDesc(this.plugin.t.settings.tagging.outputLanguageDesc || 'Language for generated tags')
             .addDropdown(dropdown => {
                 const options: Record<string, string> = LanguageUtils.getLanguageOptions();
@@ -66,7 +66,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
         // Summary output language
         new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.summarization?.language || 'Summary Language')
+            .setName(this.plugin.t.settings.summarization?.language || 'Summary language')
             .setDesc(this.plugin.t.settings.summarization?.languageDesc || 'Language for generated summaries')
             .addDropdown(dropdown => {
                 for (const lang of COMMON_LANGUAGES) {

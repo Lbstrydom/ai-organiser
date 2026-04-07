@@ -124,7 +124,7 @@ export class AudioSelectModal extends Modal {
 
         // Persona selection dropdown
         new Setting(optionsSection)
-            .setName(this.t.modals.audioSelect?.personaLabel || 'Summary Style')
+            .setName(this.t.modals.audioSelect?.personaLabel || 'Summary style')
             .setDesc(this.t.modals.audioSelect?.personaDesc || 'Choose how to format the summary')
             .addDropdown(dropdown => {
                 for (const persona of this.personas) {
@@ -140,7 +140,7 @@ export class AudioSelectModal extends Modal {
 
         // Companion toggle (visible only when Study persona is selected)
         const companionSetting = new Setting(optionsSection)
-            .setName(this.t.settings.summarization.enableCompanion || 'Study Companion Notes')
+            .setName(this.t.settings.summarization.enableCompanion || 'Study companion notes')
             .setDesc(this.t.settings.summarization.enableCompanionDesc || 'Create a companion note that explains the material in conversational language')
             .addToggle(toggle => toggle
                 .setValue(this.includeCompanion)
@@ -151,7 +151,7 @@ export class AudioSelectModal extends Modal {
 
         // Language dropdown
         new Setting(optionsSection)
-            .setName(this.t.modals.audioSelect?.languageLabel || 'Audio Language')
+            .setName(this.t.modals.audioSelect?.languageLabel || 'Audio language')
             .setDesc(this.t.modals.audioSelect?.languageDesc || 'Specify the language for better accuracy')
             .addDropdown(dropdown => {
                 // Add language options
@@ -184,7 +184,7 @@ export class AudioSelectModal extends Modal {
         // Browse button for external files (desktop only)
         if (!Platform.isMobile) {
             const browseSection = new Setting(optionsSection)
-                .setName(this.t.modals.audioSelect?.browseLabel || 'Browse External')
+                .setName(this.t.modals.audioSelect?.browseLabel || 'Browse external')
                 .setDesc(this.t.modals.audioSelect?.browseDesc || 'Select an audio file from outside your vault (Google Drive, OneDrive, etc.)');
 
             browseSection.addButton(btn => btn

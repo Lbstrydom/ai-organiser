@@ -33,7 +33,7 @@ export class TranslateModal extends Modal {
         const { contentEl } = this;
         contentEl.addClass('ai-organiser-modal-content');
 
-        contentEl.createEl('h2', { text: this.t.modals.translate?.title || 'Translate Note' });
+        contentEl.createEl('h2', { text: this.t.modals.translate?.title || 'Translate note' });
 
         contentEl.createEl('p', {
             text: this.t.modals.translate?.description || 'Select the target language for translation. The entire note content will be translated.',
@@ -42,7 +42,7 @@ export class TranslateModal extends Modal {
 
         // Language selection dropdown (exclude 'auto' option)
         new Setting(contentEl)
-            .setName(this.t.modals.translate?.languageLabel || 'Target Language')
+            .setName(this.t.modals.translate?.languageLabel || 'Target language')
             .setDesc(this.t.modals.translate?.languageDesc || 'The language to translate the note into')
             .addDropdown(dropdown => {
                 for (const lang of COMMON_LANGUAGES) {

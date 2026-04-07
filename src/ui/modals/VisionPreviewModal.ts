@@ -37,7 +37,7 @@ export class VisionPreviewModal extends Modal {
 
         // Header
         const header = contentEl.createEl('div', { cls: 'modal-title' });
-        header.createEl('h2', { text: t.previewTitle || 'Digitisation Results' });
+        header.createEl('h2', { text: t.previewTitle || 'Digitisation results' });
 
         // Main container — split layout (CSS: .ai-organiser-vision-split)
         const splitCls = Platform.isMobile ? 'ai-organiser-vision-split mobile' : 'ai-organiser-vision-split';
@@ -45,7 +45,7 @@ export class VisionPreviewModal extends Modal {
 
         // Left pane: Source image
         const imagePane = container.createEl('div', { cls: 'ai-organiser-vision-image-pane' });
-        imagePane.createEl('h3', { text: t.sourceImage || 'Source Image' });
+        imagePane.createEl('h3', { text: t.sourceImage || 'Source image' });
         imagePane.createEl('img', {
             attr: {
                 src: this.imageDataUrl,
@@ -55,7 +55,7 @@ export class VisionPreviewModal extends Modal {
 
         // Right pane: Rendered output
         const outputPane = container.createEl('div', { cls: 'ai-organiser-vision-output-pane' });
-        outputPane.createEl('h3', { text: t.digitisedContent || 'Digitised Content' });
+        outputPane.createEl('h3', { text: t.digitisedContent || 'Digitised content' });
 
         // Build full markdown content
         const fullMarkdown = buildDigitiseMarkdown(this.result);

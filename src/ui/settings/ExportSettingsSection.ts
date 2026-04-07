@@ -12,7 +12,7 @@ export class ExportSettingsSection extends BaseSettingSection {
 
     display(): void {
         const t = this.plugin.t;
-        this.createSectionHeader(t.settings.export?.title || 'Document Export', 'file-output', 2);
+        this.createSectionHeader(t.settings.export?.title || 'Document export', 'file-output', 2);
 
         if (t.settings.export?.description) {
             this.containerEl.createEl('p', {
@@ -70,15 +70,15 @@ export class ExportSettingsSection extends BaseSettingSection {
         }
 
         // ── Export Theme ──────────────────────────────────────────────────────
-        this.containerEl.createEl('h4', { text: t.settings.export?.themeHeader || 'Export Theme' });
+        this.containerEl.createEl('h4', { text: t.settings.export?.themeHeader || 'Export theme' });
 
         // Colour scheme dropdown with preview swatch
         const schemeNames: Record<string, string> = {
-            'navy-gold':          'Navy & Gold',
-            'forest-amber':       'Forest & Amber',
-            'slate-coral':        'Slate & Coral',
-            'burgundy-champagne': 'Burgundy & Champagne',
-            'charcoal-sky':       'Charcoal & Sky',
+            'navy-gold':          'Navy & gold',
+            'forest-amber':       'Forest & amber',
+            'slate-coral':        'Slate & coral',
+            'burgundy-champagne': 'Burgundy & champagne',
+            'charcoal-sky':       'Charcoal & sky',
             custom:               t.settings.export?.colorSchemeCustom || 'Custom',
         };
 

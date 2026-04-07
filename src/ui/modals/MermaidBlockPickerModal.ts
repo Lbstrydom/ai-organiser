@@ -15,7 +15,7 @@ export class MermaidBlockPickerModal extends FuzzySuggestModal<MermaidBlock> {
         placeholder?: string,
     ) {
         super(app);
-        this.setPlaceholder(placeholder ?? 'Select a diagram to edit…');
+        this.setPlaceholder(placeholder ?? 'Select a diagram to edit...');
     }
 
     getItems(): MermaidBlock[] {

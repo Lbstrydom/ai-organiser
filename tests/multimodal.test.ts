@@ -14,6 +14,11 @@ const textPart: ContentPart = { type: 'text', text: 'Describe this image' };
 const imagePart: ContentPart = { type: 'image', data: 'iVBORw0KGgoAAAANSUhEUg==', mediaType: 'image/png' };
 const documentPart: ContentPart = { type: 'document', data: 'JVBERi0xLjQK', mediaType: 'application/pdf' };
 
+/** Helper to extract messages array from multimodal request */
+function getMessages(request: Record<string, unknown>): Array<{ role: string; content: Array<Record<string, unknown>> }> {
+    return request.messages as Array<{ role: string; content: Array<Record<string, unknown>> }>;
+}
+
 describe('Multimodal Architecture', () => {
 
     describe('MultimodalCapability declarations', () => {
@@ -49,24 +54,26 @@ describe('Multimodal Architecture', () => {
 
         it('formats text parts correctly', () => {
             const request = adapter.formatMultimodalRequest([textPart]);
-            expect(request.messages[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
+            expect(getMessages(request)[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
         });
 
         it('formats image parts as base64 source', () => {
             const request = adapter.formatMultimodalRequest([imagePart, textPart]);
-            const imageContent = request.messages[0].content.find((c: any) => c.type === 'image');
+            const imageContent = getMessages(request)[0].content.find((c) => c.type === 'image');
             expect(imageContent).toBeDefined();
-            expect(imageContent.source.type).toBe('base64');
-            expect(imageContent.source.media_type).toBe('image/png');
-            expect(imageContent.source.data).toBe('iVBORw0KGgoAAAANSUhEUg==');
+            const source = imageContent!.source as Record<string, unknown>;
+            expect(source.type).toBe('base64');
+            expect(source.media_type).toBe('image/png');
+            expect(source.data).toBe('iVBORw0KGgoAAAANSUhEUg==');
         });
 
         it('formats document parts as base64 source', () => {
             const request = adapter.formatMultimodalRequest([documentPart, textPart]);
-            const docContent = request.messages[0].content.find((c: any) => c.type === 'document');
+            const docContent = getMessages(request)[0].content.find((c) => c.type === 'document');
             expect(docContent).toBeDefined();
-            expect(docContent.source.type).toBe('base64');
-            expect(docContent.source.media_type).toBe('application/pdf');
+            const source = docContent!.source as Record<string, unknown>;
+            expect(source.type).toBe('base64');
+            expect(source.media_type).toBe('application/pdf');
         });
 
         it('includes max_tokens when provided', () => {
@@ -80,20 +87,21 @@ describe('Multimodal Architecture', () => {
 
         it('formats text parts as OpenAI content items', () => {
             const request = adapter.formatMultimodalRequest([textPart]);
-            expect(request.messages[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
+            expect(getMessages(request)[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
         });
 
         it('formats image parts as image_url with data URI', () => {
             const request = adapter.formatMultimodalRequest([imagePart, textPart]);
-            const imageContent = request.messages[0].content.find((c: any) => c.type === 'image_url');
+            const imageContent = getMessages(request)[0].content.find((c) => c.type === 'image_url');
             expect(imageContent).toBeDefined();
-            expect(imageContent.image_url.url).toBe('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==');
+            const imageUrl = (imageContent!.image_url as Record<string, unknown>);
+            expect(imageUrl.url).toBe('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==');
         });
 
         it('formats document parts as image_url with data URI', () => {
             const request = adapter.formatMultimodalRequest([documentPart, textPart]);
-            const docContent = request.messages[0].content.find((c: any) =>
-                c.type === 'image_url' && c.image_url?.url?.startsWith('data:application/pdf')
+            const docContent = getMessages(request)[0].content.find((c) =>
+                c.type === 'image_url' && ((c.image_url as Record<string, unknown>)?.url as string)?.startsWith('data:application/pdf')
             );
             expect(docContent).toBeDefined();
         });
@@ -110,14 +118,15 @@ describe('Multimodal Architecture', () => {
 
         it('formats text parts correctly', () => {
             const request = adapter.formatMultimodalRequest([textPart]);
-            expect(request.messages[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
+            expect(getMessages(request)[0].content).toContainEqual({ type: 'text', text: 'Describe this image' });
         });
 
         it('formats image parts as image_url with data URI', () => {
             const request = adapter.formatMultimodalRequest([imagePart, textPart]);
-            const imageContent = request.messages[0].content.find((c: any) => c.type === 'image_url');
+            const imageContent = getMessages(request)[0].content.find((c) => c.type === 'image_url');
             expect(imageContent).toBeDefined();
-            expect(imageContent.image_url.url).toBe('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==');
+            const imageUrl = (imageContent!.image_url as Record<string, unknown>);
+            expect(imageUrl.url).toBe('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==');
         });
 
         it('throws error for document parts', () => {

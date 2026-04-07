@@ -75,18 +75,18 @@ export class CompressionConfirmModal extends Modal {
         const btnSetting = new Setting(contentEl);
 
         btnSetting.addButton(btn => btn
-            .setButtonText(t?.keepOriginal || 'Keep Original')
+            .setButtonText(t?.keepOriginal || 'Keep original')
             .onClick(() => this.choose('keep-original')));
 
         if (hasCompressed) {
             btnSetting.addButton(btn => btn
-                .setButtonText(t?.replaceOriginal || 'Replace with Compressed')
+                .setButtonText(t?.replaceOriginal || 'Replace with compressed')
                 .setCta()
                 .onClick(() => this.choose('keep-compressed')));
         }
 
         btnSetting.addButton(btn => btn
-            .setButtonText(t?.deleteAudio || 'Delete Audio')
+            .setButtonText(t?.deleteAudio || 'Delete audio')
             .setWarning()
             .onClick(() => this.choose('delete')));
     }
