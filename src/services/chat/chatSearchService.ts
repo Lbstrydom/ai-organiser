@@ -127,45 +127,57 @@ export class ChatSearchService {
         try {
             const rootPath = getChatRootFullPath(this.settings);
             const allFiles = this.app.vault.getMarkdownFiles();
-            const chatFiles = allFiles.filter(f => f.path.startsWith(rootPath));
+            const chatFiles = allFiles.filter(f => f.path.startsWith(rootPath + '/'));
 
             const results: SearchResult[] = [];
             const lowerQuery = query.toLowerCase();
 
             for (const file of chatFiles) {
-                const raw = await this.readCached(file);
-                const fm = parseFrontmatter(raw);
+                try {
+                    const raw = await this.readCached(file);
+                    // Frontmatter is parsed with lightweight regex rather than
+                    // extractConversationState() — we only need key filtering
+                    // (mode, project_id, tags, created), not the full base64
+                    // state blob. extractSearchableContent() handles body text.
+                    const fm = parseFrontmatter(raw);
 
-                // Must be an ai-chat conversation file
-                if (!fm.hasAiChatTag) continue;
+                    // Must be an ai-chat conversation file
+                    if (!fm.hasAiChatTag) continue;
 
-                // Apply mode filter
-                if (filters.mode && fm.chatMode !== filters.mode) continue;
+                    // Apply mode filter
+                    if (filters.mode && fm.chatMode !== filters.mode) continue;
 
-                // Apply project filter
-                if (filters.projectId && fm.projectId !== filters.projectId) continue;
+                    // Apply project filter
+                    if (filters.projectId && fm.projectId !== filters.projectId) continue;
 
-                // Apply date range filter
-                if (filters.dateRange && fm.created && !isWithinDateRange(fm.created, filters.dateRange)) continue;
+                    // Apply date range filter — exclude files with missing dates when filter is set
+                    if (filters.dateRange && filters.dateRange !== 'all') {
+                        if (!fm.created || !isWithinDateRange(fm.created, filters.dateRange)) continue;
+                    }
 
-                const searchable = this.extractSearchableContent(raw);
+                    const searchable = this.extractSearchableContent(raw);
 
-                // Match query (case-insensitive substring)
-                if (lowerQuery && !searchable.toLowerCase().includes(lowerQuery)) continue;
+                    // Match query (case-insensitive substring)
+                    if (lowerQuery && !searchable.toLowerCase().includes(lowerQuery)) continue;
 
-                const excerptSegments = this.buildExcerpt(searchable, query);
-                const title = extractTitle(searchable, file.path);
-                const mode = fm.chatMode ?? 'free';
+                    const excerptSegments = this.buildExcerpt(searchable, query);
+                    const title = extractTitle(searchable, file.path);
+                    const mode = fm.chatMode ?? 'free';
 
-                results.push({
-                    filePath: file.path,
-                    title,
-                    mode,
-                    projectId: fm.projectId,
-                    messageCount: countMessages(searchable),
-                    updatedAt: fm.created ?? new Date(file.stat.mtime).toISOString(),
-                    excerptSegments,
-                });
+                    results.push({
+                        filePath: file.path,
+                        title,
+                        mode,
+                        projectId: fm.projectId,
+                        messageCount: countMessages(searchable),
+                        updatedAt: new Date(file.stat.mtime).toISOString(),
+                        excerptSegments,
+                    });
+                } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    logger.warn('ChatSearch', `Skipping file ${file.path}: ${msg}`);
+                    continue;
+                }
             }
 
             // Sort by updatedAt descending

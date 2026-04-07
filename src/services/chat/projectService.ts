@@ -159,15 +159,24 @@ export class ProjectService {
     }
 
     async findProject(projectId: string): Promise<ProjectConfig | null> {
-        const projects = await this.listProjects();
-        return projects.find(p => p.id === projectId) ?? null;
+        // Use recursive scan so nested projects (inside groups) are found
+        const allProjects = await this.listAllProjectsRecursive();
+        return allProjects.find(p => p.id === projectId) ?? null;
     }
 
     async createProject(name: string, instructions = ''): Promise<string> {
         const id = crypto.randomUUID();
-        const slug = slugify(name) || 'project';
+        let slug = slugify(name) || 'project';
         const rootPath = getChatRootFullPath(this.settings);
-        const folderPath = `${rootPath}/Projects/${slug}`;
+
+        // Check for slug collision and append numeric suffix if needed
+        let folderPath = `${rootPath}/Projects/${slug}`;
+        let suffix = 1;
+        while (this.app.vault.getFolderByPath(folderPath)) {
+            suffix++;
+            slug = `${slugify(name) || 'project'}-${suffix}`;
+            folderPath = `${rootPath}/Projects/${slug}`;
+        }
 
         await ensureFolderExists(this.app.vault, folderPath);
 

@@ -50,6 +50,7 @@ export class ChatSearchModal extends Modal {
     private results: SearchResult[] = [];
     private selectedIndex = 0;
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private searchGeneration = 0;
 
     // DOM refs
     private inputEl!: HTMLInputElement;
@@ -181,10 +182,13 @@ export class ChatSearchModal extends Modal {
     }
 
     private async executeSearch(): Promise<void> {
+        const gen = ++this.searchGeneration;
         const effectiveFilters: SearchFilters = {
             ...this.filters,
         };
         const result = await this.searchService.search(this.query, effectiveFilters);
+        // Discard stale results if a newer search was triggered while awaiting
+        if (gen !== this.searchGeneration) return;
         if (!result.ok) {
             this.renderError(result.error);
             return;
