@@ -1710,7 +1710,7 @@ export const zhCN: Translations = {
             sourceTitlePlaceholder: "例如：课堂笔记、文章标题",
             sourceLink: "链接（可选）",
             sourceLinkDesc: "来源的 URL 或 [[维基链接]]",
-            sourceLinkPlaceholder: "https://... 或 [[笔记名称]]",
+            sourceLinkPlaceholder: "输入 URL 或笔记链接",
             content: "内容",
             contentDesc: "粘贴或输入要整合的内容",
             contentPlaceholder: "在此粘贴内容...",

@@ -1712,7 +1712,7 @@ export const en: Translations = {
             sourceTitlePlaceholder: "E.g., lecture notes, article name",
             sourceLink: "Link (optional)",
             sourceLinkDesc: "URL or [[wikilink]] to the source",
-            sourceLinkPlaceholder: "HTTPS://... or [[note name]]",
+            sourceLinkPlaceholder: "Enter a URL or note link",
             content: "Content",
             contentDesc: "Paste or type the content to integrate",
             contentPlaceholder: "Paste content here...",
