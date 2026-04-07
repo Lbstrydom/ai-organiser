@@ -18,9 +18,9 @@ import {
     buildRefinementPrompt,
     buildBrandAuditPrompt,
     extractHtmlFromResponse,
-    validateDeckHtml,
     wrapInDocument,
 } from '../prompts/presentationChatPrompts';
+import { sanitizePresentation, injectCSP } from './presentationSanitizer';
 import { GENERATION_TIMEOUT, REFINEMENT_TIMEOUT, AUDIT_TIMEOUT } from './presentationConstants';
 import { StreamingHtmlAssembler } from './streamingHtmlAssembler';
 import type { StreamingCheckpoint } from './streamingHtmlAssembler';
@@ -63,12 +63,17 @@ async function runHtmlTask(
             return err(`${options.label}: failed to extract HTML from response`);
         }
 
-        const validation = validateDeckHtml(deckHtml);
-        if (!validation.ok) {
-            return err(`${options.label}: ${validation.error}`);
+        // Phase 2: allowlist sanitizer replaces regex blacklist
+        const sanitized = sanitizePresentation(deckHtml);
+        if (!sanitized.hasDeckRoot) {
+            return err(`${options.label}: Missing .deck root element`);
+        }
+        if (!sanitized.hasSlides) {
+            return err(`${options.label}: No .slide elements found`);
         }
 
-        return ok(wrapInDocument(validation.sanitized, options.theme.css, options.language));
+        const wrapped = wrapInDocument(sanitized.html, options.theme.css, options.language);
+        return ok(injectCSP(wrapped));
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         logger.error('Presentation', `${options.label} failed: ${msg}`);
@@ -167,12 +172,17 @@ export async function generateHtmlStream(
             return err('Generation: failed to extract HTML from response');
         }
 
-        const validation = validateDeckHtml(deckHtml);
-        if (!validation.ok) {
-            return err(`Generation: ${validation.error}`);
+        // Phase 2: allowlist sanitizer replaces regex blacklist
+        const sanitized = sanitizePresentation(deckHtml);
+        if (!sanitized.hasDeckRoot) {
+            return err('Generation: Missing .deck root element');
+        }
+        if (!sanitized.hasSlides) {
+            return err('Generation: No .slide elements found');
         }
 
-        return ok(wrapInDocument(validation.sanitized, options.theme.css, options.outputLanguage));
+        const wrapped = wrapInDocument(sanitized.html, options.theme.css, options.outputLanguage);
+        return ok(injectCSP(wrapped));
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         logger.error('Presentation', `Streaming generation failed: ${msg}`);
