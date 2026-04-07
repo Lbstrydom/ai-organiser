@@ -11,6 +11,23 @@
 
 import type { DomFix, QualityResult, ReliabilityTier } from '../../services/chat/presentationTypes';
 import { SLIDE_WIDTH, SLIDE_HEIGHT, DECK_CLASSES } from '../../services/chat/presentationConstants';
+import { buildSlideRuntimeCode } from '../../services/chat/slideRuntime';
+
+// ── postMessage Protocol ─────────────────────────────────────────────────────
+
+const MSG_NONCE_LENGTH = 8;
+
+interface SlideMessage {
+    nonce: string;
+    action: string;
+    payload?: unknown;
+}
+
+function generateNonce(): string {
+    const arr = new Uint8Array(MSG_NONCE_LENGTH);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export interface PreviewOptions {
     onSlideSelect?: (index: number) => void;
@@ -33,6 +50,8 @@ export class SlideIframePreview {
     private keyHandler: ((e: KeyboardEvent) => void) | null = null;
     private keyHandlerTarget: HTMLElement | null = null; // Track actual listener target (M3)
     private domFixStyle: HTMLStyleElement | null = null; // Reusable style tag for applyDomFixes (M4)
+    private nonce = '';
+    private messageHandler: ((e: MessageEvent) => void) | null = null;
 
     // Nav refs
     private navContainer: HTMLElement | null = null;
@@ -65,7 +84,8 @@ export class SlideIframePreview {
     goToSlide(index: number): void {
         if (index < 0 || index >= this.slideCount || this.state !== 'ready') return;
         this.currentSlideIndex = index;
-        this.showActiveSlide();
+        this.showActiveSlide(); // CSS toggle as fallback
+        this.sendMessage('goToSlide', { index });
         this.updateNav();
         this.announce(`Slide ${index + 1} of ${this.slideCount}`);
         this.options.onSlideSelect?.(index);
@@ -114,6 +134,10 @@ export class SlideIframePreview {
             this.keyHandler = null;
             this.keyHandlerTarget = null;
         }
+        if (this.messageHandler) {
+            window.removeEventListener('message', this.messageHandler);
+            this.messageHandler = null;
+        }
         this.renderToken++; // Invalidate pending loads
         this.container.empty();
         this.iframe = null;
@@ -126,6 +150,12 @@ export class SlideIframePreview {
     private render(): void {
         this.renderToken++; // Invalidate prior iframe loads (M13)
         this.container.empty();
+
+        // Clean up previous message listener before re-render
+        if (this.messageHandler) {
+            window.removeEventListener('message', this.messageHandler);
+            this.messageHandler = null;
+        }
 
         if (this.state === 'idle') {
             // H2: Full state reset when returning to idle
@@ -144,6 +174,7 @@ export class SlideIframePreview {
             this.iframeWrapper = null;
             this.statusEl = null;
             this.keyHandlerTarget = null;
+            this.nonce = '';
             return;
         }
 
@@ -155,6 +186,16 @@ export class SlideIframePreview {
         // H3: Reset per-iframe flags so new iframes get their own styles
         this.navStylesInjected = false;
         this.domFixStyle = null;
+
+        // Phase 5: postMessage protocol — nonce ties messages to this iframe instance
+        this.nonce = generateNonce();
+        this.messageHandler = (e: MessageEvent) => {
+            if (e.source !== this.iframe?.contentWindow) return;
+            const data = e.data as SlideMessage | undefined;
+            if (data?.nonce !== this.nonce) return;
+            this.handleIframeMessage(data);
+        };
+        window.addEventListener('message', this.messageHandler);
 
         // Make wrapper focusable for keyboard nav (H5)
         wrapper.tabIndex = 0;
@@ -189,7 +230,7 @@ export class SlideIframePreview {
             cls: 'ai-organiser-pres-iframe',
             attr: {
                 srcdoc: this.html,
-                sandbox: 'allow-same-origin',
+                sandbox: 'allow-same-origin allow-scripts',
                 title: 'Slide deck preview', // H5 accessibility
             },
         });
@@ -239,6 +280,12 @@ export class SlideIframePreview {
 
         this.state = 'ready';
         if (this.statusEl) this.statusEl.textContent = '';
+
+        // Phase 6: Inject slide runtime for in-iframe keyboard nav + postMessage sync
+        const runtimeScript = doc.createElement('script');
+        runtimeScript.textContent = buildSlideRuntimeCode(this.nonce);
+        doc.body.appendChild(runtimeScript);
+
         this.updateScale();
         this.showActiveSlide();
         this.updateNav();
@@ -280,6 +327,32 @@ export class SlideIframePreview {
         style.textContent = '.pres-nav-hidden { display: none !important; }';
         doc.head?.appendChild(style);
         this.navStylesInjected = true;
+    }
+
+    // ── postMessage Protocol ──────────────────────────────────────────────────
+
+    private sendMessage(action: string, payload?: unknown): void {
+        if (!this.iframe?.contentWindow) return;
+        const msg: SlideMessage = { nonce: this.nonce, action, payload };
+        this.iframe.contentWindow.postMessage(msg, '*');
+    }
+
+    private handleIframeMessage(msg: SlideMessage): void {
+        switch (msg.action) {
+            case 'slideChanged': {
+                const payload = msg.payload as { index: number; slideCount: number } | undefined;
+                if (typeof payload?.index === 'number') {
+                    this.currentSlideIndex = payload.index;
+                    this.updateNav();
+                    this.announce(`Slide ${payload.index + 1} of ${this.slideCount}`);
+                    this.options.onSlideSelect?.(payload.index);
+                }
+                break;
+            }
+            case 'ready':
+                // Runtime initialized inside iframe — no action needed
+                break;
+        }
     }
 
     // ── Navigation ──────────────────────────────────────────────────────────
