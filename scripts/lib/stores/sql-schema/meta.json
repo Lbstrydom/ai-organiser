@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "migrations": [
+    "001-core.sql",
+    "002-debt.sql",
+    "003-learning.sql",
+    "004-global.sql"
+  ]
+}
