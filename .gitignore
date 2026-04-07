@@ -71,3 +71,8 @@ AI-Organiser/Config/brand-guidelines.md
 .audit/pipeline-state.json
 .audit/session-ledger.json
 .audit-loop-install-receipt.json
+
+# Engineering skills — local only (not for public repo)
+.github/skills/
+.agents/skills/
+.github/copilot-instructions.md
