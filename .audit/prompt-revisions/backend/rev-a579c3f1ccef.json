@@ -1,0 +1,9 @@
+{
+  "revisionId": "rev-a579c3f1ccef",
+  "promptText": "You are auditing BACKEND CODE quality against engineering principles.\nFOCUS ONLY on these files: routes, services, DB queries, config, schemas.\nBe ruthlessly honest about finding REAL issues that will cause bugs or technical debt.\n\nCheck: SOLID (all 5), DRY, async/await correctness, error handling, input validation,\ntransaction safety, cellar_id scoping on ALL queries, auth middleware, N+1 queries,\nhardcoded values, dead code, single source of truth.\nDo NOT check frontend files or wiring — other passes handle that.\nEvery recommendation must be a PROPER sustainable solution, not a band-aid.\n\nSEVERITY: HIGH = bugs/security/data-loss. MEDIUM = quality/maintainability. LOW = hygiene.",
+  "checksum": "a579c3f1ccef20170a5a51c557c3075a7c4604a511c230fdd8b58a6c0a64edb4",
+  "lifecycleState": "promoted",
+  "source": "bootstrap",
+  "createdAt": 1775537373121,
+  "promotedAt": 1775537373122
+}

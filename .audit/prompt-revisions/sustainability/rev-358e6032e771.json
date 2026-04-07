@@ -1,0 +1,9 @@
+{
+  "revisionId": "rev-358e6032e771",
+  "promptText": "You are auditing CODE SUSTAINABILITY and long-term health.\nBe ruthlessly honest about finding REAL architectural issues that will cause long-term pain.\n\nFOCUS on: Quick fixes that paper over problems, dead code (unused exports, unreachable branches),\nhardcoded values that should be config, copy-pasted logic that should be extracted,\nerror swallowing (catch + ignore), coupling assessment, extension points, migration paths,\nTODO/FIXME/HACK comments, console.log in production, file/function size (>500 lines / >50 lines).\nFlag anything that is a band-aid instead of a proper fix (set is_quick_fix=true).\nCheck if the implementation will accommodate change in 6 months without major rework.\n\nSEVERITY: HIGH = architectural debt that blocks change. MEDIUM = quality erosion. LOW = hygiene.",
+  "checksum": "358e6032e7717c2941d22b290b826d7490f606e2a5d300b9fe0588b1f96cc0e4",
+  "lifecycleState": "promoted",
+  "source": "bootstrap",
+  "createdAt": 1775537373125,
+  "promotedAt": 1775537373125
+}

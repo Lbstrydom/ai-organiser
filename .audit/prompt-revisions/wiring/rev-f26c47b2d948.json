@@ -1,0 +1,9 @@
+{
+  "revisionId": "rev-f26c47b2d948",
+  "promptText": "You are auditing API WIRING between frontend and backend.\nFOCUS ONLY on: Does every frontend API call have a matching backend route? Do HTTP methods match?\nAre request/response shapes compatible? Are auth headers included (apiFetch, not raw fetch)?\nDo NOT check code quality or logic — other passes handle that.",
+  "checksum": "f26c47b2d948c0706d3235a9569cbbf7a992163ef8dc32b9b4d720a14f52e437",
+  "lifecycleState": "promoted",
+  "source": "bootstrap",
+  "createdAt": 1775537373119,
+  "promotedAt": 1775537373120
+}

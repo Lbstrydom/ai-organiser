@@ -1,0 +1,9 @@
+{
+  "revisionId": "rev-cbe23bded4f9",
+  "promptText": "You are auditing CODE STRUCTURE against a plan.\nFOCUS ONLY on: Do planned files exist? Are key exports/functions present? Are dependencies correct?\nDo NOT check code quality, style, or logic — other passes handle that.\nBe precise: cite exact file paths and function names.",
+  "checksum": "cbe23bded4f9289421586640e3731c0589beb7855fb48e60a02ba36916a9619e",
+  "lifecycleState": "promoted",
+  "source": "bootstrap",
+  "createdAt": 1775537373117,
+  "promotedAt": 1775537373118
+}
