@@ -50,6 +50,7 @@ async function runHtmlTask(
 
         const result = await summarizeText(context, fullPrompt, {
             timeoutMs: options.timeoutMs,
+            signal: options.signal,
         });
 
         if (options.signal?.aborted) return err('Aborted');
@@ -58,27 +59,29 @@ async function runHtmlTask(
             return err(result.error || `${options.label}: LLM returned empty response`);
         }
 
-        const deckHtml = extractHtmlFromResponse(result.content);
-        if (!deckHtml) {
-            return err(`${options.label}: failed to extract HTML from response`);
-        }
-
-        // Phase 2: allowlist sanitizer replaces regex blacklist
-        const sanitized = sanitizePresentation(deckHtml);
-        if (!sanitized.hasDeckRoot) {
-            return err(`${options.label}: Missing .deck root element`);
-        }
-        if (!sanitized.hasSlides) {
-            return err(`${options.label}: No .slide elements found`);
-        }
-
-        const wrapped = wrapInDocument(sanitized.html, options.theme.css, options.language);
-        return ok(injectCSP(wrapped));
+        return processExtractedHtml(result.content, options.theme.css, options.language, options.label);
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         logger.error('Presentation', `${options.label} failed: ${msg}`);
         return err(`${options.label}: ${msg}`);
     }
+}
+
+// ── Shared Post-Processing (M6 fix — DRY) ─────────────────────────────────
+
+/** Extract → sanitize → validate → wrap → CSP pipeline shared by all generation paths. */
+function processExtractedHtml(
+    response: string, css: string, language?: string, label = 'Generation'
+): Result<string> {
+    const deckHtml = extractHtmlFromResponse(response);
+    if (!deckHtml) return err(`${label}: failed to extract HTML from response`);
+
+    const sanitized = sanitizePresentation(deckHtml);
+    if (!sanitized.hasDeckRoot) return err(`${label}: Missing .deck root element`);
+    if (!sanitized.hasSlides) return err(`${label}: No .slide elements found`);
+
+    const wrapped = wrapInDocument(sanitized.html, css, language);
+    return ok(injectCSP(wrapped));
 }
 
 // ── Generation ──────────────────────────────────────────────────────────────
@@ -148,41 +151,28 @@ export async function generateHtmlStream(
             debounceMs: options.debounceMs,
         });
 
-        const result = await summarizeTextStream(
-            context,
-            fullPrompt,
-            (chunk: string) => assembler.addChunk(chunk),
-            options.signal
-        );
+        try {
+            const result = await summarizeTextStream(
+                context,
+                fullPrompt,
+                (chunk: string) => assembler.addChunk(chunk),
+                options.signal
+            );
 
-        const streamResult = assembler.finalize();
+            const streamResult = assembler.finalize();
 
-        if (options.signal?.aborted) {
+            if (options.signal?.aborted) {
+                return err('Aborted');
+            }
+
+            if (!result.success || !streamResult.fullResponse) {
+                return err(result.error || 'Generation: LLM returned empty response');
+            }
+
+            return processExtractedHtml(streamResult.fullResponse, options.theme.css, options.outputLanguage, 'Generation');
+        } finally {
             assembler.dispose();
-            return err('Aborted');
         }
-
-        if (!result.success || !streamResult.fullResponse) {
-            assembler.dispose();
-            return err(result.error || 'Generation: LLM returned empty response');
-        }
-
-        const deckHtml = extractHtmlFromResponse(streamResult.fullResponse);
-        if (!deckHtml) {
-            return err('Generation: failed to extract HTML from response');
-        }
-
-        // Phase 2: allowlist sanitizer replaces regex blacklist
-        const sanitized = sanitizePresentation(deckHtml);
-        if (!sanitized.hasDeckRoot) {
-            return err('Generation: Missing .deck root element');
-        }
-        if (!sanitized.hasSlides) {
-            return err('Generation: No .slide elements found');
-        }
-
-        const wrapped = wrapInDocument(sanitized.html, options.theme.css, options.outputLanguage);
-        return ok(injectCSP(wrapped));
     } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         logger.error('Presentation', `Streaming generation failed: ${msg}`);
@@ -242,6 +232,7 @@ export async function runBrandAudit(
 
     const result = await summarizeText(context, prompt, {
         timeoutMs: AUDIT_TIMEOUT,
+        signal,
     });
 
     if (signal?.aborted) return err('Aborted');

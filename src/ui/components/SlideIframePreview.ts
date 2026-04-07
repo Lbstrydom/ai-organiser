@@ -13,6 +13,34 @@ import type { DomFix, QualityResult, ReliabilityTier } from '../../services/chat
 import { SLIDE_WIDTH, SLIDE_HEIGHT, DECK_CLASSES } from '../../services/chat/presentationConstants';
 import { buildSlideRuntimeCode } from '../../services/chat/slideRuntime';
 
+// ── CSS Sanitisation for DOM Fixes (H5) ─────────────────────────────────────
+
+/** CSS properties allowed in brand-audit DOM fixes. */
+const ALLOWED_FIX_PROPERTIES = new Set([
+    'color', 'background-color', 'background',
+    'font-size', 'font-weight', 'font-style', 'font-family',
+    'text-align', 'text-decoration', 'text-transform', 'line-height', 'letter-spacing',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-radius', 'border-color', 'border-width', 'border-style',
+    'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
+    'display', 'flex', 'flex-direction', 'justify-content', 'align-items', 'gap',
+    'opacity', 'visibility', 'overflow',
+    'box-shadow', 'text-shadow',
+    'fill', 'stroke', 'stroke-width',
+]);
+
+/** Patterns that indicate malicious CSS values. */
+const DANGEROUS_VALUE_PATTERNS = /url\s*\(|expression\s*\(|behavior\s*:|javascript\s*:|<\/style>/i;
+
+function isAllowedCssProperty(prop: string): boolean {
+    return ALLOWED_FIX_PROPERTIES.has(prop.trim().toLowerCase());
+}
+
+function isSafeCssValue(value: string): boolean {
+    return !DANGEROUS_VALUE_PATTERNS.test(value);
+}
+
 // ── postMessage Protocol ─────────────────────────────────────────────────────
 
 const MSG_NONCE_LENGTH = 8;
@@ -101,8 +129,12 @@ export class SlideIframePreview {
     applyDomFixes(fixes: DomFix[]): void {
         const doc = this.getIframeDocument();
         if (!doc) return;
+        // H5: Sanitize CSS from audit LLM output before injecting into iframe
+        const safeFixes = fixes.filter(fix =>
+            isAllowedCssProperty(fix.property) && isSafeCssValue(fix.value)
+        );
         // M4: Reuse a single <style> tag to avoid accumulating duplicate rules
-        const rules = fixes
+        const rules = safeFixes
             .map(fix => `${fix.selector} { ${fix.property}: ${fix.value} !important; }`)
             .join('\n');
         if (!rules) return;

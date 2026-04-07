@@ -137,10 +137,11 @@ function sanitizeCssValue(value: string): string | null {
     for (const pattern of DANGEROUS_CSS_VALUE_PATTERNS) {
         if (pattern.test(value)) return null;
     }
-    // Check url() references
-    const urlMatch = /url\s*\(\s*['"]?([^'")]+)['"]?\s*\)/i.exec(value);
-    if (urlMatch && !isAllowedCssUrl(urlMatch[1])) {
-        return null;
+    // Check ALL url() references (M4 fix — global match prevents bypass via multiple url())
+    for (const urlMatch of value.matchAll(/url\s*\(\s*['"]?([^'")]+)['"]?\s*\)/gi)) {
+        if (!isAllowedCssUrl(urlMatch[1])) {
+            return null;
+        }
     }
     return value;
 }

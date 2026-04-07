@@ -103,6 +103,8 @@ export interface SummarizeOptions {
      *  generation (Opus) and audits (Sonnet non-reasoning) to different models
      *  without creating temporary service instances. */
     modelOverride?: string;
+    /** AbortSignal for cooperative cancellation. */
+    signal?: AbortSignal;
 }
 
 export interface SummarizableLLMService extends LLMService {

@@ -184,31 +184,6 @@ export function extractHtmlFromResponse(response: string): string | null {
 }
 
 /**
- * Validate and sanitize extracted HTML (H4 fix + R2 H1 fix).
- * Checks .deck root, .slide children, and strips unsafe content.
- */
-export function validateDeckHtml(html: string): { ok: true; sanitized: string } | { ok: false; error: string } {
-    if (!html.includes('class="deck') && !html.includes("class='deck")) {
-        return { ok: false, error: 'Missing .deck root element' };
-    }
-    if (!html.includes('class="slide') && !html.includes("class='slide")) {
-        return { ok: false, error: 'No .slide elements found' };
-    }
-
-    // Strip unsafe elements and attributes from LLM output
-    let sanitized = html;
-    sanitized = sanitized.replace(/<script[\s\S]*?<\/script>/gi, '');
-    sanitized = sanitized.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
-    sanitized = sanitized.replace(/<link[^>]*>/gi, '');
-    sanitized = sanitized.replace(/<object[\s\S]*?<\/object>/gi, '');
-    sanitized = sanitized.replace(/<embed[^>]*>/gi, '');
-    sanitized = sanitized.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
-    sanitized = sanitized.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
-
-    return { ok: true, sanitized };
-}
-
-/**
  * Wrap extracted HTML content in a full HTML document with the CSS theme.
  * L3 fix: uses output language for lang attribute.
  */
