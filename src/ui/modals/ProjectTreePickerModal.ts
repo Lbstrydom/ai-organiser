@@ -1,7 +1,6 @@
 import { App, Modal, Notice, setIcon } from 'obsidian';
 import type { Translations } from '../../i18n/types';
-import type { ProjectService, ProjectTreeNode, ProjectConfig } from '../../services/chat/projectService';
-import { MAX_PROJECT_DEPTH } from '../../services/chat/projectService';
+import type { ProjectService, ProjectTreeNode } from '../../services/chat/projectService';
 import { listen } from '../utils/domUtils';
 
 export interface ProjectTreePickerCallbacks {

@@ -35,7 +35,6 @@ const TIME_FILTERS: { label: string; value: string }[] = [
     { label: 'Past year', value: 'year' },
 ];
 
-const INITIAL_RESULT_LIMIT = 5;
 const DEBOUNCE_MS = 300;
 const MAX_TITLE_LENGTH = 80;
 
