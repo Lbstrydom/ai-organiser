@@ -30,11 +30,11 @@ nul
 docs/STATUS.md
 docs/usertest.md
 docs/plans/*
-!docs/plans/pres-engine-v2.md
-!docs/plans/chat-search-subprojects.md
 docs/completed/
 docs/mobile/
 docs/sert/
+docs/obsidian-review-bot.md
+docs/format-specs.md
 CHANGES_SUMMARY.md
 DEBUG_INSTRUCTIONS.md
 NESTED_TAGS_IMPLEMENTATION_PLAN.md
