@@ -83,36 +83,26 @@ export class NewsletterService {
         };
     }
 
-    /** Process raw emails into ProcessedNewsletters.
-     *  HTML→markdown is synchronous (CPU); LLM triage calls run in parallel
-     *  so one slow/failing call doesn't block the others. */
+    /** Process raw emails into ProcessedNewsletters sequentially to avoid
+     *  rate-limiting failures when multiple LLM triage calls fire at once. */
     private async processAll(
         emails: RawNewsletter[],
         onProgress?: (current: number, total: number) => void
     ): Promise<{ processed: ProcessedNewsletter[]; errors: string[] }> {
         const errors: string[] = [];
-        let completed = 0;
-
-        // Fire all LLM triage calls concurrently — each is independent
-        const results = await Promise.allSettled(
-            emails.map(async (email) => {
-                const result = await this.processNewsletter(email);
-                completed++;
-                onProgress?.(completed, emails.length);
-                return result;
-            })
-        );
-
         const processed: ProcessedNewsletter[] = [];
-        for (let i = 0; i < results.length; i++) {
-            const r = results[i];
-            if (r.status === 'fulfilled') {
-                processed.push(r.value);
-            } else {
-                const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+
+        for (let i = 0; i < emails.length; i++) {
+            try {
+                const result = await this.processNewsletter(emails[i]);
+                processed.push(result);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
                 errors.push(`${emails[i].subject}: ${msg}`);
             }
+            onProgress?.(i + 1, emails.length);
         }
+
         return { processed, errors };
     }
 
