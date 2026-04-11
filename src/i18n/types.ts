@@ -551,6 +551,16 @@ export interface Translations {
             exportFolder: string;
             exportFolderDesc: string;
             exportTitle: string;
+            exportFormatTitle: string;
+            exportFormat: string;
+            exportFormatDesc: string;
+            formatText: string;
+            formatPdf: string;
+            contentSettingsTitle: string;
+            includeFrontmatter: string;
+            includeFrontmatterDesc: string;
+            includeTitle: string;
+            includeTitleDesc: string;
             exportMode: string;
             exportModeDesc: string;
             modeAuto: string;
@@ -1706,6 +1716,9 @@ export interface Translations {
             showNotes: string;
             hideNotes: string;
             exportButton: string;
+            newPackButton: string;
+            updatePackButton: string;
+            openFolderButton: string;
         };
         addContent: {
             title: string;
@@ -2515,7 +2528,12 @@ export interface Translations {
         copyingDocument: string;
         writingManifest: string;
         exportComplete: string;
+        exportAborted: string;
         cancelButton: string;
+        sidecarTitle: string;
+        sidecarNotice: string;
+        sidecarShowMore: string;
+        configChangedNotice: string;
     };
     recording: {
         title: string;

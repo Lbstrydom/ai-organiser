@@ -230,14 +230,15 @@ export default class AIOrganiserPlugin extends Plugin {
             pageSize: this.settings.notebooklmPdfPageSize,
             fontName: this.settings.notebooklmPdfFontName,
             fontSize: this.settings.notebooklmPdfFontSize,
-            includeFrontmatter: this.settings.notebooklmPdfIncludeFrontmatter,
-            includeTitle: this.settings.notebooklmPdfIncludeTitle
+            includeFrontmatter: this.settings.notebooklmIncludeFrontmatter,
+            includeTitle: this.settings.notebooklmIncludeTitle
         };
 
         const config: SourcePackConfig = {
             selectionTag: this.settings.notebooklmSelectionTag,
             exportFolder: getNotebookLMExportFullPath(this.settings),
             postExportTagAction: this.settings.notebooklmPostExportTagAction,
+            exportFormat: this.settings.notebooklmExportFormat,
             pdf: pdfConfig
         };
 

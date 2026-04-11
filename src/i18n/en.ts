@@ -564,6 +564,16 @@ export const en: Translations = {
             exportFolder: "Export folder",
             exportFolderDesc: "Subfolder for NotebookLM exports",
             exportTitle: "Export",
+            exportFormatTitle: "Export format",
+            exportFormat: "Format",
+            exportFormatDesc: "Text is recommended: it preserves math, code, and Mermaid diagrams. PDF strips these.",
+            formatText: "Text (.txt) — recommended",
+            formatPdf: "PDF (.PDF) — legacy",
+            contentSettingsTitle: "Content",
+            includeFrontmatter: "Include frontmatter",
+            includeFrontmatterDesc: "Include YAML frontmatter in exported files",
+            includeTitle: "Include title",
+            includeTitleDesc: "Add note title as h1 heading at top of exported file",
             exportMode: "Export mode",
             exportModeDesc: "How to split notes into module files",
             modeAuto: "Auto (recommended)",
@@ -1702,7 +1712,10 @@ export const en: Translations = {
             notesTitle: "Notes to export",
             showNotes: "Show",
             hideNotes: "Hide",
-            exportButton: "Export"
+            exportButton: "Export",
+            newPackButton: "New pack",
+            updatePackButton: "Update pack",
+            openFolderButton: "Open folder"
         },
         addContent: {
             title: "Add content to pending integration",
@@ -2507,7 +2520,12 @@ export const en: Translations = {
         copyingDocument: "Copying: {document}",
         writingManifest: "Writing manifest...",
         exportComplete: "Export complete!",
-        cancelButton: "Cancel"
+        exportAborted: "Export cancelled.",
+        cancelButton: "Cancel",
+        sidecarTitle: "Attached documents — upload these too",
+        sidecarNotice: "NotebookLM reads charts and graphs from PDFs directly — upload them alongside your notes.",
+        sidecarShowMore: "Show {n} more",
+        configChangedNotice: "Export settings changed since last pack — full re-export required."
     },
     recording: {
         title: "Record audio",

@@ -2,7 +2,7 @@
  * NotebookLM Commands
  *
  * Command registration for NotebookLM source pack features:
- * - Export source pack (with preview modal and PDF generation)
+ * - Export source pack (with preview modal, text/PDF generation, incremental support)
  * - Toggle selection on current note
  * - Clear selection tags
  * - Open export folder
@@ -32,7 +32,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
             }
 
             try {
-                // Get preview
+                // Get preview (scans linked docs once — avoids double-scan in executeExport)
                 const preview = await plugin.sourcePackService.getExportPreview();
 
                 if (preview.selection.files.length === 0) {
@@ -40,60 +40,58 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     return;
                 }
 
-                // Create modal reference for progress updates
                 let exportModal: NotebookLMExportModal | null = null;
 
-                // Show export modal
                 exportModal = new NotebookLMExportModal(
                     plugin.app,
                     t,
                     preview,
-                    (result) => { void (async () => {
-                        if (!result.proceed) {
-                            // User cancelled
-                            return;
-                        }
+                    (result, signal) => { void (async () => {
+                        if (!result.proceed) return;
 
-                        // Update service config with user's choice
+                        // Update service config with any modal changes
                         plugin.sourcePackService!.updateConfig(result.config);
 
                         try {
-                            // Generate AI folder name (silent fallback to timestamp)
                             const folderName = await generateExportFolderName(plugin, preview.selection.files);
 
-                            // Execute export with progress callback
-                            const exportResult = await plugin.sourcePackService!.executeExport(
+                            const exportFn = result.mode === 'update'
+                                ? plugin.sourcePackService!.executeIncrementalExport.bind(plugin.sourcePackService!)
+                                : plugin.sourcePackService!.executeExport.bind(plugin.sourcePackService!);
+
+                            const exportResult = await exportFn(
                                 preview.selection,
                                 (current, total, message) => {
-                                    // Update modal progress
                                     exportModal?.updateProgress(current, total, message);
                                 },
-                                folderName
+                                folderName,
+                                preview.linkedDocuments, // pass pre-scanned docs (no double-scan)
+                                signal
                             );
 
                             if (exportResult.success) {
-                                // Show success
-                                exportModal?.showComplete(true);
+                                exportModal?.showComplete(
+                                    true,
+                                    exportResult.packFolderPath,
+                                    exportResult.warnings
+                                );
 
-                                // Also show notice with summary
-                                const noteCount = exportResult.stats?.noteCount || 0;
+                                const noteCount = exportResult.stats?.noteCount ?? 0;
                                 const successMessage = (t.messages?.notebookLMExportComplete || 'Source pack exported: {notes} notes, {modules} modules')
                                     .replace('{notes}', String(noteCount))
                                     .replace('{modules}', String(noteCount));
                                 new Notice(successMessage, 5000);
                             } else {
-                                // Show failure
+                                exportModal?.showComplete(false, undefined, undefined, exportResult.errorMessage);
                                 const errorMessage = (t.messages?.notebookLMExportFailed || 'Export failed: {error}')
                                     .replace('{error}', exportResult.errorMessage || 'Unknown error');
-                                exportModal?.showComplete(false, errorMessage);
                                 new Notice(errorMessage, 5000);
                             }
                         } catch (error) {
-                            // Handle unexpected errors
                             const errorMessage = error instanceof Error ? error.message : String(error);
                             const failMessage = (t.messages?.notebookLMExportFailed || 'Export failed: {error}')
                                 .replace('{error}', errorMessage);
-                            exportModal?.showComplete(false, failMessage);
+                            exportModal?.showComplete(false, undefined, undefined, failMessage);
                             new Notice(failMessage, 5000);
                             logger.error('Export', 'NotebookLM export error:', error);
                         }
@@ -122,43 +120,36 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
             }
 
             try {
-                // Use processFrontMatter to toggle the tag
                 const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
                 let wasAdded = false;
 
                 await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
-                    // Initialize tags array if needed
                     if (!frontmatter.tags) {
                         frontmatter.tags = [];
                     } else if (typeof frontmatter.tags === 'string') {
                         frontmatter.tags = [frontmatter.tags];
                     }
 
-                    const hasTag = frontmatter.tags.some((t: string) =>
-                        t === selectionTag || t === `#${selectionTag}`
+                    const hasTag = frontmatter.tags.some((tag: string) =>
+                        tag === selectionTag || tag === `#${selectionTag}`
                     );
 
                     if (hasTag) {
-                        // Remove tag
-                        frontmatter.tags = frontmatter.tags.filter((t: string) =>
-                            t !== selectionTag && t !== `#${selectionTag}`
+                        frontmatter.tags = frontmatter.tags.filter((tag: string) =>
+                            tag !== selectionTag && tag !== `#${selectionTag}`
                         );
-                        if (frontmatter.tags.length === 0) {
-                            delete frontmatter.tags;
-                        }
+                        if (frontmatter.tags.length === 0) delete frontmatter.tags;
                         wasAdded = false;
                     } else {
-                        // Add tag
                         frontmatter.tags.push(selectionTag);
                         wasAdded = true;
                     }
                 });
 
-                if (wasAdded) {
-                    new Notice(t.messages?.notebookLMSelectionAdded || 'Note added to NotebookLM selection');
-                } else {
-                    new Notice(t.messages?.notebookLMSelectionRemoved || 'Note removed from NotebookLM selection');
-                }
+                new Notice(wasAdded
+                    ? (t.messages?.notebookLMSelectionAdded || 'Note added to NotebookLM selection')
+                    : (t.messages?.notebookLMSelectionRemoved || 'Note removed from NotebookLM selection')
+                );
                 plugin.updateNotebookLMStatus();
             } catch (error) {
                 logger.error('Export', 'Failed to toggle selection:', error);
@@ -189,19 +180,14 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
 
                 const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
 
-                // Clear tags from all selected files
                 for (const file of files) {
                     await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
                         if (frontmatter.tags) {
-                            if (typeof frontmatter.tags === 'string') {
-                                frontmatter.tags = [frontmatter.tags];
-                            }
-                            frontmatter.tags = frontmatter.tags.filter((t: string) =>
-                                t !== selectionTag && t !== `#${selectionTag}`
+                            if (typeof frontmatter.tags === 'string') frontmatter.tags = [frontmatter.tags];
+                            frontmatter.tags = frontmatter.tags.filter((tag: string) =>
+                                tag !== selectionTag && tag !== `#${selectionTag}`
                             );
-                            if (frontmatter.tags.length === 0) {
-                                delete frontmatter.tags;
-                            }
+                            if (frontmatter.tags.length === 0) delete frontmatter.tags;
                         }
                     });
                 }
@@ -235,7 +221,6 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                     return;
                 }
 
-                // Open folder in file explorer (desktop only)
                 if (Platform.isDesktopApp) {
                     const adapter = plugin.app.vault.adapter as import('obsidian').DataAdapter & { getBasePath?: () => string };
                     const basePath = adapter.getBasePath?.() || '';
@@ -256,9 +241,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     });
 }
 
-/**
- * Sanitize a raw LLM response into a valid folder name.
- */
+/** Sanitize a raw LLM response into a valid folder name */
 function sanitizeFolderName(raw: string): string {
     return raw
         .trim()
@@ -270,10 +253,7 @@ function sanitizeFolderName(raw: string): string {
         .slice(0, 40);
 }
 
-/**
- * Generate a descriptive export folder name via LLM.
- * Returns undefined on failure (service falls back to timestamp).
- */
+/** Generate a descriptive export folder name via LLM; returns undefined on failure */
 async function generateExportFolderName(
     plugin: AIOrganiserPlugin,
     files: TFile[]

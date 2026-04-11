@@ -2,12 +2,19 @@
  * NotebookLM Source Pack Data Contracts
  *
  * Type definitions for the NotebookLM integration feature.
- * This defines the configuration, manifest structure, and data contracts
- * for exporting Obsidian notes as PDF source packs for NotebookLM.
  */
 
 /**
- * Configuration for PDF-based source pack generation
+ * Export format: 'text' produces a clean .txt file per note (default);
+ * 'pdf' uses the legacy jsPDF path (strips code/math/mermaid blocks).
+ */
+export type ExportFormat = 'text' | 'pdf';
+
+/** Whether creating a brand-new pack or incrementally updating an existing one */
+export type ExportMode = 'new' | 'update';
+
+/**
+ * Configuration for source pack generation
  */
 export interface SourcePackConfig {
     /** Tag used to select notes for export */
@@ -19,7 +26,10 @@ export interface SourcePackConfig {
     /** What to do with selection tags after export */
     postExportTagAction: 'keep' | 'clear' | 'archive';
 
-    /** PDF generation configuration */
+    /** Export format: 'text' (default) or 'pdf' (legacy) */
+    exportFormat: ExportFormat;
+
+    /** PDF generation configuration (only used when exportFormat === 'pdf') */
     pdf: PdfConfig;
 }
 
@@ -36,7 +46,7 @@ export interface PdfConfig {
     /** Base font size in points */
     fontSize: number;
 
-    /** Include frontmatter in PDF */
+    /** Include frontmatter in exported content */
     includeFrontmatter: boolean;
 
     /** Include note title as H1 at top */
@@ -70,18 +80,11 @@ export const DEFAULT_PDF_CONFIG: PdfConfig = {
  * PDF generator interface
  */
 export interface IPdfGenerator {
-    /**
-     * Generate a PDF from markdown content
-     * @param title - Note title
-     * @param markdown - Markdown content
-     * @param config - PDF configuration
-     * @returns PDF as ArrayBuffer
-     */
     generate(title: string, markdown: string, config: PdfConfig): Promise<ArrayBuffer>;
 }
 
 /**
- * Manifest sidecar file - metadata about the pack (not for NotebookLM upload)
+ * Manifest sidecar file — metadata about the pack (not for NotebookLM upload)
  */
 export interface PackManifest {
     /** Unique pack identifier (UUID) */
@@ -110,22 +113,25 @@ export interface PackStats {
     /** Number of notes included */
     noteCount: number;
 
-    /** Total byte count of PDFs */
+    /** Total byte count of all exported files */
     totalBytes: number;
 }
 
 /**
- * Metadata for a single note in the pack
+ * Metadata for a single note or sidecar in the pack
  */
 export interface PackEntry {
-    /** Entry type: note-pdf (generated from note) or attachment (linked doc) */
-    type: 'note-pdf' | 'attachment';
+    /** Entry type: note-text, note-pdf (generated from note) or attachment (linked doc) */
+    type: 'note-text' | 'note-pdf' | 'attachment';
 
     /** Vault-relative file path */
     filePath: string;
 
-    /** Exported PDF filename */
-    pdfName: string;
+    /**
+     * Exported output filename within the pack folder.
+     * Renamed from legacy `pdfName`; reads both on load via normalizePackEntry().
+     */
+    outputName: string;
 
     /** Note title (from filename or frontmatter) */
     title: string;
@@ -136,7 +142,7 @@ export interface PackEntry {
     /** Tags from frontmatter */
     tags: string[];
 
-    /** PDF file size in bytes */
+    /** File size in bytes */
     sizeBytes: number;
 
     /** SHA256 hash of note content (for change detection) */
@@ -164,6 +170,12 @@ export interface PackRegistryEntry {
 
     /** Path to pack folder */
     packFolderPath: string;
+
+    /**
+     * Hash of export config subset that affects rendering.
+     * Empty string triggers full re-export when reading legacy entries.
+     */
+    configHash: string;
 }
 
 /**
@@ -252,7 +264,7 @@ export interface ExportResult {
     /** Error message (if failed) */
     errorMessage?: string;
 
-    /** Warnings */
+    /** Warnings (per-note failures that didn't abort the export) */
     warnings?: string[];
 }
 
@@ -285,6 +297,12 @@ export interface ExportPreview {
 
     /** Config to be used */
     config: SourcePackConfig;
+
+    /** Whether a previous pack exists for this scope (enables Update Pack UX) */
+    hasPreviousPack: boolean;
+
+    /** Whether export config changed since last pack (disables Update Pack) */
+    configChanged: boolean;
 }
 
 export interface LinkedDocument {
@@ -292,4 +310,18 @@ export interface LinkedDocument {
     path: string;
     displayName: string;
     type: 'document' | 'pdf';
+    /** Resolved file size in bytes (0 if unknown) */
+    sizeBytes?: number;
+}
+
+/**
+ * Unified snapshot entry for incremental export diffing.
+ * Covers both notes and sidecar documents.
+ */
+export interface SnapshotEntry {
+    kind: 'note' | 'sidecar';
+    /** Vault-relative path for notes; normalized URL/path for sidecars */
+    sourceKey: string;
+    contentHash: string;
+    outputName: string;
 }

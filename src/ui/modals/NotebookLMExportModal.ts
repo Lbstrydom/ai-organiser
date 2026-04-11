@@ -1,43 +1,55 @@
 /**
  * NotebookLM Export Modal
  *
- * Displays export preview and handles the PDF export workflow for NotebookLM.
- * Shows progress during export and warns about Latin-only font limitation.
+ * Full state map:
+ *   idle-zero      — 0 notes selected
+ *   idle-first     — first export (no previous pack)
+ *   idle-previous  — previous pack exists; shows "New pack" + "Update pack" buttons
+ *   exporting      — progress bar + cancel button
+ *   success        — complete; open-folder (desktop) or path display (mobile)
+ *   failure        — error callout
+ *   aborted        — cancellation confirmed
  */
 
-import { App, Modal, Setting, ProgressBarComponent } from 'obsidian';
+import { App, Modal, Platform, Setting, ProgressBarComponent } from 'obsidian';
 import type { Translations } from '../../i18n/types';
-import type {
-    SourcePackConfig,
-    ExportPreview
-} from '../../services/notebooklm/types';
+import type { SourcePackConfig, ExportPreview, LinkedDocument } from '../../services/notebooklm/types';
+import { formatBytes } from '../../services/notebooklm/notebooklmUtils';
+import { listen } from '../utils/domUtils';
+import { getElectron } from '../../utils/desktopRequire';
 
 export interface NotebookLMExportResult {
     proceed: boolean;
+    mode: 'new' | 'update';
     config: SourcePackConfig;
 }
-
-export type ExportProgressCallback = (current: number, total: number, message: string) => void;
 
 export class NotebookLMExportModal extends Modal {
     private preview: ExportPreview;
     private config: SourcePackConfig;
-    private onSubmit: (result: NotebookLMExportResult) => void;
+    private onSubmit: (result: NotebookLMExportResult, signal: AbortSignal) => void;
     private t: Translations;
+
+    // Abort / lifecycle
+    private abortController = new AbortController();
+    private isDisposed = false;
+    private cleanups: (() => void)[] = [];
 
     // Progress UI elements
     private progressContainer: HTMLElement | null = null;
     private progressBar: ProgressBarComponent | null = null;
     private progressMessage: HTMLElement | null = null;
-    private exportButton: HTMLButtonElement | null = null;
-    private cancelButton: HTMLButtonElement | null = null;
+    private cancelBtn: HTMLButtonElement | null = null;
     private isExporting = false;
+
+    // Post-export result folder path
+    private resultFolderPath: string | null = null;
 
     constructor(
         app: App,
         translations: Translations,
         preview: ExportPreview,
-        onSubmit: (result: NotebookLMExportResult) => void
+        onSubmit: (result: NotebookLMExportResult, signal: AbortSignal) => void
     ) {
         super(app);
         this.t = translations;
@@ -47,220 +59,366 @@ export class NotebookLMExportModal extends Modal {
     }
 
     onOpen(): void {
-        const { contentEl } = this;
-        contentEl.addClass('ai-organiser-modal-content');
-        contentEl.addClass('notebooklm-export-modal');
-
-        // Title
-        const mt = this.t.modals.notebookLMExport;
-        contentEl.createEl('h2', { text: mt.title });
-
-        // Description
-        contentEl.createEl('p', {
-            text: mt.description,
-            cls: 'setting-item-description'
-        });
-
-        // Stats section
-        const statsDiv = contentEl.createDiv({ cls: 'notebooklm-stats' });
-        statsDiv.createEl('h4', { text: mt.statsTitle });
-
-        statsDiv.createEl('p', {
-            text: `${mt.noteCount}: ${this.preview.selection.files.length}`
-        });
-        statsDiv.createEl('p', {
-            text: `${mt.scope}: ${this.preview.selection.scopeValue}`
-        });
-        statsDiv.createEl('p', {
-            text: `Estimated size: ${this.formatBytes(this.preview.estimatedSizeBytes)}`
-        });
-
-        // Linked documents
-        if (this.preview.linkedDocuments && this.preview.linkedDocuments.length > 0) {
-            const countText = this.t.notebooklm?.linkedDocumentsDetected
-                ? this.t.notebooklm.linkedDocumentsDetected.replace('{count}', String(this.preview.linkedDocuments.length))
-                : `Linked documents: ${this.preview.linkedDocuments.length}`;
-            statsDiv.createEl('p', { text: countText });
-
-            const noticeText = this.t.notebooklm?.documentExportNotice || 'Linked documents will be included as separate files';
-            statsDiv.createEl('p', { text: noticeText, cls: 'setting-item-description' });
-        }
-
-        // Latin-only warning
-        const latinWarningDiv = contentEl.createDiv({ cls: 'notebooklm-latin-warning' });
-        latinWarningDiv.setCssProps({ '--bg': 'var(--background-modifier-message)' }); latinWarningDiv.addClass('ai-organiser-bg-custom');
-        latinWarningDiv.setCssProps({ '--pad': '8px 12px' }); latinWarningDiv.addClass('ai-organiser-pad-custom');
-        latinWarningDiv.addClass('ai-organiser-rounded');
-        latinWarningDiv.addClass('ai-organiser-mt-12');
-        latinWarningDiv.setCssProps({ '--border-left': '3px solid var(--text-warning)' }); latinWarningDiv.addClass('ai-organiser-border-left-custom');
-
-        const warningText = this.t.notebooklm?.latinOnlyWarning ||
-            'Note: PDF export currently supports Latin characters only. Non-Latin text (CJK, Arabic, Cyrillic, etc.) may not render correctly.';
-        latinWarningDiv.createEl('p', {
-            text: warningText,
-            cls: 'setting-item-description'
-        });
-
-        // Source count / size warnings
-        if (this.preview.warnings.sourceCountWarning || this.preview.warnings.totalSizeWarning) {
-            const warningsDiv = contentEl.createDiv({ cls: 'notebooklm-warnings' });
-            warningsDiv.addClass('ai-organiser-bg-error');
-            warningsDiv.setCssProps({ '--pad': '8px 12px' }); warningsDiv.addClass('ai-organiser-pad-custom');
-            warningsDiv.addClass('ai-organiser-rounded');
-            warningsDiv.addClass('ai-organiser-mt-12');
-
-            if (this.preview.warnings.sourceCountWarning) {
-                warningsDiv.createEl('p', { text: this.preview.warnings.sourceCountWarning });
-            }
-            if (this.preview.warnings.totalSizeWarning) {
-                warningsDiv.createEl('p', { text: this.preview.warnings.totalSizeWarning });
-            }
-        }
-
-        // Post-export action setting
-        const settingsDiv = contentEl.createDiv({ cls: 'notebooklm-settings' });
-        settingsDiv.addClass('ai-organiser-mt-16');
-
-        new Setting(settingsDiv)
-            .setName(mt.postExportLabel)
-            .setDesc(mt.postExportDesc)
-            .addDropdown(dropdown => dropdown
-                .addOption('keep', mt.actionKeep)
-                .addOption('clear', mt.actionClear)
-                .addOption('archive', mt.actionArchive)
-                .setValue(this.config.postExportTagAction)
-                .onChange(value => {
-                    this.config.postExportTagAction = value as 'keep' | 'clear' | 'archive';
-                })
-            );
-
-        // Progress container (hidden initially)
-        this.progressContainer = contentEl.createDiv({ cls: 'notebooklm-progress' });
-        this.progressContainer.addClass('ai-organiser-mt-16');
-        this.progressContainer.addClass('ai-organiser-hidden');
-
-        this.progressMessage = this.progressContainer.createEl('p', {
-            text: '',
-            cls: 'setting-item-description'
-        });
-
-        const progressBarDiv = this.progressContainer.createDiv();
-        this.progressBar = new ProgressBarComponent(progressBarDiv);
-        this.progressBar.setValue(0);
-
-        // Buttons
-        const buttonsDiv = contentEl.createDiv({ cls: 'modal-button-container' });
-        buttonsDiv.addClass('ai-organiser-mt-20');
-
-        new Setting(buttonsDiv)
-            .addButton(btn => {
-                this.cancelButton = btn.buttonEl;
-                btn
-                    .setButtonText(this.t.notebooklm?.cancelButton || 'Cancel')
-                    .onClick(() => {
-                        this.onSubmit({ proceed: false, config: this.config });
-                        this.close();
-                    });
-            })
-            .addButton(btn => {
-                this.exportButton = btn.buttonEl;
-                btn
-                    .setButtonText(mt.exportButton)
-                    .setCta()
-                    .onClick(() => {
-                        if (!this.isExporting) {
-                            this.startExport();
-                        }
-                    });
-            });
+        this.abortController = new AbortController();
+        this.isDisposed = false;
+        this.renderIdle();
     }
 
-    /**
-     * Start the export process - show progress UI and trigger callback
-     */
-    private startExport(): void {
-        this.isExporting = true;
-
-        // Show progress UI
-        if (this.progressContainer) {
-            this.progressContainer.addClass('ai-organiser-block');
-        }
-
-        // Disable buttons
-        if (this.exportButton) {
-            this.exportButton.disabled = true;
-            this.exportButton.setText('Exporting...');
-        }
-        if (this.cancelButton) {
-            this.cancelButton.disabled = true;
-        }
-
-        // Trigger export via callback
-        this.onSubmit({ proceed: true, config: this.config });
+    onClose(): void {
+        this.isDisposed = true;
+        this.abortController.abort();
+        for (const cleanup of this.cleanups) cleanup();
+        this.cleanups = [];
+        this.contentEl.empty();
+        this.progressContainer = null;
+        this.progressBar = null;
+        this.progressMessage = null;
+        this.cancelBtn = null;
     }
 
-    /**
-     * Update progress UI during export
-     */
+    // ─── Public API (called from command handler) ───────────────────────────
+
     updateProgress(current: number, total: number, message: string): void {
+        if (this.isDisposed) return;
         if (this.progressBar) {
-            const progress = total > 0 ? (current / total) * 100 : 0;
-            this.progressBar.setValue(progress);
+            this.progressBar.setValue(total > 0 ? (current / total) * 100 : 0);
         }
-
         if (this.progressMessage) {
-            const progressText = this.t.notebooklm?.exportProgress
+            const prog = this.t.notebooklm?.exportProgress
                 ? this.t.notebooklm.exportProgress
                     .replace('{current}', String(current))
                     .replace('{total}', String(total))
                 : `${current} of ${total}`;
-
-            this.progressMessage.setText(`${progressText} - ${message}`);
+            this.progressMessage.setText(`${prog} — ${message}`);
         }
     }
 
-    /**
-     * Show export completion
-     */
-    showComplete(success: boolean, message?: string): void {
+    showComplete(success: boolean, packFolderPath?: string, warnings?: string[], errorMessage?: string): void {
+        if (this.isDisposed) return;
         this.isExporting = false;
+        this.resultFolderPath = packFolderPath ?? null;
 
-        if (this.progressMessage) {
-            const completeText = success
-                ? (this.t.notebooklm?.exportComplete || 'Export complete!')
-                : (message || 'Export failed');
-            this.progressMessage.setText(completeText);
-        }
-
-        if (this.progressBar) {
-            this.progressBar.setValue(100);
-        }
-
-        // Re-enable cancel button as "Close"
-        if (this.cancelButton) {
-            this.cancelButton.disabled = false;
-            this.cancelButton.setText('Close');
-        }
-
-        // Hide export button
-        if (this.exportButton) {
-            this.exportButton.addClass('ai-organiser-hidden');
+        if (success) {
+            this.renderSuccess(packFolderPath, warnings);
+        } else if (errorMessage === 'Export cancelled') {
+            this.renderAborted();
+        } else {
+            this.renderFailure(errorMessage);
         }
     }
 
-    onClose(): void {
+    // ─── Render helpers ──────────────────────────────────────────────────────
+
+    private renderIdle(): void {
         const { contentEl } = this;
         contentEl.empty();
-        this.progressContainer = null;
-        this.progressBar = null;
-        this.progressMessage = null;
-        this.exportButton = null;
-        this.cancelButton = null;
+        this.cleanups = [];
+        contentEl.addClass('ai-organiser-modal-content');
+
+        const mt = this.t.modals.notebookLMExport;
+
+        contentEl.createEl('h2', { text: mt.title });
+        contentEl.createEl('p', { text: mt.description, cls: 'setting-item-description' });
+
+        // 0-notes state
+        if (this.preview.selection.files.length === 0) {
+            const warn = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-callout ai-organiser-notebooklm-callout--warning' });
+            warn.createEl('p', { text: this.t.messages.notebookLMNoSelection });
+            new Setting(contentEl).addButton(btn =>
+                btn.setButtonText('Close').onClick(() => this.close())
+            );
+            return;
+        }
+
+        // Stats
+        const statsDiv = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-stats' });
+        statsDiv.createEl('h4', { text: mt.statsTitle });
+        statsDiv.createEl('p', { text: `${mt.noteCount}: ${this.preview.selection.files.length}` });
+        statsDiv.createEl('p', { text: `${mt.scope}: ${this.preview.selection.scopeValue}` });
+        statsDiv.createEl('p', { text: `Estimated size: ${formatBytes(this.preview.estimatedSizeBytes)}` });
+
+        // Sidecar documents section (Fix 4)
+        if (this.preview.linkedDocuments.length > 0) {
+            this.renderSidecarSection(contentEl, this.preview.linkedDocuments);
+        }
+
+        // Source count / size warnings
+        if (this.preview.warnings.sourceCountWarning || this.preview.warnings.totalSizeWarning) {
+            const warnDiv = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-callout ai-organiser-notebooklm-callout--error' });
+            if (this.preview.warnings.sourceCountWarning) {
+                warnDiv.createEl('p', { text: this.preview.warnings.sourceCountWarning });
+            }
+            if (this.preview.warnings.totalSizeWarning) {
+                warnDiv.createEl('p', { text: this.preview.warnings.totalSizeWarning });
+            }
+        }
+
+        // Post-export action
+        new Setting(contentEl)
+            .setName(mt.postExportLabel)
+            .setDesc(mt.postExportDesc)
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('keep', mt.actionKeep)
+                    .addOption('clear', mt.actionClear)
+                    .addOption('archive', mt.actionArchive)
+                    .setValue(this.config.postExportTagAction)
+                    .onChange(value => {
+                        this.config.postExportTagAction = value as 'keep' | 'clear' | 'archive';
+                    })
+            );
+
+        // Progress container (hidden initially)
+        this.progressContainer = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-progress ai-organiser-hidden' });
+        this.progressMessage = this.progressContainer.createEl('p', { cls: 'setting-item-description' });
+        this.progressBar = new ProgressBarComponent(this.progressContainer.createDiv());
+        this.progressBar.setValue(0);
+
+        // Buttons
+        const buttonsDiv = contentEl.createDiv({ cls: 'modal-button-container ai-organiser-notebooklm-buttons' });
+
+        // Cancel / close button (always present)
+        const cancelSetting = new Setting(buttonsDiv);
+        cancelSetting.addButton(btn => {
+            this.cancelBtn = btn.buttonEl;
+            btn.setButtonText(this.t.notebooklm?.cancelButton || 'Cancel');
+            this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                if (this.isExporting) {
+                    this.abortController.abort();
+                } else {
+                    this.onSubmit({ proceed: false, mode: 'new', config: this.config }, this.abortController.signal);
+                    this.close();
+                }
+            }));
+        });
+
+        if (this.preview.hasPreviousPack) {
+            // Two-button layout: "New pack" + "Update pack (N changed)"
+            this.renderUpdatePackButtons(cancelSetting);
+        } else {
+            // Single export button
+            cancelSetting.addButton(btn => {
+                btn.setButtonText(mt.exportButton).setCta();
+                this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                    if (!this.isExporting) this.startExport('new');
+                }));
+            });
+        }
     }
 
-    private formatBytes(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    private renderSidecarSection(container: HTMLElement, docs: LinkedDocument[]): void {
+        const section = container.createDiv({ cls: 'ai-organiser-notebooklm-sidecar-section' });
+        section.createEl('h4', { text: this.t.notebooklm?.sidecarTitle || 'Attached documents — upload these too' });
+
+        const COLLAPSED_MAX = 3;
+        const showAll = docs.length <= COLLAPSED_MAX;
+
+        // List container
+        const list = section.createEl('ul', { cls: 'ai-organiser-notebooklm-sidecar-list' });
+        const visibleDocs = showAll ? docs : docs.slice(0, COLLAPSED_MAX);
+
+        for (const doc of visibleDocs) {
+            const item = list.createEl('li');
+            const icon = doc.type === 'pdf' ? '📄' : '📎';
+            item.createEl('span', { text: `${icon} ${doc.displayName}` });
+            if (doc.sizeBytes != null && doc.sizeBytes > 0) {
+                item.createEl('span', {
+                    text: ` (${formatBytes(doc.sizeBytes)})`,
+                    cls: 'setting-item-description'
+                });
+            }
+        }
+
+        // "Show N more" toggle for 4+ files
+        if (!showAll) {
+            const remaining = docs.length - COLLAPSED_MAX;
+            const moreEl = section.createEl('button', {
+                text: (this.t.notebooklm?.sidecarShowMore || 'Show {n} more')
+                    .replace('{n}', String(remaining)),
+                cls: 'ai-organiser-notebooklm-sidecar-toggle'
+            });
+            this.cleanups.push(listen(moreEl, 'click', () => {
+                // Add remaining items
+                for (const doc of docs.slice(COLLAPSED_MAX)) {
+                    const item = list.createEl('li');
+                    const icon = doc.type === 'pdf' ? '📄' : '📎';
+                    item.createEl('span', { text: `${icon} ${doc.displayName}` });
+                    if (doc.sizeBytes != null && doc.sizeBytes > 0) {
+                        item.createEl('span', {
+                            text: ` (${formatBytes(doc.sizeBytes)})`,
+                            cls: 'setting-item-description'
+                        });
+                    }
+                }
+                moreEl.remove();
+            }));
+        }
+
+        // Upload notice callout
+        const notice = section.createDiv({ cls: 'ai-organiser-notebooklm-callout ai-organiser-notebooklm-callout--info' });
+        notice.createEl('p', {
+            text: this.t.notebooklm?.sidecarNotice ||
+                'NotebookLM reads charts and graphs from PDFs directly — upload them alongside your notes.'
+        });
+    }
+
+    private renderUpdatePackButtons(setting: Setting): void {
+        const mt = this.t.modals.notebookLMExport;
+
+        if (this.preview.configChanged) {
+            // Config changed — disable Update Pack
+            const notice = this.contentEl.createDiv({ cls: 'ai-organiser-notebooklm-callout ai-organiser-notebooklm-callout--info' });
+            notice.createEl('p', { text: this.t.notebooklm?.configChangedNotice || 'Export settings changed — full re-export required.' });
+
+            setting.addButton(btn => {
+                btn.setButtonText(mt.newPackButton || 'New pack').setCta();
+                this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                    if (!this.isExporting) this.startExport('new');
+                }));
+            });
+        } else {
+            setting.addButton(btn => {
+                btn.setButtonText(mt.newPackButton || 'New pack');
+                this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                    if (!this.isExporting) this.startExport('new');
+                }));
+            });
+
+            setting.addButton(btn => {
+                btn.setButtonText(mt.updatePackButton || 'Update pack').setCta();
+                this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                    if (!this.isExporting) this.startExport('update');
+                }));
+            });
+        }
+    }
+
+    private startExport(mode: 'new' | 'update'): void {
+        this.isExporting = true;
+
+        if (this.progressContainer) {
+            this.progressContainer.removeClass('ai-organiser-hidden');
+        }
+
+        // Update cancel button text
+        if (this.cancelBtn) {
+            this.cancelBtn.setText('Cancel');
+            this.cancelBtn.disabled = false;
+        }
+
+        this.onSubmit(
+            { proceed: true, mode, config: this.config },
+            this.abortController.signal
+        );
+    }
+
+    private renderSuccess(packFolderPath?: string, warnings?: string[]): void {
+        if (this.isDisposed) return;
+        const { contentEl } = this;
+        contentEl.empty();
+        this.cleanups = [];
+
+        const mt = this.t.modals.notebookLMExport;
+
+        contentEl.createEl('h2', { text: mt.title });
+
+        // Progress bar at 100%
+        const progDiv = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-progress' });
+        const bar = new ProgressBarComponent(progDiv);
+        bar.setValue(100);
+        progDiv.createEl('p', {
+            text: this.t.notebooklm?.exportComplete || 'Export complete!',
+            cls: 'setting-item-description'
+        });
+
+        // Warnings (collapsible)
+        if (warnings && warnings.length > 0) {
+            const details = contentEl.createEl('details', { cls: 'ai-organiser-notebooklm-warnings-details' });
+            details.createEl('summary', { text: `Warnings (${warnings.length})` });
+            const ul = details.createEl('ul');
+            for (const w of warnings) ul.createEl('li', { text: w });
+        }
+
+        const buttonsDiv = contentEl.createDiv({ cls: 'modal-button-container' });
+        const btnSetting = new Setting(buttonsDiv);
+
+        // Open folder (desktop) / path display (mobile)
+        if (packFolderPath) {
+            if (!Platform.isMobile) {
+                btnSetting.addButton(btn => {
+                    btn.setButtonText(mt.openFolderButton || 'Open folder').setCta();
+                    this.cleanups.push(listen(btn.buttonEl, 'click', () => {
+                        this.openFolderInSystem(packFolderPath);
+                    }));
+                });
+            } else {
+                // Mobile: show vault path as copyable text
+                const pathDiv = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-mobile-path' });
+                pathDiv.createEl('span', { text: 'Folder: ', cls: 'setting-item-description' });
+                pathDiv.createEl('code', { text: packFolderPath });
+                const copyBtn = pathDiv.createEl('button', {
+                    text: 'Copy',
+                    cls: 'ai-organiser-notebooklm-copy-btn'
+                });
+                this.cleanups.push(listen(copyBtn, 'click', () => {
+                    void navigator.clipboard.writeText(packFolderPath).then(() => {
+                        copyBtn.setText('Copied!');
+                        setTimeout(() => { if (!this.isDisposed) copyBtn.setText('Copy'); }, 1500);
+                    });
+                }));
+            }
+        }
+
+        btnSetting.addButton(btn => {
+            btn.setButtonText('Close');
+            this.cleanups.push(listen(btn.buttonEl, 'click', () => this.close()));
+        });
+    }
+
+    private renderFailure(errorMessage?: string): void {
+        if (this.isDisposed) return;
+        const { contentEl } = this;
+        contentEl.empty();
+        this.cleanups = [];
+
+        contentEl.createEl('h2', { text: this.t.modals.notebookLMExport.title });
+
+        const errDiv = contentEl.createDiv({ cls: 'ai-organiser-notebooklm-callout ai-organiser-notebooklm-callout--error' });
+        errDiv.createEl('p', { text: errorMessage || 'Export failed.' });
+
+        new Setting(contentEl).addButton(btn => {
+            btn.setButtonText('Close');
+            this.cleanups.push(listen(btn.buttonEl, 'click', () => this.close()));
+        });
+    }
+
+    private renderAborted(): void {
+        if (this.isDisposed) return;
+        const { contentEl } = this;
+        contentEl.empty();
+        this.cleanups = [];
+
+        contentEl.createEl('h2', { text: this.t.modals.notebookLMExport.title });
+        contentEl.createEl('p', {
+            text: this.t.notebooklm?.exportAborted || 'Export cancelled.',
+            cls: 'setting-item-description'
+        });
+
+        new Setting(contentEl).addButton(btn => {
+            btn.setButtonText('Close');
+            this.cleanups.push(listen(btn.buttonEl, 'click', () => this.close()));
+        });
+    }
+
+    private openFolderInSystem(folderPath: string): void {
+        try {
+            const adapter = this.app.vault.adapter as { getBasePath?: () => string };
+            const basePath = adapter.getBasePath?.() ?? '';
+            const fullPath = `${basePath}/${folderPath}`;
+            const electron = getElectron();
+            void electron?.shell?.openPath?.(fullPath);
+        } catch {
+            // Silently ignore — user can navigate manually
+        }
     }
 }

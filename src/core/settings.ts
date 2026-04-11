@@ -180,17 +180,19 @@ export interface AIOrganiserSettings {
     mobileIndexSizeLimit: number;        // Max index size (MB) before skipping load
 
     // === NOTEBOOKLM INTEGRATION ===
-    // PDF-based export for rich content preservation
     notebooklmSelectionTag: string;      // Tag to mark notes for export (default: 'notebooklm')
     notebooklmExportFolder: string;      // Root folder for pack exports (under pluginFolder)
-    notebooklmPostExportTagAction: 'clear' | 'archive';  // No 'keep' - tags should be cleared after PDF export
+    notebooklmPostExportTagAction: 'clear' | 'archive';
+    notebooklmExportFormat: 'text' | 'pdf';  // 'text' = clean .txt (default); 'pdf' = legacy jsPDF
 
-    // PDF Generation Settings
+    // Content settings (apply to both text and PDF formats)
+    notebooklmIncludeFrontmatter: boolean;
+    notebooklmIncludeTitle: boolean;
+
+    // PDF-specific generation settings (only used when notebooklmExportFormat === 'pdf')
     notebooklmPdfPageSize: 'A4' | 'Letter' | 'Legal';
     notebooklmPdfFontName: string;
     notebooklmPdfFontSize: number;
-    notebooklmPdfIncludeFrontmatter: boolean;
-    notebooklmPdfIncludeTitle: boolean;
 
     // === YOUTUBE SETTINGS ===
     // Gemini-native YouTube processing (more reliable than transcript scraping)
@@ -435,17 +437,20 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     mobileIndexingMode: 'read-only',
     mobileIndexSizeLimit: 50,
     
-    // NotebookLM Integration Defaults (PDF-based export)
+    // NotebookLM Integration Defaults
     notebooklmSelectionTag: 'notebooklm',
-    notebooklmExportFolder: 'NotebookLM',               // Under AI-Organiser/NotebookLM/
-    notebooklmPostExportTagAction: 'clear',             // Clear tags after export (no reason to keep for PDF)
+    notebooklmExportFolder: 'NotebookLM',
+    notebooklmPostExportTagAction: 'clear',
+    notebooklmExportFormat: 'text' as const,            // text = clean .txt (default)
 
-    // PDF Generation Defaults
-    notebooklmPdfPageSize: 'A4',
+    // Content defaults (apply to both formats)
+    notebooklmIncludeFrontmatter: false,
+    notebooklmIncludeTitle: true,
+
+    // PDF-specific defaults (only used when exportFormat === 'pdf')
+    notebooklmPdfPageSize: 'A4' as const,
     notebooklmPdfFontName: 'helvetica',
     notebooklmPdfFontSize: 11,
-    notebooklmPdfIncludeFrontmatter: false,
-    notebooklmPdfIncludeTitle: true,
 
     // YouTube Defaults (Gemini-native processing)
     youtubeGeminiApiKey: '',                            // Empty = use main Gemini key if available
@@ -801,6 +806,17 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         }
         delete oldSettings.minutesDefaultPersona;
         delete oldSettings.minutesDetailLevel;
+    }
+
+    // Rename PDF-specific NotebookLM settings to format-agnostic names.
+    // Guard: only copy when new key is absent — handles re-entrant migration and sync conflicts.
+    if ('notebooklmPdfIncludeFrontmatter' in oldSettings && !('notebooklmIncludeFrontmatter' in oldSettings)) {
+        oldSettings.notebooklmIncludeFrontmatter = oldSettings.notebooklmPdfIncludeFrontmatter;
+        delete oldSettings.notebooklmPdfIncludeFrontmatter;
+    }
+    if ('notebooklmPdfIncludeTitle' in oldSettings && !('notebooklmIncludeTitle' in oldSettings)) {
+        oldSettings.notebooklmIncludeTitle = oldSettings.notebooklmPdfIncludeTitle;
+        delete oldSettings.notebooklmPdfIncludeTitle;
     }
 
     return oldSettings;

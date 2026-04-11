@@ -421,6 +421,16 @@ export const zhCN: Translations = {
             exportFolder: "导出文件夹",
             exportFolderDesc: "NotebookLM 导出的子文件夹",
             exportTitle: "导出",
+            exportFormatTitle: "导出格式",
+            exportFormat: "格式",
+            exportFormatDesc: "推荐使用文本格式：保留数学公式、代码和 Mermaid 图表。PDF 会删除这些内容。",
+            formatText: "文本 (.txt) — 推荐",
+            formatPdf: "PDF (.pdf) — 旧版",
+            contentSettingsTitle: "内容",
+            includeFrontmatter: "包含前言",
+            includeFrontmatterDesc: "在导出文件中包含 YAML 前言",
+            includeTitle: "包含标题",
+            includeTitleDesc: "在导出文件顶部添加笔记标题作为 H1 标题",
             exportMode: "导出模式",
             exportModeDesc: "如何将笔记拆分为模块文件",
             modeAuto: "自动（推荐）",
@@ -1700,7 +1710,10 @@ export const zhCN: Translations = {
             notesTitle: "要导出的笔记",
             showNotes: "显示",
             hideNotes: "隐藏",
-            exportButton: "导出"
+            exportButton: "导出",
+            newPackButton: "新建包",
+            updatePackButton: "更新包",
+            openFolderButton: "打开文件夹"
         },
         addContent: {
             title: "添加内容到待处理集成",
@@ -2504,7 +2517,12 @@ export const zhCN: Translations = {
         copyingDocument: "正在复制：{document}",
         writingManifest: "正在写入清单...",
         exportComplete: "导出完成！",
-        cancelButton: "取消"
+        exportAborted: "导出已取消。",
+        cancelButton: "取消",
+        sidecarTitle: "附件文档 — 请一并上传",
+        sidecarNotice: "NotebookLM 可直接从 PDF 中读取图表和图形 — 请将它们与笔记一起上传。",
+        sidecarShowMore: "显示另外 {n} 个",
+        configChangedNotice: "自上次导出以来导出设置已更改 — 需要完整重新导出。"
     },
     recording: {
         title: "录制音频",

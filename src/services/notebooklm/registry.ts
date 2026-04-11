@@ -1,14 +1,51 @@
 /**
  * Registry Service for NotebookLM Source Packs
- * 
+ *
  * Manages pack versioning and revision tracking across sessions.
  * Stores registry in {configDir}/ai-organiser-notebooklm-registry.json
  */
 
 import { App } from 'obsidian';
-import { PackRegistry, PackRegistryEntry, PackManifest } from './types';
+import { PackRegistry, PackRegistryEntry, PackManifest, PackEntry } from './types';
 import { computePackHash } from './hashing';
 import { logger } from '../../utils/logger';
+
+/**
+ * Normalize a raw registry entry from disk, filling in missing fields introduced
+ * in later schema versions so legacy entries don't break incremental export.
+ */
+function normalizeRegistryEntry(raw: unknown): PackRegistryEntry {
+    const e = raw as Record<string, unknown>;
+    return {
+        packId: (e.packId as string) ?? '',
+        scopeKey: (e.scopeKey as string) ?? '',
+        revision: (e.revision as number) ?? 1,
+        packHash: (e.packHash as string) ?? '',
+        lastExportedAt: (e.lastExportedAt as string) ?? new Date().toISOString(),
+        packFolderPath: (e.packFolderPath as string) ?? '',
+        // Empty string signals "no config hash stored" → forces full re-export on next run
+        configHash: (e.configHash as string) ?? '',
+    };
+}
+
+/**
+ * Normalize a raw PackEntry from manifest JSON, accepting the legacy `pdfName`
+ * field as a fallback for `outputName`.
+ */
+export function normalizePackEntry(raw: unknown): PackEntry {
+    const e = raw as Record<string, unknown>;
+    return {
+        type: (e.type as PackEntry['type']) ?? 'note-pdf',
+        filePath: (e.filePath as string) ?? '',
+        // Accept legacy pdfName field
+        outputName: ((e.outputName ?? e.pdfName) as string) ?? '',
+        title: (e.title as string) ?? '',
+        mtime: (e.mtime as string) ?? '',
+        tags: (e.tags as string[]) ?? [],
+        sizeBytes: (e.sizeBytes as number) ?? 0,
+        sha256: (e.sha256 as string) ?? '',
+    };
+}
 
 /**
  * Registry manager for source packs
@@ -23,29 +60,26 @@ export class RegistryService {
     }
 
     /**
-     * Load registry from disk
+     * Load registry from disk, normalizing legacy entries
      */
     async loadRegistry(): Promise<void> {
         try {
             const file = this.app.vault.getAbstractFileByPath(this.registryFile);
             if (!file) {
-                // Initialize empty registry
-                this.registry = {
-                    version: 1,
-                    packs: {}
-                };
+                this.registry = { version: 1, packs: {} };
                 return;
             }
 
             const content = await this.app.vault.adapter.read(this.registryFile);
-            this.registry = JSON.parse(content);
+            const raw = JSON.parse(content) as { version: number; packs: Record<string, unknown> };
+            const packs: Record<string, PackRegistryEntry> = {};
+            for (const [key, value] of Object.entries(raw.packs ?? {})) {
+                packs[key] = normalizeRegistryEntry(value);
+            }
+            this.registry = { version: raw.version ?? 1, packs };
         } catch (error) {
             logger.error('Export', 'Failed to load NotebookLM registry:', error);
-            // Initialize empty registry on error
-            this.registry = {
-                version: 1,
-                packs: {}
-            };
+            this.registry = { version: 1, packs: {} };
         }
     }
 
@@ -68,28 +102,21 @@ export class RegistryService {
 
     /**
      * Get registry entry for a scope
-     * @param scopeKey Scope identifier (e.g., 'tag:notebooklm', 'folder:Projects')
-     * @returns Registry entry or null
      */
     getEntry(scopeKey: string): PackRegistryEntry | null {
-        if (!this.registry) {
-            return null;
-        }
-
-        return this.registry.packs[scopeKey] || null;
+        if (!this.registry) return null;
+        return this.registry.packs[scopeKey] ?? null;
     }
 
     /**
-     * Update or create registry entry
-     * @param scopeKey Scope identifier
-     * @param manifest Pack manifest
-     * @param packFolderPath Path to pack folder
-     * @returns Updated registry entry
+     * Update or create registry entry, storing the configHash for future
+     * incremental export validation.
      */
     async updateEntry(
         scopeKey: string,
         manifest: PackManifest,
-        packFolderPath: string
+        packFolderPath: string,
+        configHash: string
     ): Promise<PackRegistryEntry> {
         if (!this.registry) {
             await this.loadRegistry();
@@ -100,10 +127,8 @@ export class RegistryService {
 
         let revision = 1;
         if (existingEntry && existingEntry.packHash !== packHash) {
-            // Content changed, increment revision
             revision = existingEntry.revision + 1;
         } else if (existingEntry) {
-            // No content change, keep same revision
             revision = existingEntry.revision;
         }
 
@@ -113,7 +138,8 @@ export class RegistryService {
             revision,
             packHash,
             lastExportedAt: new Date().toISOString(),
-            packFolderPath
+            packFolderPath,
+            configHash,
         };
 
         this.registry!.packs[scopeKey] = entry;
@@ -122,82 +148,51 @@ export class RegistryService {
         return entry;
     }
 
-    /**
-     * Get next revision number for a scope
-     * @param scopeKey Scope identifier
-     * @param currentPackHash Hash of current pack content
-     * @returns Next revision number
-     */
     getNextRevision(scopeKey: string, currentPackHash: string): number {
-        const existingEntry = this.getEntry(scopeKey);
-
-        if (!existingEntry) {
-            return 1; // First export
-        }
-
-        if (existingEntry.packHash === currentPackHash) {
-            return existingEntry.revision; // No changes, keep same revision
-        }
-
-        return existingEntry.revision + 1; // Content changed
+        const existing = this.getEntry(scopeKey);
+        if (!existing) return 1;
+        if (existing.packHash === currentPackHash) return existing.revision;
+        return existing.revision + 1;
     }
 
     /**
-     * Get previous manifest for changelog comparison
-     * @param scopeKey Scope identifier
-     * @returns Previous manifest or null
+     * Get previous manifest for incremental export comparison.
+     * Normalizes legacy PackEntry fields on load.
      */
     async getPreviousManifest(scopeKey: string): Promise<PackManifest | null> {
         const entry = this.getEntry(scopeKey);
-        if (!entry) {
-            return null;
-        }
+        if (!entry) return null;
 
         try {
             const manifestPath = `${entry.packFolderPath}/manifest.json`;
             const file = this.app.vault.getAbstractFileByPath(manifestPath);
-            if (!file) {
-                return null;
-            }
+            if (!file) return null;
 
             const content = await this.app.vault.adapter.read(manifestPath);
-            return JSON.parse(content);
+            const raw = JSON.parse(content) as Omit<PackManifest, 'entries'> & { entries: unknown[] };
+            return {
+                ...raw,
+                entries: (raw.entries ?? []).map(normalizePackEntry),
+            };
         } catch (error) {
             logger.error('Export', 'Failed to load previous manifest:', error);
             return null;
         }
     }
 
-    /**
-     * Delete registry entry
-     * @param scopeKey Scope identifier
-     */
     async deleteEntry(scopeKey: string): Promise<void> {
         if (!this.registry) {
             await this.loadRegistry();
         }
-
         delete this.registry!.packs[scopeKey];
         await this.saveRegistry();
     }
 
-    /**
-     * Get all registry entries
-     * @returns Array of all registry entries
-     */
     getAllEntries(): PackRegistryEntry[] {
-        if (!this.registry) {
-            return [];
-        }
-
+        if (!this.registry) return [];
         return Object.values(this.registry.packs);
     }
 
-    /**
-     * Check if pack has been exported before
-     * @param scopeKey Scope identifier
-     * @returns True if pack exists in registry
-     */
     hasBeenExported(scopeKey: string): boolean {
         return this.getEntry(scopeKey) !== null;
     }
