@@ -12,7 +12,9 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     private readonly adapterType: AdapterType;
     private readonly MAX_CONTENT_LENGTH = 4000; // Reasonable limit for most APIs
     private readonly MAX_RETRIES = 3;
-    private readonly RETRY_DELAY = 1000; // 1 second
+    private readonly RETRY_DELAY = 1000; // 1 second base for exponential backoff
+    /** Cap on fallback exponential backoff delay only. Explicit Retry-After values are honoured in full. */
+    private readonly MAX_RETRY_DELAY_MS = 60_000; // 60 seconds
 
     constructor(config: Omit<LLMServiceConfig, 'type'> & { type: AdapterType; thinkingMode?: 'standard' | 'adaptive' }, app: App) {
         super(config, app);
@@ -61,6 +63,95 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             }
             throw error;
         }
+    }
+
+    /** Case-insensitive header lookup. HTTP headers are case-insensitive (RFC 7230),
+     *  and `RequestUrlResponse.headers` is a plain object whose key casing depends on the platform. */
+    private getHeader(headers: Record<string, string> | undefined, name: string): string | undefined {
+        if (!headers) return undefined;
+        const lower = name.toLowerCase();
+        const key = Object.keys(headers).find(k => k.toLowerCase() === lower);
+        return key ? headers[key] : undefined;
+    }
+
+    /** Parse `Retry-After` header supporting both delta-seconds and HTTP-date formats.
+     *  Returns raw milliseconds to wait, or 0 if absent/unparseable.
+     *  HTTP-date clock skew: if client clock is ahead, `Date.now()` may exceed the server date,
+     *  yielding 0 — this gracefully degrades to exponential backoff via the `headerMs > 0` guard. */
+    private parseRetryAfterMs(header: string | undefined): number {
+        if (!header) return 0;
+        // Delta-seconds: "120"
+        const secs = Number.parseInt(header, 10);
+        if (!Number.isNaN(secs) && secs > 0) return secs * 1000;
+        // HTTP-date: "Wed, 21 Oct 2025 07:28:00 GMT"
+        const dateMs = Date.parse(header);
+        if (!Number.isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+        return 0;
+    }
+
+    /** Retriable HTTP status codes: 429 rate-limit, Anthropic 529 overload, standard 5xx transients. */
+    private readonly RETRIABLE_STATUSES = new Set([429, 502, 503, 504, 529]);
+
+    /** Sleep with jitter on transient network errors. Returns false if retries exhausted (caller should rethrow). */
+    private async retryOnNetworkError(attempt: number): Promise<boolean> {
+        if (attempt >= this.MAX_RETRIES - 1) return false;
+        const jitteredMs = Math.min(
+            this.RETRY_DELAY * Math.pow(2, attempt) * (0.5 + Math.random()),
+            this.MAX_RETRY_DELAY_MS
+        );
+        logger.warn('LLM', `Network error. Retrying in ${Math.round(jitteredMs / 1000)}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, jitteredMs));
+        return true;
+    }
+
+    /** Evaluate HTTP status and sleep if the request should be retried.
+     *  Returns false when the caller should stop retrying (non-retriable status or retries exhausted).
+     *  Explicit `Retry-After` values are honoured in full — batch tasks use `setTimeout` which does not
+     *  block the UI thread, so long server-directed waits are safe. The `MAX_RETRY_DELAY_MS` cap applies
+     *  only to the fallback exponential delay when no `Retry-After` header is present. */
+    private async retryOnHttpStatus(response: import('obsidian').RequestUrlResponse, attempt: number): Promise<boolean> {
+        if (response.status === 401 || response.status === 403) return false;
+        if (!this.RETRIABLE_STATUSES.has(response.status)) return false;
+        if (attempt >= this.MAX_RETRIES - 1) return false;
+        const headerMs = this.parseRetryAfterMs(this.getHeader(response.headers, 'retry-after'));
+        const fallbackMs = Math.min(
+            this.RETRY_DELAY * Math.pow(2, attempt) * (0.5 + Math.random()),
+            this.MAX_RETRY_DELAY_MS
+        );
+        const waitMs = headerMs > 0 ? headerMs : fallbackMs;
+        logger.warn('LLM', `HTTP ${response.status}. Retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        return true;
+    }
+
+    /** POST to `url` with retry/backoff on 429 rate-limit and transient 5xx responses.
+     *  Never retries 401/403 or other client errors.
+     *  `timeoutMs` applies per-attempt; total max duration = MAX_RETRIES × timeoutMs + backoff.
+     *
+     *  NOTE: A future transport-layer refactor should consolidate this and makeRequestWithRetry
+     *  into a single retry primitive; for now they are intentionally kept separate to avoid
+     *  touching the tagging path within this targeted bug-fix scope. */
+    private async postWithRetry(
+        url: string,
+        headers: Record<string, string>,
+        body: string,
+        timeoutMs: number
+    ): Promise<import('obsidian').RequestUrlResponse> {
+        let lastResponse: import('obsidian').RequestUrlResponse | null = null;
+        for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+            try {
+                lastResponse = await this.requestWithTimeout(
+                    requestUrl({ url, method: 'POST', headers, body, throw: false }),
+                    timeoutMs
+                );
+            } catch (networkErr) {
+                if (!await this.retryOnNetworkError(attempt)) throw networkErr;
+                continue;
+            }
+            if (lastResponse.status >= 200 && lastResponse.status < 300) break;
+            if (!await this.retryOnHttpStatus(lastResponse, attempt)) break;
+        }
+        return lastResponse!;
     }
 
     private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
@@ -264,21 +355,42 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @param prompt - The prompt to send (should contain all necessary instructions)
      * @returns Promise resolving to the response content
      */
+    /** Parse the raw text from a successful summarize response, throwing on empty/malformed content. */
+    private parseSummarizeResponseText(responseText: string): string {
+        const data = JSON.parse(responseText);
+        logger.debug('LLM', 'Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
+        logger.debug('LLM', 'Summarize response preview:', responseText.substring(0, 300));
+        const content = this.adapter.parseResponseContent(data);
+        logger.debug('LLM', 'Parsed content length:', content?.length ?? 0);
+        logger.debug('LLM', 'Parsed content preview:', content?.substring(0, 300));
+        const stopReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
+        if (stopReason) logger.debug('LLM', 'Stop reason:', stopReason);
+        if (!content) {
+            const finishReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
+            if (finishReason === 'length') {
+                logger.warn('LLM', 'Model returned empty content with finish_reason: "length". Reasoning models may exhaust max_completion_tokens on internal reasoning.', { choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300) });
+                throw new Error('Model output truncated -- the content was too long for the token limit. Try a shorter note or a non-reasoning model.');
+            }
+            logger.warn('LLM', 'No content in summarize response.', {
+                responseKeys: data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data,
+                choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300)
+            });
+            throw new Error('No content found in response');
+        }
+        return content;
+    }
+
     private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<string> {
         const validationError = this.validateCloudConfig();
-        if (validationError) {
-            throw new Error(validationError);
-        }
+        if (validationError) throw new Error(validationError);
 
-        // Build request body without the tagging system prompt
-        // The prompt already contains all necessary summarization instructions
         const requestBody = this.adapter.formatSummarizeRequest
             ? this.adapter.formatSummarizeRequest(prompt)
             : this.buildSummarizeRequestBody(prompt, options);
 
         const endpoint = this.adapter.getEndpoint();
+        const timeoutMs = options?.timeoutMs ?? this.getSummarizeTimeoutMs();
 
-        // Debug logging
         logger.debug('LLM', 'Summarize request:', {
             adapterType: this.adapterType,
             endpoint,
@@ -288,67 +400,32 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             ...(options?.disableThinking ? { thinking: 'disabled' } : {})
         });
 
-        const response = await this.requestWithTimeout(
-            requestUrl({
-                url: endpoint,
-                method: 'POST',
-                headers: this.adapter.getHeaders(),
-                body: JSON.stringify(requestBody),
-                throw: false
-            }),
-            options?.timeoutMs ?? this.getSummarizeTimeoutMs()
+        // postWithRetry handles 429 backoff so batch operations (e.g. newsletter triage)
+        // don't silently fall back to truncated content when a rate limit is hit.
+        const response = await this.postWithRetry(
+            endpoint,
+            this.adapter.getHeaders(),
+            JSON.stringify(requestBody),
+            timeoutMs
         );
 
         if (response.status < 200 || response.status >= 300) {
-            const responseText = response.text;
-            // Debug logging for errors
-            logger.debug('LLM', 'Summarize API error:', {
-                status: response.status,
-                response: responseText.substring(0, 500)
-            });
-            // Parse the error response to get detailed message
+            logger.debug('LLM', 'Summarize API error:', { status: response.status, response: response.text.substring(0, 500) });
             let errorMessage = `API error: ${response.status}`;
             try {
-                const errorJson = JSON.parse(responseText);
+                const errorJson = JSON.parse(response.text);
                 errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
             } catch {
-                // If JSON parsing fails, include raw response
-                errorMessage = `${errorMessage} - ${responseText.substring(0, 200)}`;
+                errorMessage = `${errorMessage} - ${response.text.substring(0, 200)}`;
             }
             throw new Error(errorMessage);
         }
 
         const responseText = response.text;
         try {
-            const data = JSON.parse(responseText);
-            logger.debug('LLM', 'Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
-            logger.debug('LLM', 'Summarize response preview:', responseText.substring(0, 300));
-            const content = this.adapter.parseResponseContent(data);
-            logger.debug('LLM', 'Parsed content length:', content?.length ?? 0);
-            logger.debug('LLM', 'Parsed content preview:', content?.substring(0, 300));
-            // Log stop_reason (Claude) / finish_reason (OpenAI-compatible)
-            const stopReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
-            if (stopReason) {
-                logger.debug('LLM', 'Stop reason:', stopReason);
-            }
-            if (!content) {
-                // Detect reasoning model token exhaustion (finish_reason: "length" with empty content)
-                const finishReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
-                if (finishReason === 'length') {
-                    logger.warn('LLM', 'Model returned empty content with finish_reason: "length". Reasoning models may exhaust max_completion_tokens on internal reasoning.', { choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300) });
-                    throw new Error('Model output truncated -- the content was too long for the token limit. Try a shorter note or a non-reasoning model.');
-                }
-                logger.warn('LLM', 'No content in summarize response.', {
-                    responseKeys: data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data,
-                    choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300)
-                });
-                throw new Error('No content found in response');
-            }
-            return content;
+            return this.parseSummarizeResponseText(responseText);
         } catch (error) {
-            if (error instanceof Error) {
-                throw error;
-            }
+            if (error instanceof Error) throw error;
             throw new Error(`Failed to parse response: ${responseText.substring(0, 100)}...`);
         }
     }

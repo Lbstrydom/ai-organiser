@@ -43,7 +43,7 @@ TEST_INSTRUCTIONS.md
 coverage/
 
 # Internal dev tools
-scripts/openai-audit.mjs
+scripts/
 .github/skills/
 .github/appmod/
 .githooks/
