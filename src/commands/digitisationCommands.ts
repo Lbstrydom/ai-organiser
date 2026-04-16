@@ -179,9 +179,12 @@ async function offerImageCompression(
 /**
  * Find target image(s) to digitise.
  * Priority:
- * 1. Cursor on/near image embed (within ±3 lines) → single-element array
- * 2. Single image in note → single-element array
- * 3. Multiple images → multi-select picker
+ * 1. Single image in note → auto-select (no picker needed)
+ * 2. Multiple images → multi-select picker, with cursor-adjacent image pre-selected
+ *
+ * NOTE: The cursor-nearest heuristic is intentionally NOT used to auto-select when
+ * multiple images are present. Doing so silently ignores other pages — the primary
+ * cause of multi-page handwritten notes only producing a single-page extraction.
  * Exported for testability.
  */
 export async function findTargetImages(
@@ -193,13 +196,7 @@ export async function findTargetImages(
     const content = editor.getValue();
     const cursor = editor.getCursor();
 
-    // Strategy 1: Find image near cursor
-    const nearestImage = visionService.findNearestImage(content, cursor.line, 3);
-    if (nearestImage && nearestImage.resolvedFile instanceof TFile) {
-        return [nearestImage.resolvedFile];
-    }
-
-    // Strategy 2: Detect all images in note
+    // Detect all images in note
     const detectionResult = detectEmbeddedContent(plugin.app, content, view.file || undefined);
     const images = detectionResult.items.filter(
         item => item.type === 'image' && item.resolvedFile instanceof TFile
@@ -214,9 +211,14 @@ export async function findTargetImages(
         return file instanceof TFile ? [file] : [];
     }
 
-    // Strategy 3: Multiple images — show multi-select picker
+    // Multiple images — show picker so user can select all pages they want.
+    // Pre-select whichever image is closest to the cursor as a convenience hint.
     const resolved = images.map(img => img.resolvedFile).filter((f): f is TFile => f instanceof TFile);
-    return await showMultiImagePicker(plugin, resolved);
+    const nearestImage = visionService.findNearestImage(content, cursor.line, 3);
+    const preSelected = (nearestImage?.resolvedFile instanceof TFile)
+        ? nearestImage.resolvedFile
+        : null;
+    return await showMultiImagePicker(plugin, resolved, preSelected);
 }
 
 /** Max images to auto-select to avoid accidental VLM cost */
@@ -224,9 +226,16 @@ const MAX_AUTO_SELECT = 5;
 
 /**
  * Show multi-select picker modal for batch digitisation.
+ * @param preSelected - Image to pre-select (cursor-adjacent hint). When null and
+ *   the image count is within MAX_AUTO_SELECT, all images are pre-selected so the
+ *   user can immediately click Digitise for a full multi-page extraction.
  * Exported for testability.
  */
-export async function showMultiImagePicker(plugin: AIOrganiserPlugin, images: TFile[]): Promise<TFile[]> {
+export async function showMultiImagePicker(
+    plugin: AIOrganiserPlugin,
+    images: TFile[],
+    preSelected: TFile | null = null
+): Promise<TFile[]> {
     return new Promise((resolve) => {
         class MultiImagePickerModal extends Modal {
             private readonly selectedSet = new Set<TFile>();
@@ -265,8 +274,12 @@ export async function showMultiImagePicker(plugin: AIOrganiserPlugin, images: TF
                 // Image list with checkboxes
                 const list = contentEl.createEl('div', { cls: 'ai-organiser-image-picker-list' });
 
-                // Pre-select if ≤ threshold
-                if (images.length <= MAX_AUTO_SELECT) {
+                // Default selection: if a cursor-adjacent image was identified, pre-select
+                // only that one (user likely wants a specific page). Otherwise pre-select all
+                // when within MAX_AUTO_SELECT — common case for photographed multi-page notes.
+                if (preSelected) {
+                    this.selectedSet.add(preSelected);
+                } else if (images.length <= MAX_AUTO_SELECT) {
                     images.forEach(img => this.selectedSet.add(img));
                 }
 

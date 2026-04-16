@@ -6,7 +6,7 @@
  * and generates digest + individual notes in the vault.
  */
 
-import { normalizePath, requestUrl, TFile } from 'obsidian';
+import { normalizePath, requestUrl, TAbstractFile, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import type { RawNewsletter, ProcessedNewsletter, NewsletterFetchResult } from './newsletterTypes';
@@ -81,6 +81,15 @@ export class NewsletterService {
             } catch (e) {
                 logger.warn('Newsletter', 'Daily brief generation failed (non-fatal)', e);
             }
+        }
+
+        // Retention pruning — fire-and-forget so it never delays the fetch result.
+        // Errors are logged but do not affect the returned NewsletterFetchResult.
+        const retentionDays = this.plugin.settings.newsletterRetentionDays ?? 30;
+        if (retentionDays > 0) {
+            void this.pruneOldNewsletters(retentionDays).catch(e =>
+                logger.warn('Newsletter', 'Retention pruning failed (non-fatal)', e)
+            );
         }
 
         return {
@@ -269,10 +278,39 @@ export class NewsletterService {
         // LLM triage — use plain prose (no table pipes, no image refs, no URLs)
         // so the model sees actual content rather than markdown formatting noise
         const plainText = extractNewsletterText(markdown);
+
+        // Extraction yield check: compare meaningful-word counts between raw markdown
+        // and the extracted plain text. A very low yield means the short-line filter
+        // (60-char minimum) stripped too much content — e.g. a newsletter with short
+        // punchy lines where extraction only preserved the first sentence.
+        // We ALWAYS attempt triage — the check decides WHICH source to use, never
+        // whether to triage at all.
+        const rawWordCount  = (markdown.match(/\b\w{4,}\b/g) ?? []).length;
+        const plainWordCount = (plainText.match(/\b\w{4,}\b/g) ?? []).length;
+        // Thresholds: absolute floor of 10 words, OR yield < 15% of a substantial raw
+        // (≥100 words). Data from real newsletters shows healthy yield is 60–80%;
+        // 15% leaves a wide safety margin without triggering false fallbacks.
+        const EXTRACTION_MIN_WORDS = 10;
+        const YIELD_MIN_RATIO = 0.15;
+        const YIELD_CHECK_MIN_RAW = 100;
+        const yieldRatio = rawWordCount > 0 ? plainWordCount / rawWordCount : 0;
+        const extractionThin = plainWordCount < EXTRACTION_MIN_WORDS ||
+            (rawWordCount >= YIELD_CHECK_MIN_RAW && yieldRatio < YIELD_MIN_RATIO);
+        if (extractionThin) {
+            logger.warn('Newsletter',
+                `Low extraction yield for "${raw.subject}" ` +
+                `(${plainWordCount}/${rawWordCount} words, ${Math.round(yieldRatio * 100)}%) ` +
+                `— falling back to raw markdown for triage`
+            );
+        }
+        // Use plainText when yield looks healthy; fall back to full markdown otherwise
+        const triageSource = extractionThin ? markdown : plainText;
+
         let triage: string | null = null;
         let llmFailed = false;
+        let extractionFailed = false;
         try {
-            const truncated = truncateAtBoundary(plainText || markdown, TRIAGE_MAX_CHARS);
+            const truncated = truncateAtBoundary(triageSource, TRIAGE_MAX_CHARS);
             const langCode = this.plugin.settings.newsletterPreferredLanguage;
             const langName = getLanguageNameForPrompt(langCode);
             const prompt = buildTriagePrompt({
@@ -291,9 +329,10 @@ export class NewsletterService {
             llmFailed = true;
             logger.error('Newsletter', `LLM triage error for "${raw.subject}"`, e);
         }
-        // Fallback: use cleaned plain text (not raw markdown) — avoids layout noise
+        // Fallback: excerpt from triage source so the digest always shows something
         if (!triage) {
-            triage = truncateAtBoundary(plainText || markdown, 500, '...');
+            triage = truncateAtBoundary(triageSource, 500, '...');
+            extractionFailed = llmFailed && extractionThin; // only flag if both quality AND LLM failed
         }
 
         return {
@@ -305,6 +344,7 @@ export class NewsletterService {
             markdown,
             triage,
             llmFailed,
+            extractionFailed: extractionFailed || undefined,
             keyLinks: extractNewsletterLinks(raw.body),
         };
     }
@@ -411,11 +451,14 @@ export class NewsletterService {
         const linkTarget = resolvedPath
             ? resolvedPath.split('/').slice(-2).join('/').replace(/\.md$/, '')
             : `${dateStr}/${sanitizeFileName(nl.senderName || nl.subject)}`;
+        const summaryLine = nl.extractionFailed
+            ? '⚠️ *Content could not be extracted — open the raw note to read manually.*'
+            : (nl.triage || '(No summary available)');
         return [
             `## ${nl.senderName || nl.subject}`,
             `*From: ${nl.from}*`,
             '',
-            nl.triage || '(No summary available)',
+            summaryLine,
             '',
             `**[[${linkTarget}|Read full]]** · *Summarize*`,
             '',
@@ -473,7 +516,7 @@ export class NewsletterService {
     private async generateAndInjectBrief(currentBatch: ProcessedNewsletter[]): Promise<void> {
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
-        const dateStr = new Date().toISOString().slice(0, 10);
+        const dateStr = getBriefDateStr(this.plugin.settings.newsletterBriefCutoffHour ?? 6);
         const digestPath = getDigestPath(outputRoot, dateStr);
 
         const digestFile = vault.getAbstractFileByPath(digestPath);
@@ -533,8 +576,9 @@ export class NewsletterService {
             const { getLanguageNameForPrompt: getLang } = await import('../languages');
             const langName = getLang(langCode);
 
+            const maxMins = this.plugin.settings.newsletterPodcastMaxMins ?? 5;
             const scriptPrompt = insertPodcastContent(
-                buildPodcastScriptPrompt({ language: langName || undefined }),
+                buildPodcastScriptPrompt({ language: langName || undefined, maxMins }),
                 brief
             );
             const scriptResult = await summarizeText(pluginContext(this.plugin), scriptPrompt);
@@ -695,6 +739,51 @@ export class NewsletterService {
             // Silent — dedup is best-effort
         }
     }
+
+    /**
+     * Delete date-subdirectories and digest files older than retentionDays.
+     * Only touches folders/files matching the newsletter date pattern (YYYY-MM-DD).
+     */
+    private async pruneOldNewsletters(retentionDays: number): Promise<void> {
+        const { vault, fileManager } = this.plugin.app;
+        const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
+        const rootFolder = vault.getAbstractFileByPath(normalizePath(outputRoot));
+        if (!rootFolder || !('children' in rootFolder)) return;
+
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - retentionDays);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+        for (const child of (rootFolder as { children: unknown[] }).children) {
+            if (child instanceof TAbstractFile && isExpiredNewsletterEntry(child, cutoffStr)) {
+                try { await fileManager.trashFile(child); } catch { /* best-effort */ }
+            }
+        }
+    }
+}
+
+/**
+ * Returns the YYYY-MM-DD string for the current "brief day".
+ * If the current hour is before cutoffHour, the brief belongs to yesterday's date
+ * (e.g. newsletters arriving at 2am still roll up into the previous day's brief).
+ */
+export function getBriefDateStr(cutoffHour: number): string {
+    const now = new Date();
+    if (now.getHours() < cutoffHour) {
+        now.setDate(now.getDate() - 1);
+    }
+    return now.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns true if a vault entry (folder or file) is an expired newsletter
+ * date-directory (YYYY-MM-DD) or digest file (Digest — YYYY-MM-DD.md).
+ */
+function isExpiredNewsletterEntry(child: TAbstractFile, cutoffStr: string): boolean {
+    const { name } = child;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(name)) return name < cutoffStr;
+    const m = /^Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(name);
+    return m !== null && m[1] < cutoffStr;
 }
 
 const NEWSLETTER_LINK_SKIP = ['unsubscribe', 'optout', 'opt-out', 'manage-preferences', 'email-preferences', 'view-in-browser', 'webversion', 'mailto:', 'twitter.com', 'facebook.com', 'instagram.com', 'linkedin.com'];

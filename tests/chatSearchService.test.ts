@@ -1,7 +1,7 @@
 /**
  * Tests for ChatSearchService — conversation search, content extraction, and excerpt building.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { App, TFile } from 'obsidian';
 import type { AIOrganiserSettings } from '../src/core/settings';
 import { ChatSearchService } from '../src/services/chat/chatSearchService';
@@ -291,8 +291,14 @@ describe('ChatSearchService', () => {
         };
 
         beforeEach(() => {
+            vi.useFakeTimers();
+            vi.setSystemTime(now);
             mockApp = createMockApp([budgetFile, researchFile, oldFile], contentMap);
             service = new ChatSearchService(mockApp, mockSettings);
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
         });
 
         it('finds conversations matching keyword', async () => {

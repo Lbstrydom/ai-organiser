@@ -420,6 +420,12 @@ export const zhCN: Translations = {
             podcastVoiceCharon: "Charon（中性、清晰）",
             podcastVoicePuck: "Puck（温和、对话式）",
             podcastVoiceKore: "Kore（专业、精准）",
+            podcastMaxMins: "播客最长时长（分钟）",
+            podcastMaxMinsDesc: "语音播客的上限时长。如果当天新闻较少，脚本会相应缩短——此设置为上限，非目标时长。",
+            briefCutoffHour: "简报换日时间",
+            briefCutoffHourDesc: "每日简报换到新一天的小时数。在此时间之前收到的新闻简报将归入前一天。",
+            retentionDays: "新闻简报保留天数",
+            retentionDaysDesc: "自动删除超过此天数的新闻简报和摘要文件。设为0表示永久保留。",
         },
         notebookLM: {
             title: "NotebookLM 集成",

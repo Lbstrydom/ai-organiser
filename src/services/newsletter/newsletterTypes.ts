@@ -20,8 +20,10 @@ export interface ProcessedNewsletter {
     date: string;
     senderName: string;
     markdown: string;        // Full converted content
-    triage: string | null;   // AI triage summary (null if LLM failed)
+    triage: string | null;   // AI triage summary (null if LLM failed or extraction failed)
     llmFailed: boolean;
+    /** True when extractNewsletterText produced too little text to triage reliably. */
+    extractionFailed?: boolean;
     /** Resolved vault path set during note creation — used to build digest links. */
     _resolvedPath?: string;
     /** Key content links extracted from HTML body (spam-filtered, max 10). */

@@ -151,7 +151,7 @@ describe('WriterService.generateReadmeContent (via writeReadme)', () => {
     });
 
     it('uses vault.modify when file already exists', async () => {
-        app.vault._files.set('packs/my-pack/README.md', 'old content');
+        (app.vault as unknown as { _files: Map<string, string> })._files.set('packs/my-pack/README.md', 'old content');
         await service.writeReadme('packs/my-pack', makeManifest());
         expect(app.vault.modify).toHaveBeenCalled();
         expect(app.vault.create).not.toHaveBeenCalled();
@@ -233,7 +233,7 @@ describe('WriterService.ensureFolder', () => {
 
     it('does not create folder when it already exists', async () => {
         const app = makeApp();
-        app.vault._files.set('packs/existing', '');  // exact path — no trailing slash
+        (app.vault as unknown as { _files: Map<string, string> })._files.set('packs/existing', '');  // exact path — no trailing slash
         const service = new WriterService(app);
         await service.ensureFolder('packs/existing');
         // createFolder should NOT be called if folder exists

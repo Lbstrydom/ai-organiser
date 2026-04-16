@@ -78,7 +78,7 @@ function processTag(tag: string, el: Element, children: string, options?: HtmlTo
         case 'mark': return children.trim() ? `==${children.trim()}==` : '';
         case 'del': case 's': case 'strike': return children.trim() ? `~~${children.trim()}~~` : '';
         case 'blockquote': return processBlockquote(children);
-        case 'img': return processImage(el);
+        case 'img': return processImage(el, options);
         case 'table': return `\n${children}\n`;
         case 'thead': case 'tbody': return children;
         case 'tr': return processTableRow(children, options);
@@ -105,9 +105,14 @@ function processBlockquote(children: string): string {
     return '\n' + children.trim().split('\n').map(line => `> ${line}`).join('\n') + '\n';
 }
 
-function processImage(el: Element): string {
+function processImage(el: Element, options?: HtmlToMarkdownOptions): string {
     const src = el.getAttribute('src');
-    return src ? `![${el.getAttribute('alt') ?? ''}](${src})` : '';
+    if (!src) return '';
+    const alt = el.getAttribute('alt') ?? '';
+    // In newsletter/email mode (flattenTables), images with no alt text are always
+    // tracking pixels or layout spacers — skip them entirely at the DOM level.
+    if (options?.flattenTables && !alt.trim()) return '';
+    return `![${alt}](${src})`;
 }
 
 function processTableRow(children: string, options?: HtmlToMarkdownOptions): string {
@@ -203,10 +208,26 @@ function stripEmailFooter(md: string): string {
  */
 export function cleanNewsletterMarkdown(md: string): string {
     // Zero-width and invisible chars used as email spacers (\u200D excluded — ZWJ can appear in emoji)
+    // Zero-width and invisible chars used as email spacers (\u200D excluded — ZWJ can appear in emoji)
     const invisibleChars = /[\u200B\u200C\uFEFF\u00AD]/g;
     return stripEmailFooter(
         md
+            // Strip lines that consist only of numeric HTML entities (e.g. &#8199;&#847; anti-spam
+            // spacers used by Fortune and similar; these appear when entities were double-encoded
+            // in the source HTML and survived the DOMParser pass as literal text).
+            .replaceAll(/^(?:\s*&#\d+;\s*)+$/gm, '')
+            // Strip specific known invisible-char entities appearing inline in text:
+            // &#8199; = U+2007 figure space, &#847; = U+034F CGJ (combining grapheme joiner),
+            // &#8203; = ZWSP, &#8204; = ZWNJ, &#65279; = BOM, &#173; = soft-hyphen
+            .replaceAll(/&#(?:8199|847|8203|8204|65279|173);/gi, '')
+            // Strip U+2007 (figure space) and U+034F (CGJ) as separate passes — the linter
+            // flags both in a character class together because U+034F is a combining character.
+            .replaceAll('\u2007', '')
+            .replaceAll('\u034F', '')
             .replaceAll(invisibleChars, '')
+            // Remove inline images with empty alt text that survived into already-saved markdown
+            // (tracking pixels embedded mid-line; new fetches are cleaned at DOM level instead).
+            .replaceAll(/!\[\s*\]\(https?:\/\/[^)]+\)/g, '')
             // Remove ALL standalone image-only lines (tracking pixels, decorative headers, spacers).
             // \s* before https handles leading whitespace from flattened table cells.
             // \s* inside (URL) handles emails that emit src=" https://..." with a leading space.
@@ -223,12 +244,19 @@ export function cleanNewsletterMarkdown(md: string): string {
     );
 }
 
+// Minimum line length for non-structural lines in LLM-bound newsletter text.
+// Lines shorter than this are almost always metadata (publication name, date, subscription
+// status, section labels, "by Author" lines) rather than article content. Structural lines
+// (headings, list items, bold text) are exempt from this threshold.
+const MIN_CONTENT_LINE_CHARS = 60;
+
 /**
  * Extract plain prose text from newsletter markdown for LLM consumption.
- * Strips table pipes, image references, and link URLs — keeps link text and prose.
+ * Strips table pipes, image references, link URLs, and short metadata lines.
+ * Keeps link text, headings, list items, and substantive prose.
  */
 export function extractNewsletterText(md: string): string {
-    return md
+    const cleaned = md
         // Remove table rows (lines starting with |)
         .replaceAll(/^\|.*$/gm, '')
         // Remove standalone image references
@@ -239,8 +267,23 @@ export function extractNewsletterText(md: string): string {
         // Markdown links — keep the anchor text, drop URL
         .replaceAll(/\[([^\]]+)\]\([^)]+\)/g, '$1')
         // Strip leftover markdown heading hashes (keep text)
-        .replaceAll(/^#{1,6}\s+/gm, '')
-        // Collapse excessive whitespace
+        .replaceAll(/^#{1,6}\s+/gm, '');
+
+    // Drop short non-structural lines — these are invariably metadata (publication name,
+    // date stamp, subscription status, section category labels, "by Author" attribution)
+    // that bleed in from flattened layout tables. Structural lines are always kept:
+    //   - list items (-, *, 1.)
+    //   - bold/emphasis (**, *)
+    //   - any line long enough to be a sentence fragment
+    const lines = cleaned.split('\n').filter(line => {
+        const t = line.trim();
+        if (!t) return false;
+        if (t.startsWith('- ') || t.startsWith('* ') || /^\d+\.\s/.test(t)) return true;
+        if (t.startsWith('**') || t.startsWith('*')) return true;
+        return t.length >= MIN_CONTENT_LINE_CHARS;
+    });
+
+    return lines.join('\n')
         .replaceAll(/\n{3,}/g, '\n\n')
         .trim();
 }

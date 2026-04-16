@@ -550,6 +550,12 @@ export interface Translations {
             podcastVoiceCharon: string;
             podcastVoicePuck: string;
             podcastVoiceKore: string;
+            podcastMaxMins: string;
+            podcastMaxMinsDesc: string;
+            briefCutoffHour: string;
+            briefCutoffHourDesc: string;
+            retentionDays: string;
+            retentionDaysDesc: string;
         };
         notebookLM: {
             title: string;

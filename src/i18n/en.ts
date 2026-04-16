@@ -563,6 +563,12 @@ export const en: Translations = {
             podcastVoiceCharon: "Charon (neutral, clear)",
             podcastVoicePuck: "Puck (warm, conversational)",
             podcastVoiceKore: "Kore (professional, precise)",
+            podcastMaxMins: "Maximum podcast length (minutes)",
+            podcastMaxMinsDesc: "Upper limit for the spoken podcast. If the day's news is light the script will be shorter — this is a ceiling, not a target.",
+            briefCutoffHour: "Brief day cutoff",
+            briefCutoffHourDesc: "Hour when the daily brief rolls over to a new day. Newsletters arriving before this hour are grouped with the previous day.",
+            retentionDays: "Keep newsletters for",
+            retentionDaysDesc: "Automatically delete newsletters and digest files older than this. Set to 0 to keep forever.",
         },
         notebookLM: {
             title: "NotebookLM integration",

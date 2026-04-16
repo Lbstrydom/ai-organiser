@@ -113,11 +113,14 @@ export function insertBriefContent(
 
 // ── Podcast Script ───────────────────────────────────────────────────────────
 
+const WORDS_PER_MINUTE = 130;
+
 /**
  * Build the podcast script rewrite prompt.
  * Converts markdown brief to spoken conversational prose.
+ * maxMins is a ceiling — if the news is light, produce a shorter script rather than padding.
  */
-export function buildPodcastScriptPrompt(options: { language?: string } = {}): string {
+export function buildPodcastScriptPrompt(options: { language?: string; maxMins?: number } = {}): string {
     const isNonEnglish = options.language && options.language.toLowerCase() !== 'english';
     const langInstruction = isNonEnglish
         ? `\n- Speak entirely in ${options.language}, including opening, closing, and all transitions`
@@ -125,8 +128,9 @@ export function buildPodcastScriptPrompt(options: { language?: string } = {}): s
     const transitionNote = isNonEnglish
         ? `Convert theme headings to natural spoken transitions appropriate in ${options.language}`
         : 'Convert theme headings to spoken transitions: "In geopolitics today...", "In tech and AI...", "On the business and markets front..."';
+    const maxWords = Math.round((options.maxMins ?? 5) * WORDS_PER_MINUTE);
 
-    return `<task>Rewrite this daily news brief as a short spoken podcast script.</task>
+    return `<task>Rewrite this daily news brief as a spoken podcast script.</task>
 <requirements>
 - Remove all markdown formatting (no **, ##, ###, -, bullets)
 - ${transitionNote}
@@ -134,7 +138,7 @@ export function buildPodcastScriptPrompt(options: { language?: string } = {}): s
 - Add a one-sentence opening that introduces today's main topics
 - Add a one-sentence closing to end the briefing
 - Keep it natural and conversational — write as it will be spoken aloud
-- 100-250 words total${langInstruction}
+- Maximum ${maxWords} words — if the news is light, write less rather than padding${langInstruction}
 </requirements>
 <brief>
 {{CONTENT}}

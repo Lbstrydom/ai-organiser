@@ -307,6 +307,9 @@ export interface AIOrganiserSettings {
     newsletterDailyBrief: boolean;       // Synthesise a deduplicated daily brief at top of digest
     newsletterAudioPodcast: boolean;     // Generate TTS audio from the daily brief (requires Gemini)
     newsletterPodcastVoice: string;      // Gemini TTS voice name: 'Charon' | 'Puck' | 'Kore'
+    newsletterPodcastMaxMins: number;   // Maximum podcast length in minutes (1-15, default 5)
+    newsletterBriefCutoffHour: number;  // Hour (0-23) when "today" rolls over for brief grouping
+    newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -561,6 +564,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterDailyBrief: true,
     newsletterAudioPodcast: false,
     newsletterPodcastVoice: 'Charon',
+    newsletterPodcastMaxMins: 5,
+    newsletterBriefCutoffHour: 6,
+    newsletterRetentionDays: 30,
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

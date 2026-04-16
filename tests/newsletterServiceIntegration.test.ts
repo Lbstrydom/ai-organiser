@@ -64,8 +64,8 @@ function makeRaw(overrides: Partial<RawNewsletter> = {}): RawNewsletter {
         from: 'Morning Brew <morning@brew.com>',
         subject: 'Daily Update',
         date: '2026-03-17T10:00:00Z',
-        body: '<h1>Hello</h1><p>Content</p>',
-        plain: 'Hello\nContent',
+        body: '<h1>Today\'s Headlines</h1><p>Markets rallied sharply on strong earnings reports from major technology companies, pushing the S&P 500 to its highest close in three months. Analysts said investor confidence was buoyed by better-than-expected quarterly results. Federal Reserve officials signalled they remain cautious about further interest rate cuts despite easing inflation data.</p>',
+        plain: 'Today\'s Headlines\nMarkets rallied sharply on strong earnings reports from major technology companies, pushing the S&P 500 to its highest close in three months. Federal Reserve officials signalled they remain cautious about further interest rate cuts despite easing inflation data.',
         ...overrides,
     };
 }

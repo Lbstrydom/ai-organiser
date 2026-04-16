@@ -286,8 +286,45 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                             this.plugin.settings.newsletterPodcastVoice = value;
                             void this.plugin.saveSettings();
                         }));
+
+                new Setting(this.containerEl)
+                    .setName(nl?.podcastMaxMins || 'Maximum podcast length (minutes)')
+                    .setDesc(nl?.podcastMaxMinsDesc || 'Upper limit for the spoken podcast. If the day\'s news is light the script will be shorter — this is a ceiling, not a target.')
+                    .addSlider(slider => slider
+                        .setLimits(1, 15, 1)
+                        .setValue(this.plugin.settings.newsletterPodcastMaxMins ?? 5)
+                        .setDynamicTooltip()
+                        .onChange(value => {
+                            this.plugin.settings.newsletterPodcastMaxMins = value;
+                            void this.plugin.saveSettings();
+                        }));
             }
+
+            new Setting(this.containerEl)
+                .setName(nl?.briefCutoffHour || 'Brief day cutoff')
+                .setDesc(nl?.briefCutoffHourDesc || 'Hour when the daily brief rolls over to a new day. Newsletters arriving before this hour are grouped with the previous day.')
+                .addSlider(slider => slider
+                    .setLimits(0, 12, 1)
+                    .setValue(this.plugin.settings.newsletterBriefCutoffHour ?? 6)
+                    .setDynamicTooltip()
+                    .onChange(value => {
+                        this.plugin.settings.newsletterBriefCutoffHour = value;
+                        void this.plugin.saveSettings();
+                    }));
         }
+
+        // Retention
+        new Setting(this.containerEl)
+            .setName(nl?.retentionDays || 'Keep newsletters for')
+            .setDesc(nl?.retentionDaysDesc || 'Automatically delete newsletters and digest files older than this. Set to 0 to keep forever.')
+            .addSlider(slider => slider
+                .setLimits(0, 365, 7)
+                .setValue(this.plugin.settings.newsletterRetentionDays ?? 30)
+                .setDynamicTooltip()
+                .onChange(value => {
+                    this.plugin.settings.newsletterRetentionDays = value;
+                    void this.plugin.saveSettings();
+                }));
 
         // Auto-tag toggle
         new Setting(this.containerEl)
