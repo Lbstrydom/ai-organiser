@@ -541,6 +541,15 @@ export interface Translations {
             resetHistoryDone: string;
             preferredLanguage: string;
             preferredLanguageDesc: string;
+            dailyBrief: string;
+            dailyBriefDesc: string;
+            audioPodcast: string;
+            audioPodcastDesc: string;
+            podcastVoice: string;
+            podcastVoiceDesc: string;
+            podcastVoiceCharon: string;
+            podcastVoicePuck: string;
+            podcastVoiceKore: string;
         };
         notebookLM: {
             title: string;

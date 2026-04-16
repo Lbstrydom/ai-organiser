@@ -13,6 +13,7 @@ import type { RawNewsletter, ProcessedNewsletter, NewsletterFetchResult } from '
 import { htmlToMarkdown, cleanMarkdown, cleanNewsletterMarkdown, extractNewsletterText, extractLinks } from '../../utils/htmlToMarkdown';
 import { truncateAtBoundary } from '../tokenLimits';
 import { buildTriagePrompt, insertContentIntoTriagePrompt } from '../prompts/triagePrompts';
+import { buildDailyBriefPrompt, insertBriefContent, type BriefSource } from '../prompts/newsletterPrompts';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
@@ -71,6 +72,15 @@ export class NewsletterService {
         // Phase 3: Post-processing — Bases metadata always, AI tagging if enabled
         if (createdPaths.length > 0) {
             await this.postProcessNotes(createdPaths, processed);
+        }
+
+        // Phase 4: Daily brief synthesis (fires after all notes written) — best-effort
+        if (this.plugin.settings.newsletterDailyBrief && processed.length > 0) {
+            try {
+                await this.generateAndInjectBrief(processed);
+            } catch (e) {
+                logger.warn('Newsletter', 'Daily brief generation failed (non-fatal)', e);
+            }
         }
 
         return {
@@ -322,6 +332,7 @@ export class NewsletterService {
                 'tags:',
                 '  - newsletter',
                 `created: ${dateStr}`,
+                'sender_name: "' + (nl.senderName || '').replaceAll('"', String.raw`\"`) + '"',
                 '---',
                 '',
                 `# ${nl.subject}`,
@@ -452,6 +463,196 @@ export class NewsletterService {
         await vault.modify(file, updated);
     }
 
+    // ── Daily Brief (Phase 4) ────────────────────────────────────────────
+
+    /**
+     * Generate a synthesised daily brief from all newsletters in today's digest
+     * and inject it as a managed block at the top of the digest file.
+     * Called after all newsletter notes are written so standalone reconstruction works.
+     */
+    private async generateAndInjectBrief(currentBatch: ProcessedNewsletter[]): Promise<void> {
+        const vault = this.plugin.app.vault;
+        const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const digestPath = getDigestPath(outputRoot, dateStr);
+
+        const digestFile = vault.getAbstractFileByPath(digestPath);
+        if (!(digestFile instanceof TFile)) return;
+
+        // Collect full day's sources (current batch + previously written notes)
+        const sources = await this.collectDayNewsletters(digestFile, currentBatch);
+        if (sources.length < 2) return; // no synthesis value for a single source
+
+        const langCode = this.plugin.settings.newsletterPreferredLanguage;
+        const langName = getLanguageNameForPrompt(langCode);
+        const { filled, truncatedCount } = insertBriefContent(
+            buildDailyBriefPrompt({ language: langName || undefined }),
+            sources
+        );
+
+        let brief: string | null = null;
+        try {
+            const result = await summarizeText(pluginContext(this.plugin), filled);
+            if (result.success && result.content && result.content.trim().length >= 50) {
+                brief = result.content.trim();
+            }
+        } catch (e) {
+            logger.warn('Newsletter', 'Daily brief LLM call failed', e);
+        }
+
+        if (!brief) return; // leave existing block unchanged on failure
+
+        const truncationSuffix = truncatedCount > 1 ? 's were' : ' was';
+        const truncationWarning = truncatedCount > 0
+            ? `\n> [!note] ${truncatedCount} newsletter${truncationSuffix} excluded from this synthesis — the digest was too long to fit the synthesis budget.\n`
+            : '';
+
+        await this.mergeOrPrependBrief(digestFile, brief + truncationWarning);
+
+        // Phase 5: Audio podcast — runs only when Daily Brief succeeded
+        if (this.plugin.settings.newsletterAudioPodcast) {
+            await this.generateAudioForBrief(brief, outputRoot, dateStr);
+        }
+    }
+
+    private async generateAudioForBrief(brief: string, outputRoot: string, dateStr: string): Promise<void> {
+        try {
+            // Resolve Gemini API key: provider-specific key → main key if cloudServiceType=gemini
+            const settings = this.plugin.settings;
+            const geminiApiKey =
+                settings.providerSettings?.['gemini']?.apiKey ||
+                (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
+                '';
+            if (!geminiApiKey) {
+                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured');
+                return;
+            }
+
+            const { buildPodcastScriptPrompt, insertPodcastContent } = await import('../prompts/newsletterPrompts');
+            const langCode = this.plugin.settings.newsletterPreferredLanguage;
+            const { getLanguageNameForPrompt: getLang } = await import('../languages');
+            const langName = getLang(langCode);
+
+            const scriptPrompt = insertPodcastContent(
+                buildPodcastScriptPrompt({ language: langName || undefined }),
+                brief
+            );
+            const scriptResult = await summarizeText(pluginContext(this.plugin), scriptPrompt);
+            if (!scriptResult.success || !scriptResult.content) {
+                logger.warn('Newsletter', 'Podcast script LLM call failed');
+                return;
+            }
+            const podcastScript = scriptResult.content.trim();
+
+            const { generateAudioPodcast } = await import('./newsletterAudioService');
+            const audioFolder = normalizePath(`${outputRoot}/${dateStr}`);
+            const result = await generateAudioPodcast(this.plugin.app, podcastScript, {
+                apiKey: geminiApiKey,
+                voice: this.plugin.settings.newsletterPodcastVoice || 'Charon',
+                outputFolder: audioFolder,
+                dateStr,
+            });
+
+            if (!result.success) {
+                logger.warn('Newsletter', 'Audio podcast generation failed', result.error);
+            }
+        } catch (e) {
+            logger.warn('Newsletter', 'Audio podcast pipeline error', e);
+        }
+    }
+
+    /**
+     * Collect { sourceDisplayName, triageText } for every newsletter in the day's digest.
+     * For the current batch, uses in-memory fields.
+     * For previously-written newsletters, reads their vault note files.
+     */
+    private async collectDayNewsletters(
+        digestFile: TFile,
+        currentBatch: ProcessedNewsletter[]
+    ): Promise<BriefSource[]> {
+        const vault = this.plugin.app.vault;
+        const digestContent = await vault.cachedRead(digestFile);
+        const dateStr = /(\d{4}-\d{2}-\d{2})/.exec(digestFile.path)?.[1] ?? '';
+
+        // Build a map from resolved path → in-memory data for current batch
+        const batchByPath = new Map<string, ProcessedNewsletter>();
+        for (const nl of currentBatch) {
+            if (nl._resolvedPath) batchByPath.set(nl._resolvedPath, nl);
+        }
+
+        // Find all newsletter note links in the digest: [[<dateStr>/something.md]] pattern
+        // Exclude audio file embeds (brief-<dateStr>-*.wav) and non-.md links
+        const linkRegex = new RegExp(String.raw`\[\[` + dateStr + String.raw`/([^\]]+\.md)[^\]]*\]\]`, 'g');
+        const seen = new Set<string>();
+        const sources: BriefSource[] = [];
+
+        let match: RegExpExecArray | null;
+        while ((match = linkRegex.exec(digestContent)) !== null) {
+            const relativePath = `${digestFile.parent?.path ?? ''}/${dateStr}/${match[1]}`;
+            const normalizedPath = relativePath.replaceAll('//', '/').replace(/^\//, '');
+
+            if (seen.has(normalizedPath)) continue;
+            seen.add(normalizedPath);
+
+            // Prefer in-memory data for current batch entries
+            const inMemory = batchByPath.get(normalizedPath);
+            if (inMemory) {
+                sources.push({
+                    sourceDisplayName: inMemory.senderName || inMemory.subject,
+                    triageText: inMemory.triage ?? '',
+                });
+                continue;
+            }
+
+            // Read from vault for previously-written notes
+            const noteFile = vault.getAbstractFileByPath(normalizedPath);
+            if (!(noteFile instanceof TFile)) continue;
+
+            try {
+                const content = await vault.cachedRead(noteFile);
+                sources.push({
+                    sourceDisplayName: extractFrontmatterField(content, 'sender_name') ?? extractSenderName(noteFile.basename),
+                    triageText: extractTriageFromNote(content),
+                });
+            } catch {
+                // best-effort — skip unreadable notes
+            }
+        }
+
+        return sources;
+    }
+
+    /**
+     * Insert or replace the managed Daily Brief block in the digest file.
+     * Uses <!-- DAILY_BRIEF_START --> / <!-- DAILY_BRIEF_END --> markers.
+     */
+    private async mergeOrPrependBrief(file: TFile, brief: string): Promise<void> {
+        const vault = this.plugin.app.vault;
+        const existing = await vault.cachedRead(file);
+
+        const managedBlock = `<!-- DAILY_BRIEF_START -->\n## Daily Brief\n\n${brief}\n\n<!-- DAILY_BRIEF_END -->`;
+
+        let updated: string;
+        if (existing.includes('<!-- DAILY_BRIEF_START -->')) {
+            // Replace existing block
+            updated = existing.replace(
+                /<!-- DAILY_BRIEF_START -->[\s\S]*?<!-- DAILY_BRIEF_END -->/,
+                managedBlock
+            );
+        } else {
+            // Insert after the H1 heading line
+            const h1Match = /^# .+$/m.exec(existing);
+            if (h1Match) {
+                const insertAt = (h1Match.index ?? 0) + h1Match[0].length;
+                updated = existing.slice(0, insertAt) + '\n\n' + managedBlock + '\n\n' + existing.slice(insertAt).trimStart();
+            } else {
+                updated = managedBlock + '\n\n' + existing;
+            }
+        }
+
+        await vault.modify(file, updated);
+    }
+
     // ── Dedup helpers ────────────────────────────────────────────────────
 
     private getSeenIds(): string[] {
@@ -522,4 +723,36 @@ export function extractSenderName(from: string): string {
     const atIdx = from.indexOf('@');
     if (atIdx > 0) return from.slice(0, atIdx);
     return from.trim();
+}
+
+/**
+ * Extract a named field from YAML frontmatter.
+ * Handles simple scalar values (string, number, boolean).
+ */
+export function extractFrontmatterField(content: string, field: string): string | undefined {
+    const fmMatch = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
+    if (!fmMatch) return undefined;
+    const yaml = fmMatch[1];
+    // Match "field: value" or `field: "quoted value"`
+    const lineMatch = new RegExp(
+        String.raw`^${field}\s*:\s*"?([^"\r\n]+)"?\s*$`,
+        'm'
+    ).exec(yaml);
+    if (!lineMatch) return undefined;
+    return lineMatch[1].trim();
+}
+
+/**
+ * Extract the triage body from a newsletter vault note.
+ * Strips YAML frontmatter and the "## Key Links" section.
+ */
+export function extractTriageFromNote(content: string): string {
+    // Strip frontmatter
+    let body = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+    // Strip ## Key Links section (and everything after it in the note)
+    const keyLinksIdx = /^## Key Links\b/m.exec(body)?.index;
+    if (keyLinksIdx !== undefined) {
+        body = body.slice(0, keyLinksIdx);
+    }
+    return body.trim();
 }

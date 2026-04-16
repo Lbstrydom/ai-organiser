@@ -304,6 +304,9 @@ export interface AIOrganiserSettings {
     newsletterAutoFetchIntervalMins: number;  // 30 | 60 | 120 | 360 | 720 | 1440
     newsletterFetchLimit: number;   // threads per fetch (default 20)
     newsletterPreferredLanguage: string; // '' = same as source, else ISO code (e.g., 'en', 'zh-cn')
+    newsletterDailyBrief: boolean;       // Synthesise a deduplicated daily brief at top of digest
+    newsletterAudioPodcast: boolean;     // Generate TTS audio from the daily brief (requires Gemini)
+    newsletterPodcastVoice: string;      // Gemini TTS voice name: 'Charon' | 'Puck' | 'Kore'
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -555,6 +558,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterAutoFetchIntervalMins: 60,
     newsletterFetchLimit: 20,
     newsletterPreferredLanguage: 'en',
+    newsletterDailyBrief: true,
+    newsletterAudioPodcast: false,
+    newsletterPodcastVoice: 'Charon',
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

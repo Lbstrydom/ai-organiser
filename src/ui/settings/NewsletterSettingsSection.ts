@@ -248,6 +248,47 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 });
             });
 
+        // Daily brief synthesis toggle
+        new Setting(this.containerEl)
+            .setName(nl?.dailyBrief || 'Daily brief')
+            .setDesc(nl?.dailyBriefDesc || 'Synthesise all newsletters into a deduplicated daily brief at the top of the digest')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.newsletterDailyBrief)
+                .onChange(value => {
+                    this.plugin.settings.newsletterDailyBrief = value;
+                    void this.plugin.saveSettings();
+                    this.settingTab.display();
+                }));
+
+        // Audio podcast — only shown when daily brief is on
+        if (this.plugin.settings.newsletterDailyBrief) {
+            new Setting(this.containerEl)
+                .setName(nl?.audioPodcast || 'Audio podcast')
+                .setDesc(nl?.audioPodcastDesc || 'Convert the daily brief into a spoken podcast using Gemini TTS')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.newsletterAudioPodcast)
+                    .onChange(value => {
+                        this.plugin.settings.newsletterAudioPodcast = value;
+                        void this.plugin.saveSettings();
+                        this.settingTab.display();
+                    }));
+
+            if (this.plugin.settings.newsletterAudioPodcast) {
+                new Setting(this.containerEl)
+                    .setName(nl?.podcastVoice || 'Podcast voice')
+                    .setDesc(nl?.podcastVoiceDesc || 'Voice used for the audio podcast')
+                    .addDropdown(drop => drop
+                        .addOption('Charon', nl?.podcastVoiceCharon || 'Charon (neutral, clear)')
+                        .addOption('Puck',   nl?.podcastVoicePuck   || 'Puck (warm, conversational)')
+                        .addOption('Kore',   nl?.podcastVoiceKore   || 'Kore (professional, precise)')
+                        .setValue(this.plugin.settings.newsletterPodcastVoice || 'Charon')
+                        .onChange(value => {
+                            this.plugin.settings.newsletterPodcastVoice = value;
+                            void this.plugin.saveSettings();
+                        }));
+            }
+        }
+
         // Auto-tag toggle
         new Setting(this.containerEl)
             .setName(nl?.autoTag || 'Auto-tag newsletters')
