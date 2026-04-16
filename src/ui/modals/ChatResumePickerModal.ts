@@ -125,7 +125,7 @@ export class ChatResumePickerModal extends Modal {
 
         const iconEl = row.createSpan({ cls: 'ai-organiser-resume-row-icon' });
         setIcon(iconEl, 'message-square');
-        row.createSpan({ cls: 'ai-organiser-resume-row-title', text: conv.title });
+        const titleSpan = row.createSpan({ cls: 'ai-organiser-resume-row-title', text: conv.title });
 
         const meta = this.formatTimeAgo(conv.updatedAt ?? conv.lastActiveAt ?? new Date().toISOString());
         row.createSpan({
@@ -133,10 +133,57 @@ export class ChatResumePickerModal extends Modal {
             text: `${this.t.resumeMessages.replace('{count}', String(conv.messageCount))} · ${meta}`,
         });
 
+        // Rename button — pencil icon, stops row click from firing
+        const renameBtn = row.createSpan({ cls: 'ai-organiser-resume-row-rename', attr: { 'aria-label': this.t.resumeRename } });
+        setIcon(renameBtn, 'pencil');
+        renameBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void this.handleInlineRename(conv, row, titleSpan);
+        });
+
         row.addEventListener('click', () => {
             this.resolve({ action: 'resume', filePath: conv.filePath, projectId: conv.projectId });
             this.close();
         });
+    }
+
+    private async handleInlineRename(conv: ConversationSummary, row: HTMLElement, titleSpan: HTMLElement): Promise<void> {
+        // Replace title span with an inline input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = conv.title;
+        input.className = 'ai-organiser-resume-rename-input';
+        titleSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const commit = async () => {
+            const newTitle = input.value.trim();
+            if (newTitle && newTitle !== conv.title) {
+                await this.persistenceService.renameConversation(conv.filePath, newTitle);
+                conv.title = newTitle;
+            }
+            const restored = document.createElement('span');
+            restored.className = 'ai-organiser-resume-row-title';
+            restored.textContent = conv.title;
+            input.replaceWith(restored);
+        };
+
+        const cancel = () => {
+            const restored = document.createElement('span');
+            restored.className = 'ai-organiser-resume-row-title';
+            restored.textContent = conv.title;
+            input.replaceWith(restored);
+        };
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+            if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            e.stopPropagation(); // prevent row keyboard nav from intercepting
+        });
+        input.addEventListener('blur', () => { void commit(); });
+        // Stop click inside input from triggering the row resume
+        input.addEventListener('click', (e) => e.stopPropagation());
     }
 
     private async handleCreateProject(): Promise<void> {

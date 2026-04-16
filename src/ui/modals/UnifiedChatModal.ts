@@ -121,6 +121,8 @@ export class UnifiedChatModal extends Modal {
     private activeProjectId?: string;
     private modeCreatedAt = new Map<ChatMode, string>();
     private freeChatHandler?: FreeChatModeHandler;
+    /** User-defined conversation title — overrides auto-derived first-message title. */
+    private customTitle?: string;
 
     constructor(app: App, plugin: ChatPluginContext, options: UnifiedChatOptions) {
         super(app);
@@ -137,6 +139,11 @@ export class UnifiedChatModal extends Modal {
         this.contentEl.empty();
         this.modalEl.addClass('ai-organiser-chat-modal');
         this.contentEl.addClass('ai-organiser-chat-modal-content');
+
+        // Add rename icon in the modal header alongside the title (persistence only)
+        if (this.plugin.settings.enableChatPersistence) {
+            this.addRenameTitleButton();
+        }
 
         // Cache editor reference before modal takes focus
         this.cachedEditor = this.app.workspace.activeEditor?.editor;
@@ -487,6 +494,54 @@ export class UnifiedChatModal extends Modal {
         if (this.activeMode === 'free' && this.projectService) {
             this.renderProjectDropdown(this.actionsEl);
         }
+    }
+
+    /** Append a pencil rename icon to the modal title element. */
+    private addRenameTitleButton(): void {
+        const t = this.plugin.t.modals.unifiedChat;
+        const btn = this.titleEl.createSpan({
+            cls: 'ai-organiser-chat-rename-btn',
+            attr: { 'aria-label': t.resumeRename },
+        });
+        setIcon(btn, 'pencil');
+        btn.addEventListener('click', () => { void this.showRenamePrompt(); });
+    }
+
+    /** Show an inline rename prompt below the modal title. */
+    private async showRenamePrompt(): Promise<void> {
+        const t = this.plugin.t.modals.unifiedChat;
+        // Build a small inline form anchored to the title element
+        const overlay = this.modalEl.createDiv({ cls: 'ai-organiser-chat-rename-overlay' });
+        const input = overlay.createEl('input', { type: 'text' });
+        input.placeholder = t.resumeRenamePlaceholder;
+        input.value = this.customTitle ?? '';
+        const saveBtn = overlay.createEl('button', { text: t.resumeRenameSave, cls: 'mod-cta' });
+        const cancelBtn = overlay.createEl('button', { text: t.resumeRenameCancel });
+
+        const commit = async () => {
+            const newTitle = input.value.trim() || undefined;
+            this.customTitle = newTitle;
+            this.titleEl.childNodes.forEach(n => { if (n.nodeType === Node.TEXT_NODE) n.textContent = newTitle ?? t.title; });
+            overlay.remove();
+            // Persist immediately if file already exists
+            const filePath = this.activeMode ? this.persistenceService?.getCurrentFilePath(this.activeMode) : null;
+            if (filePath) {
+                await this.persistenceService!.renameConversation(filePath, newTitle ?? '');
+            } else {
+                this.triggerAutosave();
+            }
+        };
+
+        const cancel = () => overlay.remove();
+
+        saveBtn.addEventListener('click', () => { void commit(); });
+        cancelBtn.addEventListener('click', cancel);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); void commit(); }
+            if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        });
+        input.focus();
+        input.select();
     }
 
     private renderProjectDropdown(container: HTMLElement): void {
@@ -1171,6 +1226,7 @@ export class UnifiedChatModal extends Modal {
             compactionSummary: this.compactionService?.getCachedSummary(mode) ?? '',
             projectId: mode === 'free' ? this.activeProjectId : undefined,
             freeState: mode === 'free' ? this.freeChatHandler?.getSerializableState() : undefined,
+            customTitle: this.customTitle,
             createdAt: this.modeCreatedAt.get(mode) ?? now,
             lastActiveAt: now,
         };
@@ -1251,6 +1307,12 @@ export class UnifiedChatModal extends Modal {
         // Restore free chat state
         if (state.freeState && this.freeChatHandler) {
             this.freeChatHandler.restoreState(state.freeState);
+        }
+
+        // Restore custom title
+        if (state.customTitle) {
+            this.customTitle = state.customTitle;
+            this.titleEl.setText(state.customTitle);
         }
 
         // Set file for overwrite on next save

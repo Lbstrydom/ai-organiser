@@ -2066,6 +2066,80 @@
     height: 80vh;
 }
 
+/* ── Rename button in chat modal title ── */
+.ai-organiser-chat-rename-btn {
+    display: inline-flex;
+    align-items: center;
+    margin-left: var(--size-4-2);
+    cursor: pointer;
+    opacity: 0.4;
+    vertical-align: middle;
+    color: var(--text-muted);
+}
+.ai-organiser-chat-rename-btn:hover { opacity: 1; color: var(--text-normal); }
+.ai-organiser-chat-rename-btn svg { width: 13px; height: 13px; }
+
+.ai-organiser-chat-rename-overlay {
+    position: absolute;
+    top: 44px;
+    left: var(--size-4-4);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    padding: var(--size-4-2) var(--size-4-3);
+    box-shadow: var(--shadow-s);
+}
+.ai-organiser-chat-rename-overlay input {
+    flex: 1;
+    min-width: 220px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    padding: 2px var(--size-4-2);
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+}
+
+/* ── Rename icon on conversation rows in resume picker ── */
+.ai-organiser-resume-conv-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) var(--size-4-3);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+}
+.ai-organiser-resume-conv-row:hover { background: var(--background-modifier-hover); }
+.ai-organiser-resume-row-rename {
+    display: none;
+    align-items: center;
+    margin-left: auto;
+    padding: 2px 4px;
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.ai-organiser-resume-conv-row:hover .ai-organiser-resume-row-rename { display: inline-flex; }
+.ai-organiser-resume-row-rename:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.ai-organiser-resume-row-rename svg { width: 12px; height: 12px; }
+
+.ai-organiser-resume-rename-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--background-primary);
+    border: 1px solid var(--interactive-accent);
+    border-radius: var(--radius-s);
+    padding: 1px var(--size-4-2);
+    color: var(--text-normal);
+    font-size: var(--font-ui-small);
+    outline: none;
+}
+
 .ai-organiser-chat-modal .modal-content {
     display: flex;
     flex-direction: column;

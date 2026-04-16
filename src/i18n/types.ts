@@ -1975,6 +1975,10 @@ export interface Translations {
             resumeProjectInstructions: string;
             resumeProjectCreate: string;
             resumeProjectCancel: string;
+            resumeRename: string;
+            resumeRenamePlaceholder: string;
+            resumeRenameSave: string;
+            resumeRenameCancel: string;
             resumeDeleteConfirm: string;
             resumeEmpty: string;
             // Projects

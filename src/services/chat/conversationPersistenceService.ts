@@ -56,9 +56,10 @@ export class ConversationPersistenceService {
             const nonSystemMsgs = state.messages.filter(m => m.role !== 'system');
             const userMsgs = nonSystemMsgs.filter(m => m.role === 'user');
             const firstUser = userMsgs[0];
-            const title = firstUser
+            const derivedTitle = firstUser
                 ? firstUser.content.slice(0, 80).replace(/\n/g, ' ')
                 : file.basename;
+            const title = state.customTitle ?? derivedTitle;
 
             const ts = state.updatedAt ?? state.lastActiveAt ?? new Date().toISOString();
             results.push({
@@ -77,6 +78,23 @@ export class ConversationPersistenceService {
         return results.slice(0, limit);
     }
 
+    /**
+     * Rename a conversation by setting its customTitle.
+     * Reads the file, patches the state, and re-serialises in place.
+     * Returns false if the file could not be found or parsed.
+     */
+    async renameConversation(filePath: string, newTitle: string): Promise<boolean> {
+        const file = this.app.vault.getFileByPath(filePath);
+        if (!(file instanceof TFile)) return false;
+        const content = await this.app.vault.read(file);
+        const state = extractConversationState(content);
+        if (!state) return false;
+        state.customTitle = newTitle.trim() || undefined;
+        state.updatedAt = new Date().toISOString();
+        await this.app.vault.modify(file, serializeConversationNote(state));
+        return true;
+    }
+
     /** Start a new conversation for a mode (clears all project and bare entries for that mode) */
     startNew(mode: string): void {
         this.cancelPending(mode);
@@ -91,6 +109,11 @@ export class ConversationPersistenceService {
     /** Set the current file for a mode (used when resuming) */
     setCurrentFile(mode: string, file: TFile | null): void {
         this.currentFiles.set(mode, file);
+    }
+
+    /** Return the vault path of the current conversation file for a mode, or null if unsaved. */
+    getCurrentFilePath(mode: string): string | null {
+        return this.currentFiles.get(mode)?.path ?? null;
     }
 
     /** Cancel pending save for a mode */

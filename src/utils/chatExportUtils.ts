@@ -70,6 +70,8 @@ export interface ConversationState {
     /** Direct path to project folder (e.g. AI-Organiser/AI Chat/Projects/my-project) */
     projectFolderPath?: string;
     freeState?: SerializableFreeChatState;
+    /** User-defined name overriding the auto-derived first-message title. */
+    customTitle?: string;
     createdAt: string;
     /** ISO timestamp of last save — preferred over lastActiveAt */
     updatedAt?: string;
@@ -127,9 +129,10 @@ export function serializeConversationNote(state: ConversationState): string {
     else frontmatter.push('---', '');
 
     const firstUserMsg = messages.find(m => m.role === 'user');
-    const title = firstUserMsg
+    const derivedTitle = firstUserMsg
         ? firstUserMsg.content.slice(0, 80).replaceAll('\n', ' ')
         : `Chat — ${state.createdAt.slice(0, 10)}`;
+    const title = state.customTitle ?? derivedTitle;
 
     const lines = [...frontmatter, `# ${title}`, ''];
 
