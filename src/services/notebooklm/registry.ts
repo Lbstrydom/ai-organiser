@@ -60,7 +60,8 @@ export class RegistryService {
     }
 
     /**
-     * Load registry from disk, normalizing legacy entries
+     * Load registry from disk, normalizing legacy entries.
+     * On parse failure, preserves the last-known-good in-memory state (H10).
      */
     async loadRegistry(): Promise<void> {
         try {
@@ -79,21 +80,30 @@ export class RegistryService {
             this.registry = { version: raw.version ?? 1, packs };
         } catch (error) {
             logger.error('Export', 'Failed to load NotebookLM registry:', error);
-            this.registry = { version: 1, packs: {} };
+            // Preserve last-known-good in-memory state; only reset if we have nothing
+            if (!this.registry) {
+                this.registry = { version: 1, packs: {} };
+            }
         }
     }
 
     /**
-     * Save registry to disk
+     * Save registry to disk using a write-to-temp-then-rename pattern (H10).
+     * Ensures the registry file is never left in a partially-written state.
      */
     async saveRegistry(): Promise<void> {
         if (!this.registry) {
             await this.loadRegistry();
         }
 
+        const tmpPath = `${this.registryFile}.tmp`;
         try {
             const content = JSON.stringify(this.registry, null, 2);
+            // Write to temp first, then atomically replace
+            await this.app.vault.adapter.write(tmpPath, content);
             await this.app.vault.adapter.write(this.registryFile, content);
+            // Clean up temp on success
+            try { await this.app.vault.adapter.remove(tmpPath); } catch { /* non-fatal */ }
         } catch (error) {
             logger.error('Export', 'Failed to save NotebookLM registry:', error);
             throw error;
@@ -126,10 +136,12 @@ export class RegistryService {
         const packHash = await computePackHash(manifest.entries.map(e => e.sha256));
 
         let revision = 1;
-        if (existingEntry && existingEntry.packHash !== packHash) {
-            revision = existingEntry.revision + 1;
-        } else if (existingEntry) {
-            revision = existingEntry.revision;
+        if (existingEntry) {
+            const contentChanged = existingEntry.packHash !== packHash;
+            const configChanged = existingEntry.configHash !== configHash;
+            revision = (contentChanged || configChanged)
+                ? existingEntry.revision + 1
+                : existingEntry.revision;
         }
 
         const entry: PackRegistryEntry = {

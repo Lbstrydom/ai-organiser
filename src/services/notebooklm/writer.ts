@@ -4,7 +4,7 @@
  * Generates README.md (per-file checklist), manifest.json, and changelog.md.
  */
 
-import { App } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 import { PackManifest, Changelog } from './types';
 import { formatBytes } from './notebooklmUtils';
 
@@ -25,16 +25,18 @@ export class WriterService {
     }
 
     async ensureFolder(folderPath: string): Promise<void> {
-        const folder = this.app.vault.getAbstractFileByPath(folderPath);
-        if (!folder) {
+        const existing = this.app.vault.getAbstractFileByPath(folderPath);
+        if (!existing) {
             await this.app.vault.createFolder(folderPath);
+        } else if (!(existing instanceof TFolder)) {
+            throw new Error(`Path "${folderPath}" exists as a file, cannot create folder`);
         }
     }
 
     private async writeFile(path: string, content: string): Promise<void> {
         const existing = this.app.vault.getAbstractFileByPath(path);
-        if (existing) {
-            await this.app.vault.modify(existing as import('obsidian').TFile, content);
+        if (existing instanceof TFile) {
+            await this.app.vault.modify(existing, content);
         } else {
             await this.app.vault.create(path, content);
         }

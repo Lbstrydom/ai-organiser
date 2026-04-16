@@ -24,6 +24,9 @@ export interface PreprocessorOptions {
 
 type ProcessorState = 'NORMAL' | 'IN_FRONTMATTER' | 'IN_FENCE' | 'IN_COMMENT' | 'IN_HTML';
 
+/** Self-closing HTML tags that never have a closing counterpart */
+const SELF_CLOSING_HTML_BLOCK_TAGS = new Set(['hr']);
+
 const IMAGE_EXTENSIONS = new Set([
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'avif', 'heic'
 ]);
@@ -111,6 +114,7 @@ export function preprocessNoteForNotebookLM(
     let fenceLength = 0;
     let stripCurrentFence = false;
     let frontmatterBuffer: string[] = [];
+    let htmlOpenTag = '';
 
     // Prepend title if requested
     if (options.includeTitle && options.title) {
@@ -183,19 +187,44 @@ export function preprocessNoteForNotebookLM(
 
         // ── 4. HTML BLOCKS ───────────────────────────────────────────────────
         if (state === 'IN_HTML') {
-            if (line.trim() === '') state = 'NORMAL';
+            const trimmedHtml = line.trim();
+            if (trimmedHtml === '') {
+                // Blank line always terminates an HTML block
+                state = 'NORMAL';
+            } else if (htmlOpenTag && trimmedHtml === `</${htmlOpenTag}>`) {
+                // Matching closing tag — exit block state (strip the closing tag too)
+                state = 'NORMAL';
+            }
             continue;
         }
 
-        if (state === 'NORMAL' && htmlBlockTag(line)) {
-            state = 'IN_HTML';
-            continue;
+        if (state === 'NORMAL') {
+            const tag = htmlBlockTag(line);
+            if (tag) {
+                if (SELF_CLOSING_HTML_BLOCK_TAGS.has(tag)) {
+                    // Single-line self-closing element — strip just this line
+                    continue;
+                }
+                htmlOpenTag = tag;
+                state = 'IN_HTML';
+                continue;
+            }
         }
 
         // ── 5 & 6. NORMAL LINE PROCESSING ────────────────────────────────────
         let processed = line;
-        // Strip inline Obsidian comments: %%text%%
+        // Strip complete inline Obsidian comments first: %%text%%
         processed = processed.replace(INLINE_COMMENT_RE, '');
+        // Detect unclosed %% — remainder of line is a block comment opener
+        const openCommentIdx = processed.indexOf('%%');
+        if (openCommentIdx >= 0) {
+            // Emit everything before the unclosed %%, enter block comment state
+            processed = processed.slice(0, openCommentIdx);
+            state = 'IN_COMMENT';
+            processed = replaceImageEmbeds(processed);
+            output.push(processed);
+            continue;
+        }
         // Replace image embeds with placeholders
         processed = replaceImageEmbeds(processed);
         output.push(processed);

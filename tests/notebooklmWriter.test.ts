@@ -1,22 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WriterService } from '../src/services/notebooklm/writer';
+import { TFile, TFolder, createTFile, createTFolder } from './mocks/obsidian';
 import type { PackManifest, Changelog } from '../src/services/notebooklm/types';
 
-// Minimal App mock — only vault operations used by WriterService
+// Minimal App mock — only vault operations used by WriterService.
+// Values in the map must be TFile or TFolder instances (or null) so that
+// instanceof checks in writeFile / ensureFolder work correctly.
 function makeApp() {
-    const files = new Map<string, string>();
+    const files = new Map<string, TFile | TFolder>();
 
     return {
         vault: {
-            getAbstractFileByPath: (path: string) => files.has(path) ? { path } : null,
-            modify: vi.fn(async (file: { path: string }, content: string) => {
-                files.set(file.path, content);
+            getAbstractFileByPath: (path: string) => files.get(path) ?? null,
+            modify: vi.fn(async (file: TFile, _content: string) => {
+                files.set(file.path, file);
             }),
-            create: vi.fn(async (path: string, content: string) => {
-                files.set(path, content);
+            create: vi.fn(async (path: string, _content: string) => {
+                files.set(path, createTFile(path));
             }),
             createFolder: vi.fn(async (path: string) => {
-                files.set(path + '/', '');
+                files.set(path, createTFolder(path));
             }),
             _files: files,
         },
@@ -151,7 +154,7 @@ describe('WriterService.generateReadmeContent (via writeReadme)', () => {
     });
 
     it('uses vault.modify when file already exists', async () => {
-        (app.vault as unknown as { _files: Map<string, string> })._files.set('packs/my-pack/README.md', 'old content');
+        (app.vault as unknown as { _files: Map<string, TFile | TFolder> })._files.set('packs/my-pack/README.md', createTFile('packs/my-pack/README.md'));
         await service.writeReadme('packs/my-pack', makeManifest());
         expect(app.vault.modify).toHaveBeenCalled();
         expect(app.vault.create).not.toHaveBeenCalled();
@@ -233,7 +236,7 @@ describe('WriterService.ensureFolder', () => {
 
     it('does not create folder when it already exists', async () => {
         const app = makeApp();
-        (app.vault as unknown as { _files: Map<string, string> })._files.set('packs/existing', '');  // exact path — no trailing slash
+        (app.vault as unknown as { _files: Map<string, TFile | TFolder> })._files.set('packs/existing', createTFolder('packs/existing'));
         const service = new WriterService(app);
         await service.ensureFolder('packs/existing');
         // createFolder should NOT be called if folder exists

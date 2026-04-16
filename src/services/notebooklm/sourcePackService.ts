@@ -63,6 +63,11 @@ export class SourcePackService {
         await this.registryService.loadRegistry();
     }
 
+    /** Canonical scope key for a given selection tag — single derivation point (M8) */
+    private static buildScopeKey(tag: string): string {
+        return `tag:${tag}`;
+    }
+
     updateConfig(config: SourcePackConfig): void {
         this.config = config;
     }
@@ -106,7 +111,7 @@ export class SourcePackService {
             warnings.totalSizeWarning = `Estimated size (${formatBytes(estimatedSizeBytes)}) approaching NotebookLM limit of 200 MB.`;
         }
 
-        const scopeKey = `tag:${tag}`;
+        const scopeKey = SourcePackService.buildScopeKey(tag);
         const hasPreviousPack = this.registryService.hasBeenExported(scopeKey);
         const configChanged = hasPreviousPack
             ? this.registryService.getEntry(scopeKey)?.configHash !== computeConfigHash(this.config)
@@ -240,7 +245,7 @@ export class SourcePackService {
 
             // Update registry (determines actual revision)
             const cfgHash = computeConfigHash(this.config);
-            const scopeKey = `tag:${selection.scopeValue}`;
+            const scopeKey = SourcePackService.buildScopeKey(selection.scopeValue);
             const registryEntry = await this.registryService.updateEntry(
                 scopeKey, manifest, packFolderPath, cfgHash
             );
@@ -289,7 +294,7 @@ export class SourcePackService {
         linkedDocs?: LinkedDocument[],
         signal?: AbortSignal
     ): Promise<ExportResult> {
-        const scopeKey = `tag:${selection.scopeValue}`;
+        const scopeKey = SourcePackService.buildScopeKey(selection.scopeValue);
         const previous = await this.registryService.getPreviousManifest(scopeKey);
         const currentConfigHash = computeConfigHash(this.config);
         const registryEntry = this.registryService.getEntry(scopeKey);
