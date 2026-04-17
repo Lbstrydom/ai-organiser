@@ -22,14 +22,16 @@ function doGet(e) {
     var confirmLabel = GmailApp.getUserLabelByName(labelName2);
     var count = 0;
     for (var i = 0; i < ids.length; i++) {
-      var msg = GmailApp.getMessageById(ids[i]);
-      if (msg) {
-        msg.markRead();
-        var thread = msg.getThread();
-        if (confirmLabel) thread.removeLabel(confirmLabel);
-        thread.moveToArchive();
-        count++;
-      }
+      try {
+        var msg = GmailApp.getMessageById(ids[i]);
+        if (msg) {
+          msg.markRead();
+          var thread = msg.getThread();
+          if (confirmLabel) thread.removeLabel(confirmLabel);
+          thread.moveToArchive();
+          count++;
+        }
+      } catch (ex) { /* skip invalid/deleted message IDs */ }
     }
     return ContentService.createTextOutput(JSON.stringify({ok: true, count: count}))
       .setMimeType(ContentService.MimeType.JSON);
