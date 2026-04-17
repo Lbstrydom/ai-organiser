@@ -531,7 +531,8 @@ export class NewsletterService {
         const langName = getLanguageNameForPrompt(langCode);
         const settings = this.plugin.settings;
         const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
-        const model = settings.serviceType === 'local' ? undefined : settings.providerSettings?.[provider]?.model;
+        const cloudType = settings.cloudServiceType;
+        const model = settings.serviceType === 'local' ? undefined : settings.providerSettings?.[cloudType]?.model;
         const maxChars = getMaxContentCharsForModel(provider, model);
 
         const { filled, truncatedCount } = insertBriefContent(
