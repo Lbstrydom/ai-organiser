@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { LLMFacadeContext } from '../src/services/llmFacade';
 import type { QualityFinding } from '../src/services/chat/presentationTypes';
 
@@ -34,9 +34,10 @@ function makeFinding(overrides: Partial<QualityFinding> = {}): QualityFinding {
     };
 }
 
+/** Build HTML using the correct <section class="slide"> format (matches presentationChatPrompts schema). */
 function makeSlideHtml(count: number): string {
     const slides = Array.from({ length: count }, (_, i) =>
-        `<div class="slide"><h1>Slide ${i}</h1><p>Content for slide ${i}</p></div>`
+        `<section class="slide slide-content"><h1>Slide ${i}</h1><p>Content for slide ${i}</p></section>`
     ).join('\n');
     return `<html><body><div class="deck">${slides}</div></body></html>`;
 }
@@ -90,38 +91,59 @@ describe('deduplicateFindings', () => {
 // ── sampleLargeDeck ────────────────────────────────────────────────────────
 
 describe('sampleLargeDeck', () => {
-    it('returns original HTML when slideCount <= 30', () => {
+    it('returns original string when slideCount <= 30', () => {
         const html = makeSlideHtml(5);
         expect(sampleLargeDeck(html, 5)).toBe(html);
     });
 
-    it('returns original HTML when slideCount is exactly 30', () => {
+    it('returns original string when slideCount is exactly 30', () => {
         const html = makeSlideHtml(30);
         expect(sampleLargeDeck(html, 30)).toBe(html);
     });
 
-    it('returns sampled HTML for 31+ slides', () => {
+    it('returns SampledDeck object for 31+ slides', () => {
         const html = makeSlideHtml(40);
-        const sampled = sampleLargeDeck(html, 40);
-        // Sampled should be shorter than original
-        expect(sampled.length).toBeLessThan(html.length);
+        const result = sampleLargeDeck(html, 40);
+        expect(typeof result).toBe('object');
+        expect((result as { html: string; indexMap: number[] }).indexMap).toBeDefined();
+    });
+
+    it('sampled HTML is shorter than original', () => {
+        const html = makeSlideHtml(40);
+        const result = sampleLargeDeck(html, 40) as { html: string; indexMap: number[] };
+        expect(result.html.length).toBeLessThan(html.length);
     });
 
     it('preserves first slides in sample', () => {
         const html = makeSlideHtml(40);
-        const sampled = sampleLargeDeck(html, 40);
-        expect(sampled).toContain('Slide 0');
-        expect(sampled).toContain('Slide 1');
+        const result = sampleLargeDeck(html, 40) as { html: string; indexMap: number[] };
+        expect(result.html).toContain('Slide 0');
+        expect(result.html).toContain('Slide 1');
     });
 
     it('preserves last slides in sample', () => {
         const html = makeSlideHtml(40);
-        const sampled = sampleLargeDeck(html, 40);
-        expect(sampled).toContain('Slide 39');
+        const result = sampleLargeDeck(html, 40) as { html: string; indexMap: number[] };
+        expect(result.html).toContain('Slide 39');
+    });
+
+    it('indexMap records original slide positions', () => {
+        const html = makeSlideHtml(40);
+        const result = sampleLargeDeck(html, 40) as { html: string; indexMap: number[] };
+        // indexMap[0] should be 0 (first slide always included)
+        expect(result.indexMap[0]).toBe(0);
+        // last entry should be 39 (last slide always included)
+        expect(result.indexMap.at(-1)).toBe(39);
+    });
+
+    it('injects data-original-index attributes for LLM findings (H11 fix)', () => {
+        const html = makeSlideHtml(40);
+        const result = sampleLargeDeck(html, 40) as { html: string; indexMap: number[] };
+        expect(result.html).toContain('data-original-index=');
     });
 
     it('returns original HTML when regex cannot parse slides', () => {
-        // HTML without proper slide div structure
+        // HTML without proper <section class="slide"> structure
         const html = '<html><body><p>No slides here</p></body></html>';
         expect(sampleLargeDeck(html, 40)).toBe(html);
     });
@@ -149,29 +171,31 @@ describe('runFastScan', () => {
         }
     });
 
-    it('returns empty findings on malformed JSON', async () => {
+    it('returns err on malformed JSON (H3/M9 fail-closed fix)', async () => {
         vi.mocked(summarizeText).mockResolvedValue({
             success: true,
             content: 'This is not valid JSON at all',
         });
 
         const result = await runFastScan(mockContext, '<html></html>', 5);
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-            expect(result.value.findings).toHaveLength(0);
+        // H3/M9 fix: unparseable response must return err, not ok({findings:[]})
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.error).toContain('unavailable');
         }
     });
 
-    it('returns empty findings when LLM call fails', async () => {
+    it('returns err when LLM call fails (H12 fail-closed fix)', async () => {
         vi.mocked(summarizeText).mockResolvedValue({
             success: false,
             error: 'API timeout',
         });
 
         const result = await runFastScan(mockContext, '<html></html>', 5);
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-            expect(result.value.findings).toHaveLength(0);
+        // H12 fix: LLM failure must return err, not ok({findings:[]})
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.error).toContain('unavailable');
         }
     });
 
@@ -256,16 +280,17 @@ describe('runDeepScan', () => {
         }
     });
 
-    it('returns empty findings on malformed JSON', async () => {
+    it('returns err on malformed JSON (H3/M9 fail-closed fix)', async () => {
         vi.mocked(summarizeText).mockResolvedValue({
             success: true,
             content: '```not json```',
         });
 
         const result = await runDeepScan(mockContext, '<html></html>', 5);
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-            expect(result.value.findings).toHaveLength(0);
+        // H3/M9 fix: unparseable response must return err, not ok({findings:[]})
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.error).toContain('unavailable');
         }
     });
 

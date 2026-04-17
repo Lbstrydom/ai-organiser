@@ -71,6 +71,7 @@ export class ConversationPersistenceService {
                 createdAt: state.createdAt,
                 updatedAt: ts,
                 lastActiveAt: ts,
+                slideCount: extractSlideCount(state),
             });
         }
 
@@ -220,4 +221,13 @@ export class ConversationPersistenceService {
 
         return await getAvailableFilePath(this.app.vault, folderPath, fileName);
     }
+}
+
+/** Extract slide count from a presentation snapshot without importing DOM utilities. */
+function extractSlideCount(state: import('../../utils/chatExportUtils').ConversationState): number | undefined {
+    if (state.mode !== 'presentation' || !state.presentationSnapshot) return undefined;
+    const html = (state.presentationSnapshot as { html?: string }).html;
+    if (!html) return undefined;
+    const count = (html.match(/class="slide["\s]/g) ?? []).length;
+    return count > 0 ? count : undefined;
 }

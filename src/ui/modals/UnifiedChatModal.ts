@@ -41,6 +41,7 @@ export function createHistoryMap(): Map<ChatMode, ChatMessage[]> {
         ['highlight', []],
         ['research', []],
         ['free', []],
+        ['presentation', []],
     ]);
 }
 
@@ -121,6 +122,7 @@ export class UnifiedChatModal extends Modal {
     private activeProjectId?: string;
     private modeCreatedAt = new Map<ChatMode, string>();
     private freeChatHandler?: FreeChatModeHandler;
+    private presentationHandler?: PresentationModeHandler;
     /** User-defined conversation title — overrides auto-derived first-message title. */
     private customTitle?: string;
 
@@ -183,6 +185,7 @@ export class UnifiedChatModal extends Modal {
             ['free', this.freeChatHandler],
             ['presentation', new PresentationModeHandler()],
         ]);
+        this.presentationHandler = this.handlers.get('presentation') as PresentationModeHandler;
 
         // Load global memory
         if (this.globalMemoryService) {
@@ -205,6 +208,8 @@ export class UnifiedChatModal extends Modal {
             const resumeResult = await this.showResumePicker();
             if (resumeResult?.action === 'resume') {
                 resumedMode = await this.resumeConversation(resumeResult.filePath);
+            } else if (resumeResult?.action === 'new' && resumeResult.initialMode) {
+                resumedMode = resumeResult.initialMode;
             } else if (resumeResult?.action === 'new-in-project' && resumeResult.projectId) {
                 await this.loadProjectContext(resumeResult.projectId);
                 resumedMode = 'free';
@@ -490,8 +495,8 @@ export class UnifiedChatModal extends Modal {
             exportButton.setDisabled(true);
         }
 
-        // Project dropdown (Free Chat mode only)
-        if (this.activeMode === 'free' && this.projectService) {
+        // Project dropdown (Free Chat and Presentation modes)
+        if ((this.activeMode === 'free' || this.activeMode === 'presentation') && this.projectService) {
             this.renderProjectDropdown(this.actionsEl);
         }
     }
@@ -508,7 +513,7 @@ export class UnifiedChatModal extends Modal {
     }
 
     /** Show an inline rename prompt below the modal title. */
-    private async showRenamePrompt(): Promise<void> {
+    private showRenamePrompt(): void {
         const t = this.plugin.t.modals.unifiedChat;
         // Build a small inline form anchored to the title element
         const overlay = this.modalEl.createDiv({ cls: 'ai-organiser-chat-rename-overlay' });
@@ -577,7 +582,7 @@ export class UnifiedChatModal extends Modal {
         if (this.plugin.settings.enableChatPersistence && this.persistenceService) {
             void this.persistenceService.saveNow(this.buildConversationState());
             // Clear file handle so next save goes into the new project's folder
-            this.persistenceService.startNew('free');
+            this.persistenceService.startNew(this.activeMode!);
         }
         await this.loadProjectContext(projectId);
         this.renderActionsBar();
@@ -587,8 +592,9 @@ export class UnifiedChatModal extends Modal {
     private leaveProject(): void {
         this.activeProjectId = undefined;
         this.freeChatHandler?.clearProjectContext();
+        this.presentationHandler?.clearProjectContext();
         // Clear file handle so leaving a project starts a fresh inbox conversation
-        this.persistenceService?.startNew('free');
+        this.persistenceService?.startNew(this.activeMode!);
         this.renderActionsBar();
         this.renderContextPanel();
     }
@@ -628,6 +634,8 @@ export class UnifiedChatModal extends Modal {
         this.activeProjectId = projectId;
         this.freeChatHandler?.clearProjectContext();
         this.freeChatHandler?.setProjectContext(config);
+        this.presentationHandler?.clearProjectContext();
+        this.presentationHandler?.setProjectContext(config);
 
         // Rehydrate persisted indexed documents — use plugin service OR handler-level
         // auto-bootstrapped service (set during a prior large-file attachment session)
@@ -1104,6 +1112,7 @@ export class UnifiedChatModal extends Modal {
                 this.isProcessing = false;
                 this.updateInputState();
                 this.renderActionsBar();
+                this.triggerAutosave();
             }
             return;
         }
@@ -1224,8 +1233,11 @@ export class UnifiedChatModal extends Modal {
             mode,
             messages,
             compactionSummary: this.compactionService?.getCachedSummary(mode) ?? '',
-            projectId: mode === 'free' ? this.activeProjectId : undefined,
+            projectId: (mode === 'free' || mode === 'presentation') ? this.activeProjectId : undefined,
             freeState: mode === 'free' ? this.freeChatHandler?.getSerializableState() : undefined,
+            presentationSnapshot: mode === 'presentation'
+                ? (this.presentationHandler?.getSerializableState() ?? undefined)
+                : undefined,
             customTitle: this.customTitle,
             createdAt: this.modeCreatedAt.get(mode) ?? now,
             lastActiveAt: now,
@@ -1307,6 +1319,11 @@ export class UnifiedChatModal extends Modal {
         // Restore free chat state
         if (state.freeState && this.freeChatHandler) {
             this.freeChatHandler.restoreState(state.freeState);
+        }
+
+        // Restore presentation state
+        if (state.presentationSnapshot && this.presentationHandler) {
+            this.presentationHandler.restoreState(state.presentationSnapshot);
         }
 
         // Restore custom title

@@ -112,6 +112,18 @@ const DANGEROUS_CSS_VALUE_PATTERNS = [
     /vbscript\s*:/i,
 ];
 
+/**
+ * M5 fix: shared dangerous HTML patterns (DRY).
+ * Exported so StreamingHtmlAssembler can reference the same set
+ * rather than maintaining a parallel list.
+ */
+export const DANGEROUS_HTML_PATTERNS: ReadonlyArray<RegExp> = [
+    /<script/gi,
+    /<iframe/gi,
+    /on\w+=/gi,
+    /javascript:/gi,
+];
+
 // ── URL Validation ─────────────────────────────────────────────────────────
 
 function isAllowedHref(url: string): boolean {
@@ -120,15 +132,19 @@ function isAllowedHref(url: string): boolean {
         || trimmed.startsWith('#') || trimmed.startsWith('mailto:');
 }
 
+/** Returns true for raster data: image URIs. SVG is blocked — it can carry scripts. */
+function isAllowedDataImageUri(trimmedLower: string): boolean {
+    return trimmedLower.startsWith('data:image/') && !trimmedLower.startsWith('data:image/svg');
+}
+
 function isAllowedImgSrc(url: string): boolean {
     const trimmed = url.trim().toLowerCase();
-    // Only data: URIs allowed for images (no remote loading)
-    return trimmed.startsWith('data:image/');
+    return isAllowedDataImageUri(trimmed);
 }
 
 function isAllowedCssUrl(url: string): boolean {
     const trimmed = url.trim().toLowerCase();
-    return trimmed.startsWith('data:image/');
+    return isAllowedDataImageUri(trimmed);
 }
 
 // ── CSS Sanitization ───────────────────────────────────────────────────────
@@ -206,6 +222,9 @@ function filterAttribute(tag: string, attrName: string, attrValue: string): stri
     if (!isAllowedAttr) return null;
 
     if (attrName === 'href' && !isAllowedHref(attrValue)) return null;
+    // H3/M3 fix: xlink:href and SVG2 href on <use> must be local fragment references only
+    if (attrName === 'xlink:href' && !attrValue.trim().startsWith('#')) return null;
+    if (attrName === 'href' && tag === 'use' && !attrValue.trim().startsWith('#')) return null;
     if (attrName === 'src' && tag === 'img' && !isAllowedImgSrc(attrValue)) return null;
 
     if (attrName === 'style') {
@@ -213,7 +232,9 @@ function filterAttribute(tag: string, attrName: string, attrValue: string): stri
         return sanitized ? `style="${sanitized}"` : null;
     }
 
-    return `${attrName}="${attrValue}"`;
+    // H1 fix: HTML-escape double-quotes in attribute values before re-serializing with double-quote delimiters
+    const safeValue = attrValue.replaceAll('"', '&quot;');
+    return `${attrName}="${safeValue}"`;
 }
 
 /** Parse and filter all attributes from a decoded attribute string. */
@@ -230,7 +251,7 @@ function filterAttributes(tag: string, decodedAttrs: string): AttrFilterResult {
         const result = filterAttribute(tag, attrName, attrValue);
         if (result !== null) {
             kept.push(result);
-        } else if (attrName.startsWith('on') || attrName === 'href' || attrName === 'src') {
+        } else if (attrName.startsWith('on') || attrName === 'href' || attrName === 'xlink:href' || attrName === 'src') {
             rejected++;
         }
     }

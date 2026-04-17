@@ -13,15 +13,8 @@ import {
     HTML_END_MARKER,
     STREAM_RENDER_DEBOUNCE_MS,
 } from './presentationConstants';
-
-// ── Dangerous pattern regexes (compiled once) ──────────────────────────────
-
-const DANGEROUS_PATTERNS: ReadonlyArray<RegExp> = [
-    /<script/gi,
-    /<iframe/gi,
-    /on\w+=/gi,
-    /javascript:/gi,
-];
+// M5 fix: use shared dangerous-pattern list (DRY — was duplicated here and in sanitizer)
+import { DANGEROUS_HTML_PATTERNS as DANGEROUS_PATTERNS } from './presentationSanitizer';
 
 /** Regex to count complete slides via closing section tags (mid-stream). */
 const COMPLETE_SLIDE_RE = /<\/section>/gi;

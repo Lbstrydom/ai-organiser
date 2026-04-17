@@ -1966,6 +1966,8 @@ export interface Translations {
             resumeProjects: string;
             resumeRecent: string;
             resumeNewConversation: string;
+            resumeNewPresentation: string;
+            resumeSlides: string;
             resumeNewProject: string;
             resumeProjectChats: string;
             resumeMessages: string;

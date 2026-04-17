@@ -8,6 +8,31 @@
 
 import type { BrandRule } from '../chat/brandThemeService';
 import { buildIconReference } from '../chat/brandThemeService';
+// M20 fix: import marker constants from SSOT (presentationConstants)
+import { HTML_START_MARKER, HTML_END_MARKER } from '../chat/presentationConstants';
+
+const MAX_HTML_PROMPT_CHARS = 120_000;
+
+/** H2 fix: escape prompt XML delimiter sequences in HTML content before embedding in prompts. */
+// M5/R3-H2 fix: case-insensitive regex covers all delimiter tags used across prompt builders
+const HTML_PROMPT_DELIMITER_RE = /<\/(current_html|html|task|output_format|note_content|user_request|edit_request|conversation_history|brand_rules)(\s*>)/gi;
+
+function sanitizeHtmlForPrompt(html: string): string {
+    const truncated = html.length > MAX_HTML_PROMPT_CHARS
+        ? html.slice(0, MAX_HTML_PROMPT_CHARS) + '\n<!-- [truncated for prompt safety] -->'
+        : html;
+    return truncated.replaceAll(HTML_PROMPT_DELIMITER_RE, '< /$1$2');
+}
+
+/**
+ * M4 fix: sanitize user-authored text before embedding in XML-tagged prompt context.
+ * Defangs any closing tags that match the XML delimiter names used in these prompts.
+ */
+const TEXT_PROMPT_DELIMITER_RE = /<\/(note_content|user_request|edit_request|conversation_history|task|output_format)(\s*>)/gi;
+
+function sanitizeTextForPrompt(text: string): string {
+    return text.replaceAll(TEXT_PROMPT_DELIMITER_RE, '< /$1$2');
+}
 
 // ── Generation ──────────────────────────────────────────────────────────────
 
@@ -40,7 +65,7 @@ export function buildPresentationSystemPrompt(options: {
 </design_principles>
 
 <requirements>
-- Wrap your complete HTML output between ---HTML_START--- and ---HTML_END--- markers
+- Wrap your complete HTML output between ${HTML_START_MARKER} and ${HTML_END_MARKER} markers
 - Return ONLY the HTML content of a presentation (no markdown, no explanation)
 - Start with <div class="deck" data-title="Deck Title"> and end with </div>
 - Each slide is a <section class="slide [type]"> where type is one of: slide-title, slide-content, slide-section, slide-closing
@@ -76,14 +101,14 @@ export function buildGenerationPrompt(options: {
     let prompt = '';
 
     if (conversationHistory) {
-        prompt += `<conversation_history>\n${conversationHistory}\n</conversation_history>\n\n`;
+        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
     }
 
     if (noteContent) {
-        prompt += `<note_content>\n${noteContent}\n</note_content>\n\n`;
+        prompt += `<note_content>\n${sanitizeTextForPrompt(noteContent)}\n</note_content>\n\n`;
     }
 
-    prompt += `<user_request>\n${userQuery}\n</user_request>`;
+    prompt += `<user_request>\n${sanitizeTextForPrompt(userQuery)}\n</user_request>`;
 
     return prompt;
 }
@@ -100,11 +125,11 @@ export function buildRefinementPrompt(options: {
     let prompt = '<task>Modify the presentation HTML according to the user\'s request. Return the complete updated HTML.</task>\n\n';
 
     if (conversationHistory) {
-        prompt += `<conversation_history>\n${conversationHistory}\n</conversation_history>\n\n`;
+        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
     }
 
-    prompt += `<current_html>\n${currentHtml}\n</current_html>\n\n`;
-    prompt += `<edit_request>\n${userRequest}\n</edit_request>`;
+    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
+    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>`;
 
     return prompt;
 }
@@ -121,7 +146,7 @@ ${rulesList}
 </brand_rules>
 
 <html>
-${html}
+${sanitizeHtmlForPrompt(html)}
 </html>
 
 <output_format>
@@ -152,13 +177,11 @@ export function extractHtmlFromResponse(response: string): string | null {
 
     const trimmed = response.trim();
 
-    // Try: content between ---HTML_START--- and ---HTML_END--- markers
-    const startMarker = '---HTML_START---';
-    const endMarker = '---HTML_END---';
-    const startIdx = trimmed.indexOf(startMarker);
-    const endIdx = trimmed.indexOf(endMarker);
+    // Try: content between HTML_START_MARKER and HTML_END_MARKER (M20 fix — use constants)
+    const startIdx = trimmed.indexOf(HTML_START_MARKER);
+    const endIdx = trimmed.indexOf(HTML_END_MARKER);
     if (startIdx >= 0 && endIdx > startIdx) {
-        const inner = trimmed.slice(startIdx + startMarker.length, endIdx).trim();
+        const inner = trimmed.slice(startIdx + HTML_START_MARKER.length, endIdx).trim();
         if (inner.includes('<div') || inner.includes('<section')) return inner;
     }
 

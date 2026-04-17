@@ -1963,6 +1963,8 @@ export const en: Translations = {
             resumeProjects: 'Projects',
             resumeRecent: "Recent conversations",
             resumeNewConversation: 'New conversation',
+            resumeNewPresentation: 'New presentation',
+            resumeSlides: '{count} slides',
             resumeNewProject: 'New project...',
             resumeProjectChats: '{count} chats',
             resumeMessages: '{count} msgs',

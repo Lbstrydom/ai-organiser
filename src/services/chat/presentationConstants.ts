@@ -20,6 +20,9 @@ export const AUDIT_TIMEOUT = 15_000;
 
 export const MAX_VERSIONS = 20;
 
+/** Slide count above which quality scans sample a representative subset. */
+export const LARGE_DECK_THRESHOLD = 30;
+
 // ── Streaming ──────────────────────────────────────────────────────────────
 
 /** Marker emitted by the LLM before the HTML deck content. */

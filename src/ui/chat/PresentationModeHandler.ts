@@ -36,6 +36,7 @@ import { extractDeckTitle, countSlides } from '../../services/prompts/presentati
 import { SlideIframePreview } from '../components/SlideIframePreview';
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/tokenLimits';
 import { logger } from '../../utils/logger';
+import type { ProjectConfig } from '../../services/chat/projectService';
 
 export class PresentationModeHandler implements ChatModeHandler {
     readonly mode: ChatMode = 'presentation';
@@ -57,6 +58,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     // Concurrency
     private activeAbort: AbortController | null = null;
     private mutationLock = false;
+
+    // Project context
+    private projectInstructions: string | null = null;
+    private projectMemory: string[] = [];
 
     // Preview
     private preview: SlideIframePreview | null = null;
@@ -93,6 +98,8 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // Slide preview
         if (this.html) {
+            // M23 fix: dispose previous preview instance before creating a new one
+            this.preview?.dispose();
             const previewContainer = container.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
             this.preview = new SlideIframePreview(previewContainer, {
                 onSlideSelect: (idx) => { this.activeSlideIndex = idx; },
@@ -145,13 +152,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             const llmCtx = this.getLLMContext(ctx);
             const theme = await this.getTheme(ctx);
             const noteContent = this.truncateNoteContent(ctx);
+            const projectPrefix = this.buildProjectContextPrefix();
+            const effectiveQuery = projectPrefix ? `${projectPrefix}\n\n${query}` : query;
 
             if (!this.html) {
                 // Initial generation — streaming for live preview
                 this.phase = 'generating';
 
                 const result = await generateHtmlStream(llmCtx, {
-                    userQuery: query,
+                    userQuery: effectiveQuery,
                     noteContent,
                     conversationHistory: history,
                     outputLanguage: ctx.plugin.settings.summaryLanguage,
@@ -202,7 +211,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
                 const result = await refineHtml(llmCtx, {
                     currentHtml: this.html,
-                    userRequest: query,
+                    userRequest: effectiveQuery,
                     conversationHistory: history,
                     outputLanguage: ctx.plugin.settings.summaryLanguage,
                     theme,
@@ -309,6 +318,25 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.cancelActiveOperation();
         this.preview?.dispose();
         this.preview = null;
+    }
+
+    // ── Project context ─────────────────────────────────────────────────────
+
+    setProjectContext(config: ProjectConfig | null): void {
+        this.projectInstructions = config?.instructions ?? null;
+        this.projectMemory = config?.memory ?? [];
+    }
+
+    clearProjectContext(): void {
+        this.projectInstructions = null;
+        this.projectMemory = [];
+    }
+
+    private buildProjectContextPrefix(): string {
+        const parts: string[] = [];
+        if (this.projectInstructions) parts.push(`Project instructions: ${this.projectInstructions}`);
+        if (this.projectMemory.length > 0) parts.push(`Project context: ${this.projectMemory.join('; ')}`);
+        return parts.join('\n\n');
     }
 
     // ── Serialization ───────────────────────────────────────────────────────

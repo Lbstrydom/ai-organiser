@@ -151,12 +151,22 @@ export async function generateHtmlStream(
             debounceMs: options.debounceMs,
         });
 
+        // H1 fix: AbortSignal.timeout() and AbortSignal.any() are not universally available
+        // (absent in older Electron/iOS WebView). Use a manual controller + clearTimeout approach.
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), GENERATION_TIMEOUT);
+
+        const combinedController = new AbortController();
+        const abortCombined = () => combinedController.abort();
+        timeoutController.signal.addEventListener('abort', abortCombined);
+        options.signal?.addEventListener('abort', abortCombined);
+
         try {
             const result = await summarizeTextStream(
                 context,
                 fullPrompt,
                 (chunk: string) => assembler.addChunk(chunk),
-                options.signal
+                combinedController.signal
             );
 
             const streamResult = assembler.finalize();
@@ -171,6 +181,9 @@ export async function generateHtmlStream(
 
             return processExtractedHtml(streamResult.fullResponse, options.theme.css, options.outputLanguage, 'Generation');
         } finally {
+            clearTimeout(timeoutId);
+            timeoutController.signal.removeEventListener('abort', abortCombined);
+            options.signal?.removeEventListener('abort', abortCombined);
             assembler.dispose();
         }
     } catch (e) {
@@ -230,10 +243,17 @@ export async function runBrandAudit(
 
     const prompt = buildBrandAuditPrompt(html, theme.auditChecklist);
 
-    const result = await summarizeText(context, prompt, {
-        timeoutMs: AUDIT_TIMEOUT,
-        signal,
-    });
+    let result;
+    try {
+        result = await summarizeText(context, prompt, {
+            timeoutMs: AUDIT_TIMEOUT,
+            signal,
+        });
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('PresentationAudit', `Brand audit LLM call threw: ${msg}`);
+        return ok({ status: 'unavailable', passed: [], violations: [] });
+    }
 
     if (signal?.aborted) return err('Aborted');
 

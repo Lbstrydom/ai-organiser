@@ -19,8 +19,8 @@ export type PresentationPhase =
 
 // ── Re-export shared constants ──────────────────────────────────────────────
 
-export { MAX_VERSIONS, DECK_CLASSES, SLIDE_TYPES } from './presentationConstants';
-import { MAX_VERSIONS } from './presentationConstants';
+export { MAX_VERSIONS, LARGE_DECK_THRESHOLD, DECK_CLASSES, SLIDE_TYPES } from './presentationConstants';
+import { MAX_VERSIONS, LARGE_DECK_THRESHOLD } from './presentationConstants';
 
 export interface PresentationVersion {
     html: string;
@@ -162,8 +162,9 @@ export function runStructureChecks(slides: SlideInfo[]): QualityFinding[] {
     if (slides.length < 3) {
         findings.push({ issue: 'Deck has fewer than 3 slides', suggestion: 'Add more content', severity: 'MEDIUM' });
     }
-    if (slides.length > 30) {
-        findings.push({ issue: 'Deck has more than 30 slides', suggestion: 'Consider condensing', severity: 'MEDIUM' });
+    // H1 SSOT fix: use shared constant instead of hardcoded 30
+    if (slides.length > LARGE_DECK_THRESHOLD) {
+        findings.push({ issue: `Deck has more than ${LARGE_DECK_THRESHOLD} slides`, suggestion: 'Consider condensing', severity: 'MEDIUM' });
     }
 
     const seenHeadings = new Set<string>();
@@ -216,24 +217,32 @@ export function migratePresentationSession(data: unknown): PresentationSession |
     if (o.schemaVersion !== 1) return null;
     if (typeof o.html !== 'string' || !o.html) return null;
 
-    // Validate and filter versions (M10 fix)
+    // H6 fix: validate all required PresentationVersion fields including userPrompt
     const rawVersions = Array.isArray(o.versions) ? o.versions : [];
     const versions: PresentationVersion[] = rawVersions
-        .filter((v): v is PresentationVersion =>
-            !!v && typeof v === 'object'
-            && typeof (v).html === 'string'
-            && typeof (v).timestamp === 'number'
-        )
+        .filter((v): v is PresentationVersion => {
+            if (!v || typeof v !== 'object') return false;
+            const rec = v as Record<string, unknown>;
+            return typeof rec.html === 'string'
+                && typeof rec.timestamp === 'number'
+                && typeof rec.userPrompt === 'string'
+                && typeof rec.activeSlideIndex === 'number';
+        })
         .slice(0, MAX_VERSIONS);
 
-    // Validate conversation messages
+    // Validate conversation messages — M4/M10/M7 fix: constrain role + require timestamp
+    // Include 'system' to match PresentationMessage.role type (dropping system messages = data loss)
+    const VALID_ROLES = new Set(['user', 'assistant', 'system']);
     const rawConv = Array.isArray(o.conversation) ? o.conversation : [];
     const conversation: PresentationMessage[] = rawConv
-        .filter((m): m is PresentationMessage =>
-            !!m && typeof m === 'object'
-            && typeof (m).role === 'string'
-            && typeof (m).content === 'string'
-        );
+        .filter((m): m is PresentationMessage => {
+            if (!m || typeof m !== 'object') return false;
+            const msg = m as Record<string, unknown>;
+            return typeof msg.role === 'string'
+                && VALID_ROLES.has(msg.role)
+                && typeof msg.content === 'string'
+                && typeof msg.timestamp === 'number';
+        });
 
     return {
         schemaVersion: 1,

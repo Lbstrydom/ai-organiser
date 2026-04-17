@@ -9,6 +9,24 @@
 const FAST_SCAN_CATEGORIES = ['colour', 'typography', 'overflow', 'density', 'gestalt', 'consistency'] as const;
 const DEEP_SCAN_CATEGORIES = ['spacing', 'contrast', 'alignment', 'visual-balance'] as const;
 
+const MAX_HTML_PROMPT_CHARS = 120_000;
+
+/**
+ * H2/R3-H2 fix: sanitize HTML before embedding in XML-tagged prompt context.
+ * Uses a single case-insensitive regex to defang any closing tag that matches
+ * the XML delimiter names used in these prompts, preventing prompt injection.
+ * Truncates to prevent token budget overruns.
+ */
+const PROMPT_DELIMITER_RE = /<\/(html_deck|task|requirements|output_format|sampling_note)(\s*>)/gi;
+
+function sanitizeHtmlForPrompt(html: string): string {
+    const truncated = html.length > MAX_HTML_PROMPT_CHARS
+        ? html.slice(0, MAX_HTML_PROMPT_CHARS) + '\n<!-- [truncated for prompt safety] -->'
+        : html;
+    // Insert a space before the slash to defang matching closing tags (case-insensitive)
+    return truncated.replaceAll(PROMPT_DELIMITER_RE, '< /$1$2');
+}
+
 const OUTPUT_FORMAT = `{
   "findings": [
     {
@@ -29,7 +47,9 @@ const SEVERITY_GUIDANCE = `Severity levels:
 function buildSamplingNote(slideCount: number): string {
     if (slideCount <= 30) return '';
     return `\n<sampling_note>
-This deck has ${slideCount} slides. Scan a representative sample: the first 5, the last 3, and at least 5 evenly spaced slides from the middle. Report findings with correct slideIndex values.
+This deck has ${slideCount} slides total. You are seeing a representative sample only.
+Each sampled slide carries a data-sample-index attribute (0-based position within this sample).
+IMPORTANT: Use the data-sample-index value as the slideIndex in all findings — do NOT use data-original-index or infer position from document order.
 </sampling_note>`;
 }
 
@@ -60,7 +80,7 @@ ${OUTPUT_FORMAT}
 </output_format>
 
 <html_deck>
-${html}
+${sanitizeHtmlForPrompt(html)}
 </html_deck>`;
 }
 
@@ -89,6 +109,6 @@ ${OUTPUT_FORMAT}
 </output_format>
 
 <html_deck>
-${html}
+${sanitizeHtmlForPrompt(html)}
 </html_deck>`;
 }

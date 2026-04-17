@@ -13,7 +13,18 @@ import type { DomFix, QualityResult, ReliabilityTier } from '../../services/chat
 import { SLIDE_WIDTH, SLIDE_HEIGHT, DECK_CLASSES } from '../../services/chat/presentationConstants';
 import { buildSlideRuntimeCode } from '../../services/chat/slideRuntime';
 
-// ── CSS Sanitisation for DOM Fixes (H5) ─────────────────────────────────────
+// ── CSS Sanitisation for DOM Fixes ──────────────────────────────────────────
+
+/** Sanitize a CSS selector from LLM output (M13 fix — prevent CSS injection). */
+export function sanitizeCssSelector(selector: string): string | null {
+    // Reject selectors containing CSS block/rule injection characters or comment starters
+    // M5 fix: removed \\ — valid CSS escape sequences don't pose injection risk here
+    // M6 fix: reject (don't truncate) selectors >200 chars — truncation changes selector meaning
+    if (/[{}@;/]/.test(selector)) return null;
+    const trimmed = selector.trim();
+    if (trimmed.length === 0 || trimmed.length > 200) return null;
+    return trimmed;
+}
 
 /** CSS properties allowed in brand-audit DOM fixes. */
 const ALLOWED_FIX_PROPERTIES = new Set([
@@ -31,7 +42,8 @@ const ALLOWED_FIX_PROPERTIES = new Set([
 ]);
 
 /** Patterns that indicate malicious CSS values. */
-const DANGEROUS_VALUE_PATTERNS = /url\s*\(|expression\s*\(|behavior\s*:|javascript\s*:|<\/style>/i;
+// M7 fix: also block declaration delimiters (;{}) that could inject extra CSS rules
+const DANGEROUS_VALUE_PATTERNS = /url\s*\(|expression\s*\(|behavior\s*:|javascript\s*:|<\/style>|[;{}]/i;
 
 function isAllowedCssProperty(prop: string): boolean {
     return ALLOWED_FIX_PROPERTIES.has(prop.trim().toLowerCase());
@@ -51,7 +63,7 @@ interface SlideMessage {
     payload?: unknown;
 }
 
-function generateNonce(): string {
+export function generateNonce(): string {
     const arr = new Uint8Array(MSG_NONCE_LENGTH);
     crypto.getRandomValues(arr);
     return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
@@ -129,15 +141,27 @@ export class SlideIframePreview {
     applyDomFixes(fixes: DomFix[]): void {
         const doc = this.getIframeDocument();
         if (!doc) return;
-        // H5: Sanitize CSS from audit LLM output before injecting into iframe
+
+        // Sanitize CSS from audit LLM output before injecting into iframe
         const safeFixes = fixes.filter(fix =>
-            isAllowedCssProperty(fix.property) && isSafeCssValue(fix.value)
+            sanitizeCssSelector(fix.selector) !== null
+            && isAllowedCssProperty(fix.property)
+            && isSafeCssValue(fix.value)
         );
-        // M4: Reuse a single <style> tag to avoid accumulating duplicate rules
+
+        // Reuse a single <style> tag to avoid accumulating duplicate rules
         const rules = safeFixes
-            .map(fix => `${fix.selector} { ${fix.property}: ${fix.value} !important; }`)
+            .map(fix => `${sanitizeCssSelector(fix.selector)} { ${fix.property}: ${fix.value} !important; }`)
             .join('\n');
-        if (!rules) return;
+
+        if (!rules) {
+            // H13 fix: clear stale rules when the new fix list is empty
+            if (this.domFixStyle) {
+                this.domFixStyle.textContent = '';
+            }
+            return;
+        }
+
         if (!this.domFixStyle?.parentNode) {
             this.domFixStyle = doc.createElement('style');
             doc.head.appendChild(this.domFixStyle);
@@ -180,14 +204,23 @@ export class SlideIframePreview {
     // ── Rendering ───────────────────────────────────────────────────────────
 
     private render(): void {
-        this.renderToken++; // Invalidate prior iframe loads (M13)
-        this.container.empty();
+        this.renderToken++; // Invalidate prior iframe loads
+
+        // M11 fix: dispose keyHandler before container.empty() to prevent listener leak
+        if (this.keyHandler) {
+            const target = this.keyHandlerTarget ?? this.container;
+            target.removeEventListener('keydown', this.keyHandler);
+            this.keyHandler = null;
+            this.keyHandlerTarget = null;
+        }
 
         // Clean up previous message listener before re-render
         if (this.messageHandler) {
             window.removeEventListener('message', this.messageHandler);
             this.messageHandler = null;
         }
+
+        this.container.empty();
 
         if (this.state === 'idle') {
             // H2: Full state reset when returning to idle
@@ -366,7 +399,8 @@ export class SlideIframePreview {
     private sendMessage(action: string, payload?: unknown): void {
         if (!this.iframe?.contentWindow) return;
         const msg: SlideMessage = { nonce: this.nonce, action, payload };
-        this.iframe.contentWindow.postMessage(msg, '*');
+        // M3 fix: use same-origin target instead of '*'
+        this.iframe.contentWindow.postMessage(msg, globalThis.location.origin || '*');
     }
 
     private handleIframeMessage(msg: SlideMessage): void {

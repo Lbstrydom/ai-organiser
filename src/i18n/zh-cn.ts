@@ -1961,6 +1961,8 @@ export const zhCN: Translations = {
             resumeProjects: '项目',
             resumeRecent: '最近对话',
             resumeNewConversation: '新对话',
+            resumeNewPresentation: '新演示文稿',
+            resumeSlides: '{count} 张幻灯片',
             resumeNewProject: '新建项目...',
             resumeProjectChats: '{count} 个对话',
             resumeMessages: '{count} 条消息',

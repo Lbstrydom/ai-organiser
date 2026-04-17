@@ -70,6 +70,8 @@ export interface ConversationState {
     /** Direct path to project folder (e.g. AI-Organiser/AI Chat/Projects/my-project) */
     projectFolderPath?: string;
     freeState?: SerializableFreeChatState;
+    /** Serialised presentation deck state — populated when mode === 'presentation'. */
+    presentationSnapshot?: Record<string, unknown>;
     /** User-defined name overriding the auto-derived first-message title. */
     customTitle?: string;
     createdAt: string;
@@ -87,6 +89,8 @@ export interface ConversationSummary {
     createdAt?: string;
     updatedAt: string;
     lastActiveAt?: string;
+    /** Number of slides — populated for presentation mode only. */
+    slideCount?: number;
 }
 
 export interface SerializableAttachment {

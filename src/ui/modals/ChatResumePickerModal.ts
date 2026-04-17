@@ -2,13 +2,13 @@ import { App, Modal, setIcon } from 'obsidian';
 import type { AIOrganiserSettings } from '../../core/settings';
 import type { ConversationSummary } from '../../utils/chatExportUtils';
 import type { ConversationPersistenceService } from '../../services/chat/conversationPersistenceService';
-import type { ProjectConfig } from '../../services/chat/projectService';
-import type { ProjectService } from '../../services/chat/projectService';
+import type { ProjectConfig, ProjectService } from '../../services/chat/projectService';
 import type { Translations } from '../../i18n/types';
+import type { ChatMode } from '../chat/ChatModeHandler';
 
 export type ResumePickerResult =
     | { action: 'resume'; filePath: string; projectId?: string }
-    | { action: 'new' }
+    | { action: 'new'; initialMode?: ChatMode }
     | { action: 'new-in-project'; projectId: string }
     | { action: 'create-project'; name: string }
     | null;
@@ -81,6 +81,14 @@ export class ChatResumePickerModal extends Modal {
             this.close();
         });
 
+        const newPresBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
+        setIcon(newPresBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'presentation');
+        newPresBtn.createSpan({ text: this.t.resumeNewPresentation });
+        newPresBtn.addEventListener('click', () => {
+            this.resolve({ action: 'new', initialMode: 'presentation' });
+            this.close();
+        });
+
         const newProjectBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
         setIcon(newProjectBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'folder-plus');
         newProjectBtn.createSpan({ text: this.t.resumeNewProject });
@@ -124,13 +132,16 @@ export class ChatResumePickerModal extends Modal {
         const row = container.createDiv({ cls: 'ai-organiser-resume-conv-row' });
 
         const iconEl = row.createSpan({ cls: 'ai-organiser-resume-row-icon' });
-        setIcon(iconEl, 'message-square');
+        setIcon(iconEl, conv.mode === 'presentation' ? 'layout-template' : 'message-square');
         const titleSpan = row.createSpan({ cls: 'ai-organiser-resume-row-title', text: conv.title });
 
         const meta = this.formatTimeAgo(conv.updatedAt ?? conv.lastActiveAt ?? new Date().toISOString());
+        const slidePart = conv.slideCount
+            ? `${this.t.resumeSlides.replace('{count}', String(conv.slideCount))} · `
+            : '';
         row.createSpan({
             cls: 'ai-organiser-resume-row-meta',
-            text: `${this.t.resumeMessages.replace('{count}', String(conv.messageCount))} · ${meta}`,
+            text: `${slidePart}${this.t.resumeMessages.replace('{count}', String(conv.messageCount))} · ${meta}`,
         });
 
         // Rename button — pencil icon, stops row click from firing
@@ -138,7 +149,7 @@ export class ChatResumePickerModal extends Modal {
         setIcon(renameBtn, 'pencil');
         renameBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            void this.handleInlineRename(conv, row, titleSpan);
+            this.handleInlineRename(conv, row, titleSpan);
         });
 
         row.addEventListener('click', () => {
@@ -147,7 +158,7 @@ export class ChatResumePickerModal extends Modal {
         });
     }
 
-    private async handleInlineRename(conv: ConversationSummary, row: HTMLElement, titleSpan: HTMLElement): Promise<void> {
+    private handleInlineRename(conv: ConversationSummary, row: HTMLElement, titleSpan: HTMLElement): void {
         // Replace title span with an inline input
         const input = document.createElement('input');
         input.type = 'text';
