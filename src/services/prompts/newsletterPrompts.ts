@@ -42,7 +42,7 @@ export interface BriefSource {
  * Language instruction is injected when a non-English language is configured.
  * Word budget scales with source count for heavier news days.
  */
-export function buildDailyBriefPrompt(options: { language?: string; sourceCount?: number } = {}): string {
+export function buildDailyBriefPrompt(options: { language?: string } = {}): string {
     const isNonEnglish = options.language && options.language.toLowerCase() !== 'english';
     const langInstruction = isNonEnglish
         ? `\n- Write the entire brief, including all headings, in ${options.language}`
@@ -51,26 +51,22 @@ export function buildDailyBriefPrompt(options: { language?: string; sourceCount?
         ? `Choose 2-4 thematic headings appropriate for ${options.language} (e.g. equivalent of Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society) — only include headings that have content`
         : 'Group under 2-4 thematic headings chosen from: Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society — only include headings that have content';
 
-    // Scale word budget: 150-300 for ≤8 sources, up to 300-500 for 15+ sources
-    const count = options.sourceCount ?? 8;
-    let wordRange = '150-300';
-    if (count >= 15) wordRange = '300-500';
-    else if (count >= 10) wordRange = '200-400';
-
-    return `<task>Synthesise these newsletter summaries into a concise daily brief.</task>
+    return `<task>Synthesise these newsletter summaries into a comprehensive daily brief that covers all significant stories.</task>
 <requirements>
-- Identify stories that appear in more than one newsletter and merge them into one entry
+- Cover every noteworthy story — the reader should not need to scroll past the brief
+- Merge stories that appear in more than one source into a single entry with (Sources: A, B)
 - Each distinct event or development appears once only
-- Attribute merged stories with (Sources: Name A, Name B) at the end of the bullet
 - ${headingNote}
 - Use ### for theme headings
-- ${wordRange} words total
+- Keep each bullet to one or two sentences — be concise but complete enough to understand the story
 - Factual, neutral tone; no filler phrases
-- Prioritise stories that appear in multiple sources — they are the day's signal${langInstruction}
+- Prioritise stories that appear in multiple sources — they are the day's signal
+- Include 10-20 stories depending on how much happened; do not artificially limit to a handful
+- Niche or soft stories (lifestyle, opinion pieces) can be omitted if space is needed for hard news${langInstruction}
 </requirements>
 <output_format>
 ### [Theme heading]
-- **[Story title]**: One sentence summary. (Sources: Newsletter A, Newsletter B)
+- **[Story title]**: One-two sentence summary. (Sources: Newsletter A, Newsletter B)
 </output_format>
 <newsletters>
 {{CONTENT}}
@@ -97,15 +93,15 @@ function isGarbageSource(text: string): boolean {
  * Uses non-XML --- SOURCE --- delimiters to avoid entity escaping issues.
  * Structural XML tags are stripped from all source content.
  * Garbage sources (raw HTML, tracking pixels) are filtered out.
- * Each source is capped at 500 chars (sentence boundary).
- * Total content is capped at 12000 chars to accommodate heavy news days.
+ * Each source is capped at 1500 chars (sentence boundary) to preserve full story lists.
+ * Total content is capped at 16000 chars to accommodate heavy news days.
  */
 export function insertBriefContent(
     prompt: string,
     sources: BriefSource[]
 ): { filled: string; truncatedCount: number } {
-    const PER_SOURCE_CAP = 500;
-    const TOTAL_CAP = 12_000;
+    const PER_SOURCE_CAP = 1500;
+    const TOTAL_CAP = 16_000;
 
     const blocks: string[] = [];
     let totalChars = 0;

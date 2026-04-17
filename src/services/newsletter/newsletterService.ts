@@ -530,7 +530,7 @@ export class NewsletterService {
         const langCode = this.plugin.settings.newsletterPreferredLanguage;
         const langName = getLanguageNameForPrompt(langCode);
         const { filled, truncatedCount } = insertBriefContent(
-            buildDailyBriefPrompt({ language: langName || undefined, sourceCount: sources.length }),
+            buildDailyBriefPrompt({ language: langName || undefined }),
             sources
         );
 

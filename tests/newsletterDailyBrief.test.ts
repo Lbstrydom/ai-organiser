@@ -340,14 +340,13 @@ describe('insertBriefContent', () => {
         expect(filled).not.toContain('{{CONTENT}}');
     });
 
-    it('caps each source at 500 chars at a sentence boundary', () => {
-        const longText = 'A'.repeat(100) + '. ' + 'B'.repeat(600);
+    it('caps each source at 1500 chars at a sentence boundary', () => {
+        const longText = 'A'.repeat(500) + '. ' + 'B'.repeat(1500);
         const prompt = buildDailyBriefPrompt();
         const { filled } = insertBriefContent(prompt, [makeSource('Long', longText)]);
-        // Content block length should be well under 600
         const blockMatch = /--- SOURCE: Long ---\n([\s\S]*?)\n--- END SOURCE ---/.exec(filled);
         expect(blockMatch).not.toBeNull();
-        expect((blockMatch?.[1] ?? '').length).toBeLessThanOrEqual(500);
+        expect((blockMatch?.[1] ?? '').length).toBeLessThanOrEqual(1500);
     });
 
     it('token-packs: continues past oversized source to fit smaller ones', () => {
@@ -370,9 +369,9 @@ describe('insertBriefContent', () => {
     });
 
     it('tracks truncatedCount when total budget exceeded', () => {
-        // Each source: 480-char body + ~42-char block overhead ≈ 522 chars
-        // 25 sources × 522 ≈ 13050 chars > 12000 total cap → some must be truncated
-        const sources = Array.from({ length: 25 }, (_, i) =>
+        // Each source: ~540-char body + ~42-char block overhead ≈ 582 chars
+        // 35 sources × 582 ≈ 20370 chars > 16000 total cap → some must be truncated
+        const sources = Array.from({ length: 35 }, (_, i) =>
             makeSource(`Source${i}`, `${'X'.repeat(470)}. Extra.`)
         );
         const prompt = buildDailyBriefPrompt();
