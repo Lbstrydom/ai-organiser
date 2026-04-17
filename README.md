@@ -1,194 +1,137 @@
-# AI Organiser: Intelligent Note Organization for Obsidian
+# AI Organiser for Obsidian
 
-[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md) [![中文](https://img.shields.io/badge/lang-中文-red.svg)](README_CN.md)
+[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md) [![中文](https://img.shields.io/badge/lang-��文-red.svg)](README_CN.md)
 
-![AI Organiser](https://img.shields.io/badge/Obsidian-AI%20Organiser-purple)
-![Obsidian Compatibility](https://img.shields.io/badge/Obsidian-v1.4.0+-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+**Your notes deserve more than storage.** AI Organiser turns Obsidian into a thinking partner — summarize anything, research the web, build presentations, record meetings, sync Kindle highlights, and let AI tag and connect your knowledge. One plugin, 14 providers, works locally or in the cloud.
 
-> A comprehensive AI-powered plugin for Obsidian with 37+ commands across tagging, summarization, research, meeting minutes, presentations, semantic search, and more. Supports 14 cloud providers and 5+ local LLM options.
+<!-- TODO: Add hero GIF/screenshot showing command picker or chat -->
 
-## Installation
+---
 
-### From Community Plugins (Recommended)
+## What does it actually do?
 
-1. Open Obsidian Settings > Community Plugins > Browse
-2. Search for **AI Organiser**
-3. Click Install, then Enable
+**Drop in a URL** and get a structured summary with tags — or paste five URLs and get a single synthesized note. **Record a meeting** and walk away with structured minutes, action items in GTD format, and a Word document ready to send. **Ask "what do I know about X?"** and get answers grounded in your own vault, with citations. **Say "make me a deck about Q3 results"** and watch slides appear in a live preview, then export to PowerPoint.
 
-### Manual Installation
+Everything works from a single **Command Picker** — press one hotkey, browse by category, search by keyword. No menus to memorize.
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Lbstrydom/ai-organiser/releases)
-2. Create folder `<vault>/.obsidian/plugins/ai-organiser/`
-3. Copy the three files into the folder
-4. Reload Obsidian and enable the plugin in Settings > Community Plugins
+---
 
-## Quick Start
+## Highlights
 
-1. Open Settings > AI Organiser > **AI Provider**
-2. Select a provider (Claude, OpenAI, Gemini, Groq, DeepSeek, etc.)
-3. Enter your API key
-4. Open the **Command Picker** (configurable hotkey) to browse all commands
+### AI Chat — 6 modes, one modal
 
-## Features
+Chat about your active note, search your vault with semantic RAG, research the web with source scoring and citations, build slide decks in conversation, or just talk. Conversations persist across sessions, support file attachments, and remember context through projects and global memory.
 
-### AI Chat
+### Summarize anything
 
-Full-featured chat with 6 modes:
+URLs, PDFs, YouTube videos, audio recordings, Office documents — individually or in bulk. Choose from 5 built-in personas (Student, Executive, Technical, Researcher, Casual) or write your own. Every write shows an inline diff preview so you approve changes before they land.
 
-| Mode | Purpose |
-|------|---------|
-| **Note** | Ask questions about the active note |
-| **Vault** | RAG-powered search across your knowledge base |
-| **Highlight** | Discuss selected text or highlights |
-| **Research** | Web research with source quality scoring |
-| **Free Chat** | Open conversation with file attachments and projects |
-| **Slides** | Build themed HTML presentations with PPTX export |
+### Web Research
 
-Features: conversation persistence, project memory, global memory, smart document indexing (ONNX RAG), model switching, and resume from previous conversations.
+Ask a question and the plugin decomposes it into sub-queries, searches multiple providers, scores source quality, extracts findings, and synthesizes an answer with numbered citations. Academic mode adds DOI extraction and author-year formatting. Budget guardrails stop you from accidentally burning through your API credits.
 
-### Presentation Builder (Slides Mode)
+### Presentation Builder
 
-- Describe your presentation in natural language
-- LLM generates rich HTML slides with themed CSS
-- Preview in sandboxed iframe with slide navigation
-- Chat to refine individual slides or the whole deck
-- Export to editable PPTX (via dom-to-pptx) or self-contained HTML
-- Optional brand guidelines integration with Haiku audit
-- Version history with undo/redo
-
-### Intelligent Tagging
-
-- **Taxonomy-based tagging** with customizable themes and disciplines
-- **3-tier hierarchical tags** (e.g., `science/biology/genetics`)
-- **Multiple modes**: generate new, match existing, hybrid, or custom
-- **Batch operations** for folders or entire vault
-- **Tag network visualization** with D3.js interactive graph
-- **Taxonomy guardrail** validates tags against your taxonomy
-
-### Content Summarization
-
-- **URLs** - Web articles with link preservation
-- **PDFs** - Native multimodal support (Claude/Gemini) or text extraction
-- **YouTube** - Via captions extraction
-- **Audio** - Transcription + summarization (MP3, WAV, M4A, OGG, WebM)
-- **Multi-source** - Summarize multiple sources into one note
-- **5 built-in personas** - Student, Executive, Casual, Researcher, Technical
-- **Custom personas** via config file
-- **Reviewed Edits** - Inline diff preview before any write
-
-### Web Research Assistant
-
-- Multi-provider search (Claude Web Search, Tavily, Bright Data)
-- Smart escalation: free fetch > Web Unlocker > Scraping Browser
-- Source quality scoring (5 weighted signals)
-- Academic mode with DOI extraction and citation formatting
-- Multi-perspective query decomposition
-- Usage guardrails with monthly budget tracking
-- Zotero integration for citation management
-- Vault pre-check (search vault before web)
-- Streaming synthesis with citations
+Describe what you want in plain language. The LLM generates themed HTML slides with speaker notes, previewed live in a sandboxed iframe. Chat to refine, then export to editable PPTX or self-contained HTML. Optional brand guidelines keep everything on-brand.
 
 ### Meeting Minutes
 
-- Generate structured minutes from audio transcripts
-- GTD overlay: classify actions by context (@office, @call, etc.)
-- 2 built-in personas (Standard, Governance) + custom personas
-- Terminology dictionaries for transcription accuracy
-- Context document support (agendas, presentations)
-- Chunked processing for long meetings (5000-token chunks)
-- Word document (DOCX) export
-- Obsidian Tasks format support
+Record audio in-plugin or paste a transcript. Get structured minutes with agenda items, decisions, and action items — optionally classified by GTD context (`@office`, `@call`, `@errand`). Terminology dictionaries keep names and acronyms consistent. Export to Word with one click.
 
-### Audio Recording & Transcription
+### Newsletter Digest
 
-- In-plugin audio recording (desktop + mobile)
-- Whisper-compatible transcription
-- Post-transcription cleanup (keep/compress/delete)
-- Direct integration with minutes and summarization
+Connect your Gmail via a simple Apps Script. The plugin fetches unread newsletters, triages each one with AI, writes individual notes with key links, and synthesizes a thematic daily brief that groups stories across sources. Optional audio podcast generation reads you the brief.
 
-### Smart Digitisation
+### Intelligent Tagging
 
-- Extract text from handwritten notes, whiteboards, diagrams
+Auto-tag notes using your own taxonomy with 3-tier hierarchical tags. Match existing tags, generate new ones, or use a hybrid. Batch-tag entire folders. Visualize your tag network as an interactive D3.js graph.
+
+### Semantic Search & RAG
+
+7 embedding providers including a zero-setup local option (no API key needed). Find related notes in a persistent sidebar. Export search results as new notes. Every AI response can be grounded in your vault context.
+
+---
+
+## More features
+
+<details>
+<summary><strong>Smart Digitisation</strong> — extract text from photos of handwritten notes, whiteboards, and diagrams</summary>
+
 - 5 modes: auto, handwriting, diagram, whiteboard, mixed
-- Built-in sketch pad with pressure-sensitive drawing
+- Built-in sketch pad with pressure-sensitive drawing (perfect-freehand)
 - Image compression with backlink-safe vault replacement
+</details>
 
-### Kindle Sync
+<details>
+<summary><strong>Kindle Sync</strong> — import highlights from My Clippings.txt or Amazon cloud</summary>
 
-- Import from My Clippings.txt or Amazon cloud
 - Differential sync (only new highlights)
 - 4 highlight styles: blockquote, callout, bullet, plain
 - Color grouping and cover images
 - AI auto-tagging after import
+</details>
 
-### Newsletter Digest
+<details>
+<summary><strong>Mermaid Chat</strong> — conversational diagram editing with live preview</summary>
 
-- Fetch unread Gmail newsletters via Google Apps Script
-- AI triage summaries per newsletter
-- Rolling daily digest notes
-- Key links extraction (spam-filtered)
-- Auto-fetch scheduler
-
-### Semantic Search & RAG
-
-- 7 embedding providers (OpenAI, Gemini, Ollama, Cohere, Voyage AI, OpenRouter, local ONNX)
-- Vector store with chunk-based indexing
-- Related notes sidebar (auto-updates on note switch)
-- RAG-enhanced AI responses
-- Multi-select export from search results
-- Zero-setup ONNX fallback (no API key needed)
-
-### Canvas Toolkit
-
-- **Investigation Board** - RAG-based related note visualization
-- **Context Board** - Embedded content mapping (YouTube, PDF, web, audio)
-- **Cluster Board** - Tag-based note grouping with LLM clustering
-
-### Mermaid Chat
-
-- Conversational diagram editing with live preview
 - Version history and line-level diff view
 - Template library (built-in + custom)
 - Multi-format export (SVG, PNG, .mermaid, canvas)
-- Staleness detection (warns when note content changes after diagram creation)
-- Type conversion between 12 diagram types
+- Staleness detection when note content changes
+- Convert between 12 diagram types
+</details>
 
-### Document Export
+<details>
+<summary><strong>Canvas Toolkit</strong> — 3 board types for visual thinking</summary>
 
-- Export to PDF, Word (DOCX), or PowerPoint (PPTX)
+- **Investigation Board** — RAG-based related note visualization
+- **Context Board** — map embedded content (YouTube, PDF, web, audio)
+- **Cluster Board** — tag-based grouping with LLM clustering
+</details>
+
+<details>
+<summary><strong>Document Export</strong> — PDF, Word, PowerPoint, flashcards</summary>
+
 - 5 color scheme presets + custom colors
 - Configurable font family and size
-- Flashcard export (Anki, Brainscape)
-- Meeting minutes DOCX with structured sections
+- Flashcard export for Anki and Brainscape
+</details>
 
-### Vault Tools
+<details>
+<summary><strong>Translation</strong> — notes, selections, or multi-source</summary>
 
-- **Quick Peek** - Fast 1-paragraph triage of embedded sources
-- **Web Reader** - Batch URL triage and note creation
-- **Find Embeds** - Vault hygiene scan for assets and orphans
-- **Pending Integration** - Auto-resolve embedded content before integration
-- **Obsidian Bases** - Structured metadata and dashboard generation
-
-### Translation
-
-- Translate notes, selections, or external sources
 - 20+ target languages
-- Smart dispatch: selection > multi-source > note
-- Multi-source translation (URLs, YouTube, PDFs, documents, audio)
+- Smart dispatch: selection > multi-source > full note
+- Translate URLs, YouTube, PDFs, documents, and audio
+</details>
+
+<details>
+<summary><strong>Vault Tools</strong> — Quick Peek, Web Reader, Find Embeds, Bases integration</summary>
+
+- **Quick Peek** — fast 1-paragraph triage of any embedded source
+- **Web Reader** — batch URL triage and note creation
+- **Find Embeds** — vault hygiene scan for orphaned assets
+- **Pending Integration** — auto-resolve embedded content
+- **Obsidian Bases** — structured metadata and dashboard generation
+</details>
+
+---
 
 ## Supported Providers
 
-### Cloud LLM Providers
+Works with **14 cloud providers** and **5+ local options** — pick what fits your budget and privacy needs.
 
-| Provider | Models |
-|----------|--------|
-| **Anthropic (Claude)** | Claude 4.6, Sonnet 4.6, Haiku 4.5 |
+<details>
+<summary>Full provider list</summary>
+
+| Provider | Example Models |
+|----------|---------------|
+| **Anthropic** | Claude Opus 4.6, Sonnet 4.6, Haiku 4.5 |
 | **OpenAI** | GPT-5.4, GPT-4o, o3, o4-mini |
-| **Google (Gemini)** | Gemini 2.5 Pro/Flash |
-| **DeepSeek** | DeepSeek R1, V3 |
+| **Google Gemini** | Gemini 2.5 Pro, 2.5 Flash |
+| **DeepSeek** | R1, V3 |
 | **Groq** | Llama, Mixtral (fast inference) |
-| **Mistral** | Mistral Large, Codestral |
+| **Mistral** | Large, Codestral |
 | **Cohere** | Command R+ |
 | **Grok** | Grok-2 |
 | **OpenRouter** | 200+ models |
@@ -198,58 +141,56 @@ Features: conversation persistence, project memory, global memory, smart documen
 | **Alibaba (Aliyun)** | Qwen models |
 | **SiliconFlow** | Open-source models |
 
-### Local LLM Options
+**Local**: Ollama, LM Studio, LocalAI, Jan, KoboldCpp
 
-- **Ollama** - Run models locally
-- **LM Studio** - GUI-based local inference
-- **LocalAI** - OpenAI-compatible local server
-- **Jan** - Desktop LLM app
-- **KoboldCpp** - GGUF model runner
+**Embeddings**: OpenAI, Gemini, Ollama, Cohere, Voyage AI, OpenRouter, Local ONNX (zero-setup, no API key)
 
-### Embedding Providers
+</details>
 
-OpenAI, Gemini, Ollama, Cohere, Voyage AI, OpenRouter, Local ONNX (zero-setup)
+---
 
-## Mobile Support
+## Mobile
 
-Works on iOS and Android with:
-- Cloud-only provider mode
-- RAM-aware indexing limits
-- Touch-optimized modals
-- Automatic audio codec negotiation
+Works on iOS and Android — cloud providers, touch-optimized modals, audio recording with automatic codec negotiation, RAM-aware indexing.
 
-## Internationalization
+## Languages
 
-Full interface and output language support for **English** and **Simplified Chinese**. Output language configurable independently from interface language.
+Full interface support for **English** and **Simplified Chinese**. Output language configurable independently.
 
-## Configuration
+---
 
-All settings are organized into collapsible sections:
+## Getting Started
 
-- **AI Provider** - Main LLM setup
-- **Specialist Providers** - Dedicated providers for YouTube, PDF, Audio, Flashcards
-- **Tagging** - Tag generation and taxonomy
-- **Summarization** - Personas, styles, transcript options
-- **Capture & Input** - Audio, digitisation, sketch pad
-- **Meeting Minutes** - Output, timezone, personas, GTD
-- **Vault Intelligence** - Semantic search, canvas, RAG
-- **Integrations** - Bases, NotebookLM, document export
-- **Preferences** - Language, interface, mobile
-- **Advanced** - Configuration files
+1. **Install** — Community Plugins > Browse > search **AI Organiser** > Install > Enable
+2. **Configure** — Settings > AI Organiser > select a provider and enter your API key
+3. **Go** — Open the Command Picker (set a hotkey) and explore
+
+<details>
+<summary>Manual installation</summary>
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Lbstrydom/ai-organiser/releases)
+2. Create `<vault>/.obsidian/plugins/ai-organiser/`
+3. Copy the three files into the folder
+4. Reload Obsidian and enable in Settings > Community Plugins
+</details>
+
+---
 
 ## Contributing
 
-1. Clone the repo: `git clone https://github.com/Lbstrydom/ai-organiser.git`
-2. Install dependencies: `npm install`
-3. Development build: `npm run dev`
-4. Production build: `npm run build`
-5. Run tests: `npm test`
+```bash
+git clone https://github.com/Lbstrydom/ai-organiser.git
+npm install
+npm run dev    # watch mode
+npm test       # 3700+ unit tests
+npm run build  # production
+```
 
-See `AGENTS.md` for detailed architecture documentation.
+See [AGENTS.md](AGENTS.md) for architecture documentation.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Support
 

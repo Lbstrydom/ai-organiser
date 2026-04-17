@@ -40,8 +40,9 @@ export interface BriefSource {
 /**
  * Build the daily brief system+user prompt.
  * Language instruction is injected when a non-English language is configured.
+ * Word budget scales with source count for heavier news days.
  */
-export function buildDailyBriefPrompt(options: { language?: string } = {}): string {
+export function buildDailyBriefPrompt(options: { language?: string; sourceCount?: number } = {}): string {
     const isNonEnglish = options.language && options.language.toLowerCase() !== 'english';
     const langInstruction = isNonEnglish
         ? `\n- Write the entire brief, including all headings, in ${options.language}`
@@ -50,6 +51,12 @@ export function buildDailyBriefPrompt(options: { language?: string } = {}): stri
         ? `Choose 2-4 thematic headings appropriate for ${options.language} (e.g. equivalent of Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society) — only include headings that have content`
         : 'Group under 2-4 thematic headings chosen from: Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society — only include headings that have content';
 
+    // Scale word budget: 150-300 for ≤8 sources, up to 300-500 for 15+ sources
+    const count = options.sourceCount ?? 8;
+    let wordRange = '150-300';
+    if (count >= 15) wordRange = '300-500';
+    else if (count >= 10) wordRange = '200-400';
+
     return `<task>Synthesise these newsletter summaries into a concise daily brief.</task>
 <requirements>
 - Identify stories that appear in more than one newsletter and merge them into one entry
@@ -57,8 +64,9 @@ export function buildDailyBriefPrompt(options: { language?: string } = {}): stri
 - Attribute merged stories with (Sources: Name A, Name B) at the end of the bullet
 - ${headingNote}
 - Use ### for theme headings
-- 150-300 words total
-- Factual, neutral tone; no filler phrases${langInstruction}
+- ${wordRange} words total
+- Factual, neutral tone; no filler phrases
+- Prioritise stories that appear in multiple sources — they are the day's signal${langInstruction}
 </requirements>
 <output_format>
 ### [Theme heading]
@@ -69,19 +77,35 @@ export function buildDailyBriefPrompt(options: { language?: string } = {}): stri
 </newsletters>`;
 }
 
+/** Minimum meaningful chars for a source to be worth including. */
+const MIN_USEFUL_CHARS = 50;
+/** HTML entity density threshold — sources dominated by entities are garbage extraction. */
+const HTML_ENTITY_RE = /&#\d+;/g;
+
+/** Returns true if the triage text is garbage (raw HTML remnants, tracking pixels, etc.). */
+function isGarbageSource(text: string): boolean {
+    if (text.length < MIN_USEFUL_CHARS) return true;
+    const entityMatches = text.match(HTML_ENTITY_RE);
+    if (entityMatches && entityMatches.length > text.length / 20) return true;
+    // Mostly whitespace/image markup
+    if (text.replaceAll(/\s+/g, '').length < MIN_USEFUL_CHARS) return true;
+    return false;
+}
+
 /**
  * Inject source blocks into the brief prompt.
  * Uses non-XML --- SOURCE --- delimiters to avoid entity escaping issues.
  * Structural XML tags are stripped from all source content.
+ * Garbage sources (raw HTML, tracking pixels) are filtered out.
  * Each source is capped at 500 chars (sentence boundary).
- * Total content is capped at 5000 chars — least-recently-added sources trimmed first.
+ * Total content is capped at 12000 chars to accommodate heavy news days.
  */
 export function insertBriefContent(
     prompt: string,
     sources: BriefSource[]
 ): { filled: string; truncatedCount: number } {
     const PER_SOURCE_CAP = 500;
-    const TOTAL_CAP = 5000;
+    const TOTAL_CAP = 12_000;
 
     const blocks: string[] = [];
     let totalChars = 0;
@@ -90,8 +114,10 @@ export function insertBriefContent(
     for (const src of sources) {
         const name = stripStructuralTags(src.sourceDisplayName);
         const triage = stripStructuralTags(src.triageText);
-        const capped = capAtSentenceBoundary(triage, PER_SOURCE_CAP);
 
+        if (isGarbageSource(triage)) continue; // skip garbage extraction
+
+        const capped = capAtSentenceBoundary(triage, PER_SOURCE_CAP);
         const block = `--- SOURCE: ${name} ---\n${capped}\n--- END SOURCE ---`;
 
         if (totalChars + block.length > TOTAL_CAP) {
@@ -130,14 +156,17 @@ export function buildPodcastScriptPrompt(options: { language?: string; maxMins?:
         : 'Convert theme headings to spoken transitions: "In geopolitics today...", "In tech and AI...", "On the business and markets front..."';
     const maxWords = Math.round((options.maxMins ?? 5) * WORDS_PER_MINUTE);
 
-    return `<task>Rewrite this daily news brief as a spoken podcast script.</task>
+    return `<task>Rewrite this daily news brief as a spoken podcast script for a solo news briefing.</task>
 <requirements>
 - Remove all markdown formatting (no **, ##, ###, -, bullets)
 - ${transitionNote}
 - Remove source attribution parentheses like (Sources: X, Y)
-- Add a one-sentence opening that introduces today's main topics
-- Add a one-sentence closing to end the briefing
-- Keep it natural and conversational — write as it will be spoken aloud
+- Open with one sentence previewing the 2-3 biggest stories of the day
+- Close with a single sentence wrap-up — vary the phrasing, do NOT use generic "thanks for tuning in"
+- Write for the ear, not the eye: use contractions, short sentences, and natural rhythm
+- Connect related stories where possible ("And that ties into...", "Meanwhile on the same front...")
+- Do NOT just expand each bullet into a longer paragraph — restructure, combine, and add context
+- Aim for a conversational tone as if explaining to a colleague over coffee
 - Maximum ${maxWords} words — if the news is light, write less rather than padding${langInstruction}
 </requirements>
 <brief>

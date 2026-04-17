@@ -529,7 +529,7 @@ export class NewsletterService {
         const langCode = this.plugin.settings.newsletterPreferredLanguage;
         const langName = getLanguageNameForPrompt(langCode);
         const { filled, truncatedCount } = insertBriefContent(
-            buildDailyBriefPrompt({ language: langName || undefined }),
+            buildDailyBriefPrompt({ language: langName || undefined, sourceCount: sources.length }),
             sources
         );
 
@@ -624,15 +624,17 @@ export class NewsletterService {
             if (nl._resolvedPath) batchByPath.set(nl._resolvedPath, nl);
         }
 
-        // Find all newsletter note links in the digest: [[<dateStr>/something.md]] pattern
-        // Exclude audio file embeds (brief-<dateStr>-*.wav) and non-.md links
-        const linkRegex = new RegExp(String.raw`\[\[` + dateStr + String.raw`/([^\]]+\.md)[^\]]*\]\]`, 'g');
+        // Find all newsletter note links in the digest: [[<dateStr>/name|...]] or [[<dateStr>/name.md|...]]
+        // Obsidian wikilinks typically omit .md — match with or without extension
+        const linkRegex = new RegExp(String.raw`\[\[` + dateStr + String.raw`/([^\]|]+?)(?:\.md)?[|\]]`, 'g');
         const seen = new Set<string>();
         const sources: BriefSource[] = [];
 
         let match: RegExpExecArray | null;
         while ((match = linkRegex.exec(digestContent)) !== null) {
-            const relativePath = `${digestFile.parent?.path ?? ''}/${dateStr}/${match[1]}`;
+            // Ensure .md extension for vault path resolution
+            const fileName = match[1].endsWith('.md') ? match[1] : `${match[1]}.md`;
+            const relativePath = `${digestFile.parent?.path ?? ''}/${dateStr}/${fileName}`;
             const normalizedPath = relativePath.replaceAll('//', '/').replace(/^\//, '');
 
             if (seen.has(normalizedPath)) continue;

@@ -322,9 +322,12 @@ describe('buildPodcastScriptPrompt', () => {
 // ── insertBriefContent (includes stripStructuralTags) ────────────────────────
 
 describe('insertBriefContent', () => {
+    // Pad short text to clear the 50-char garbage filter in insertBriefContent.
+    // Uses dense non-whitespace filler so whitespace-stripped length also exceeds threshold.
+    const FILLER = '. Additional-context-that-clears-the-garbage-filter-threshold-easily';
     const makeSource = (name: string, text: string): BriefSource => ({
         sourceDisplayName: name,
-        triageText: text,
+        triageText: text.length >= 60 ? text : text + FILLER,
     });
 
     it('injects sources into the {{CONTENT}} placeholder', () => {
@@ -368,8 +371,8 @@ describe('insertBriefContent', () => {
 
     it('tracks truncatedCount when total budget exceeded', () => {
         // Each source: 480-char body + ~42-char block overhead ≈ 522 chars
-        // 12 sources × 522 ≈ 6264 chars > 5000 total cap → some must be truncated
-        const sources = Array.from({ length: 12 }, (_, i) =>
+        // 25 sources × 522 ≈ 13050 chars > 12000 total cap → some must be truncated
+        const sources = Array.from({ length: 25 }, (_, i) =>
             makeSource(`Source${i}`, `${'X'.repeat(470)}. Extra.`)
         );
         const prompt = buildDailyBriefPrompt();
