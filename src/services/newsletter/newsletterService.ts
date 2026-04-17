@@ -151,7 +151,8 @@ export class NewsletterService {
             // Use GET with query params — Apps Script redirects POST (302→GET),
             // dropping the request body, so doPost never receives the IDs.
             const ids = encodeURIComponent(messageIds.join(','));
-            const confirmUrl = `${url}?action=confirm&ids=${ids}`;
+            const label = encodeURIComponent(this.plugin.settings.newsletterGmailLabel || 'Newsletters');
+            const confirmUrl = `${url}?action=confirm&ids=${ids}&label=${label}`;
             logger.debug('Newsletter', 'Newsletter confirm:', { confirmUrl, count: messageIds.length });
             const response = await requestUrl({ url: confirmUrl, method: 'GET' });
             logger.debug('Newsletter', 'Newsletter confirm response:', {

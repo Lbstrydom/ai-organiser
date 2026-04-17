@@ -14,14 +14,22 @@ const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query pa
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'fetch';
 
-  // --- Confirm: mark messages as read + archive ---
+  // --- Confirm: mark read, remove label, archive ---
   if (action === 'confirm') {
     var idStr = (e && e.parameter && e.parameter.ids) ? e.parameter.ids : '';
     var ids = idStr.split(',').filter(function(id) { return id.length > 0; });
+    var labelName2 = (e && e.parameter && e.parameter.label) ? e.parameter.label : 'Newsletters';
+    var confirmLabel = GmailApp.getUserLabelByName(labelName2);
     var count = 0;
     for (var i = 0; i < ids.length; i++) {
       var msg = GmailApp.getMessageById(ids[i]);
-      if (msg) { msg.markRead(); msg.getThread().moveToArchive(); count++; }
+      if (msg) {
+        msg.markRead();
+        var thread = msg.getThread();
+        if (confirmLabel) thread.removeLabel(confirmLabel);
+        thread.moveToArchive();
+        count++;
+      }
     }
     return ContentService.createTextOutput(JSON.stringify({ok: true, count: count}))
       .setMimeType(ContentService.MimeType.JSON);
