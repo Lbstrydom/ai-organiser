@@ -340,13 +340,25 @@ describe('insertBriefContent', () => {
         expect(filled).not.toContain('{{CONTENT}}');
     });
 
-    it('caps each source at 1500 chars at a sentence boundary', () => {
+    it('includes full source text when within budget', () => {
         const longText = 'A'.repeat(500) + '. ' + 'B'.repeat(1500);
         const prompt = buildDailyBriefPrompt();
-        const { filled } = insertBriefContent(prompt, [makeSource('Long', longText)]);
+        // With large budget, source should not be truncated
+        const { filled } = insertBriefContent(prompt, [makeSource('Long', longText)], 50_000);
         const blockMatch = /--- SOURCE: Long ---\n([\s\S]*?)\n--- END SOURCE ---/.exec(filled);
         expect(blockMatch).not.toBeNull();
-        expect((blockMatch?.[1] ?? '').length).toBeLessThanOrEqual(1500);
+        expect((blockMatch?.[1] ?? '').length).toBe(longText.length);
+    });
+
+    it('proportionally trims sources when over budget', () => {
+        // Two large sources that together exceed a small budget
+        const src1 = makeSource('Big', 'X'.repeat(3000) + '. End.');
+        const src2 = makeSource('Small', 'Y'.repeat(200) + '. Done.');
+        const prompt = buildDailyBriefPrompt();
+        const { filled, truncatedCount } = insertBriefContent(prompt, [src1, src2], 2000);
+        // Both should still appear (trimmed, not dropped)
+        expect(filled).toContain('SOURCE: Big');
+        expect(truncatedCount).toBeGreaterThan(0);
     });
 
     it('token-packs: continues past oversized source to fit smaller ones', () => {
@@ -369,13 +381,13 @@ describe('insertBriefContent', () => {
     });
 
     it('tracks truncatedCount when total budget exceeded', () => {
-        // Each source: ~540-char body + ~42-char block overhead ≈ 582 chars
-        // 35 sources × 582 ≈ 20370 chars > 16000 total cap → some must be truncated
-        const sources = Array.from({ length: 35 }, (_, i) =>
+        // Use a small explicit budget so even a few sources overflow
+        const sources = Array.from({ length: 5 }, (_, i) =>
             makeSource(`Source${i}`, `${'X'.repeat(470)}. Extra.`)
         );
         const prompt = buildDailyBriefPrompt();
-        const { truncatedCount } = insertBriefContent(prompt, sources);
+        // 5 sources × ~540 chars ≈ 2700 total; budget of 1000 forces trimming
+        const { truncatedCount } = insertBriefContent(prompt, sources, 1500);
         expect(truncatedCount).toBeGreaterThan(0);
     });
 

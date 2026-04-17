@@ -61,7 +61,7 @@ export function buildDailyBriefPrompt(options: { language?: string } = {}): stri
 - Keep each bullet to one or two sentences — be concise but complete enough to understand the story
 - Factual, neutral tone; no filler phrases
 - Prioritise stories that appear in multiple sources — they are the day's signal
-- Include 10-20 stories depending on how much happened; do not artificially limit to a handful
+- Include every significant story — the brief should scale with the news volume
 - Niche or soft stories (lifestyle, opinion pieces) can be omitted if space is needed for hard news${langInstruction}
 </requirements>
 <output_format>
@@ -88,42 +88,51 @@ function isGarbageSource(text: string): boolean {
     return false;
 }
 
+/** Default content budget when provider limit is unknown. Conservative fallback. */
+const DEFAULT_CONTENT_BUDGET = 20_000;
+
+/** Fraction of the provider's content budget allocated to newsletter source blocks. */
+const CONTENT_BUDGET_FRACTION = 7 / 10;
+
 /**
  * Inject source blocks into the brief prompt.
  * Uses non-XML --- SOURCE --- delimiters to avoid entity escaping issues.
  * Structural XML tags are stripped from all source content.
  * Garbage sources (raw HTML, tracking pixels) are filtered out.
- * Each source is capped at 1500 chars (sentence boundary) to preserve full story lists.
- * Total content is capped at 16000 chars to accommodate heavy news days.
+ *
+ * No artificial per-source or total cap — the budget is derived from the
+ * provider's context window (70% of maxContentChars). More newsletters =
+ * bigger brief; fewer = smaller. The user controls scope by managing their
+ * subscriptions.
+ *
+ * @param maxContentChars  Provider budget from getMaxContentChars(). Pass 0
+ *   or omit to use a conservative default (useful in tests).
  */
 export function insertBriefContent(
     prompt: string,
-    sources: BriefSource[]
+    sources: BriefSource[],
+    maxContentChars = 0
 ): { filled: string; truncatedCount: number } {
-    const PER_SOURCE_CAP = 1500;
-    const TOTAL_CAP = 16_000;
+    const totalBudget = Math.floor(
+        (maxContentChars > 0 ? maxContentChars : DEFAULT_CONTENT_BUDGET) * CONTENT_BUDGET_FRACTION
+    );
 
-    const blocks: string[] = [];
-    let totalChars = 0;
-    let truncatedCount = 0;
-
+    // Build all blocks first, then trim if over budget
+    const cleaned: { name: string; text: string }[] = [];
     for (const src of sources) {
         const name = stripStructuralTags(src.sourceDisplayName);
         const triage = stripStructuralTags(src.triageText);
-
-        if (isGarbageSource(triage)) continue; // skip garbage extraction
-
-        const capped = capAtSentenceBoundary(triage, PER_SOURCE_CAP);
-        const block = `--- SOURCE: ${name} ---\n${capped}\n--- END SOURCE ---`;
-
-        if (totalChars + block.length > TOTAL_CAP) {
-            truncatedCount++;
-            continue;
-        }
-        blocks.push(block);
-        totalChars += block.length;
+        if (isGarbageSource(triage)) continue;
+        cleaned.push({ name, text: triage });
     }
 
+    // Assemble blocks — no per-source cap. Every story the user subscribed to gets included.
+    const entries = cleaned.map((c, i) => ({
+        block: `--- SOURCE: ${c.name} ---\n${c.text}\n--- END SOURCE ---`,
+        idx: i, text: c.text, name: c.name,
+    }));
+
+    const { blocks, truncatedCount } = fitToTokenBudget(entries, totalBudget);
     const content = blocks.join('\n\n');
     return {
         // Use split/join instead of replace() to avoid JS $-pattern evaluation
@@ -180,6 +189,52 @@ export function insertPodcastContent(prompt: string, brief: string): string {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+interface BlockEntry {
+    block: string;
+    idx: number;
+    text: string;
+    name: string;
+}
+
+/** Trim source blocks to fit within a character budget. Preserves source count where possible. */
+function fitToTokenBudget(
+    entries: BlockEntry[],
+    budget: number
+): { blocks: string[]; truncatedCount: number } {
+    let total = entries.reduce((sum, e) => sum + e.block.length, 0);
+    let truncatedCount = 0;
+
+    if (total <= budget) {
+        return { blocks: entries.map(e => e.block), truncatedCount: 0 };
+    }
+
+    // Proportionally trim the largest sources first
+    entries.sort((a, b) => b.block.length - a.block.length);
+    for (const entry of entries) {
+        if (total <= budget) break;
+        const maxChars = Math.max(200, Math.floor(entry.text.length * (budget / total)));
+        const capped = capAtSentenceBoundary(entry.text, maxChars);
+        if (capped.length < entry.text.length) {
+            const oldLen = entry.block.length;
+            entry.block = `--- SOURCE: ${entry.name} ---\n${capped}\n--- END SOURCE ---`;
+            total -= (oldLen - entry.block.length);
+            truncatedCount++;
+        }
+    }
+
+    // If still over budget, drop shortest-content sources
+    entries.sort((a, b) => a.block.length - b.block.length);
+    while (total > budget && entries.length > 0) {
+        const dropped = entries.shift();
+        if (dropped) total -= dropped.block.length;
+        truncatedCount++;
+    }
+
+    // Restore original order
+    entries.sort((a, b) => a.idx - b.idx);
+    return { blocks: entries.map(e => e.block), truncatedCount };
+}
 
 /** Truncate text at a sentence boundary at or before maxChars. */
 function capAtSentenceBoundary(text: string, maxChars: number): string {

@@ -11,7 +11,7 @@ import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import type { RawNewsletter, ProcessedNewsletter, NewsletterFetchResult } from './newsletterTypes';
 import { htmlToMarkdown, cleanMarkdown, cleanNewsletterMarkdown, extractNewsletterText, extractLinks } from '../../utils/htmlToMarkdown';
-import { truncateAtBoundary } from '../tokenLimits';
+import { truncateAtBoundary, getMaxContentCharsForModel } from '../tokenLimits';
 import { buildTriagePrompt, insertContentIntoTriagePrompt } from '../prompts/triagePrompts';
 import { buildDailyBriefPrompt, insertBriefContent, type BriefSource } from '../prompts/newsletterPrompts';
 import { summarizeText, pluginContext } from '../llmFacade';
@@ -529,9 +529,15 @@ export class NewsletterService {
 
         const langCode = this.plugin.settings.newsletterPreferredLanguage;
         const langName = getLanguageNameForPrompt(langCode);
+        const settings = this.plugin.settings;
+        const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
+        const model = settings.serviceType === 'local' ? undefined : settings.providerSettings?.[provider]?.model;
+        const maxChars = getMaxContentCharsForModel(provider, model);
+
         const { filled, truncatedCount } = insertBriefContent(
             buildDailyBriefPrompt({ language: langName || undefined }),
-            sources
+            sources,
+            maxChars
         );
 
         let brief: string | null = null;
