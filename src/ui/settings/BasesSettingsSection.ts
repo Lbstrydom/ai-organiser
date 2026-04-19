@@ -56,8 +56,8 @@ export class BasesSettingsSection extends BaseSettingSection {
             .setDesc(this.plugin.t.settings.bases.migrateActionDesc)
             .addButton(button => {
                 button
-                    .setButtonText(this.plugin.t.settings.bases.migrateButton)
                     .setIcon('database')
+                    .setButtonText(this.plugin.t.settings.bases.migrateButton)
                     .onClick(() => {
                         // Trigger migration command
                         (this.plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:upgrade-metadata');

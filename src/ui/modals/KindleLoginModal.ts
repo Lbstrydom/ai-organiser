@@ -131,10 +131,11 @@ export class KindleLoginModal extends Modal {
 
         const ctaSection = contentEl.createDiv({ cls: 'ai-organiser-kindle-method-card' });
 
+        // setIcon must come before setButtonText — setIcon replaces button content
         new ButtonComponent(ctaSection)
+            .setIcon('globe')
             .setButtonText(t.kindleSync.signInBrowser)
             .setCta()
-            .setIcon('globe')
             .onClick(async () => {
                 await this.runEmbeddedLogin(method);
             });

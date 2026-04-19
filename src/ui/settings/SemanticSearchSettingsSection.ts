@@ -336,8 +336,8 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             .setDesc(t.settings.semanticSearch.manageIndexActionDesc)
             .addButton(button => {
                 button
-                    .setButtonText(t.settings.semanticSearch.manageIndexButton)
                     .setIcon('database')
+                    .setButtonText(t.settings.semanticSearch.manageIndexButton)
                     .onClick(() => {
                         (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:manage-index');
                     });

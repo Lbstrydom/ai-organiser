@@ -124,19 +124,22 @@ export class KindleSyncModal extends Modal {
         // Button row
         const actions = contentEl.createDiv({ cls: 'ai-organiser-kindle-actions' });
 
-        // Import File button
+        // Import File button.
+        // NOTE: setIcon() replaces button content with an SVG, so it must be
+        // called BEFORE setButtonText(). Previously both buttons rendered as
+        // icon-only with empty text (persona round 5 P1 finding).
         new ButtonComponent(actions)
+            .setIcon('file-up')
             .setButtonText(t.modals.kindle.importFile)
             .setCta()
-            .setIcon('file-up')
             .onClick(() => {
                 this.pickClippingsFile();
             });
 
         // Sync from Amazon button (desktop CDP login; mobile uses manual cookie paste)
         new ButtonComponent(actions)
-            .setButtonText(t.modals.kindle.syncFromAmazon)
             .setIcon('cloud-download')
+            .setButtonText(t.modals.kindle.syncFromAmazon)
             .onClick(() => this.startAmazonSync());
     }
 
@@ -688,9 +691,9 @@ export class KindleSyncModal extends Modal {
             .onClick(() => this.close());
 
         new ButtonComponent(actions)
+            .setIcon('log-in')
             .setButtonText(t.modals.kindle.refreshLibrary)
             .setCta()
-            .setIcon('log-in')
             .onClick(async () => {
                 const loggedIn = await new KindleLoginModal(this.app, this.plugin).openAndWait();
                 if (!loggedIn) {
@@ -755,8 +758,8 @@ export class KindleSyncModal extends Modal {
 
         // Refresh Library button — re-scrape book list via bookmarklet
         new ButtonComponent(header)
-            .setButtonText(t.modals.kindle.refreshLibrary)
             .setIcon('refresh-cw')
+            .setButtonText(t.modals.kindle.refreshLibrary)
             .onClick(async () => {
                 const loggedIn = await new KindleLoginModal(this.app, this.plugin).openAndWait();
                 if (!loggedIn) return;
