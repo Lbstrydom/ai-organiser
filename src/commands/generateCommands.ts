@@ -113,9 +113,13 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
         if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
             await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
         }
-    } catch {
+    } catch (error) {
         progressNotice.hide();
-        new Notice(plugin.t.messages.failedToGenerateTags);
+        // Surface the underlying error so a fresh user sees "API key is
+        // required for X" instead of a generic "Tagging failed" — critical
+        // for onboarding (persona round 9 audit).
+        const detail = error instanceof Error ? error.message : String(error);
+        new Notice(`${plugin.t.messages.failedToGenerateTags}: ${detail}`, 6000);
     }
 }
 
