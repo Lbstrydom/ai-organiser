@@ -548,6 +548,13 @@ export async function needsChunking(
     app: App,
     file: TFile
 ): Promise<{ needsChunking: boolean; estimatedDuration?: number; reason?: string }> {
+    // Mobile has no Node modules — skip ffmpeg detection entirely so the
+    // audio workflow falls through to the direct transcribe path. Chunking
+    // + compression rely on desktop-only child_process/fs/os proxies that
+    // would otherwise throw when accessed.
+    if (Platform.isMobile) {
+        return { needsChunking: false, reason: 'Mobile: no FFmpeg access' };
+    }
     const ffmpegAvailable = await isFFmpegAvailable();
     if (!ffmpegAvailable) {
         return { needsChunking: false, reason: 'FFmpeg not available' };

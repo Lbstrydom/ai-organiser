@@ -197,25 +197,33 @@ export class MinutesCreationModal extends Modal {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
         });
 
-        // Run detection FIRST (desktop only) so the auto-detected banner can
-        // render above the main top section — fixes P2 #17 where users missed
-        // auto-detected context docs and audio that sat below the fold.
+        // Audio detection is a pure vault-read + regex match — works on mobile
+        // too. Split out from doc/dictionary detection (which uses officeparser
+        // / file-system deps that don't exist on mobile) so mobile users can
+        // still surface + transcribe audio embeds in their notes (round 10).
+        await this.detectEmbeddedAudioOnly();
+
+        // Document + dictionary detection is desktop-only.
         if (!Platform.isMobile) {
-            await this.detectEmbeddedContent();
+            await this.detectEmbeddedDocuments();
             await this.autoExtractDetectedDocuments();
             await this.loadAvailableDictionaries();
             await this.loadAvailableParticipantLists();
-            this.renderAutoDetectedBanner(contentEl);
         }
+
+        // Banner summarises whatever we detected — audio on any platform,
+        // audio + docs on desktop.
+        this.renderAutoDetectedBanner(contentEl);
 
         this.renderTopSection(contentEl);
 
-        // Desktop-only features: Document context, dictionary, and audio transcription
-        // Order matters for gestalt: extract docs first, then dictionary, then transcribe
+        // Audio transcription renders on all platforms where audio was detected.
+        this.renderAudioTranscriptionSection(contentEl);
+
+        // Desktop-only: document context + dictionary sections
         if (!Platform.isMobile) {
             this.renderContextDocumentsSection(contentEl);
             this.renderDictionarySection(contentEl);
-            this.renderAudioTranscriptionSection(contentEl);
         }
 
         // Record button renders on ALL platforms (mobile + desktop), even with zero detected audio
@@ -262,12 +270,12 @@ export class MinutesCreationModal extends Modal {
 
         await this.autoFillTranscriptFromActiveFile();
 
-        // Check for existing transcript files matching detected audio
-        if (!Platform.isMobile) {
-            await this.autoLoadExistingTranscript();
-        }
+        // Check for existing transcript files matching detected audio. Uses
+        // Obsidian vault API only — mobile-safe now that audio detection runs
+        // on mobile too (round 10).
+        await this.autoLoadExistingTranscript();
 
-        // Auto-fill form fields from extracted documents (title, times, agenda, participants)
+        // Document-based auto-fill is desktop-only — relies on officeparser.
         if (!Platform.isMobile) {
             this.autoFillFromDocuments();
         }
@@ -1092,19 +1100,33 @@ export class MinutesCreationModal extends Modal {
 
     // ==================== Audio Transcription ====================
 
-    private async detectEmbeddedContent(): Promise<void> {
+    /**
+     * Detect embedded audio files in the active note. Safe to run on mobile —
+     * pure vault-read + regex match, no desktop-only dependencies.
+     */
+    private async detectEmbeddedAudioOnly(): Promise<void> {
         const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile || activeFile.extension !== 'md') {
-            return;
-        }
+        if (!activeFile || activeFile.extension !== 'md') return;
 
         try {
             const content = await this.app.vault.read(activeFile);
-
-            // Detect audio files
             this.state.detectedAudioFiles = detectEmbeddedAudio(this.app, content, activeFile);
+        } catch {
+            // Ignore detection errors
+        }
+    }
 
-            // Detect documents (PDFs and Office docs) using controller
+    /**
+     * Detect embedded PDFs and Office documents. Desktop-only — the document
+     * extraction pipeline uses officeparser / fs deps that aren't available
+     * on mobile.
+     */
+    private async detectEmbeddedDocuments(): Promise<void> {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'md') return;
+
+        try {
+            const content = await this.app.vault.read(activeFile);
             this.docController.addDetectedFromContent(content);
         } catch {
             // Ignore detection errors

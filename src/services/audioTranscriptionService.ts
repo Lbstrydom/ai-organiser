@@ -3,7 +3,7 @@
  * Handles transcription of audio files using Whisper API (OpenAI or Groq)
  */
 
-import { App, TFile, requestUrl } from 'obsidian';
+import { App, TFile, Platform, requestUrl } from 'obsidian';
 import { getFs, getPath } from '../utils/desktopRequire';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
@@ -940,6 +940,16 @@ export async function transcribeAudioWithFullWorkflow(
 
     } else if (fileSizeBytes > MAX_FILE_SIZE_BYTES) {
         // COMPRESSION PATH: For files > 25MB but < 20 minutes
+        // Compression uses FFmpeg via child_process — desktop-only. Mobile
+        // users see a clear file-too-large error instead of a crash
+        // (persona round 10 mobile audit — surfaced via Minutes audio-detect
+        // path now being reachable on mobile).
+        if (Platform.isMobile) {
+            return {
+                success: false,
+                error: `Audio file is ${fileSizeMB.toFixed(1)}MB — exceeds 25MB Whisper limit. Mobile can't compress; use a shorter recording or transcribe on desktop.`,
+            };
+        }
         onProgress?.({
             stage: 'compressing',
             progress: 5,
