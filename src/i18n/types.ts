@@ -514,7 +514,6 @@ export interface Translations {
             setupStep4: string;
             notEnabled: string;
             noScriptUrl: string;
-            noDigestToday: string;
             autoFetch: string;
             autoFetchDesc: string;
             autoFetchInterval: string;
@@ -851,7 +850,6 @@ export interface Translations {
         webReader: string;
         kindleSync: string;
         newsletterFetch: string;
-        newsletterOpenDigest: string;
         digitiseImage: string;
         newSketch: string;
         researchWeb: string;
@@ -887,6 +885,10 @@ export interface Translations {
         useLLMClusteringDesc: string;
         created: string;
         creationFailed: string;
+        building: string;
+        progressFindingRelated: string;
+        progressLabelingRelationships: string;
+        progressBuildingCanvas: string;
         noSourcesDetected: string;
         noRelatedNotes: string;
         noNotesWithTag: string;
@@ -1030,7 +1032,6 @@ export interface Translations {
         successfullyClearedAllVault: string;
         failedToClearVaultTags: string;
         viewTagNetwork: string;
-        analyzeTagCurrentNote: string;
         noMatchingFiles: string;
         errorLoadingFiles: string;
         noActiveFile: string;
@@ -1343,6 +1344,8 @@ export interface Translations {
             addDocumentPlaceholder: string;
             addAudioPlaceholder: string;
             addImagePlaceholder: string;
+            addOtherSources: string;
+            hideOtherSources: string;
             documentDetected: string;
             persona: string;
             personaDesc: string;
@@ -1379,6 +1382,8 @@ export interface Translations {
             currentFolder: string;
             entireVault: string;
             tagButton: string;
+            vaultRoot: string;
+            folderRequiresOpenNote: string;
         };
         folderScopePicker: {
             title: string;
@@ -2108,6 +2113,7 @@ export interface Translations {
                 presentationChat: string;
                 quickPeek: string;
                 pendingGroup: string;
+                ensureNoteStructure: string;
                 addToPending: string;
                 integratePending: string;
                 resolveEmbeds: string;
@@ -2123,7 +2129,6 @@ export interface Translations {
                 kindleSync: string;
                 newsletter: string;
                 newsletterFetch: string;
-                newsletterOpenDigest: string;
                 newSketch: string;
                 askSearchGroup: string;
                 chatWithAI: string;
@@ -2132,6 +2137,7 @@ export interface Translations {
                 buildClusterCanvas: string;
                 showTagNetwork: string;
                 createDashboard: string;
+                collectAllTags: string;
                 findEmbeds: string;
                 notebookLMGroup: string;
                 notebookLMExport: string;
@@ -2441,6 +2447,10 @@ export interface Translations {
         errorParsing: string;
         errorMissingFields: string;
         errorNoPersonas: string;
+        // Auto-detected inputs banner (above the fold, shown when any input is auto-detected)
+        detectedInputsLabel: string;
+        detectedDocumentsChip: string;
+        detectedAudioChip: string;
         // Audio transcription
         audioTranscriptionSection: string;
         audioDetected: string;

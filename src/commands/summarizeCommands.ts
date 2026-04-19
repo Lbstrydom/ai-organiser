@@ -51,7 +51,7 @@ import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
-import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey } from '../services/apiKeyHelpers';
+import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey, checkMainProviderConfigured } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
 import { SummaryResultModal, type SummaryResultAction } from '../ui/modals/SummaryResultModal';
 
@@ -370,9 +370,13 @@ async function handleMultiSourceResult(
         if (result.sources.urls.length === 1) {
             const url = result.sources.urls[0];
             try {
-                await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, personaId);
-                // Remove URL from note body after processing
-                removeSourceFromEditor(editor, url);
+                const outcome = await handleUrlSummarization(plugin, pdfService, editor, url, personaPrompt, result.focusContext, personaId);
+                // Only strip the source URL from the note body if the summary
+                // was actually inserted — preserves the user's content when the
+                // LLM call fails, config is missing, or user discards the preview.
+                if (outcome.success) {
+                    removeSourceFromEditor(editor, url);
+                }
             } catch (e) {
                 logger.error('Summary', 'Error in handleUrlSummarization:', e);
                 new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -1501,7 +1505,17 @@ async function handleUrlSummarization(
     personaPrompt: string,
     userContext?: string,
     personaId?: string
-): Promise<void> {
+): Promise<{ success: boolean }> {
+    // Preflight: abort before any destructive action if the LLM isn't configured.
+    // Without this, summarizeAndInsert returns a soft failure and the caller still
+    // strips the source URL from the note body — user sees an empty note and a
+    // brief toast that's easy to miss.
+    const configError = await checkMainProviderConfigured(plugin);
+    if (configError) {
+        new Notice(configError, 10_000);
+        return { success: false };
+    }
+
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
@@ -1509,7 +1523,7 @@ async function handleUrlSummarization(
     // Privacy notice gating (centralized)
     {
         const proceed = await ensurePrivacyConsent(plugin, serviceType);
-        if (!proceed) return;
+        if (!proceed) return { success: false };
     }
 
     // Check if URL is a direct PDF link
@@ -1522,14 +1536,15 @@ async function handleUrlSummarization(
 
         if (pdfFile && await canSummarizePdf(plugin)) {
             await handlePdfSummarization(plugin, pdfService, editor, pdfFile, personaPrompt);
-            return;
+            // PDF path handles its own source cleanup and feedback.
+            return { success: true };
         } else if (!await canSummarizePdf(plugin)) {
             new Notice(plugin.t.settings.pdf?.noProviderConfigured || plugin.t.messages.pdfNotSupported);
-            return;
+            return { success: false };
         } else {
             new Notice('Failed to download PDF');
             openInBrowser(url);
-            return;
+            return { success: false };
         }
     }
 
@@ -1566,18 +1581,20 @@ async function handleUrlSummarization(
             const choice = await showContentSizeModal(plugin, content.length, maxChars);
 
             if (choice === 'cancel') {
-                return;
+                return { success: false };
             } else if (choice === 'truncate') {
                 const truncatedContent = truncateContent(content, serviceType);
-                await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext, personaId);
+                const res = await summarizeAndInsert(plugin, editor, truncatedContent, result.content, personaPrompt, userContext, personaId);
                 new Notice(plugin.t.messages.contentTruncated);
+                return res;
             } else if (choice === 'chunk') {
                 await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext);
+                return { success: true };
             }
-        } else {
-            await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId);
+            return { success: false };
         }
 
+        return await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId);
     } else if (result.requiresPdfFallback) {
         // Offer PDF fallback
         new Notice(plugin.t.messages.fetchFailed + ' ' + plugin.t.messages.openingBrowser);
@@ -1585,9 +1602,10 @@ async function handleUrlSummarization(
 
         // Show instructions for longer time
         new Notice(plugin.t.messages.pdfInstructions, 10000);
-
+        return { success: false };
     } else {
         new Notice(`Error: ${result.error}`);
+        return { success: false };
     }
 }
 
@@ -2428,7 +2446,7 @@ async function summarizeAndInsert(
     personaPrompt: string,
     userContext?: string,
     personaId?: string
-): Promise<void> {
+): Promise<{ success: boolean }> {
     logger.debug('Summary', 'summarizeAndInsert called:', {
         contentLength: content?.length || 0,
         contentEmpty: !content || content.trim().length === 0,
@@ -2467,7 +2485,7 @@ async function summarizeAndInsert(
                     // Insert body content — only update metadata if user chose to insert
                     const action = await insertWebSummary(editor, structured.body_content, webContent, plugin, true);
 
-                    if (action !== 'cursor') return;
+                    if (action !== 'cursor') return { success: false };
 
                     // Update metadata - must save editor first to prevent race condition
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -2487,19 +2505,23 @@ async function summarizeAndInsert(
                             personaId
                         );
                     }
+                    return { success: true };
                 } else {
                     // Structured parsing failed or returned raw JSON as body_content.
                     // Fall back: extract markdown from the response content directly.
                     logger.warn('Summary', 'Structured response parsing fell to fallback — inserting raw content as markdown.');
                     const markdownContent = stripJsonWrapperIfPresent(response.content);
-                    await insertWebSummary(editor, markdownContent, webContent, plugin, true);
+                    const action = await insertWebSummary(editor, markdownContent, webContent, plugin, true);
+                    return { success: action === 'cursor' };
                 }
             } else {
                 new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+                return { success: false };
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Error summarizing content: ${errorMessage}`);
+            return { success: false };
         }
     } else {
         // Traditional summarization without structured metadata
@@ -2517,13 +2539,16 @@ async function summarizeAndInsert(
             const response = await withBusyIndicator(plugin, () => summarizeTextWithLLM(plugin, prompt));
 
             if (response.success && response.content) {
-                await insertWebSummary(editor, response.content, webContent, plugin, true);
+                const action = await insertWebSummary(editor, response.content, webContent, plugin, true);
+                return { success: action === 'cursor' };
             } else {
                 new Notice(`Summarization failed: ${response.error || 'Unknown error'}`);
+                return { success: false };
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Error summarizing content: ${errorMessage}`);
+            return { success: false };
         }
     }
 }

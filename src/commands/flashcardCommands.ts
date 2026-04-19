@@ -161,8 +161,11 @@ async function generateAndExportFlashcards(
     const style = 'style' in options ? options.style : 'multiple-choice';
     const t = plugin.t.messages;
 
+    // Persistent notice updated in-place across phases so the persona can see
+    // which phase is active during long (30–120s) generation runs. Persona
+    // round 3 — Maya — saw only "Generating flashcards…" for 100+s.
     const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards...',
+        t.generatingFlashcards || 'Generating flashcards…',
         0
     );
 
@@ -175,12 +178,14 @@ async function generateAndExportFlashcards(
             style
         );
 
+        progressNotice.setMessage('Generating flashcards — calling AI…');
         const response = await callLLMForFlashcards(plugin, prompt);
 
         if (!response.success || !response.content) {
             throw new Error(response.error || 'Empty response from LLM');
         }
 
+        progressNotice.setMessage('Generating flashcards — validating output…');
         const csvContent = cleanCSVResponse(response.content);
         const validation = validateFlashcardCSV(csvContent);
 
@@ -190,6 +195,7 @@ async function generateAndExportFlashcards(
             return;
         }
 
+        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
         const finalCSV = cardsToCSV(validation.cards);
         progressNotice.hide();
 
@@ -224,7 +230,7 @@ async function generateFlashcardsWithImages(
     if (!consented) return;
 
     const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards...',
+        t.generatingFlashcards || 'Generating flashcards…',
         0
     );
 
@@ -242,6 +248,7 @@ async function generateFlashcardsWithImages(
 
         const parts: ContentPart[] = [{ type: 'text', text: prompt }];
 
+        progressNotice.setMessage(`Generating flashcards — processing ${imageFiles.length} image${imageFiles.length === 1 ? '' : 's'}…`);
         for (const imgFile of imageFiles) {
             try {
                 const processed = await imageProcessor.processImage(imgFile, {
@@ -254,12 +261,14 @@ async function generateFlashcardsWithImages(
             }
         }
 
+        progressNotice.setMessage('Generating flashcards — calling vision AI…');
         const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
 
         if (!response.success || !response.content) {
             throw new Error(response.error || 'Empty response from vision LLM');
         }
 
+        progressNotice.setMessage('Generating flashcards — validating output…');
         const csvContent = cleanCSVResponse(response.content);
         const validation = validateFlashcardCSV(csvContent);
 
@@ -269,6 +278,7 @@ async function generateFlashcardsWithImages(
             return;
         }
 
+        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
         const finalCSV = cardsToCSV(validation.cards);
         progressNotice.hide();
 
@@ -292,12 +302,13 @@ async function generateFlashcardsFromScreenshot(
     const t = plugin.t.messages;
 
     const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards...',
+        t.generatingFlashcards || 'Generating flashcards…',
         0
     );
 
     try {
         // Process image → base64
+        progressNotice.setMessage('Generating flashcards — processing screenshot…');
         const imageProcessor = new ImageProcessorService(plugin.app);
         const processed = await imageProcessor.processImage(imageFile, {
             maxDimension: plugin.settings.digitiseMaxDimension,
@@ -317,12 +328,14 @@ async function generateFlashcardsFromScreenshot(
             { type: 'image', data: processed.base64, mediaType: processed.mediaType }
         ];
 
+        progressNotice.setMessage('Generating flashcards — calling vision AI…');
         const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
 
         if (!response.success || !response.content) {
             throw new Error(response.error || 'Empty response from vision LLM');
         }
 
+        progressNotice.setMessage('Generating flashcards — validating output…');
         const csvContent = cleanCSVResponse(response.content);
         const validation = validateFlashcardCSV(csvContent);
 
@@ -332,6 +345,7 @@ async function generateFlashcardsFromScreenshot(
             return;
         }
 
+        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
         const finalCSV = cardsToCSV(validation.cards);
         progressNotice.hide();
 

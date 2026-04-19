@@ -66,7 +66,7 @@ describe('Command Picker', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const capture = categories.find(c => c.id === 'capture');
             const ids = capture!.commands.map(c => c.id);
-            expect(ids).toEqual(['smart-summarize', 'create-meeting-minutes', 'record-audio', 'web-reader', 'research-web', 'kindle-sync', 'newsletter', 'new-sketch']);
+            expect(ids).toEqual(['smart-summarize', 'create-meeting-minutes', 'record-audio', 'web-reader', 'research-web', 'kindle-sync', 'newsletter-fetch', 'new-sketch']);
         });
 
         it('vault should contain expected sub-groups', () => {
@@ -87,7 +87,8 @@ describe('Command Picker', () => {
             expect(visualize?.subCommands?.map(c => c.id)).toEqual([
                 'build-cluster-canvas',
                 'show-tag-network',
-                'create-dashboard'
+                'create-dashboard',
+                'collect-all-tags'
             ]);
         });
 
@@ -133,7 +134,7 @@ describe('Command Picker', () => {
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            expect(leafCount).toBe(37);
+            expect(leafCount).toBe(38);
         });
 
         it('should include the expected unique command IDs across all leaf callbacks', () => {
@@ -151,11 +152,13 @@ describe('Command Picker', () => {
                 'ai-organiser:build-investigation-canvas',
                 'ai-organiser:chat-with-ai',
                 'ai-organiser:clear-tags',
+                'ai-organiser:collect-all-tags',
                 'ai-organiser:create-bases-dashboard',
                 'ai-organiser:create-meeting-minutes',
                 'ai-organiser:digitise-image',
                 'ai-organiser:edit-mermaid-diagram',
                 'ai-organiser:enhance-note',
+                'ai-organiser:ensure-note-structure',
                 'ai-organiser:export-flashcards',
                 'ai-organiser:export-minutes-docx',
                 'ai-organiser:export-note',
@@ -166,7 +169,6 @@ describe('Command Picker', () => {
                 'ai-organiser:kindle-sync',
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-fetch',
-                'ai-organiser:newsletter-open-digest',
                 'ai-organiser:notebooklm-clear-selection',
                 'ai-organiser:notebooklm-export',
                 'ai-organiser:notebooklm-open-export-folder',
@@ -183,7 +185,7 @@ describe('Command Picker', () => {
                 'ai-organiser:smart-translate',
                 'ai-organiser:web-reader',
             ]);
-            expect(uniqueExecutedCommands.size).toBe(37);
+            expect(uniqueExecutedCommands.size).toBe(38);
         });
     });
 });

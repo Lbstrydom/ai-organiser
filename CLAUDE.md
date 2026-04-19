@@ -2091,7 +2091,7 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 
 - `src/services/newsletter/newsletterService.ts`: `fetchFromAppsScript()` passes `?label=...&limit=...` query params; `fetchAndProcess()` sets `hitLimit` flag; `createVaultNotes()` appends `## Key Links` section (top 10 content links, spam-filtered via `extractNewsletterLinks()`); `buildDigestEntry()` writes digest line
 - `src/services/newsletter/newsletterTypes.ts`: `NewsletterFetchResult` with `hitLimit: boolean`; `ProcessedNewsletter` with `_rawBody?: string`
-- `src/commands/newsletterCommands.ts`: `registerNewsletterCommands()` registers `newsletter-fetch` and `newsletter-open-digest`; `showNewsletterFetchResultNotice()` shows hit-limit warning when fetch count reached limit
+- `src/commands/newsletterCommands.ts`: `registerNewsletterCommands()` registers `newsletter-fetch`; `showNewsletterFetchResultNotice()` shows hit-limit warning when fetch count reached limit
 - `src/main.ts`: `newsletterLastFetchTime` public field; `startNewsletterScheduler()` / `stopNewsletterScheduler()` / `runScheduledNewsletterFetch()` — interval-based auto-fetch with overdue-check on startup
 - `src/ui/settings/NewsletterSettingsSection.ts`: Gmail label, fetch limit dropdown, Test Connection button (uses static `requestUrl` import), auto-fetch toggle + interval, Last Fetched display, Reset Import History
 
@@ -2117,8 +2117,7 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 | `newsletterAutoTag` | `false` | Run AI tagging after import |
 
 ### Commands
-- `newsletter-fetch`: Fetch newsletters now — in Command Picker → Capture → Newsletter Digest
-- `newsletter-open-digest`: Open today's digest — in Command Picker → Capture → Newsletter Digest
+- `newsletter-fetch`: Fetch newsletters now — in Command Picker → Capture
 
 ### Tests
 - `tests/newsletterServiceIntegration.test.ts` (27 tests): fetch pipeline, seen-ID dedup, two-phase confirmation, HTML detection, key links extraction, hit-limit flag

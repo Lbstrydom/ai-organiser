@@ -476,12 +476,6 @@ export default class AIOrganiserPlugin extends Plugin {
         );
 
         this.addRibbonIcon(
-            'tags',
-            this.t.messages.analyzeTagCurrentNote,
-            () => this.analyzeAndTagCurrentNote()
-        );
-
-        this.addRibbonIcon(
             'git-graph',
             this.t.messages.viewTagNetwork,
             () => this.showTagNetwork()
@@ -901,8 +895,9 @@ export default class AIOrganiserPlugin extends Plugin {
     public async analyzeAndTagNote(
         file: TFile,
         contentOrAnalysis: string | LLMResponse,
-        options?: { folderScope?: string }
+        options?: { folderScope?: string; onProgress?: (phase: string) => void }
     ): Promise<TagOperationResult> {
+        const onProgress = options?.onProgress;
         try {
             let tags: string[];
             let suggestedTitle: string | undefined;
@@ -914,6 +909,7 @@ export default class AIOrganiserPlugin extends Plugin {
                     return { success: false, message: 'Cannot analyze empty note' };
                 }
 
+                onProgress?.('Reading vault taxonomy…');
                 // Get taxonomy from config service
                 const taxonomyPrompt = await this.configService.getTaxonomyForPrompt();
                 const excludedTags = await this.configService.getExcludedTags();
@@ -935,6 +931,7 @@ export default class AIOrganiserPlugin extends Plugin {
                     folderContext
                 );
 
+                onProgress?.('Analysing note with AI…');
                 // Get tags from LLM
                 const response = await withBusyIndicator(this, () => this.llmService.generateTags(prompt));
 
@@ -948,6 +945,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 // Taxonomy guardrail: validate theme & discipline
                 let taxonomy;
                 if (this.settings.enableTaxonomyGuardrail) {
+                    onProgress?.('Validating against taxonomy…');
                     taxonomy = await this.configService.getTaxonomy();
                     const guardrailResult = await this.taxonomyGuardrailService.validateTags(
                         tags, taxonomy, this.llmService

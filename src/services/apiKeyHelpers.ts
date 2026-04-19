@@ -241,3 +241,38 @@ export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<
     }
     return null;
 }
+
+/**
+ * Preflight check: is the main LLM provider actually configured?
+ *
+ * Returns null when ready to go, or a user-facing error message when the
+ * provider has no API key / no endpoint. Call this at the top of any handler
+ * that performs destructive actions (content rewrites, deletions) before the
+ * LLM call — so an unconfigured plugin can't silently mangle the user's note.
+ */
+export async function checkMainProviderConfigured(
+    plugin: AIOrganiserPlugin
+): Promise<string | null> {
+    const settings = plugin.settings;
+
+    if (settings.serviceType === 'local') {
+        if (!settings.localEndpoint?.trim()) {
+            return 'No local LLM endpoint configured. Open Settings → AI Provider to add one.';
+        }
+        return null;
+    }
+
+    const provider = settings.cloudServiceType;
+    const secretStorage = plugin.secretStorageService;
+    const key = secretStorage.isAvailable()
+        ? await secretStorage.getProviderKey(provider)
+        : null;
+
+    const plainTextKey = settings.providerSettings?.[provider]?.apiKey || settings.cloudApiKey;
+    if (!key && !plainTextKey) {
+        const label = provider.charAt(0).toUpperCase() + provider.slice(1);
+        return `No API key configured for ${label}. Open Settings → AI Provider to add one.`;
+    }
+
+    return null;
+}

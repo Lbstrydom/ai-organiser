@@ -266,14 +266,21 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         }
     }
 
-    /** Assign implicit quality scores based on citation frequency. */
+    /** Assign implicit quality scores based on citation frequency.
+     *
+     *  Cited sources get `count/max` in [0, 1]. Uncited-but-retrieved sources
+     *  get a 0.5 baseline — they were still selected as relevant by Claude's
+     *  search, just not quoted directly. Using 0.1 for uncited was penalising
+     *  authoritative papers that happened not to be directly quoted, producing
+     *  "Low quality" labels on peer-reviewed journals (flagged in persona test
+     *  round 1 — Dr. Chen session). */
     private assignCitationScores(citations: ParsedCitation[], searchResults: SearchResult[]): void {
         const counts = new Map<string, number>();
         for (const cit of citations) counts.set(cit.url, (counts.get(cit.url) || 0) + 1);
         const max = Math.max(...counts.values(), 1);
         for (const result of searchResults) {
             const count = counts.get(result.url) || 0;
-            result.score = count > 0 ? count / max : 0.1;
+            result.score = count > 0 ? count / max : 0.5;
         }
     }
 

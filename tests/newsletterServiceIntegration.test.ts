@@ -538,8 +538,8 @@ describe('NewsletterService integration', () => {
 
 // ── Command registration ────────────────────────────────────────────────────
 
-describe('newsletter-open-digest command registration', () => {
-    it('open-digest command is exported from newsletterCommands', async () => {
+describe('newsletter command registration', () => {
+    it('registerNewsletterCommands is exported from newsletterCommands', async () => {
         const mod = await import('../src/commands/newsletterCommands');
         expect(typeof mod.registerNewsletterCommands).toBe('function');
     });

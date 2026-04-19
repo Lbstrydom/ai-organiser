@@ -20,6 +20,8 @@ export interface QuickPeekSource {
     triageSummary: string | null;
     extractionError: string | null;
     llmFailed: boolean;
+    /** True while the modal shows a placeholder before triage completes. */
+    pending?: boolean;
 }
 
 export interface QuickPeekResult {
@@ -38,27 +40,40 @@ export class QuickPeekService {
     async triageSources(
         items: DetectedContent[],
         onProgress?: (current: number, total: number, item: DetectedContent) => void,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        onSourceComplete?: (index: number, source: QuickPeekSource) => void
     ): Promise<QuickPeekResult> {
+        // Pre-abort: return empty result (matches old serial behaviour — items
+        // that never started shouldn't appear in the sources array).
+        if (signal?.aborted) {
+            return { sources: [], totalDetected: items.length, totalTriaged: 0, totalFailed: 0 };
+        }
+
         const extractor = await this.buildExtractor();
         const config = await this.resolveProviderConfig();
 
-        const sources: QuickPeekSource[] = [];
+        // Parallel processing — each source triaged concurrently. Serial was ~45s
+        // for 5 sources; parallel is bounded by slowest source. Persona-round-1
+        // flagged as P1 (Pat session). Progress callback fires as each completes,
+        // not in serial order — UI reports (done/total) with the item that
+        // just finished. Results are returned in input order.
+        let done = 0;
+        const promises = items.map(async (item, index) => {
+            const source = await this.processItem(item, extractor, config, signal);
+            done += 1;
+            onSourceComplete?.(index, source);
+            onProgress?.(done, items.length, item);
+            return { index, source };
+        });
+
+        const settled = await Promise.all(promises);
+        const sources: QuickPeekSource[] = new Array(items.length);
         let totalTriaged = 0;
         let totalFailed = 0;
-
-        for (let i = 0; i < items.length; i++) {
-            if (signal?.aborted) break;
-            const item = items[i];
-            onProgress?.(i + 1, items.length, item);
-
-            const source = await this.processItem(item, extractor, config, signal);
-            sources.push(source);
-            if (source.triageSummary && !source.llmFailed) {
-                totalTriaged++;
-            } else {
-                totalFailed++;
-            }
+        for (const { index, source } of settled) {
+            sources[index] = source;
+            if (source.triageSummary && !source.llmFailed) totalTriaged++;
+            else totalFailed++;
         }
 
         return { sources, totalDetected: items.length, totalTriaged, totalFailed };

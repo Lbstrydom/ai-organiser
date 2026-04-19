@@ -67,6 +67,11 @@ export class ResearchModeHandler implements ChatModeHandler {
 
     // UI state
     private phase: ResearchPhase = 'idle';
+    /** Set by actions while an async operation is running; cleared in finally.
+     *  Lets the phase-change callback bubble phase-specific text to the
+     *  in-chat "Thinking…" placeholder so Dr. Chen persona's 150s+ opaque wait
+     *  shows Decomposing → Searching → Extracting → Synthesising instead. */
+    private activeThinkingUpdater: ((msg: string) => void) | null = null;
     private searchResults: SearchResult[] = [];
     private selectedUrls: string[] = [];
     private sourceSummaries: Record<string, string> = {};
@@ -120,10 +125,32 @@ export class ResearchModeHandler implements ChatModeHandler {
         this.perspectiveMode = plugin.settings.enableResearchPerspectiveQueries;
     }
 
-    /** Centralized phase setter — resets manual expand state on every transition. */
+    /** Centralized phase setter — resets manual expand state on every transition
+     *  and bubbles a phase-specific message to the chat "Thinking…" placeholder
+     *  when an async action is active. */
     private setPhase(phase: ResearchPhase): void {
         this.phase = phase;
         this.resultsManuallyExpanded = false;
+        const label = this.getPhaseMessage(phase);
+        if (label && this.activeThinkingUpdater) {
+            this.activeThinkingUpdater(label);
+        }
+    }
+
+    /** Human-readable label per research phase. Returns null for phases the
+     *  user shouldn't see a thinking text for (idle, done, reviewing — the
+     *  reviewing state shows its own UI). */
+    private getPhaseMessage(phase: ResearchPhase): string | null {
+        switch (phase) {
+            case 'searching':    return 'Searching the web…';
+            case 'continuing':   return 'Continuing search…';
+            case 'extracting':   return 'Extracting from sources…';
+            case 'synthesizing': return 'Synthesising findings…';
+            case 'idle':
+            case 'reviewing':
+            case 'done':
+                return null;
+        }
     }
 
     isAvailable(_ctx: ModalContext): boolean {
@@ -421,6 +448,9 @@ export class ResearchModeHandler implements ChatModeHandler {
                         this.streamAbortController = new AbortController();
                         this.currentSearchQuery = null;
                         let accumulated = '';
+                        // Wire the handler's thinking-updater to the modal's
+                        // streamingCallback so setPhase can bubble phase text.
+                        this.activeThinkingUpdater = (m) => streamCb.updateThinking?.(m);
                         const streamCallbacks = {
                             onSearchQuery: (q: string) => {
                                 this.currentSearchQuery = q;
@@ -459,6 +489,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                             return { finalContent: `Search failed: ${(error as Error).message}` };
                         } finally {
                             this.streamAbortController = null;
+                            this.activeThinkingUpdater = null;
                         }
                     },
                 },
@@ -674,9 +705,10 @@ export class ResearchModeHandler implements ChatModeHandler {
     private async actionReadSelected(ctx: ModalContext, cb: ActionCallbacks): Promise<void> {
         const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const language = ctx.fullPlugin.settings.summaryLanguage;
+        this.activeThinkingUpdater = (m) => cb.showThinking(m);
         this.setPhase('extracting');
         this.rerenderContextPanel();
-        cb.showThinking();
+        cb.showThinking(this.getPhaseMessage('extracting') ?? undefined);
         try {
             // Escalation consent callback — asks user before using paid Bright Data tiers
             const onEscalation: EscalationConsentFn = (url, tier) => {
@@ -705,6 +737,7 @@ export class ResearchModeHandler implements ChatModeHandler {
             }
             this.setPhase('done');
         } finally {
+            this.activeThinkingUpdater = null;
             cb.hideThinking();
             this.rerenderContextPanel();
             cb.rerenderActions();
@@ -715,9 +748,10 @@ export class ResearchModeHandler implements ChatModeHandler {
         const language = ctx.fullPlugin.settings.summaryLanguage;
         const includeCitations = ctx.fullPlugin.settings.researchIncludeCitations;
         const citationStyle = ctx.fullPlugin.settings.researchCitationStyle;
+        this.activeThinkingUpdater = (m) => cb.showThinking(m);
         this.setPhase('synthesizing');
         this.rerenderContextPanel();
-        cb.showThinking();
+        cb.showThinking(this.getPhaseMessage('synthesizing') ?? undefined);
 
         try {
             const successful = this.selectedUrls
@@ -764,6 +798,7 @@ export class ResearchModeHandler implements ChatModeHandler {
             this.setPhase('done');
         } finally {
             this.streamAbortController = null;
+            this.activeThinkingUpdater = null;
             cb.hideThinking();
             this.rerenderContextPanel();
             cb.rerenderActions();
@@ -1120,16 +1155,29 @@ export class ResearchModeHandler implements ChatModeHandler {
 
         const phaseIdx = PHASE_ORDER.indexOf(this.phase);
 
-        steps.forEach((step) => {
+        steps.forEach((step, index) => {
             const stepPhaseIdx = PHASE_ORDER.indexOf(step.phases.at(-1) as ResearchPhase);
             const isActive = step.phases.includes(this.phase);
             const isComplete = phaseIdx > stepPhaseIdx;
+
+            // Connector line BEFORE each step except the first — visually joins
+            // the steps so the row reads as progress, not as a radio group.
+            if (index > 0) {
+                stepper.createEl('span', {
+                    cls: `ai-organiser-research-step-connector${isActive || isComplete ? ' ai-organiser-research-step-connector-complete' : ''}`,
+                });
+            }
 
             const stepEl = stepper.createEl('div', {
                 cls: `ai-organiser-research-step ${isActive ? 'ai-organiser-research-step-active' : ''} ${isComplete ? 'ai-organiser-research-step-complete' : ''}`,
             });
 
-            stepEl.createEl('span', { cls: 'ai-organiser-research-step-dot', text: isComplete ? '✓' : '' });
+            // Numbered step (1, 2, 3…) — clearly communicates ordered progress.
+            // Checkmark replaces the number once the step is complete.
+            stepEl.createEl('span', {
+                cls: 'ai-organiser-research-step-dot',
+                text: isComplete ? '✓' : String(index + 1),
+            });
 
             if (!Platform.isMobile) {
                 const ct = this.lastCtx?.plugin.t.modals.unifiedChat as Record<string, string>;
@@ -1157,9 +1205,14 @@ export class ResearchModeHandler implements ChatModeHandler {
         const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const isDone = this.phase === 'done' || this.phase === 'synthesizing';
 
+        // Clamp selected count to URLs that are actually in the current result
+        // set — otherwise carried-over selections from previous search cycles
+        // produce impossible totals like "67 found · 80 selected".
+        const visibleUrls = new Set(this.searchResults.map(r => r.url));
+        const visibleSelected = this.selectedUrls.filter(u => visibleUrls.has(u)).length;
         const summaryText = (t.researchResultsSummary || '{total} sources found · {selected} selected')
             .replace('{total}', String(this.searchResults.length))
-            .replace('{selected}', String(this.selectedUrls.length));
+            .replace('{selected}', String(visibleSelected));
 
         const details = container.createEl('details', {
             cls: 'ai-organiser-research-results-section',

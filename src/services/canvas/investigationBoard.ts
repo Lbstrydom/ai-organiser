@@ -20,6 +20,12 @@ export interface EdgeLabelStrings {
     looselyRelated: string;
 }
 
+export interface InvestigationProgressStrings {
+    findingRelated: string;
+    labeling: string;
+    building: string;
+}
+
 export interface InvestigationOptions {
     file: TFile;
     content: string;
@@ -29,7 +35,17 @@ export interface InvestigationOptions {
     openAfterCreate: boolean;
     language: string;
     edgeLabelStrings?: EdgeLabelStrings;
+    /** Phase progress callback — lets callers update their busy indicator with
+     *  human-readable steps. Callers pass localized strings via `progressStrings`. */
+    onProgress?: (phase: string) => void;
+    progressStrings?: InvestigationProgressStrings;
 }
+
+const DEFAULT_PROGRESS_STRINGS: InvestigationProgressStrings = {
+    findingRelated: 'Finding related notes…',
+    labeling: 'Labeling relationships…',
+    building: 'Building canvas…',
+};
 
 export async function buildInvestigationBoard(
     app: App,
@@ -37,6 +53,8 @@ export async function buildInvestigationBoard(
     llmContext: LLMFacadeContext,
     options: InvestigationOptions
 ): Promise<CanvasResult> {
+    const progressStrings = options.progressStrings ?? DEFAULT_PROGRESS_STRINGS;
+    options.onProgress?.(progressStrings.findingRelated);
     const relatedNotes = await ragService.getRelatedNotes(
         options.file,
         options.content,
@@ -85,6 +103,7 @@ export async function buildInvestigationBoard(
     let edgeLabels: (string | undefined)[] = fallbackLabels;
 
     if (options.enableEdgeLabels) {
+        options.onProgress?.(progressStrings.labeling);
         const fromSnippet = options.content.slice(0, EDGE_SNIPPET_CHARS);
         const pairs = relatedNotes.map((result, index) => ({
             fromTitle: options.file.basename,
@@ -119,6 +138,7 @@ export async function buildInvestigationBoard(
         edges: canvasEdges
     };
 
+    options.onProgress?.(progressStrings.building);
     const result = await writeCanvasFile(
         app,
         options.canvasFolder,

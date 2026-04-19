@@ -278,15 +278,44 @@ export class MultiSourceModal extends Modal {
         this.renderNoteSection();
 
         // Source sections — built from config map
+        let nonEmptyCount = 0;
+        let emptyCount = 0;
         for (const type of SECTION_ORDER) {
             const cfg = this.sectionConfigs[type];
+            const detected = cfg.getDetected();
+            const manual = cfg.getManual();
+            const isEmpty = detected.length === 0 && manual.length === 0;
+            if (isEmpty) emptyCount++; else nonEmptyCount++;
             this.renderSourceSection({
                 type,
                 title: cfg.title(),
                 icon: cfg.icon,
                 placeholder: cfg.placeholder(),
-                detected: cfg.getDetected(),
-                manualInputs: cfg.getManual()
+                detected,
+                manualInputs: manual
+            });
+        }
+
+        // Collapse initially-empty source cards behind a disclosure when at least one
+        // section already has content. Without this, a single-URL flow shows 5 dead
+        // source cards (YouTube/PDF/Office/Audio/Images) that push the CTA below the
+        // fold. Persona test (Maya) flagged this as P1 — 2026-04-19.
+        if (nonEmptyCount > 0 && emptyCount > 0) {
+            this.sectionsContainer.addClass('ai-organiser-multi-source-compact');
+            const disclosure = this.sectionsContainer.createEl('button', {
+                cls: 'ai-organiser-multi-source-extras-toggle',
+                text: t?.addOtherSources || '+ Add other source types',
+                attr: { type: 'button' }
+            });
+            disclosure.addEventListener('click', () => {
+                const expanded = this.sectionsContainer.hasClass('ai-organiser-multi-source-compact');
+                if (expanded) {
+                    this.sectionsContainer.removeClass('ai-organiser-multi-source-compact');
+                    disclosure.setText(t?.hideOtherSources || '− Hide other source types');
+                } else {
+                    this.sectionsContainer.addClass('ai-organiser-multi-source-compact');
+                    disclosure.setText(t?.addOtherSources || '+ Add other source types');
+                }
             });
         }
 

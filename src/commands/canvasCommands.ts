@@ -71,22 +71,34 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     const canvasFolder = selectedFolder || defaultFolder;
 
                     try {
-                        const result = await withBusyIndicator(plugin, () =>
-                            buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
-                                file,
-                                content,
-                                maxRelated: plugin.settings.relatedNotesCount || 15,
-                                enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
-                                canvasFolder,
-                                openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                                language: resolveCanvasLanguage(plugin),
-                                edgeLabelStrings: {
-                                    closelyRelated: plugin.t.canvas.edgeCloselyRelated,
-                                    related: plugin.t.canvas.edgeRelated,
-                                    looselyRelated: plugin.t.canvas.edgeLooselyRelated
-                                }
-                            })
-                        );
+                        const progressNotice = new Notice(plugin.t.canvas.building || 'Building investigation canvas…', 0);
+                        let result: Awaited<ReturnType<typeof buildInvestigationBoard>>;
+                        try {
+                            result = await withBusyIndicator(plugin, () =>
+                                buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
+                                    file,
+                                    content,
+                                    maxRelated: plugin.settings.relatedNotesCount || 15,
+                                    enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
+                                    canvasFolder,
+                                    openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                                    language: resolveCanvasLanguage(plugin),
+                                    edgeLabelStrings: {
+                                        closelyRelated: plugin.t.canvas.edgeCloselyRelated,
+                                        related: plugin.t.canvas.edgeRelated,
+                                        looselyRelated: plugin.t.canvas.edgeLooselyRelated
+                                    },
+                                    progressStrings: {
+                                        findingRelated: plugin.t.canvas.progressFindingRelated,
+                                        labeling: plugin.t.canvas.progressLabelingRelationships,
+                                        building: plugin.t.canvas.progressBuildingCanvas,
+                                    },
+                                    onProgress: (phase: string) => progressNotice.setMessage(phase),
+                                })
+                            );
+                        } finally {
+                            progressNotice.hide();
+                        }
 
                         if (result.success) {
                             new Notice(plugin.t.canvas.created);

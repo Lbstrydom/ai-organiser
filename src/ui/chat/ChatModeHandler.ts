@@ -58,6 +58,10 @@ export interface ModalContext {
 export interface StreamingCallbacks {
     updateMessage(content: string): void;
     addSystemNotice(content: string): void;
+    /** Optional: update the "Thinking…" placeholder text in place so the
+     *  handler can surface phase transitions (e.g. "Searching web…" →
+     *  "Extracting from 3 sources…" → "Synthesising…") during a long run. */
+    updateThinking?(message: string): void;
 }
 
 /** Result returned by a streaming handler after the stream completes. */
@@ -91,7 +95,10 @@ export interface ActionCallbacks {
     /** Update last assistant message in-place (for streaming). */
     updateAssistantMessage(content: string): void;
     addSystemNotice(content: string): void;
-    showThinking(): void;
+    /** Show the in-chat thinking placeholder. Pass a phase-specific message
+     *  (e.g. "Searching web (2/5)…") in place of the default "Thinking…" —
+     *  the placeholder updates in place when called repeatedly while visible. */
+    showThinking(message?: string): void;
     hideThinking(): void;
     rerenderActions(): void;
     getEditor(): Editor | null;

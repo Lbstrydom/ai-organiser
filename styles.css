@@ -1931,19 +1931,23 @@
     transform: rotate(90deg);
 }
 
-/* Description secondary line — visible only when highlighted or hovered */
+/* Description secondary line — always visible on first paint so users don't
+ * need to hover each row to see what a command does (persona round 4 P2 #3).
+ * Dimmed via --text-faint; highlighted/hovered state bumps to --text-muted. */
 .ai-organiser-command-picker-description {
-    display: none;
+    display: block;
     width: 100%;
     font-size: var(--font-smallest);
-    color: var(--text-muted);
+    color: var(--text-faint);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
+    margin-top: 2px;
 }
 .suggestion-item.is-selected .ai-organiser-command-picker-description,
 .ai-organiser-command-picker-item:hover .ai-organiser-command-picker-description {
-    display: block;
+    color: var(--text-muted);
 }
 
 /* Breadcrumb for search results */
@@ -2719,14 +2723,28 @@
 }
 
 .ai-organiser-research-step-dot {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 11px;
+    font-weight: 600;
     border-radius: 50%;
     border: 1.5px solid currentColor;
+    flex-shrink: 0;
+}
+
+/* Connector line between steps — renders progress as a flow, not a radio set */
+.ai-organiser-research-step-connector {
+    flex: 0 0 16px;
+    height: 1.5px;
+    background: var(--background-modifier-border);
+    align-self: center;
+}
+
+.ai-organiser-research-step-connector-complete {
+    background: var(--text-accent);
 }
 
 .ai-organiser-research-step-active .ai-organiser-research-step-dot {
@@ -4254,6 +4272,16 @@
     background: var(--interactive-accent-hover);
 }
 
+.ai-organiser-scope-card.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ai-organiser-scope-card.is-disabled:hover {
+    background: var(--background-primary);
+    border-color: var(--background-modifier-border);
+}
+
 .ai-organiser-scope-card-icon {
     flex-shrink: 0;
     display: flex;
@@ -4379,6 +4407,32 @@
 
 .ai-organiser-multi-source-section-empty:hover {
     opacity: 0.8;
+}
+
+/* Compact mode: hide empty source cards behind the "+ Add other sources" disclosure.
+   Only applied when at least one section already has content (Maya session 1 P1 fix). */
+.ai-organiser-multi-source-sections.ai-organiser-multi-source-compact .ai-organiser-multi-source-section-empty {
+    display: none;
+}
+
+.ai-organiser-multi-source-extras-toggle {
+    display: block;
+    margin: 8px 0 4px;
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px dashed var(--background-modifier-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    width: 100%;
+    text-align: left;
+}
+
+.ai-organiser-multi-source-extras-toggle:hover {
+    color: var(--text-normal);
+    border-color: var(--interactive-accent);
+    background: var(--background-modifier-hover);
 }
 
 /* Section header - Gestalt Proximity */
@@ -4829,12 +4883,71 @@
     margin: 12px 0;
 }
 
+/* Prominent transcription progress panel (persona round 2 — Pat). Only visible
+   while transcription is running; data-active attribute toggles the tinted
+   background so the user can see phase text during long runs. */
+.ai-organiser-minutes-audio-progress {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.ai-organiser-minutes-audio-progress[data-active="true"] {
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+    border-left: 3px solid var(--interactive-accent);
+    border-radius: 4px;
+    color: var(--text-normal);
+}
+
 .ai-organiser-minutes-section-header {
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 600;
     margin-bottom: 8px;
+}
+
+.ai-organiser-minutes-autodetect-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: color-mix(in srgb, var(--interactive-accent) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+    border-radius: 6px;
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-minutes-autodetect-label {
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.ai-organiser-minutes-autodetect-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 999px;
+    color: var(--text-normal);
+    cursor: pointer;
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-minutes-autodetect-chip:hover {
+    background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+    border-color: var(--interactive-accent);
+}
+
+.ai-organiser-minutes-autodetect-chip-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-accent);
 }
 
 .ai-organiser-minutes-section-icon {
@@ -6686,6 +6799,30 @@
     max-height: 60vh;
     overflow-y: auto;
     margin-bottom: 12px;
+}
+
+/* Header counter — shows N/M progress at top of results view so the user
+   always knows total count + how many are done (Pat persona test fix). */
+.ai-organiser-quick-peek-header-counter {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin: 0 0 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Pending placeholder body text inside a still-triaging card. */
+.ai-organiser-quick-peek-pending {
+    color: var(--text-faint);
+    font-style: italic;
+    margin: 0;
+}
+
+/* Secondary hint below an extraction error — tells the user what to configure. */
+.ai-organiser-quick-peek-error-hint {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin: 4px 0 0;
 }
 
 /* Progress phase */

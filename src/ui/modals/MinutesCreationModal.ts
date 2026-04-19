@@ -197,16 +197,22 @@ export class MinutesCreationModal extends Modal {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
         });
 
+        // Run detection FIRST (desktop only) so the auto-detected banner can
+        // render above the main top section — fixes P2 #17 where users missed
+        // auto-detected context docs and audio that sat below the fold.
+        if (!Platform.isMobile) {
+            await this.detectEmbeddedContent();
+            await this.autoExtractDetectedDocuments();
+            await this.loadAvailableDictionaries();
+            await this.loadAvailableParticipantLists();
+            this.renderAutoDetectedBanner(contentEl);
+        }
+
         this.renderTopSection(contentEl);
 
         // Desktop-only features: Document context, dictionary, and audio transcription
         // Order matters for gestalt: extract docs first, then dictionary, then transcribe
         if (!Platform.isMobile) {
-            await this.detectEmbeddedContent();
-            // Auto-extract detected documents so auto-fill can populate form fields
-            await this.autoExtractDetectedDocuments();
-            await this.loadAvailableDictionaries();
-            await this.loadAvailableParticipantLists();
             this.renderContextDocumentsSection(contentEl);
             this.renderDictionarySection(contentEl);
             this.renderAudioTranscriptionSection(contentEl);
@@ -1195,22 +1201,44 @@ export class MinutesCreationModal extends Modal {
             this.cleanups.push(listen(transcribeBtn, 'click', () => void this.handleTranscribeAudio(audioItem)));
         }
 
+        // Dedicated progress panel rendered inline below the audio list — prominent
+        // position so a persona watching the modal can actually see the transcription
+        // phase updates (was previously only reflected in button textContent via a
+        // broken `.minutes-transcribe-btn` selector that never matched — Pat persona
+        // round 2 waited 100+s with no visible progress).
+        this.audioSectionEl.createDiv({ cls: 'ai-organiser-minutes-audio-progress' });
+
         this.updateAudioSectionUI();
     }
 
     private updateAudioSectionUI(): void {
         if (!this.audioSectionEl) return;
 
-        const buttons = this.audioSectionEl.querySelectorAll('.minutes-transcribe-btn');
+        // Correct selector: .ai-organiser-minutes-transcribe-btn (not the legacy
+        // unprefixed .minutes-transcribe-btn). Buttons disable during transcription
+        // to prevent concurrent clicks.
+        const buttons = this.audioSectionEl.querySelectorAll('.ai-organiser-minutes-transcribe-btn');
         buttons.forEach(btn => {
             (btn as HTMLButtonElement).disabled = this.state.isTranscribing;
             if (this.state.isTranscribing) {
-                btn.textContent = this.state.transcriptionProgress ||
-                    (this.plugin.t.minutes?.transcribing || 'Transcribing...');
+                btn.textContent = this.plugin.t.minutes?.transcribing || 'Transcribing…';
             } else {
                 btn.textContent = this.plugin.t.minutes?.transcribeButton || 'Transcribe';
             }
         });
+
+        // Update the dedicated progress panel with live phase text.
+        const progressEl = this.audioSectionEl.querySelector('.ai-organiser-minutes-audio-progress');
+        if (progressEl) {
+            if (this.state.isTranscribing) {
+                const msg = this.state.transcriptionProgress || this.plugin.t.minutes?.transcribing || 'Transcribing…';
+                progressEl.textContent = `⏳ ${msg}`;
+                progressEl.setAttribute('data-active', 'true');
+            } else {
+                progressEl.textContent = '';
+                progressEl.removeAttribute('data-active');
+            }
+        }
     }
 
     private async handleTranscribeAudio(audioItem: DetectedContent): Promise<void> {
@@ -1344,6 +1372,55 @@ export class MinutesCreationModal extends Modal {
     }
 
     // ==================== Context Documents ====================
+
+    /**
+     * Render a compact "Auto-detected: [N documents] [N audio]" banner above
+     * the main form. Chips scroll the matching section into view so users can
+     * jump straight to inputs that the modal found for them without scrolling
+     * past the whole form. Renders nothing if no inputs were auto-detected.
+     */
+    private renderAutoDetectedBanner(containerEl: HTMLElement): void {
+        const t = this.plugin.t.minutes;
+        const docCount = this.docController.getCount();
+        const audioCount = this.state.detectedAudioFiles.length;
+        if (docCount === 0 && audioCount === 0) return;
+
+        const banner = containerEl.createDiv({ cls: 'ai-organiser-minutes-autodetect-banner' });
+        banner.createSpan({
+            cls: 'ai-organiser-minutes-autodetect-label',
+            text: t?.detectedInputsLabel || 'Auto-detected:'
+        });
+
+        const scrollTo = (el: HTMLElement | null): void => {
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        if (docCount > 0) {
+            const chip = banner.createEl('button', {
+                cls: 'ai-organiser-minutes-autodetect-chip',
+                text: (t?.detectedDocumentsChip || '{count} document{s}')
+                    .replace('{count}', String(docCount))
+                    .replace('{s}', docCount === 1 ? '' : 's')
+            });
+            const iconEl = chip.createSpan({ cls: 'ai-organiser-minutes-autodetect-chip-icon' });
+            setIcon(iconEl, 'file-text');
+            chip.prepend(iconEl);
+            this.cleanups.push(listen(chip, 'click', () => scrollTo(this.documentsSectionEl)));
+        }
+
+        if (audioCount > 0) {
+            const chip = banner.createEl('button', {
+                cls: 'ai-organiser-minutes-autodetect-chip',
+                text: (t?.detectedAudioChip || '{count} audio file{s}')
+                    .replace('{count}', String(audioCount))
+                    .replace('{s}', audioCount === 1 ? '' : 's')
+            });
+            const iconEl = chip.createSpan({ cls: 'ai-organiser-minutes-autodetect-chip-icon' });
+            setIcon(iconEl, 'mic');
+            chip.prepend(iconEl);
+            this.cleanups.push(listen(chip, 'click', () => scrollTo(this.audioSectionEl)));
+        }
+    }
 
     private renderContextDocumentsSection(containerEl: HTMLElement): void {
         const t = this.plugin.t.minutes;
@@ -1495,10 +1572,27 @@ export class MinutesCreationModal extends Modal {
      * Sorted by most recently modified. Returns the selected TFile or null if cancelled.
      */
     private pickTranscriptFile(): Promise<TFile | null> {
-        const files = this.app.vault.getFiles()
-            .filter(f => f.extension.toLowerCase() === 'md')
+        // Prefer transcript-like files at the top: path under Recordings/Transcripts,
+        // or name/folder containing "transcript"/"recording"/"meeting". Full path
+        // shown via FuzzySuggestModal.getItemText() so users can distinguish.
+        const isTranscriptLike = (f: TFile): boolean => {
+            const haystack = f.path.toLowerCase();
+            return (
+                haystack.includes('transcript') ||
+                haystack.includes('recording') ||
+                haystack.includes('meeting')
+            );
+        };
+
+        const all = this.app.vault.getFiles()
+            .filter(f => f.extension.toLowerCase() === 'md');
+        const preferred = all
+            .filter(isTranscriptLike)
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        return this.openFilePicker(files);
+        const rest = all
+            .filter(f => !isTranscriptLike(f))
+            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+        return this.openFilePicker([...preferred, ...rest]);
     }
 
     /** Shared file picker helper — opens DocumentPickerModal with settle/close safety */

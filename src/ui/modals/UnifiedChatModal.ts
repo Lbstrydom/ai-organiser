@@ -897,20 +897,33 @@ export class UnifiedChatModal extends Modal {
         setup: { start: (callbacks: import('../chat/ChatModeHandler').StreamingCallbacks) => Promise<import('../chat/ChatModeHandler').StreamingResult> },
         gen: number,
     ): Promise<void> {
+        // Keep the thinking indicator visible until the first real content chunk
+        // arrives so handlers can bubble phase transitions during the pre-stream
+        // wait (e.g. Claude Web Search runs multiple searches before any token
+        // streams; Dr. Chen persona was staring at "Thinking…" for 150s+).
         this.addMessage({ role: 'assistant', content: '', timestamp: Date.now() });
-        this.hideThinkingIndicator();
+        let firstChunkArrived = false;
         const streamResult = await setup.start({
             updateMessage: (c) => {
-                if (!isStaleGeneration(gen, this.requestGeneration)) {
-                    this.updateLastAssistantMessageContent(c);
+                if (isStaleGeneration(gen, this.requestGeneration)) return;
+                if (!firstChunkArrived) {
+                    firstChunkArrived = true;
+                    this.hideThinkingIndicator();
                 }
+                this.updateLastAssistantMessageContent(c);
             },
             addSystemNotice: (c) => {
                 if (!isStaleGeneration(gen, this.requestGeneration)) {
                     this.addMessage({ role: 'system', content: c, timestamp: Date.now() });
                 }
             },
+            updateThinking: (msg) => {
+                if (!isStaleGeneration(gen, this.requestGeneration) && !firstChunkArrived) {
+                    this.showThinkingIndicator(msg);
+                }
+            },
         });
+        if (!firstChunkArrived) this.hideThinkingIndicator();
         // Guard: if mode was switched mid-stream, discard the result
         if (isStaleGeneration(gen, this.requestGeneration)) return;
         this.updateLastAssistantMessageContent(streamResult.finalContent);
@@ -1100,7 +1113,7 @@ export class UnifiedChatModal extends Modal {
                 addSystemNotice: (content) => this.addMessage({
                     role: 'system', content, timestamp: Date.now(),
                 }),
-                showThinking: () => this.showThinkingIndicator(),
+                showThinking: (msg) => this.showThinkingIndicator(msg),
                 hideThinking: () => this.hideThinkingIndicator(),
                 rerenderActions: () => this.renderActionsBar(),
                 getEditor: () => this.cachedEditor ?? null,
@@ -1184,13 +1197,30 @@ export class UnifiedChatModal extends Modal {
         return null;
     }
 
-    private showThinkingIndicator(): void {
+    private showThinkingIndicator(message?: string): void {
         if (!this.chatContainer) return;
+        const text = message || this.plugin.t.modals.unifiedChat.thinking;
+
+        // If the thinking element is already present, update its text in place
+        // so a caller can bubble phase transitions ("Searching web…" →
+        // "Extracting sources…" → "Synthesizing…") without recreating the DOM.
+        // This addresses persona-round-2 finding #15 (generic "Thinking…" was
+        // the single largest cross-cutting UX gap across Research, Minutes,
+        // Smart Tag).
+        if (this.thinkingEl) {
+            const label = this.thinkingEl.querySelector('.ai-organiser-chat-thinking-text');
+            if (label) {
+                label.textContent = text;
+                this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+                return;
+            }
+        }
+
         this.thinkingEl?.remove();
         this.thinkingEl = this.chatContainer.createDiv({ cls: 'ai-organiser-chat-thinking' });
         const dots = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-dots' });
         dots.textContent = '•••';
-        this.thinkingEl.createSpan({ text: this.plugin.t.modals.unifiedChat.thinking });
+        this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-text', text });
         this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 

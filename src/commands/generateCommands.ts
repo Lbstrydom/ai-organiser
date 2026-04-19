@@ -2,7 +2,6 @@ import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
-import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 
 export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command: Tag (scope modal)
@@ -84,39 +83,40 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
         return;
     }
 
-    // Show folder scope picker first
-    const t = plugin.t.modals?.folderScopePicker;
-    new FolderScopePickerModal(plugin.app, plugin, {
-        title: t?.title,
-        description: t?.description,
-        allowSkip: true,
-        onSelect: (folderPath: string | null) => { void (async () => {
-            new Notice(plugin.t.messages.analyzing);
+    // No separate folder-scope modal — persona round 2 (Maya) flagged the
+    // double-modal as a P1 confusion ("I already picked 'This note' — why
+    // another folder?"). Default is vault-wide taxonomy which matches the
+    // most common intent. Users who need folder-scoped taxonomy can still
+    // reach it via the batch tag commands (folder / vault scope in
+    // TagScopeModal) which surface the picker where it belongs.
+    const progressNotice = new Notice(plugin.t.messages.analyzing, 0);
 
-            try {
-                const result = await plugin.analyzeAndTagNote(
-                    view.file!,
-                    content,
-                    folderPath ? { folderScope: folderPath } : undefined
-                );
-
-                if (selectedText && result.success) {
-                    editor.replaceSelection(selectedText);
-                }
-                plugin.handleTagUpdateResult(result);
-
-                if (result.success) {
-                    ensureNoteStructureIfEnabled(editor, plugin.settings);
-                }
-
-                if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
-                    await plugin.showSuggestionModal(view.file!, result.suggestedTitle, result.suggestedFolder);
-                }
-            } catch {
-                new Notice(plugin.t.messages.failedToGenerateTags);
+    try {
+        const result = await plugin.analyzeAndTagNote(
+            view.file,
+            content,
+            {
+                onProgress: (phase: string) => progressNotice.setMessage(phase),
             }
-        })(); }
-    }).open();
+        );
+        progressNotice.hide();
+
+        if (selectedText && result.success) {
+            editor.replaceSelection(selectedText);
+        }
+        plugin.handleTagUpdateResult(result);
+
+        if (result.success) {
+            ensureNoteStructureIfEnabled(editor, plugin.settings);
+        }
+
+        if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+            await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
+        }
+    } catch {
+        progressNotice.hide();
+        new Notice(plugin.t.messages.failedToGenerateTags);
+    }
 }
 
 async function tagCurrentFolder(plugin: AIOrganiserPlugin): Promise<void> {

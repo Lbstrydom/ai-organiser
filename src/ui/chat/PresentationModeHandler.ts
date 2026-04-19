@@ -59,12 +59,44 @@ export class PresentationModeHandler implements ChatModeHandler {
     private activeAbort: AbortController | null = null;
     private mutationLock = false;
 
+    // Phase-progress: when an async action wires this, setPhase() bubbles
+    // human-readable labels into the chat "Thinking…" placeholder so users
+    // don't stare at silent spinner. Cleared in finally blocks.
+    private activeThinkingUpdater: ((msg: string) => void) | null = null;
+
     // Project context
     private projectInstructions: string | null = null;
     private projectMemory: string[] = [];
 
     // Preview
     private preview: SlideIframePreview | null = null;
+
+    // ── Phase progress ──────────────────────────────────────────────────────
+
+    /** Centralized phase setter that bubbles a phase-specific message to the
+     *  chat "Thinking…" placeholder when an async action is active. */
+    private setPhase(phase: PresentationPhase): void {
+        this.phase = phase;
+        const label = this.getPhaseMessage(phase);
+        if (label && this.activeThinkingUpdater) {
+            this.activeThinkingUpdater(label);
+        }
+    }
+
+    /** Human-readable label per presentation phase. Returns null for phases
+     *  the user shouldn't see a thinking text for. */
+    private getPhaseMessage(phase: PresentationPhase): string | null {
+        switch (phase) {
+            case 'generating':   return 'Generating slides…';
+            case 'refining':     return 'Refining presentation…';
+            case 'auditing':     return 'Checking brand compliance…';
+            case 'exporting':    return 'Exporting…';
+            case 'empty':
+            case 'preview-ready':
+            case 'error':
+                return null;
+        }
+    }
 
     // ── ChatModeHandler interface ───────────────────────────────────────────
 
@@ -143,106 +175,107 @@ export class PresentationModeHandler implements ChatModeHandler {
             return { prompt: '', directResponse: 'Please wait for the current operation to complete.' };
         }
 
-        this.cancelActiveOperation();
-        this.mutationLock = true;
-        const abort = new AbortController();
-        this.activeAbort = abort;
+        // Use streamingSetup so we can bubble phase messages into the
+        // chat "Thinking…" placeholder during long generation/refinement.
+        return {
+            prompt: '',
+            streamingSetup: {
+                start: async (streamCb) => {
+                    this.cancelActiveOperation();
+                    this.mutationLock = true;
+                    const abort = new AbortController();
+                    this.activeAbort = abort;
+                    this.activeThinkingUpdater = (m) => streamCb.updateThinking?.(m);
 
-        try {
-            const llmCtx = this.getLLMContext(ctx);
-            const theme = await this.getTheme(ctx);
-            const noteContent = this.truncateNoteContent(ctx);
-            const projectPrefix = this.buildProjectContextPrefix();
-            const effectiveQuery = projectPrefix ? `${projectPrefix}\n\n${query}` : query;
+                    try {
+                        const llmCtx = this.getLLMContext(ctx);
+                        const theme = await this.getTheme(ctx);
+                        const noteContent = this.truncateNoteContent(ctx);
+                        const projectPrefix = this.buildProjectContextPrefix();
+                        const effectiveQuery = projectPrefix ? `${projectPrefix}\n\n${query}` : query;
 
-            if (!this.html) {
-                // Initial generation — streaming for live preview
-                this.phase = 'generating';
+                        if (!this.html) {
+                            this.setPhase('generating');
 
-                const result = await generateHtmlStream(llmCtx, {
-                    userQuery: effectiveQuery,
-                    noteContent,
-                    conversationHistory: history,
-                    outputLanguage: ctx.plugin.settings.summaryLanguage,
-                    theme,
-                    signal: abort.signal,
-                    onCheckpoint: (checkpoint) => {
-                        if (abort.signal.aborted) return;
-                        if (this.preview) {
-                            this.preview.setHtml(checkpoint.html);
+                            const result = await generateHtmlStream(llmCtx, {
+                                userQuery: effectiveQuery,
+                                noteContent,
+                                conversationHistory: history,
+                                outputLanguage: ctx.plugin.settings.summaryLanguage,
+                                theme,
+                                signal: abort.signal,
+                                onCheckpoint: (checkpoint) => {
+                                    if (abort.signal.aborted) return;
+                                    if (this.preview) {
+                                        this.preview.setHtml(checkpoint.html);
+                                    }
+                                },
+                            });
+
+                            if (abort.signal.aborted) return { finalContent: 'Operation cancelled.' };
+
+                            if (!result.ok) {
+                                this.setPhase('error');
+                                this.lastError = result.error;
+                                return { finalContent: `Failed to generate: ${result.error}` };
+                            }
+
+                            this.html = result.value;
+                            this.activeSlideIndex = 0;
+                            this.pushVersion(query);
+                            this.updateReliability();
+
+                            if (this.brandEnabled && theme.auditChecklist.length > 0) {
+                                this.setPhase('auditing');
+                                await this.runAudit(llmCtx, theme, abort.signal);
+                            }
+
+                            this.runQualityCheck();
+                            this.setPhase('preview-ready');
+                            void this.runBackgroundQualityScan(llmCtx, abort.signal);
+
+                            const title = extractDeckTitle(this.html);
+                            const count = countSlides(this.html);
+                            return {
+                                finalContent: `Created "${title}" with ${count} slides. Describe changes to refine, or export when ready.`,
+                            };
                         }
-                    },
-                });
 
-                if (abort.signal.aborted) return { prompt: '', directResponse: 'Operation cancelled.' };
+                        // Refinement path
+                        this.setPhase('refining');
 
-                if (!result.ok) {
-                    this.phase = 'error';
-                    this.lastError = result.error;
-                    return { prompt: '', directResponse: `Failed to generate: ${result.error}` };
-                }
+                        const result = await refineHtml(llmCtx, {
+                            currentHtml: this.html,
+                            userRequest: effectiveQuery,
+                            conversationHistory: history,
+                            outputLanguage: ctx.plugin.settings.summaryLanguage,
+                            theme,
+                            signal: abort.signal,
+                        });
 
-                this.html = result.value;
-                this.activeSlideIndex = 0;
-                this.pushVersion(query);
+                        if (abort.signal.aborted) return { finalContent: 'Operation cancelled.' };
 
-                this.updateReliability();
+                        if (!result.ok) {
+                            this.setPhase('error');
+                            this.lastError = result.error;
+                            return { finalContent: `Failed to refine: ${result.error}` };
+                        }
 
-                // Run initial brand audit if enabled
-                if (this.brandEnabled && theme.auditChecklist.length > 0) {
-                    await this.runAudit(llmCtx, theme, abort.signal);
-                }
+                        this.html = result.value;
+                        this.pushVersion(query);
+                        this.runQualityCheck();
+                        this.setPhase('preview-ready');
+                        void this.runBackgroundQualityScan(llmCtx, abort.signal);
 
-                this.runQualityCheck();
-                this.phase = 'preview-ready';
-
-                // Launch background quality scan (non-blocking)
-                void this.runBackgroundQualityScan(llmCtx, abort.signal);
-
-                const title = extractDeckTitle(this.html);
-                const count = countSlides(this.html);
-                return {
-                    prompt: '',
-                    directResponse: `Created "${title}" with ${count} slides. Describe changes to refine, or export when ready.`,
-                };
-            } else {
-                // Refinement
-                this.phase = 'refining';
-
-                const result = await refineHtml(llmCtx, {
-                    currentHtml: this.html,
-                    userRequest: effectiveQuery,
-                    conversationHistory: history,
-                    outputLanguage: ctx.plugin.settings.summaryLanguage,
-                    theme,
-                    signal: abort.signal,
-                });
-
-                if (abort.signal.aborted) return { prompt: '', directResponse: 'Operation cancelled.' };
-
-                if (!result.ok) {
-                    this.phase = 'error';
-                    this.lastError = result.error;
-                    return { prompt: '', directResponse: `Failed to refine: ${result.error}` };
-                }
-
-                this.html = result.value;
-                this.pushVersion(query);
-                this.runQualityCheck();
-                this.phase = 'preview-ready';
-
-                // Launch background quality scan (non-blocking)
-                void this.runBackgroundQualityScan(llmCtx, abort.signal);
-
-                const count = countSlides(this.html);
-                return {
-                    prompt: '',
-                    directResponse: `Updated. ${count} slides. Continue refining or export.`,
-                };
-            }
-        } finally {
-            this.mutationLock = false;
-        }
+                        const count = countSlides(this.html);
+                        return { finalContent: `Updated. ${count} slides. Continue refining or export.` };
+                    } finally {
+                        this.mutationLock = false;
+                        this.activeThinkingUpdater = null;
+                    }
+                },
+            },
+        };
     }
 
     getActionDescriptors(_t: Translations): ActionDescriptor[] {
@@ -374,7 +407,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async exportPptx(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (!this.html || !this.preview || this.mutationLock) return;
         this.mutationLock = true;
-        this.phase = 'exporting';
+        this.setPhase('exporting');
         callbacks.rerenderActions();
 
         try {
@@ -400,7 +433,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.addSystemNotice(`PPTX export failed: ${msg}`);
             logger.error('Presentation', `PPTX export failed: ${msg}`);
         } finally {
-            this.phase = 'preview-ready';
+            this.setPhase('preview-ready');
             this.mutationLock = false;
             callbacks.rerenderActions();
         }
@@ -411,7 +444,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async exportHtmlFile(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (!this.html || this.mutationLock) return;
         this.mutationLock = true;
-        this.phase = 'exporting';
+        this.setPhase('exporting');
         callbacks.rerenderActions();
 
         try {
@@ -427,7 +460,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const msg = e instanceof Error ? e.message : 'Export failed';
             callbacks.addSystemNotice(`HTML export failed: ${msg}`);
         } finally {
-            this.phase = 'preview-ready';
+            this.setPhase('preview-ready');
             this.mutationLock = false;
             callbacks.rerenderActions();
         }
@@ -438,10 +471,15 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async handleBrandAudit(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (!this.html || !this.brandEnabled || this.mutationLock) return;
         this.mutationLock = true;
-        this.phase = 'auditing';
-        callbacks.showThinking();
+        this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
+        this.setPhase('auditing');
         callbacks.rerenderActions();
 
+        // Abort any prior in-flight operation before taking the slot — mutationLock
+        // prevents concurrent entry today, but onClear()/dispose() call
+        // cancelActiveOperation() on whatever's pointed to by activeAbort, so we
+        // must not leave a stale controller behind.
+        this.cancelActiveOperation();
         const abort = new AbortController();
         this.activeAbort = abort;
 
@@ -462,14 +500,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             }
 
             this.runQualityCheck(result.ok ? result.value.violations.length : 0);
-            this.phase = 'preview-ready';
+            this.setPhase('preview-ready');
         } catch (e) {
             if (!abort.signal.aborted) {
-                this.phase = 'error';
+                this.setPhase('error');
                 this.lastError = e instanceof Error ? e.message : 'Audit failed';
             }
         } finally {
             this.mutationLock = false;
+            this.activeThinkingUpdater = null;
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
@@ -492,10 +531,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async handlePolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (!this.html || this.mutationLock) return;
         this.mutationLock = true;
-        this.phase = 'refining';
-        callbacks.showThinking();
+        this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
+        this.setPhase('refining');
         callbacks.rerenderActions();
 
+        // Same rationale as handleBrandAudit — abort any stale controller so
+        // onClear()/dispose() never hold a reference to a defunct one.
+        this.cancelActiveOperation();
         const abort = new AbortController();
         this.activeAbort = abort;
 
@@ -507,13 +549,16 @@ export class PresentationModeHandler implements ChatModeHandler {
             for (let pass = 0; pass < maxPasses; pass++) {
                 if (abort.signal.aborted) break;
 
-                // Quality check
                 this.runQualityCheck();
                 if (this.qualityResult && this.qualityResult.totalScore >= 80 && pass > 0) break;
 
-                // Build polish request from findings
                 const findings = this.qualityResult?.findings || [];
                 if (findings.length === 0) break;
+
+                // Per-pass progress label (e.g. "Polish pass 2 of 3 — applying fixes…")
+                this.activeThinkingUpdater?.(
+                    `Polish pass ${pass + 1} of ${maxPasses} — applying fixes…`
+                );
 
                 const polishRequest = findings
                     .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
@@ -535,24 +580,25 @@ export class PresentationModeHandler implements ChatModeHandler {
                 }
             }
 
-            // Run brand audit if enabled
             if (this.brandEnabled && theme.auditChecklist.length > 0 && !abort.signal.aborted) {
+                this.setPhase('auditing');
                 await this.runAudit(llmCtx, theme, abort.signal);
             }
 
             this.runQualityCheck();
-            this.phase = 'preview-ready';
+            this.setPhase('preview-ready');
             callbacks.addSystemNotice(
                 `Polish complete. Quality: ${this.qualityResult?.totalScore ?? '?'}/100`
             );
         } catch (e) {
             if (!abort.signal.aborted) {
-                this.phase = 'error';
+                this.setPhase('error');
                 this.lastError = e instanceof Error ? e.message : 'Polish failed';
                 callbacks.addSystemNotice(`Polish failed: ${this.lastError}`);
             }
         } finally {
             this.mutationLock = false;
+            this.activeThinkingUpdater = null;
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }

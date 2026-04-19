@@ -156,7 +156,12 @@ describe('ClaudeWebSearchAdapter', () => {
             expect(parsed.searchResults[1].score).toBe(0.5);
         });
 
-        it('assigns 0.1 score to uncited results', () => {
+        it('assigns 0.5 baseline score to uncited-but-retrieved results', () => {
+            // Round 1 persona test fix: uncited-but-retrieved sources used to get 0.1,
+            // which caused the quality-score pipeline to label peer-reviewed journals
+            // as "Low quality" whenever Claude's answer didn't directly quote them.
+            // Baseline is now 0.5 — being retrieved at all means Claude considered them
+            // relevant, just didn't quote them.
             const response = buildMockResponse({
                 content: [
                     {
@@ -174,7 +179,7 @@ describe('ClaudeWebSearchAdapter', () => {
             });
             const parsed = adapter.parseResponse(response);
 
-            expect(parsed.searchResults[0].score).toBe(0.1);
+            expect(parsed.searchResults[0].score).toBe(0.5);
         });
 
         it('extracts search count from usage', () => {

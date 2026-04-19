@@ -8,8 +8,7 @@ import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
-import { NewsletterService, getDigestPath } from '../services/newsletter/newsletterService';
-import { getNewsletterOutputFullPath } from '../core/settings';
+import { NewsletterService } from '../services/newsletter/newsletterService';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
 export function showNewsletterFetchResultNotice(
@@ -68,20 +67,4 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         }
     });
 
-    plugin.addCommand({
-        id: 'newsletter-open-digest',
-        name: t.commands.newsletterOpenDigest,
-        icon: 'book-open',
-        callback: async () => {
-            const dateStr = new Date().toISOString().slice(0, 10);
-            const outputRoot = getNewsletterOutputFullPath(plugin.settings);
-            const digestPath = getDigestPath(outputRoot, dateStr);
-            const file = plugin.app.vault.getAbstractFileByPath(digestPath);
-            if (file) {
-                await plugin.app.workspace.openLinkText(digestPath, '', false);
-            } else {
-                new Notice(t.settings.newsletter?.noDigestToday || 'No newsletter digest found for today');
-            }
-        }
-    });
 }

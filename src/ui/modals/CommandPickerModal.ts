@@ -606,9 +606,17 @@ export function buildCommandCategories(
 					name: t.modals.commandPicker.groupPending,
 					icon: 'inbox',
 					description: desc.pendingGroup || 'Manage pending content integration',
-					aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract'],
+					aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract', 'structure', 'references'],
 					callback: () => {},
 					subCommands: [
+						{
+							id: 'ensure-note-structure',
+							name: t.commands.ensureNoteStructure,
+							icon: 'layout-template',
+							description: desc.ensureNoteStructure || 'Add references and pending integration sections to this note',
+							aliases: ['structure', 'sections', 'references', 'pending', 'setup'],
+							callback: () => executeCommand('ai-organiser:ensure-note-structure')
+						},
 						{
 							id: 'add-to-pending',
 							name: t.commands.addToPendingIntegration,
@@ -691,30 +699,12 @@ export function buildCommandCategories(
 					callback: () => executeCommand('ai-organiser:kindle-sync')
 				},
 				{
-					id: 'newsletter',
-					name: t.settings?.newsletter?.title || 'Newsletter Digest',
+					id: 'newsletter-fetch',
+					name: t.commands.newsletterFetch,
 					icon: 'mail',
-					description: desc.newsletter || 'Fetch and triage Gmail newsletters with AI summaries',
-					aliases: ['newsletter', 'email', 'digest', 'gmail', 'inbox', 'news'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'newsletter-fetch',
-							name: t.commands.newsletterFetch,
-							icon: 'mail',
-							description: desc.newsletterFetch || 'Fetch unread newsletters from Gmail',
-							aliases: ['fetch', 'newsletter', 'email', 'gmail', 'inbox'],
-							callback: () => executeCommand('ai-organiser:newsletter-fetch')
-						},
-						{
-							id: 'newsletter-open-digest',
-							name: t.commands.newsletterOpenDigest,
-							icon: 'book-open',
-							description: desc.newsletterOpenDigest || "Open today's newsletter digest note",
-							aliases: ['open', 'digest', 'today', 'read'],
-							callback: () => executeCommand('ai-organiser:newsletter-open-digest')
-						}
-					]
+					description: desc.newsletterFetch || 'Fetch unread newsletters from Gmail',
+					aliases: ['fetch', 'newsletter', 'email', 'gmail', 'inbox', 'digest', 'news'],
+					callback: () => executeCommand('ai-organiser:newsletter-fetch')
 				},
 				{
 					id: 'new-sketch',
@@ -788,6 +778,14 @@ export function buildCommandCategories(
 							description: desc.createDashboard || 'Create an Obsidian Bases dashboard for a folder',
 							aliases: ['bases', 'dashboard', 'view'],
 							callback: () => executeCommand('ai-organiser:create-bases-dashboard')
+						},
+						{
+							id: 'collect-all-tags',
+							name: t.commands.collectAllTags,
+							icon: 'tags',
+							description: desc.collectAllTags || 'Export every tag in the vault to a note',
+							aliases: ['tags', 'export', 'collect', 'all', 'list'],
+							callback: () => executeCommand('ai-organiser:collect-all-tags')
 						}
 					]
 				},

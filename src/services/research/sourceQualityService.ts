@@ -9,17 +9,39 @@
 import type { SearchResult, QualitySignals } from './researchTypes';
 import { extractDomain } from '../../utils/urlUtils';
 
-/** Built-in domain authority profiles (AD-13). */
+/** Built-in domain authority profiles (AD-13).
+ *  Rev 2026-04-19: expanded academic coverage after Dr. Chen session flagged
+ *  Nature / PMC / PubMed Central papers scoring as "Low quality". */
 const AUTHORITY_TIERS: Record<string, number> = {
-    // Tier 1.0 — Authoritative reference
-    'nature.com': 1.0, 'science.org': 1.0, 'arxiv.org': 0.95,
-    'pubmed.ncbi.nlm.nih.gov': 1.0, 'scholar.google.com': 0.9,
-    'ieee.org': 0.95, 'acm.org': 0.95, 'nih.gov': 1.0,
-    'gov.uk': 0.9, 'who.int': 0.95,
+    // Tier 1 — Authoritative reference (peer-reviewed journals, gov health)
+    'nature.com': 1, 'science.org': 1, 'cell.com': 1,
+    'thelancet.com': 1, 'nejm.org': 1, 'bmj.com': 1,
+    'arxiv.org': 0.95, 'biorxiv.org': 0.9, 'medrxiv.org': 0.9,
+    'ssrn.com': 0.85, 'osf.io': 0.85,
+
+    // Academic repositories / aggregators
+    'pubmed.ncbi.nlm.nih.gov': 1, 'pmc.ncbi.nlm.nih.gov': 1,
+    'ncbi.nlm.nih.gov': 0.95,
+    'scholar.google.com': 0.9, 'semanticscholar.org': 0.85,
+    'researchgate.net': 0.75, 'academia.edu': 0.7,
+    'jstor.org': 0.9, 'springer.com': 0.9, 'link.springer.com': 0.9,
+    'sciencedirect.com': 0.9, 'wiley.com': 0.9, 'onlinelibrary.wiley.com': 0.9,
+    'tandfonline.com': 0.85, 'sagepub.com': 0.85, 'journals.sagepub.com': 0.85,
+    'oup.com': 0.9, 'academic.oup.com': 0.9,
+    'mdpi.com': 0.8, 'frontiersin.org': 0.85, 'plos.org': 0.9,
+    'doi.org': 0.9, 'aps.org': 0.9, 'rsc.org': 0.9,
+
+    // Technical societies and standards bodies
+    'ieee.org': 0.95, 'acm.org': 0.95, 'nih.gov': 1,
+    'cdc.gov': 0.95, 'fda.gov': 0.95, 'nasa.gov': 0.95,
+    'gov.uk': 0.9, 'who.int': 0.95, 'un.org': 0.9,
+    'imf.org': 0.9, 'worldbank.org': 0.9, 'oecd.org': 0.9,
+    'europa.eu': 0.85,
 
     // Tier 0.8 — High-quality editorial
     'bbc.com': 0.8, 'nytimes.com': 0.8, 'theguardian.com': 0.8,
     'reuters.com': 0.85, 'apnews.com': 0.85,
+    'economist.com': 0.85, 'ft.com': 0.85, 'wsj.com': 0.8,
 
     // Tier 0.7 — Established technical
     'stackoverflow.com': 0.7, 'github.com': 0.7, 'developer.mozilla.org': 0.8,

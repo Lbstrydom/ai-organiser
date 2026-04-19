@@ -38,10 +38,21 @@ export const ACADEMIC_DOMAINS = [
 /** Extract DOI from text if present. Returns null if not found. */
 export function extractDOI(text: string): string | null {
     if (!text) return null;
-    const match = text.match(DOI_REGEX);
+    // Decode common HTML entities first — search snippets often contain
+    // `&amp;` / `&quot;` which previously leaked into extracted DOIs as
+    // literal `&amp=` artefacts (observed in Research Web findings pane).
+    const decoded = text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+    const match = DOI_REGEX.exec(decoded);
     if (!match) return null;
-    // Clean trailing punctuation that may have been captured
     let doi = match[0];
+    // Strip URL query/fragment/hash — DOIs are path-only identifiers.
+    doi = doi.split(/[?#&]/)[0];
+    // Clean trailing punctuation that may have been captured.
     doi = doi.replace(/[.,;:)\]}>]+$/, '');
     return doi;
 }

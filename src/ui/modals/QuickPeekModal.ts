@@ -68,27 +68,44 @@ export class QuickPeekModal extends Modal {
             return;
         }
 
-        this.phase = 'extracting';
+        // Results-view-from-the-start: the sources grid is rendered immediately
+        // with "loading…" placeholder cards. Each triage result replaces its
+        // placeholder as it arrives (parallel, so they come back roughly together
+        // but ordering varies). Replaces the old all-or-nothing "show progress
+        // bar → then show all cards at once" pattern flagged by Pat session.
+        this.phase = 'done';
+        this.sources = this.items.map((item) => ({
+            detected: item,
+            triageSummary: null,
+            extractionError: null,
+            llmFailed: false,
+            pending: true,
+        }));
         this.progressTotal = this.items.length;
+        this.progressCurrent = 0;
         this.render();
 
         const service = new QuickPeekService(this.app, this.plugin);
         const result = await service.triageSources(
             this.items,
-            (current, total, item) => {
-                this.phase = current <= total / 2 ? 'extracting' : 'triaging';
+            (current, _total, item) => {
                 this.progressCurrent = current;
-                this.progressTotal = total;
                 this.progressLabel = item.displayName;
                 this.render();
             },
-            this.abortController?.signal
+            this.abortController?.signal,
+            (index, source) => {
+                // Per-source completion: swap the placeholder in-place so the
+                // card UI updates as each triage finishes, not only at the end.
+                this.sources[index] = source;
+                this.render();
+            }
         );
 
         if (this.abortController?.signal.aborted) return;
 
         this.sources = result.sources;
-        this.phase = 'done';
+        this.progressCurrent = this.progressTotal;
         this.render();
     }
 
@@ -137,19 +154,35 @@ export class QuickPeekModal extends Modal {
             return;
         }
 
+        // Header with N/M counter so the user always knows scale + progress.
+        // Replaces the earlier "no-counter, no-context" state flagged by Pat session.
+        const totalPending = this.sources.filter(s => s.pending).length;
+        const totalDone = this.sources.length - totalPending;
+        const allDone = totalPending === 0;
+        const suffix = this.progressLabel ? ` — ${this.progressLabel}` : '';
+        const counterText = allDone
+            ? `${totalDone} of ${this.sources.length} sources triaged`
+            : `${totalDone} / ${this.sources.length} done${suffix}`;
+        this.contentEl.createEl('p', {
+            text: counterText,
+            cls: 'ai-organiser-quick-peek-header-counter'
+        });
+
         const cards = this.contentEl.createDiv({ cls: 'ai-organiser-quick-peek-cards' });
         for (const source of this.sources) {
             this.renderCard(cards, source);
         }
 
-        // Insert All Peeks footer action
-        const footer = this.contentEl.createDiv({ cls: 'ai-organiser-quick-peek-footer' });
-        new ButtonComponent(footer)
-            .setButtonText(t.commands.quickPeek + ' — Insert All')
-            .setCta()
-            .onClick(() => {
-                this.insertAllPeeks();
-            });
+        // Insert All Peeks footer action — only once everything is done.
+        if (allDone) {
+            const footer = this.contentEl.createDiv({ cls: 'ai-organiser-quick-peek-footer' });
+            new ButtonComponent(footer)
+                .setButtonText(t.commands.quickPeek + ' — Insert All')
+                .setCta()
+                .onClick(() => {
+                    this.insertAllPeeks();
+                });
+        }
     }
 
     private renderCard(container: HTMLElement, source: QuickPeekSource): void {
@@ -163,9 +196,11 @@ export class QuickPeekModal extends Modal {
         setIcon(iconEl, icon);
         header.createSpan({ text: source.detected.displayName, cls: 'ai-organiser-quick-peek-card-title' });
 
-        // Summary or error
+        // Summary or error, with a pending placeholder while triage runs.
         const body = card.createDiv({ cls: 'ai-organiser-quick-peek-card-body' });
-        if (source.triageSummary) {
+        if (source.pending) {
+            body.createEl('p', { text: 'Triaging…', cls: 'ai-organiser-quick-peek-pending' });
+        } else if (source.triageSummary) {
             if (source.llmFailed) {
                 body.createEl('p', { text: '⚠ ' + source.triageSummary, cls: 'ai-organiser-quick-peek-excerpt' });
             } else {
@@ -173,9 +208,14 @@ export class QuickPeekModal extends Modal {
             }
         } else if (source.extractionError) {
             body.createEl('p', { text: '⚠ ' + source.extractionError, cls: 'ai-organiser-quick-peek-error' });
+            const hint = this.getExtractionFailureHint(source);
+            if (hint) body.createEl('p', { text: hint, cls: 'ai-organiser-quick-peek-error-hint' });
         }
 
-        // Actions
+        // Actions — skip for pending cards, they'd be clickable before triage
+        // has returned anything useful.
+        if (source.pending) return;
+
         const actions = card.createDiv({ cls: 'ai-organiser-quick-peek-card-actions' });
 
         // Full Summary button — opens MultiSourceModal with this source pre-filled and a working summarize callback
@@ -199,6 +239,38 @@ export class QuickPeekModal extends Modal {
             .onClick(() => {
                 this.removeFromNote(source, card);
             });
+    }
+
+    /**
+     * Return an actionable hint (or null) for sources that failed to extract
+     * because of likely config gaps. Raises the opaque "⚠ Extraction failed"
+     * error from Pat session into something the user can act on. Keep these
+     * short — the error itself is already displayed above.
+     */
+    private getExtractionFailureHint(source: QuickPeekSource): string | null {
+        const type = source.detected.type;
+        const settings = this.plugin.settings;
+
+        if (type === 'youtube') {
+            const hasYoutubeKey = !!(settings.providerSettings?.gemini?.apiKey
+                || settings.youtubeGeminiApiKey
+                || settings.cloudServiceType === 'gemini');
+            if (!hasYoutubeKey) {
+                return 'Tip: YouTube captions aren\'t always available. Configure a Gemini key in Settings → Specialist providers for reliable transcription.';
+            }
+            return null;
+        }
+
+        if (type === 'audio') {
+            const hasAudioKey = !!(settings.providerSettings?.openai?.apiKey
+                || settings.providerSettings?.groq?.apiKey);
+            if (!hasAudioKey) {
+                return 'Tip: audio transcription needs an OpenAI or Groq key. Configure one in Settings → Audio transcription.';
+            }
+            return null;
+        }
+
+        return null;
     }
 
     // ── Actions ───────────────────────────────────────────────────────────
