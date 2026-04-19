@@ -542,6 +542,40 @@ Version is stored in three places (must stay in sync):
 
 Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 
+## Obsidian API Quirks
+
+Subtle Obsidian-API behaviours that the review bot and TypeScript do NOT catch. Follow these conventions to avoid regressions.
+
+### `ButtonComponent.setIcon()` clobbers button text
+
+Both `setIcon(name)` and `setButtonText(text)` overwrite the button's inner DOM — the one called LAST wins. Chaining `.setButtonText('Import file').setIcon('file-up')` produces an icon-only button with no visible label.
+
+**Convention: call `setIcon()` BEFORE `setButtonText()`.** Text wins and is visible; the icon is lost, but text is the critical discoverability signal — an icon-only button is useless for first-time users who can't hover to see a tooltip.
+
+```typescript
+// ❌ Wrong — renders icon-only, empty label
+new ButtonComponent(el)
+    .setButtonText(t.importFile)
+    .setIcon('file-up')
+    .setCta();
+
+// ✅ Right — text visible, icon sacrificed
+new ButtonComponent(el)
+    .setIcon('file-up')
+    .setButtonText(t.importFile)
+    .setCta();
+```
+
+If you genuinely need an icon + text in one button, skip the chain and build the DOM:
+```typescript
+const btn = new ButtonComponent(el).setButtonText(text);
+const iconEl = btn.buttonEl.createSpan();
+setIcon(iconEl, 'file-up');
+btn.buttonEl.prepend(iconEl);
+```
+
+Caught via persona round 5: Kindle Sync modal rendered two empty-label buttons ("" + "" instead of "Import file" + "Sync from amazon"). Six buttons across four files were affected (KindleSyncModal, KindleLoginModal, SemanticSearchSettingsSection, BasesSettingsSection).
+
 ## Known Constraints
 
 - Obsidian API externals must match platform version (defined in `esbuild.config.mjs`)
