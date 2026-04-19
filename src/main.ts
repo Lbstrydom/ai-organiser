@@ -263,6 +263,27 @@ export default class AIOrganiserPlugin extends Plugin {
         return endpointMap[type] || this.settings.cloudEndpoint;
     }
 
+    /**
+     * Replace a stale `cloudEndpoint` (one that matches a DIFFERENT provider's
+     * default) with the current provider's default. Leaves custom endpoints
+     * alone — detected as "does not match any known default URL".
+     */
+    private reconcileCloudEndpoint(cloudType: AdapterType, endpoint: string): string {
+        const endpointMap = cloudEndpoints as Record<string, string>;
+        const correctDefault = endpointMap[cloudType];
+        if (!correctDefault) return endpoint;
+        if (!endpoint) return correctDefault;
+        if (endpoint === correctDefault) return endpoint;
+
+        // If the stored endpoint matches ANY other provider's default, it's
+        // stale leftover from a swap — replace it with the correct default.
+        const knownDefaults = Object.values(endpointMap);
+        if (knownDefaults.includes(endpoint)) return correctDefault;
+
+        // Otherwise it's a custom endpoint — keep it.
+        return endpoint;
+    }
+
     private isLikelyLocalEndpoint(endpoint: string): boolean {
         try {
             const url = new URL(endpoint);
@@ -282,6 +303,15 @@ export default class AIOrganiserPlugin extends Plugin {
         let cloudType = this.settings.cloudServiceType;
         let cloudEndpoint = this.settings.cloudEndpoint;
         let cloudModel = this.settings.cloudModel;
+
+        // Defense-in-depth: detect stale cloudEndpoint carried over from a
+        // previous provider (can happen via settings migrations, hand-edited
+        // data.json, or bugs that update cloudServiceType without also
+        // updating cloudEndpoint). If the stored endpoint matches any other
+        // provider's default, replace it with the current provider's default.
+        // Custom endpoints (that don't match any known default) are left
+        // alone — they're opt-in configuration users rely on.
+        cloudEndpoint = this.reconcileCloudEndpoint(cloudType, cloudEndpoint);
 
         // Get API key from SecretStorage first, fallback to settings
         let cloudApiKey = await this.secretStorageService.getProviderKey(cloudType) ||
