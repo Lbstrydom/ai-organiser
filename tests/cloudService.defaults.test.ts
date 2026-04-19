@@ -254,19 +254,40 @@ describe('CloudService SummarizeOptions — Claude', () => {
 });
 
 describe('CloudService SummarizeOptions — Gemini', () => {
+    // Gemini uses the OpenAI-compatible endpoint (v1beta/openai/chat/completions)
+    // so buildSummarizeRequestBody returns OpenAI-format (messages + max_tokens),
+    // not native Gemini (contents + generationConfig).
     it('respects maxTokens override', () => {
         const service = createGeminiService();
         const options: SummarizeOptions = { maxTokens: 4096 };
         const body = (service as any).buildSummarizeRequestBody('test', options);
 
-        expect(body.generationConfig.maxOutputTokens).toBe(4096);
+        expect(body.max_tokens).toBe(4096);
+        expect(body.messages).toBeDefined();
     });
 
     it('defaults to 8192 without maxTokens', () => {
         const service = createGeminiService();
         const body = (service as any).buildSummarizeRequestBody('test');
 
-        expect(body.generationConfig.maxOutputTokens).toBe(8192);
+        expect(body.max_tokens).toBe(8192);
+    });
+
+    it('uses OpenAI-compat message shape, not native Gemini shape', () => {
+        const service = createGeminiService();
+        const body = (service as any).buildSummarizeRequestBody('test');
+
+        // Must NOT include native Gemini fields (would cause HTTP 400 at the
+        // OpenAI-compat endpoint — persona round 10 regression guard).
+        expect(body.contents).toBeUndefined();
+        expect(body.systemInstruction).toBeUndefined();
+        expect(body.generationConfig).toBeUndefined();
+
+        // MUST include OpenAI-format fields
+        expect(body.messages).toHaveLength(2);
+        expect(body.messages[0].role).toBe('system');
+        expect(body.messages[1].role).toBe('user');
+        expect(body.model).toBeTruthy();
     });
 });
 

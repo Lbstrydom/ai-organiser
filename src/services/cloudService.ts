@@ -443,18 +443,22 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         if (this.adapterType === 'claude') {
             return this.buildClaudeSummarizeBody(prompt, summarizeSystemPrompt, options);
         } else if (this.adapterType === 'gemini') {
+            // Gemini's endpoint is the OpenAI-compat path
+            // (/v1beta/openai/chat/completions), so send OpenAI-format body.
+            // Previously built the native Gemini body (contents + systemInstruction
+            // + generationConfig), which the OpenAI-compat endpoint rejects with
+            // HTTP 400. Caught by persona round 10 multi-provider quality matrix
+            // (tag worked because it routes through adapter.formatRequest which
+            // is already OpenAI-format; summarize has its own path).
+            const modelName = this.adapter['config']?.modelName?.trim()
+                || PROVIDER_DEFAULT_MODEL.gemini;
             return {
-                contents: [
-                    {
-                        parts: [{ text: prompt }]
-                    }
+                model: modelName,
+                messages: [
+                    { role: 'system', content: summarizeSystemPrompt },
+                    { role: 'user', content: prompt }
                 ],
-                systemInstruction: {
-                    parts: [{ text: summarizeSystemPrompt }]
-                },
-                generationConfig: {
-                    maxOutputTokens: options?.maxTokens || 8192
-                }
+                max_tokens: options?.maxTokens || 8192
             };
         } else {
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
