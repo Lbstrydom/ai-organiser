@@ -44,19 +44,23 @@ async function digitiseImageCommand(
         return;
     }
 
-    // Ensure privacy consent for cloud provider (once upfront)
-    const serviceType = plugin.settings.serviceType === 'cloud'
-        ? plugin.settings.cloudServiceType
-        : plugin.settings.serviceType;
-    const proceed = await ensurePrivacyConsent(plugin, serviceType);
-    if (!proceed) return;
-
-    // Find target image(s)
+    // Find target image(s) FIRST — no point asking for privacy consent if
+    // there's nothing to digitise (persona round 7 error-audit P2: Maya was
+    // shown a privacy dialog on an empty note, only to be told "no image
+    // found" after approving).
     const imageFiles = await findTargetImages(plugin, visionService, editor, view);
     if (imageFiles.length === 0) {
         new Notice(plugin.t.digitisation?.noImageFound || 'No image found to digitise');
         return;
     }
+
+    // Ensure privacy consent for cloud provider (once upfront, only when we
+    // actually have work to do)
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : plugin.settings.serviceType;
+    const proceed = await ensurePrivacyConsent(plugin, serviceType);
+    if (!proceed) return;
 
     // Process each image sequentially
     for (let i = 0; i < imageFiles.length; i++) {
