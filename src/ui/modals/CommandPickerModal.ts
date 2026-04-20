@@ -738,6 +738,17 @@ export function buildCommandCategories(
 							callback: () => executeCommand('ai-organiser:chat-with-ai')
 						},
 						{
+							// Dedicated entry in Ask & Search (user feedback 2026-04-20).
+							// Also present under Refine → Active Note; from here users who
+							// think 'I want to chat to build slides' find it directly.
+							id: 'presentation-chat-from-ask',
+							name: t.commands.presentationChat,
+							icon: 'presentation',
+							description: desc.presentationChat || 'Build themed presentations from your notes',
+							aliases: ['presentation', 'slides', 'pptx', 'powerpoint', 'deck', 'slideshow', 'chat'],
+							callback: () => executeCommand('ai-organiser:presentation-chat')
+						},
+						{
 							id: 'semantic-search',
 							name: t.commands.searchSemanticVault,
 							icon: 'search',

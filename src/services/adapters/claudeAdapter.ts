@@ -127,7 +127,15 @@ export class ClaudeAdapter extends BaseAdapter {
         return {
             'Content-Type': 'application/json',
             'anthropic-version': this.anthropicVersion,
-            'x-api-key': this.config.apiKey
+            'x-api-key': this.config.apiKey,
+            // Required for browser / Electron clients — Anthropic's API
+            // returns a CORS preflight failure without it. Obsidian's
+            // requestUrl bypasses CORS natively (no preflight), but SSE
+            // streaming in this plugin uses globalThis.fetch() which DOES
+            // trigger a preflight. Without this header the presentation
+            // builder's streaming request fails with
+            // "blocked by CORS policy: No 'Access-Control-Allow-Origin'".
+            'anthropic-dangerous-direct-browser-access': 'true',
         };
     }
 

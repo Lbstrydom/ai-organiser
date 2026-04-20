@@ -93,13 +93,11 @@ async function callGeminiTts(apiKey: string, voice: string, text: string): Promi
                     prebuiltVoiceConfig: { voiceName: voice },
                 },
             },
-            // Lock audio format to match pcmToWav() assumptions (LINEAR16 @ 24kHz).
-            // Without audioConfig the API may return OPUS or a different sample rate,
-            // producing a corrupt WAV file.
-            audioConfig: {
-                audioEncoding: 'LINEAR16',
-                sampleRateHertz: WAV_SAMPLE_RATE,
-            },
+            // NOTE: no `audioConfig` field — that's Google Cloud TTS's schema.
+            // Gemini's generateContent endpoint returns LINEAR16 PCM @ 24kHz
+            // by default for TTS; adding audioConfig trips a 400 "unknown
+            // field". Persona round 11 console audit (2026-04-20) caught
+            // this: three "Request failed, status 400" warnings per run.
         },
     };
 
@@ -108,10 +106,14 @@ async function callGeminiTts(apiKey: string, voice: string, text: string): Promi
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        // Without throw:false, requestUrl auto-throws on 4xx/5xx with the
+        // cryptic "Request failed, status 400" and discards the body. Let us
+        // read the body so users see WHY Gemini rejected the payload.
+        throw: false,
     });
 
     if (response.status !== 200) {
-        throw new Error(`Gemini TTS error ${response.status}: ${response.text.slice(0, 200)}`);
+        throw new Error(`Gemini TTS error ${response.status}: ${response.text.slice(0, 300)}`);
     }
 
     // Validate response structure before accessing nested fields

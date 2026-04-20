@@ -80,6 +80,7 @@ describe('Command Picker', () => {
             const askSearch = vault!.commands.find(c => c.id === 'ask-search-group');
             expect(askSearch?.subCommands?.map(c => c.id)).toEqual([
                 'chat-with-ai',
+                'presentation-chat-from-ask',
                 'semantic-search'
             ]);
 
@@ -134,7 +135,8 @@ describe('Command Picker', () => {
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            expect(leafCount).toBe(38);
+            // 38 + 1 (presentation-chat surfaced under Ask & Search too — 2026-04-20)
+            expect(leafCount).toBe(39);
         });
 
         it('should include the expected unique command IDs across all leaf callbacks', () => {
@@ -185,6 +187,8 @@ describe('Command Picker', () => {
                 'ai-organiser:smart-translate',
                 'ai-organiser:web-reader',
             ]);
+            // presentation-chat is surfaced in two picker locations but only
+            // one unique command ID fires, so the unique set stays at 38.
             expect(uniqueExecutedCommands.size).toBe(38);
         });
     });

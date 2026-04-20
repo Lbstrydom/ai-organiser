@@ -2108,6 +2108,39 @@
     font-size: var(--font-ui-small);
 }
 
+/* ── Resume picker: collapsible history/projects sections ── */
+.ai-organiser-resume-collapsible {
+    margin-top: var(--size-4-3);
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: var(--size-4-2);
+}
+.ai-organiser-resume-collapsible > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: var(--size-4-2) 0;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    font-weight: var(--font-semibold);
+    user-select: none;
+}
+.ai-organiser-resume-collapsible > summary::-webkit-details-marker { display: none; }
+.ai-organiser-resume-collapsible > summary::before {
+    content: '▸ ';
+    display: inline-block;
+    width: 1em;
+    color: var(--text-faint);
+}
+.ai-organiser-resume-collapsible[open] > summary::before {
+    content: '▾ ';
+}
+.ai-organiser-resume-collapsible > summary:hover {
+    color: var(--text-normal);
+}
+.ai-organiser-resume-section-count {
+    color: var(--text-faint);
+    font-weight: normal;
+}
+
 /* ── Rename icon on conversation rows in resume picker ── */
 .ai-organiser-resume-conv-row {
     display: flex;
@@ -2286,49 +2319,18 @@
     background: color-mix(in srgb, var(--color-yellow) 10%, var(--background-primary));
 }
 
-.ai-organiser-free-chat-att-indexed {
-    font-size: var(--font-ui-smaller);
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-
-.ai-organiser-free-chat-att-indexed.is-partial {
-    color: var(--color-orange);
-}
-
-.ai-organiser-free-chat-att-pill.is-indexed {
-    border-color: var(--color-green);
-    background: color-mix(in srgb, var(--color-green) 8%, var(--background-primary));
-}
-
 .ai-organiser-free-chat-project-badge {
     font-size: var(--font-ui-small);
     color: var(--text-accent);
     margin-bottom: 4px;
 }
 
-/* === Indexing Choice Modal === */
-
-.ai-organiser-indexing-choice-modal {
-    max-width: 420px;
-}
+/* === Indexing Choice Modal (non-duplicate rules only; .modal / .stats /
+ * .btn selectors live further down where they were last written.) === */
 
 .ai-organiser-indexing-choice-modal h3 {
     margin-bottom: 8px;
     word-break: break-all;
-}
-
-.ai-organiser-indexing-choice-stats {
-    font-size: var(--font-ui-small);
-    color: var(--text-muted);
-    margin-bottom: 12px;
-}
-
-.ai-organiser-indexing-choice-btn {
-    display: block;
-    width: 100%;
-    margin-bottom: 8px;
-    text-align: left;
 }
 
 /* Folder scope row in Vault chat mode */
@@ -7069,10 +7071,11 @@
     transition: width 200ms ease;
 }
 
-/* Indexed badge */
+/* Indexed badge — canonical definition (earlier duplicate removed 2026-04-20) */
 .ai-organiser-free-chat-att-indexed {
     color: var(--text-muted);
     font-size: var(--font-smallest);
+    white-space: nowrap;
 }
 
 /* Indexed pill — subtle visual confirmation */

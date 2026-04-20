@@ -53,26 +53,9 @@ export class ChatResumePickerModal extends Modal {
             return;
         }
 
-        // Projects section
-        if (projects.length > 0) {
-            contentEl.createEl('div', { cls: 'ai-organiser-resume-section-header', text: this.t.resumeProjects });
-            for (const project of projects) {
-                await this.renderProjectRow(contentEl, project);
-            }
-            contentEl.createEl('div', { cls: 'ai-organiser-resume-divider' });
-        }
-
-        // Recent conversations section
-        const unfiled = conversations.filter(c => !c.projectId);
-        if (unfiled.length > 0) {
-            contentEl.createEl('div', { cls: 'ai-organiser-resume-section-header', text: this.t.resumeRecent });
-            for (const conv of unfiled) {
-                this.renderConversationRow(contentEl, conv);
-            }
-            contentEl.createEl('div', { cls: 'ai-organiser-resume-divider' });
-        }
-
-        // New / Create project actions
+        // 1. Action rows at the TOP (user feedback 2026-04-20 — mirrors the
+        //    Claude / ChatGPT web pattern: "start something new" is the
+        //    primary affordance, history is the reference shelf below).
         const newBtn = contentEl.createDiv({ cls: 'ai-organiser-resume-action-row' });
         setIcon(newBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'message-square-plus');
         newBtn.createSpan({ text: this.t.resumeNewConversation });
@@ -93,6 +76,36 @@ export class ChatResumePickerModal extends Modal {
         setIcon(newProjectBtn.createSpan({ cls: 'ai-organiser-resume-row-icon' }), 'folder-plus');
         newProjectBtn.createSpan({ text: this.t.resumeNewProject });
         newProjectBtn.addEventListener('click', () => { void this.handleCreateProject(); });
+
+        // 2. Projects — collapsible <details>, collapsed by default so history
+        //    doesn't compete visually with the new-action buttons above.
+        if (projects.length > 0) {
+            const details = contentEl.createEl('details', { cls: 'ai-organiser-resume-collapsible' });
+            const summary = details.createEl('summary', { cls: 'ai-organiser-resume-section-header' });
+            summary.createSpan({ text: this.t.resumeProjects });
+            summary.createSpan({
+                cls: 'ai-organiser-resume-section-count',
+                text: ` (${projects.length})`,
+            });
+            for (const project of projects) {
+                await this.renderProjectRow(details, project);
+            }
+        }
+
+        // 3. Recent conversations — collapsible, collapsed by default.
+        const unfiled = conversations.filter(c => !c.projectId);
+        if (unfiled.length > 0) {
+            const details = contentEl.createEl('details', { cls: 'ai-organiser-resume-collapsible' });
+            const summary = details.createEl('summary', { cls: 'ai-organiser-resume-section-header' });
+            summary.createSpan({ text: this.t.resumeRecent });
+            summary.createSpan({
+                cls: 'ai-organiser-resume-section-count',
+                text: ` (${unfiled.length})`,
+            });
+            for (const conv of unfiled) {
+                this.renderConversationRow(details, conv);
+            }
+        }
 
         // Keyboard navigation
         this.setupKeyboardNav(contentEl);
