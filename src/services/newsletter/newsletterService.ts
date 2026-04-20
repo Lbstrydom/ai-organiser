@@ -6,7 +6,7 @@
  * and generates digest + individual notes in the vault.
  */
 
-import { normalizePath, requestUrl, TAbstractFile, TFile } from 'obsidian';
+import { Notice, normalizePath, requestUrl, TAbstractFile, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import type { RawNewsletter, ProcessedNewsletter, NewsletterFetchResult } from './newsletterTypes';
@@ -418,7 +418,15 @@ export class NewsletterService {
         return normalizePath(`${folder}/${baseName}-${shortHash}.md`);
     }
 
-    /** Build full digest markdown from scratch. */
+    /** Build full digest markdown from scratch.
+     *
+     * The digest intentionally does NOT repeat each newsletter's triage as a
+     * separate H2 section — the Daily Brief synthesises them across sources
+     * with inline attribution. Instead we emit a compact `## Sources` list
+     * of links to the individual newsletter notes so users can still drill
+     * down. User feedback (2026-04-20): the per-section layout duplicated
+     * what the brief already captured and buried the synthesis below the fold.
+     */
     private buildDigestContent(
         newsletters: ProcessedNewsletter[],
         dateStr: string,
@@ -436,39 +444,41 @@ export class NewsletterService {
             '',
             `# Newsletter Digest — ${dateLabel}`,
             '',
+            // Placeholder for the Daily Brief block. mergeOrPrependBrief()
+            // finds and fills this after LLM synthesis completes; if the
+            // synthesis fails the placeholder stays so users know where the
+            // brief will appear once re-run.
+            '<!-- DAILY_BRIEF_START -->',
+            '## Daily Brief',
+            '',
+            '*Synthesising…*',
+            '',
+            '<!-- DAILY_BRIEF_END -->',
+            '',
+            '## Sources',
+            '',
         ];
 
         for (const nl of newsletters) {
-            lines.push(...this.buildDigestEntry(nl, dateStr));
+            lines.push(this.buildSourceLink(nl, dateStr));
         }
+        lines.push('');
 
         return lines.join('\n');
     }
 
-    /** Build a single digest entry block. */
-    private buildDigestEntry(nl: ProcessedNewsletter, dateStr: string): string[] {
-        // Use resolved unique path if available, else derive from sender/subject
+    /** Build a single source-list entry: one-line link with sender. */
+    private buildSourceLink(nl: ProcessedNewsletter, dateStr: string): string {
         const resolvedPath = nl._resolvedPath;
         const linkTarget = resolvedPath
             ? resolvedPath.split('/').slice(-2).join('/').replace(/\.md$/, '')
             : `${dateStr}/${sanitizeFileName(nl.senderName || nl.subject)}`;
-        const summaryLine = nl.extractionFailed
-            ? '⚠️ *Content could not be extracted — open the raw note to read manually.*'
-            : (nl.triage || '(No summary available)');
-        return [
-            `## ${nl.senderName || nl.subject}`,
-            `*From: ${nl.from}*`,
-            '',
-            summaryLine,
-            '',
-            `**[[${linkTarget}|Read full]]** · *Summarize*`,
-            '',
-            '---',
-            '',
-        ];
+        const display = nl.senderName || nl.subject;
+        const suffix = nl.extractionFailed ? ' ⚠️ *(extraction failed)*' : '';
+        return `- [[${linkTarget}|${display}]]${suffix}`;
     }
 
-    /** Merge new entries into an existing digest, updating frontmatter count. */
+    /** Merge new source links into an existing digest, updating frontmatter count. */
     private async mergeIntoExistingDigest(
         file: TFile,
         newsletters: ProcessedNewsletter[],
@@ -489,20 +499,41 @@ export class NewsletterService {
             `newsletter_count: ${newCount}`
         );
 
-        // Build new entries, skipping any whose note path already appears in the digest
-        const newEntries = newsletters
+        // Build new source links, skipping any whose note path already appears in the digest
+        const newLinks = newsletters
             .filter(nl => {
                 if (!nl._resolvedPath) return true;
                 const linkSlug = nl._resolvedPath.split('/').slice(-2).join('/').replace(/\.md$/, '');
                 return !updated.includes(`[[${linkSlug}`);
             })
-            .map(nl => this.buildDigestEntry(nl, dateStr).join('\n'))
-            .join('\n');
+            .map(nl => this.buildSourceLink(nl, dateStr));
 
-        if (!newEntries.trim()) return;
+        if (newLinks.length === 0) {
+            await vault.modify(file, updated);
+            return;
+        }
 
-        // Append new entries at the end (after trimming trailing whitespace)
-        updated = updated.trimEnd() + '\n\n' + newEntries;
+        // Append into the existing `## Sources` section if present. Otherwise
+        // append it to the end (legacy digests written before 2026-04-20 had
+        // per-newsletter H2 sections and no Sources block — append conservatively).
+        const sourcesHeaderRegex = /^## Sources\s*$/m;
+        if (sourcesHeaderRegex.test(updated)) {
+            // Find the Sources section + append inside it (after any existing links, before next ##)
+            const headerMatch = sourcesHeaderRegex.exec(updated);
+            if (headerMatch) {
+                const headerEnd = (headerMatch.index ?? 0) + headerMatch[0].length;
+                const afterHeader = updated.slice(headerEnd);
+                const nextSectionMatch = /\n## /m.exec(afterHeader);
+                const sectionEnd = nextSectionMatch
+                    ? headerEnd + nextSectionMatch.index
+                    : updated.length;
+                const before = updated.slice(0, sectionEnd).trimEnd();
+                const after = updated.slice(sectionEnd);
+                updated = before + '\n' + newLinks.join('\n') + '\n' + (after ? after : '');
+            }
+        } else {
+            updated = updated.trimEnd() + '\n\n## Sources\n\n' + newLinks.join('\n') + '\n';
+        }
 
         await vault.modify(file, updated);
     }
@@ -568,14 +599,28 @@ export class NewsletterService {
 
     private async generateAudioForBrief(brief: string, outputRoot: string, dateStr: string): Promise<void> {
         try {
-            // Resolve Gemini API key: provider-specific key → main key if cloudServiceType=gemini
+            // Resolve Gemini API key:
+            //   1. SecretStorage 'gemini' provider key (primary — this is where
+            //      Obsidian keys live for most users)
+            //   2. providerSettings.gemini.apiKey (legacy plain-text fallback)
+            //   3. cloudApiKey (only when main provider IS Gemini)
+            //
+            // Before this fix, we skipped SecretStorage entirely — so users whose
+            // Gemini key was in SecretStorage (the Obsidian-recommended path) but
+            // whose main provider was something else got a silent "skipped" log
+            // with no audio output. The feature looked broken.
             const settings = this.plugin.settings;
+            const secretKey = this.plugin.secretStorageService.isAvailable()
+                ? await this.plugin.secretStorageService.getProviderKey('gemini')
+                : null;
             const geminiApiKey =
+                secretKey ||
                 settings.providerSettings?.['gemini']?.apiKey ||
                 (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
                 '';
             if (!geminiApiKey) {
-                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured');
+                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
+                new Notice('Audio podcast skipped — add a gemini key in settings to enable', 6000);
                 return;
             }
 

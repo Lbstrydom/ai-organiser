@@ -200,8 +200,12 @@ describe('NewsletterService integration', () => {
 
             const digestEntry = [...vault.files.entries()].find(([k]) => k.includes('Digest'));
             const digestContent = digestEntry![1].content;
+            // Post-2026-04-20 digest emits a `## Sources` list instead of
+            // per-newsletter `## Name` sections with "Read full" links.
             expect(digestContent).toContain('Morning Brew');
-            expect(digestContent).toContain('Read full');
+            expect(digestContent).toContain('## Sources');
+            // Should have wiki-links to both newsletters
+            expect(digestContent).toMatch(/\[\[[^\]]*Morning Brew[^\]]*\|[^\]]+\]\]/);
         });
     });
 
@@ -233,9 +237,11 @@ describe('NewsletterService integration', () => {
 
             const digestEntry = [...vault.files.entries()].find(([k]) => k.includes('Digest'));
             const digestContent = digestEntry![1].content;
-            const readFullLinks = digestContent.match(/\[\[.*?\|Read full\]\]/g) || [];
-            expect(readFullLinks.length).toBe(2);
-            expect(new Set(readFullLinks).size).toBe(2);
+            // Post-2026-04-20 digest uses `## Sources` list: `- [[path|Name]]`
+            // — one line per newsletter, no "Read full" label.
+            const sourceLinks = digestContent.match(/^- \[\[[^\]]+\|[^\]]+\]\]/gm) || [];
+            expect(sourceLinks.length).toBe(2);
+            expect(new Set(sourceLinks).size).toBe(2);
         });
 
         it('retry of same message targets the same file (idempotent)', async () => {
