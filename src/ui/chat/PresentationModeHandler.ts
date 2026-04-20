@@ -170,14 +170,16 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    async buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
+    buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
         if (this.mutationLock) {
-            return { prompt: '', directResponse: 'Please wait for the current operation to complete.' };
+            return Promise.resolve({ prompt: '', directResponse: 'Please wait for the current operation to complete.' });
         }
 
         // Use streamingSetup so we can bubble phase messages into the
         // chat "Thinking…" placeholder during long generation/refinement.
-        return {
+        // The streamingSetup.start callback is where all async work happens,
+        // so this outer method doesn't need to be async itself.
+        return Promise.resolve({
             prompt: '',
             streamingSetup: {
                 start: async (streamCb) => {
@@ -275,7 +277,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     }
                 },
             },
-        };
+        });
     }
 
     getActionDescriptors(_t: Translations): ActionDescriptor[] {

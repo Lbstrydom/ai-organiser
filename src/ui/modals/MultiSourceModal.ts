@@ -302,19 +302,24 @@ export class MultiSourceModal extends Modal {
         // fold. Persona test (Maya) flagged this as P1 — 2026-04-19.
         if (nonEmptyCount > 0 && emptyCount > 0) {
             this.sectionsContainer.addClass('ai-organiser-multi-source-compact');
+            // Leading ± symbols live in the UI layer, not the translation.
+            // The Obsidian review bot flags them as sentence-case violations
+            // when they're embedded in locale strings.
+            const addLabel = `+ ${t?.addOtherSources || 'Add other source types'}`;
+            const hideLabel = `\u2212 ${t?.hideOtherSources || 'Hide other source types'}`;
             const disclosure = this.sectionsContainer.createEl('button', {
                 cls: 'ai-organiser-multi-source-extras-toggle',
-                text: t?.addOtherSources || '+ Add other source types',
+                text: addLabel,
                 attr: { type: 'button' }
             });
             disclosure.addEventListener('click', () => {
                 const expanded = this.sectionsContainer.hasClass('ai-organiser-multi-source-compact');
                 if (expanded) {
                     this.sectionsContainer.removeClass('ai-organiser-multi-source-compact');
-                    disclosure.setText(t?.hideOtherSources || '− Hide other source types');
+                    disclosure.setText(hideLabel);
                 } else {
                     this.sectionsContainer.addClass('ai-organiser-multi-source-compact');
-                    disclosure.setText(t?.addOtherSources || '+ Add other source types');
+                    disclosure.setText(addLabel);
                 }
             });
         }
