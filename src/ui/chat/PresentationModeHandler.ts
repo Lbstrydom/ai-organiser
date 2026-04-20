@@ -285,17 +285,21 @@ export class PresentationModeHandler implements ChatModeHandler {
         const ready = this.phase === 'preview-ready';
         const locked = this.mutationLock;
 
+        // Export HTML is the primary CTA: the HTML note is the editable
+        // intermediate form users iterate on via chat. PPTX is a terminal
+        // export for when they're finished refining. (User feedback 2026-04-20.)
         const actions: ActionDescriptor[] = [
             {
-                id: 'export-pptx',
-                labelKey: 'Export PPTX',
-                tooltipKey: 'Export as editable PowerPoint file via dom-to-pptx',
+                id: 'export-html',
+                labelKey: 'Save as HTML note',
+                tooltipKey: 'Save as a self-contained HTML note — keep chatting to refine, then export when finished',
                 isEnabled: hasDeck && ready && !locked,
+                isDefault: true,
             },
             {
-                id: 'export-html',
-                labelKey: 'Export HTML',
-                tooltipKey: 'Save as self-contained HTML presentation',
+                id: 'export-pptx',
+                labelKey: 'Export to PPTX',
+                tooltipKey: 'Final export to editable PowerPoint file',
                 isEnabled: hasDeck && ready && !locked,
             },
         ];

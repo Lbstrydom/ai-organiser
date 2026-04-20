@@ -2392,6 +2392,18 @@
 
 .ai-organiser-chat-msg-content {
     line-height: 1.5;
+    /* Obsidian's modal chrome sets user-select: none on the overall modal.
+     * Chat messages are real content users want to copy, so override. */
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+
+.ai-organiser-chat-msg-user,
+.ai-organiser-chat-msg-assistant,
+.ai-organiser-chat-msg-system {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .ai-organiser-chat-msg-content > p:first-child { margin-top: 0; }
