@@ -62,6 +62,43 @@ export interface StreamingCallbacks {
      *  handler can surface phase transitions (e.g. "Searching web…" →
      *  "Extracting from 3 sources…" → "Synthesising…") during a long run. */
     updateThinking?(message: string): void;
+    /** Optional: render an inline cancel button inside the thinking
+     *  indicator so long-running operations have an escape hatch without
+     *  the user navigating away. Called once when the progress UI becomes
+     *  active — repeated calls replace the listener (idempotent). */
+    showCancelButton?(onCancel: () => void): void;
+    /** Optional: split-DOM slide-count progress for presentation mode.
+     *  `slideCountFragment` is announced by screen readers (aria-live polite);
+     *  `elapsedFragment` ticks silently (aria-hidden). Split keeps SR
+     *  announcements scoped to structural changes — see plan §3 ARIA. */
+    updateProgressSplit?(slideCountFragment: string, elapsedFragment: string): void;
+    /** Optional: prompt the user to extend the generation budget when the
+     *  soft budget fires. Modal renders the inline extend card and resolves
+     *  the returned Promise. Handler inspects the resolution:
+     *   - 'extend'  → continue generation (hard cap still applies)
+     *   - 'cancel'  → HANDLER calls abort() (modal does NOT abort)
+     *  When the card is auto-dismissed by a terminal state (completion /
+     *  hard cap), it resolves 'cancel' idempotently with no side-effect.
+     *
+     *  `onRegisterCancelHook` gives the controller a way to force-dismiss
+     *  the card on terminal state (see plan §4 race protocol, sources 4-5). */
+    requestBudgetExtension?(context: {
+        elapsedMs: number;
+        softBudgetMs: number;
+        /** Hard cap for the active operation. The modal uses
+         *  (hardBudgetMs - softBudgetMs) to derive the "+N min" extend
+         *  display, keeping i18n copy aligned with the actual budgets
+         *  without an independent EXTEND_BUDGET_MS constant. */
+        hardBudgetMs: number;
+        /** Optional per-handler copy overrides. If omitted, the modal
+         *  falls back to the generic presentation-era copy
+         *  (extendBudgetTitle + extendBudgetBody). Research and Minutes
+         *  pass their own pre-resolved strings to get domain-framed text
+         *  without duplicating the card DOM. */
+        title?: string;
+        body?: string;
+        onRegisterCancelHook?: (cancel: () => void) => void;
+    }): Promise<'extend' | 'cancel' | 'auto-dismiss'>;
 }
 
 /** Result returned by a streaming handler after the stream completes. */

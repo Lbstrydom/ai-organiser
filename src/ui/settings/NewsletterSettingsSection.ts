@@ -308,6 +308,26 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                             this.plugin.settings.newsletterPodcastMaxMins = value;
                             void this.plugin.saveSettings();
                         }));
+
+                // Manual "Regenerate audio for today" button — lets users
+                // trigger TTS against today's existing Daily Brief without
+                // waiting for a new fetch (needed when audio toggle was
+                // turned on AFTER today's brief already ran, or to re-render
+                // with a different voice).
+                new Setting(this.containerEl)
+                    .setName(nl?.audioRegenerateForToday || 'Regenerate audio for today')
+                    .setDesc(nl?.audioRegenerateForTodayDesc || 'Use today\'s existing Daily Brief to produce a fresh audio podcast.')
+                    .addButton(btn => btn
+                        .setButtonText(nl?.audioRegenerateButton || 'Regenerate now')
+                        .onClick(async () => {
+                            const { runRegenerateAudio } = await import('../../commands/newsletterCommands');
+                            btn.setDisabled(true).setButtonText('…');
+                            try {
+                                await runRegenerateAudio(this.plugin);
+                            } finally {
+                                btn.setDisabled(false).setButtonText(nl?.audioRegenerateButton || 'Regenerate now');
+                            }
+                        }));
             }
 
             new Setting(this.containerEl)

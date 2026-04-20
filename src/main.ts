@@ -43,8 +43,12 @@ import { TaxonomyGuardrailService } from './services/taxonomyGuardrailService';
 import { MermaidChangeDetector } from './services/mermaidChangeDetector';
 import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
+import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
 import { NewsletterService, LAST_FETCH_DATA_KEY } from './services/newsletter/newsletterService';
 import { showNewsletterFetchResultNotice } from './commands/newsletterCommands';
+import { LongRunningOpController } from './services/longRunningOp/progressController';
+import { computeSmartTagBudget } from './services/smartTagBudgets';
+import { createTagProgressStatusBar } from './ui/components/TagProgressStatusBar';
 
 export default class AIOrganiserPlugin extends Plugin {
     public settings = {...DEFAULT_SETTINGS};
@@ -466,6 +470,11 @@ export default class AIOrganiserPlugin extends Plugin {
         registerCommands(this);
         this.startNewsletterScheduler();
 
+        // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
+        // a small playback-speed toolbar (0.75×…2×). Obsidian's default
+        // controls expose no speed UI despite the browser supporting it.
+        this.registerMarkdownPostProcessor((el) => enhanceAudioPlayersIn(el));
+
         // Register tag network view
         this.registerView(
             TAG_NETWORK_VIEW_TYPE,
@@ -843,43 +852,78 @@ export default class AIOrganiserPlugin extends Plugin {
     public async analyzeAndTagFiles(files: TFile[]): Promise<void> {
         if (!files?.length) return;
 
-        const statusNotice = new Notice(`Analyzing ${files.length} files...`, 0);
-        // Start collecting novel disciplines for batch suggest-back
         this.novelDisciplineCollector = new Set();
 
-        try {
-            let processed = 0, successful = 0;
-            let lastNotice = Date.now();
+        const t = this.t.smartTag;
+        const budget = computeSmartTagBudget(files.length);
+        const hardMinutes = Math.round(budget.hardBudgetMs / 60_000);
+        const abortController = new AbortController();
 
+        const statusBar = createTagProgressStatusBar(this, () => {
+            if (!abortController.signal.aborted) abortController.abort();
+        });
+        statusBar.update(0, files.length, 0);
+
+        const startedAt = Date.now();
+        const controller = new LongRunningOpController({
+            softBudgetMs: budget.softBudgetMs,
+            hardBudgetMs: budget.hardBudgetMs,
+            expected: files.length,
+            abortController,
+            onSoftBudget: (elapsedMs) => {
+                const msg = (t?.softBudgetNotice || 'Still tagging — {elapsed} elapsed (hard cap {hardMinutes}m)')
+                    .replace('{elapsed}', formatElapsedForNotice(elapsedMs))
+                    .replace('{hardMinutes}', String(hardMinutes));
+                new Notice(msg, 6000);
+            },
+            onHardBudget: () => {
+                const msg = (t?.hardCapped || 'Tagging exceeded the {budgetMinutes}-minute budget; stopped after {done} of {total} files')
+                    .replace('{budgetMinutes}', String(hardMinutes))
+                    .replace('{done}', String(controller.getLastProgress()))
+                    .replace('{total}', String(files.length));
+                new Notice(msg, 8000);
+            },
+        });
+
+        let processed = 0, successful = 0;
+        let aborted = false;
+        try {
             for (const file of files) {
+                if (abortController.signal.aborted) { aborted = true; break; }
                 try {
                     const content = await this.app.vault.read(file);
-                    if (!content.trim()) continue;
+                    if (!content.trim()) { processed++; controller.recordProgress(processed); statusBar.update(processed, files.length, Date.now() - startedAt); continue; }
 
                     const result = await this.analyzeAndTagNote(file, content);
 
                     if (result.success) { successful++; }
                     this.handleTagUpdateResult(result, true);
-                    processed++;
-
-                    if (Date.now() - lastNotice >= 15000) {
-                        new Notice(`Progress: ${processed}/${files.length} files processed`, 3000);
-                        lastNotice = Date.now();
-                    }
                 } catch {
                     new Notice(`Error processing ${file.path}`, 4000);
                 }
+                processed++;
+                controller.recordProgress(processed);
+                statusBar.update(processed, files.length, Date.now() - startedAt);
             }
 
-            // Suggest-back novel disciplines at end of batch
-            await this.suggestBackNovelDisciplines();
-
-            new Notice(`Successfully tagged ${successful} out of ${files.length} files`, 4000);
+            if (aborted) {
+                const msg = (t?.cancelled || 'Tagging cancelled — {done} of {total} done')
+                    .replace('{done}', String(processed))
+                    .replace('{total}', String(files.length));
+                new Notice(msg, 4000);
+            } else {
+                await this.suggestBackNovelDisciplines();
+                const msg = (t?.complete || 'Tagging complete — {successful} of {total} tagged')
+                    .replace('{successful}', String(successful))
+                    .replace('{total}', String(files.length));
+                new Notice(msg, 4000);
+            }
         } catch {
             new Notice('Failed to complete batch processing', 4000);
         } finally {
             this.novelDisciplineCollector = null;
-            statusNotice.hide();
+            controller.dispose();
+            statusBar.dispose();
         }
     }
 
@@ -1166,4 +1210,11 @@ export default class AIOrganiserPlugin extends Plugin {
             new Notice(`${this.t.messages.failedToApplySuggestions || 'Failed to apply suggestions'}: ${errorMessage}`, 4000);
         }
     }
+}
+
+function formatElapsedForNotice(ms: number): string {
+    const totalSec = Math.floor(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return min > 0 ? `${min}m ${sec.toString().padStart(2, '0')}s` : `${sec}s`;
 }

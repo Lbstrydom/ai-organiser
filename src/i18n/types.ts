@@ -544,6 +544,13 @@ export interface Translations {
             dailyBriefDesc: string;
             audioPodcast: string;
             audioPodcastDesc: string;
+            audioPodcastOffNotice: string;
+            audioRegenerating: string;
+            audioRegenerated: string;
+            audioRegenerateFailed: string;
+            audioRegenerateForToday: string;
+            audioRegenerateForTodayDesc: string;
+            audioRegenerateButton: string;
             podcastVoice: string;
             podcastVoiceDesc: string;
             podcastVoiceCharon: string;
@@ -850,6 +857,7 @@ export interface Translations {
         webReader: string;
         kindleSync: string;
         newsletterFetch: string;
+        newsletterRegenerateAudio: string;
         digitiseImage: string;
         newSketch: string;
         researchWeb: string;
@@ -2021,7 +2029,38 @@ export interface Translations {
             modePresentation: string;
             introPresentation: string;
             placeholderPresentation: string;
+            placeholderPresentationRefine: string;
             presentationUnavailable: string;
+            // Phase labels (previously hardcoded in PresentationModeHandler) —
+            // both the side-panel status text and the thinking-indicator bubble
+            // use these keys (F4 follow-up).
+            phaseGenerating: string;
+            phaseRefining: string;
+            phaseAuditing: string;
+            phaseExporting: string;
+            presentationBusy: string;
+            // Research extend-card copy (Phase 3 port of soft/hard budget UX) —
+            // reuses the generic extend-card DOM but with research-specific
+            // framing.
+            researchExtendBudgetTitle: string;
+            researchExtendBudgetBody: string;
+            researchCancelled: string;
+            researchHardCapped: string;
+            // === Presentation progress UX (Plan: presentation-progress-ux) ===
+            // Split into two fragments — plan §3 ARIA. Slide-count fragment is
+            // announced by SR (aria-live="polite"), elapsed fragment is
+            // aria-hidden and ticks silently.
+            presentationProgress: string;        // "Slide {current} of {expected}"
+            presentationProgressNoTotal: string; // "Slide {current}"
+            presentationStarting: string;        // "Starting generation…"
+            presentationElapsedSeconds: string;  // "· {elapsed}s"
+            extendBudgetTitle: string;           // "Still generating"
+            extendBudgetBody: string;            // see en.ts
+            extendBudgetConfirm: string;         // "Extend +{extendMinutes} min"
+            extendBudgetCancel: string;          // "Cancel"
+            generationCancelled: string;         // "Generation cancelled."
+            generationHardCapped: string;        // see en.ts
+            cancelGeneration: string;            // Cancel button aria-label
             // Attachments
             freeAttachPickerPlaceholder: string;
             freeAttachExternalFailed: string;
@@ -2129,6 +2168,7 @@ export interface Translations {
                 kindleSync: string;
                 newsletter: string;
                 newsletterFetch: string;
+                newsletterRegenerateAudio: string;
                 newSketch: string;
                 askSearchGroup: string;
                 chatWithAI: string;
@@ -2439,6 +2479,13 @@ export interface Translations {
         submitButton: string;
         generating: string;
         generatingChunk: string;
+        // Phase 4 — progress/cancel/budget copy for chunked minutes
+        progressChunkOf: string;       // "Chunk {current} of {total} · {elapsed}"
+        progressElapsed: string;       // "{elapsed}"  (pre-first-chunk)
+        cancelButton: string;          // "Cancel"
+        cancelled: string;             // "Minutes generation cancelled."
+        softBudgetNotice: string;      // "Still going — {elapsed} elapsed (hard cap at {hardMinutes}m)"
+        hardCapped: string;            // "Minutes generation exceeded the {budgetMinutes}-minute budget and was cancelled. Try shorter transcripts or split into parts."
         intermediateConsolidation: string;
         consolidating: string;
         extractingStyle: string;
@@ -2541,6 +2588,18 @@ export interface Translations {
         transcriptIncompleteAgenda: string;
         cancelLabel: string;
         proceedAnyway: string;
+    };
+    // Phase 5 — Smart Tag batch progress copy. Lives top-level so commands
+    // + status-bar component + notices can all reach it.
+    smartTag: {
+        progressStarting: string;       // "Tagging…" (pre-first-item)
+        progressLabel: string;          // "Tagging {current}/{total} · {elapsed}"
+        cancelLabel: string;            // aria-label on the × button
+        cancelMobileHint: string;       // "Tap here to cancel tagging"
+        cancelled: string;              // "Tagging cancelled — {done} of {total} done"
+        softBudgetNotice: string;       // "Still running — {elapsed} elapsed (hard cap {hardMinutes}m)"
+        hardCapped: string;             // "Tagging exceeded {budgetMinutes}-min budget; stopped after {done} of {total}"
+        complete: string;               // "Tagging complete — {successful} of {total} tagged"
     };
     integration: {
         resolveEmbeds: string;

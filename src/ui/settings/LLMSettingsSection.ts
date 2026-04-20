@@ -3,6 +3,12 @@ import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from '../../services/adapters/providerRegistry';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
+import { claudeSupportsAdaptiveThinking } from '../../services/adapters/modelCapabilities';
+import {
+    getCachedModels,
+    getLiveModels,
+    providerSupportsLiveFetch,
+} from '../../services/adapters/dynamicModelService';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 
@@ -322,30 +328,68 @@ export class LLMSettingsSection extends BaseSettingSection {
         if (hasModels) {
             const models = providerModels;
             const defaultModel = PROVIDER_DEFAULT_MODEL[serviceType];
+
+            // Merge any live-fetched models into the static list (live wins
+            // on label; new IDs are appended). Lets users pick models that
+            // shipped after the bundled registry snapshot.
+            const cachedLive = getCachedModels(serviceType);
+            const mergedModels: Record<string, string> = { ...models };
+            if (cachedLive) {
+                for (const m of cachedLive) {
+                    if (!(m.id in mergedModels)) {
+                        mergedModels[m.id] = m.label ?? m.id;
+                    } else if (m.label) {
+                        mergedModels[m.id] = m.label;
+                    }
+                }
+            }
+
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.modelName)
-                .setDesc(this.plugin.t.settings.llm.modelNameDesc)
+                .setDesc(this.plugin.t.settings.llm.modelNameDesc
+                    + (cachedLive ? ` (${cachedLive.length} live models cached)` : ''))
                 .addDropdown(dropdown => {
-                    // Add all models to dropdown
-                    for (const [modelId, displayName] of Object.entries(models)) {
+                    for (const [modelId, displayName] of Object.entries(mergedModels)) {
                         dropdown.addOption(modelId, displayName);
                     }
-
-                    // Set current value (default if not in list)
                     const currentModel = this.plugin.settings.cloudModel;
-                    if (models[currentModel]) {
+                    if (mergedModels[currentModel]) {
                         dropdown.setValue(currentModel);
                     } else {
                         dropdown.setValue(defaultModel);
                     }
-
                     dropdown.onChange((value) => {
                         this.plugin.settings.cloudModel = value;
                         void this.plugin.saveSettings();
-                        // Re-render to show/hide thinking mode dropdown
                         this.settingTab.display();
                     });
                 });
+
+            // "Refresh models from provider" — fetches live catalog, merges,
+            // and re-renders. Only shown for providers whose API exposes a
+            // /models endpoint (Claude, OpenAI, Gemini, Groq, DeepSeek,
+            // OpenRouter).
+            if (providerSupportsLiveFetch(serviceType)) {
+                new Setting(this.containerEl)
+                    .setName('Refresh models from provider')
+                    .setDesc('Fetch the live catalog from the provider\'s API. Newer models published after this plugin shipped will appear in the dropdown. `latest-*` selections pick up new releases automatically on the next refresh.')
+                    .addButton(btn => btn
+                        .setButtonText('Refresh now')
+                        .onClick(async () => {
+                            btn.setDisabled(true).setButtonText('Fetching…');
+                            try {
+                                const key = this.plugin.settings.cloudApiKey;
+                                const live = await getLiveModels(serviceType, key, { forceRefresh: true });
+                                new Notice(`Fetched ${live.length} models from ${serviceType}.`, 4000);
+                                this.settingTab.display();
+                            } catch (err) {
+                                const msg = err instanceof Error ? err.message : String(err);
+                                new Notice(`Model refresh failed: ${msg}`, 6000);
+                            } finally {
+                                btn.setDisabled(false).setButtonText('Refresh now');
+                            }
+                        }));
+            }
         } else {
             // For other providers, use text input with placeholder hints
             // Use centralized default model placeholders
@@ -362,8 +406,10 @@ export class LLMSettingsSection extends BaseSettingSection {
                     }));
         }
 
-        // Show thinking mode dropdown for Claude models that support adaptive thinking (Opus 4.6, Sonnet 4.6)
-        if (serviceType === 'claude' && (this.plugin.settings.cloudModel.startsWith('claude-opus-4-6') || this.plugin.settings.cloudModel.startsWith('claude-sonnet-4-6'))) {
+        // Show thinking mode dropdown for Claude models that support adaptive
+        // thinking. Capability gated by family+version pattern — new releases
+        // (Opus 4.8, 5.0, …) are picked up automatically.
+        if (serviceType === 'claude' && claudeSupportsAdaptiveThinking(this.plugin.settings.cloudModel)) {
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.thinkingMode)
                 .setDesc(this.plugin.t.settings.llm.thinkingModeDesc)

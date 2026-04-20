@@ -2,6 +2,8 @@
  * Token Limits for LLM Providers
  */
 
+import { claudeHas1MContext } from './adapters/modelCapabilities';
+
 export interface ProviderLimits {
     maxInputTokens: number;
     maxOutputTokens: number;
@@ -23,17 +25,21 @@ const PROMPT_OVERHEAD_TOKENS = 500;
 const OUTPUT_RESERVE_TOKENS = 2000;
 
 /**
- * Model-specific input token overrides.
- * Keyed by model-name prefix — first matching prefix wins.
- * Only needed where a provider has models with different context windows.
+ * Model-specific input token resolver. Capability-gated by family+version
+ * pattern rather than hardcoded IDs — so future Claude releases (Opus 4.8,
+ * 5.0, Sonnet 4.7, …) pick up the 1M window automatically without edits.
+ * Add new providers here as they evolve context-window tiers per model.
  */
-const MODEL_INPUT_TOKEN_OVERRIDES: Record<string, Record<string, number>> = {
-    claude: {
-        'claude-opus-4-6':   1_000_000,
-        'claude-sonnet-4-6': 1_000_000,
-        // All other Claude models fall through to PROVIDER_LIMITS (200K)
-    },
-};
+function getModelInputTokens(provider: string, model: string | undefined): number | null {
+    if (!model) return null;
+    if (provider.toLowerCase() === 'claude' && claudeHas1MContext(model)) {
+        return 1_000_000;
+    }
+    // Add other providers here as they ship larger context models:
+    //   - OpenAI: gpt-5.2 family has 400K; gate via parseOpenAIModel if needed
+    //   - Gemini: 2.5+ has 1M; already reflected in PROVIDER_LIMITS default
+    return null;
+}
 
 /**
  * Get the maximum content characters allowed for a provider
@@ -50,20 +56,8 @@ export function getMaxContentChars(provider: string): number {
  */
 export function getMaxContentCharsForModel(provider: string, model?: string): number {
     const baseLimits = PROVIDER_LIMITS[provider.toLowerCase()] || PROVIDER_LIMITS['local'];
-    let inputTokens = baseLimits.maxInputTokens;
-
-    if (model) {
-        const overrides = MODEL_INPUT_TOKEN_OVERRIDES[provider.toLowerCase()];
-        if (overrides) {
-            for (const [prefix, tokens] of Object.entries(overrides)) {
-                if (model.startsWith(prefix)) {
-                    inputTokens = tokens;
-                    break;
-                }
-            }
-        }
-    }
-
+    const modelOverride = getModelInputTokens(provider, model);
+    const inputTokens = modelOverride ?? baseLimits.maxInputTokens;
     const available = inputTokens - PROMPT_OVERHEAD_TOKENS - OUTPUT_RESERVE_TOKENS;
     return available * baseLimits.charsPerToken;
 }

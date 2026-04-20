@@ -3,6 +3,9 @@ import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
+import { claudeSupportsAdaptiveThinking, resolveLatestModel } from './adapters/modelCapabilities';
+import { PROVIDER_MODELS } from './adapters/modelRegistry';
+import { getCachedModels } from './adapters/dynamicModelService';
 import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
@@ -19,10 +22,27 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     constructor(config: Omit<LLMServiceConfig, 'type'> & { type: AdapterType; thinkingMode?: 'standard' | 'adaptive' }, app: App) {
         super(config, app);
         this.adapterType = config.type;
+        // Resolve `latest-*` symbolic IDs to the newest concrete model in
+        // that tier. Users on "latest-opus" follow the registry forward
+        // automatically — no re-selection needed when the provider ships
+        // a new version.
+        //
+        // Pool preference: live-fetched catalog if available in-session
+        // (populated by user clicking "Refresh models"), otherwise the
+        // hardcoded static registry. Live cache is the source of truth for
+        // "newly released" models — static list may lag.
+        const liveCache = getCachedModels(config.type);
+        const staticIds = Object.keys(PROVIDER_MODELS[config.type] || {})
+            .filter(id => !id.startsWith('latest-'));
+        const availableIds = liveCache && liveCache.length > 0
+            ? liveCache.map(m => m.id)
+            : staticIds;
+        const resolvedModel = resolveLatestModel(config.type, config.modelName, availableIds)
+            ?? config.modelName;
         this.adapter = createAdapter(config.type, {
             endpoint: config.endpoint,
             apiKey: config.apiKey || '',
-            modelName: config.modelName,
+            modelName: resolvedModel,
             language: config.language,
             thinkingMode: config.thinkingMode
         });
@@ -363,21 +383,35 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const content = this.adapter.parseResponseContent(data);
         logger.debug('LLM', 'Parsed content length:', content?.length ?? 0);
         logger.debug('LLM', 'Parsed content preview:', content?.substring(0, 300));
+        if (content) return content;
+        // No content — classify why and throw a useful error. (Phase 1B F9)
         const stopReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
         if (stopReason) logger.debug('LLM', 'Stop reason:', stopReason);
-        if (!content) {
-            const finishReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
-            if (finishReason === 'length') {
-                logger.warn('LLM', 'Model returned empty content with finish_reason: "length". Reasoning models may exhaust max_completion_tokens on internal reasoning.', { choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300) });
-                throw new Error('Model output truncated -- the content was too long for the token limit. Try a shorter note or a non-reasoning model.');
-            }
-            logger.warn('LLM', 'No content in summarize response.', {
-                responseKeys: data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data,
-                choices0: JSON.stringify(data.choices?.[0])?.substring(0, 300)
+        throw this.buildEmptyContentError(data, stopReason);
+    }
+
+    /** Build a descriptive error when the adapter parsed no visible text from
+     *  the response. Separates OpenAI 'length' and Claude 'max_tokens' paths
+     *  and distinguishes "thinking consumed all tokens" from generic truncation. */
+    private buildEmptyContentError(data: Record<string, unknown>, stopReason: string | undefined): Error {
+        const choices0Str = JSON.stringify((data.choices as unknown[] | undefined)?.[0])?.substring(0, 300);
+        const responseKeys = typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data;
+        const blocks = Array.isArray(data.content) ? data.content as Array<{ type?: string }> : [];
+        const blockTypes = blocks.map((b) => b?.type).filter((t): t is string => !!t);
+        if (stopReason === 'length' || stopReason === 'max_tokens') {
+            const thinkingOnly = blockTypes.length > 0 && blockTypes.every((t) => t === 'thinking');
+            logger.warn('LLM', 'Model output truncated at max_tokens with no visible text.', {
+                stopReason, blockTypes, thinkingOnly, choices0: choices0Str,
             });
-            throw new Error('No content found in response');
+            return new Error(thinkingOnly
+                ? 'Model exhausted token budget on reasoning before producing output. Try a non-reasoning model for this task, or shorten the input.'
+                : 'Model output truncated — the response exceeded the token limit. Try a shorter input.');
         }
-        return content;
+        logger.warn('LLM', 'No content in summarize response.', {
+            stopReason, responseKeys, choices0: choices0Str,
+            contentBlockTypes: blockTypes.length > 0 ? blockTypes : undefined,
+        });
+        return new Error('No content found in response');
     }
 
     private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<string> {
@@ -522,7 +556,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): Record<string, unknown> {
         const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
         const thinkingMode = this.adapter['config']?.thinkingMode;
-        const modelSupportsThinking = thinkingMode === 'adaptive' && (modelName.startsWith('claude-opus-4-6') || modelName.startsWith('claude-sonnet-4-6'));
+        const modelSupportsThinking = thinkingMode === 'adaptive'
+            && claudeSupportsAdaptiveThinking(modelName);
 
         // Per-call override: disableThinking skips thinking even if model supports it
         const useThinking = modelSupportsThinking && !options?.disableThinking;

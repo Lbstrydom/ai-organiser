@@ -706,7 +706,9 @@ export class MinutesCreationModal extends Modal {
 
         // Disable modal inputs + show overlay while LLM is working
         // Keeps modal open so user can retry on failure without re-entering data
-        const overlay = this.showGeneratingOverlay();
+        const abortController = new AbortController();
+        const overlay = this.showGeneratingOverlay(abortController);
+        const progressEl = overlay.querySelector<HTMLElement>('.ai-organiser-minutes-generating-progress');
 
         try {
             const result = await this.minutesService.generateMinutes({
@@ -721,16 +723,43 @@ export class MinutesCreationModal extends Modal {
                 contextDocuments: contextDocuments || undefined,
                 dictionaryContent: dictionaryContent || undefined,
                 styleReference: this.state.styleReference || undefined,
-                useGTD: this.state.useGTD
+                useGTD: this.state.useGTD,
+                // Phase 4: wire progress + cancel into the chunked loop.
+                abortSignal: abortController.signal,
+                onProgress: (current, total, elapsedMs) => {
+                    if (!progressEl) return;
+                    const secs = Math.floor(elapsedMs / 1000);
+                    progressEl.textContent =
+                        (this.plugin.t.minutes?.progressChunkOf || 'Chunk {current} of {total} · {elapsed}')
+                            .replace('{current}', String(current))
+                            .replace('{total}', String(total))
+                            .replace('{elapsed}', `${secs}s`);
+                },
+                onSoftBudget: (elapsedMs, hardBudgetMs) => {
+                    const secs = Math.floor(elapsedMs / 1000);
+                    const hardMins = Math.round(hardBudgetMs / 60_000);
+                    new Notice(
+                        (this.plugin.t.minutes?.softBudgetNotice
+                            || 'Still going — {elapsed} elapsed (hard cap at {hardMinutes}m)')
+                            .replace('{elapsed}', `${secs}s`)
+                            .replace('{hardMinutes}', String(hardMins)),
+                        6000,
+                    );
+                },
             });
 
             this.close();
             new Notice(`${this.plugin.t.minutes?.saved || 'Minutes saved'}: ${result.filePath}`, 4000);
         } catch (error) {
             overlay.remove();
-            logger.error('Minutes', 'Minutes generation error:', error);
-            const message = error instanceof Error ? error.message : 'Failed to generate minutes';
-            new Notice(`${this.plugin.t.minutes?.errorParsing || 'Failed to parse minutes response'}: ${message}`, 5000);
+            const isCancelled = abortController.signal.aborted;
+            if (isCancelled) {
+                new Notice(this.plugin.t.minutes?.cancelled || 'Minutes generation cancelled.', 3000);
+            } else {
+                logger.error('Minutes', 'Minutes generation error:', error);
+                const message = error instanceof Error ? error.message : 'Failed to generate minutes';
+                new Notice(`${this.plugin.t.minutes?.errorParsing || 'Failed to parse minutes response'}: ${message}`, 5000);
+            }
         }
     }
 
@@ -853,12 +882,35 @@ export class MinutesCreationModal extends Modal {
      * Show a translucent overlay with spinner while the LLM generates minutes.
      * Returns the overlay element so it can be removed on failure.
      */
-    private showGeneratingOverlay(): HTMLElement {
+    /**
+     * Show the overlay with a live progress line + Cancel button wired to
+     * the caller's AbortController (Phase 4). The `onProgress` callback on
+     * the service updates `.ai-organiser-minutes-generating-progress` —
+     * that selector is how generateMinutes() finds the element to write.
+     */
+    private showGeneratingOverlay(abortController?: AbortController): HTMLElement {
+        const t = this.plugin.t.minutes;
         const overlay = this.contentEl.createDiv({ cls: 'ai-organiser-minutes-generating-overlay' });
         const spinner = overlay.createDiv({ cls: 'ai-organiser-minutes-generating-spinner' });
-        spinner.createEl('span', {
-            text: this.plugin.t.minutes?.generating || 'Generating minutes...'
+        spinner.createEl('span', { text: t?.generating || 'Generating minutes...' });
+
+        // Live progress line — updated via onProgress from the service.
+        overlay.createDiv({
+            cls: 'ai-organiser-minutes-generating-progress',
+            text: '',
         });
+
+        if (abortController) {
+            const cancelBtn = overlay.createEl('button', {
+                cls: 'ai-organiser-minutes-generating-cancel mod-warning',
+                text: t?.cancelButton || 'Cancel',
+            });
+            cancelBtn.addEventListener('click', () => {
+                cancelBtn.disabled = true;
+                cancelBtn.textContent = '…';
+                abortController.abort();
+            });
+        }
         return overlay;
     }
 

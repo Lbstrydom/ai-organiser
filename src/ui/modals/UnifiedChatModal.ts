@@ -16,6 +16,7 @@ import { HighlightModeHandler } from '../chat/HighlightModeHandler';
 import { ResearchModeHandler } from '../chat/ResearchModeHandler';
 import { FreeChatModeHandler } from '../chat/FreeChatModeHandler';
 import { PresentationModeHandler } from '../chat/PresentationModeHandler';
+import { getExtendDisplayMs } from '../../services/chat/presentationConstants';
 import { ConversationCompactionService } from '../../services/chat/conversationCompactionService';
 import { ConversationPersistenceService } from '../../services/chat/conversationPersistenceService';
 import { ProjectService } from '../../services/chat/projectService';
@@ -111,6 +112,9 @@ export class UnifiedChatModal extends Modal {
     private sendButton?: ButtonComponent;
     private actionsEl?: HTMLElement;
     private thinkingEl?: HTMLElement;
+    private thinkingSlideEl?: HTMLElement;
+    private thinkingElapsedEl?: HTMLElement;
+    private thinkingCancelBtn?: HTMLButtonElement;
 
     private component?: Component;
     private cachedEditor?: Editor;
@@ -151,10 +155,19 @@ export class UnifiedChatModal extends Modal {
         this.cachedEditor = this.app.workspace.activeEditor?.editor;
 
         // Initialize persistence and project services
+        // Audit R1 H4: serialize pruning BEFORE the resume picker reads
+        // `listRecent()` — otherwise a just-expired conversation could be
+        // deleted mid-read and produce a phantom entry in the picker, or
+        // worse be "resumed" onto a file that was just unlinked.
+        let prunePromise: Promise<unknown> | null = null;
         if (this.plugin.settings.enableChatPersistence) {
             this.persistenceService = new ConversationPersistenceService(this.app, this.plugin.settings);
-            // Prune old conversations (fire-and-forget)
-            void this.persistenceService.pruneOldConversations(this.plugin.settings.chatRetentionDays);
+            prunePromise = this.persistenceService
+                .pruneOldConversations(this.plugin.settings.chatRetentionDays)
+                .catch((e: unknown) => {
+                    // Don't block bootstrap on prune failure; log + continue.
+                    logger.warn('UnifiedChat', 'pruneOldConversations failed', e);
+                });
         }
         this.projectService = new ProjectService(this.app, this.plugin.settings);
         this.globalMemoryService = new GlobalMemoryService(this.app, this.plugin.settings);
@@ -202,7 +215,10 @@ export class UnifiedChatModal extends Modal {
             });
         }
 
-        // Show resume picker if persistence is enabled and data exists
+        // Show resume picker if persistence is enabled and data exists.
+        // H4: await pruning first so the picker's listRecent() never races
+        // with a concurrent delete of an expired conversation.
+        if (prunePromise) await prunePromise;
         let resumedMode: ChatMode | null = null;
         if (this.persistenceService && this.projectService) {
             const resumeResult = await this.showResumePicker();
@@ -889,6 +905,12 @@ export class UnifiedChatModal extends Modal {
                 this.hideThinkingIndicator();
                 this.updateInputState();
                 this.renderActionsBar();
+                // Phase 1B F11: re-render the context panel so handlers can
+                // surface new state (e.g. presentation mode's iframe preview
+                // after generation completes). Without this, the deck exists
+                // on the handler but is never rendered until the modal
+                // closes + reopens.
+                this.renderContextPanel();
             }
         }
     }
@@ -921,6 +943,31 @@ export class UnifiedChatModal extends Modal {
                 if (!isStaleGeneration(gen, this.requestGeneration) && !firstChunkArrived) {
                     this.showThinkingIndicator(msg);
                 }
+            },
+            updateProgressSplit: (slideFragment, elapsedFragment) => {
+                if (!isStaleGeneration(gen, this.requestGeneration) && !firstChunkArrived) {
+                    this.updateThinkingProgressSplit(slideFragment, elapsedFragment);
+                }
+            },
+            showCancelButton: (onCancel) => {
+                if (!isStaleGeneration(gen, this.requestGeneration) && !firstChunkArrived) {
+                    this.setThinkingCancel(onCancel);
+                }
+            },
+            requestBudgetExtension: (context) => {
+                if (isStaleGeneration(gen, this.requestGeneration)) {
+                    // Stale generation: no user-facing cancel notice needed —
+                    // the mode switch itself already superseded this stream.
+                    return Promise.resolve('auto-dismiss');
+                }
+                return this.renderBudgetExtendCard({
+                    elapsedMs: context.elapsedMs,
+                    softBudgetMs: context.softBudgetMs,
+                    hardBudgetMs: context.hardBudgetMs,
+                    title: context.title,
+                    body: context.body,
+                    onRegisterCancelHook: context.onRegisterCancelHook,
+                });
             },
         });
         if (!firstChunkArrived) this.hideThinkingIndicator();
@@ -1201,33 +1248,232 @@ export class UnifiedChatModal extends Modal {
         if (!this.chatContainer) return;
         const text = message || this.plugin.t.modals.unifiedChat.thinking;
 
-        // If the thinking element is already present, update its text in place
-        // so a caller can bubble phase transitions ("Searching web…" →
-        // "Extracting sources…" → "Synthesizing…") without recreating the DOM.
-        // This addresses persona-round-2 finding #15 (generic "Thinking…" was
-        // the single largest cross-cutting UX gap across Research, Minutes,
-        // Smart Tag).
+        // In-place update — keeps DOM stable so phase-transitions
+        // ("Searching web…" → "Extracting sources…" → "Synthesizing…")
+        // don't recreate the live region.
         if (this.thinkingEl) {
-            const label = this.thinkingEl.querySelector('.ai-organiser-chat-thinking-text');
+            const label = this.thinkingEl.querySelector<HTMLElement>('.ai-organiser-chat-thinking-text');
             if (label) {
                 label.textContent = text;
+                // Clear the split-DOM slide fragment — when caller uses the
+                // single-string API they're not in presentation-progress mode.
+                this.thinkingSlideEl?.replaceChildren();
+                this.thinkingElapsedEl?.replaceChildren();
                 this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
                 return;
             }
         }
 
         this.thinkingEl?.remove();
+        this.buildThinkingIndicator(text);
+        if (this.chatContainer) this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+    }
+
+    /** Build the thinking indicator with the split-DOM layout required by the
+     *  presentation progress UX (plan §3 ARIA):
+     *    - `.text`   — single-string phase label (used by non-presentation modes)
+     *    - `.slide`  — slide-count fragment (role=status, aria-live=polite)
+     *    - `.elapsed`— elapsed timer (aria-hidden=true — silent to SR)
+     *    - `.cancel` — optional cancel button, mounted via setThinkingCancel() */
+    private buildThinkingIndicator(text: string): void {
+        if (!this.chatContainer) return;
         this.thinkingEl = this.chatContainer.createDiv({ cls: 'ai-organiser-chat-thinking' });
         const dots = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-dots' });
         dots.textContent = '•••';
         this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-text', text });
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        // Slide-count fragment — live region, mutates only on slide change.
+        this.thinkingSlideEl = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-slide' });
+        this.thinkingSlideEl.setAttribute('role', 'status');
+        this.thinkingSlideEl.setAttribute('aria-live', 'polite');
+        // Elapsed fragment — aria-hidden so SR ignores the 1s ticker.
+        this.thinkingElapsedEl = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-elapsed' });
+        this.thinkingElapsedEl.setAttribute('aria-hidden', 'true');
+    }
+
+    /** Split-DOM progress update — writes slide-count and elapsed fragments
+     *  into separate spans. Only mutates the slide span when the text
+     *  actually changes (prevents WCAG 4.1.3 status-message spam). */
+    private updateThinkingProgressSplit(slideFragment: string, elapsedFragment: string): void {
+        if (!this.thinkingEl) {
+            // First call wins a fresh indicator — build with an empty base text.
+            this.buildThinkingIndicator('');
+        }
+        // Mutate slide fragment ONLY when it actually changes — keeps live
+        // region quiet during 1s elapsed ticks.
+        if (this.thinkingSlideEl && this.thinkingSlideEl.textContent !== slideFragment) {
+            this.thinkingSlideEl.textContent = slideFragment;
+        }
+        // Elapsed is aria-hidden — free to tick without SR impact.
+        if (this.thinkingElapsedEl) {
+            this.thinkingElapsedEl.textContent = elapsedFragment;
+        }
+        if (this.chatContainer) {
+            this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        }
+    }
+
+    /** Mount a cancel × button inside the thinking indicator. Idempotent —
+     *  replaces any prior handler so we don't stack listeners. */
+    private setThinkingCancel(onCancel: () => void): void {
+        if (!this.thinkingEl) this.buildThinkingIndicator('');
+        if (!this.thinkingEl) return;
+        let btn = this.thinkingEl.querySelector<HTMLButtonElement>('.ai-organiser-chat-thinking-cancel');
+        const t = this.plugin.t.modals.unifiedChat;
+        if (!btn) {
+            btn = this.thinkingEl.createEl('button', {
+                cls: 'ai-organiser-chat-thinking-cancel',
+                attr: { type: 'button', 'aria-label': t.cancelGeneration },
+            });
+            btn.textContent = '✕';
+        }
+        // Replace the listener via cloneNode for idempotency.
+        const fresh = btn.cloneNode(true) as HTMLButtonElement;
+        btn.replaceWith(fresh);
+        this.thinkingCancelBtn = fresh;
+        fresh.addEventListener('click', () => {
+            fresh.disabled = true; // prevent double-click during abort window
+            onCancel();
+        });
     }
 
     private hideThinkingIndicator(): void {
         if (!this.thinkingEl) return;
         this.thinkingEl.remove();
         this.thinkingEl = undefined;
+        this.thinkingSlideEl = undefined;
+        this.thinkingElapsedEl = undefined;
+        this.thinkingCancelBtn = undefined;
+    }
+
+    // ── Extend-budget card (transient — NOT persisted in historyMap) ────────
+
+    /** Render the inline extend-budget card ABOVE the thinking indicator
+     *  (same container, so scroll position stays put). Returns a Promise
+     *  that resolves 'extend' / 'cancel'. Plan §4 race protocol:
+     *    - source 1 (Extend click) → resolve 'extend'
+     *    - source 2 (Cancel click / Escape) → resolve 'cancel'  (modal does NOT abort — handler's onSoftBudget inspects and aborts)
+     *    - sources 4/5 (completion / hard cap) → controller calls the
+     *      registered cancel hook → resolve 'cancel' idempotently. */
+    private renderBudgetExtendCard(opts: {
+        elapsedMs: number;
+        softBudgetMs: number;
+        hardBudgetMs: number;
+        /** Optional copy overrides — when omitted, the generic
+         *  presentation-era copy (extendBudgetTitle + extendBudgetBody) is
+         *  used. Research and Minutes pass their own pre-resolved strings. */
+        title?: string;
+        body?: string;
+        onRegisterCancelHook?: (cancel: () => void) => void;
+    }): Promise<'extend' | 'cancel' | 'auto-dismiss'> {
+        const { elapsedMs, softBudgetMs, hardBudgetMs, onRegisterCancelHook } = opts;
+        const t = this.plugin.t.modals.unifiedChat;
+        const container = this.chatContainer;
+        if (!container) return Promise.resolve('auto-dismiss');
+
+        // Audit Gemini G2: capture previous focus before stealing so we can
+        // restore the user's typing context (often a different editor pane)
+        // when the card dismisses — instead of warping focus into the chat.
+        const previouslyFocused = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+
+        const headingId = `ai-organiser-extend-heading-${Date.now()}`;
+        const card = document.createElement('div');
+        card.className = 'ai-organiser-chat-budget-extend';
+        card.setAttribute('role', 'group');
+        card.setAttribute('aria-labelledby', headingId);
+
+        const heading = card.createDiv({ cls: 'ai-organiser-chat-budget-extend-title' });
+        heading.id = headingId;
+        heading.textContent = opts.title ?? t.extendBudgetTitle;
+
+        // Derive extend minutes from the active budget preset (soft→hard gap)
+        // so i18n copy can't drift from the real timers. (Audit R2 L1/M5)
+        const extendMinutes = Math.round(
+            getExtendDisplayMs({ softBudgetMs, hardBudgetMs }) / 60_000,
+        );
+        const elapsedLabel = this.formatElapsed(elapsedMs);
+
+        const body = card.createDiv({ cls: 'ai-organiser-chat-budget-extend-body' });
+        body.textContent = (opts.body ?? t.extendBudgetBody)
+            .replace('{elapsed}', elapsedLabel)
+            .replace('{extendMinutes}', String(extendMinutes));
+
+        const actions = card.createDiv({ cls: 'ai-organiser-chat-budget-extend-actions' });
+        const extendBtn = actions.createEl('button', {
+            text: t.extendBudgetConfirm.replace('{extendMinutes}', String(extendMinutes)),
+            cls: 'mod-cta',
+        });
+        const cancelBtn = actions.createEl('button', { text: t.extendBudgetCancel });
+
+        // Insert ABOVE the thinking indicator so the thinking row remains the
+        // bottom-most chat element.
+        if (this.thinkingEl) {
+            container.insertBefore(card, this.thinkingEl);
+        } else {
+            container.appendChild(card);
+        }
+
+        return new Promise<'extend' | 'cancel' | 'auto-dismiss'>((resolve) => {
+            let resolved = false;
+            const finish = (choice: 'extend' | 'cancel' | 'auto-dismiss') => {
+                if (resolved) return; // idempotent guard
+                resolved = true;
+                if (keydownListener) card.removeEventListener('keydown', keydownListener);
+                // Fade out then remove — respects prefers-reduced-motion via CSS
+                card.classList.add('is-dismissing');
+                globalThis.setTimeout(() => card.remove(), 200);
+                // Audit Gemini G2: restore focus to whatever element had it
+                // before the card stole focus, if it's still attached. Falls
+                // back to the chat input only if the previous target is gone.
+                if (previouslyFocused && previouslyFocused.isConnected) {
+                    previouslyFocused.focus();
+                } else {
+                    this.inputArea?.inputEl?.focus();
+                }
+                resolve(choice);
+            };
+
+            extendBtn.addEventListener('click', () => finish('extend'));
+            cancelBtn.addEventListener('click', () => finish('cancel'));
+
+            // Lightweight focus trap: Tab cycles Extend↔Cancel, Escape cancels
+            const keydownListener = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    finish('cancel');
+                    return;
+                }
+                if (e.key !== 'Tab') return;
+                const active = document.activeElement;
+                if (!e.shiftKey && active === cancelBtn) {
+                    e.preventDefault();
+                    extendBtn.focus();
+                } else if (e.shiftKey && active === extendBtn) {
+                    e.preventDefault();
+                    cancelBtn.focus();
+                }
+            };
+            card.addEventListener('keydown', keydownListener);
+
+            // Audit Gemini G1: terminal-state auto-dismiss resolves with a
+            // distinct 'auto-dismiss' value (NOT 'cancel') so callers don't
+            // emit a spurious "Generation cancelled" notice on the happy path
+            // when a run succeeds after the soft budget fired.
+            onRegisterCancelHook?.(() => finish('auto-dismiss'));
+
+            // Focus the primary action on mount.
+            extendBtn.focus();
+        });
+    }
+
+    private formatElapsed(ms: number): string {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return minutes > 0
+            ? `${minutes}m ${seconds.toString().padStart(2, '0')}s`
+            : `${seconds}s`;
     }
 
     private renderEmptyState(): void {

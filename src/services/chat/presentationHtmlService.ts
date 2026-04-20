@@ -21,7 +21,11 @@ import {
     wrapInDocument,
 } from '../prompts/presentationChatPrompts';
 import { sanitizePresentation, injectCSP } from './presentationSanitizer';
-import { GENERATION_TIMEOUT, REFINEMENT_TIMEOUT, AUDIT_TIMEOUT } from './presentationConstants';
+import {
+    GENERATION_HARD_BUDGET_MS,
+    REFINEMENT_HARD_BUDGET_MS,
+    AUDIT_TIMEOUT,
+} from './presentationConstants';
 import { StreamingHtmlAssembler } from './streamingHtmlAssembler';
 import type { StreamingCheckpoint } from './streamingHtmlAssembler';
 import { tryExtractJson } from '../../utils/responseParser';
@@ -111,7 +115,9 @@ export async function generateHtml(
             conversationHistory: options.conversationHistory,
         }),
         theme: options.theme,
-        timeoutMs: GENERATION_TIMEOUT,
+        // Inner timeout uses HARD budget — soft-budget enforcement happens
+        // in the handler-owned GenerationProgressController via options.signal.
+        timeoutMs: GENERATION_HARD_BUDGET_MS,
         signal: options.signal,
         label: 'Generation',
         language: options.outputLanguage,
@@ -151,10 +157,14 @@ export async function generateHtmlStream(
             debounceMs: options.debounceMs,
         });
 
+        // Inner safety timeout uses the HARD budget. Soft-budget enforcement
+        // is owned by the caller's GenerationProgressController via options.signal —
+        // using the soft budget here would crash the fetch at the exact
+        // moment the extend card opens (G2 finding, Gemini gate 2026-04-20).
         // H1 fix: AbortSignal.timeout() and AbortSignal.any() are not universally available
         // (absent in older Electron/iOS WebView). Use a manual controller + clearTimeout approach.
         const timeoutController = new AbortController();
-        const timeoutId = setTimeout(() => timeoutController.abort(), GENERATION_TIMEOUT);
+        const timeoutId = setTimeout(() => timeoutController.abort(), GENERATION_HARD_BUDGET_MS);
 
         const combinedController = new AbortController();
         const abortCombined = () => combinedController.abort();
@@ -220,7 +230,8 @@ export async function refineHtml(
             conversationHistory: options.conversationHistory,
         }),
         theme: options.theme,
-        timeoutMs: REFINEMENT_TIMEOUT,
+        // See note on generateHtml — inner timeout uses HARD budget.
+        timeoutMs: REFINEMENT_HARD_BUDGET_MS,
         signal: options.signal,
         label: 'Refinement',
         language: options.outputLanguage,

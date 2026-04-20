@@ -322,3 +322,77 @@ describe('CloudService SummarizeOptions — OpenAI', () => {
         expect(body.max_completion_tokens).toBe(8192);
     });
 });
+
+// ── Phase 1B F9: parseSummarizeResponseText handles Claude shapes ──────────
+
+describe('parseSummarizeResponseText — Claude response shapes', () => {
+    const buildClaudeService = () => new CloudLLMService({
+        type: 'claude' as AdapterType,
+        endpoint: 'https://api.anthropic.com/v1/messages',
+        apiKey: 'test-key',
+        modelName: 'claude-opus-4-6',
+        language: 'en',
+    }, mockApp);
+
+    const parse = (service: CloudLLMService, payload: object): string =>
+        (service as any).parseSummarizeResponseText(JSON.stringify(payload));
+
+    it('parses a normal Claude response (content array with text block)', () => {
+        const service = buildClaudeService();
+        const text = parse(service, {
+            id: 'msg_1', type: 'message', role: 'assistant',
+            content: [{ type: 'text', text: 'hello world' }],
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 10, output_tokens: 2 },
+        });
+        expect(text).toBe('hello world');
+    });
+
+    it('skips thinking blocks, concatenates text blocks with double newline', () => {
+        const service = buildClaudeService();
+        const text = parse(service, {
+            content: [
+                { type: 'thinking', thinking: 'hmm...' },
+                { type: 'text', text: 'part one' },
+                { type: 'text', text: 'part two' },
+            ],
+            stop_reason: 'end_turn',
+        });
+        expect(text).toBe('part one\n\npart two');
+    });
+
+    it('throws a reasoning-specific error when Claude truncates with only thinking blocks (F9)', () => {
+        const service = buildClaudeService();
+        expect(() => parse(service, {
+            content: [{ type: 'thinking', thinking: 'long reasoning...' }],
+            stop_reason: 'max_tokens',
+        })).toThrow(/exhausted token budget on reasoning/);
+    });
+
+    it('throws a generic truncation error when stop_reason=max_tokens with no blocks (F9)', () => {
+        const service = buildClaudeService();
+        expect(() => parse(service, {
+            content: [],
+            stop_reason: 'max_tokens',
+        })).toThrow(/truncated.*exceeded the token limit/);
+    });
+
+    it('throws the same truncation error for OpenAI stop_reason="length" (F9)', () => {
+        const openai = new CloudLLMService({
+            type: 'openai' as AdapterType,
+            endpoint: 'https://api.openai.com/v1/chat/completions',
+            apiKey: 'test-key', modelName: 'gpt-5', language: 'en',
+        }, mockApp);
+        expect(() => (openai as any).parseSummarizeResponseText(JSON.stringify({
+            choices: [{ message: { content: '' }, finish_reason: 'length' }],
+        }))).toThrow(/truncated.*exceeded the token limit/);
+    });
+
+    it('throws "No content found" with normal end_turn but empty content', () => {
+        const service = buildClaudeService();
+        expect(() => parse(service, {
+            content: [],
+            stop_reason: 'end_turn',
+        })).toThrow(/No content found in response/);
+    });
+});

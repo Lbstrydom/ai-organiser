@@ -2,11 +2,13 @@ import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import * as endpoints from './cloudEndpoints.json';
 import { SYSTEM_PROMPT } from '../../utils/constants';
+import { claudeSupportsAdaptiveThinking } from './modelCapabilities';
 
-/** Check whether a model supports adaptive thinking (Opus 4.6 and Sonnet 4.6+) */
+/** Thin export so existing call sites don't change — capability logic lives in
+ *  modelCapabilities.ts, pattern-matched on family+version so new releases
+ *  (Opus 4.8, 5.0, …) pick up the capability without code edits. */
 export function supportsAdaptiveThinking(modelName: string | undefined): boolean {
-    if (!modelName) return false;
-    return modelName.startsWith('claude-opus-4-6') || modelName.startsWith('claude-sonnet-4-6');
+    return claudeSupportsAdaptiveThinking(modelName);
 }
 
 export class ClaudeAdapter extends BaseAdapter {

@@ -39,6 +39,8 @@ import {
     stripConfidenceAnnotations
 } from '../utils/minutesUtils';
 import { summarizeText, pluginContext } from './llmFacade';
+import { LongRunningOpController } from './longRunningOp/progressController';
+import { computeMinutesBudget } from './minutesBudgets';
 import { SummarizeOptions } from './types';
 import { withBusyIndicator } from '../utils/busyIndicator';
 import { tryExtractJson } from '../utils/responseParser';
@@ -66,6 +68,19 @@ export interface MinutesGenerationInput {
     useGTD?: boolean;
     /** Path where transcript was already saved (by modal's early-save) — skips duplicate creation */
     savedTranscriptPath?: string;
+    /** Phase 4: per-chunk progress callback. Fires after each chunk's LLM
+     *  call resolves with `(current, total, elapsedMs)`. UI uses this to
+     *  render a live "Chunk N of M · Ts" indicator. */
+    onProgress?: (current: number, total: number, elapsedMs: number) => void;
+    /** Phase 4: AbortController.signal — passed through to each chunk LLM
+     *  call. When the caller fires abort, the in-flight chunk aborts and
+     *  the outer loop exits with a "cancelled" error. */
+    abortSignal?: AbortSignal;
+    /** Phase 4: soft-budget notification hook. Fires once when the total
+     *  elapsed time exceeds the per-run soft budget (scaled by chunk
+     *  count). Consumer typically shows a non-interrupting Notice; the
+     *  hard cap at `hardBudgetMs` enforces the actual timeout. */
+    onSoftBudget?: (elapsedMs: number, hardBudgetMs: number) => void;
 }
 
 export interface MinutesGenerationResult {
@@ -463,31 +478,70 @@ export class MinutesService {
             throw new Error('Transcript is empty');
         }
 
+        // Phase 4: two-tier budget scaled by chunk count.
+        // - Caller can pass their own abortSignal (from the modal's Cancel
+        //   button). If absent, we manufacture a purely-internal controller
+        //   so the hard cap still enforces.
+        // - onProgress fires per completed chunk so the UI's live
+        //   "Chunk N of M · Ts" indicator updates.
+        // - onSoftBudget surfaces a non-interrupting notice so the user
+        //   knows the run is taking longer than expected.
+        const budget = computeMinutesBudget(chunks.length);
+        const ownAbort = new AbortController();
+        const abortCombined = () => ownAbort.abort();
+        if (input.abortSignal) {
+            if (input.abortSignal.aborted) ownAbort.abort();
+            else input.abortSignal.addEventListener('abort', abortCombined, { once: true });
+        }
+        const controller = new LongRunningOpController({
+            softBudgetMs: budget.softBudgetMs,
+            hardBudgetMs: budget.hardBudgetMs,
+            expected: chunks.length,
+            abortController: ownAbort,
+            onProgress: (current, _expected, elapsedMs) => {
+                input.onProgress?.(current, chunks.length, elapsedMs);
+            },
+            onSoftBudget: (elapsedMs) => {
+                input.onSoftBudget?.(elapsedMs, budget.hardBudgetMs);
+            },
+        });
+
         const extracts: ChunkExtract[] = [];
-        for (let i = 0; i < chunks.length; i++) {
-            new Notice(
-                (this.plugin.t.minutes?.generatingChunk || 'Processing chunk {current}/{total}...')
-                    .replace('{current}', String(i + 1))
-                    .replace('{total}', String(chunks.length)),
-                2000
-            );
+        try {
+            for (let i = 0; i < chunks.length; i++) {
+                if (ownAbort.signal.aborted) {
+                    throw new Error(this.plugin.t.minutes?.cancelled || 'Minutes generation cancelled.');
+                }
+                new Notice(
+                    (this.plugin.t.minutes?.generatingChunk || 'Processing chunk {current}/{total}...')
+                        .replace('{current}', String(i + 1))
+                        .replace('{total}', String(chunks.length)),
+                    2000
+                );
 
-            const chunk = chunks[i];
-            const chunkText = Array.isArray(chunk)
-                ? (chunk).map(s => s.text).join('\n')
-                : typeof chunk === 'string' ? chunk : JSON.stringify(chunk);
+                const chunk = chunks[i];
+                const chunkText = Array.isArray(chunk)
+                    ? (chunk).map(s => s.text).join('\n')
+                    : typeof chunk === 'string' ? chunk : JSON.stringify(chunk);
 
-            const prompt = `${buildChunkExtractionPrompt({
-                outputLanguage,
-                meetingContext: input.metadata.meetingContext,
-                agenda: input.metadata.agenda,
-                participantsRaw: input.participantsRaw,
-                dictionaryContent: input.dictionaryContent,
-                contextSummary,
-            })}\n\nTranscript chunk ${i + 1}/${chunks.length}:\n${chunkText}`;
-            const responseText = await this.callLLM(prompt, EXTRACTION_OPTIONS);
-            const parsedExtract = this.parseChunkExtract(responseText);
-            extracts.push({ chunkIndex: i, ...parsedExtract });
+                const prompt = `${buildChunkExtractionPrompt({
+                    outputLanguage,
+                    meetingContext: input.metadata.meetingContext,
+                    agenda: input.metadata.agenda,
+                    participantsRaw: input.participantsRaw,
+                    dictionaryContent: input.dictionaryContent,
+                    contextSummary,
+                })}\n\nTranscript chunk ${i + 1}/${chunks.length}:\n${chunkText}`;
+                const responseText = await this.callLLM(prompt, EXTRACTION_OPTIONS);
+                const parsedExtract = this.parseChunkExtract(responseText);
+                extracts.push({ chunkIndex: i, ...parsedExtract });
+                controller.recordProgress(i + 1);
+            }
+        } finally {
+            controller.dispose();
+            if (input.abortSignal) {
+                input.abortSignal.removeEventListener('abort', abortCombined);
+            }
         }
 
         let merged = await this.reduceExtracts(extracts, 0, {

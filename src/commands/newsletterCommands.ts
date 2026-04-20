@@ -32,6 +32,30 @@ export function showNewsletterFetchResultNotice(
     }
 }
 
+/** Run the audio-regeneration pipeline and show a user-visible notice. Shared
+ *  by the command and the settings button. */
+export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<void> {
+    const nl = plugin.t.settings.newsletter;
+    if (!plugin.settings.newsletterAudioPodcast) {
+        new Notice(nl?.audioPodcastOffNotice || 'Audio podcast is off — enable it in settings first.', 5000);
+        return;
+    }
+    new Notice(nl?.audioRegenerating || 'Regenerating audio for today\'s Daily Brief…', 3000);
+    const service = new NewsletterService(plugin);
+    const result = await service.regenerateAudioForToday();
+    if (result.success) {
+        new Notice(
+            (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', result.path || ''),
+            6000
+        );
+    } else {
+        new Notice(
+            (nl?.audioRegenerateFailed || 'Audio regeneration failed: {error}').replace('{error}', result.error || 'unknown'),
+            7000
+        );
+    }
+}
+
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
 
@@ -67,4 +91,10 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         }
     });
 
+    plugin.addCommand({
+        id: 'newsletter-regenerate-audio',
+        name: t.commands.newsletterRegenerateAudio || 'Regenerate audio for today\'s brief',
+        icon: 'audio-lines',
+        callback: () => { void runRegenerateAudio(plugin); },
+    });
 }

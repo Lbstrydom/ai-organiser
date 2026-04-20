@@ -240,6 +240,14 @@ export class SlideIframePreview {
             this.statusEl = null;
             this.keyHandlerTarget = null;
             this.nonce = '';
+            // Audit R1 H11: render an explicit empty-state placeholder so
+            // the preview region stays present (stable layout + focus model)
+            // instead of producing a silent blank area.
+            this.container.createEl('div', {
+                cls: 'ai-organiser-slide-preview-empty',
+                text: 'No deck yet — generate slides to see a preview here.',
+                attr: { role: 'status', 'aria-live': 'polite' },
+            });
             return;
         }
 
@@ -291,14 +299,21 @@ export class SlideIframePreview {
 
         const token = this.renderToken;
 
+        // Phase 1B F7: assign srcdoc via the property setter AFTER the
+        // iframe is created. Setting srcdoc in createEl's attr map routes
+        // through setAttribute, which in Obsidian's helper can encode
+        // attribute values (seen in the 2026-04-20 persona test: SVG
+        // attributes retained their literal single quotes as `'24'`, and
+        // inline <style> content rendered as body text). The property
+        // setter preserves the raw HTML string verbatim.
         this.iframe = this.iframeWrapper.createEl('iframe', {
             cls: 'ai-organiser-pres-iframe',
             attr: {
-                srcdoc: this.html,
                 sandbox: 'allow-same-origin allow-scripts',
                 title: 'Slide deck preview', // H5 accessibility
             },
         });
+        this.iframe.srcdoc = this.html;
 
         this.iframe.addEventListener('load', () => {
             if (token !== this.renderToken) return; // Stale (M13)
@@ -360,7 +375,14 @@ export class SlideIframePreview {
     private updateScale(): void {
         if (!this.iframeWrapper || !this.iframe) return;
         const containerWidth = this.iframeWrapper.clientWidth || 600;
-        const scale = containerWidth / SLIDE_WIDTH;
+        // Phase 1B F12: bound the scale by available vertical space so the
+        // preview doesn't push chat + actions off-screen. 60vh matches the
+        // max-height cap in styles.css; subtract ~60px for nav bar + border.
+        const viewportHeight = globalThis.innerHeight || 800;
+        const maxPreviewHeight = viewportHeight * 0.6 - 60;
+        const scaleByWidth = containerWidth / SLIDE_WIDTH;
+        const scaleByHeight = maxPreviewHeight / SLIDE_HEIGHT;
+        const scale = Math.min(scaleByWidth, scaleByHeight);
         this.iframe.addClass('ai-organiser-scaled-iframe');
         this.iframe.setCssProps({
             '--iframe-scale': String(scale),

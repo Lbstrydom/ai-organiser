@@ -60,6 +60,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@mozilla/readability": "^0.6.0",
     "docx": "^9.5.1",
     "dom-to-pptx": "^1.1.5",

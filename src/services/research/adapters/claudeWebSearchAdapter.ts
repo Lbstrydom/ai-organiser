@@ -13,6 +13,7 @@ import { requestUrl } from 'obsidian';
 import type { SearchProvider, SearchResult, SearchOptions, ClaudeWebSearchResponse, ParsedCitation, ClaudeWebSearchStreamCallbacks } from '../researchTypes';
 import { classifyUrlSource, extractDomain } from '../../../utils/urlUtils';
 import { ACADEMIC_DOMAINS } from '../academicUtils';
+import { claudeSupportsDynamicWebSearch } from '../../adapters/modelCapabilities';
 
 /** Internal state tracked during SSE stream parsing. */
 interface StreamState {
@@ -376,7 +377,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
 
         const model = this.options.model || 'claude-sonnet-4-6';
         const useDynamic = this.options.useDynamicFiltering !== false
-            && (model.startsWith('claude-opus-4-6') || model.startsWith('claude-sonnet-4-6'));
+            && claudeSupportsDynamicWebSearch(model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;
         const tool = this.buildToolDefinition(toolType, options);
         const systemPrompt = options?.systemPrompt || this.buildSystemPrompt(options);

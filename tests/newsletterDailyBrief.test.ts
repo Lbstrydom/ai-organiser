@@ -589,11 +589,14 @@ describe('generateAudioPodcast', () => {
         expect(result.error).toContain('no valid audio payload');
     });
 
-    it('creates a WAV file when TTS returns valid audio/pcm payload', async () => {
+    it('creates an MP3 file when TTS returns valid audio/pcm payload', async () => {
         mockApp.vault.getAbstractFileByPath.mockReturnValue(null);
 
-        // Minimal valid PCM payload: 100 silent 16-bit samples
-        const pcmSamples = new Int16Array(100); // all zeros
+        // Give lamejs enough PCM to encode at least one MP3 frame (1152
+        // samples per frame at 16 kHz). 24 kHz input → ~1728 samples minimum
+        // post-downsample to yield a non-empty MP3. Use 8 kSamples of silence
+        // to comfortably clear that.
+        const pcmSamples = new Int16Array(8000);
         const pcmBytes = new Uint8Array(pcmSamples.buffer);
         const b64 = btoa(String.fromCharCode(...pcmBytes));
 
@@ -617,22 +620,24 @@ describe('generateAudioPodcast', () => {
         const result = await generateAudioPodcast(mockApp as any, script, opts);
 
         expect(result.success).toBe(true);
-        expect(result.filePath).toMatch(/\.wav$/);
+        expect(result.filePath).toMatch(/\.mp3$/);
         expect(mockApp.vault.createBinary).toHaveBeenCalledOnce();
 
-        // Verify the written buffer is a valid WAV by checking RIFF header
-        const [, wavBuffer] = vi.mocked(mockApp.vault.createBinary).mock.calls[0] as [string, ArrayBuffer];
-        const view = new DataView(wavBuffer);
-        const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
-        const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
-        expect(riff).toBe('RIFF');
-        expect(wave).toBe('WAVE');
+        // Verify the written buffer starts with an MPEG frame sync (11 set
+        // bits = 0xFFF) or an ID3 tag ("ID3"). lamejs emits frames directly,
+        // no ID3 header, so first two bytes should be 0xFF 0xFB (MPEG-1
+        // Layer-III, with CRC bit cleared).
+        const [, mp3Buffer] = vi.mocked(mockApp.vault.createBinary).mock.calls[0] as [string, ArrayBuffer];
+        const view = new DataView(mp3Buffer);
+        expect(mp3Buffer.byteLength).toBeGreaterThan(0);
+        expect(view.getUint8(0)).toBe(0xFF);              // MPEG frame sync byte 1
+        expect(view.getUint8(1) & 0xE0).toBe(0xE0);       // 3 MSB of byte 2 complete the 11-bit sync
     });
 
     it('filename contains dateStr and an 8-char hex fingerprint', async () => {
         mockApp.vault.getAbstractFileByPath.mockReturnValue(null);
 
-        const pcmSamples = new Int16Array(10);
+        const pcmSamples = new Int16Array(8000);
         const pcmBytes = new Uint8Array(pcmSamples.buffer);
         const b64 = btoa(String.fromCharCode(...pcmBytes));
 
@@ -648,6 +653,6 @@ describe('generateAudioPodcast', () => {
 
         const result = await generateAudioPodcast(mockApp as any, script, opts);
 
-        expect(result.filePath).toMatch(/brief-2026-04-15-[a-f0-9]{8}\.wav$/);
+        expect(result.filePath).toMatch(/brief-2026-04-15-[a-f0-9]{8}\.mp3$/);
     });
 });

@@ -14,7 +14,14 @@ import {
     STREAM_RENDER_DEBOUNCE_MS,
 } from './presentationConstants';
 // M5 fix: use shared dangerous-pattern list (DRY — was duplicated here and in sanitizer)
-import { DANGEROUS_HTML_PATTERNS as DANGEROUS_PATTERNS } from './presentationSanitizer';
+// Audit R1 H3: route streaming preview HTML through the same sanitize + CSP
+// pipeline used by the final generation path, so preview and final render
+// identical safety guarantees.
+import {
+    DANGEROUS_HTML_PATTERNS as DANGEROUS_PATTERNS,
+    sanitizePresentation,
+    injectCSP,
+} from './presentationSanitizer';
 
 /** Regex to count complete slides via closing section tags (mid-stream). */
 const COMPLETE_SLIDE_RE = /<\/section>/gi;
@@ -166,8 +173,9 @@ export class StreamingHtmlAssembler {
     private countDangerousPatterns(text: string): number {
         let count = 0;
         for (const pattern of DANGEROUS_PATTERNS) {
-            // Reset lastIndex since these are global regexes
-            pattern.lastIndex = 0;
+            // `String#match` with a /g regex scans the whole string and
+            // ignores `lastIndex` entirely (only `RegExp#exec` advances it).
+            // So no manual reset needed. (Gemini-gate G2 2026-04-20.)
             const matches = text.match(pattern);
             if (matches) count += matches.length;
         }
@@ -199,10 +207,16 @@ export class StreamingHtmlAssembler {
             return;
         }
 
-        const wrapped = wrapInDocument(partialHtml, this.cssTheme, this.language);
+        // Audit R1 H3: sanitize and CSP-wrap the partial HTML so streaming
+        // checkpoints receive the same safety guarantees as final output.
+        // sanitizePresentation is idempotent on already-safe content and
+        // only strips dangerous tags/attributes — safe on mid-stream HTML.
+        const sanitized = sanitizePresentation(partialHtml);
+        const wrapped = wrapInDocument(sanitized.html, this.cssTheme, this.language);
+        const secured = injectCSP(wrapped);
 
         this.onCheckpoint({
-            html: wrapped,
+            html: secured,
             slideCount,
             markersDetected,
         });

@@ -31,6 +31,9 @@ import { getResearchOutputFullPath } from '../../core/settings';
 import { ensureFolderExists } from '../../utils/minutesUtils';
 import { FolderScopePickerModal } from '../modals/FolderScopePickerModal';
 import type AIOrganiserPlugin from '../../main';
+import { LongRunningOpController } from '../../services/longRunningOp/progressController';
+import { RESEARCH_SOFT_BUDGET_MS, RESEARCH_HARD_BUDGET_MS } from '../../services/research/researchConstants';
+import { getExtendDisplayMs } from '../../services/chat/presentationConstants';
 
 const PHASE_ORDER: ResearchPhase[] = ['idle', 'searching', 'continuing', 'reviewing', 'extracting', 'synthesizing', 'done'];
 
@@ -171,6 +174,11 @@ export class ResearchModeHandler implements ChatModeHandler {
     }
 
     renderContextPanel(container: HTMLElement, ctx: ModalContext): void {
+        // Idempotent render: ensure a repeated external call (same lifecycle
+        // but re-invoked by the modal) cannot accumulate duplicate wrappers.
+        // Internal re-renders go through rerenderContextPanel() which already
+        // empties; this guard hardens the public entrypoint. (Audit R1 H15)
+        container.empty();
         this.contextPanelContainer = container;
         this.lastCtx = ctx;
 
@@ -451,6 +459,49 @@ export class ResearchModeHandler implements ChatModeHandler {
                         // Wire the handler's thinking-updater to the modal's
                         // streamingCallback so setPhase can bubble phase text.
                         this.activeThinkingUpdater = (m) => streamCb.updateThinking?.(m);
+
+                        // Phase 3: two-tier budget via LongRunningOpController.
+                        // Soft at 3min → research-specific extend card;
+                        // Hard at 6min → abort + hard-cap notice. Cancel
+                        // button in the thinking row uses the same
+                        // mode-agnostic handler plumbing as presentation.
+                        const tr = ctx.plugin.t.modals.unifiedChat;
+                        streamCb.showCancelButton?.(() => {
+                            this.streamAbortController?.abort();
+                        });
+                        const controller = new LongRunningOpController({
+                            softBudgetMs: RESEARCH_SOFT_BUDGET_MS,
+                            hardBudgetMs: RESEARCH_HARD_BUDGET_MS,
+                            abortController: this.streamAbortController,
+                            onSoftBudget: (elapsedMs) => {
+                                if (!streamCb.requestBudgetExtension) return;
+                                // Fire-and-forget; cancel path handled on resolution.
+                                void (async () => {
+                                    const choice = await streamCb.requestBudgetExtension!({
+                                        elapsedMs,
+                                        softBudgetMs: RESEARCH_SOFT_BUDGET_MS,
+                                        hardBudgetMs: RESEARCH_HARD_BUDGET_MS,
+                                        title: tr.researchExtendBudgetTitle,
+                                        body: tr.researchExtendBudgetBody,
+                                        onRegisterCancelHook: (fn) => {
+                                            controller.setExtendCardCancelHook(fn);
+                                        },
+                                    });
+                                    if (choice === 'cancel') {
+                                        this.streamAbortController?.abort();
+                                        streamCb.addSystemNotice(tr.researchCancelled);
+                                    }
+                                })();
+                            },
+                            onHardBudget: () => {
+                                const budgetMinutes = Math.round(RESEARCH_HARD_BUDGET_MS / 60_000);
+                                streamCb.addSystemNotice(
+                                    tr.researchHardCapped.replace('{budgetMinutes}', String(budgetMinutes)),
+                                );
+                            },
+                        });
+                        // Silence unused-var lint — controller holds its own lifetime via timers.
+                        void getExtendDisplayMs;
                         const streamCallbacks = {
                             onSearchQuery: (q: string) => {
                                 this.currentSearchQuery = q;
@@ -488,6 +539,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                             this.rerenderContextPanel();
                             return { finalContent: `Search failed: ${(error as Error).message}` };
                         } finally {
+                            controller.dispose();
                             this.streamAbortController = null;
                             this.activeThinkingUpdater = null;
                         }

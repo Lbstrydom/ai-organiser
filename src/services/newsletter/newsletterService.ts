@@ -598,63 +598,153 @@ export class NewsletterService {
     }
 
     private async generateAudioForBrief(brief: string, outputRoot: string, dateStr: string): Promise<void> {
+        // This used to wrap everything in a try/catch that silently swallowed
+        // errors — the user would see a success notice but no file, and no
+        // console output told them why. Now errors propagate to the caller
+        // (auto-fetch's own try/catch for background runs, or the
+        // regenerateAudioForToday() caller which surfaces via Notice).
+
+        // Resolve Gemini API key:
+        //   1. SecretStorage 'gemini' provider key (primary — this is where
+        //      Obsidian keys live for most users)
+        //   2. providerSettings.gemini.apiKey (legacy plain-text fallback)
+        //   3. cloudApiKey (only when main provider IS Gemini)
+        //
+        // Before this fix, we skipped SecretStorage entirely — so users whose
+        // Gemini key was in SecretStorage (the Obsidian-recommended path) but
+        // whose main provider was something else got a silent "skipped" log
+        // with no audio output. The feature looked broken.
+        const settings = this.plugin.settings;
+        const secretKey = this.plugin.secretStorageService.isAvailable()
+            ? await this.plugin.secretStorageService.getProviderKey('gemini')
+            : null;
+        const geminiApiKey =
+            secretKey ||
+            settings.providerSettings?.['gemini']?.apiKey ||
+            (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
+            '';
+        if (!geminiApiKey) {
+            logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
+            new Notice('Audio podcast skipped — add a gemini key in settings to enable', 6000);
+            return;
+        }
+
+        const { buildPodcastScriptPrompt, insertPodcastContent } = await import('../prompts/newsletterPrompts');
+        const langCode = this.plugin.settings.newsletterPreferredLanguage;
+        const { getLanguageNameForPrompt: getLang } = await import('../languages');
+        const langName = getLang(langCode);
+
+        const maxMins = this.plugin.settings.newsletterPodcastMaxMins ?? 5;
+        const scriptPrompt = insertPodcastContent(
+            buildPodcastScriptPrompt({ language: langName || undefined, maxMins }),
+            brief
+        );
+        const scriptResult = await summarizeText(pluginContext(this.plugin), scriptPrompt);
+        if (!scriptResult.success || !scriptResult.content) {
+            logger.warn('Newsletter', 'Podcast script LLM call failed');
+            return;
+        }
+        const podcastScript = scriptResult.content.trim();
+
+        const { generateAudioPodcast } = await import('./newsletterAudioService');
+        const audioFolder = normalizePath(`${outputRoot}/${dateStr}`);
+        const result = await generateAudioPodcast(this.plugin.app, podcastScript, {
+            apiKey: geminiApiKey,
+            voice: this.plugin.settings.newsletterPodcastVoice || 'Charon',
+            outputFolder: audioFolder,
+            dateStr,
+        });
+
+        if (!result.success) {
+            logger.warn('Newsletter', 'Audio podcast generation failed', result.error);
+            throw new Error(result.error || 'Audio generation failed (no error message)');
+        }
+        if (!result.filePath) {
+            throw new Error('Audio generation returned success but no filePath');
+        }
+        logger.debug('Newsletter', `Audio saved: ${result.filePath}`);
+
+            // Embed the audio link into today's digest note so the user
+            // actually sees it. Otherwise the audio lives in a dated subfolder
+            // with no surface in the UI.
+        const digestPath = getDigestPath(outputRoot, dateStr);
+        const digestFile = this.plugin.app.vault.getAbstractFileByPath(digestPath);
+        if (digestFile instanceof TFile) {
+            await this.injectAudioEmbedIntoDigest(digestFile, result.filePath);
+        }
+    }
+
+    /**
+     * Inject or replace the audio embed line inside the managed Daily Brief
+     * block of the digest file. The embed lives INSIDE the
+     * `<!-- DAILY_BRIEF_START --> ... <!-- DAILY_BRIEF_END -->` markers so
+     * regenerating the text brief wipes it and the subsequent audio step
+     * re-injects the (possibly new) audio path. Idempotent: if an existing
+     * `brief-*.wav` embed is present, it's replaced.
+     */
+    private async injectAudioEmbedIntoDigest(digestFile: TFile, audioVaultPath: string): Promise<void> {
+        const vault = this.plugin.app.vault;
+        const content = await vault.cachedRead(digestFile);
+        const endMarker = /<!--\s*DAILY_BRIEF_END\s*-->/;
+        if (!endMarker.test(content)) {
+            logger.debug('Newsletter', 'No DAILY_BRIEF block — skipping audio embed');
+            return;
+        }
+        // Embed by filename only — Obsidian resolves wikilinks by name
+        // globally, and the sha-fingerprinted filename is unique.
+        const fileName = audioVaultPath.split('/').pop() || audioVaultPath;
+        const embedLine = `🎧 **Listen:** ![[${fileName}]]`;
+        // Remove any prior audio-embed line pointing at a `brief-*.wav`
+        const priorEmbed = /\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*/g;
+        let updated = content.replaceAll(priorEmbed, '\n');
+        // Inject new embed just before the closing marker
+        updated = updated.replace(endMarker, `\n${embedLine}\n\n<!-- DAILY_BRIEF_END -->`);
+        await vault.modify(digestFile, updated);
+        logger.debug('Newsletter', `Embedded audio in digest: ${fileName}`);
+    }
+
+    /**
+     * Public entry point for manually regenerating the audio podcast against
+     * today's already-synthesised Daily Brief. Lets users trigger audio
+     * without waiting for the next fetch with new newsletters (common when
+     * they enable the audio toggle AFTER the day's brief already ran, or
+     * when they want to re-render with a different voice).
+     *
+     * Extracts the managed `<!-- DAILY_BRIEF_START --> ... <!-- DAILY_BRIEF_END -->`
+     * block from today's digest file and pipes it through the same audio
+     * pipeline used in `generateAndInjectBrief`.
+     */
+    public async regenerateAudioForToday(): Promise<{ success: boolean; error?: string; path?: string }> {
+        if (!this.plugin.settings.newsletterAudioPodcast) {
+            return { success: false, error: 'Audio podcast is off — toggle it on in settings first.' };
+        }
+        const vault = this.plugin.app.vault;
+        const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
+        const dateStr = getBriefDateStr(this.plugin.settings.newsletterBriefCutoffHour ?? 6);
+        const digestPath = getDigestPath(outputRoot, dateStr);
+        const digestFile = vault.getAbstractFileByPath(digestPath);
+        if (!(digestFile instanceof TFile)) {
+            return { success: false, error: `No digest file at ${digestPath} — run a newsletter fetch first.` };
+        }
+        const content = await vault.cachedRead(digestFile);
+        // Strip any prior audio embed from the brief content before
+        // synthesis — otherwise the LLM script would include "Listen: ..."
+        // literal text. (Brief content and embed are both inside the managed
+        // block; when this function extracts, it may pick up an old embed.)
+        const priorEmbed = /\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*/g;
+        const match = /<!--\s*DAILY_BRIEF_START\s*-->\s*##\s*Daily Brief\s*([\s\S]*?)<!--\s*DAILY_BRIEF_END\s*-->/.exec(content);
+        if (!match) {
+            return { success: false, error: "No Daily Brief block found in today's digest — the brief step didn't run or failed." };
+        }
+        const brief = match[1].replaceAll(priorEmbed, '').trim();
+        if (brief.length < 50) {
+            return { success: false, error: "Today's Daily Brief is empty / too short for audio synthesis." };
+        }
         try {
-            // Resolve Gemini API key:
-            //   1. SecretStorage 'gemini' provider key (primary — this is where
-            //      Obsidian keys live for most users)
-            //   2. providerSettings.gemini.apiKey (legacy plain-text fallback)
-            //   3. cloudApiKey (only when main provider IS Gemini)
-            //
-            // Before this fix, we skipped SecretStorage entirely — so users whose
-            // Gemini key was in SecretStorage (the Obsidian-recommended path) but
-            // whose main provider was something else got a silent "skipped" log
-            // with no audio output. The feature looked broken.
-            const settings = this.plugin.settings;
-            const secretKey = this.plugin.secretStorageService.isAvailable()
-                ? await this.plugin.secretStorageService.getProviderKey('gemini')
-                : null;
-            const geminiApiKey =
-                secretKey ||
-                settings.providerSettings?.['gemini']?.apiKey ||
-                (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
-                '';
-            if (!geminiApiKey) {
-                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
-                new Notice('Audio podcast skipped — add a gemini key in settings to enable', 6000);
-                return;
-            }
-
-            const { buildPodcastScriptPrompt, insertPodcastContent } = await import('../prompts/newsletterPrompts');
-            const langCode = this.plugin.settings.newsletterPreferredLanguage;
-            const { getLanguageNameForPrompt: getLang } = await import('../languages');
-            const langName = getLang(langCode);
-
-            const maxMins = this.plugin.settings.newsletterPodcastMaxMins ?? 5;
-            const scriptPrompt = insertPodcastContent(
-                buildPodcastScriptPrompt({ language: langName || undefined, maxMins }),
-                brief
-            );
-            const scriptResult = await summarizeText(pluginContext(this.plugin), scriptPrompt);
-            if (!scriptResult.success || !scriptResult.content) {
-                logger.warn('Newsletter', 'Podcast script LLM call failed');
-                return;
-            }
-            const podcastScript = scriptResult.content.trim();
-
-            const { generateAudioPodcast } = await import('./newsletterAudioService');
-            const audioFolder = normalizePath(`${outputRoot}/${dateStr}`);
-            const result = await generateAudioPodcast(this.plugin.app, podcastScript, {
-                apiKey: geminiApiKey,
-                voice: this.plugin.settings.newsletterPodcastVoice || 'Charon',
-                outputFolder: audioFolder,
-                dateStr,
-            });
-
-            if (!result.success) {
-                logger.warn('Newsletter', 'Audio podcast generation failed', result.error);
-            }
+            await this.generateAudioForBrief(brief, outputRoot, dateStr);
+            return { success: true, path: `${outputRoot}/${dateStr}/` };
         } catch (e) {
-            logger.warn('Newsletter', 'Audio podcast pipeline error', e);
+            return { success: false, error: e instanceof Error ? e.message : String(e) };
         }
     }
 

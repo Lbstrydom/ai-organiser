@@ -70,22 +70,43 @@ export async function summarizeTextStream(
 ): Promise<LLMCallResult> {
     const service = context.llmService;
 
+    // Track whether any chunk has reached the caller. Once true, a fallback
+    // to non-stream would duplicate content (audit R1 H5/H16), so we must
+    // fail-fast with a partial-stream error instead of replaying the whole
+    // response.
+    let emitted = false;
+    const wrappedOnChunk = (chunk: string): void => {
+        if (chunk.length > 0) emitted = true;
+        onChunk(chunk);
+    };
+
     // Check if streaming is supported at runtime
     if ('summarizeTextStream' in service && typeof service.summarizeTextStream === 'function') {
         try {
-            return await service.summarizeTextStream(prompt, onChunk, signal);
+            return await service.summarizeTextStream(prompt, wrappedOnChunk, signal);
         } catch (e) {
             // If aborted, propagate — do NOT fall back to a non-stream request
             if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
                 return { success: false, error: 'Aborted' };
             }
-            // Streaming failed for other reasons — fall back to non-stream
-            logger.warn('LLM', 'Streaming failed, falling back to non-stream:', e);
+            if (emitted) {
+                // Mid-stream failure: caller has already rendered partial
+                // chunks. Surfacing a fallback would duplicate that output,
+                // so return a partial-stream failure the caller can handle.
+                const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+                logger.warn('LLM', 'Streaming failed mid-stream; no fallback to avoid duplication', e);
+                return { success: false, error: `Partial stream failure: ${errorMessage}` };
+            }
+            // Streaming failed pre-first-chunk — safe to fall back to non-stream
+            logger.warn('LLM', 'Streaming failed pre-first-chunk, falling back to non-stream:', e);
         }
     }
 
-    // Fallback: non-stream call, deliver entire content as single chunk
-    const result = await summarizeText(context, prompt);
+    // Fallback: non-stream call, deliver entire content as single chunk.
+    // Gemini-gate G1 (2026-04-20): pass the abort signal down so Cancel
+    // works on the fallback path — without this, a stream-failed service
+    // becomes unabortable and the Cancel button spins silently.
+    const result = await summarizeText(context, prompt, { signal });
     if (result.success && result.content) {
         onChunk(result.content);
     }

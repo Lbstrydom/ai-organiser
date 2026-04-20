@@ -51,7 +51,11 @@ describe('summarizeTextStream facade', () => {
         const chunks: string[] = [];
         const result = await summarizeTextStream(makeContext(service), 'prompt', (c) => chunks.push(c));
 
-        expect(service.summarizeText).toHaveBeenCalledWith('prompt', undefined);
+        // Gemini-gate G1 (2026-04-20): fallback now forwards the abort
+        // signal via the options bag so Cancel works even when streaming
+        // isn't supported. When no signal is provided, we expect
+        // `{ signal: undefined }` to be passed through.
+        expect(service.summarizeText).toHaveBeenCalledWith('prompt', { signal: undefined });
         expect(result).toEqual({ success: true, content: 'non-stream' });
         expect(chunks).toEqual(['non-stream']);
     });
@@ -67,6 +71,16 @@ describe('summarizeTextStream facade', () => {
 
         expect(result).toEqual({ success: true, content: 'fallback' });
         expect(chunks).toEqual(['fallback']);
+    });
+
+    it('fallback path propagates the abort signal (Gemini-gate G1)', async () => {
+        const controller = new AbortController();
+        const service = {
+            // No summarizeTextStream → fallback triggered
+            summarizeText: vi.fn().mockResolvedValue({ success: true, content: 'x' }),
+        };
+        await summarizeTextStream(makeContext(service), 'p', () => {}, controller.signal);
+        expect(service.summarizeText).toHaveBeenCalledWith('p', { signal: controller.signal });
     });
 
     it('does not fall back to summarizeText when stream is aborted', async () => {

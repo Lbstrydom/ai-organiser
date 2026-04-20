@@ -2,10 +2,17 @@
  * LLM Model Registry
  *
  * Centralized registry for all LLM provider models.
- * Following the same pattern as embeddingRegistry.ts for consistency.
  *
- * This file should be the single source of truth for available models.
- * Update this file when providers release new models.
+ * Two-tier structure:
+ *   1. `latest-*` symbolic IDs — stay fresh automatically. When the registry
+ *      gets a new entry for a provider, users on `latest-*` get the upgrade
+ *      without re-selecting. Resolved to concrete IDs at adapter creation
+ *      via `resolveLatestModel` in modelCapabilities.ts.
+ *   2. Concrete IDs — for users who want to pin a specific version.
+ *
+ * The concrete list is still hand-maintained but kept as a FALLBACK rather
+ * than the only source of truth — dynamicModelService (phase 2) will fetch
+ * live lists from provider endpoints and merge them here.
  */
 
 import type { AdapterType } from './index';
@@ -21,36 +28,45 @@ export interface ModelOption {
  * Format: { modelId: 'Display Label' }
  */
 export const PROVIDER_MODELS: Partial<Record<AdapterType, Record<string, string>>> = {
-    // Anthropic Claude models
+    // Anthropic Claude — `latest-*` resolve to newest by tier automatically
     claude: {
-        'claude-sonnet-4-6': 'Claude Sonnet 4.6 (Recommended)',
-        'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (Fastest)',
-        'claude-opus-4-6': 'Claude Opus 4.6 (Most Capable)',
-        'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (Legacy)',
-        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (Legacy)'
+        'latest-opus':   'Opus (latest)',
+        'latest-sonnet': 'Sonnet (latest)',
+        'latest-haiku':  'Haiku (latest)',
+        'claude-opus-4-7': 'Claude Opus 4.7 (pin)',
+        'claude-sonnet-4-6': 'Claude Sonnet 4.6 (pin)',
+        'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (pin)',
+        'claude-opus-4-6': 'Claude Opus 4.6 (pin)',
+        'claude-sonnet-4-5-20250929': 'Claude Sonnet 4.5 (pin)',
+        'claude-opus-4-5-20251101': 'Claude Opus 4.5 (pin)'
     },
 
-    // OpenAI models including o3 reasoning
+    // OpenAI GPT + o-series
     openai: {
-        'gpt-5.2': 'GPT-5.2 (Best Reasoning)',
-        'gpt-5.2-pro': 'GPT-5.2 Pro (Hardest Problems)',
-        'gpt-5-mini': 'GPT-5 Mini (Balanced)',
-        'o3-deep-research': 'o3 Deep Research (Extended Thinking)',
-        'o3': 'o3 (Advanced Reasoning)',
-        'o3-mini': 'o3 Mini (Fast Reasoning)',
-        'gpt-4o': 'GPT-4o (Legacy)',
-        'gpt-4o-mini': 'GPT-4o Mini (Legacy)'
+        'latest-gpt':      'GPT (latest flagship)',
+        'latest-gpt-mini': 'GPT Mini (latest balanced)',
+        'latest-o':        'o-series (latest reasoning)',
+        'gpt-5.2': 'GPT-5.2 (pin)',
+        'gpt-5.2-pro': 'GPT-5.2 Pro (pin)',
+        'gpt-5-mini': 'GPT-5 Mini (pin)',
+        'o3-deep-research': 'o3 Deep Research (pin)',
+        'o3': 'o3 (pin)',
+        'o3-mini': 'o3 Mini (pin)',
+        'gpt-4o': 'GPT-4o (legacy pin)',
+        'gpt-4o-mini': 'GPT-4o Mini (legacy pin)'
     },
 
-    // Google Gemini models
+    // Google Gemini
     gemini: {
-        'gemini-3.1-pro': 'Gemini 3.1 Pro (Most Capable)',
-        'gemini-3-flash': 'Gemini 3 Flash (Fast)',
-        'gemini-2.5-pro': 'Gemini 2.5 Pro',
-        'gemini-2.5-flash': 'Gemini 2.5 Flash (Recommended)',
-        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (Cheapest)',
-        'gemini-2.0-flash': 'Gemini 2.0 Flash (Deprecated Mar 2026)',
-        'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite'
+        'latest-pro':   'Gemini Pro (latest)',
+        'latest-flash': 'Gemini Flash (latest)',
+        'gemini-3.1-pro': 'Gemini 3.1 Pro (pin)',
+        'gemini-3-flash': 'Gemini 3 Flash (pin)',
+        'gemini-2.5-pro': 'Gemini 2.5 Pro (pin)',
+        'gemini-2.5-flash': 'Gemini 2.5 Flash (pin)',
+        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (pin)',
+        'gemini-2.0-flash': 'Gemini 2.0 Flash (deprecated Mar 2026)',
+        'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite (pin)'
     },
 
     // Groq models (fast inference)
@@ -97,9 +113,10 @@ export const PROVIDER_MODELS: Partial<Record<AdapterType, Record<string, string>
 
     // OpenRouter (aggregator - popular models)
     openrouter: {
+        'anthropic/claude-opus-4.7': 'Claude Opus 4.7 (Best)',
         'anthropic/claude-sonnet-4.6': 'Claude Sonnet 4.6 (Anthropic)',
         'anthropic/claude-haiku-4.5': 'Claude Haiku 4.5 (Fast)',
-        'anthropic/claude-opus-4.6': 'Claude Opus 4.6 (Best)',
+        'anthropic/claude-opus-4.6': 'Claude Opus 4.6 (Legacy)',
         'anthropic/claude-sonnet-4.5': 'Claude Sonnet 4.5 (Legacy)',
         'anthropic/claude-opus-4.5': 'Claude Opus 4.5 (Legacy)',
         'openai/gpt-5.2': 'GPT-5.2 (OpenAI)',
