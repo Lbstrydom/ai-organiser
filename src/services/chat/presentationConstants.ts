@@ -11,10 +11,19 @@ export const SLIDE_WIDTH = 1920;
 export const SLIDE_HEIGHT = 1080;
 
 // ── Timeouts ────────────────────────────────────────────────────────────────
+//
+// Realistic end-to-end budgets for Claude Sonnet / Opus streaming. An 8-slide
+// deck with content = 4000-6000 output tokens at ~60-80 tok/sec = 60-100s of
+// streaming PLUS ~2-5s latency. Refinement is smaller but still multi-slide.
+// Audit is a single pass over the deck.
+//
+// Pre-2026-04-20 values (45/30/15s) were hitting timeout on real digests and
+// aborting with "Failed to generate: Aborted" — observed with a ~5K char
+// source note + 8-slide request.
 
-export const GENERATION_TIMEOUT = 45_000;
-export const REFINEMENT_TIMEOUT = 30_000;
-export const AUDIT_TIMEOUT = 15_000;
+export const GENERATION_TIMEOUT = 180_000;   // 3 min — room for 8-12 slide decks
+export const REFINEMENT_TIMEOUT = 120_000;   // 2 min — per-refine chat turn
+export const AUDIT_TIMEOUT = 60_000;         // 1 min — brand audit pass
 
 // ── Limits ──────────────────────────────────────────────────────────────────
 
