@@ -5,6 +5,8 @@ import {
     MAX_ROWS,
     MAX_COLS,
     MAX_SHEETS,
+    MAX_BUFFER_BYTES,
+    MAX_OUTPUT_CHARS,
 } from '../src/services/spreadsheetService';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -140,6 +142,52 @@ describe('extractSpreadsheet — limits', () => {
 });
 
 // ── Error paths ───────────────────────────────────────────────────────────
+
+describe('extractSpreadsheet — buffer-size gate (H3)', () => {
+    it('rejects buffers larger than MAX_BUFFER_BYTES before parsing', () => {
+        // Construct a buffer just over the limit — content doesn't need to
+        // be a valid xlsx because the check runs before XLSX.read.
+        const tooBig = new ArrayBuffer(MAX_BUFFER_BYTES + 1);
+        const r = extractSpreadsheet(tooBig, 'adversarial.xlsx');
+        expect(r.success).toBe(false);
+        expect(r.error).toMatch(/exceeds .* MB limit/);
+        expect(r.sheets).toEqual([]);
+    });
+
+    it('accepts buffers at exactly MAX_BUFFER_BYTES (boundary)', () => {
+        // Still invalid as xlsx, but should get past the size gate and hit
+        // parse-time error instead — proves the boundary is inclusive.
+        const atLimit = new ArrayBuffer(MAX_BUFFER_BYTES);
+        const r = extractSpreadsheet(atLimit, 'big-but-ok.xlsx');
+        // Either parses as empty workbook or fails at parse time — never
+        // fails at the size gate.
+        if (!r.success) {
+            expect(r.error).not.toMatch(/exceeds .* MB limit/);
+        }
+    });
+});
+
+describe('extractSpreadsheet — mid-sheet truncation (H8)', () => {
+    it('emits partial rows + truncation marker when a single sheet exceeds output budget', () => {
+        // Build one sheet large enough to exceed MAX_OUTPUT_CHARS on its own.
+        // Each row ~100 chars × 2000 rows = ~200KB worth of markdown,
+        // comfortably over 80KB MAX_OUTPUT_CHARS.
+        const rows: unknown[][] = [['id', 'payload']];
+        const payload = 'x'.repeat(80);
+        for (let i = 0; i < 2000; i++) rows.push([i, payload]);
+        const buf = buildXlsx({ Big: rows });
+        const r = extractSpreadsheet(buf, 'big-single-sheet.xlsx');
+
+        expect(r.success).toBe(true);
+        expect(r.truncated).toBe(true);
+        expect(r.markdown.length).toBeLessThanOrEqual(MAX_OUTPUT_CHARS + 200); // allow tiny overhead
+        // Must contain header row + at least one data row (NOT empty).
+        expect(r.markdown).toContain('| id | payload |');
+        expect(r.markdown).toMatch(/\| 0 \| x+ \|/);
+        // Must contain the explicit truncation marker.
+        expect(r.markdown).toMatch(/rows truncated to stay within context budget/);
+    });
+});
 
 describe('extractSpreadsheet — errors', () => {
     it('returns success=false for an unparseable buffer', () => {

@@ -83,8 +83,13 @@ export const IMAGE_EXTENSIONS: ReadonlyArray<string> = [
     '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg',
     '.heic', '.heif', '.tiff', '.tif', '.avif'  // NEW: Additional formats requiring conversion
 ];
+// `.mp4` is a container that can hold audio-only or audio+video. Whisper
+// treats it as audio for transcription, which is the dominant use case in
+// this plugin, so it lives in AUDIO_EXTENSIONS only. Callers that truly need
+// to distinguish video files should use the mime type or probe the stream —
+// extension alone is ambiguous. Audit R1 H6 (2026-04-21).
 export const AUDIO_EXTENSIONS: ReadonlyArray<string> = ['.mp3', '.m4a', '.wav', '.webm', '.ogg', '.mp4', '.mpeg', '.mpga', '.oga'];
-export const VIDEO_EXTENSIONS: ReadonlyArray<string> = ['.mp4', '.mov', '.avi'];
+export const VIDEO_EXTENSIONS: ReadonlyArray<string> = ['.mov', '.avi'];
 
 // Image format constants for VLM processing
 export const IMAGE_CONVERSION_REQUIRED: ReadonlyArray<string> = [
