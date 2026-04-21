@@ -85,7 +85,11 @@ export class ConversationPersistenceService {
      * Returns false if the file could not be found or parsed.
      */
     async renameConversation(filePath: string, newTitle: string): Promise<boolean> {
-        const file = this.app.vault.getFileByPath(filePath);
+        // getAbstractFileByPath (not getFileByPath — which doesn't exist on
+        // Vault) matches the pattern used in load/delete above. Calling the
+        // non-existent method would throw TypeError at runtime. Gemini gate
+        // G1 (2026-04-21).
+        const file = this.app.vault.getAbstractFileByPath(filePath);
         if (!(file instanceof TFile)) return false;
         const content = await this.app.vault.read(file);
         const state = extractConversationState(content);

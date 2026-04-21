@@ -8,8 +8,15 @@
 import { TFile, Vault } from 'obsidian';
 import { generateDocx } from './markdownDocxGenerator';
 import type { DocxOptions } from './markdownDocxGenerator';
-import { generatePptx } from './markdownPptxGenerator';
+import { generatePptx, generatePptxFromHtml, resolveTheme } from './markdownPptxGenerator';
 import type { PptxOptions, ExportTheme } from './markdownPptxGenerator';
+
+/** Minimal theme used when a caller invokes presentation-HTML export
+ *  without an explicit theme. Matches the default navy-gold palette the
+ *  Export modal resolves from settings. */
+function defaultTheme(): ExportTheme {
+    return resolveTheme('navy-gold', '1A3A5C', 'F5C842', 'Noto Sans', 14);
+}
 import { MarkdownPdfGenerator } from '../notebooklm/pdf/MarkdownPdfGenerator';
 import { DEFAULT_PDF_CONFIG } from '../notebooklm/types';
 import { preprocessMarkdown } from '../../utils/markdownParser';
@@ -24,6 +31,16 @@ export interface ExportConfig {
     includeToc?: boolean;
     slideLayout?: 'title-content' | 'blank';
     theme?: ExportTheme;
+    /** Pre-rendered presentation HTML (from the presentation chat pipeline).
+     *  When present + format === 'pptx', exportNotes routes through the rich
+     *  parser + renderer (`generatePptxFromHtml`) which preserves layout
+     *  intent — two-column, stats-grid, tables, speaker notes — instead of
+     *  the lossy markdown-to-bullets fallback. Required by Phase 2E of
+     *  sister-backport-impl; Gemini gate G2 (2026-04-21). */
+    presentationHtml?: string;
+    /** Optional deck title used when exporting presentation HTML. Falls
+     *  back to the combined note title if omitted. */
+    presentationTitle?: string;
 }
 
 export interface ExportResult {
@@ -85,6 +102,27 @@ export class ExportService {
                 fontSize: config.theme?.fontSize,
             };
             buffer = await generateDocx(combinedMarkdown, docxOptions);
+        } else if (config.presentationHtml) {
+            // Phase 2E route: presentation deck HTML → rich PPTX with real
+            // text boxes, tables, stat cards, speaker notes. Fallback to the
+            // markdown path if the parser yields zero slides (unusual HTML
+            // shape) so we still ship a usable file. Gemini gate G2.
+            const richBuffer = await generatePptxFromHtml(
+                config.presentationHtml,
+                config.theme ?? defaultTheme(),
+                config.presentationTitle ?? combinedTitle,
+            );
+            if (richBuffer) {
+                buffer = richBuffer;
+            } else {
+                const pptxOptions: PptxOptions = {
+                    title: combinedTitle,
+                    includeTitle: true,
+                    layout: config.slideLayout ?? 'title-content',
+                    theme: config.theme,
+                };
+                buffer = await generatePptx(combinedMarkdown, pptxOptions);
+            }
         } else {
             const pptxOptions: PptxOptions = {
                 title: combinedTitle,
