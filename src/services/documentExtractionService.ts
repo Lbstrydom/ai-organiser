@@ -6,7 +6,9 @@
 import { App, TFile, requestUrl } from 'obsidian';
 import { EXTRACTABLE_DOCUMENT_EXTENSIONS, SPREADSHEET_EXTENSIONS } from '../core/constants';
 import { logger } from '../utils/logger';
-import { extractSpreadsheet } from './spreadsheetService';
+// `./spreadsheetService` pulls in xlsx (~200KB gzipped). Dynamically imported
+// at the spreadsheet-file call site so the whole bundle isn't paid for by
+// every user (Gemini gate G1, 2026-04-21).
 
 export interface DocumentExtractionResult {
     success: boolean;
@@ -129,6 +131,10 @@ export class DocumentExtractionService {
      */
     private async extractSpreadsheetFile(file: TFile): Promise<DocumentExtractionResult> {
         const arrayBuffer = await this.app.vault.readBinary(file);
+        // Dynamic import keeps the xlsx dep (~200KB gzipped) out of the
+        // initial plugin bundle — users who never open a spreadsheet don't
+        // pay for it. Gemini gate G1 (2026-04-21).
+        const { extractSpreadsheet } = await import('./spreadsheetService');
         const result = extractSpreadsheet(arrayBuffer, file.name);
         if (!result.success) {
             return { success: false, error: result.error ?? 'Failed to parse spreadsheet' };
