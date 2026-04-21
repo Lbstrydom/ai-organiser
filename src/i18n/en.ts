@@ -1974,6 +1974,7 @@ export const en: Translations = {
             // === Plan 1: Chat Persistence ===
             resumeTitle: "AI chat",
             resumeProjects: 'Projects',
+            resumePresentations: 'Saved presentations',
             resumeRecent: "Recent conversations",
             resumeNewConversation: 'New conversation',
             resumeNewPresentation: 'New presentation',
@@ -2105,6 +2106,7 @@ export const en: Translations = {
             navigateHint: "To navigate",
             selectHint: "To select",
             closeHint: "To close",
+            categoryEssentials: "Essentials",
             categoryActiveNote: "Active note",
             categoryCapture: "Capture",
             categoryVault: "Vault intelligence",

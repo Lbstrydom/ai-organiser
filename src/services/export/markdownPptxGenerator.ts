@@ -409,3 +409,27 @@ export async function generatePptxFromDeck(
     const output = await pptx.write({ outputType: 'arraybuffer' });
     return output as ArrayBuffer;
 }
+
+/**
+ * Generate a PPTX from presentation HTML (LLM-authored, sanitized deck).
+ *
+ * Phase 2 of the sister-repo backport. Unlike `generatePptx()` (which
+ * flattens markdown to bullets) and `generatePptxFromDeck()` (which uses
+ * our minimal `DeckModel`), this path preserves layout intent: two-column
+ * regions stay two-column, stat grids stay grids, tables stay tables, and
+ * speaker notes propagate to pptxgenjs's notes pane.
+ *
+ * Falls back to `null` when the HTML parses to zero slides so callers can
+ * retry with the markdown / deck path instead of shipping an empty file.
+ */
+export async function generatePptxFromHtml(
+    html: string,
+    theme: ExportTheme,
+    deckTitle?: string,
+): Promise<ArrayBuffer | null> {
+    const { htmlToRichSlides } = await import('../pptxExport/htmlToRichSlideParser');
+    const { renderRichPptx } = await import('../pptxExport/richPptxRenderer');
+    const slides = htmlToRichSlides(html);
+    if (slides.length === 0) return null;
+    return renderRichPptx(slides, theme, deckTitle);
+}

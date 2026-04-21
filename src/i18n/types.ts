@@ -1977,6 +1977,7 @@ export interface Translations {
             // Resume Picker
             resumeTitle: string;
             resumeProjects: string;
+            resumePresentations: string;
             resumeRecent: string;
             resumeNewConversation: string;
             resumeNewPresentation: string;
@@ -2124,6 +2125,7 @@ export interface Translations {
             navigateHint: string;
             selectHint: string;
             closeHint: string;
+            categoryEssentials: string;
             categoryActiveNote: string;
             categoryCapture: string;
             categoryVault: string;

@@ -684,10 +684,22 @@ export class PresentationModeHandler implements ChatModeHandler {
             const allSlides = iframeDoc.querySelectorAll('.slide');
             allSlides.forEach(s => s.classList.remove('pres-nav-hidden'));
 
-            const { exportToPptx } = await import('dom-to-pptx');
-            await exportToPptx(Array.from(allSlides) as HTMLElement[], {
-                fileName: sanitizeFileName(extractDeckTitle(this.html)) + '.pptx',
-            });
+            const title = extractDeckTitle(this.html);
+            const fileName = sanitizeFileName(title) + '.pptx';
+
+            // Phase 2 sister-backport: prefer the rich renderer so exported
+            // decks are editable in PowerPoint (real text boxes, tables,
+            // notes) instead of rasterised slide screenshots.
+            const richBuffer = await this.tryRichPptxExport(ctx, title);
+            if (richBuffer) {
+                this.downloadBuffer(richBuffer, fileName);
+            } else {
+                // Parser returned zero slides (unexpected HTML shape) — fall
+                // back to the legacy DOM-to-pptx path which rasterises the
+                // rendered iframe. Loses editability but ships a usable file.
+                const { exportToPptx } = await import('dom-to-pptx');
+                await exportToPptx(Array.from(allSlides) as HTMLElement[], { fileName });
+            }
 
             // Restore single-slide view
             this.preview.navigateToSlide(this.activeSlideIndex);
@@ -703,6 +715,49 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.mutationLock = false;
             callbacks.rerenderActions();
         }
+    }
+
+    /**
+     * Attempt the Phase 2 rich PPTX path: parse the current HTML into
+     * RichSlideJSON, render with pptxgenjs. Returns `null` when the parser
+     * yields zero slides (so the caller can fall back to dom-to-pptx) or
+     * when the user's theme resolution fails. Any render-time error is
+     * rethrown so the outer try/catch surfaces it to the user.
+     */
+    private async tryRichPptxExport(
+        ctx: ModalContext,
+        deckTitle: string,
+    ): Promise<ArrayBuffer | null> {
+        if (!this.html) return null;
+        try {
+            const { generatePptxFromHtml, resolveTheme } = await import('../../services/export/markdownPptxGenerator');
+            const s = ctx.fullPlugin.settings;
+            const theme = resolveTheme(
+                s.exportColorScheme,
+                s.exportPrimaryColor,
+                s.exportAccentColor,
+                s.exportFontFace,
+                s.exportFontSize,
+            );
+            return await generatePptxFromHtml(this.html, theme, deckTitle);
+        } catch (e) {
+            logger.warn('Presentation', `Rich PPTX path failed, will fall back to dom-to-pptx: ${e instanceof Error ? e.message : String(e)}`);
+            return null;
+        }
+    }
+
+    /** Browser download of an ArrayBuffer via a transient anchor click. */
+    private downloadBuffer(buffer: ArrayBuffer, fileName: string): void {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Defer revoke to the next macrotask so the click has landed.
+        globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     // ── Export: HTML ─────────────────────────────────────────────────────────

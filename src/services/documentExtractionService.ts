@@ -4,8 +4,9 @@
  */
 
 import { App, TFile, requestUrl } from 'obsidian';
-import { EXTRACTABLE_DOCUMENT_EXTENSIONS } from '../core/constants';
+import { EXTRACTABLE_DOCUMENT_EXTENSIONS, SPREADSHEET_EXTENSIONS } from '../core/constants';
 import { logger } from '../utils/logger';
+import { extractSpreadsheet } from './spreadsheetService';
 
 export interface DocumentExtractionResult {
     success: boolean;
@@ -52,6 +53,14 @@ export class DocumentExtractionService {
 
             if (ext === 'rtf') {
                 return await this.extractRtfFile(file);
+            }
+
+            // Phase 3 (sister-backport): route xlsx/csv/xls through the
+            // structured spreadsheet extractor so the LLM gets markdown
+            // tables with row/col counts instead of officeparser's flat
+            // text dump that loses column boundaries.
+            if ((SPREADSHEET_EXTENSIONS as readonly string[]).includes(ext)) {
+                return await this.extractSpreadsheetFile(file);
             }
 
             const arrayBuffer = await this.app.vault.readBinary(file);
@@ -112,6 +121,19 @@ export class DocumentExtractionService {
         }
 
         return { success: true, text };
+    }
+
+    /**
+     * Extract structured markdown tables from xlsx/csv/xls files.
+     * Delegates to spreadsheetService which enforces OOM-safety limits.
+     */
+    private async extractSpreadsheetFile(file: TFile): Promise<DocumentExtractionResult> {
+        const arrayBuffer = await this.app.vault.readBinary(file);
+        const result = extractSpreadsheet(arrayBuffer, file.name);
+        if (!result.success) {
+            return { success: false, error: result.error ?? 'Failed to parse spreadsheet' };
+        }
+        return { success: true, text: result.markdown };
     }
 
     /**

@@ -31,13 +31,15 @@ describe('Command Picker', () => {
         it('should return all expected categories', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const categoryIds = categories.map(c => c.id);
-            expect(categoryIds).toEqual(['active-note', 'capture', 'vault', 'tools']);
+            // R1 menu audit 2026-04-21: `essentials` added at top of tree
+            expect(categoryIds).toEqual(['essentials', 'active-note', 'capture', 'vault', 'tools']);
         });
 
         it('should have correct category names from i18n', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const categoryNames = categories.map(c => c.name);
             expect(categoryNames).toEqual([
+                mockTranslations.modals.commandPicker.categoryEssentials,
                 mockTranslations.modals.commandPicker.categoryActiveNote,
                 mockTranslations.modals.commandPicker.categoryCapture,
                 mockTranslations.modals.commandPicker.categoryVault,
@@ -45,13 +47,22 @@ describe('Command Picker', () => {
             ]);
         });
 
-        it('active note should contain expected sub-groups', () => {
+        it('essentials should contain chat, semantic search, and quick peek (R1 menu audit)', () => {
+            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const essentials = categories.find(c => c.id === 'essentials');
+
+            expect(essentials).toBeDefined();
+            const ids = essentials!.commands.map(c => c.id);
+            expect(ids).toEqual(['chat-with-ai', 'semantic-search', 'quick-peek']);
+        });
+
+        it('active note should contain expected sub-groups (quick-peek removed, promoted to essentials)', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const activeNote = categories.find(c => c.id === 'active-note');
 
             expect(activeNote).toBeDefined();
             const ids = activeNote!.commands.map(c => c.id);
-            expect(ids).toEqual(['refine-group', 'quick-peek', 'export-group', 'maps-group', 'pending-group']);
+            expect(ids).toEqual(['refine-group', 'export-group', 'maps-group', 'pending-group']);
 
             const maps = activeNote!.commands.find(c => c.id === 'maps-group');
             expect(maps?.subCommands?.map(c => c.id)).toEqual([
@@ -69,20 +80,13 @@ describe('Command Picker', () => {
             expect(ids).toEqual(['smart-summarize', 'create-meeting-minutes', 'record-audio', 'web-reader', 'research-web', 'kindle-sync', 'newsletter-fetch', 'new-sketch']);
         });
 
-        it('vault should contain expected sub-groups', () => {
+        it('vault should contain expected sub-groups (ask-search-group removed per R1/R2 menu audit)', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const vault = categories.find(c => c.id === 'vault');
 
             expect(vault).toBeDefined();
             const ids = vault!.commands.map(c => c.id);
-            expect(ids).toEqual(['ask-search-group', 'visualize-group', 'find-embeds']);
-
-            const askSearch = vault!.commands.find(c => c.id === 'ask-search-group');
-            expect(askSearch?.subCommands?.map(c => c.id)).toEqual([
-                'chat-with-ai',
-                'presentation-chat-from-ask',
-                'semantic-search'
-            ]);
+            expect(ids).toEqual(['visualize-group', 'find-embeds']);
 
             const visualize = vault!.commands.find(c => c.id === 'visualize-group');
             expect(visualize?.subCommands?.map(c => c.id)).toEqual([
@@ -135,8 +139,11 @@ describe('Command Picker', () => {
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            // 38 + 1 (presentation-chat surfaced under Ask & Search too — 2026-04-20)
-            expect(leafCount).toBe(39);
+            // R1+R2 menu audit 2026-04-21: was 39 (38 + presentation-chat-from-ask dup).
+            // Now 38: added 3 Essentials (chat, search, quick-peek) + removed 4 from their
+            // old locations (chat, search, presentation-chat dup in Ask & Search, quick-peek
+            // in Active Note) = net -1.
+            expect(leafCount).toBe(38);
         });
 
         it('should include the expected unique command IDs across all leaf callbacks', () => {

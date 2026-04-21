@@ -183,10 +183,17 @@ describe('DocumentExtractionService (production)', () => {
     });
 
     it('canExtract returns false for unsupported extensions', () => {
+        // .xls and .csv are now supported via the spreadsheet extractor
+        // (Phase 3 sister-backport), so they're intentionally excluded here.
         expect(service.canExtract(createTestFile('file.doc'))).toBe(false);
-        expect(service.canExtract(createTestFile('file.xls'))).toBe(false);
         expect(service.canExtract(createTestFile('file.jpg'))).toBe(false);
         expect(service.canExtract(createTestFile('file.mp3'))).toBe(false);
+    });
+
+    it('canExtract returns true for spreadsheet extensions (Phase 3)', () => {
+        expect(service.canExtract(createTestFile('q1.xlsx'))).toBe(true);
+        expect(service.canExtract(createTestFile('legacy.xls'))).toBe(true);
+        expect(service.canExtract(createTestFile('data.csv'))).toBe(true);
     });
 
     it('getSupportedExtensions includes all extractable types', () => {

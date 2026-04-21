@@ -1972,6 +1972,7 @@ export const zhCN: Translations = {
             // === 计划1: 对话持久化 ===
             resumeTitle: 'AI 对话',
             resumeProjects: '项目',
+            resumePresentations: '已保存的演示文稿',
             resumeRecent: '最近对话',
             resumeNewConversation: '新对话',
             resumeNewPresentation: '新演示文稿',
@@ -2102,6 +2103,7 @@ export const zhCN: Translations = {
             navigateHint: "导航",
             selectHint: "选择",
             closeHint: "关闭",
+            categoryEssentials: "核心",
             categoryActiveNote: "当前笔记",
             categoryCapture: "采集",
             categoryVault: "知识库",

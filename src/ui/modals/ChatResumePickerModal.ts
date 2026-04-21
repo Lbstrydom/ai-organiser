@@ -92,17 +92,36 @@ export class ChatResumePickerModal extends Modal {
             }
         }
 
-        // 3. Recent conversations — collapsible, collapsed by default.
+        // 3. Unfiled conversations — split into Presentations (findable at a
+        //    glance) and Recent chats, each collapsible (Phase 1 sister-
+        //    backport §1D). Presentations first because they represent more
+        //    work and users more often want to resume a deck than a chat.
         const unfiled = conversations.filter(c => !c.projectId);
-        if (unfiled.length > 0) {
+        const presentations = unfiled.filter(c => c.mode === 'presentation');
+        const chats = unfiled.filter(c => c.mode !== 'presentation');
+
+        if (presentations.length > 0) {
+            const details = contentEl.createEl('details', { cls: 'ai-organiser-resume-collapsible' });
+            const summary = details.createEl('summary', { cls: 'ai-organiser-resume-section-header' });
+            summary.createSpan({ text: this.t.resumePresentations });
+            summary.createSpan({
+                cls: 'ai-organiser-resume-section-count',
+                text: ` (${presentations.length})`,
+            });
+            for (const conv of presentations) {
+                this.renderConversationRow(details, conv);
+            }
+        }
+
+        if (chats.length > 0) {
             const details = contentEl.createEl('details', { cls: 'ai-organiser-resume-collapsible' });
             const summary = details.createEl('summary', { cls: 'ai-organiser-resume-section-header' });
             summary.createSpan({ text: this.t.resumeRecent });
             summary.createSpan({
                 cls: 'ai-organiser-resume-section-count',
-                text: ` (${unfiled.length})`,
+                text: ` (${chats.length})`,
             });
-            for (const conv of unfiled) {
+            for (const conv of chats) {
                 this.renderConversationRow(details, conv);
             }
         }

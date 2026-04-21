@@ -70,7 +70,10 @@ export const SOURCE_TYPES = ['url', 'pdf', 'youtube', 'audio', 'note', 'kindle',
 export type SourceType = typeof SOURCE_TYPES[number];
 
 // Document format constants (single source of truth)
-export const EXTRACTABLE_DOCUMENT_EXTENSIONS = ['docx', 'xlsx', 'pptx', 'txt', 'rtf'] as const;
+export const EXTRACTABLE_DOCUMENT_EXTENSIONS = ['docx', 'xlsx', 'pptx', 'txt', 'rtf', 'csv', 'xls'] as const;
+/** Subset of extensions routed through the structured spreadsheet extractor
+ *  (markdown tables) rather than the flat officeparser text dump. */
+export const SPREADSHEET_EXTENSIONS = ['xlsx', 'xls', 'csv'] as const;
 export const ALL_DOCUMENT_EXTENSIONS = ['pdf', ...EXTRACTABLE_DOCUMENT_EXTENSIONS] as const;
 export const DOCUMENT_EXTENSIONS_WITH_DOTS = ALL_DOCUMENT_EXTENSIONS.map(ext => `.${ext}`);
 export type ExtractableDocumentExtension = typeof EXTRACTABLE_DOCUMENT_EXTENSIONS[number];

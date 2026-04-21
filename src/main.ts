@@ -514,10 +514,14 @@ export default class AIOrganiserPlugin extends Plugin {
             () => this.openCommandPicker()
         );
 
+        // Dedicated Chat ribbon icon (R5 menu audit 2026-04-21). Replaces the
+        // tag-network icon — chat is the flagship feature and was 4 clicks
+        // deep via the picker; the tag network moved to Vault → Visualizations
+        // which is where all other graph/tag views live.
         this.addRibbonIcon(
-            'git-graph',
-            this.t.messages.viewTagNetwork,
-            () => this.showTagNetwork()
+            'message-circle',
+            this.t.commands.chatWithAI || 'Chat with AI',
+            () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
     }
 

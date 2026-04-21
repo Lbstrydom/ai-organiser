@@ -31,6 +31,26 @@ export function openChatWithSelection(plugin: AIOrganiserPlugin, editor: Editor)
 }
 
 /**
+ * Open UnifiedChatModal with whatever context is available from the active
+ * editor, auto-selecting the best mode. Shared by the `chat-with-ai` command
+ * and the dedicated Chat ribbon icon (R5 menu audit 2026-04-21).
+ */
+export function openAIChat(plugin: AIOrganiserPlugin): void {
+    const activeEditor = plugin.app.workspace.activeEditor?.editor;
+    const activeFile = plugin.app.workspace.getActiveFile();
+    const content = activeEditor?.getValue() || undefined;
+    const selection = activeEditor?.getSelection() || undefined;
+
+    const modal = new UnifiedChatModal(plugin.app, plugin, {
+        noteContent: content,
+        noteTitle: activeFile?.basename,
+        editorSelection: selection,
+        // No initialMode — let auto-selection pick the best mode
+    });
+    modal.open();
+}
+
+/**
  * Register chat commands
  */
 export function registerChatCommands(plugin: AIOrganiserPlugin): void {
@@ -39,20 +59,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         id: 'chat-with-ai',
         name: plugin.t.commands.chatWithAI,
         icon: 'message-circle',
-        callback: () => {
-            const activeEditor = plugin.app.workspace.activeEditor?.editor;
-            const activeFile = plugin.app.workspace.getActiveFile();
-            const content = activeEditor?.getValue() || undefined;
-            const selection = activeEditor?.getSelection() || undefined;
-
-            const modal = new UnifiedChatModal(plugin.app, plugin, {
-                noteContent: content,
-                noteTitle: activeFile?.basename,
-                editorSelection: selection,
-                // No initialMode — let auto-selection pick the best mode
-            });
-            modal.open();
-        }
+        callback: () => openAIChat(plugin),
     });
 
     // Presentation chat — opens UnifiedChatModal in presentation mode

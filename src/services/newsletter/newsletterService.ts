@@ -74,13 +74,11 @@ export class NewsletterService {
             await this.postProcessNotes(createdPaths, processed);
         }
 
-        // Phase 4: Daily brief synthesis (fires after all notes written) — best-effort
+        // Phase 4: Daily brief synthesis — one brief per bucket that got
+        // content (extracted to keep this function under the SonarQube
+        // cognitive-complexity ceiling).
         if (this.plugin.settings.newsletterDailyBrief && processed.length > 0) {
-            try {
-                await this.generateAndInjectBrief(processed);
-            } catch (e) {
-                logger.warn('Newsletter', 'Daily brief generation failed (non-fatal)', e);
-            }
+            await this.generateBriefsPerBucket(processed);
         }
 
         // Retention pruning — fire-and-forget so it never delays the fetch result.
@@ -351,61 +349,96 @@ export class NewsletterService {
     }
 
     /** Create digest note and individual newsletter notes in the vault.
-     *  Returns created file paths for downstream processing (auto-tag, metadata). */
+     *  Returns created file paths for downstream processing (auto-tag, metadata).
+     *
+     *  Each newsletter is bucketed by its arrival timestamp + the user's
+     *  configured cutoff hour. Example: cutoff=08:00, newsletter received
+     *  03:00 today → buckets into yesterday's digest (the user's "day"
+     *  hasn't rolled over yet). A fetch batch can therefore span multiple
+     *  buckets; we group by bucket date before writing. */
     private async createVaultNotes(newsletters: ProcessedNewsletter[]): Promise<string[]> {
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
-        const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10);
-        const dateLabel = today.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
 
-        // Daily subfolder for individual notes
-        const dailyFolder = normalizePath(`${outputRoot}/${dateStr}`);
-        await ensureFolderExists(vault, dailyFolder);
-
-        // Create individual notes — deterministic path per message (idempotent on retry)
-        const createdPaths: string[] = [];
+        // Group newsletters by bucket date (cutoff-aware). A fetch that runs
+        // at 09:00 after cutoff=08:00 may pull emails from 06:00 today
+        // (yesterday's bucket) and 08:30 today (today's bucket) in the same
+        // batch — previously they all collapsed into the fetch-time calendar
+        // date and polluted today's digest.
+        const byBucket = new Map<string, ProcessedNewsletter[]>();
         for (const nl of newsletters) {
-            const notePath = this.getDeterministicNotePath(dailyFolder, nl);
-
-            const noteContent = [
-                '---',
-                'tags:',
-                '  - newsletter',
-                `created: ${dateStr}`,
-                'sender_name: "' + (nl.senderName || '').replaceAll('"', String.raw`\"`) + '"',
-                '---',
-                '',
-                `# ${nl.subject}`,
-                '',
-                `*From: ${nl.from}*`,
-                '',
-                nl.triage || '(No summary available)',
-                ...(nl.keyLinks.length > 0 ? ['', '## Key Links', '', ...nl.keyLinks.map(l => `- [${l.text}](${l.href})`)] : []),
-            ].join('\n');
-
-            const existing = vault.getAbstractFileByPath(notePath);
-            if (!existing) {
-                await vault.create(notePath, noteContent);
-            }
-            createdPaths.push(notePath);
-            // Stash resolved filename for digest link
-            nl._resolvedPath = notePath;
+            const bucket = getBucketDateStr(nl.date, cutoff);
+            const existing = byBucket.get(bucket);
+            if (existing) existing.push(nl);
+            else byBucket.set(bucket, [nl]);
         }
 
-        // Create or update digest note — merge entries, don't raw-append
+        const createdPaths: string[] = [];
         await ensureFolderExists(vault, outputRoot);
-        const digestPath = getDigestPath(outputRoot, dateStr);
 
-        const existingDigest = vault.getAbstractFileByPath(digestPath);
-        if (existingDigest instanceof TFile) {
-            await this.mergeIntoExistingDigest(existingDigest, newsletters, dateStr);
-        } else {
-            const digestContent = this.buildDigestContent(newsletters, dateStr, dateLabel, 0);
-            await vault.create(digestPath, digestContent);
+        for (const [dateStr, group] of byBucket) {
+            const bucketPaths = await this.writeBucket(outputRoot, dateStr, group);
+            createdPaths.push(...bucketPaths);
         }
 
         return createdPaths;
+    }
+
+    /** Write one bucket's worth of notes + digest. Extracted from
+     *  createVaultNotes to keep cognitive complexity per function under the
+     *  SonarQube threshold. */
+    private async writeBucket(
+        outputRoot: string,
+        dateStr: string,
+        group: ProcessedNewsletter[],
+    ): Promise<string[]> {
+        const vault = this.plugin.app.vault;
+        const dateLabel = new Date(`${dateStr}T12:00:00`).toLocaleDateString(
+            undefined, { year: 'numeric', month: 'long', day: 'numeric' },
+        );
+        const dailyFolder = normalizePath(`${outputRoot}/${dateStr}`);
+        await ensureFolderExists(vault, dailyFolder);
+
+        const paths: string[] = [];
+        for (const nl of group) {
+            const notePath = this.getDeterministicNotePath(dailyFolder, nl);
+            const noteContent = this.buildNoteContent(nl, dateStr);
+            if (!vault.getAbstractFileByPath(notePath)) {
+                await vault.create(notePath, noteContent);
+            }
+            paths.push(notePath);
+            nl._resolvedPath = notePath;
+        }
+
+        const digestPath = getDigestPath(outputRoot, dateStr);
+        const existingDigest = vault.getAbstractFileByPath(digestPath);
+        if (existingDigest instanceof TFile) {
+            await this.mergeIntoExistingDigest(existingDigest, group, dateStr);
+        } else {
+            const digestContent = this.buildDigestContent(group, dateStr, dateLabel, 0);
+            await vault.create(digestPath, digestContent);
+        }
+
+        return paths;
+    }
+
+    private buildNoteContent(nl: ProcessedNewsletter, dateStr: string): string {
+        return [
+            '---',
+            'tags:',
+            '  - newsletter',
+            `created: ${dateStr}`,
+            'sender_name: "' + (nl.senderName || '').replaceAll('"', String.raw`\"`) + '"',
+            '---',
+            '',
+            `# ${nl.subject}`,
+            '',
+            `*From: ${nl.from}*`,
+            '',
+            nl.triage || '(No summary available)',
+            ...(nl.keyLinks.length > 0 ? ['', '## Key Links', '', ...nl.keyLinks.map(l => `- [${l.text}](${l.href})`)] : []),
+        ].join('\n');
     }
 
     /** Build a deterministic note path for a newsletter.
@@ -541,14 +574,42 @@ export class NewsletterService {
     // ── Daily Brief (Phase 4) ────────────────────────────────────────────
 
     /**
-     * Generate a synthesised daily brief from all newsletters in today's digest
-     * and inject it as a managed block at the top of the digest file.
-     * Called after all newsletter notes are written so standalone reconstruction works.
+     * Dispatch brief synthesis across every bucket that received content.
+     * Fetches spanning the cutoff boundary therefore refresh BOTH yesterday's
+     * and today's brief. Best-effort — a single bucket failure must not
+     * cancel the rest.
      */
-    private async generateAndInjectBrief(currentBatch: ProcessedNewsletter[]): Promise<void> {
+    private async generateBriefsPerBucket(processed: ProcessedNewsletter[]): Promise<void> {
+        const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+        const byBucket = new Map<string, ProcessedNewsletter[]>();
+        for (const nl of processed) {
+            const bucket = getBucketDateStr(nl.date, cutoff);
+            const existing = byBucket.get(bucket);
+            if (existing) existing.push(nl);
+            else byBucket.set(bucket, [nl]);
+        }
+        for (const [dateStr, group] of byBucket) {
+            try {
+                await this.generateAndInjectBrief(dateStr, group);
+            } catch (e) {
+                logger.warn('Newsletter', `Daily brief generation failed for ${dateStr} (non-fatal)`, e);
+            }
+        }
+    }
+
+    /**
+     * Generate a synthesised daily brief for the given bucket date and
+     * inject it as a managed block at the top of the digest file.
+     *
+     * Called once per bucket that received new newsletters in this fetch
+     * (see `fetchAndProcess`). A single fetch can span cutoff boundaries
+     * and therefore touch more than one bucket; each bucket gets its own
+     * brief + audio. `dateStr` and `currentBatch` must be aligned — callers
+     * pre-group newsletters by bucket via `getBucketDateStr` before calling.
+     */
+    private async generateAndInjectBrief(dateStr: string, currentBatch: ProcessedNewsletter[]): Promise<void> {
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
-        const dateStr = getBriefDateStr(this.plugin.settings.newsletterBriefCutoffHour ?? 6);
         const digestPath = getDigestPath(outputRoot, dateStr);
 
         const digestFile = vault.getAbstractFileByPath(digestPath);
@@ -913,11 +974,37 @@ export class NewsletterService {
  * (e.g. newsletters arriving at 2am still roll up into the previous day's brief).
  */
 export function getBriefDateStr(cutoffHour: number): string {
-    const now = new Date();
-    if (now.getHours() < cutoffHour) {
-        now.setDate(now.getDate() - 1);
+    return getBucketDateStr(new Date(), cutoffHour);
+}
+
+/**
+ * Bucket a specific timestamp into a YYYY-MM-DD digest day using the user's
+ * configured cutoff hour. A message received at 03:00 with cutoff=08:00
+ * belongs to the previous day's bucket because the user's day hasn't rolled
+ * over yet.
+ *
+ * Uses LOCAL time — cutoff hours are wall-clock in the user's timezone, not
+ * UTC. `Date#getHours/Date/setDate` are local-time methods; only the final
+ * ISO serialisation is UTC-based. We rebuild the YYYY-MM-DD string from
+ * local parts so the bucket boundary matches the user's clock, not UTC.
+ *
+ * Shared by fetch-time bucketing, folder creation, digest path, and brief
+ * synthesis so every code path agrees on which day a given message lives in.
+ */
+export function getBucketDateStr(when: Date | string, cutoffHour: number): string {
+    const d = new Date(when);
+    if (!Number.isFinite(d.getTime())) {
+        // Fall back to "today" in local time if parsing failed — defensive
+        // guard against a malformed payload; bucketing stays monotonic.
+        return getBucketDateStr(new Date(), cutoffHour);
     }
-    return now.toISOString().slice(0, 10);
+    if (d.getHours() < cutoffHour) {
+        d.setDate(d.getDate() - 1);
+    }
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 /**

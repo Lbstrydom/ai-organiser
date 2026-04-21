@@ -446,6 +446,41 @@ export function buildCommandCategories(
 	const desc = t.modals.commandPicker.descriptions ?? {} as Record<string, string>;
 
 	return [
+		// R1 (menu audit 2026-04-21): Essentials sit above every category so
+		// the flagship verbs — Chat, Semantic search, Quick peek — are one
+		// click away. Earlier structure had Chat 4 clicks deep under Vault →
+		// Ask & search; every persona tested bounced to Ctrl+P instead.
+		{
+			id: 'essentials',
+			name: t.modals.commandPicker.categoryEssentials,
+			icon: 'star',
+			commands: [
+				{
+					id: 'chat-with-ai',
+					name: t.commands.chatWithAI,
+					icon: 'message-circle',
+					description: desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
+					aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages'],
+					callback: () => executeCommand('ai-organiser:chat-with-ai')
+				},
+				{
+					id: 'semantic-search',
+					name: t.commands.searchSemanticVault,
+					icon: 'search',
+					description: desc.semanticSearch || 'Find notes by meaning, not just keywords',
+					aliases: ['semantic', 'search', 'find', 'query', 'lookup'],
+					callback: () => executeCommand('ai-organiser:semantic-search')
+				},
+				{
+					id: 'quick-peek',
+					name: t.commands.quickPeek,
+					icon: 'zap',
+					description: desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
+					aliases: ['peek', 'quick', 'triage', 'skim', 'preview', 'sources'],
+					callback: () => executeCommand('ai-organiser:quick-peek')
+				},
+			],
+		},
 		{
 			id: 'active-note',
 			name: t.modals.commandPicker.categoryActiveNote,
@@ -517,14 +552,7 @@ export function buildCommandCategories(
 						}
 					]
 				},
-				{
-					id: 'quick-peek',
-					name: t.commands.quickPeek,
-					icon: 'zap',
-					description: desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
-					aliases: ['peek', 'quick', 'triage', 'skim', 'preview', 'sources'],
-					callback: () => executeCommand('ai-organiser:quick-peek')
-				},
+				// quick-peek promoted to Essentials (R1 menu audit 2026-04-21)
 				{
 					id: 'export-group',
 					name: t.modals.commandPicker.groupExport,
@@ -721,43 +749,10 @@ export function buildCommandCategories(
 			name: t.modals.commandPicker.categoryVault,
 			icon: 'brain',
 			commands: [
-				{
-					id: 'ask-search-group',
-					name: t.modals.commandPicker.groupAskSearch,
-					icon: 'message-circle',
-					description: desc.askSearchGroup || 'Chat with AI or search your vault semantically',
-					aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages', 'semantic', 'search', 'find', 'query', 'lookup'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'chat-with-ai',
-							name: t.commands.chatWithAI,
-							icon: 'message-circle',
-							description: desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
-							aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages'],
-							callback: () => executeCommand('ai-organiser:chat-with-ai')
-						},
-						{
-							// Dedicated entry in Ask & Search (user feedback 2026-04-20).
-							// Also present under Refine → Active Note; from here users who
-							// think 'I want to chat to build slides' find it directly.
-							id: 'presentation-chat-from-ask',
-							name: t.commands.presentationChat,
-							icon: 'presentation',
-							description: desc.presentationChat || 'Build themed presentations from your notes',
-							aliases: ['presentation', 'slides', 'pptx', 'powerpoint', 'deck', 'slideshow', 'chat'],
-							callback: () => executeCommand('ai-organiser:presentation-chat')
-						},
-						{
-							id: 'semantic-search',
-							name: t.commands.searchSemanticVault,
-							icon: 'search',
-							description: desc.semanticSearch || 'Find notes by meaning, not just keywords',
-							aliases: ['semantic', 'search', 'find', 'query', 'lookup'],
-							callback: () => executeCommand('ai-organiser:semantic-search')
-						}
-					]
-				},
+				// Ask & search group removed (R1 + R2 menu audit 2026-04-21).
+				// chat-with-ai and semantic-search promoted to Essentials; the
+				// duplicate presentation-chat-from-ask is gone (canonical entry
+				// stays under Active Note → Refine).
 				{
 					id: 'visualize-group',
 					name: t.modals.commandPicker.groupVaultVisualizations,

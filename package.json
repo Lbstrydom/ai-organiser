@@ -72,6 +72,7 @@
     "perfect-freehand": "^1.2.3",
     "pptxgenjs": "^4.0.1",
     "voy-search": "^0.6.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "optionalDependencies": {

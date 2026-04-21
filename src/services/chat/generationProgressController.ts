@@ -23,7 +23,10 @@ export { parseCountFromPrompt } from '../longRunningOp/progressController';
 // presentation-era names. Internal code uses LongRunningOp directly.
 
 export interface GenerationProgressCallbacks {
-    /** @deprecated Renamed to onProgress. */
+    /** Legacy callback — forwarded to `onProgress` on the generic controller.
+     *  Kept on this shim because the whole module is a backward-compat layer
+     *  for the presentation-era name (see file header). New code should use
+     *  `LongRunningOpController.onProgress` directly. */
     onSlideUpdate?: (current: number, expected: number | undefined, elapsedMs: number) => void;
     onSoftBudget?: (elapsedMs: number) => void | Promise<void>;
     onHardBudget?: (elapsedMs: number) => void;
@@ -54,7 +57,6 @@ export class GenerationProgressController {
             expected: options.expected,
             abortController: options.abortController,
             now: options.now,
-            // eslint-disable-next-line @typescript-eslint/no-deprecated
             onProgress: options.onSlideUpdate,
             onSoftBudget: options.onSoftBudget,
             onHardBudget: options.onHardBudget,
