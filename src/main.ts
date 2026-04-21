@@ -475,17 +475,17 @@ export default class AIOrganiserPlugin extends Plugin {
         // controls expose no speed UI despite the browser supporting it.
         this.registerMarkdownPostProcessor((el) => enhanceAudioPlayersIn(el));
 
-        // Register tag network view
-        this.registerView(
-            TAG_NETWORK_VIEW_TYPE,
-            (leaf) => new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles(), this)
-        );
-
-        // Register related notes view
-        this.registerView(
-            RELATED_NOTES_VIEW_TYPE,
-            (leaf) => new RelatedNotesView(leaf, this)
-        );
+        // Register tag network view + related notes view. Obsidian throws
+        // `Attempting to register an existing view type` if another plugin
+        // (e.g. a sister fork of this codebase) already owns the same type
+        // id. Without this guard a single collision aborts ALL later onload
+        // work — commands, ribbons, settings — leaving the plugin half-loaded
+        // with no user-visible signal. Logging + continuing keeps the rest
+        // of the plugin functional. (Persona-harness finding 2026-04-21.)
+        this.safeRegisterView(TAG_NETWORK_VIEW_TYPE, (leaf) =>
+            new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles(), this));
+        this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
+            new RelatedNotesView(leaf, this));
 
         // Register command picker command
         this.addCommand({
@@ -523,6 +523,20 @@ export default class AIOrganiserPlugin extends Plugin {
             this.t.commands.chatWithAI || 'Chat with AI',
             () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
+    }
+
+    /**
+     * registerView wrapped in a try/catch: if another plugin (e.g. a sister
+     * fork) already owns the view type, log + continue instead of aborting
+     * onload. Without this a single collision kills all subsequent command /
+     * ribbon / settings registration silently.
+     */
+    private safeRegisterView(type: string, factory: Parameters<Plugin['registerView']>[1]): void {
+        try {
+            this.registerView(type, factory);
+        } catch (e) {
+            logger.warn('Core', `registerView('${type}') failed — likely a sister-plugin collision; continuing without this view`, e);
+        }
     }
 
     // ── §4.4.2 Mermaid staleness notification ────────────────────────────────
