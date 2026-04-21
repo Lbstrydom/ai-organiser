@@ -51,7 +51,13 @@ export function extractDOI(text: string): string | null {
     if (!match) return null;
     let doi = match[0];
     // Strip URL query/fragment/hash — DOIs are path-only identifiers.
+    // Split on any of `?` `#` `&` so we never capture tracking params like
+    // `&amp=1234` or `&pmid=...` that get appended by Scholar / PubMed
+    // redirects. Persona round 1 P3 #9 (2026-04-21).
     doi = doi.split(/[?#&]/)[0];
+    // Some pages encode `&` as raw `amp=` after our entity-decode pass —
+    // catch those remnants too.
+    doi = doi.split(/\bamp=/i)[0];
     // Clean trailing punctuation that may have been captured.
     doi = doi.replace(/[.,;:)\]}>]+$/, '');
     return doi;

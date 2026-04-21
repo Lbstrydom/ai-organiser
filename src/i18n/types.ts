@@ -1392,6 +1392,8 @@ export interface Translations {
             tagButton: string;
             vaultRoot: string;
             folderRequiresOpenNote: string;
+            folderAllExcluded: string;
+            folderTaggableCount: string;
         };
         folderScopePicker: {
             title: string;
@@ -2456,6 +2458,7 @@ export interface Translations {
         fieldTranscript: string;
         fieldTranscriptDesc: string;
         fieldTranscriptLoad: string;
+        fieldTranscriptLoadText: string;
         fieldDualOutput: string;
         fieldDualOutputDesc: string;
         fieldObsidianTasks: string;

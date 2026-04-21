@@ -1,4 +1,4 @@
-import { App, Modal, Setting, setIcon } from 'obsidian';
+import { App, Modal, Setting, setIcon, TFolder, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 
 export type TagScope = 'note' | 'folder' | 'vault';
@@ -44,17 +44,29 @@ export class TagScopeModal extends Modal {
         const folderName = folderRawPath === '' || folderRawPath === '/'
             ? (this.plugin.t.modals.tagScope.vaultRoot || 'Vault root')
             : folderRawPath;
-        const folderFiles = parentFolder
+        const taggableCount = parentFolder
             ? this.plugin.getNonExcludedMarkdownFilesFromFolder(parentFolder).length
             : 0;
+        // Raw file count (before exclusion filter) lets us distinguish the
+        // "folder is empty" case from the "everything here is excluded" case
+        // — persona round 4 P2 #14: a populated test folder showed "(0 notes)"
+        // because it sat under the default-excluded AI-Organiser output dir.
+        const rawCount = parentFolder ? this.countMarkdownRecursive(parentFolder) : 0;
         const vaultFiles = this.plugin.getNonExcludedMarkdownFiles().length;
 
-        // Defensive description for folder: when no file is open we can't scope
-        // to a folder at all → say so explicitly instead of showing "(0 notes)"
-        // which looks like a count bug (persona round 4 P2 #14).
-        const folderDesc = parentFolder
-            ? `${folderName} (${folderFiles} notes)`
-            : (this.plugin.t.modals.tagScope.folderRequiresOpenNote || 'Open a note first to scope to its folder');
+        const ts = this.plugin.t.modals.tagScope;
+        let folderDesc: string;
+        if (!parentFolder) {
+            folderDesc = ts.folderRequiresOpenNote || 'Open a note first to scope to its folder';
+        } else if (taggableCount === 0 && rawCount > 0) {
+            folderDesc = (ts.folderAllExcluded || '{folder} ({raw} notes — all excluded by settings)')
+                .replace('{folder}', folderName)
+                .replace('{raw}', String(rawCount));
+        } else {
+            folderDesc = (ts.folderTaggableCount || '{folder} ({count} taggable notes)')
+                .replace('{folder}', folderName)
+                .replace('{count}', String(taggableCount));
+        }
 
         const options: ScopeOption[] = [
             {
@@ -118,6 +130,24 @@ export class TagScopeModal extends Modal {
             this.close();
             this.onConfirm(option.value);
         });
+    }
+
+    /**
+     * Count all markdown files under a folder, ignoring the user's
+     * exclude-folders list. Used alongside getNonExcludedMarkdownFilesFromFolder
+     * so we can distinguish "folder is empty" from "everything here is
+     * excluded by settings" — the latter previously looked like a count bug.
+     */
+    private countMarkdownRecursive(folder: TFolder): number {
+        let count = 0;
+        for (const child of folder.children) {
+            if (child instanceof TFile && child.extension === 'md') {
+                count++;
+            } else if (child instanceof TFolder) {
+                count += this.countMarkdownRecursive(child);
+            }
+        }
+        return count;
     }
 
     onClose(): void {

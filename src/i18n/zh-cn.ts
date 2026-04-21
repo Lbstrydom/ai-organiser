@@ -1333,8 +1333,8 @@ export const zhCN: Translations = {
             title: "总结来源",
             description: "选择要总结的来源。AI 将综合所有选定来源的内容。",
             currentNote: "当前笔记",
-            includeNoteContent: "总结笔记自身的文本",
-            noteContentDesc: "将现有正文包含在摘要中。取消勾选则仅对下方检测到的来源进行总结。",
+            includeNoteContent: "包含你自己的笔记",
+            noteContentDesc: "包含你围绕这些来源写下的文字（问题、反应、注释）。URL 和嵌入始终会被单独提取 — 勾选此项不会重复其内容。",
             webPages: "网页",
             youtubeVideos: "YouTube 视频",
             pdfDocuments: "PDF 文档",
@@ -1386,7 +1386,9 @@ export const zhCN: Translations = {
             entireVault: "整个仓库",
             tagButton: "标签",
             vaultRoot: "仓库根目录",
-            folderRequiresOpenNote: "请先打开一篇笔记以选择其所在文件夹"
+            folderRequiresOpenNote: "请先打开一篇笔记以选择其所在文件夹",
+            folderAllExcluded: "{folder}（共 {raw} 篇笔记 — 全部被设置排除）",
+            folderTaggableCount: "{folder}（{count} 篇可标记笔记）"
         },
         folderScopePicker: {
             title: "选择文件夹范围",
@@ -2431,7 +2433,8 @@ export const zhCN: Translations = {
         agendaExtracting: "\u6B63\u5728\u4ECE\u6587\u6863\u4E2D\u63D0\u53D6\u4F1A\u8BAE\u8BE6\u60C5...",
         agendaExtracted: "\u5DF2\u4ECE\u6587\u6863\u4E2D\u63D0\u53D6\u4F1A\u8BAE\u8BE6\u60C5",
         agendaLoadedRaw: "\u6587\u6863\u5DF2\u52A0\u8F7D\uFF08\u63D0\u53D6\u4E0D\u53EF\u7528\u2014\u2014\u5DF2\u7C98\u8D34\u539F\u59CB\u6587\u672C\uFF09",
-        fieldTranscript: "\u4F1A\u8BAE\u8BB0\u5F55",
+        fieldTranscript: "会议记录",
+        fieldTranscriptLoadText: "加载记录文本",
         fieldTranscriptDesc: "\u7C98\u8D34\u6216\u7F16\u8F91\u4F1A\u8BAE\u8BB0\u5F55",
         fieldTranscriptLoad: "\u4ECE\u4FDD\u5E93\u52A0\u8F7D",
         fieldDualOutput: "\u751F\u6210\u5916\u90E8\u7248\u672C",

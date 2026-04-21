@@ -2912,6 +2912,15 @@
     white-space: nowrap;
 }
 
+.ai-organiser-research-stepper-label {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    margin-right: var(--size-4-2);
+    font-weight: var(--font-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
 .ai-organiser-research-results {
     display: flex;
     flex-direction: column;

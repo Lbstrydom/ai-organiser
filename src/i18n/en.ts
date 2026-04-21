@@ -1335,8 +1335,8 @@ export const en: Translations = {
             title: "Summarize sources",
             description: "Select sources to summarize. The AI will synthesize content from all selected sources.",
             currentNote: "Current note",
-            includeNoteContent: "Summarize the note's own text",
-            noteContentDesc: "Include existing body text in the summary. Leave unchecked to only summarize the detected sources below.",
+            includeNoteContent: "Include your own notes",
+            noteContentDesc: "Adds any prose you've written around the sources (your questions, reactions, annotations). URLs and embeds are always extracted separately — checking this won't duplicate their content.",
             webPages: "Web pages",
             youtubeVideos: "YouTube videos",
             pdfDocuments: "PDF documents",
@@ -1388,7 +1388,9 @@ export const en: Translations = {
             entireVault: "Entire vault",
             tagButton: "Tag",
             vaultRoot: "Vault root",
-            folderRequiresOpenNote: "Open a note first to scope to its folder"
+            folderRequiresOpenNote: "Open a note first to scope to its folder",
+            folderAllExcluded: "{folder} ({raw} notes — all excluded by settings)",
+            folderTaggableCount: "{folder} ({count} taggable notes)"
         },
         folderScopePicker: {
             title: "Select folder scope",
@@ -2435,6 +2437,7 @@ export const en: Translations = {
         agendaExtracted: "Meeting details extracted from document",
         agendaLoadedRaw: "Document loaded (extraction unavailable — raw text pasted)",
         fieldTranscript: "Transcript",
+        fieldTranscriptLoadText: "Load transcript text",
         fieldTranscriptDesc: "Paste or edit the transcript text",
         fieldTranscriptLoad: "Load from vault",
         fieldDualOutput: "Generate external version",

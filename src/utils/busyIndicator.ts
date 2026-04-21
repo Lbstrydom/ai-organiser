@@ -6,6 +6,8 @@
  * even for fast LLM responses (e.g., tagging).
  */
 
+import { logger } from './logger';
+
 let refCount = 0;
 let showTimestamp = 0;
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -17,9 +19,13 @@ let lastEl: HTMLElement | null = null;
 
 const ACTIVE_CLASS = 'ai-organiser-busy-active';
 const MIN_DISPLAY_MS = 400;
-/** 10 minutes — any real LLM call should settle (or be aborted) well before
- *  this. If we're still busy after this, assume a ref leak and force-reset. */
-const WATCHDOG_MS = 10 * 60 * 1000;
+/** 3 minutes — the longest legitimate LLM op in this plugin (Research Web
+ *  full pipeline) settles around 150 s. Anything still running at 3 min is
+ *  stuck or a leaked ref. Was 10 min previously — Dr. Chen's session showed
+ *  the indicator persisting across multiple operations because a single
+ *  leak wasn't cleared for 10 minutes. Tightening the watchdog caps the
+ *  user-visible "frozen AI processing…" window to 3 min worst-case. */
+const WATCHDOG_MS = 3 * 60 * 1000;
 
 /**
  * Show the busy indicator. Increments ref count.
@@ -42,6 +48,11 @@ export function showBusy(plugin: { busyStatusBarEl: HTMLElement | null; t: { mes
         watchdogTimer = setTimeout(() => {
             watchdogTimer = null;
             if (refCount > 0) {
+                // Log at `warn` so the leak is findable (debug mode only,
+                // per project policy). refCount tells us how many hideBusy
+                // calls are still missing — useful when tracking down the
+                // offending code path.
+                logger.warn('BusyIndicator', `watchdog force-cleared after ${Math.round(WATCHDOG_MS / 1000)}s — ${refCount} pending hideBusy calls likely leaked`);
                 refCount = 0;
                 lastEl?.removeClass(ACTIVE_CLASS);
             }

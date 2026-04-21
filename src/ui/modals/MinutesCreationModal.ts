@@ -215,14 +215,21 @@ export class MinutesCreationModal extends Modal {
         // audio + docs on desktop.
         this.renderAutoDetectedBanner(contentEl);
 
-        this.renderTopSection(contentEl);
-
-        // Audio transcription renders on all platforms where audio was detected.
+        // Persona round 3 P2 #17 (2026-04-21): render the auto-detected
+        // inputs — audio files + context docs — BEFORE the transcript
+        // textarea so Pat's path is:
+        //   "I see the banner → I see the audio → I click Transcribe"
+        // instead of scrolling past the empty transcript field first.
         this.renderAudioTranscriptionSection(contentEl);
-
-        // Desktop-only: document context + dictionary sections
         if (!Platform.isMobile) {
             this.renderContextDocumentsSection(contentEl);
+        }
+
+        this.renderTopSection(contentEl);
+
+        // Dictionary stays after the textarea — it's a desktop-only preparatory
+        // concept that only matters once you have text to transcribe.
+        if (!Platform.isMobile) {
             this.renderDictionarySection(contentEl);
         }
 
@@ -414,7 +421,10 @@ export class MinutesCreationModal extends Modal {
 
         transcriptSetting.addButton(btn => {
             const transcriptBtnEl = btn.buttonEl;
-            this.configureLoadButton(btn.buttonEl, t?.fieldTranscriptLoad || 'Load from vault');
+            // "Load transcript text" (not "Load from vault") so users don't
+            // mistakenly expect to load an MP3 here — persona round 3 P2 #18
+            // (2026-04-21). The audio picker lives in a separate section.
+            this.configureLoadButton(btn.buttonEl, t?.fieldTranscriptLoadText || t?.fieldTranscriptLoad || 'Load transcript text');
             if (this.state.transcriptLoadedFilename) {
                 this.markButtonLoaded(btn.buttonEl, this.state.transcriptLoadedFilename);
             }

@@ -1191,6 +1191,16 @@ export class ResearchModeHandler implements ChatModeHandler {
             attr: { role: 'progressbar', 'aria-label': `Research progress: ${this.phase}` },
         });
 
+        // Explicit "Progress:" prefix (desktop only) kills any residual
+        // reading of the numbered dots as a radio group — persona round 1 P2
+        // complaint #7 (2026-04-21).
+        if (!Platform.isMobile) {
+            stepper.createEl('span', {
+                cls: 'ai-organiser-research-stepper-label',
+                text: 'Progress:',
+            });
+        }
+
         const isClaudeWS = this.plugin.settings.researchProvider === 'claude-web-search';
 
         const steps: Array<{ key: string; phases: ResearchPhase[] }> = isClaudeWS
