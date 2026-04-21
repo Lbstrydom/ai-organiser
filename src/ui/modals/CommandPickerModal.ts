@@ -637,14 +637,11 @@ export function buildCommandCategories(
 					aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract', 'structure', 'references'],
 					callback: () => {},
 					subCommands: [
-						{
-							id: 'ensure-note-structure',
-							name: t.commands.ensureNoteStructure,
-							icon: 'layout-template',
-							description: desc.ensureNoteStructure || 'Add references and pending integration sections to this note',
-							aliases: ['structure', 'sections', 'references', 'pending', 'setup'],
-							callback: () => executeCommand('ai-organiser:ensure-note-structure')
-						},
+						// R7 (menu audit 2026-04-21): ensure-note-structure
+						// is a one-time setup action, not a per-note choice.
+						// Hidden from the picker; stays in the command palette
+						// (Ctrl+P) for the rare case of rebuilding the
+						// canonical structure.
 						{
 							id: 'add-to-pending',
 							name: t.commands.addToPendingIntegration,
@@ -812,46 +809,18 @@ export function buildCommandCategories(
 			icon: 'settings',
 			commands: [
 				{
-					id: 'notebooklm-group',
-					name: t.modals.commandPicker.groupNotebookLM,
+					// R6 (menu audit 2026-04-21): NotebookLM state commands
+					// (toggle/clear/open-folder) are plumbing for the one real
+					// user action — Export. Only the export surfaces in the
+					// picker now; the state commands remain available via
+					// command palette (Ctrl+P) and their selection context
+					// menus for power users who want direct access.
+					id: 'notebooklm-export',
+					name: t.commands.notebookLMExport,
 					icon: 'book-open',
-					description: desc.notebookLMGroup || 'Export notes for Google NotebookLM',
-					aliases: ['notebooklm', 'export', 'pack', 'toggle', 'select', 'clear', 'folder'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'notebooklm-export',
-							name: t.commands.notebookLMExport,
-							icon: 'file-output',
-							description: desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
-							aliases: ['notebooklm', 'export', 'pdf', 'pack'],
-							callback: () => executeCommand('ai-organiser:notebooklm-export')
-						},
-						{
-							id: 'notebooklm-toggle',
-							name: t.commands.notebookLMToggle,
-							icon: 'bookmark-plus',
-							description: desc.notebookLMToggle || 'Toggle current note in NotebookLM selection',
-							aliases: ['notebooklm', 'toggle', 'select'],
-							callback: () => executeCommand('ai-organiser:notebooklm-toggle-selection')
-						},
-						{
-							id: 'notebooklm-clear',
-							name: t.commands.notebookLMClear,
-							icon: 'x-circle',
-							description: desc.notebookLMClear || 'Clear all NotebookLM selections',
-							aliases: ['notebooklm', 'clear', 'selection'],
-							callback: () => executeCommand('ai-organiser:notebooklm-clear-selection')
-						},
-						{
-							id: 'notebooklm-open-folder',
-							name: t.commands.notebookLMOpenFolder,
-							icon: 'folder-open',
-							description: desc.notebookLMOpenFolder || 'Open the NotebookLM export folder',
-							aliases: ['notebooklm', 'export', 'folder'],
-							callback: () => executeCommand('ai-organiser:notebooklm-open-export-folder')
-						}
-					]
+					description: desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
+					aliases: ['notebooklm', 'export', 'pdf', 'pack'],
+					callback: () => executeCommand('ai-organiser:notebooklm-export')
 				}
 			]
 		}

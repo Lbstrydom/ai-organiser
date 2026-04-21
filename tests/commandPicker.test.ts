@@ -97,19 +97,16 @@ describe('Command Picker', () => {
             ]);
         });
 
-        it('tools should contain notebooklm group', () => {
+        it('tools should contain notebooklm-export as standalone (R6 menu audit)', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const tools = categories.find(c => c.id === 'tools');
             const ids = tools!.commands.map(c => c.id);
-            expect(ids).toEqual(['notebooklm-group']);
+            // R6: the 4-item group collapsed to a single direct leaf.
+            // Toggle/Clear/Open-folder remain in the command palette only.
+            expect(ids).toEqual(['notebooklm-export']);
 
-            const notebookGroup = tools!.commands.find(c => c.id === 'notebooklm-group');
-            expect(notebookGroup?.subCommands?.map(c => c.id)).toEqual([
-                'notebooklm-export',
-                'notebooklm-toggle',
-                'notebooklm-clear',
-                'notebooklm-open-folder'
-            ]);
+            const exportCmd = tools!.commands.find(c => c.id === 'notebooklm-export');
+            expect(exportCmd?.subCommands).toBeUndefined();
         });
 
         it('vault should contain find-embeds as standalone (flattened from single-child group)', () => {
@@ -139,11 +136,11 @@ describe('Command Picker', () => {
         it('should have expected total leaf command count', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            // R1+R2 menu audit 2026-04-21: was 39 (38 + presentation-chat-from-ask dup).
-            // Now 38: added 3 Essentials (chat, search, quick-peek) + removed 4 from their
-            // old locations (chat, search, presentation-chat dup in Ask & Search, quick-peek
-            // in Active Note) = net -1.
-            expect(leafCount).toBe(38);
+            // R6+R7 menu audit 2026-04-21: was 38 after R1/R2.
+            // R6 removed 3 NotebookLM state commands from the picker.
+            // R7 removed ensure-note-structure from the picker.
+            // Net: 38 - 4 = 34.
+            expect(leafCount).toBe(34);
         });
 
         it('should include the expected unique command IDs across all leaf callbacks', () => {
@@ -167,7 +164,7 @@ describe('Command Picker', () => {
                 'ai-organiser:digitise-image',
                 'ai-organiser:edit-mermaid-diagram',
                 'ai-organiser:enhance-note',
-                'ai-organiser:ensure-note-structure',
+                // ensure-note-structure removed from picker in R7 (2026-04-21)
                 'ai-organiser:export-flashcards',
                 'ai-organiser:export-minutes-docx',
                 'ai-organiser:export-note',
@@ -178,10 +175,8 @@ describe('Command Picker', () => {
                 'ai-organiser:kindle-sync',
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-fetch',
-                'ai-organiser:notebooklm-clear-selection',
+                // notebooklm-{toggle,clear,open-folder} removed from picker in R6 (2026-04-21)
                 'ai-organiser:notebooklm-export',
-                'ai-organiser:notebooklm-open-export-folder',
-                'ai-organiser:notebooklm-toggle-selection',
                 'ai-organiser:presentation-chat',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
@@ -194,9 +189,11 @@ describe('Command Picker', () => {
                 'ai-organiser:smart-translate',
                 'ai-organiser:web-reader',
             ]);
-            // presentation-chat is surfaced in two picker locations but only
-            // one unique command ID fires, so the unique set stays at 38.
-            expect(uniqueExecutedCommands.size).toBe(38);
+            // R6+R7 menu audit 2026-04-21: was 38 after R1/R2/R5.
+            // R6 removed 3 NotebookLM state commands, R7 removed
+            // ensure-note-structure → 34 unique command IDs now surface
+            // in the picker.
+            expect(uniqueExecutedCommands.size).toBe(34);
         });
     });
 });
