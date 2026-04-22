@@ -107,11 +107,15 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             .setName(yt?.model || 'Gemini model')
             .setDesc(yt?.modelDesc || 'Model to use for YouTube video analysis')
             .addDropdown(dropdown => {
-                const flashLabel = 'Gemini 3 flash (recommended)';
-                const proLabel = 'Gemini 3.1 pro (higher quality)';
+                // `latest-*` sentinels auto-upgrade to the newest tier
+                // when Google releases a new model — chosen over hardcoded
+                // ids so users don't get silently stranded on stale preview
+                // suffixes (user report 2026-04-22).
+                const flashLabel = 'Flash (latest, recommended)';
+                const proLabel = 'Pro (latest, higher quality)';
                 dropdown
-                    .addOption('gemini-3-flash', flashLabel)
-                    .addOption('gemini-3.1-pro-preview', proLabel)
+                    .addOption('latest-flash', flashLabel)
+                    .addOption('latest-pro', proLabel)
                     .setValue(this.plugin.settings.youtubeGeminiModel)
                     .onChange((value) => {
                         this.plugin.settings.youtubeGeminiModel = value;

@@ -20,14 +20,18 @@ export const ALL_ADAPTERS: AdapterType[] = [
 ];
 
 // Default models per provider
+// `latest-*` sentinels are used where a provider has the auto-tracking
+// infrastructure (resolver + tiered-picker in modelCapabilities). Others
+// stay on a specific id until we add tier support for them. Sentinels are
+// resolved to concrete ids inside CloudLLMService at adapter-build time.
 export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
-  openai: 'gpt-5.2',
-  gemini: 'gemini-3-flash',
+  openai: 'latest-gpt',
+  gemini: 'latest-flash',
   deepseek: 'deepseek-v3.2',
   aliyun: 'qwen-max',
-  claude: 'claude-sonnet-4-6',
+  claude: 'latest-sonnet',
   groq: 'meta-llama/llama-4-scout-17b-16e-instruct',
-  vertex: 'gemini-3-flash',
+  vertex: 'latest-flash',
   openrouter: 'openai/gpt-5.2',
   bedrock: 'anthropic.claude-sonnet-4-6',
   requesty: 'gpt-5.2',

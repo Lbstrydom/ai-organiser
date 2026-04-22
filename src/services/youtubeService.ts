@@ -6,6 +6,7 @@
 
 import { requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
+import { resolveForProvider } from './specialistModelResolver';
 
 // ============================================================================
 // Types & Interfaces
@@ -74,12 +75,14 @@ export interface YouTubeProcessOptions {
 // Constants
 // ============================================================================
 
-// `gemini-3-flash-preview` was the older preview suffix; the GA model dropped
-// the `-preview` suffix. The live API 404s or connection-resets on the stale
-// ID, which surfaced as "YouTube transcription failing" (user report
-// 2026-04-22). Use the GA alias — the dynamic model service + resolver
-// upgrade this to whatever flash tier is newest at call time.
-const DEFAULT_MODEL = 'gemini-3-flash';
+// Default to the `latest-flash` sentinel so new Flash-tier models (3.1, 3.2,
+// etc.) are picked up automatically as they're released — user expectation
+// 2026-04-22: "it should auto-pick the latest, not get hardcoded".
+// `resolveGeminiModel()` below resolves the sentinel to a concrete ID at
+// request time using the dynamic-model cache + static registry, matching
+// what CloudLLMService already does for the main provider path.
+const DEFAULT_MODEL = 'latest-flash';
+
 const DEFAULT_TIMEOUT_MS = 180000;  // 3 minutes
 const TRANSCRIBE_MAX_TOKENS = 16384;  // High for full transcripts
 const SUMMARIZE_MAX_TOKENS = 8192;    // Moderate for summaries
@@ -410,6 +413,12 @@ export async function processYouTubeWithGemini(
     const { url, apiKey, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS } = config;
     const { mode, prompt } = options;
 
+    // Resolve `latest-*` sentinels — this specialist path bypasses
+    // CloudLLMService (which resolves for the main provider) because it
+    // constructs its own :generateContent request. Without this, a setting
+    // of `latest-flash` would 400 at the API.
+    const resolvedModel = resolveForProvider('gemini', model);
+
     // Validate inputs
     const videoId = extractYouTubeVideoId(url);
     if (!videoId) {
@@ -443,12 +452,12 @@ export async function processYouTubeWithGemini(
         const effectivePrompt = mode === 'transcribe' ? TRANSCRIPTION_PROMPT : prompt!;
         const maxTokens = mode === 'transcribe' ? TRANSCRIBE_MAX_TOKENS : SUMMARIZE_MAX_TOKENS;
 
-        // Call Gemini API
+        // Call Gemini API — pass the resolved (sentinel-free) model id.
         const geminiResult = await callGeminiWithVideo(
             url,
             effectivePrompt,
             apiKey,
-            model,
+            resolvedModel,
             maxTokens,
             timeoutMs
         );

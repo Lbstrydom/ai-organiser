@@ -280,3 +280,28 @@ export function resolveLatestModel(
             return null;
     }
 }
+
+/**
+ * Specialist-path helper: resolve a (possibly `latest-*`) model id to a
+ * concrete one at call time. Mirrors the logic in CloudLLMService
+ * constructor for specialists that construct their own HTTP requests
+ * (YouTube video analysis, PDF multimodal, direct Gemini calls outside
+ * the adapter). Returns the input unchanged when it's already concrete or
+ * the sentinel can't be resolved (e.g. empty live cache + no matching
+ * registry entry).
+ *
+ * Import from this module rather than duplicating the pool-selection
+ * logic — keeps the "pick latest" contract unified across all Gemini /
+ * Claude / OpenAI specialist surfaces.
+ */
+export function resolveSpecialistModel(
+    provider: string,
+    modelId: string,
+    pools: { liveIds: string[] | null; staticIds: string[] },
+): string {
+    if (!modelId.startsWith('latest-')) return modelId;
+    const available = pools.liveIds && pools.liveIds.length > 0
+        ? pools.liveIds
+        : pools.staticIds;
+    return resolveLatestModel(provider, modelId, available) ?? modelId;
+}

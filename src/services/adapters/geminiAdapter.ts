@@ -7,7 +7,11 @@ export class GeminiAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || endpoints.gemini,
-            modelName: config.modelName || 'gemini-3-flash'
+            // `latest-flash` sentinel is resolved by CloudLLMService before
+            // adapter construction, so this fallback only fires when the
+            // adapter is constructed directly (tests, utilities). Keeping
+            // it on a sentinel means even that path stays evergreen.
+            modelName: config.modelName || 'latest-flash'
         });
         this.provider = {
             name: 'gemini',

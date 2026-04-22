@@ -14,7 +14,7 @@ import { App } from 'obsidian';
 const mockApp = {} as App;
 
 describe('CloudService Fallback Models', () => {
-    it('uses PROVIDER_DEFAULT_MODEL for Claude when modelName is undefined', () => {
+    it('resolves PROVIDER_DEFAULT_MODEL sentinel to a concrete Claude model when modelName is undefined', () => {
         const service = new CloudLLMService({
             type: 'claude' as AdapterType,
             endpoint: 'https://api.anthropic.com/v1/messages',
@@ -25,11 +25,16 @@ describe('CloudService Fallback Models', () => {
 
         // Access private method via any cast for testing
         const body = (service as any).buildSummarizeRequestBody('test prompt');
-        
-        expect(body.model).toBe(PROVIDER_DEFAULT_MODEL.claude);
+
+        // Registry default is now `latest-sonnet`; the CloudLLMService
+        // constructor resolves sentinels → concrete ids, so the request
+        // body carries a specific Sonnet variant, not the sentinel.
+        expect(PROVIDER_DEFAULT_MODEL.claude).toBe('latest-sonnet');
+        expect(body.model).toMatch(/^claude-sonnet/);
+        expect(body.model).not.toBe('latest-sonnet');
     });
 
-    it('uses PROVIDER_DEFAULT_MODEL for OpenAI when modelName is undefined', () => {
+    it('resolves PROVIDER_DEFAULT_MODEL sentinel to a concrete OpenAI model when modelName is undefined', () => {
         const service = new CloudLLMService({
             type: 'openai' as AdapterType,
             endpoint: 'https://api.openai.com/v1/chat/completions',
@@ -39,9 +44,11 @@ describe('CloudService Fallback Models', () => {
         }, mockApp);
 
         const body = (service as any).buildSummarizeRequestBody('test prompt');
-        
-        // OpenAI fallback uses registry default
-        expect(body.model).toBe(PROVIDER_DEFAULT_MODEL.openai);
+
+        // Registry default is now `latest-gpt`; resolved to a concrete GPT id.
+        expect(PROVIDER_DEFAULT_MODEL.openai).toBe('latest-gpt');
+        expect(body.model).toMatch(/^gpt-/);
+        expect(body.model).not.toBe('latest-gpt');
     });
 
     it('prefers explicit modelName over registry default', () => {

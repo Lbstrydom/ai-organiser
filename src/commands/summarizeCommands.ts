@@ -2808,7 +2808,9 @@ async function summarizePdfWithLLM(
                 ? 'https://api.anthropic.com/v1/messages'
                 : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
             apiKey: pdfConfig.apiKey,
-            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'claude-sonnet-4-6' : 'gemini-3-flash')
+            // `latest-*` sentinels resolve inside CloudLLMService constructor
+            // so newly released Sonnet / Flash variants auto-upgrade.
+            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash')
         }, plugin.app);
 
         const parts = [

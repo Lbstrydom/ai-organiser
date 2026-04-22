@@ -37,8 +37,13 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const availableIds = liveCache && liveCache.length > 0
             ? liveCache.map(m => m.id)
             : staticIds;
-        const resolvedModel = resolveLatestModel(config.type, config.modelName, availableIds)
-            ?? config.modelName;
+        // Fill empty modelName with the registry default BEFORE resolving,
+        // so a sentinel default (e.g. `latest-sonnet`) is resolved to a
+        // concrete id rather than leaking past the adapter's own non-
+        // resolver-aware fallback.
+        const requestedModel = config.modelName || PROVIDER_DEFAULT_MODEL[config.type];
+        const resolvedModel = resolveLatestModel(config.type, requestedModel, availableIds)
+            ?? requestedModel;
         this.adapter = createAdapter(config.type, {
             endpoint: config.endpoint,
             apiKey: config.apiKey || '',

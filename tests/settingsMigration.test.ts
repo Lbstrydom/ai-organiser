@@ -194,24 +194,45 @@ describe('migrateOldSettings', () => {
         });
     });
 
-    describe('Gemini 3 Pro → 3.1 Pro migration', () => {
-        it('should migrate youtubeGeminiModel from gemini-3-pro-preview to gemini-3.1-pro-preview', () => {
+    describe('Gemini deprecated-id → latest-* sentinel migration (2026-04-22)', () => {
+        it('migrates gemini-3-pro-preview → latest-pro (youtubeGeminiModel)', () => {
             const old = { youtubeGeminiModel: 'gemini-3-pro-preview' } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.youtubeGeminiModel).toBe('gemini-3.1-pro-preview');
+            expect(result.youtubeGeminiModel).toBe('latest-pro');
         });
 
-        it('should migrate pdfModel from gemini-3-pro-preview to gemini-3.1-pro-preview', () => {
+        it('migrates gemini-3-pro-preview → latest-pro (pdfModel)', () => {
             const old = { pdfModel: 'gemini-3-pro-preview' } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.pdfModel).toBe('gemini-3.1-pro-preview');
+            expect(result.pdfModel).toBe('latest-pro');
         });
 
-        it('migrates gemini-3-flash-preview → gemini-3-flash (stale preview suffix, 2026-04-22)', () => {
+        it('migrates gemini-3.1-pro-preview → latest-pro (previous one-shot target → sentinel)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3.1-pro-preview', pdfModel: 'gemini-3.1-pro-preview' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('latest-pro');
+            expect(result.pdfModel).toBe('latest-pro');
+        });
+
+        it('migrates gemini-3-flash-preview → latest-flash (stale preview suffix)', () => {
             const old = { youtubeGeminiModel: 'gemini-3-flash-preview', pdfModel: 'gemini-3-flash-preview' } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.youtubeGeminiModel).toBe('gemini-3-flash');
-            expect(result.pdfModel).toBe('gemini-3-flash');
+            expect(result.youtubeGeminiModel).toBe('latest-flash');
+            expect(result.pdfModel).toBe('latest-flash');
+        });
+
+        it('migrates gemini-3-flash → latest-flash (concrete pin → auto-track)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3-flash', pdfModel: 'gemini-3-flash' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('latest-flash');
+            expect(result.pdfModel).toBe('latest-flash');
+        });
+
+        it('leaves already-sentinel values unchanged', () => {
+            const old = { youtubeGeminiModel: 'latest-flash', pdfModel: 'latest-pro' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('latest-flash');
+            expect(result.pdfModel).toBe('latest-pro');
         });
 
         it('should not change empty pdfModel', () => {
