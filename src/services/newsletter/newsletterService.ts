@@ -736,32 +736,51 @@ export class NewsletterService {
     }
 
     /**
-     * Inject or replace the audio embed line inside the managed Daily Brief
-     * block of the digest file. The embed lives INSIDE the
-     * `<!-- DAILY_BRIEF_START --> ... <!-- DAILY_BRIEF_END -->` markers so
-     * regenerating the text brief wipes it and the subsequent audio step
-     * re-injects the (possibly new) audio path. Idempotent: if an existing
-     * `brief-*.wav` embed is present, it's replaced.
+     * Inject or replace the audio embed line at the TOP of the digest file
+     * — just after the H1 heading, before the Daily Brief managed block.
+     * Users open the digest expecting the podcast front-and-centre; burying
+     * it at the end of the brief meant they had to scroll past paragraphs
+     * of text to reach it (user request 2026-04-22).
+     *
+     * Living outside the managed `<!-- DAILY_BRIEF_START/END -->` block is
+     * deliberate — that block is wiped and re-written on every brief
+     * regenerate, and we don't want the audio embed to blink between the
+     * text-brief and audio-synthesis phases. Idempotent: any prior
+     * `brief-*.(wav|mp3)` embed line is stripped anywhere in the file
+     * before the new one is inserted.
      */
     private async injectAudioEmbedIntoDigest(digestFile: TFile, audioVaultPath: string): Promise<void> {
         const vault = this.plugin.app.vault;
         const content = await vault.cachedRead(digestFile);
-        const endMarker = /<!--\s*DAILY_BRIEF_END\s*-->/;
-        if (!endMarker.test(content)) {
-            logger.debug('Newsletter', 'No DAILY_BRIEF block — skipping audio embed');
-            return;
-        }
-        // Embed by filename only — Obsidian resolves wikilinks by name
-        // globally, and the sha-fingerprinted filename is unique.
+
         const fileName = audioVaultPath.split('/').pop() || audioVaultPath;
         const embedLine = `🎧 **Listen:** ![[${fileName}]]`;
-        // Remove any prior audio-embed line pointing at a `brief-*.wav`
-        const priorEmbed = /\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*/g;
+
+        // Strip any prior audio-embed line (wherever it was) so we never
+        // leave stale embeds behind when migrating from the old bottom
+        // position or re-rendering with a new fingerprint.
+        const priorEmbed = /\n?\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*\n?/g;
         let updated = content.replaceAll(priorEmbed, '\n');
-        // Inject new embed just before the closing marker
-        updated = updated.replace(endMarker, `\n${embedLine}\n\n<!-- DAILY_BRIEF_END -->`);
+
+        // Insert the new embed just after the H1 title if present, else
+        // after the frontmatter, else prepend. Regex captures the H1 line
+        // and puts the embed on its own line immediately below.
+        const h1Match = /^(# .+\n)/m.exec(updated);
+        if (h1Match) {
+            const insertAt = h1Match.index + h1Match[0].length;
+            updated = updated.slice(0, insertAt) + '\n' + embedLine + '\n' + updated.slice(insertAt);
+        } else {
+            const fmEnd = /^---\n[\s\S]*?\n---\n/.exec(updated);
+            if (fmEnd) {
+                const insertAt = fmEnd.index + fmEnd[0].length;
+                updated = updated.slice(0, insertAt) + '\n' + embedLine + '\n' + updated.slice(insertAt);
+            } else {
+                updated = embedLine + '\n\n' + updated;
+            }
+        }
+
         await vault.modify(digestFile, updated);
-        logger.debug('Newsletter', `Embedded audio in digest: ${fileName}`);
+        logger.debug('Newsletter', `Embedded audio at top of digest: ${fileName}`);
     }
 
     /**

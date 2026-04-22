@@ -25,6 +25,17 @@ const GEMINI_SOURCE_RATE = 24000;
 const MP3_SAMPLE_RATE = 16000;
 const MP3_CHANNELS = 1;
 const MP3_BITRATE_KBPS = 48;
+/** Target chunk size in characters for TTS. Gemini (and most neural TTS
+ *  models) lose energy / expressiveness the further they generate because
+ *  attention weights decay over long sequences — users report audio
+ *  getting "softer and softer toward the end" on 5-minute briefs. Splitting
+ *  the script into ~90-second chunks and concatenating the resulting PCM
+ *  keeps each generation short enough to stay in the model's steady-state
+ *  range. ~150 words per minute × 1.5 min × ~5 chars/word ≈ 1100 chars. */
+const TTS_CHUNK_CHAR_TARGET = 1100;
+/** Hard max per chunk — even a very long single sentence shouldn't exceed
+ *  this, to keep us well inside any API limit and the model's sweet spot. */
+const TTS_CHUNK_CHAR_MAX = 1800;
 
 export interface AudioPodcastOptions {
     apiKey: string;
@@ -62,20 +73,28 @@ export async function generateAudioPodcast(
         return { success: true, filePath };
     }
 
-    // Call Gemini TTS
-    let pcmBase64: string;
+    // Split the script into TTS-sized chunks so each Gemini call stays in
+    // the model's steady-state energy range. Fallback to single-call if the
+    // script is already short enough.
+    const chunks = splitScriptForTts(script);
+
+    // Call Gemini TTS per chunk and accumulate raw PCM. LINEAR16 PCM is
+    // naturally concatenatable (no headers, no framing) so splice-and-stitch
+    // produces a continuous waveform.
+    const pcmSegments: Uint8Array[] = [];
     try {
-        const result = await callGeminiTts(apiKey, voice, script);
-        if (result === null) {
-            return { success: false, error: 'Gemini TTS returned no valid audio payload' };
+        for (let i = 0; i < chunks.length; i++) {
+            const result = await callGeminiTts(apiKey, voice, chunks[i]);
+            if (result === null) {
+                return { success: false, error: `Gemini TTS returned no valid audio for chunk ${i + 1}/${chunks.length}` };
+            }
+            pcmSegments.push(base64ToUint8Array(result));
         }
-        pcmBase64 = result;
     } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 
-    // Decode base64 PCM → downsample to 16 kHz → encode as MP3
-    const rawPcm = base64ToUint8Array(pcmBase64);
+    const rawPcm = concatenateBuffers(pcmSegments);
     const pcmBytes = downsamplePcm16(rawPcm, GEMINI_SOURCE_RATE, MP3_SAMPLE_RATE);
     const mp3Bytes = encodePcmToMp3(pcmBytes, MP3_SAMPLE_RATE, MP3_CHANNELS, MP3_BITRATE_KBPS);
 
@@ -225,6 +244,78 @@ function downsamplePcm16(pcm: Uint8Array, sourceRate: number, targetRate: number
         outputView.setInt16(i * 2, clamped, true);
     }
     return output;
+}
+
+// ── TTS chunking ─────────────────────────────────────────────────────────────
+
+/**
+ * Split a podcast script into TTS-sized chunks so each Gemini call stays in
+ * the model's steady-state energy range. Splits on paragraph boundaries
+ * first (natural breath points), falling back to sentence boundaries for
+ * long paragraphs. Short scripts pass through unchunked.
+ *
+ * Exported for tests.
+ */
+export function splitScriptForTts(script: string): string[] {
+    const trimmed = script.trim();
+    if (trimmed.length <= TTS_CHUNK_CHAR_TARGET) return [trimmed];
+
+    // Split on paragraph breaks, then pack paragraphs into chunks until
+    // adding the next one would exceed the target.
+    const paragraphs = trimmed.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    const chunks: string[] = [];
+    let current = '';
+    for (const para of paragraphs) {
+        // If a single paragraph is too big on its own, sentence-split it.
+        if (para.length > TTS_CHUNK_CHAR_MAX) {
+            if (current) { chunks.push(current); current = ''; }
+            chunks.push(...splitParagraphIntoSentences(para));
+            continue;
+        }
+        const candidate = current ? `${current}\n\n${para}` : para;
+        if (candidate.length > TTS_CHUNK_CHAR_TARGET && current) {
+            chunks.push(current);
+            current = para;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) chunks.push(current);
+    return chunks.length > 0 ? chunks : [trimmed];
+}
+
+/** Sentence-level fallback for a paragraph that exceeds TTS_CHUNK_CHAR_MAX. */
+function splitParagraphIntoSentences(paragraph: string): string[] {
+    // Naive sentence split — good enough for LLM-authored prose which uses
+    // normal punctuation. Keeps the terminator on the preceding sentence.
+    const sentences = paragraph.match(/(?:[^.!?]+[.!?]+(?:\s+|$))|(?:[^.!?]+$)/g) ?? [paragraph];
+    const chunks: string[] = [];
+    let current = '';
+    for (const sentence of sentences) {
+        const s = sentence.trim();
+        if (!s) continue;
+        const candidate = current ? `${current} ${s}` : s;
+        if (candidate.length > TTS_CHUNK_CHAR_TARGET && current) {
+            chunks.push(current);
+            current = s;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) chunks.push(current);
+    return chunks;
+}
+
+function concatenateBuffers(buffers: Uint8Array[]): Uint8Array {
+    let total = 0;
+    for (const b of buffers) total += b.byteLength;
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const b of buffers) {
+        out.set(b, offset);
+        offset += b.byteLength;
+    }
+    return out;
 }
 
 // ── Utilities ────────────────────────────────────────────────────────────────
