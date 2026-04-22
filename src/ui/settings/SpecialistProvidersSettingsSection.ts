@@ -110,7 +110,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                 const flashLabel = 'Gemini 3 flash (recommended)';
                 const proLabel = 'Gemini 3.1 pro (higher quality)';
                 dropdown
-                    .addOption('gemini-3-flash-preview', flashLabel)
+                    .addOption('gemini-3-flash', flashLabel)
                     .addOption('gemini-3.1-pro-preview', proLabel)
                     .setValue(this.plugin.settings.youtubeGeminiModel)
                     .onChange((value) => {

@@ -197,7 +197,7 @@ export interface AIOrganiserSettings {
     // === YOUTUBE SETTINGS ===
     // Gemini-native YouTube processing (more reliable than transcript scraping)
     youtubeGeminiApiKey: string;         // Dedicated Gemini key for YouTube (uses main key if provider is Gemini)
-    youtubeGeminiModel: string;          // Gemini model for YouTube (default: gemini-3-flash-preview)
+    youtubeGeminiModel: string;          // Gemini model for YouTube (default: gemini-3-flash)
 
     // === PDF SETTINGS ===
     // PDF processing requires multimodal models (Claude or Gemini only)
@@ -460,7 +460,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // YouTube Defaults (Gemini-native processing)
     youtubeGeminiApiKey: '',                            // Empty = use main Gemini key if available
-    youtubeGeminiModel: 'gemini-3-flash-preview',       // Gemini 3 Flash
+    youtubeGeminiModel: 'gemini-3-flash',                // Gemini 3 Flash GA
 
     // PDF Defaults (requires multimodal: Claude or Gemini)
     pdfProvider: 'auto',                                // Auto = use main provider if compatible, else prompt
@@ -793,13 +793,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         oldSettings.sketchOutputFolder = 'Sketches';
     }
 
-    // Migrate deprecated Gemini 3 Pro Preview → Gemini 3.1 Pro Preview (discontinued March 9, 2026)
-    if (oldSettings.youtubeGeminiModel === 'gemini-3-pro-preview') {
-        oldSettings.youtubeGeminiModel = 'gemini-3.1-pro-preview';
-    }
-    if (oldSettings.pdfModel === 'gemini-3-pro-preview') {
-        oldSettings.pdfModel = 'gemini-3.1-pro-preview';
-    }
+    migrateDeprecatedGeminiIds(oldSettings);
 
     // Phase 2 TRA: Migrate minutesDefaultPersona + minutesDetailLevel → minutesStyle
     if (!oldSettings.minutesStyle && (oldSettings.minutesDefaultPersona || oldSettings.minutesDetailLevel)) {
@@ -832,4 +826,29 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     }
 
     return oldSettings;
+}
+
+/**
+ * Replace deprecated Gemini model IDs with their current equivalents.
+ * Extracted from migrateOldSettings to keep that function's cognitive
+ * complexity under the SonarQube threshold.
+ *
+ * - `gemini-3-pro-preview` → `gemini-3.1-pro-preview` (pro-preview was
+ *   discontinued March 9 2026; 3.1 pro is the successor).
+ * - `gemini-3-flash-preview` → `gemini-3-flash` (the GA alias dropped the
+ *   `-preview` suffix; stale ID returns ERR_CONNECTION_RESET, which
+ *   surfaced as "YouTube transcription failing" on 2026-04-22).
+ */
+function migrateDeprecatedGeminiIds(s: Record<string, unknown>): void {
+    const deprecated: Record<string, string> = {
+        'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
+        'gemini-3-flash-preview': 'gemini-3-flash',
+    };
+    const modelKeys = ['youtubeGeminiModel', 'pdfModel'] as const;
+    for (const key of modelKeys) {
+        const current = s[key];
+        if (typeof current === 'string' && current in deprecated) {
+            s[key] = deprecated[current];
+        }
+    }
 }

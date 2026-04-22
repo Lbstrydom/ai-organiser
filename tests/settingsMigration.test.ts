@@ -207,11 +207,11 @@ describe('migrateOldSettings', () => {
             expect(result.pdfModel).toBe('gemini-3.1-pro-preview');
         });
 
-        it('should not change gemini-3-flash-preview models', () => {
+        it('migrates gemini-3-flash-preview → gemini-3-flash (stale preview suffix, 2026-04-22)', () => {
             const old = { youtubeGeminiModel: 'gemini-3-flash-preview', pdfModel: 'gemini-3-flash-preview' } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.youtubeGeminiModel).toBe('gemini-3-flash-preview');
-            expect(result.pdfModel).toBe('gemini-3-flash-preview');
+            expect(result.youtubeGeminiModel).toBe('gemini-3-flash');
+            expect(result.pdfModel).toBe('gemini-3-flash');
         });
 
         it('should not change empty pdfModel', () => {

@@ -2808,7 +2808,7 @@ async function summarizePdfWithLLM(
                 ? 'https://api.anthropic.com/v1/messages'
                 : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
             apiKey: pdfConfig.apiKey,
-            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'claude-sonnet-4-6' : 'gemini-3-flash-preview')
+            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'claude-sonnet-4-6' : 'gemini-3-flash')
         }, plugin.app);
 
         const parts = [

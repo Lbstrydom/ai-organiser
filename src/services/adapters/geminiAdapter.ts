@@ -7,7 +7,7 @@ export class GeminiAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || endpoints.gemini,
-            modelName: config.modelName || 'gemini-3-flash-preview'
+            modelName: config.modelName || 'gemini-3-flash'
         });
         this.provider = {
             name: 'gemini',

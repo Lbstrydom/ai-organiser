@@ -74,7 +74,12 @@ export interface YouTubeProcessOptions {
 // Constants
 // ============================================================================
 
-const DEFAULT_MODEL = 'gemini-3-flash-preview';
+// `gemini-3-flash-preview` was the older preview suffix; the GA model dropped
+// the `-preview` suffix. The live API 404s or connection-resets on the stale
+// ID, which surfaced as "YouTube transcription failing" (user report
+// 2026-04-22). Use the GA alias — the dynamic model service + resolver
+// upgrade this to whatever flash tier is newest at call time.
+const DEFAULT_MODEL = 'gemini-3-flash';
 const DEFAULT_TIMEOUT_MS = 180000;  // 3 minutes
 const TRANSCRIBE_MAX_TOKENS = 16384;  // High for full transcripts
 const SUMMARIZE_MAX_TOKENS = 8192;    // Moderate for summaries
