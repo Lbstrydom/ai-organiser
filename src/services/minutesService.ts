@@ -99,25 +99,36 @@ interface ChunkExtract {
     deferred_items: DeferredItem[];
 }
 
-// Use shared CHUNK_TOKEN_LIMIT from constants
-const HIERARCHICAL_THRESHOLD = 4;
+// Use shared CHUNK_TOKEN_LIMIT from constants + HIERARCHICAL_CHUNK_THRESHOLD
+// from contentSizePolicy (canonical source — audit finding M1 2026-04-23).
+// Legacy local name `HIERARCHICAL_THRESHOLD` is an alias so the surrounding
+// code needn't change; remove once all call sites import directly.
+import { HIERARCHICAL_CHUNK_THRESHOLD } from './contentSizePolicy';
+const HIERARCHICAL_THRESHOLD = HIERARCHICAL_CHUNK_THRESHOLD;
 const MAX_REDUCTION_DEPTH = 5;
 const MAX_CONSOLIDATION_CHARS = 120_000; // ~30K tokens — guard against oversized final payloads
 const MAX_TRUNCATION_RETRIES = 3; // escalating retry attempts for truncated JSON
 
-/** Extraction/merge: structured JSON extraction — no reasoning needed.
- *  120s timeout is generous for a single chunk with thinking disabled. */
+/** Extraction: structured JSON extraction from a single 6000-token input
+ *  chunk. 8192 output budget = plenty for typical chunks, retry machinery
+ *  escalates up to 64000 for pathologically dense ones. Was 4096 — too
+ *  narrow, dense chunks truncated on first try and forced retries for
+ *  nearly every 2+ hour meeting (user report 2026-04-23: three separate
+ *  Retry 1/3 cycles visible in console for a 2-hour meeting). 120s
+ *  timeout is generous for a single chunk with thinking disabled. */
 const EXTRACTION_OPTIONS: SummarizeOptions = {
-    maxTokens: 4096,
+    maxTokens: 8192,
     disableThinking: true,
     timeoutMs: 120_000,
 };
 
-/** Intermediate merge: same as extraction. */
+/** Intermediate merge: combines multiple chunk outputs, so its budget
+ *  should scale with merge breadth. 12288 = 3x chunk extraction, covers
+ *  merges of up to ~4 chunks without truncation. */
 const MERGE_OPTIONS: SummarizeOptions = {
-    maxTokens: 4096,
+    maxTokens: 12288,
     disableThinking: true,
-    timeoutMs: 120_000,
+    timeoutMs: 180_000,
 };
 
 /** Consolidation: synthesis task (dedup, cross-reference, renumber).
@@ -471,8 +482,8 @@ export class MinutesService {
         contextSummary?: string
     ): Promise<ParsedMinutes> {
         const chunks = typeof input.transcript === 'string'
-            ? await chunkPlainTextAsync(input.transcript, { maxTokens: CHUNK_TOKEN_LIMIT, overlapChars: 500 })
-            : await chunkSegmentsAsync(input.transcript, { maxTokens: CHUNK_TOKEN_LIMIT, overlapChars: 500 });
+            ? await chunkPlainTextAsync(input.transcript, { maxTokens: CHUNK_TOKEN_LIMIT, overlapChars: 1_000 })
+            : await chunkSegmentsAsync(input.transcript, { maxTokens: CHUNK_TOKEN_LIMIT, overlapChars: 1_000 });
 
         if (chunks.length === 0) {
             throw new Error('Transcript is empty');

@@ -9,6 +9,7 @@ import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
 import { NewsletterService } from '../services/newsletter/newsletterService';
+import { withProgress } from '../services/progress';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
 export function showNewsletterFetchResultNotice(
@@ -33,27 +34,37 @@ export function showNewsletterFetchResultNotice(
 }
 
 /** Run the audio-regeneration pipeline and show a user-visible notice. Shared
- *  by the command and the settings button. */
+ *  by the command and the settings button. Uses ProgressReporter so the user
+ *  sees a persistent "Regenerating podcast audio…" toast instead of a 3s
+ *  flash that disappears before the actual work starts. */
 export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<void> {
     const nl = plugin.t.settings.newsletter;
     if (!plugin.settings.newsletterAudioPodcast) {
         new Notice(nl?.audioPodcastOffNotice || 'Audio podcast is off — enable it in settings first.', 5000);
         return;
     }
-    new Notice(nl?.audioRegenerating || 'Regenerating audio for today\'s Daily Brief…', 3000);
-    const service = new NewsletterService(plugin);
-    const result = await service.regenerateAudioForToday();
-    if (result.success) {
-        new Notice(
-            (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', result.path || ''),
-            6000
-        );
-    } else {
-        new Notice(
-            (nl?.audioRegenerateFailed || 'Audio regeneration failed: {error}').replace('{error}', result.error || 'unknown'),
-            7000
-        );
-    }
+    type AudioPhase = 'regeneratingAudio';
+    const tp = plugin.t.progress;
+    const r = await withProgress<{ path?: string }, AudioPhase>(
+        {
+            plugin,
+            initialPhase: { key: 'regeneratingAudio' },
+            resolvePhase: (p) => tp.newsletter[p.key],
+        },
+        async () => {
+            const service = new NewsletterService(plugin);
+            const result = await service.regenerateAudioForToday();
+            if (!result.success) {
+                throw new Error(result.error || 'unknown');
+            }
+            return { path: result.path };
+        },
+    );
+    if (!r.ok) return; // reporter fired the toast
+    new Notice(
+        (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', r.value.path || ''),
+        6000,
+    );
 }
 
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
@@ -74,20 +85,42 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
-            new Notice(t.settings.newsletter?.fetching || 'Fetching newsletters...', 3000);
-
-            try {
-                const service = new NewsletterService(plugin);
-                await service.loadSeenIds();
-                const result = await service.fetchAndProcess((current, total) => {
-                    logger.debug('Newsletter', `Processing ${current}/${total}`);
-                });
-                showNewsletterFetchResultNotice(result, plugin);
+            type FetchPhase = 'fetching' | 'triaging';
+            const tp = t.progress;
+            const r = await withProgress<NewsletterFetchResult, FetchPhase>(
+                {
+                    plugin,
+                    initialPhase: { key: 'fetching' },
+                    resolvePhase: (p) => {
+                        const tmpl = tp.newsletter[p.key];
+                        if (p.params) {
+                            return Object.entries(p.params).reduce(
+                                (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+                                tmpl,
+                            );
+                        }
+                        return tmpl;
+                    },
+                    total: undefined, // total only known after fetch returns
+                },
+                async (reporter) => {
+                    const service = new NewsletterService(plugin);
+                    await service.loadSeenIds();
+                    const result = await service.fetchAndProcess((current, total) => {
+                        logger.debug('Newsletter', `Processing ${current}/${total}`);
+                        reporter.setPhase({
+                            key: 'triaging',
+                            params: { current, total },
+                        });
+                    });
+                    return result;
+                },
+            );
+            if (r.ok) {
+                showNewsletterFetchResultNotice(r.value, plugin);
                 await plugin.updateNewsletterLastFetchTime();
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                new Notice((t.settings.newsletter?.fetchError || 'Failed to fetch: {error}').replace('{error}', msg), 5000);
             }
+            // On !r.ok the reporter already fired the toast.
         }
     });
 

@@ -7,7 +7,9 @@ import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normal
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import { getPath } from '../utils/desktopRequire';
-import { fetchArticle, openInBrowser, chunkContent, WebContent } from '../services/webContentService';
+import { fetchArticle, openInBrowser, WebContent } from '../services/webContentService';
+import { assessContent } from '../services/contentSizePolicy';
+import { orchestrateChunked } from '../services/chunkingOrchestrator';
 import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService';
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
@@ -16,7 +18,7 @@ import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils'
 import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { getTranscriptFullPath } from '../core/settings';
 import { ensureFolderExists } from '../utils/minutesUtils';
-import { isContentTooLarge, getMaxContentChars, truncateContent, truncateAtBoundary, getProviderLimits } from '../services/tokenLimits';
+import { isContentTooLarge, getMaxContentChars, truncateContent, truncateAtBoundary } from '../services/tokenLimits';
 import { ensurePrivacyConsent, resetPrivacyNotice } from '../services/privacyNotice';
 import { isPdfUrl, extractFilenameFromUrl } from '../utils/urlValidator';
 import { UrlInputModal } from '../ui/modals/UrlInputModal';
@@ -445,8 +447,16 @@ async function handleMultiSourceResult(
         // (the already-selected file is processed directly, no second picker)
     }
 
-    // Process sources
-    new Notice(plugin.t.messages.processingXSources.replace('{count}', String(totalSources)));
+    // Process sources — persistent progress Notice replaces the previous
+    // flash-notice anti-pattern (5-second flashes per source with silent gaps
+    // between). Reporter owns lifecycle so the Notice is always cleaned up,
+    // including on thrown exceptions (prior notice-leak concern).
+    const _progressNotice = new Notice(
+        plugin.t.messages.processingXSources.replace('{count}', String(totalSources)),
+        0,
+    );
+    // Ensure cleanup even if something throws unexpectedly below.
+    const hideProgress = (): void => { try { _progressNotice.hide(); } catch { /* noop */ } };
 
     const summaries: string[] = [];
     const sourceLabels: string[] = [];
@@ -463,12 +473,15 @@ async function handleMultiSourceResult(
     const allSources: ProcessedSource[] = [];
     const today = new Date().toISOString().split('T')[0];
 
-    // Track progress
+    // Track progress — updates the persistent Notice in place so the user
+    // sees each source transition without flash-notice churn.
     let processedCount = 0;
-    const showProgress = () => {
-        new Notice(plugin.t.messages.processingSourceXofY
-            .replace('{current}', String(processedCount + 1))
-            .replace('{total}', String(totalSources)), 3000);
+    const showProgress = (): void => {
+        _progressNotice.setMessage(
+            plugin.t.messages.processingSourceXofY
+                .replace('{current}', String(processedCount + 1))
+                .replace('{total}', String(totalSources)),
+        );
     };
 
     // Process note content first if selected
@@ -940,6 +953,10 @@ async function handleMultiSourceResult(
         }
     }
 
+    // Hide the multi-source progress Notice before showing modals or the
+    // failure path — ensures no dangling toast regardless of outcome.
+    hideProgress();
+
     // If no summaries but we have sources, show the status checklist
     if (summaries.length === 0) {
         if (allSources.length > 1) {
@@ -969,15 +986,17 @@ async function handleMultiSourceResult(
 
             // Show preview modal — editor mutations deferred to doInsert callback
             const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, () => {
+                // Previous behaviour: editor.setValue(frontmatter + failureOutput)
+                // — that wiped the entire note body just to render a "no content
+                // could be summarized" checklist. Destructive and surprising
+                // (H7 audit finding 2026-04-23). Now we APPEND the checklist
+                // to the existing body instead so the user's original content
+                // is preserved.
                 let fullContent = editor.getValue();
                 if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
                     fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
                 }
-
-                const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
-                const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
-                const frontmatter = fullContent.substring(0, frontmatterEnd);
-                editor.setValue(frontmatter + failureOutput.trimStart());
+                editor.setValue(fullContent.trimEnd() + '\n' + failureOutput);
             }, true, plugin.t.messages.noContentCouldBeSummarized);
             if (failureAction === 'discard') {
                 new Notice(plugin.t.messages.noContentCouldBeSummarized);
@@ -1142,22 +1161,39 @@ async function callSummarizeService(
     isRawPrompt: boolean = false
 ): Promise<string | null> {
     try {
-        let finalPrompt: string;
-
+        // Raw prompt (already built upstream — e.g. synthesis prompt): skip
+        // quality-threshold auto-chunking. Caller controls prompt size.
         if (isRawPrompt) {
-            // Content is already a complete prompt
-            finalPrompt = content;
-        } else {
-            const language = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
-            const promptOptions: SummaryPromptOptions = {
-                length: plugin.settings.summaryLength,
-                language,
-                personaPrompt,
-                userContext: focusContext
-            };
-            const prompt = buildSummaryPrompt(promptOptions);
-            finalPrompt = insertContentIntoPrompt(prompt, content);
+            const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), content));
+            return response.success ? response.content || null : null;
         }
+
+        // Quality-threshold auto-chunking for individual sources (URL text,
+        // YouTube transcript, PDF text fallback, audio transcript, extracted
+        // doc text, note content). ONE check here covers all 6 multi-source
+        // per-source handlers uniformly.
+        const serviceType = plugin.settings.serviceType === 'cloud'
+            ? plugin.settings.cloudServiceType
+            : 'local';
+        const qualityAssessment = assessContent(content, 'summarization', serviceType, plugin.settings);
+
+        if (qualityAssessment.strategy !== 'direct') {
+            // Route through orchestrator for hierarchical map-reduce.
+            const summary = await summarizeContentInChunks(
+                plugin, content, serviceType, personaPrompt, focusContext,
+            );
+            return summary || null;
+        }
+
+        const language = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
+        const promptOptions: SummaryPromptOptions = {
+            length: plugin.settings.summaryLength,
+            language,
+            personaPrompt,
+            userContext: focusContext,
+        };
+        const prompt = buildSummaryPrompt(promptOptions);
+        const finalPrompt = insertContentIntoPrompt(prompt, content);
 
         const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt));
         return response.success ? response.content || null : null;
@@ -1577,7 +1613,8 @@ async function handleUrlSummarization(
         });
 
         if (isContentTooLarge(content, serviceType)) {
-            // Show content size modal for user choice
+            // Exceeds provider HARD limit — still need user choice because
+            // truncate vs chunk is a genuine cost/time trade-off.
             const choice = await showContentSizeModal(plugin, content.length, maxChars);
 
             if (choice === 'cancel') {
@@ -1592,6 +1629,15 @@ async function handleUrlSummarization(
                 return { success: true };
             }
             return { success: false };
+        }
+
+        // Quality-threshold auto-chunking — content fits under the hard
+        // limit but exceeds the quality threshold, so one-shot summaries
+        // would lose middle-of-content detail. Auto-chunk transparently.
+        const qualityAssessment = assessContent(content, 'summarization', serviceType, plugin.settings);
+        if (qualityAssessment.strategy !== 'direct') {
+            await summarizeInChunks(plugin, editor, content, result.content, serviceType, personaPrompt, userContext);
+            return { success: true };
         }
 
         return await summarizeAndInsert(plugin, editor, content, result.content, personaPrompt, userContext, personaId);
@@ -1643,9 +1689,18 @@ async function handleTextSummarization(
         } else if (choice === 'chunk') {
             await summarizePlainTextInChunks(plugin, editor, text, serviceType, personaPrompt, userContext);
         }
-    } else {
-        await summarizePlainTextAndInsert(plugin, editor, text, personaPrompt, userContext);
+        return;
     }
+
+    // Quality-threshold auto-chunking — selection or note body that fits
+    // under the hard limit but exceeds the quality threshold (~40K chars).
+    const qualityAssessment = assessContent(text, 'summarization', serviceType, plugin.settings);
+    if (qualityAssessment.strategy !== 'direct') {
+        await summarizePlainTextInChunks(plugin, editor, text, serviceType, personaPrompt, userContext);
+        return;
+    }
+
+    await summarizePlainTextAndInsert(plugin, editor, text, personaPrompt, userContext);
 }
 
 /**
@@ -1787,6 +1842,18 @@ async function handleDocumentSummarization(
     const result = await extractDocumentTextForMultiSource(plugin, view, document);
     if (!result.success || !result.text) {
         new Notice(result.error || 'Failed to extract document text');
+        return;
+    }
+
+    const serviceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+
+    // Quality-threshold auto-chunking — Word/PowerPoint/Excel docs can
+    // easily exceed 40K chars (a 20-page Word doc averages ~60K chars).
+    const qualityAssessment = assessContent(result.text, 'document', serviceType, plugin.settings);
+    if (qualityAssessment.strategy !== 'direct') {
+        await summarizePlainTextInChunks(plugin, editor, result.text, serviceType, personaPrompt, userContext);
         return;
     }
 
@@ -2040,7 +2107,7 @@ async function handleAudioSummarization(
     };
 
     if (isContentTooLarge(transcript, serviceType)) {
-        // Show content size modal for user choice
+        // Exceeds provider HARD limit — keep user choice.
         const choice = await showContentSizeModal(plugin, transcript.length, maxChars);
 
         if (choice === 'cancel') {
@@ -2052,9 +2119,17 @@ async function handleAudioSummarization(
         } else if (choice === 'chunk') {
             await summarizeAudioInChunks(plugin, editor, transcript, audioFileInfo, serviceType, transcriptionResult.duration, transcriptPath);
         }
-    } else {
-        await summarizeAudioAndInsert(plugin, editor, transcript, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
+        return;
     }
+
+    // Quality-threshold auto-chunking — long transcript under hard limit.
+    const qualityAssessment = assessContent(transcript, 'summarization', serviceType, plugin.settings);
+    if (qualityAssessment.strategy !== 'direct') {
+        await summarizeAudioInChunks(plugin, editor, transcript, audioFileInfo, serviceType, transcriptionResult.duration, transcriptPath);
+        return;
+    }
+
+    await summarizeAudioAndInsert(plugin, editor, transcript, audioFileInfo, transcriptionResult.duration, undefined, transcriptPath);
 }
 
 /**
@@ -2116,65 +2191,92 @@ async function summarizeContentInChunks(
     userContext?: string,
     includeCompanion?: boolean
 ): Promise<string> {
-    const limits = getProviderLimits(provider);
-    const maxChunkChars = Math.floor(limits.maxInputTokens * limits.charsPerToken * 0.5);
-    const chunks = chunkContent(content, maxChunkChars);
-    const chunkSummaries: string[] = [];
+    // Delegate to the universal chunking orchestrator so this inherits:
+    //   - hierarchical reduce for > 4 chunks
+    //   - rolling continuation context between map chunks
+    //   - per-chunk error isolation (no "[Error summarizing section N]"
+    //     markers embedded in final output — errors logged separately)
+    //
+    // The orchestrator does char-based chunking via the policy's
+    // qualityChunkChars. Callers that want the old provider-hard-limit
+    // behaviour can use `summarizeAsStrictlyTruncated()` (future).
+    const assessment = assessContent(content, 'summarization', provider, plugin.settings);
 
-    // Map phase
-    for (let i = 0; i < chunks.length; i++) {
-        new Notice(
-            plugin.t.messages.summarizingChunk
-                .replace('{current}', String(i + 1))
-                .replace('{total}', String(chunks.length))
-        );
+    // Progress notice — persistent, updated per chunk.
+    const _progressNotice = new Notice(
+        plugin.t.messages.summarizingChunk
+            .replace('{current}', '1')
+            .replace('{total}', String(assessment.estimatedChunks)),
+        0,
+    );
+    const hideProgress = (): void => { try { _progressNotice.hide(); } catch { /* noop */ } };
 
-        const promptOptions: SummaryPromptOptions = {
-            length: 'detailed',
-            language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-            personaPrompt,
-            userContext,
-            chunkIndex: i + 1,
-            chunkTotal: chunks.length,
-        };
+    if (assessment.warningMessage) {
+        // Pre-flight advisory for very large content; non-blocking.
+        new Notice(assessment.warningMessage, 6000);
+    }
 
-        const promptTemplate = buildSummaryPrompt(promptOptions);
-        const prompt = insertContentIntoPrompt(promptTemplate, chunks[i]);
+    const mapLanguage = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
 
-        try {
-            const response = await summarizeTextWithLLM(plugin, prompt);
-            chunkSummaries.push(
-                response.success && response.content
-                    ? response.content
-                    : `[Error summarizing section ${i + 1}]`
-            );
-        } catch {
-            chunkSummaries.push(`[Error summarizing section ${i + 1}]`);
+    const result = await orchestrateChunked(
+        content,
+        assessment,
+        plugin.llmService,
+        {
+            contentType: 'summarization',
+            mapPromptBuilder: (chunk, chunkIndex, total, continuationContext) => {
+                const promptOptions: SummaryPromptOptions = {
+                    length: 'detailed',
+                    language: mapLanguage,
+                    personaPrompt,
+                    userContext: continuationContext
+                        ? `${userContext ?? ''}\n\nPrevious context: ${continuationContext}`.trim()
+                        : userContext,
+                    chunkIndex,
+                    chunkTotal: total,
+                };
+                const tmpl = buildSummaryPrompt(promptOptions);
+                return insertContentIntoPrompt(tmpl, chunk);
+            },
+            reducePromptBuilder: (parts) => {
+                const combineOptions: SummaryPromptOptions = {
+                    length: plugin.settings.summaryLength,
+                    language: mapLanguage,
+                    personaPrompt,
+                    userContext,
+                    includeCompanion,
+                };
+                const tmpl = buildChunkCombinePrompt(combineOptions);
+                return insertSectionsIntoPrompt(tmpl, parts);
+            },
+            mapOptions: assessment.mapModelOverride ? { modelOverride: assessment.mapModelOverride } : undefined,
+            onProgress: (done, total) => {
+                try {
+                    _progressNotice.setMessage(
+                        plugin.t.messages.summarizingChunk
+                            .replace('{current}', String(done))
+                            .replace('{total}', String(total)),
+                    );
+                } catch { /* noop */ }
+            },
+        },
+    );
+
+    hideProgress();
+
+    if (!result.ok && result.errors && result.errors.length > 0) {
+        logger.warn('Summarize', `Chunked summarization: ${result.errors.length} chunk(s) failed`, result.errors);
+        if (!result.summary) {
+            // All chunks failed — surface error and return empty so caller
+            // can handle via its Notice path.
+            new Notice(`Summarization failed: all ${result.errors.length} section(s) failed`, 6000);
+            return '';
         }
+        // Partial success — show warning but return what we have.
+        new Notice(`Summary may be incomplete — ${result.errors.length} section(s) failed`, 6000);
     }
 
-    // Reduce phase
-    new Notice(plugin.t.messages.combiningChunks);
-
-    const combineOptions: SummaryPromptOptions = {
-        length: plugin.settings.summaryLength,
-        language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-        personaPrompt,
-        userContext,
-        includeCompanion,
-    };
-
-    const combineTemplate = buildChunkCombinePrompt(combineOptions);
-    const combinePrompt = insertSectionsIntoPrompt(combineTemplate, chunkSummaries);
-
-    try {
-        const response = await summarizeTextWithLLM(plugin, combinePrompt);
-        return response.success && response.content
-            ? response.content
-            : chunkSummaries.join('\n\n');
-    } catch {
-        return chunkSummaries.join('\n\n');
-    }
+    return result.summary ?? '';
 }
 
 /**
@@ -2195,6 +2297,12 @@ async function summarizeAudioInChunks(
         const result = await summarizeContentInChunks(plugin, transcript, provider, personaPrompt);
         return { finalContent: result };
     });
+
+    // summarizeContentInChunks returns '' when all chunks failed — the
+    // orchestrator already fired its Notice explaining the failure; we
+    // should not insert a broken summary-plus-references block into the
+    // note on top of that (audit finding M7 2026-04-23).
+    if (!finalContent || !finalContent.trim()) return;
 
     await insertAudioSummary(editor, finalContent, file, duration, plugin, transcriptPath, true);
 }
@@ -2274,7 +2382,12 @@ async function handleYouTubeSummarization(
         if (!proceed) return;
     }
 
-    new Notice('Gemini is processing YouTube video...', 5000);
+    // Persistent progress notice — Gemini video processing is a 30s–3min
+    // round-trip per call (and we make up to 2 calls: summary + transcript).
+    // The previous 5-second flash left users staring at an unchanging editor
+    // with no signal the operation was still running.
+    const progress = new Notice('YouTube — gemini summarizing video…', 0);
+    const updateProgress = (msg: string): void => { progress.setMessage(msg); };
 
     // Build prompt for YouTube summarization
     const promptOptions: SummaryPromptOptions = {
@@ -2295,6 +2408,7 @@ async function handleYouTubeSummarization(
         );
 
         if (!result.success || !result.content) {
+            progress.hide();
             new Notice(result.error || 'Failed to process YouTube video');
             return;
         }
@@ -2305,6 +2419,7 @@ async function handleYouTubeSummarization(
         // Generate and save transcript using Gemini (more reliable than caption scraping)
         let transcriptPath: string | null = null;
         if (plugin.settings.saveTranscripts !== 'none') {
+            updateProgress('YouTube — gemini transcribing audio…');
             try {
                 logger.debug('Summary', 'Generating YouTube transcript with Gemini for:', url);
                 const transcriptResult = await transcribeYouTubeWithGemini(
@@ -2338,8 +2453,16 @@ async function handleYouTubeSummarization(
             }
         }
 
-        // Insert summary into editor with transcript link if available
-        await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
+        // Hide progress before opening the review modal so the toast doesn't
+        // overlap the modal focus target.
+        progress.hide();
+
+        // Insert summary into editor with transcript link if available.
+        // Only proceed with metadata updates when the user actually inserted
+        // the summary — choosing Copy or Discard from the preview modal
+        // shouldn't trigger mutations (H5 audit finding 2026-04-23).
+        const insertAction = await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
+        if (insertAction !== 'cursor') return;
 
         // Update metadata with persona if structured metadata is enabled
         if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
@@ -2361,6 +2484,7 @@ async function handleYouTubeSummarization(
         new Notice(`YouTube video summarized: ${videoInfo?.title?.substring(0, 40) || 'video'}...`);
 
     } catch (error) {
+        progress.hide();
         logger.error('Summary', 'YouTube Gemini error:', error);
         new Notice(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

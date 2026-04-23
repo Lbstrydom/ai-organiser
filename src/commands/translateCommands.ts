@@ -318,22 +318,25 @@ async function handleMultiSourceTranslate(
         }
     }
 
-    // Begin multi-source processing
-    new Notice(
+    // Begin multi-source processing — persistent Notice updated per source
+    // (replaces prior flash-notice-per-source anti-pattern).
+    const _progressNotice = new Notice(
         (plugin.t.messages.translatingMultipleSources || 'Translating {count} sources...')
             .replace('{count}', String(totalSources)),
-        3000
+        0,
     );
+    const hideProgress = (): void => { try { _progressNotice.hide(); } catch { /* noop */ } };
 
     const allSources: TranslatedSource[] = [];
     const today = getTodayDate();
     let processedCount = 0;
 
-    const showProgress = () => {
-        const msg = (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}...')
-            .replace('{current}', String(processedCount + 1))
-            .replace('{total}', String(totalSources));
-        new Notice(msg, 3000);
+    const showProgress = (): void => {
+        _progressNotice.setMessage(
+            (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}...')
+                .replace('{current}', String(processedCount + 1))
+                .replace('{total}', String(totalSources)),
+        );
     };
 
     // ── Process note content first ──
@@ -517,6 +520,7 @@ async function handleMultiSourceTranslate(
     }
 
     // ── Assemble output ──
+    hideProgress();
     assembleTranslatedOutput(plugin, editor, view, result, allSources);
 }
 

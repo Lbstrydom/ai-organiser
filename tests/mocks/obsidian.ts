@@ -51,13 +51,30 @@ export type TAbstractFile = TFile | TFolder;
 
 export class Notice {
     message: string;
+    messageEl: MockHTMLElement;
+    noticeEl: MockHTMLElement;
+    hidden = false;
 
     constructor(message: string, timeout?: number) {
         this.message = message;
         mockNotices.push(message);
+        this.messageEl = new MockHTMLElement();
+        this.noticeEl = new MockHTMLElement();
+        // Parent the noticeEl so MutationObservers in the code under test
+        // have a parentElement to attach to. We don't simulate real DOM.
+        const parent = new MockHTMLElement();
+        (this.noticeEl as any).parentElement = parent;
+        (this.messageEl as any).parentElement = this.noticeEl;
     }
 
-    hide() {}
+    setMessage(msg: string) {
+        this.message = msg;
+    }
+
+    hide() {
+        this.hidden = true;
+        this.noticeEl.isConnected = false;
+    }
 }
 
 // Clear notices between tests
@@ -152,12 +169,44 @@ class MockHTMLElement {
         this.innerHTML = '';
     }
 
-    addEventListener(event: string, handler: Function) {}
-    removeEventListener(event: string, handler: Function) {}
-    querySelector(selector: string) { return null; }
+    addEventListener(event: string, handler: Function) {
+        const list = this._listeners.get(event) ?? [];
+        list.push(handler);
+        this._listeners.set(event, list);
+    }
+    removeEventListener(event: string, handler: Function) {
+        const list = this._listeners.get(event);
+        if (!list) return;
+        const idx = list.indexOf(handler);
+        if (idx >= 0) list.splice(idx, 1);
+    }
+    _listeners: Map<string, Function[]> = new Map();
+    /** Test helper: fire a synthetic event of the given type. */
+    _dispatch(event: string, payload?: any) {
+        const list = this._listeners.get(event) ?? [];
+        for (const h of list) h(payload);
+    }
+    querySelector(selector: string): MockHTMLElement | null {
+        const cls = selector.replace(/^\./, '');
+        for (const child of this.children) {
+            if (child.classList.contains(cls)) return child;
+            const nested = child.querySelector(selector);
+            if (nested) return nested;
+        }
+        return null;
+    }
     querySelectorAll(selector: string) { return []; }
     setAttribute(name: string, value: string) { this._attributes[name] = value; }
+    setAttr(name: string, value: string) { this._attributes[name] = value; }
     getAttribute(name: string) { return this._attributes[name]; }
+    removeAttribute(name: string) { delete this._attributes[name]; }
+    setCssProps(props: Record<string, string>) {
+        this._cssProps = Object.assign(this._cssProps ?? {}, props);
+    }
+    _cssProps: Record<string, string> = {};
+    parentElement: MockHTMLElement | null = null;
+    isConnected: boolean = true;
+    remove() { this.isConnected = false; }
 }
 
 export class Modal {

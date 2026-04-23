@@ -2,6 +2,7 @@ import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
+import { withProgress } from '../services/progress';
 
 export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command: Tag (scope modal)
@@ -75,8 +76,9 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     }
 
     const editor = view.editor;
+    const file = view.file; // capture non-null reference for closures below
     const selectedText = editor.getSelection();
-    const content = selectedText || await plugin.app.vault.read(view.file);
+    const content = selectedText || await plugin.app.vault.read(file);
 
     if (!content.trim()) {
         new Notice(plugin.t.messages.noContentToAnalyze);
@@ -89,37 +91,48 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     // most common intent. Users who need folder-scoped taxonomy can still
     // reach it via the batch tag commands (folder / vault scope in
     // TagScopeModal) which surface the picker where it belongs.
-    const progressNotice = new Notice(plugin.t.messages.analyzing, 0);
+    //
+    // Tag pipeline's inner onProgress callback emits already-localized phase
+    // strings ("Gathering tags…", "Applying…"). We forward those through the
+    // reporter's resolvePhase via the `raw` param so the user sees the exact
+    // pipeline phase without our duplicating the string catalog here.
+    type Phase = 'analyzing' | 'applying' | 'raw';
 
-    try {
-        const result = await plugin.analyzeAndTagNote(
-            view.file,
-            content,
-            {
-                onProgress: (phase: string) => progressNotice.setMessage(phase),
-            }
-        );
-        progressNotice.hide();
+    const r = await withProgress<Awaited<ReturnType<typeof plugin.analyzeAndTagNote>>, Phase>(
+        {
+            plugin,
+            initialPhase: { key: 'analyzing' },
+            resolvePhase: (p) => {
+                if (p.key === 'raw' && typeof p.params?.text === 'string') return p.params.text;
+                if (p.key === 'analyzing') return plugin.t.progress.generateTags.analyzing;
+                if (p.key === 'applying') return plugin.t.progress.generateTags.applying;
+                return plugin.t.messages.analyzing;
+            },
+        },
+        async (reporter) => {
+            return plugin.analyzeAndTagNote(
+                file,
+                content,
+                {
+                    onProgress: (phase: string) => reporter.setPhase({ key: 'raw', params: { text: phase } }),
+                },
+            );
+        },
+    );
+    if (!r.ok) return; // reporter already fired "Failed: <detail>" toast
 
-        if (selectedText && result.success) {
-            editor.replaceSelection(selectedText);
-        }
-        plugin.handleTagUpdateResult(result);
+    const result = r.value;
+    if (selectedText && result.success) {
+        editor.replaceSelection(selectedText);
+    }
+    plugin.handleTagUpdateResult(result);
 
-        if (result.success) {
-            ensureNoteStructureIfEnabled(editor, plugin.settings);
-        }
+    if (result.success) {
+        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    }
 
-        if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
-            await plugin.showSuggestionModal(view.file, result.suggestedTitle, result.suggestedFolder);
-        }
-    } catch (error) {
-        progressNotice.hide();
-        // Surface the underlying error so a fresh user sees "API key is
-        // required for X" instead of a generic "Tagging failed" — critical
-        // for onboarding (persona round 9 audit).
-        const detail = error instanceof Error ? error.message : String(error);
-        new Notice(`${plugin.t.messages.failedToGenerateTags}: ${detail}`, 6000);
+    if (result.success && (result.suggestedTitle || result.suggestedFolder)) {
+        await plugin.showSuggestionModal(file, result.suggestedTitle, result.suggestedFolder);
     }
 }
 

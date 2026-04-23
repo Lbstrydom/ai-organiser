@@ -674,8 +674,15 @@ export const en: Translations = {
             title: "YouTube",
             description: "YouTube videos are processed using gemini's native video understanding, which is more reliable than transcript scraping.",
             usingMainKey: "Using your main gemini API key",
+            usingDedicatedKey: "Using dedicated YouTube API key",
+            usingProviderKey: "Using saved gemini provider key",
             apiKey: "Gemini API key",
             apiKeyDesc: "Required for YouTube processing. Get a free key from google AI studio.",
+            replaceApiKey: "Replace gemini API key",
+            replaceApiKeyDesc: "Paste a new key to overwrite the stored one. Leave blank to keep the existing key.",
+            clearStoredKey: "Clear stored gemini keys",
+            clearStoredKeyDesc: "Remove both the dedicated YouTube key and the main gemini key from secret storage. Use this if google is rejecting a stored key as invalid.",
+            clearStoredKeyButton: "Clear keys",
             showKey: "Show/hide key",
             getApiKey: "Get a free gemini API key from google AI studio",
             model: "Gemini model",
@@ -2729,5 +2736,115 @@ export const en: Translations = {
         selectFile: "Select file",
         // Close
         closeButton: "Close"
+    },
+    progress: {
+        cancelButton: "Cancel",
+        cancelled: "Cancelled",
+        cancelPrompt: "Cancel current operation?",
+        failedPrefix: "Failed",
+        timedOut: "Timed out after {duration}",
+        stillWorking: "Still working… ({duration} elapsed)",
+        unknownError: "Unknown error",
+
+        multiSourceSummarize: {
+            preparing: "Preparing sources…",
+            fetching: "Fetching {name}… ({current}/{total})",
+            summarizing: "Summarizing {name}… ({current}/{total})",
+            transcribing: "Transcribing {name}… ({current}/{total})",
+            finalizing: "Finalizing output…"
+        },
+        multiSourceTranslate: {
+            preparing: "Preparing sources…",
+            fetching: "Fetching {name}… ({current}/{total})",
+            translating: "Translating {name}… ({current}/{total})",
+            finalizing: "Finalizing output…"
+        },
+        integration: {
+            resolving: "Resolving embedded content ({current}/{total})…",
+            merging: "Merging into note…",
+            validating: "Validating output…",
+            applying: "Applying changes…"
+        },
+        smartNote: {
+            diagramming: "Generating diagram…",
+            improving: "Improving note…",
+            validating: "Validating output…"
+        },
+        newsletter: {
+            fetching: "Fetching newsletters…",
+            triaging: "Triaging newsletter {current}/{total}…",
+            synthesizing: "Synthesizing digest…",
+            regeneratingAudio: "Regenerating podcast audio…"
+        },
+        presentation: {
+            generating: "Generating deck…",
+            auditing: "Auditing deck…",
+            refining: "Refining deck…",
+            exporting: "Exporting deck…"
+        },
+        kindle: {
+            authenticating: "Authenticating with amazon…",
+            scrapingBooks: "Scraping book list…",
+            scrapingHighlights: "Scraping highlights ({current}/{total})…",
+            writingNotes: "Writing notes to vault…"
+        },
+        research: {
+            searching: "Searching the web…",
+            triaging: "Triaging sources…",
+            extracting: "Extracting findings…",
+            synthesizing: "Synthesizing answer…",
+            continuing: "Continuing research…"
+        },
+        minutes: {
+            extracting: "Extracting from {name} ({current}/{total})…",
+            merging: "Merging document findings…",
+            consolidating: "Consolidating minutes…"
+        },
+        flashcards: {
+            generating: "Generating flashcards…",
+            validating: "Validating output…",
+            saving: "Saving {count} cards…"
+        },
+        generateTags: {
+            analyzing: "Analyzing note…",
+            applying: "Applying tags…"
+        },
+        canvas: {
+            gathering: "Gathering related notes…",
+            labeling: "Labeling relationships…",
+            building: "Building canvas…"
+        },
+        digitisation: {
+            processing: "Processing {name} ({current}/{total})…",
+            extracting: "Extracting text…"
+        },
+        embedScan: {
+            scanning: "Scanning {current}/{total} — {file}"
+        },
+        webReader: {
+            triaging: "Triaging article {current}/{total}…"
+        },
+        translateNote: {
+            translating: "Translating…"
+        },
+        summarizeNote: {
+            summarizing: "Summarizing…"
+        },
+        youtube: {
+            summarizing: "YouTube — gemini summarizing video…",
+            transcribing: "YouTube — gemini transcribing audio…"
+        },
+        audioTranscribe: {
+            compressing: "Compressing audio…",
+            transcribing: "Transcribing chunk {current}/{total}…",
+            summarizing: "Summarizing transcript…"
+        },
+        pdf: {
+            summarizing: "Summarizing PDF…"
+        },
+        url: {
+            fetching: "Fetching page…",
+            summarizing: "Summarizing page…"
+        }
     }
 };

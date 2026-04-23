@@ -179,125 +179,166 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return lastResponse!;
     }
 
-    private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
-        let lastError: Error | null = null;
+    /** Extract the provider's actual error message from a non-2xx response
+     *  body so callers see e.g. "model X not found" instead of just "404".
+     *  Used by both retry and non-retry paths. */
+    private formatHttpClientError(status: number, body: string): string {
+        let detail = '';
+        try {
+            const j = JSON.parse(body);
+            detail = j.error?.message || j.message || '';
+        } catch {
+            detail = body.slice(0, 300);
+        }
+        const suffix = detail ? `: ${detail}` : '';
+        return `HTTP error ${status}${suffix}`;
+    }
 
-        for (let i = 0; i < this.MAX_RETRIES; i++) {
-            try {
-                const response = await this.makeRequest(prompt, timeoutMs);
-                // requestUrl returns {status, json, text, etc.} - status 200-299 is success
-                if (response.status >= 200 && response.status < 300) {
-                    return response;
-                }
+    /** True for client errors we should never retry (auth / missing resource). */
+    private isNonRetriableClientError(status: number): boolean {
+        return status === 401 || status === 403 || status === 404;
+    }
 
-                // Never retry auth or permission errors
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error(`HTTP error ${response.status}`);
-                }
+    /** Handle a 429 rate-limit response: respect Retry-After, else exponential
+     *  backoff. Returns the sleep duration (ms) the caller should wait. */
+    private rateLimitBackoffMs(response: import('obsidian').RequestUrlResponse, attempt: number): number {
+        const retryAfterSec = Number.parseInt(response.headers?.['retry-after'] ?? '0', 10);
+        return retryAfterSec > 0
+            ? retryAfterSec * 1000
+            : this.RETRY_DELAY * Math.pow(2, attempt);
+    }
 
-                // Handle 429 Too Many Requests — respect Retry-After if present
-                if (response.status === 429) {
-                    const retryAfterSec = parseInt(response.headers?.['retry-after'] ?? '0', 10);
-                    const waitMs = retryAfterSec > 0
-                        ? retryAfterSec * 1000
-                        : this.RETRY_DELAY * Math.pow(2, i); // exponential backoff fallback
-                    if (i < this.MAX_RETRIES - 1) {
-                        await new Promise(resolve => setTimeout(resolve, waitMs));
-                    }
-                    lastError = new Error('Rate limit exceeded (429): too many requests');
-                    continue;
-                }
+    /** Discriminator for caught errors: non-retriable client errors surface
+     *  verbatim so the loop can exit immediately, otherwise the outer
+     *  exponential-backoff path takes over. */
+    private isNonRetriableError(error: unknown): boolean {
+        if (!(error instanceof Error)) return false;
+        if (error.message.includes('Invalid API key')) return true;
+        return /HTTP error 40[134]\b/.test(error.message);
+    }
 
-                // Retry on transient server errors (500/502/503/504)
-                lastError = new Error(`HTTP error ${response.status}`);
-            } catch (error) {
-                lastError = error instanceof Error ? error : new Error('Unknown error');
-                // Don't retry auth errors or explicit throws from above
-                if (error instanceof Error &&
-                    (error.message.includes('Invalid API key') ||
-                     error.message.includes('HTTP error 401') ||
-                     error.message.includes('HTTP error 403'))) {
-                    throw error;
-                }
+    /** One attempt of the retry loop. Returns the response on success, or
+     *  records `lastError` and returns null to signal "keep trying". Throws
+     *  immediately for non-retriable client errors. */
+    private async tryOneRequest(
+        prompt: string,
+        timeoutMs: number,
+        attempt: number,
+        setLastError: (e: Error) => void,
+    ): Promise<import('obsidian').RequestUrlResponse | null> {
+        try {
+            const response = await this.makeRequest(prompt, timeoutMs);
+            if (response.status >= 200 && response.status < 300) return response;
+
+            // Debug log the raw response on non-2xx. Critical when the
+            // thrown-message body is empty/unparseable — the user can still
+            // read the full text in the console (user report 2026-04-23:
+            // "HTTP error 404" with nothing after the colon).
+            logger.debug('LLM', `HTTP ${response.status} on ${this.adapter.getEndpoint()} — body: ${response.text?.slice(0, 500) || '(empty)'}`);
+
+            if (this.isNonRetriableClientError(response.status)) {
+                throw new Error(this.formatHttpClientError(response.status, response.text));
             }
 
+            if (response.status === 429) {
+                const waitMs = this.rateLimitBackoffMs(response, attempt);
+                if (attempt < this.MAX_RETRIES - 1) {
+                    await new Promise(resolve => setTimeout(resolve, waitMs));
+                }
+                setLastError(new Error('Rate limit exceeded (429): too many requests'));
+                return null;
+            }
+
+            setLastError(new Error(`HTTP error ${response.status}`));
+            return null;
+        } catch (error) {
+            if (this.isNonRetriableError(error)) throw error;
+            setLastError(error instanceof Error ? error : new Error('Unknown error'));
+            return null;
+        }
+    }
+
+    private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
+        let lastError: Error | null = null;
+        const setLastError = (e: Error): void => { lastError = e; };
+
+        for (let i = 0; i < this.MAX_RETRIES; i++) {
+            const response = await this.tryOneRequest(prompt, timeoutMs, i, setLastError);
+            if (response) return response;
             if (i < this.MAX_RETRIES - 1) {
                 await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY * Math.pow(2, i)));
             }
         }
 
-        throw lastError || new Error('Max retries exceeded');
+        throw lastError ?? new Error('Max retries exceeded');
+    }
+
+    /** Validate the parsed response body from a successful-status request —
+     *  any provider's OK response should be a non-null object. */
+    private validateConnectionTestResponse(response: import('obsidian').RequestUrlResponse): void {
+        if (response.status < 200 || response.status >= 300) {
+            this.throwConnectionTestStatusError(response);
+        }
+        const data = JSON.parse(response.text);
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid API response format');
+        }
+    }
+
+    /** Convert a non-2xx status from the connection-test probe into a
+     *  user-facing error whose text the outer catch can classify. */
+    private throwConnectionTestStatusError(response: import('obsidian').RequestUrlResponse): never {
+        if (response.status === 401) {
+            throw new Error('Authentication failed: Invalid API key');
+        }
+        if (response.status === 404) {
+            throw new Error('API endpoint not found: Please verify the URL');
+        }
+        try {
+            const errorJson = JSON.parse(response.text);
+            throw new Error(errorJson.error?.message || errorJson.message || `HTTP error ${response.status}`);
+        } catch {
+            throw new Error(`HTTP error ${response.status}: ${response.text}`);
+        }
+    }
+
+    /** Classify a caught error into the user-facing ConnectionTestError shape. */
+    private classifyConnectionTestError(error: unknown): ConnectionTestError {
+        if (!(error instanceof Error)) {
+            return { type: "unknown", message: "Unknown error occurred during connection test" };
+        }
+        if (error.name === 'AbortError') {
+            return { type: "timeout", message: "Connection timeout: Please check your network status" };
+        }
+        if (error.message.includes('Failed to fetch')) {
+            return { type: "network", message: "Network error: Unable to reach the API endpoint" };
+        }
+        if (error.message.includes('Authentication failed')) {
+            return { type: "auth", message: "Authentication failed: Please verify your API key" };
+        }
+        if (error.message.includes('API endpoint not found') || /HTTP error 404\b/.test(error.message)) {
+            // Google + other providers return 404 when the model id in the
+            // body doesn't exist at the endpoint — single most common
+            // failure after a stale registry id.
+            const bodyDetail = error.message.replace(/^HTTP error 404:?\s*/, '');
+            const suffix = bodyDetail && bodyDetail !== error.message ? ` — ${bodyDetail}` : '';
+            return {
+                type: "network",
+                message: `API endpoint or model not found (404). Click "Refresh now" on the models card, then pick a concrete model from the dropdown.${suffix}`,
+            };
+        }
+        return { type: "unknown", message: `Error: ${error.message}` };
     }
 
     async testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }> {
         try {
             const response = await this.makeRequestWithRetry('Connection test', 10000);
-
-            const responseText = response.text;
-
-            if (response.status < 200 || response.status >= 300) {
-                if (response.status === 401) {
-                    throw new Error('Authentication failed: Invalid API key');
-                } else if (response.status === 404) {
-                    throw new Error('API endpoint not found: Please verify the URL');
-                }
-
-                try {
-                    const errorJson = JSON.parse(responseText);
-                    throw new Error(errorJson.error?.message || errorJson.message || `HTTP error ${response.status}`);
-                } catch {
-                    throw new Error(`HTTP error ${response.status}: ${responseText}`);
-                }
-            }
-
-            // Verify we can parse the response - don't check specific format
-            // since different providers have different response structures
-            const data = JSON.parse(responseText);
-
-            // Just verify we got some kind of valid response
-            if (!data || typeof data !== 'object') {
-                throw new Error('Invalid API response format');
-            }
-
+            this.validateConnectionTestResponse(response);
             return { result: ConnectionTestResult.Success };
         } catch (error) {
-            let testError: ConnectionTestError = {
-                type: "unknown",
-                message: "Unknown error occurred during connection test"
-            };
-
-            if (error instanceof Error) {
-                if (error.name === 'AbortError') {
-                    testError = {
-                        type: "timeout",
-                        message: "Connection timeout: Please check your network status"
-                    };
-                } else if (error.message.includes('Failed to fetch')) {
-                    testError = {
-                        type: "network",
-                        message: "Network error: Unable to reach the API endpoint"
-                    };
-                } else if (error.message.includes('Authentication failed')) {
-                    testError = {
-                        type: "auth",
-                        message: "Authentication failed: Please verify your API key"
-                    };
-                } else if (error.message.includes('API endpoint not found')) {
-                    testError = {
-                        type: "network",
-                        message: "API endpoint not found: Please verify the URL"
-                    };
-                } else {
-                    testError = {
-                        type: "unknown",
-                        message: `Error: ${error.message}`
-                    };
-                }
-            }
-
             return {
                 result: ConnectionTestResult.Failed,
-                error: testError
+                error: this.classifyConnectionTestError(error),
             };
         }
     }

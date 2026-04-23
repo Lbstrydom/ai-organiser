@@ -31,6 +31,7 @@ import { ParticipantListService, ParticipantList } from '../../services/particip
 import { FolderScopePickerModal } from './FolderScopePickerModal';
 import { enableAutoExpand } from '../../utils/uiUtils';
 import { validateTranscriptCompleteness } from '../../services/transcriptQualityService';
+import { sanitizeTranscriptPaste } from '../../utils/transcriptSanitizer';
 import { listen } from '../utils/domUtils';
 
 // ContextDocument interface removed - using DocumentItem from DocumentHandlingController
@@ -444,10 +445,28 @@ export class MinutesCreationModal extends Modal {
         transcriptSetting.addTextArea(text => {
                 text.inputEl.rows = 8;
                 text.inputEl.spellcheck = true;
-                text.setValue(this.state.transcript);
-                text.onChange(value => this.state.transcript = value);
+                text.setValue(sanitizeTranscriptPaste(this.state.transcript));
+                text.onChange(value => this.state.transcript = sanitizeTranscriptPaste(value));
                 text.inputEl.addClass('ai-organiser-minutes-textarea');
                 enableAutoExpand(text.inputEl, 300);
+                // Intercept paste to strip Word/Office HTML artifacts that
+                // would otherwise survive into the LLM prompt and the output
+                // note (file:///…/msohtmlclip1/…/clip_imageXXX.gif references
+                // that Obsidian's CSP blocks, producing hundreds of console
+                // errors and a UI freeze — user report 2026-04-23).
+                text.inputEl.addEventListener('paste', (evt) => {
+                    if (!evt.clipboardData) return;
+                    const raw = evt.clipboardData.getData('text/plain');
+                    if (!raw) return;
+                    evt.preventDefault();
+                    const cleaned = sanitizeTranscriptPaste(raw);
+                    const el = text.inputEl;
+                    const start = el.selectionStart ?? el.value.length;
+                    const end = el.selectionEnd ?? el.value.length;
+                    el.value = el.value.slice(0, start) + cleaned + el.value.slice(end);
+                    el.selectionStart = el.selectionEnd = start + cleaned.length;
+                    this.state.transcript = el.value;
+                });
                 this.transcriptTextArea = text.inputEl;
             });
 

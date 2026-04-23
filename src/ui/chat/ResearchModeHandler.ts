@@ -73,7 +73,7 @@ export class ResearchModeHandler implements ChatModeHandler {
     /** Set by actions while an async operation is running; cleared in finally.
      *  Lets the phase-change callback bubble phase-specific text to the
      *  in-chat "Thinking…" placeholder so Dr. Chen persona's 150s+ opaque wait
-     *  shows Decomposing → Searching → Extracting → Synthesising instead. */
+     *  shows Decomposing → Searching → Extracting → Synthesizing instead. */
     private activeThinkingUpdater: ((msg: string) => void) | null = null;
     private searchResults: SearchResult[] = [];
     private selectedUrls: string[] = [];
@@ -148,7 +148,7 @@ export class ResearchModeHandler implements ChatModeHandler {
             case 'searching':    return 'Searching the web…';
             case 'continuing':   return 'Continuing search…';
             case 'extracting':   return 'Extracting from sources…';
-            case 'synthesizing': return 'Synthesising findings…';
+            case 'synthesizing': return 'Synthesizing findings…';
             case 'idle':
             case 'reviewing':
             case 'done':

@@ -46,10 +46,21 @@ export const AIO_META = {
 export const SUMMARY_HOOK_MAX_LENGTH = 280;
 
 /**
- * Default token limit for transcript chunking
- * Used by minutesService and textChunker
+ * Default token limit for transcript chunking.
+ * Used by minutesService and textChunker.
+ *
+ * Bumped from 6000 → 12000 (April 2026) after user report that a 2-hour
+ * meeting (~90K chars = 15 chunks at 6K) produced 3 parallel truncation
+ * retry cycles because each dense chunk maxed its 4096-token output
+ * budget. Doubling input chunk size halves the chunk count for long
+ * meetings (5-hour → 5 chunks instead of ~10) and produces richer
+ * extractions per call, at the cost of a larger extraction output budget
+ * (see EXTRACTION_OPTIONS in minutesService).
+ *
+ * 12K tokens (~48K chars) fits comfortably in Claude Haiku's 200K context
+ * window plus any system/instruction overhead.
  */
-export const CHUNK_TOKEN_LIMIT = 6000;
+export const CHUNK_TOKEN_LIMIT = 12_000;
 
 /**
  * Valid content type values

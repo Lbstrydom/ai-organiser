@@ -67,34 +67,76 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             ]);
         }
 
-        const hasGeminiPlainKey = (isGeminiMainProvider && this.plugin.settings.cloudApiKey) ||
-                                  this.plugin.settings.providerSettings?.gemini?.apiKey;
-        const hasGeminiKey = hasGeminiSecret || hasGeminiPlainKey || hasDedicatedYouTubeKey;
+        const hasGeminiMainPlainKey = isGeminiMainProvider && !!this.plugin.settings.cloudApiKey;
+        const hasGeminiProviderPlainKey = !!this.plugin.settings.providerSettings?.gemini?.apiKey;
+        const hasGeminiKey = hasGeminiSecret || hasGeminiMainPlainKey
+            || hasGeminiProviderPlainKey || hasDedicatedYouTubeKey;
 
         // Sub-header
         this.containerEl.createEl('h4', { text: sp?.youtubeHeader || '🎬 YouTube — gemini' });
 
+        // Report the *actual* source of the key, not a blanket "using main key"
+        // claim. Fixes the lying-UI case where the user's main provider is
+        // Claude but a stale Gemini key sits in one of the fallback slots,
+        // and the old label misled them into thinking YouTube was configured.
         if (hasGeminiKey) {
-            const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
-            statusEl.createEl('span', {
-                text: yt?.usingMainKey || 'Using your gemini API key',
-                cls: 'ai-organiser-status-success'
+            const sourceText = this.describeYouTubeKeySource({
+                hasDedicatedYouTubeKey,
+                hasGeminiSecret,
+                hasGeminiMainPlainKey,
+                hasGeminiProviderPlainKey,
             });
+            const statusEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-status' });
+            statusEl.createEl('span', { text: sourceText, cls: 'ai-organiser-status-success' });
+        }
+
+        // Always render the key input — labeled "Replace" when a key already
+        // exists — so the user can paste over a stale/invalid one without
+        // hunting through menus. (User report 2026-04-23: Google rejected a
+        // silently-stored key with no visible way to overwrite it.)
+        this.renderApiKeyField({
+            name: hasGeminiKey
+                ? (yt?.replaceApiKey || 'Replace Gemini API key')
+                : (yt?.apiKey || 'Gemini API key'),
+            desc: hasGeminiKey
+                ? (yt?.replaceApiKeyDesc || 'Paste a new key to overwrite the stored one. Leave blank to keep the existing key.')
+                : (yt?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.'),
+            secretId: PLUGIN_SECRET_IDS.YOUTUBE,
+            currentValue: this.plugin.settings.youtubeGeminiApiKey,
+            placeholder: 'AIza...',
+            onChange: (value) => {
+                this.plugin.settings.youtubeGeminiApiKey = value;
+                void this.plugin.saveSettings();
+            }
+        });
+
+        if (hasGeminiKey && hasSecretStorage) {
+            // Clear-stored-keys affordance: wipe BOTH the dedicated YouTube
+            // secret and the standard Gemini secret, since either could be
+            // the invalid one feeding into `getYouTubeGeminiApiKey`.
+            new Setting(this.containerEl)
+                .setName(yt?.clearStoredKey || 'Clear stored Gemini keys')
+                .setDesc(yt?.clearStoredKeyDesc || 'Remove both the dedicated YouTube key and the main Gemini key from secret storage. Use this if Google is rejecting a stored key as invalid.')
+                .addButton(btn => {
+                    btn.setButtonText(yt?.clearStoredKeyButton || 'Clear keys')
+                        .setWarning()
+                        .onClick(async () => {
+                            await secretStorage.removeSecret(PLUGIN_SECRET_IDS.YOUTUBE);
+                            const geminiSecretId = PROVIDER_TO_SECRET_ID.gemini;
+                            if (geminiSecretId) {
+                                await secretStorage.removeSecret(geminiSecretId);
+                            }
+                            this.plugin.settings.youtubeGeminiApiKey = '';
+                            if (this.plugin.settings.providerSettings?.gemini) {
+                                this.plugin.settings.providerSettings.gemini.apiKey = '';
+                            }
+                            await this.plugin.saveSettings();
+                            this.settingTab.display();
+                        });
+                });
         }
 
         if (!hasGeminiKey) {
-            this.renderApiKeyField({
-                name: yt?.apiKey || 'Gemini API key',
-                desc: yt?.apiKeyDesc || 'Required for YouTube processing. Get a key from Google AI Studio.',
-                secretId: PLUGIN_SECRET_IDS.YOUTUBE,
-                currentValue: this.plugin.settings.youtubeGeminiApiKey,
-                placeholder: 'AIza...',
-                onChange: (value) => {
-                    this.plugin.settings.youtubeGeminiApiKey = value;
-                    void this.plugin.saveSettings();
-                }
-            });
-
             const linkEl = this.containerEl.createDiv({ cls: 'ai-organiser-settings-link' });
             linkEl.createEl('a', {
                 text: yt?.getApiKey || 'Get a free gemini API key from google AI studio',
@@ -122,6 +164,27 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                         void this.plugin.saveSettings();
                     });
             });
+    }
+
+    private describeYouTubeKeySource(sources: {
+        hasDedicatedYouTubeKey: boolean;
+        hasGeminiSecret: boolean;
+        hasGeminiMainPlainKey: boolean;
+        hasGeminiProviderPlainKey: boolean;
+    }): string {
+        const yt = this.plugin.t.settings.youtube;
+        // Priority order mirrors getYouTubeGeminiApiKey resolution:
+        // dedicated > provider-specific > main-cloud (only when gemini main).
+        if (sources.hasDedicatedYouTubeKey) {
+            return yt?.usingDedicatedKey || 'Using dedicated YouTube API key';
+        }
+        if (sources.hasGeminiSecret || sources.hasGeminiProviderPlainKey) {
+            return yt?.usingProviderKey || 'Using saved gemini provider key';
+        }
+        if (sources.hasGeminiMainPlainKey) {
+            return yt?.usingMainKey || 'Using your main gemini API key';
+        }
+        return yt?.usingProviderKey || 'Using saved gemini provider key';
     }
 
     // ─── PDF (Claude or Gemini) ─────────────────────────────────────────

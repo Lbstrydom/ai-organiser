@@ -829,27 +829,34 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
 }
 
 /**
- * Replace deprecated Gemini model IDs with the appropriate `latest-*`
- * sentinel so users auto-upgrade to whatever tier is newest at call time
- * — instead of being re-pinned to a specific concrete ID that'll go stale
- * again. Extracted from migrateOldSettings to keep that function's
- * cognitive complexity under the SonarQube threshold.
+ * Replace deprecated / never-existed Gemini model IDs with the `latest-*`
+ * sentinel (which now resolves to Google's auto-rotating `gemini-{tier}-latest`
+ * alias). Keeps users on a working model instead of a stale pin.
  *
- * - `gemini-3-pro-preview` → `latest-pro`     (pro-preview discontinued
- *                                              March 9 2026)
- * - `gemini-3.1-pro-preview` → `latest-pro`   (previous one-time migration
- *                                              target; upgrade to sentinel)
- * - `gemini-3-flash-preview` → `latest-flash` (stale preview suffix caused
- *                                              ERR_CONNECTION_RESET on
- *                                              YouTube transcribe 2026-04-22)
- * - `gemini-3-flash`          → `latest-flash` (concrete pin → auto-track)
+ * Do NOT migrate IDs that are actually valid on Google's API right now —
+ * a previous version of this migration mistakenly rewrote valid preview
+ * IDs to sentinels, and we don't want to repeat that.
+ *
+ * Maps:
+ * - `gemini-3-flash`         → `latest-flash` (nonexistent; a prior commit
+ *                                              wrongly dropped `-preview`
+ *                                              assuming GA release)
+ * - `gemini-3.1-pro`         → `latest-pro`   (same class of bad rename)
+ * - `gemini-3-pro-preview`   → `latest-pro`   (discontinued March 9 2026)
+ * - `gemini-2.0-flash`       → `latest-flash` (deprecated)
+ * - `gemini-2.0-flash-lite`  → `latest-flash` (deprecated)
+ *
+ * KEEP unchanged (these are the correct IDs Google ships today):
+ *   gemini-3.1-pro-preview, gemini-3-flash-preview,
+ *   gemini-3.1-flash-lite-preview, gemini-2.5-{pro,flash,flash-lite}
  */
 function migrateDeprecatedGeminiIds(s: Record<string, unknown>): void {
     const remap: Record<string, string> = {
-        'gemini-3-pro-preview': 'latest-pro',
-        'gemini-3.1-pro-preview': 'latest-pro',
-        'gemini-3-flash-preview': 'latest-flash',
         'gemini-3-flash': 'latest-flash',
+        'gemini-3.1-pro': 'latest-pro',
+        'gemini-3-pro-preview': 'latest-pro',
+        'gemini-2.0-flash': 'latest-flash',
+        'gemini-2.0-flash-lite': 'latest-flash',
     };
     const modelKeys = ['youtubeGeminiModel', 'pdfModel'] as const;
     for (const key of modelKeys) {

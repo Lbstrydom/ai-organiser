@@ -661,8 +661,15 @@ export interface Translations {
             title: string;
             description: string;
             usingMainKey: string;
+            usingDedicatedKey: string;
+            usingProviderKey: string;
             apiKey: string;
             apiKeyDesc: string;
+            replaceApiKey: string;
+            replaceApiKeyDesc: string;
+            clearStoredKey: string;
+            clearStoredKeyDesc: string;
+            clearStoredKeyButton: string;
             showKey: string;
             getApiKey: string;
             model: string;
@@ -2749,5 +2756,128 @@ export interface Translations {
         selectFile: string;
         // Close
         closeButton: string;
+    };
+    progress: ProgressStrings;
+}
+
+/**
+ * ProgressReporter user-facing strings. All American English, sentence-case
+ * per Obsidian review-bot rules. Templates use {token} placeholders resolved
+ * at call time via ProgressReporter's resolvePhase callback.
+ *
+ * Phases are named per flow (multiSourceSummarize, research, …) so migrating
+ * flows get compile-time safety by narrowing to one sub-object's keys.
+ */
+export interface ProgressStrings {
+    // Generic surface copy
+    cancelButton: string;
+    cancelled: string;
+    cancelPrompt: string;
+    failedPrefix: string;
+    timedOut: string;            // "Timed out after {duration}"
+    stillWorking: string;        // "Still working… ({duration} elapsed)"
+    unknownError: string;
+
+    // Per-flow phase strings — migrated flows reference these via TKey unions.
+    // Each nested object's KEYS form the typed phase vocabulary for that flow.
+    multiSourceSummarize: {
+        preparing: string;
+        fetching: string;             // "Fetching {name}… ({current}/{total})"
+        summarizing: string;          // "Summarizing {name}… ({current}/{total})"
+        transcribing: string;         // "Transcribing {name}… ({current}/{total})"
+        finalizing: string;
+    };
+    multiSourceTranslate: {
+        preparing: string;
+        fetching: string;
+        translating: string;
+        finalizing: string;
+    };
+    integration: {
+        resolving: string;
+        merging: string;
+        validating: string;
+        applying: string;
+    };
+    smartNote: {
+        diagramming: string;
+        improving: string;
+        validating: string;
+    };
+    newsletter: {
+        fetching: string;             // "Fetching newsletters…"
+        triaging: string;             // "Triaging {current}/{total}"
+        synthesizing: string;
+        regeneratingAudio: string;
+    };
+    presentation: {
+        generating: string;
+        auditing: string;
+        refining: string;
+        exporting: string;
+    };
+    kindle: {
+        authenticating: string;
+        scrapingBooks: string;        // "Scraping book list…"
+        scrapingHighlights: string;   // "Scraping highlights ({current}/{total})"
+        writingNotes: string;
+    };
+    research: {
+        searching: string;
+        triaging: string;
+        extracting: string;
+        synthesizing: string;
+        continuing: string;
+    };
+    minutes: {
+        extracting: string;           // "Extracting from {name} ({current}/{total})"
+        merging: string;
+        consolidating: string;
+    };
+    flashcards: {
+        generating: string;
+        validating: string;
+        saving: string;                // "Saving {count} cards…"
+    };
+    generateTags: {
+        analyzing: string;
+        applying: string;
+    };
+    canvas: {
+        gathering: string;
+        labeling: string;
+        building: string;
+    };
+    digitisation: {
+        processing: string;            // "Processing {name} ({current}/{total})"
+        extracting: string;
+    };
+    embedScan: {
+        scanning: string;              // "Scanning {current}/{total} — {file}"
+    };
+    webReader: {
+        triaging: string;              // "Triaging {current}/{total}"
+    };
+    translateNote: {
+        translating: string;
+    };
+    summarizeNote: {
+        summarizing: string;
+    };
+    youtube: {
+        summarizing: string;
+        transcribing: string;
+    };
+    audioTranscribe: {
+        compressing: string;
+        transcribing: string;          // "Transcribing chunk {current}/{total}"
+        summarizing: string;
+    };
+    pdf: {
+        summarizing: string;
+    };
+    url: {
+        fetching: string;
+        summarizing: string;
     };
 }

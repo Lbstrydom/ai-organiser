@@ -18,6 +18,7 @@ import {
     type FlashcardFormat
 } from '../services/prompts/flashcardPrompts';
 import { summarizeText, sendMultimodal, getServiceType, pluginContext, isMultimodalService } from '../services/llmFacade';
+import { withProgress } from '../services/progress';
 import { desktopRequire, getFs, getPath, getOs } from '../utils/desktopRequire';
 import type { ContentPart } from '../services/adapters/types';
 import { detectEmbeddedContent } from '../utils/embeddedContentDetector';
@@ -160,52 +161,63 @@ async function generateAndExportFlashcards(
     const { format, context } = options;
     const style = 'style' in options ? options.style : 'multiple-choice';
     const t = plugin.t.messages;
+    const tp = plugin.t.progress;
 
-    // Persistent notice updated in-place across phases so the persona can see
-    // which phase is active during long (30–120s) generation runs. Persona
-    // round 3 — Maya — saw only "Generating flashcards…" for 100+s.
-    const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards…',
-        0
+    type Phase = 'generating' | 'validating' | 'saving';
+
+    type FlashcardResult = { csv: string; cardCount: number; validationFailed?: {
+        errors: string[]; csvContent: string;
+    } };
+
+    const r = await withProgress<FlashcardResult, Phase>(
+        {
+            plugin,
+            initialPhase: { key: 'generating' },
+            resolvePhase: (p) => {
+                const tmpl = tp.flashcards[p.key];
+                if (!p.params) return tmpl;
+                return Object.entries(p.params).reduce(
+                    (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+                    tmpl,
+                );
+            },
+        },
+        async (reporter) => {
+            const prompt = buildFlashcardPrompt(
+                content,
+                format,
+                context,
+                plugin.settings.summaryLanguage || undefined,
+                style,
+            );
+
+            const response = await callLLMForFlashcards(plugin, prompt);
+            if (!response.success || !response.content) {
+                throw new Error(response.error || 'Empty response from LLM');
+            }
+
+            reporter.setPhase({ key: 'validating' });
+            const csvContent = cleanCSVResponse(response.content);
+            const validation = validateFlashcardCSV(csvContent);
+
+            if (!validation.valid || validation.cardCount === 0) {
+                // Not a failure — let the caller show the validation error
+                // modal. Reporter will succeed cleanly; caller decides what
+                // to render to the user.
+                return { csv: '', cardCount: 0, validationFailed: { errors: validation.errors, csvContent } };
+            }
+
+            reporter.setPhase({ key: 'saving', params: { count: validation.cardCount } });
+            return { csv: cardsToCSV(validation.cards), cardCount: validation.cardCount };
+        },
     );
+    if (!r.ok) return; // reporter showed toast
 
-    try {
-        const prompt = buildFlashcardPrompt(
-            content,
-            format,
-            context,
-            plugin.settings.summaryLanguage || undefined,
-            style
-        );
-
-        progressNotice.setMessage('Generating flashcards — calling AI…');
-        const response = await callLLMForFlashcards(plugin, prompt);
-
-        if (!response.success || !response.content) {
-            throw new Error(response.error || 'Empty response from LLM');
-        }
-
-        progressNotice.setMessage('Generating flashcards — validating output…');
-        const csvContent = cleanCSVResponse(response.content);
-        const validation = validateFlashcardCSV(csvContent);
-
-        if (!validation.valid || validation.cardCount === 0) {
-            progressNotice.hide();
-            showCSVValidationError(t, csvContent, validation.errors);
-            return;
-        }
-
-        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
-        const finalCSV = cardsToCSV(validation.cards);
-        progressNotice.hide();
-
-        await deliverFlashcards(plugin, finalCSV, baseName, format, validation.cardCount);
-    } catch (error) {
-        progressNotice.hide();
-        logger.error('Export', 'Flashcard generation error:', error);
-        const errorMessage = error instanceof Error ? error.message : (t.unknownError || 'Unknown error');
-        new Notice(`${t.flashcardGenerationFailed}: ${errorMessage}`, 5000);
+    if (r.value.validationFailed) {
+        showCSVValidationError(t, r.value.validationFailed.csvContent, r.value.validationFailed.errors);
+        return;
     }
+    await deliverFlashcards(plugin, r.value.csv, baseName, format, r.value.cardCount);
 }
 
 /**
@@ -222,6 +234,7 @@ async function generateFlashcardsWithImages(
     const { format, context } = options;
     const style = 'style' in options ? options.style : 'multiple-choice';
     const t = plugin.t.messages;
+    const tp = plugin.t.progress;
 
     // Privacy consent — use dedicated flashcard provider if configured
     const flashcardConfig = await getFlashcardProviderConfig(plugin);
@@ -229,66 +242,73 @@ async function generateFlashcardsWithImages(
     const consented = await ensurePrivacyConsent(plugin, providerName);
     if (!consented) return;
 
-    const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards…',
-        0
-    );
+    type Phase = 'generating' | 'validating' | 'saving';
+    type FlashcardResult = { csv: string; cardCount: number; validationFailed?: {
+        errors: string[]; csvContent: string;
+    } };
 
-    try {
-        const imageProcessor = new ImageProcessorService(plugin.app);
+    const r = await withProgress<FlashcardResult, Phase>(
+        {
+            plugin,
+            initialPhase: { key: 'generating' },
+            resolvePhase: (p) => {
+                const tmpl = tp.flashcards[p.key];
+                if (!p.params) return tmpl;
+                return Object.entries(p.params).reduce(
+                    (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+                    tmpl,
+                );
+            },
+        },
+        async (reporter) => {
+            const imageProcessor = new ImageProcessorService(plugin.app);
 
-        // Build multimodal parts: text prompt + all images
-        const prompt = buildFlashcardPrompt(
-            content,
-            format,
-            context,
-            plugin.settings.summaryLanguage || undefined,
-            style
-        );
+            const prompt = buildFlashcardPrompt(
+                content,
+                format,
+                context,
+                plugin.settings.summaryLanguage || undefined,
+                style,
+            );
 
-        const parts: ContentPart[] = [{ type: 'text', text: prompt }];
+            const parts: ContentPart[] = [{ type: 'text', text: prompt }];
 
-        progressNotice.setMessage(`Generating flashcards — processing ${imageFiles.length} image${imageFiles.length === 1 ? '' : 's'}…`);
-        for (const imgFile of imageFiles) {
-            try {
-                const processed = await imageProcessor.processImage(imgFile, {
-                    maxDimension: plugin.settings.digitiseMaxDimension,
-                    quality: plugin.settings.digitiseImageQuality
-                });
-                parts.push({ type: 'image', data: processed.base64, mediaType: processed.mediaType });
-            } catch (err) {
-                logger.warn('Export', `Failed to process embedded image ${imgFile.path}:`, err);
+            for (const imgFile of imageFiles) {
+                try {
+                    const processed = await imageProcessor.processImage(imgFile, {
+                        maxDimension: plugin.settings.digitiseMaxDimension,
+                        quality: plugin.settings.digitiseImageQuality,
+                    });
+                    parts.push({ type: 'image', data: processed.base64, mediaType: processed.mediaType });
+                } catch (err) {
+                    logger.warn('Export', `Failed to process embedded image ${imgFile.path}:`, err);
+                }
             }
-        }
 
-        progressNotice.setMessage('Generating flashcards — calling vision AI…');
-        const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
+            const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
+            if (!response.success || !response.content) {
+                throw new Error(response.error || 'Empty response from vision LLM');
+            }
 
-        if (!response.success || !response.content) {
-            throw new Error(response.error || 'Empty response from vision LLM');
-        }
+            reporter.setPhase({ key: 'validating' });
+            const csvContent = cleanCSVResponse(response.content);
+            const validation = validateFlashcardCSV(csvContent);
 
-        progressNotice.setMessage('Generating flashcards — validating output…');
-        const csvContent = cleanCSVResponse(response.content);
-        const validation = validateFlashcardCSV(csvContent);
+            if (!validation.valid || validation.cardCount === 0) {
+                return { csv: '', cardCount: 0, validationFailed: { errors: validation.errors, csvContent } };
+            }
 
-        if (!validation.valid || validation.cardCount === 0) {
-            progressNotice.hide();
-            showCSVValidationError(t, csvContent, validation.errors);
-            return;
-        }
+            reporter.setPhase({ key: 'saving', params: { count: validation.cardCount } });
+            return { csv: cardsToCSV(validation.cards), cardCount: validation.cardCount };
+        },
+    );
+    if (!r.ok) return;
 
-        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
-        const finalCSV = cardsToCSV(validation.cards);
-        progressNotice.hide();
-
-        await deliverFlashcards(plugin, finalCSV, baseName, format, validation.cardCount);
-    } catch (error) {
-        progressNotice.hide();
-        logger.error('Export', 'Multimodal flashcard generation error:', error);
-        const errorMessage = error instanceof Error ? error.message : (t.unknownError || 'Unknown error');
-        new Notice(`${t.flashcardGenerationFailed}: ${errorMessage}`, 5000);
+    if (r.value.validationFailed) {
+        showCSVValidationError(t, r.value.validationFailed.csvContent, r.value.validationFailed.errors);
+        return;
     }
+    await deliverFlashcards(plugin, r.value.csv, baseName, format, r.value.cardCount);
 }
 
 /**
@@ -300,64 +320,69 @@ async function generateFlashcardsFromScreenshot(
 ): Promise<void> {
     const { format, context, imageFile } = result;
     const t = plugin.t.messages;
+    const tp = plugin.t.progress;
 
-    const progressNotice = new Notice(
-        t.generatingFlashcards || 'Generating flashcards…',
-        0
+    type Phase = 'generating' | 'validating' | 'saving';
+    type FlashcardResult = { csv: string; cardCount: number; baseName: string; validationFailed?: {
+        errors: string[]; csvContent: string;
+    } };
+
+    const r = await withProgress<FlashcardResult, Phase>(
+        {
+            plugin,
+            initialPhase: { key: 'generating' },
+            resolvePhase: (p) => {
+                const tmpl = tp.flashcards[p.key];
+                if (!p.params) return tmpl;
+                return Object.entries(p.params).reduce(
+                    (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+                    tmpl,
+                );
+            },
+        },
+        async (reporter) => {
+            const imageProcessor = new ImageProcessorService(plugin.app);
+            const processed = await imageProcessor.processImage(imageFile, {
+                maxDimension: plugin.settings.digitiseMaxDimension,
+                quality: plugin.settings.digitiseImageQuality,
+            });
+
+            const prompt = buildScreenshotFlashcardPrompt(
+                format,
+                plugin.settings.summaryLanguage || undefined,
+                context || undefined,
+            );
+
+            const parts: ContentPart[] = [
+                { type: 'text', text: prompt },
+                { type: 'image', data: processed.base64, mediaType: processed.mediaType },
+            ];
+
+            const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
+            if (!response.success || !response.content) {
+                throw new Error(response.error || 'Empty response from vision LLM');
+            }
+
+            reporter.setPhase({ key: 'validating' });
+            const csvContent = cleanCSVResponse(response.content);
+            const validation = validateFlashcardCSV(csvContent);
+
+            const baseName = `${imageFile.basename} - answers`;
+            if (!validation.valid || validation.cardCount === 0) {
+                return { csv: '', cardCount: 0, baseName, validationFailed: { errors: validation.errors, csvContent } };
+            }
+
+            reporter.setPhase({ key: 'saving', params: { count: validation.cardCount } });
+            return { csv: cardsToCSV(validation.cards), cardCount: validation.cardCount, baseName };
+        },
     );
+    if (!r.ok) return;
 
-    try {
-        // Process image → base64
-        progressNotice.setMessage('Generating flashcards — processing screenshot…');
-        const imageProcessor = new ImageProcessorService(plugin.app);
-        const processed = await imageProcessor.processImage(imageFile, {
-            maxDimension: plugin.settings.digitiseMaxDimension,
-            quality: plugin.settings.digitiseImageQuality
-        });
-
-        // Build vision prompt
-        const prompt = buildScreenshotFlashcardPrompt(
-            format,
-            plugin.settings.summaryLanguage || undefined,
-            context || undefined
-        );
-
-        // Send multimodal request
-        const parts: ContentPart[] = [
-            { type: 'text', text: prompt },
-            { type: 'image', data: processed.base64, mediaType: processed.mediaType }
-        ];
-
-        progressNotice.setMessage('Generating flashcards — calling vision AI…');
-        const response = await sendMultimodalForFlashcards(plugin, parts, { maxTokens: 4000 });
-
-        if (!response.success || !response.content) {
-            throw new Error(response.error || 'Empty response from vision LLM');
-        }
-
-        progressNotice.setMessage('Generating flashcards — validating output…');
-        const csvContent = cleanCSVResponse(response.content);
-        const validation = validateFlashcardCSV(csvContent);
-
-        if (!validation.valid || validation.cardCount === 0) {
-            progressNotice.hide();
-            showCSVValidationError(t, csvContent, validation.errors);
-            return;
-        }
-
-        progressNotice.setMessage(`Generating flashcards — saving ${validation.cardCount} cards…`);
-        const finalCSV = cardsToCSV(validation.cards);
-        progressNotice.hide();
-
-        // Source-aware filename: "{imageName} - answers - {format} - {date}"
-        const baseName = `${imageFile.basename} - answers`;
-        await deliverFlashcards(plugin, finalCSV, baseName, format, validation.cardCount);
-    } catch (error) {
-        progressNotice.hide();
-        logger.error('Export', 'Screenshot flashcard error:', error);
-        const errorMessage = error instanceof Error ? error.message : (t.unknownError || 'Unknown error');
-        new Notice(`${t.flashcardGenerationFailed}: ${errorMessage}`, 5000);
+    if (r.value.validationFailed) {
+        showCSVValidationError(t, r.value.validationFailed.csvContent, r.value.validationFailed.errors);
+        return;
     }
+    await deliverFlashcards(plugin, r.value.csv, r.value.baseName, format, r.value.cardCount);
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

@@ -57,16 +57,26 @@ export const PROVIDER_MODELS: Partial<Record<AdapterType, Record<string, string>
     },
 
     // Google Gemini
+    // IDs must match what ai.google.dev/gemini-api/docs/models publishes.
+    // Gemini 3 is still in PREVIEW at the API level — the `-preview` suffix
+    // is load-bearing, not a stale alias. Removing it (as a prior commit did)
+    // produced 404s from Google: user report 2026-04-23.
+    //
+    // `gemini-*-latest` are Google's own auto-rotating aliases (2-week
+    // hot-swap notice on rotation). They're preferred by our `latest-*`
+    // sentinel resolver over our major/minor guess from the static list.
     gemini: {
-        'latest-pro':   'Gemini Pro (latest)',
-        'latest-flash': 'Gemini Flash (latest)',
-        'gemini-3.1-pro': 'Gemini 3.1 Pro (pin)',
-        'gemini-3-flash': 'Gemini 3 Flash (pin)',
-        'gemini-2.5-pro': 'Gemini 2.5 Pro (pin)',
-        'gemini-2.5-flash': 'Gemini 2.5 Flash (pin)',
-        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (pin)',
-        'gemini-2.0-flash': 'Gemini 2.0 Flash (deprecated Mar 2026)',
-        'gemini-2.0-flash-lite': 'Gemini 2.0 Flash Lite (pin)'
+        'latest-pro':   'Gemini Pro (latest — auto-tracks Google rotation)',
+        'latest-flash': 'Gemini Flash (latest — auto-tracks Google rotation)',
+        'gemini-pro-latest': 'Gemini Pro (Google alias, auto-rotates)',
+        'gemini-flash-latest': 'Gemini Flash (Google alias, auto-rotates)',
+        'gemini-flash-lite-latest': 'Gemini Flash Lite (Google alias, auto-rotates)',
+        'gemini-3.1-pro-preview': 'Gemini 3.1 Pro (preview)',
+        'gemini-3-flash-preview': 'Gemini 3 Flash (preview)',
+        'gemini-3.1-flash-lite-preview': 'Gemini 3.1 Flash Lite (preview)',
+        'gemini-2.5-pro': 'Gemini 2.5 Pro (GA)',
+        'gemini-2.5-flash': 'Gemini 2.5 Flash (GA)',
+        'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite (GA)'
     },
 
     // Groq models (fast inference)
@@ -122,8 +132,8 @@ export const PROVIDER_MODELS: Partial<Record<AdapterType, Record<string, string>
         'openai/gpt-5.2': 'GPT-5.2 (OpenAI)',
         'openai/gpt-5-mini': 'GPT-5 Mini (OpenAI)',
         'openai/gpt-5-nano': 'GPT-5 Nano (Cheapest)',
-        'google/gemini-3.1-pro': 'Gemini 3.1 Pro (Google)',
-        'google/gemini-3-flash': 'Gemini 3 Flash (Google)',
+        'google/gemini-3.1-pro-preview': 'Gemini 3.1 Pro (Google)',
+        'google/gemini-3-flash-preview': 'Gemini 3 Flash (Google)',
         'google/gemini-2.5-flash': 'Gemini 2.5 Flash (Google)',
         'deepseek/deepseek-chat': 'DeepSeek Chat (Best Value)',
         'deepseek/deepseek-r1': 'DeepSeek R1 (Reasoning)',

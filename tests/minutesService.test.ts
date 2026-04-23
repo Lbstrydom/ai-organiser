@@ -197,7 +197,7 @@ This was a kickoff meeting.
             });
         });
 
-        it('appends custom instructions to style prompt', async () => {
+        it('includes custom instructions in prompt (promoted CRITICAL block, not appended ADDITIONAL)', async () => {
             const input = {
                 ...baseInput,
                 customInstructions: 'Use bullet points only.'
@@ -205,7 +205,8 @@ This was a kickoff meeting.
             await service.generateMinutes(input);
 
             const prompt = mockLLMService.summarizeText.mock.calls[0][0];
-            expect(prompt).toContain('ADDITIONAL INSTRUCTIONS: Use bullet points only.');
+            expect(prompt).toContain('USER INSTRUCTIONS');
+            expect(prompt).toContain('Use bullet points only.');
         });
 
         it('writes file to vault with expected path and content structure', async () => {
@@ -337,7 +338,7 @@ This was a kickoff meeting.
 
             expect(chunkPlainTextAsyncSpy).toHaveBeenCalledWith(longTranscript, {
                 maxTokens: CHUNK_TOKEN_LIMIT,
-                overlapChars: 500
+                overlapChars: 1000
             });
         });
 
@@ -372,7 +373,7 @@ This was a kickoff meeting.
 
             expect(chunkSegmentsAsyncSpy).toHaveBeenCalledWith(segments, {
                 maxTokens: CHUNK_TOKEN_LIMIT,
-                overlapChars: 500
+                overlapChars: 1000
             });
         });
 
@@ -393,7 +394,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunkResponse })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = { ...baseInput, transcript: longTranscript };
 
             await service.generateMinutes(input);
@@ -431,7 +432,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunk2Response })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = { ...baseInput, transcript: longTranscript };
 
             await service.generateMinutes(input);
@@ -477,7 +478,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunk2Response })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = { ...baseInput, transcript: longTranscript };
 
             await service.generateMinutes(input);
@@ -524,7 +525,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunk2Response })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'B'.repeat(30000);
+            const longTranscript = 'B'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = { ...baseInput, transcript: longTranscript };
 
             await service.generateMinutes(input);
@@ -552,7 +553,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunkResponse })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = {
                 ...baseInput,
                 transcript: longTranscript,
@@ -583,7 +584,7 @@ This was a kickoff meeting.
                 .mockResolvedValueOnce({ success: true, content: chunkResponse })
                 .mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = {
                 ...baseInput,
                 transcript: longTranscript,
@@ -625,7 +626,7 @@ This was a kickoff meeting.
                 }
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await service.generateMinutes(input);
 
                 expect(mockLLMService.summarizeText).toHaveBeenCalledTimes(5);
@@ -642,7 +643,7 @@ This was a kickoff meeting.
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: intermediateResponse }); // intermediate
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: sampleMinutesResponse }); // final
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await service.generateMinutes(input);
 
                 expect(mockLLMService.summarizeText).toHaveBeenCalledTimes(7);
@@ -659,7 +660,7 @@ This was a kickoff meeting.
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: intermediateResponse }); // batch 2
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: sampleMinutesResponse }); // final
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await service.generateMinutes(input);
 
                 expect(mockLLMService.summarizeText).toHaveBeenCalledTimes(11);
@@ -674,7 +675,7 @@ This was a kickoff meeting.
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: intermediateResponse });
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: sampleMinutesResponse });
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await service.generateMinutes(input);
 
                 // Call index 5 is the intermediate merge (after 5 extractions)
@@ -692,7 +693,7 @@ This was a kickoff meeting.
                 // Intermediate merge fails
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: false, error: 'LLM timeout' });
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await expect(service.generateMinutes(input)).rejects.toThrow('LLM timeout');
             });
 
@@ -710,7 +711,7 @@ This was a kickoff meeting.
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: partialResponse }); // partial
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: sampleMinutesResponse }); // final
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 // Should not throw — missing fields default to []
                 await service.generateMinutes(input);
 
@@ -727,7 +728,7 @@ This was a kickoff meeting.
                 }
                 mockLLMService.summarizeText.mockResolvedValueOnce({ success: true, content: garbageResponse });
 
-                const input = { ...baseInput, transcript: 'A'.repeat(30000) };
+                const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await expect(service.generateMinutes(input)).rejects.toThrow('no recognizable extract fields');
             });
         });
@@ -761,7 +762,7 @@ This was a kickoff meeting.
                 content: 'Sorry, I cannot process this transcript.'
             });
 
-            const longTranscript = 'A'.repeat(30000);
+            const longTranscript = 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000);
             const input = { ...baseInput, transcript: longTranscript };
 
             await expect(service.generateMinutes(input)).rejects.toThrow();

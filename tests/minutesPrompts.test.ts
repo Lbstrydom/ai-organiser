@@ -876,17 +876,18 @@ describe('Minutes Prompts - getStyleSystemPrompt (Phase 2 Style System)', () => 
                 ...baseOptions,
                 customInstructions: 'Always use formal titles.',
             });
-            expect(prompt).toContain('ADDITIONAL INSTRUCTIONS: Always use formal titles.');
+            expect(prompt).toContain('USER INSTRUCTIONS');
+            expect(prompt).toContain('Always use formal titles.');
         });
 
         it('excludes custom instructions section when empty', () => {
             const prompt = getStyleSystemPrompt({ ...baseOptions, customInstructions: '' });
-            expect(prompt).not.toContain('ADDITIONAL INSTRUCTIONS');
+            expect(prompt).not.toContain('USER INSTRUCTIONS');
         });
 
         it('excludes custom instructions section when undefined', () => {
             const prompt = getStyleSystemPrompt(baseOptions);
-            expect(prompt).not.toContain('ADDITIONAL INSTRUCTIONS');
+            expect(prompt).not.toContain('USER INSTRUCTIONS');
         });
     });
 
@@ -949,6 +950,7 @@ describe('Minutes Prompts - buildStyleConsolidationPrompt (Phase 2)', () => {
             ...baseOptions,
             customInstructions: 'Focus on compliance items.',
         });
-        expect(prompt).toContain('ADDITIONAL INSTRUCTIONS: Focus on compliance items.');
+        expect(prompt).toContain('USER INSTRUCTIONS');
+        expect(prompt).toContain('Focus on compliance items.');
     });
 });

@@ -7945,3 +7945,65 @@
     opacity: 0.5;
     cursor: default;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ProgressReporter surfaces (see docs/plans/progress-reporter.md §4)
+   Shared by Notice + modal-inline; all dynamic values via CSS custom props,
+   no inline style assignments (Obsidian review-bot compliance).
+   ══════════════════════════════════════════════════════════════════════════ */
+.ai-organiser-progress-notice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-2);
+    min-width: 280px;
+}
+.ai-organiser-progress-notice-compact {
+    min-width: 220px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+.ai-organiser-progress-phase-text {
+    display: block;
+    font-weight: var(--font-semibold);
+    line-height: 1.35;
+}
+.ai-organiser-progress-advisory {
+    display: none;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    margin-top: var(--size-2-1);
+}
+.ai-organiser-progress-advisory.is-visible {
+    display: block;
+}
+.ai-organiser-progress-elapsed {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    margin-left: var(--size-2-2);
+}
+.ai-organiser-progress-bar {
+    height: 4px;
+    background: var(--background-modifier-border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: var(--size-2-2);
+}
+.ai-organiser-progress-bar-fill {
+    height: 100%;
+    background: var(--interactive-accent);
+    transition: width 200ms ease-out;
+    width: var(--ai-organiser-progress-width, 0%);
+}
+.ai-organiser-progress-inline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--size-2-2);
+    padding: var(--size-2-2) var(--size-4-1);
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+.ai-organiser-progress-cancel-btn {
+    margin-top: var(--size-2-2);
+}

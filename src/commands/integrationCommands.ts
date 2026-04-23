@@ -145,29 +145,39 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         return;
                     }
 
-                    new Notice(plugin.t.messages.integratingContent);
+                    // Persistent progress Notice replaces flash-notice anti-pattern.
+                    // Reporter's hide-on-any-terminal handles the prior "leak on
+                    // error" + "silent between flashes" concerns.
+                    const tp = plugin.t.progress;
+                    const progressNotice = new Notice(
+                        tp.integration.resolving
+                            .replace('{current}', '0')
+                            .replace('{total}', '?'),
+                        0,
+                    );
+                    const hideProgress = (): void => { try { progressNotice.hide(); } catch { /* noop */ } };
 
-                    // Show busy indicator for the entire resolve + LLM flow
                     showBusy(plugin);
                     try {
                         // Get persona prompt
                         const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
 
                         // Resolve embedded content (includes privacy consent)
-                        new Notice(plugin.t.messages.integrationResolvingContent);
                         const resolutionResult = await resolveAllPendingContent(
                             plugin,
                             pendingContent,
                             plugin.app.workspace.getActiveFile() || undefined,
                             (message, current, total) => {
-                                new Notice(
-                                    plugin.t.messages.integrationResolvingProgress
+                                progressNotice.setMessage(
+                                    tp.integration.resolving
                                         .replace('{current}', String(current))
                                         .replace('{total}', String(total))
-                                        .replace('{item}', message)
+                                        + ` — ${message}`
                                 );
                             }
                         );
+
+                        progressNotice.setMessage(tp.integration.merging);
 
                         if (resolutionResult.errors.includes(plugin.t.messages.operationCancelled)) {
                             new Notice(plugin.t.messages.operationCancelled);
@@ -288,6 +298,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                         showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
                     } finally {
+                        hideProgress();
                         hideBusy(plugin);
                     }
                 })(); }

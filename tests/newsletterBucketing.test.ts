@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
     getBucketDateStr,
     getBriefDateStr,
+    isBucketClosed,
 } from '../src/services/newsletter/newsletterService';
 
 describe('getBucketDateStr — cutoff-aware bucketing', () => {
@@ -113,5 +114,57 @@ describe('bucketing a mixed batch (the scenario the user reported)', () => {
         const buckets = new Set(msgs.map(m => getBucketDateStr(m, cutoff)));
         expect(buckets.size).toBe(1);
         expect([...buckets][0]).toBe('2026-04-21');
+    });
+});
+
+describe('isBucketClosed — audio-podcast generation gate', () => {
+    it('returns false while the bucket is still live (same day, before next-day cutoff)', () => {
+        // Bucket 2026-04-21 covers Apr 21 08:00 → Apr 22 08:00 (cutoff=8)
+        // "Now" is Apr 21 15:00 — bucket is LIVE, new newsletters can still
+        // arrive, so audio should NOT be generated yet.
+        const now = new Date(2026, 3, 21, 15, 0, 0);
+        expect(isBucketClosed('2026-04-21', 8, now)).toBe(false);
+    });
+
+    it('returns false at the very instant before cutoff on the next day', () => {
+        // One minute before cutoff on Apr 22 — still live
+        const now = new Date(2026, 3, 22, 7, 59, 0);
+        expect(isBucketClosed('2026-04-21', 8, now)).toBe(false);
+    });
+
+    it('returns true exactly at the next-day cutoff', () => {
+        // 2026-04-22 08:00 = bucket 2026-04-21 CLOSES
+        const now = new Date(2026, 3, 22, 8, 0, 0);
+        expect(isBucketClosed('2026-04-21', 8, now)).toBe(true);
+    });
+
+    it('returns true for an old closed bucket (backfill scenario)', () => {
+        // User runs a manual fetch on Apr 25 that surfaces emails from Apr 20
+        // — bucket 2026-04-20 has been closed for days; audio should fire.
+        const now = new Date(2026, 3, 25, 12, 0, 0);
+        expect(isBucketClosed('2026-04-20', 8, now)).toBe(true);
+    });
+
+    it('honours a custom cutoff hour (not just the default)', () => {
+        // cutoff = 17 (end-of-business workflow)
+        // bucket 2026-04-21 closes at 2026-04-22 17:00
+        const before = new Date(2026, 3, 22, 16, 30, 0);
+        expect(isBucketClosed('2026-04-21', 17, before)).toBe(false);
+        const after = new Date(2026, 3, 22, 17, 0, 0);
+        expect(isBucketClosed('2026-04-21', 17, after)).toBe(true);
+    });
+
+    it('returns false for a malformed bucket string (defensive)', () => {
+        const now = new Date(2026, 3, 25, 12, 0, 0);
+        expect(isBucketClosed('not-a-date', 8, now)).toBe(false);
+        expect(isBucketClosed('', 8, now)).toBe(false);
+    });
+
+    it('handles month/year rollovers', () => {
+        // bucket 2025-12-31 closes at 2026-01-01 08:00
+        const before = new Date(2026, 0, 1, 7, 0, 0);
+        expect(isBucketClosed('2025-12-31', 8, before)).toBe(false);
+        const after = new Date(2026, 0, 1, 8, 0, 0);
+        expect(isBucketClosed('2025-12-31', 8, after)).toBe(true);
     });
 });

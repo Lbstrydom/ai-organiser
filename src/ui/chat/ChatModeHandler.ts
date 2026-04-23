@@ -60,7 +60,7 @@ export interface StreamingCallbacks {
     addSystemNotice(content: string): void;
     /** Optional: update the "Thinking…" placeholder text in place so the
      *  handler can surface phase transitions (e.g. "Searching web…" →
-     *  "Extracting from 3 sources…" → "Synthesising…") during a long run. */
+     *  "Extracting from 3 sources…" → "Synthesizing…") during a long run. */
     updateThinking?(message: string): void;
     /** Optional: render an inline cancel button inside the thinking
      *  indicator so long-running operations have an escape hatch without

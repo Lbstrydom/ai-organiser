@@ -301,8 +301,17 @@ function buildSharedPromptSuffix(options: MinutesStylePromptOptions): string {
     const { useGTD, dualOutput, styleReference, customInstructions } = options;
 
     // Response format
-    const responseFormatSection = dualOutput
-        ? `<<< RESPONSE FORMAT - CRITICAL >>>
+    //
+    // GUIDED mode: we must also request reference-styled markdown even in
+    // single-output mode. Without it, `renderGuided` has no markdown to
+    // pass through and falls back to the standard tabular renderer —
+    // defeating the entire purpose of loading a style reference (user
+    // report 2026-04-23: narrative-prose reference produced structured
+    // tables instead).
+    const isGuided = options.minutesStyle === 'guided';
+    let responseFormatSection: string;
+    if (dualOutput) {
+        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
 
 Your response MUST contain a valid JSON object matching the schema below.
 Start with { (no preamble, no markdown fences, no text before the JSON).
@@ -315,12 +324,34 @@ followed by dual markdown minutes using exactly this structure:
 [full detail markdown]
 
 ## Minutes_External
-[sanitized markdown — remove internal tool names, sensitive pricing, strategy commentary]`
-        : `<<< RESPONSE FORMAT - CRITICAL >>>
+[sanitized markdown — remove internal tool names, sensitive pricing, strategy commentary]`;
+    } else if (isGuided) {
+        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
+
+Your response MUST contain BOTH a JSON object (for structured data capture)
+AND reference-styled markdown (which becomes the user-visible output).
+
+1. Start with { — a valid JSON object matching the schema below.
+   No preamble, no markdown fences before the JSON.
+
+2. After the JSON object, output this delimiter on its own line:
+${MINUTES_JSON_DELIMITER}
+
+3. Then produce the minutes in markdown, matching the STYLE REFERENCE's
+   voice, structural patterns (narrative prose vs tables), heading conventions
+   (e.g. "1. Opening of the Meeting" numbered sections), and formatting.
+   This markdown is what the user will SEE — the JSON is for auditing only.
+
+Do NOT produce the markdown as tables unless the reference uses tables.
+Do NOT produce numbered action/decision lists unless the reference uses them.
+Match the reference's PROSE DENSITY and SECTION STRUCTURE.`;
+    } else {
+        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
 
 Your response MUST be a valid JSON object matching the schema below.
 Start with { — no preamble, no markdown fences, no text before or after the JSON.
 Output ONLY the JSON. Markdown will be rendered from it automatically.`;
+    }
 
     // Meeting context behavior
     const contextSection = `<<< MEETING CONTEXT BEHAVIOR >>>
@@ -500,6 +531,13 @@ IMPORTANT: Ensure all notable_points, decisions, actions, risks, open_questions,
 and deferred_items are complete in the JSON.`;
 
     // Self-check
+    const customInstructionsCheck = customInstructions && customInstructions.trim().length > 0
+        ? `\n9. USER INSTRUCTIONS block (at the top of this system prompt) has been fully honoured in the output — not merely acknowledged. If it requested additional analysis/perspective/sections, that content is present in the markdown.`
+        : '';
+    const guidedStyleCheck = options.minutesStyle === 'guided'
+        ? `\n10. Markdown output matches the STYLE REFERENCE's structural conventions (prose vs tables, heading numbering, section types) — not the default tabular format.`
+        : '';
+
     const selfCheckSection = `<<< SELF-CHECK (run before returning) >>>
 
 1. Response starts with { (no preamble).
@@ -509,11 +547,29 @@ and deferred_items are complete in the JSON.`;
 5. No invented names, numbers, or dates.
 6. Confidence is set for every item.
 7. open_questions includes anything marked TBC.
-8. verbatim_quote is empty unless resolution was explicitly read aloud.${gtdSelfCheck}`;
+8. verbatim_quote is empty unless resolution was explicitly read aloud.${gtdSelfCheck}${customInstructionsCheck}${guidedStyleCheck}`;
 
-    // Custom instructions from user
-    const customInstructionsSection = customInstructions
-        ? `<<< ADDITIONAL INSTRUCTIONS >>>\n\nADDITIONAL INSTRUCTIONS: ${customInstructions}` : '';
+    // Custom instructions from user — elevated to a CRITICAL block at the
+    // top of the prompt so the LLM actually honours them. Previous placement
+    // at the end of a very long prompt with the label "ADDITIONAL INSTRUCTIONS"
+    // was routinely ignored (user report 2026-04-23: "Act as McKinsey
+    // consultant and give perspective" instruction was silently dropped).
+    const customInstructionsSection = customInstructions && customInstructions.trim().length > 0
+        ? `<<< USER INSTRUCTIONS — CRITICAL, MUST FOLLOW >>>
+
+The user explicitly provided the following instructions for this specific
+meeting's output. These take precedence over the default style conventions
+and MUST be incorporated in your response (not merely acknowledged):
+
+${customInstructions.trim()}
+
+If the instruction asks for additional analysis or perspective beyond the
+standard minutes (e.g. "provide a McKinsey-style strategic perspective at
+the end", "add a risks/opportunities section", "highlight decisions that
+diverge from prior meetings"), you MUST produce that content — append it
+to the markdown output after the standard sections. Do NOT silently drop
+the instruction.`
+        : '';
 
     // Edge cases
     const edgeCasesSection = `<<< EDGE CASES >>>
@@ -523,8 +579,12 @@ and deferred_items are complete in the JSON.`;
 - Heated discussion, no resolution: Summarize positions neutrally in notable_points. Do not fabricate consensus.
 - Missing agenda: Set agenda to [] and agenda_item_ref to null throughout.`;
 
+    // Order: place user instructions at the TOP (right after response format)
+    // so the LLM sees them before the schema pressure kicks in. The original
+    // placement at the end was routinely ignored.
     return [
         responseFormatSection,
+        customInstructionsSection,
         contextSection,
         audienceSection,
         accuracySection,
@@ -536,7 +596,6 @@ and deferred_items are complete in the JSON.`;
         schemaSection,
         selfCheckSection,
         edgeCasesSection,
-        customInstructionsSection,
     ].filter(Boolean).join('\n\n');
 }
 
@@ -572,16 +631,32 @@ Only DECISION, NOTED, and ACTION items appear in the main minutes. BACKGROUND ma
 
     const gtdInstructions = useGTD ? `\nGTD OVERLAY: Classify each action into a GTD context (@office, @home, @call, @computer, @agenda, @errand). Set energy: low (admin) or high (complex). Add waiting_for, projects, someday_maybe as appropriate.` : '';
 
-    const responseInstruction = dualOutput
-        ? `RESPONSE: Valid JSON first. Start with { — no preamble, no markdown fences.
+    // Guided mode (chunked consolidation): request JSON + reference-styled
+    // markdown so renderGuided() has something to pass through. Without this
+    // the chunked path collapsed to standard tables even when a style
+    // reference was provided (parallels the single-call fix).
+    const isGuidedConsolidation = minutesStyle === 'guided';
+    let responseInstruction: string;
+    if (dualOutput) {
+        responseInstruction = `RESPONSE: Valid JSON first. Start with { — no preamble, no markdown fences.
 After the JSON, output the delimiter ${MINUTES_JSON_DELIMITER} then dual markdown:
 
 ## Minutes_Internal
 [full detail markdown]
 
 ## Minutes_External
-[sanitized markdown — remove internal tool names, sensitive pricing, strategy commentary]`
-        : `RESPONSE: Valid JSON only. Start with { — no preamble, no markdown fences, no text after the JSON.`;
+[sanitized markdown — remove internal tool names, sensitive pricing, strategy commentary]`;
+    } else if (isGuidedConsolidation) {
+        responseInstruction = `RESPONSE: Valid JSON first (for auditing). Start with { — no preamble, no markdown fences.
+After the JSON, output the delimiter ${MINUTES_JSON_DELIMITER} then the minutes in markdown,
+matching the STYLE REFERENCE's voice, prose density, heading conventions, and section
+structure. The markdown is what the user will see — the JSON is secondary.
+
+Do NOT produce tables unless the reference uses tables.
+Do NOT produce numbered action/decision lists unless the reference uses them.`;
+    } else {
+        responseInstruction = `RESPONSE: Valid JSON only. Start with { — no preamble, no markdown fences, no text after the JSON.`;
+    }
 
     // Style-specific consolidation instructions
     let styleInstruction = '';
@@ -628,7 +703,14 @@ RULES:
 - Mark unclear items TBC and add to open_questions.
 - If context_documents is included in the input payload, use those reference facts to verify names, dates, and figures.
 - Never output confidence annotations, pipeline metadata, or status tags in rendered text.
-${customInstructions ? `\nADDITIONAL INSTRUCTIONS: ${customInstructions}` : ''}${styleInstruction}${gtdInstructions}
+${customInstructions && customInstructions.trim().length > 0 ? `
+<<< USER INSTRUCTIONS — CRITICAL, MUST FOLLOW >>>
+${customInstructions.trim()}
+If this asks for additional analysis or perspective beyond the standard minutes
+(e.g. consultant-style commentary, strategic takeaways), you MUST produce that
+content — append it to the markdown output after the standard sections.
+Do NOT silently drop the instruction.
+<<< END USER INSTRUCTIONS >>>` : ''}${styleInstruction}${gtdInstructions}
 
 ${responseInstruction}
 

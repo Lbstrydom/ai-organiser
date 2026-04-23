@@ -139,16 +139,25 @@ export interface GeminiModelParts {
     tier: 'pro' | 'flash' | 'ultra' | 'nano' | 'unknown';
     isPreview: boolean;
     isTts: boolean;
+    /** True for `-flash-lite`, `-pro-lite`, etc. — weaker than the base
+     *  tier, so `latest-flash` should prefer non-lite when both exist. */
+    isLite: boolean;
 }
 
 /**
  * Parse Gemini model IDs. Google's naming has drifted over versions —
  * we canonicalize here:
- *   - gemini-3.1-pro-preview          → { 3, 1, pro, preview }
- *   - gemini-3-flash-preview          → { 3, 0, flash, preview }
- *   - gemini-2.5-flash-preview-tts    → { 2, 5, flash, preview, tts }
- *   - gemini-3.1-flash-tts-preview    → { 3, 1, flash, preview, tts }
- *   - gemini-2.5-flash                → { 2, 5, flash, ga }
+ *   - gemini-3.1-pro-preview               → { 3, 1, pro, preview }
+ *   - gemini-3-flash-preview               → { 3, 0, flash, preview }
+ *   - gemini-3.1-flash-lite-preview        → { 3, 1, flash, preview, lite }
+ *   - gemini-2.5-flash-preview-tts         → { 2, 5, flash, preview, tts }
+ *   - gemini-3.1-flash-tts-preview         → { 3, 1, flash, preview, tts }
+ *   - gemini-2.5-flash                     → { 2, 5, flash, ga }
+ *   - gemini-2.5-flash-lite                → { 2, 5, flash, ga, lite }
+ *
+ * Google's own `-latest` aliases (`gemini-flash-latest`, `gemini-pro-latest`)
+ * don't have a digit after `gemini-`, so they return null here — they're
+ * handled as a short-circuit in `resolveLatestModel`.
  */
 export function parseGeminiModel(id: string | undefined | null): GeminiModelParts | null {
     if (!id) return null;
@@ -161,6 +170,7 @@ export function parseGeminiModel(id: string | undefined | null): GeminiModelPart
         tier: (m[3] ?? 'unknown') as GeminiModelParts['tier'],
         isPreview: /preview/.test(id),
         isTts: /tts/.test(rest) || /tts/.test(id),
+        isLite: /\blite\b/.test(rest),
     };
 }
 
@@ -203,16 +213,18 @@ export function pickNewestClaude(availableIds: string[], tier: ClaudeTier): stri
 }
 
 /** Pick the newest Gemini model of the given tier from a pool of IDs.
- *  Excludes TTS-variant models (those are used for speech generation only). */
+ *  Excludes TTS + lite variants (lite is weaker than the base tier — users
+ *  asking for `latest-flash` shouldn't silently get flash-lite just because
+ *  it has a higher version number). */
 export function pickNewestGemini(availableIds: string[], tier: GeminiTier): string | null {
     const ranked = availableIds
         .map(id => ({ id, parts: parseGeminiModel(id) }))
         .filter((x): x is { id: string; parts: GeminiModelParts } =>
-            x.parts !== null && x.parts.tier === tier && !x.parts.isTts)
+            x.parts !== null && x.parts.tier === tier && !x.parts.isTts && !x.parts.isLite)
         .sort((a, b) => {
             if (a.parts.major !== b.parts.major) return b.parts.major - a.parts.major;
-            // Prefer GA over preview at the same version
             if (a.parts.minor !== b.parts.minor) return b.parts.minor - a.parts.minor;
+            // Prefer GA over preview at the same version
             if (a.parts.isPreview !== b.parts.isPreview) return a.parts.isPreview ? 1 : -1;
             return 0;
         });
@@ -268,6 +280,15 @@ export function resolveLatestModel(
             return null;
         case 'gemini':
             if (tier === 'pro' || tier === 'flash' || tier === 'ultra' || tier === 'nano') {
+                // Prefer Google's official `gemini-{tier}-latest` alias
+                // when it appears in the pool — Google hot-swaps these with
+                // 2-week notice as new releases land, which is strictly
+                // better than our major/minor heuristic that guesses from
+                // a static registry. Fall back to picking by parsed version
+                // only when Google's alias isn't present (e.g. user's live
+                // catalog didn't surface it).
+                const googleAlias = `gemini-${tier}-latest`;
+                if (availableIds.includes(googleAlias)) return googleAlias;
                 return pickNewestGemini(availableIds, tier);
             }
             return null;

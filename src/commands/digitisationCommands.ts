@@ -8,7 +8,7 @@ import { VisionService, type DigitiseResult } from '../services/visionService';
 import { VisionPreviewModal } from '../ui/modals/VisionPreviewModal';
 import { CompressionConfirmModal } from '../ui/modals/CompressionConfirmModal';
 import { ImageProcessorService, type ProcessedImage } from '../services/imageProcessorService';
-import { withBusyIndicator } from '../utils/busyIndicator';
+import { withProgress } from '../services/progress';
 import { detectEmbeddedContent } from '../utils/embeddedContentDetector';
 import { ensurePrivacyConsent } from '../services/privacyNotice';
 
@@ -80,29 +80,49 @@ async function digitiseSingleImage(
     imageFile: TFile,
     progressMsg: string
 ): Promise<void> {
-    try {
-        // VLM call inside busy indicator
-        const { result, processedImage } = await withBusyIndicator(plugin,
-            () => visionService.digitiseWithImage(imageFile), progressMsg);
+    type Phase = 'processing' | 'extracting' | 'raw';
+    const tp = plugin.t.progress;
 
-        // Preview modal OUTSIDE busy indicator (user decision)
-        const imageDataUrl = await loadImageDataUrl(plugin.app, imageFile);
-        const action = await showVisionPreview(plugin, result, imageDataUrl);
+    // VLM call wrapped in reporter — persistent phase label replaces the
+    // silent status-bar-only previous UX. Preview modal + compression still
+    // run OUTSIDE the reporter so the user's decisions aren't rushed.
+    const r = await withProgress<Awaited<ReturnType<typeof visionService.digitiseWithImage>>, Phase>(
+        {
+            plugin,
+            initialPhase: { key: 'processing', params: { name: imageFile.basename, current: 1, total: 1 } },
+            resolvePhase: (p) => {
+                if (p.key === 'raw' && typeof p.params?.text === 'string') return p.params.text;
+                if (p.key === 'processing') {
+                    const tmpl = tp.digitisation.processing;
+                    return Object.entries(p.params || {}).reduce(
+                        (acc, [k, v]) => acc.replace(`{${k}}`, String(v)),
+                        tmpl,
+                    );
+                }
+                return tp.digitisation.extracting;
+            },
+        },
+        async (reporter) => {
+            // Single-image path — use the legacy progressMsg as the initial
+            // phase text so callers that pass contextual info keep it.
+            if (progressMsg) reporter.setPhase({ key: 'raw', params: { text: progressMsg } });
+            return visionService.digitiseWithImage(imageFile);
+        },
+    );
+    if (!r.ok) return;
 
-        if (action === 'insert') {
-            new Notice(plugin.t.digitisation?.inserted || 'Digitised content inserted');
-        } else if (action === 'copy') {
-            new Notice(plugin.t.digitisation?.copied || 'Copied to clipboard');
-        }
+    const { result, processedImage } = r.value;
+    const imageDataUrl = await loadImageDataUrl(plugin.app, imageFile);
+    const action = await showVisionPreview(plugin, result, imageDataUrl);
 
-        // Compression offer OUTSIDE busy indicator
-        if (action !== 'discard' && shouldOfferCompression(plugin, imageFile, processedImage)) {
-            await offerImageCompression(plugin, imageFile, processedImage);
-        }
-    } catch (error) {
-        logger.error('Digitise', 'Error:', error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        new Notice(`Digitisation failed: ${errorMessage}`);
+    if (action === 'insert') {
+        new Notice(plugin.t.digitisation?.inserted || 'Digitised content inserted');
+    } else if (action === 'copy') {
+        new Notice(plugin.t.digitisation?.copied || 'Copied to clipboard');
+    }
+
+    if (action !== 'discard' && shouldOfferCompression(plugin, imageFile, processedImage)) {
+        await offerImageCompression(plugin, imageFile, processedImage);
     }
 }
 

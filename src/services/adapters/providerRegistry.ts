@@ -26,12 +26,17 @@ export const ALL_ADAPTERS: AdapterType[] = [
 // resolved to concrete ids inside CloudLLMService at adapter-build time.
 export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   openai: 'latest-gpt',
-  gemini: 'latest-flash',
+  // Main-provider Gemini defaults to Pro (top quality). The YouTube
+  // specialist path defaults to `latest-flash` separately — flash is
+  // fast/cheap enough for video frame analysis, but when the user picks
+  // Gemini as their MAIN LLM they expect the strongest model.
+  gemini: 'latest-pro',
   deepseek: 'deepseek-v3.2',
   aliyun: 'qwen-max',
   claude: 'latest-sonnet',
   groq: 'meta-llama/llama-4-scout-17b-16e-instruct',
-  vertex: 'latest-flash',
+  // Vertex mirrors main Gemini intent — use Pro.
+  vertex: 'latest-pro',
   openrouter: 'openai/gpt-5.2',
   bedrock: 'anthropic.claude-sonnet-4-6',
   requesty: 'gpt-5.2',

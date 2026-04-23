@@ -484,7 +484,7 @@ export class NewsletterService {
             '<!-- DAILY_BRIEF_START -->',
             '## Daily Brief',
             '',
-            '*Synthesising…*',
+            '*Synthesizing…*',
             '',
             '<!-- DAILY_BRIEF_END -->',
             '',
@@ -652,9 +652,32 @@ export class NewsletterService {
 
         await this.mergeOrPrependBrief(digestFile, brief + truncationWarning);
 
-        // Phase 5: Audio podcast — runs only when Daily Brief succeeded
+        // Phase 5: Audio podcast — runs only when the bucket is CLOSED.
+        //
+        // Gate added 2026-04-23 after user reported: "Why has today's audio
+        // already generated? It's supposed to cut off by next day at 08:00."
+        //
+        // Previously, audio regenerated every time new newsletters arrived
+        // for a given bucket — so today's digest could trigger 5-10 audio
+        // regenerations as emails trickled in, each costing API budget and
+        // producing audio that became stale minutes later. The correct
+        // semantic is: audio represents the FINAL digest for a completed
+        // day, so it should be generated ONCE, after the bucket closes at
+        // (next day's cutoffHour).
+        //
+        // For past/closed buckets (back-fills, manual re-fetches): audio
+        // generates immediately as expected.
+        //
+        // Users who want today's audio right now can still hit the explicit
+        // "Regenerate audio for today's brief" command — `regenerateAudioForToday`
+        // bypasses this gate by design.
         if (this.plugin.settings.newsletterAudioPodcast) {
-            await this.generateAudioForBrief(brief, outputRoot, dateStr);
+            const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+            if (isBucketClosed(dateStr, cutoff)) {
+                await this.generateAudioForBrief(brief, outputRoot, dateStr);
+            } else {
+                logger.debug('Newsletter', `Audio podcast deferred for bucket ${dateStr} — bucket is still live (cutoff ${cutoff}:00 next day not yet reached)`);
+            }
         }
     }
 
@@ -994,6 +1017,30 @@ export class NewsletterService {
  */
 export function getBriefDateStr(cutoffHour: number): string {
     return getBucketDateStr(new Date(), cutoffHour);
+}
+
+/**
+ * True when the bucket represented by `bucketDateStr` has FULLY CLOSED —
+ * meaning the cutoff hour of the following calendar day has passed.
+ *
+ * Example: cutoffHour=8, bucketDateStr='2026-04-23'.
+ *   - bucket "2026-04-23" covers newsletters with timestamps in the range
+ *     2026-04-23 08:00 → 2026-04-24 07:59 (local time)
+ *   - bucket CLOSES at 2026-04-24 08:00
+ *   - audio podcast should NOT be generated for this bucket until then,
+ *     because new newsletters can still land in it and invalidate the audio
+ *
+ * Used to gate daily-brief audio podcast generation so we don't waste API
+ * budget regenerating audio as each individual newsletter arrives during
+ * the live day (user report 2026-04-23).
+ */
+export function isBucketClosed(bucketDateStr: string, cutoffHour: number, now: Date = new Date()): boolean {
+    // Parse "YYYY-MM-DD" as local midnight, then advance to the cutoff boundary.
+    const parts = bucketDateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return false;
+    const [y, m, d] = parts;
+    const bucketClose = new Date(y, m - 1, d + 1, cutoffHour, 0, 0, 0);
+    return now.getTime() >= bucketClose.getTime();
 }
 
 /**

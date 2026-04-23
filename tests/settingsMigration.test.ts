@@ -194,38 +194,52 @@ describe('migrateOldSettings', () => {
         });
     });
 
-    describe('Gemini deprecated-id → latest-* sentinel migration (2026-04-22)', () => {
-        it('migrates gemini-3-pro-preview → latest-pro (youtubeGeminiModel)', () => {
-            const old = { youtubeGeminiModel: 'gemini-3-pro-preview' } as any;
-            const result = migrateOldSettings(old)!;
-            expect(result.youtubeGeminiModel).toBe('latest-pro');
-        });
-
-        it('migrates gemini-3-pro-preview → latest-pro (pdfModel)', () => {
-            const old = { pdfModel: 'gemini-3-pro-preview' } as any;
-            const result = migrateOldSettings(old)!;
-            expect(result.pdfModel).toBe('latest-pro');
-        });
-
-        it('migrates gemini-3.1-pro-preview → latest-pro (previous one-shot target → sentinel)', () => {
-            const old = { youtubeGeminiModel: 'gemini-3.1-pro-preview', pdfModel: 'gemini-3.1-pro-preview' } as any;
+    describe('Gemini deprecated-id → latest-* sentinel migration', () => {
+        it('migrates gemini-3-pro-preview → latest-pro (discontinued March 2026)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3-pro-preview', pdfModel: 'gemini-3-pro-preview' } as any;
             const result = migrateOldSettings(old)!;
             expect(result.youtubeGeminiModel).toBe('latest-pro');
             expect(result.pdfModel).toBe('latest-pro');
         });
 
-        it('migrates gemini-3-flash-preview → latest-flash (stale preview suffix)', () => {
-            const old = { youtubeGeminiModel: 'gemini-3-flash-preview', pdfModel: 'gemini-3-flash-preview' } as any;
-            const result = migrateOldSettings(old)!;
-            expect(result.youtubeGeminiModel).toBe('latest-flash');
-            expect(result.pdfModel).toBe('latest-flash');
-        });
-
-        it('migrates gemini-3-flash → latest-flash (concrete pin → auto-track)', () => {
+        it('migrates gemini-3-flash → latest-flash (never existed on Google API)', () => {
             const old = { youtubeGeminiModel: 'gemini-3-flash', pdfModel: 'gemini-3-flash' } as any;
             const result = migrateOldSettings(old)!;
             expect(result.youtubeGeminiModel).toBe('latest-flash');
             expect(result.pdfModel).toBe('latest-flash');
+        });
+
+        it('migrates gemini-3.1-pro → latest-pro (never existed on Google API)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3.1-pro', pdfModel: 'gemini-3.1-pro' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('latest-pro');
+            expect(result.pdfModel).toBe('latest-pro');
+        });
+
+        it('migrates gemini-2.0-flash → latest-flash (deprecated)', () => {
+            const old = { youtubeGeminiModel: 'gemini-2.0-flash' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('latest-flash');
+        });
+
+        it('migrates gemini-2.0-flash-lite → latest-flash (deprecated)', () => {
+            const old = { pdfModel: 'gemini-2.0-flash-lite' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pdfModel).toBe('latest-flash');
+        });
+
+        it('leaves gemini-3.1-pro-preview unchanged (valid Google preview ID)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3.1-pro-preview', pdfModel: 'gemini-3.1-pro-preview' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('gemini-3.1-pro-preview');
+            expect(result.pdfModel).toBe('gemini-3.1-pro-preview');
+        });
+
+        it('leaves gemini-3-flash-preview unchanged (valid Google preview ID)', () => {
+            const old = { youtubeGeminiModel: 'gemini-3-flash-preview', pdfModel: 'gemini-3-flash-preview' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.youtubeGeminiModel).toBe('gemini-3-flash-preview');
+            expect(result.pdfModel).toBe('gemini-3-flash-preview');
         });
 
         it('leaves already-sentinel values unchanged', () => {

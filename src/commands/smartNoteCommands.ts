@@ -26,6 +26,7 @@ import { exportFlashcards } from './flashcardCommands';
 import { SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { getServiceType, summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
+import { withProgress } from '../services/progress';
 
 
 
@@ -231,8 +232,6 @@ async function generateMermaidDiagram(
         if (!proceed) return;
     }
 
-    new Notice(plugin.t.messages.generatingDiagram || 'Generating diagram...');
-
     // Build the prompt
     const prompt = buildDiagramPrompt({
         diagramType: options.diagramType,
@@ -240,27 +239,31 @@ async function generateMermaidDiagram(
         noteContent: noteContent
     });
 
-    try {
-        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
+    type DiagramPhase = 'diagramming' | 'validating';
+    const t = plugin.t;
+    const r = await withProgress<string | null, DiagramPhase>(
+        {
+            plugin,
+            initialPhase: { key: 'diagramming' },
+            resolvePhase: (p) => t.progress.smartNote[p.key],
+        },
+        async (reporter) => {
+            const response = await summarizeText(pluginContext(plugin), prompt);
+            if (!response.success || !response.content) {
+                throw new Error(response.error || t.messages.unknownError);
+            }
+            reporter.setPhase({ key: 'validating' });
+            return response.content;
+        },
+    );
+    if (!r.ok) return; // reporter showed the toast
 
-        if (response.success && response.content) {
-            // Clean and wrap the output
-            const cleanedDiagram = cleanMermaidOutput(response.content);
-            const wrappedDiagram = wrapInCodeFence(cleanedDiagram);
-
-            // Insert at cursor position
-            const cursor = editor.getCursor();
-            editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
-            ensureNoteStructureIfEnabled(editor, plugin.settings);
-
-            new Notice(plugin.t.messages.diagramGenerated, 3000);
-        } else {
-            new Notice(`${plugin.t.messages.diagramGenerationFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
-        new Notice(`${plugin.t.messages.diagramGenerationFailed}: ${errorMessage}`, 5000);
-    }
+    const cleanedDiagram = cleanMermaidOutput(r.value!);
+    const wrappedDiagram = wrapInCodeFence(cleanedDiagram);
+    const cursor = editor.getCursor();
+    editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
+    ensureNoteStructureIfEnabled(editor, plugin.settings);
+    new Notice(t.messages.diagramGenerated, 3000);
 }
 
 /**
@@ -283,8 +286,6 @@ async function improveNoteWithQuery(
         if (!proceed) return;
     }
 
-    new Notice(plugin.t.messages.improvingNote);
-
     // Extract frontmatter if present
     const frontmatterMatch = noteContent.match(/^(---\n[\s\S]*?\n---\n?)/);
     const frontmatter = frontmatterMatch ? frontmatterMatch[1] : '';
@@ -295,44 +296,53 @@ async function improveNoteWithQuery(
 
     const prompt = buildImprovePrompt(strippedBody, query, plugin.settings.summaryLanguage, personaPrompt, placement);
 
-    try {
-        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
-
-        if (response.success && response.content) {
-            // Show diff review if enabled, otherwise fall back to preview modal
-            if (plugin.settings.enableReviewedEdits && placement === 'replace') {
-                await showReviewOrApply(
-                    plugin,
-                    strippedBody,
-                    response.content,
-                    () => applyImprovement(plugin, view, editor, response.content!, frontmatter, placement)
-                );
-            } else {
-                await new Promise<void>((resolve) => {
-                    const previewModal = new ImprovePreviewModal(
-                        plugin.app,
-                        plugin,
-                        response.content!,
-                        placement,
-                        (action: ImprovePreviewAction) => { void (async () => {
-                            if (action === 'confirm') {
-                                await applyImprovement(plugin, view, editor, response.content!, frontmatter, placement);
-                            } else if (action === 'copy') {
-                                await navigator.clipboard.writeText(response.content!);
-                                new Notice(plugin.t.messages.copiedToClipboard || 'Copied to clipboard', 3000);
-                            }
-                            resolve();
-                        })(); }
-                    );
-                    previewModal.open();
-                });
+    type ImprovePhase = 'improving' | 'validating';
+    const t = plugin.t;
+    const r = await withProgress<string, ImprovePhase>(
+        {
+            plugin,
+            initialPhase: { key: 'improving' },
+            resolvePhase: (p) => t.progress.smartNote[p.key],
+        },
+        async (reporter) => {
+            const response = await summarizeText(pluginContext(plugin), prompt);
+            if (!response.success || !response.content) {
+                throw new Error(response.error || t.messages.unknownError);
             }
-        } else {
-            new Notice(`${plugin.t.messages.improvementFailed}: ${response.error || plugin.t.messages.unknownError}`, 5000);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
-        new Notice(`${plugin.t.messages.improvementFailed}: ${errorMessage}`, 5000);
+            reporter.setPhase({ key: 'validating' });
+            return response.content;
+        },
+    );
+    if (!r.ok) return; // reporter showed the toast
+
+    const content = r.value;
+
+    if (plugin.settings.enableReviewedEdits && placement === 'replace') {
+        await showReviewOrApply(
+            plugin,
+            strippedBody,
+            content,
+            () => applyImprovement(plugin, view, editor, content, frontmatter, placement),
+        );
+    } else {
+        await new Promise<void>((resolve) => {
+            const previewModal = new ImprovePreviewModal(
+                plugin.app,
+                plugin,
+                content,
+                placement,
+                (action: ImprovePreviewAction) => { void (async () => {
+                    if (action === 'confirm') {
+                        await applyImprovement(plugin, view, editor, content, frontmatter, placement);
+                    } else if (action === 'copy') {
+                        await navigator.clipboard.writeText(content);
+                        new Notice(plugin.t.messages.copiedToClipboard || 'Copied to clipboard', 3000);
+                    }
+                    resolve();
+                })(); },
+            );
+            previewModal.open();
+        });
     }
 }
 

@@ -334,15 +334,15 @@ describe('Text Chunker - Configuration', () => {
         });
 
         it('should use default maxTokens of CHUNK_TOKEN_LIMIT', async () => {
-            // Default: CHUNK_TOKEN_LIMIT tokens * 4 chars per chunk
-            // With overlapChars: 1 (to avoid default 400 overlap)
-            const text = 'A'.repeat(30000);
+            // Default: CHUNK_TOKEN_LIMIT tokens * 4 chars per chunk.
+            // Scale input to ~1.25x default so we reliably see ≥2 chunks
+            // regardless of future CHUNK_TOKEN_LIMIT changes.
+            const defaultChunkChars = CHUNK_TOKEN_LIMIT * 4;
+            const text = 'A'.repeat(Math.floor(defaultChunkChars * 1.25));
             const result = await chunkPlainTextAsync(text, { overlapChars: 1 });
 
-            // 30000 chars with step of (CHUNK_TOKEN_LIMIT*4 - 1)
-            // 30000 / 23999 ≈ 1.25, so 2 chunks
             expect(result.length).toBe(2);
-            expect(result[0].length).toBe(CHUNK_TOKEN_LIMIT * 4);
+            expect(result[0].length).toBe(defaultChunkChars);
         });
     });
 

@@ -594,6 +594,104 @@ btn.buttonEl.prepend(iconEl);
 
 Caught via persona round 5: Kindle Sync modal rendered two empty-label buttons ("" + "" instead of "Import file" + "Sync from amazon"). Six buttons across four files were affected (KindleSyncModal, KindleLoginModal, SemanticSearchSettingsSection, BasesSettingsSection).
 
+## Large-Content Ingestion — Quality-Aware Chunking
+
+**Status**: ✅ Implemented (April 2026)
+
+**Plan**: [docs/completed/large-content-ingestion.md](docs/completed/large-content-ingestion.md)
+
+Replaces scattered `isContentTooLarge` checks + flat map-reduce summarization with a quality-aware chunking pipeline. Fixes the "2-hour meeting crashes" user report by bumping `CHUNK_TOKEN_LIMIT` from 6000 → 12000 (halves call count for long meetings) and introducing hierarchical map-reduce for non-minutes content.
+
+### Key components
+
+| File | Purpose |
+|---|---|
+| [src/services/contentSizePolicy.ts](src/services/contentSizePolicy.ts) | Single source of truth for quality thresholds (40K/48K/192K chars per content type) + fast-model capability check + `estimateCharsPerToken()` heuristic (Latin/CJK/code) |
+| [src/services/chunkingOrchestrator.ts](src/services/chunkingOrchestrator.ts) | Generalised hierarchical map-reduce with rolling `continuationContext` between chunks + per-chunk error isolation (no `[Error summarizing section N]` markers in output) |
+| [src/core/constants.ts:64](src/core/constants.ts#L64) | `CHUNK_TOKEN_LIMIT = 12_000` (bumped from 6000) |
+| [src/services/minutesService.ts:111-125](src/services/minutesService.ts) | `EXTRACTION_OPTIONS.maxTokens = 8192` (up from 4096); `MERGE_OPTIONS.maxTokens = 12288` (up from 4096); `overlapChars = 1000` (up from 500) |
+| [src/commands/summarizeCommands.ts:1615,1676,2094](src/commands/summarizeCommands.ts) | Quality-threshold auto-chunking: URL / text / audio transcripts above ~40K chars auto-route to `summarizeInChunks` instead of one-shot |
+
+### Chunking strategy by content type
+
+| ContentType | Auto-chunk above | Hierarchical reduce above |
+|-------------|-----------------|--------------------------|
+| `summarization` | 40 000 chars | 120 000 chars (4+ chunks) |
+| `minutes` | 48 000 chars | 192 000 chars (4+ chunks) |
+| `document` | 40 000 chars | 120 000 chars |
+
+### Fast-model routing
+
+When `useHaikuForFastTasks = true` AND provider is `claude`, map-phase calls use `latest-haiku` (cheap + fast); reduce-phase uses the main model. Non-Claude providers fall back to main model for both phases (graceful degradation).
+
+### Tests
+
+- `tests/contentSizePolicy.test.ts` — 21 tests (assessment, threshold resolution, fast-model gating, char-per-token heuristics)
+- `tests/chunkingOrchestrator.test.ts` — 10 tests (map/reduce flow, continuation context, per-chunk error isolation, hierarchical batching, single-chunk short-circuit)
+
+## ProgressReporter — Universal Progress Indicator
+
+**Status**: ✅ Infrastructure + hot-list migration delivered (April 2026)
+
+**Plan**: [docs/completed/progress-reporter.md](docs/completed/progress-reporter.md)
+
+Unifies progress UX across LLM-calling code paths via one typed, phase-aware helper. Replaces the prior mix of `busyIndicator` (status bar only), `executeWithNotice` (one-shot toasts), and ad-hoc `new Notice(msg, 0) + setMessage()` copy-pasted across 8+ files.
+
+### API
+
+```typescript
+import { withProgress, withProgressResult, ProgressReporter } from 'src/services/progress';
+
+// Canonical call-site pattern
+const r = await withProgress(
+    { plugin, initialPhase: { key: 'working' }, resolvePhase: (p) => plugin.t.progress.foo[p.key] },
+    async (reporter) => {
+        reporter.setPhase({ key: 'fetching', params: { current: 1, total: 5 } });
+        return await doWork();
+    },
+);
+if (!r.ok) return; // reporter fired the toast — caller does NOT
+use(r.value);
+```
+
+- **Three surfaces**: status-bar broker ticket (ambient) + persistent Notice (primary) + optional host-inline modal label
+- **Terminal states**: `succeed() | fail(err) | cancel() | timedOut(ms)` — reporter owns all notifications
+- **Typed phases**: `TKey` union narrowed to per-flow vocabulary; i18n-gated via `plugin.t.progress.{flow}.{phase}`
+- **Cancellation**: optional `AbortController` → Cancel button in Notice; `reporter.signal` propagated to downstream work
+- **Cancel sentinel**: `{ ok: false, error: 'cancelled' }` routes to neutral "Cancelled" toast, not red "Failed"
+- **Stable DOM**: build once, mutate `.textContent` + CSS var; no focus loss, no listener leaks
+- **Heartbeat watchdog**: 30s passive ping keeps status bar alive across long single-phase work; 3min leak protection
+
+### Migrated flows (PR 2)
+
+| Flow | Location | Pattern |
+|---|---|---|
+| Smart note — diagram + improve | [smartNoteCommands.ts:230](src/commands/smartNoteCommands.ts) | `withProgress<Phase>` with phase transitions |
+| Newsletter — fetch + audio regen | [newsletterCommands.ts:43](src/commands/newsletterCommands.ts) | `withProgress` with per-item `triaging` phase |
+| Multi-source summarize | [summarizeCommands.ts:449](src/commands/summarizeCommands.ts) | Persistent Notice + `setMessage` + `hideProgress()` on all exits |
+| Multi-source translate | [translateCommands.ts:322](src/commands/translateCommands.ts) | Same pattern |
+| Integration — resolve + merge | [integrationCommands.ts:148](src/commands/integrationCommands.ts) | Persistent Notice + `setMessage` + finally-hide |
+| YouTube summarize (pre-existing) | [summarizeCommands.ts:2277](src/commands/summarizeCommands.ts) | Ad-hoc persistent Notice (fixed April 2026) |
+
+### Intentionally deferred (plan §11 Out of Scope)
+
+- Kindle sync — already has modal-internal progress callback
+- Presentation builder — already uses `GenerationProgressController` with phases
+- Flashcards / canvas / generate / digitisation — already using correct ad-hoc pattern; cosmetic consolidation deferred to avoid regression risk
+- `ChatModeHandler`/`FreeChatModeHandler` — modal-internal progress already good
+- `embedScanCommands` custom progress-bar DOM — battle-tested
+- Per-flow `ProgressPhase` unions — defined inline at each call site
+
+### Tests
+
+- `tests/progressReporter.test.ts` — 21 tests (state machine, surfaces, terminals, normalizeError)
+- `tests/withProgress.test.ts` — 17 tests (Result contract, cancel sentinel, toast ownership)
+- `tests/transcriptSanitizer.test.ts` — 8 tests (paste sanitizer for Minutes)
+
+### Transcript paste sanitizer (April 2026 hotfix)
+
+User pasted Office 365 HTML into Minutes transcript field → hundreds of `file:///…/msohtmlclip1/…/clip_imageXXX.gif` references survived to LLM output note → Obsidian CSP blocked each one → UI freeze. Fix: [src/utils/transcriptSanitizer.ts](src/utils/transcriptSanitizer.ts) strips file:// refs + markdown image syntax + bare clip_imageNNN tokens on paste (input) AND in `renderMinutesFromJson` output (belt-and-braces).
+
 ## Known Constraints
 
 - Obsidian API externals must match platform version (defined in `esbuild.config.mjs`)

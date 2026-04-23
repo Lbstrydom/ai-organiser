@@ -531,8 +531,15 @@ export const zhCN: Translations = {
             title: "YouTube",
             description: "使用 Gemini 的原生视频理解功能处理 YouTube 视频，比字幕抓取更可靠。",
             usingMainKey: "使用您的主 Gemini API 密钥",
+            usingDedicatedKey: "使用专用 YouTube API 密钥",
+            usingProviderKey: "使用已保存的 Gemini 提供商密钥",
             apiKey: "Gemini API 密钥",
             apiKeyDesc: "YouTube 处理所需。从 Google AI Studio 获取免费密钥。",
+            replaceApiKey: "替换 Gemini API 密钥",
+            replaceApiKeyDesc: "粘贴新密钥以覆盖已存储的密钥。留空则保留现有密钥。",
+            clearStoredKey: "清除已存储的 Gemini 密钥",
+            clearStoredKeyDesc: "从密钥存储中移除专用 YouTube 密钥和主 Gemini 密钥。如果 Google 拒绝已存储的密钥为无效，请使用此功能。",
+            clearStoredKeyButton: "清除密钥",
             showKey: "显示/隐藏密钥",
             getApiKey: "从 Google AI Studio 获取免费 Gemini API 密钥",
             model: "Gemini 模型",
@@ -2719,5 +2726,115 @@ export const zhCN: Translations = {
         selectedCount: "已选 {count} 个",
         selectFile: "选择文件",
         closeButton: "关闭"
+    },
+    progress: {
+        cancelButton: "取消",
+        cancelled: "已取消",
+        cancelPrompt: "取消当前操作？",
+        failedPrefix: "失败",
+        timedOut: "超时（{duration}）",
+        stillWorking: "仍在处理… (已用时 {duration})",
+        unknownError: "未知错误",
+
+        multiSourceSummarize: {
+            preparing: "准备源…",
+            fetching: "正在获取 {name}… ({current}/{total})",
+            summarizing: "正在总结 {name}… ({current}/{total})",
+            transcribing: "正在转录 {name}… ({current}/{total})",
+            finalizing: "正在完成输出…"
+        },
+        multiSourceTranslate: {
+            preparing: "准备源…",
+            fetching: "正在获取 {name}… ({current}/{total})",
+            translating: "正在翻译 {name}… ({current}/{total})",
+            finalizing: "正在完成输出…"
+        },
+        integration: {
+            resolving: "解析嵌入内容 ({current}/{total})…",
+            merging: "合并至笔记…",
+            validating: "验证输出…",
+            applying: "应用更改…"
+        },
+        smartNote: {
+            diagramming: "生成图表…",
+            improving: "改进笔记…",
+            validating: "验证输出…"
+        },
+        newsletter: {
+            fetching: "正在获取新闻通讯…",
+            triaging: "分类新闻通讯 {current}/{total}…",
+            synthesizing: "合成摘要…",
+            regeneratingAudio: "重新生成播客音频…"
+        },
+        presentation: {
+            generating: "生成演示文稿…",
+            auditing: "审核演示文稿…",
+            refining: "完善演示文稿…",
+            exporting: "导出演示文稿…"
+        },
+        kindle: {
+            authenticating: "正在与亚马逊进行身份验证…",
+            scrapingBooks: "抓取图书列表…",
+            scrapingHighlights: "抓取高亮 ({current}/{total})…",
+            writingNotes: "写入笔记到库…"
+        },
+        research: {
+            searching: "正在搜索网络…",
+            triaging: "正在筛选来源…",
+            extracting: "正在提取发现…",
+            synthesizing: "正在合成答案…",
+            continuing: "继续研究…"
+        },
+        minutes: {
+            extracting: "从 {name} 提取内容 ({current}/{total})…",
+            merging: "合并文档发现…",
+            consolidating: "整合会议纪要…"
+        },
+        flashcards: {
+            generating: "生成抽认卡…",
+            validating: "验证输出…",
+            saving: "保存 {count} 张卡片…"
+        },
+        generateTags: {
+            analyzing: "分析笔记…",
+            applying: "应用标签…"
+        },
+        canvas: {
+            gathering: "收集相关笔记…",
+            labeling: "标记关系…",
+            building: "构建画布…"
+        },
+        digitisation: {
+            processing: "处理 {name} ({current}/{total})…",
+            extracting: "提取文本…"
+        },
+        embedScan: {
+            scanning: "扫描 {current}/{total} — {file}"
+        },
+        webReader: {
+            triaging: "分类文章 {current}/{total}…"
+        },
+        translateNote: {
+            translating: "正在翻译…"
+        },
+        summarizeNote: {
+            summarizing: "正在总结…"
+        },
+        youtube: {
+            summarizing: "YouTube · Gemini 总结视频…",
+            transcribing: "YouTube · Gemini 转录音频…"
+        },
+        audioTranscribe: {
+            compressing: "压缩音频…",
+            transcribing: "转录分块 {current}/{total}…",
+            summarizing: "总结转录…"
+        },
+        pdf: {
+            summarizing: "总结 PDF…"
+        },
+        url: {
+            fetching: "获取页面…",
+            summarizing: "总结页面…"
+        }
     }
 };

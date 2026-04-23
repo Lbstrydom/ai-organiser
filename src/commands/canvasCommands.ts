@@ -7,6 +7,7 @@ import { buildContextBoard } from '../services/canvas/contextBoard';
 import { buildClusterBoard } from '../services/canvas/clusterBoard';
 import { getCanvasOutputFullPath } from '../core/settings';
 import { withBusyIndicator } from '../utils/busyIndicator';
+import { withProgress } from '../services/progress';
 import { extractTagsFromCache } from '../utils/tagUtils';
 import { TagPickerModal } from '../ui/modals/TagPickerModal';
 import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
@@ -70,50 +71,52 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 onSelect: (selectedFolder) => { void (async () => {
                     const canvasFolder = selectedFolder || defaultFolder;
 
-                    try {
-                        const progressNotice = new Notice(plugin.t.canvas.building || 'Building investigation canvas…', 0);
-                        let result: Awaited<ReturnType<typeof buildInvestigationBoard>>;
-                        try {
-                            result = await withBusyIndicator(plugin, () =>
-                                buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
-                                    file,
-                                    content,
-                                    maxRelated: plugin.settings.relatedNotesCount || 15,
-                                    enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
-                                    canvasFolder,
-                                    openAfterCreate: plugin.settings.canvasOpenAfterCreate,
-                                    language: resolveCanvasLanguage(plugin),
-                                    edgeLabelStrings: {
-                                        closelyRelated: plugin.t.canvas.edgeCloselyRelated,
-                                        related: plugin.t.canvas.edgeRelated,
-                                        looselyRelated: plugin.t.canvas.edgeLooselyRelated
-                                    },
-                                    progressStrings: {
-                                        findingRelated: plugin.t.canvas.progressFindingRelated,
-                                        labeling: plugin.t.canvas.progressLabelingRelationships,
-                                        building: plugin.t.canvas.progressBuildingCanvas,
-                                    },
-                                    onProgress: (phase: string) => progressNotice.setMessage(phase),
-                                })
-                            );
-                        } finally {
-                            progressNotice.hide();
-                        }
+                    type Phase = 'gathering' | 'labeling' | 'building' | 'raw';
+                    const tp = plugin.t.progress;
+                    const r = await withProgress<Awaited<ReturnType<typeof buildInvestigationBoard>>, Phase>(
+                        {
+                            plugin,
+                            initialPhase: { key: 'gathering' },
+                            resolvePhase: (p) => {
+                                if (p.key === 'raw' && typeof p.params?.text === 'string') return p.params.text;
+                                return tp.canvas[p.key as 'gathering' | 'labeling' | 'building'];
+                            },
+                        },
+                        async (reporter) => {
+                            return buildInvestigationBoard(plugin.app, ragService, pluginContext(plugin), {
+                                file,
+                                content,
+                                maxRelated: plugin.settings.relatedNotesCount || 15,
+                                enableEdgeLabels: plugin.settings.canvasEnableEdgeLabels,
+                                canvasFolder,
+                                openAfterCreate: plugin.settings.canvasOpenAfterCreate,
+                                language: resolveCanvasLanguage(plugin),
+                                edgeLabelStrings: {
+                                    closelyRelated: plugin.t.canvas.edgeCloselyRelated,
+                                    related: plugin.t.canvas.edgeRelated,
+                                    looselyRelated: plugin.t.canvas.edgeLooselyRelated,
+                                },
+                                progressStrings: {
+                                    findingRelated: plugin.t.canvas.progressFindingRelated,
+                                    labeling: plugin.t.canvas.progressLabelingRelationships,
+                                    building: plugin.t.canvas.progressBuildingCanvas,
+                                },
+                                onProgress: (phase: string) => reporter.setPhase({ key: 'raw', params: { text: phase } }),
+                            });
+                        },
+                    );
+                    if (!r.ok) return;
 
-                        if (result.success) {
-                            new Notice(plugin.t.canvas.created);
-                            return;
-                        }
-
-                        if (result.errorCode === 'no-related-notes') {
-                            new Notice(plugin.t.canvas.noRelatedNotes);
-                            return;
-                        }
-
-                        new Notice(result.error || plugin.t.canvas.creationFailed);
-                    } catch {
-                        new Notice(plugin.t.canvas.creationFailed);
+                    const result = r.value;
+                    if (result.success) {
+                        new Notice(plugin.t.canvas.created);
+                        return;
                     }
+                    if (result.errorCode === 'no-related-notes') {
+                        new Notice(plugin.t.canvas.noRelatedNotes);
+                        return;
+                    }
+                    new Notice(result.error || plugin.t.canvas.creationFailed);
                 })(); }
             });
             folderPicker.open();
@@ -209,32 +212,38 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                     onSelect: (selectedFolder) => { void (async () => {
                         const canvasFolder = selectedFolder || defaultFolder;
 
-                        try {
-                            const result = await withBusyIndicator(plugin, () =>
-                                buildClusterBoard(plugin.app, pluginContext(plugin), {
+                        type Phase = 'gathering' | 'building';
+                        const tp = plugin.t.progress;
+                        const r = await withProgress<Awaited<ReturnType<typeof buildClusterBoard>>, Phase>(
+                            {
+                                plugin,
+                                initialPhase: { key: 'gathering' },
+                                resolvePhase: (p) => tp.canvas[p.key],
+                            },
+                            async (reporter) => {
+                                reporter.setPhase({ key: 'building' });
+                                return buildClusterBoard(plugin.app, pluginContext(plugin), {
                                     tag,
                                     files,
                                     canvasFolder,
                                     openAfterCreate: plugin.settings.canvasOpenAfterCreate,
                                     useLLMClustering: plugin.settings.canvasUseLLMClustering,
-                                    language: resolveCanvasLanguage(plugin)
-                                })
-                            );
+                                    language: resolveCanvasLanguage(plugin),
+                                });
+                            },
+                        );
+                        if (!r.ok) return;
 
-                            if (result.success) {
-                                new Notice(plugin.t.canvas.created);
-                                return;
-                            }
-
-                            if (result.errorCode === 'no-notes-with-tag') {
-                                new Notice(plugin.t.canvas.noNotesWithTag);
-                                return;
-                            }
-
-                            new Notice(result.error || plugin.t.canvas.creationFailed);
-                        } catch {
-                            new Notice(plugin.t.canvas.creationFailed);
+                        const result = r.value;
+                        if (result.success) {
+                            new Notice(plugin.t.canvas.created);
+                            return;
                         }
+                        if (result.errorCode === 'no-notes-with-tag') {
+                            new Notice(plugin.t.canvas.noNotesWithTag);
+                            return;
+                        }
+                        new Notice(result.error || plugin.t.canvas.creationFailed);
                     })(); }
                 });
                 folderPicker.open();

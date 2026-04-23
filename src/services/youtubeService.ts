@@ -364,13 +364,20 @@ async function callGeminiWithVideo(
     const response = await Promise.race([responsePromise, timeoutPromise]);
 
     if (response.status < 200 || response.status >= 300) {
-        const errorText = response.text;
+        // Parse Google's error envelope *without* letting the inner throw bubble
+        // into the sibling catch — that pattern (throw-in-try caught by
+        // surrounding catch) hid the real Google message behind a bare
+        // "Gemini API error: 400", which is useless for diagnosing model-id
+        // / fileData / URL-format issues on the YouTube path.
+        let detail = '';
         try {
-            const errorJson = JSON.parse(errorText);
-            throw new Error(errorJson.error?.message || `API error: ${response.status}`);
+            const errorJson = JSON.parse(response.text);
+            detail = errorJson.error?.message || errorJson.message || '';
         } catch {
-            throw new Error(`Gemini API error: ${response.status}`);
+            detail = response.text.slice(0, 300);
         }
+        const suffix = detail ? `: ${detail}` : '';
+        throw new Error(`Gemini API error ${response.status}${suffix} (model=${model})`);
     }
 
     const data = JSON.parse(response.text);

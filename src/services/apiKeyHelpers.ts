@@ -117,38 +117,40 @@ export async function getAuditProviderConfig(
 
 /**
  * Get the Gemini API key for YouTube processing.
- * Priority: 1) dedicated YouTube key, 2) main Gemini key if provider is Gemini, 3) provider settings
+ *
+ * YouTube video ingestion hits Google's `generativelanguage.googleapis.com`
+ * directly, so the key MUST be a Gemini key — we can't substitute the main
+ * cloud key when the main provider is Claude / OpenAI / etc.
+ *
+ * Priority: (1) dedicated YouTube secret, (2) Gemini provider's saved key,
+ * (3) main cloud key IFF `cloudServiceType === 'gemini'`. Earlier versions
+ * routed through `resolveSpecialistProvider` with `providerKey: 'cloudServiceType'`,
+ * which treated the main provider as the target — that happily returned the
+ * user's Claude key and Google 400'd with "API key not valid" (user report
+ * 2026-04-23).
  */
 export async function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
-    const config = await resolveSpecialistProvider(plugin, {
-        providerKey: 'cloudServiceType',  // YouTube always targets the Gemini provider
-        primarySecretId: PLUGIN_SECRET_IDS.YOUTUBE,
-        primaryPlainTextKey: 'youtubeGeminiApiKey',
-        skipWhenProvider: undefined,  // no skip guard
-    });
-
-    // YouTube only works with Gemini — if provider resolved to something else,
-    // still try the dedicated key path
-    if (config) return config.apiKey;
-
-    // Direct fallback for dedicated YouTube key without Gemini as main provider
+    const useMainKeyFallback = plugin.settings.cloudServiceType === 'gemini';
     const secretStorage = plugin.secretStorageService;
     if (secretStorage.isAvailable()) {
         return await secretStorage.resolveApiKey({
             primaryId: PLUGIN_SECRET_IDS.YOUTUBE,
             providerFallback: 'gemini',
-            useMainKeyFallback: plugin.settings.cloudServiceType === 'gemini',
+            useMainKeyFallback,
             plainTextFallback: {
                 primaryKey: plugin.settings.youtubeGeminiApiKey,
                 providerKey: plugin.settings.providerSettings?.gemini?.apiKey,
-                mainCloudKey: plugin.settings.cloudApiKey
+                // Only surface the main cloud key when it's actually a Gemini key.
+                // Otherwise the plain-text fallback chain would hand Google a
+                // Claude / OpenAI key and trigger "API key not valid" 400s.
+                mainCloudKey: useMainKeyFallback ? plugin.settings.cloudApiKey : undefined
             }
         });
     }
 
     return plugin.settings.youtubeGeminiApiKey
-        || (plugin.settings.cloudServiceType === 'gemini' ? plugin.settings.cloudApiKey : null)
         || plugin.settings.providerSettings?.gemini?.apiKey
+        || (useMainKeyFallback ? plugin.settings.cloudApiKey : null)
         || null;
 }
 

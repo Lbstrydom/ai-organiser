@@ -46,7 +46,7 @@ export class SummaryResultModal extends Modal {
             previewEl,
             '',
             this.component
-        );
+        ).then(() => this.wireInternalLinks(previewEl));
 
         // Action buttons
         new Setting(contentEl)
@@ -73,6 +73,28 @@ export class SummaryResultModal extends Modal {
         this.actionFired = true;
         this.close();
         this.onAction(action);
+    }
+
+    /**
+     * Wire click handlers for `a.internal-link` elements rendered by
+     * MarkdownRenderer. Obsidian's default click delegation lives on the
+     * workspace leaf, not on Modal DOM, so wiki-link clicks inside a modal
+     * are dead without this. Fixes user report 2026-04-23: "View full
+     * transcript" link in YouTube summary modal was unclickable.
+     */
+    private wireInternalLinks(root: HTMLElement): void {
+        const links = root.querySelectorAll<HTMLAnchorElement>('a.internal-link');
+        links.forEach(link => {
+            link.addEventListener('click', (evt) => {
+                evt.preventDefault();
+                evt.stopPropagation();
+                const href = link.dataset.href || link.getAttribute('href') || '';
+                if (!href) return;
+                const newLeaf = evt.ctrlKey || evt.metaKey;
+                this.close();
+                void this.app.workspace.openLinkText(href, '', newLeaf);
+            });
+        });
     }
 
     onClose(): void {

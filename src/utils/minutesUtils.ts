@@ -258,7 +258,21 @@ export function renderMinutesFromJson(
     }
 
     // Belt-and-suspenders: strip any confidence annotations that leaked through JSON text fields
-    return stripConfidenceAnnotations(content);
+    // + strip file:/// image references that sometimes echo through from
+    //   pasted Word clipboard content (user report 2026-04-23 — Obsidian's
+    //   CSP blocks these producing hundreds of console errors).
+    return stripLocalFileImageRefs(stripConfidenceAnnotations(content));
+}
+
+/** Remove markdown image refs + raw file:/// URLs + bare clip_imageNNN
+ *  tokens from rendered minutes content. Mirrors the transcript sanitizer
+ *  but runs on OUTPUT so echoed refs can't reach the vault note. */
+function stripLocalFileImageRefs(content: string): string {
+    return content
+        .replaceAll(/!\[[^\]]*]\(file:\/\/\/?[^)]*\)/gi, '')
+        .replaceAll(/<img[^>]+src=["']?file:\/\/\/?[^"'>\s]*["']?[^>]*>/gi, '')
+        .replaceAll(/file:\/\/\/?[^\s)"'<>]*/gi, '')
+        .replaceAll(/\bclip_image\d+(?:\.[a-z0-9]+)?\b/gi, '');
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────
