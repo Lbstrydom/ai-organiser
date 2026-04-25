@@ -67,8 +67,19 @@ export class SlideDiffModal extends Modal {
         // nothing to apply. The Apply button stays disabled.
         const isEmpty = this.options.scopeDiff.textDiff.every(l => l.type === 'unchanged');
 
-        // Out-of-scope drift expander — collapsed by default
+        // Out-of-scope drift expander — collapsed by default. Surface a
+        // visible advisory above the action buttons so the user doesn't
+        // accept without realising slides outside their scope changed.
+        // (Persona walkthrough P1 finding — drift was easy to miss when
+        // the expander stayed collapsed.)
         if (this.options.outOfScopeDrift.length > 0) {
+            const n = this.options.outOfScopeDrift.length;
+            const advisory = contentEl.createDiv({
+                cls: 'ai-organiser-pres-diff-drift-advisory',
+            });
+            advisory.textContent = t.slideDiffDriftAdvisory
+                .replace('{n}', String(n))
+                .replace('{s}', n === 1 ? '' : 's');
             this.renderDriftExpander(contentEl, this.options.outOfScopeDrift, t);
         }
 

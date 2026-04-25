@@ -90,6 +90,31 @@ describe('renderEditAccessories — empty selection', () => {
         expect(host.querySelector('.ai-organiser-pres-edit-mode-row')).toBeNull();
         expect(host.querySelector('.ai-organiser-pres-edit-flags')).toBeNull();
     });
+
+    it('renders an empty live region when no selection (a11y persona walkthrough fix)', () => {
+        renderEditAccessories(host, makeOpts());
+        const live = host.querySelector('[role="status"][aria-live="polite"]');
+        expect(live).not.toBeNull();
+        expect(live?.textContent).toBe('');
+    });
+});
+
+describe('renderEditAccessories — live region (a11y)', () => {
+    it('updates the live region with the scope label when selection is set', () => {
+        const host = document.createElement('div');
+        renderEditAccessories(host, makeOpts({ selection: SLIDE_SCOPE }));
+        const live = host.querySelector('[role="status"][aria-live="polite"]');
+        expect(live).not.toBeNull();
+        expect(live?.textContent).toBe('Selected: Slide 3');
+    });
+
+    it('rewrites the live region across re-renders so AT hears the change', () => {
+        const host = document.createElement('div');
+        renderEditAccessories(host, makeOpts({ selection: SLIDE_SCOPE }));
+        renderEditAccessories(host, makeOpts({ selection: ELEMENT_SCOPE }));
+        const live = host.querySelector('[role="status"][aria-live="polite"]');
+        expect(live?.textContent).toBe('Selected: Slide 2 → list-item');
+    });
 });
 
 describe('renderEditAccessories — with selection', () => {

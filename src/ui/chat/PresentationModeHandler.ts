@@ -34,6 +34,7 @@ import { DefaultSlideContextProvider } from '../../services/chat/slideContextPro
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { SlideDiffModal } from '../modals/SlideDiffModal';
+import { renderEditAccessories } from './presentation/EditAccessories';
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import { LongRunningOpController } from '../../services/longRunningOp/progressController';
@@ -246,6 +247,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.preview = new SlideIframePreview(previewContainer, {
                 onSlideSelect: (idx) => { this.activeSlideIndex = idx; },
                 onElementSelect: (event) => { this.handleElementSelect(event); },
+                emptyPlaceholderText: t.slidePreviewEmpty,
             });
             // Project canonical HTML for the editor: adds data-element
             // attributes the iframe runtime walks on click. Canonical HTML
@@ -409,7 +411,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!result.ok) {
                 this.setPhase('error');
                 this.lastError = result.error;
-                return { finalContent: `Failed to generate: ${result.error}` };
+                return { finalContent: t.slideGenerateFailed.replace('{error}', result.error) };
             }
 
             this.html = result.value;
@@ -438,7 +440,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runRefine(r: RunContext): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html) return { finalContent: 'No presentation to refine.' };
+        if (!this.html) return { finalContent: t.slideRefineNoDeck };
 
         const controller = this.createProgressController(
             r.abort, r.streamCb, t,
@@ -460,7 +462,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!result.ok) {
                 this.setPhase('error');
                 this.lastError = result.error;
-                return { finalContent: `Failed to refine: ${result.error}` };
+                return { finalContent: t.slideRefineFailed.replace('{error}', result.error) };
             }
 
             this.html = result.value;
@@ -474,7 +476,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
 
             const count = countSlides(this.html);
-            return { finalContent: `Updated. ${count} slides. Continue refining or export.` };
+            return { finalContent: t.slideRefineApplied.replace('{n}', String(count)) };
         } finally {
             controller.dispose();
         }
@@ -499,7 +501,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     ): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html) return { finalContent: 'No presentation to edit.' };
+        if (!this.html) return { finalContent: t.slideEditNoDeck };
 
         const controller = this.createProgressController(
             r.abort, r.streamCb, t,
@@ -543,7 +545,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!result.ok) {
                 this.setPhase('error');
                 this.lastError = result.error;
-                return { finalContent: `Failed to apply scoped edit: ${result.error}` };
+                return { finalContent: t.slideEditFailed.replace('{error}', result.error) };
             }
 
             // Gate the iframe update behind explicit user accept.
@@ -556,7 +558,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!this.html) return { finalContent: t.generationCancelled };
             if (!accepted) {
                 this.setPhase('preview-ready');
-                return { finalContent: 'Edit rejected — original deck preserved.' };
+                return { finalContent: t.slideEditRejected };
             }
 
             // Apply
@@ -570,9 +572,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             const driftCount = result.value.outOfScopeDrift.length;
             const driftPlural = driftCount === 1 ? '' : 's';
             const driftSuffix = driftCount > 0
-                ? ` (note: ${driftCount} slide${driftPlural} drifted outside scope — accepted)`
+                ? t.slideEditDriftSuffix
+                    .replace('{n}', String(driftCount))
+                    .replace('{s}', driftPlural)
                 : '';
-            return { finalContent: `Scoped edit applied. ${count} slides${driftSuffix}.` };
+            return {
+                finalContent: t.slideEditApplied
+                    .replace('{n}', String(count))
+                    .replace('{drift}', driftSuffix),
+            };
         } finally {
             controller.dispose();
         }
@@ -896,23 +904,25 @@ export class PresentationModeHandler implements ChatModeHandler {
     /** Idempotent re-render of the accessory area when state changes.
      *  Reads `accessoryT` which is set by renderContextPanel — this stays
      *  populated for the panel's lifetime, unlike `activeT` which is only
-     *  alive during buildPrompt's start hook. */
+     *  alive during buildPrompt's start hook.
+     *
+     *  Uses a static import (not dynamic) — the persona walkthrough
+     *  identified the dynamic-import path as the source of first-click
+     *  selection lag. The accessory module is small and used every Edit
+     *  flow render; no benefit to lazy loading.
+     */
     private refreshAccessory(): void {
         if (!this.accessoryContainer || !this.accessoryT) return;
-        const t = this.accessoryT; // capture stable ref
-        import('./presentation/EditAccessories').then(({ renderEditAccessories }) => {
-            if (!this.accessoryContainer) return;
-            renderEditAccessories(this.accessoryContainer, {
-                selection: this.selection,
-                editMode: this.editMode,
-                editFlags: this.editFlags,
-                operation: this.deriveOperation(),
-                t,
-                onClearSelection: () => this.clearSelection(),
-                onSetMode: (m) => this.setEditMode(m),
-                onSetWebSearch: (on) => this.setWebSearchFlag(on),
-            });
-        }).catch(() => { /* test env — ignore */ });
+        renderEditAccessories(this.accessoryContainer, {
+            selection: this.selection,
+            editMode: this.editMode,
+            editFlags: this.editFlags,
+            operation: this.deriveOperation(),
+            t: this.accessoryT,
+            onClearSelection: () => this.clearSelection(),
+            onSetMode: (m) => this.setEditMode(m),
+            onSetWebSearch: (on) => this.setWebSearchFlag(on),
+        });
     }
 
     /** Map the existing PresentationPhase to the two-axis (deckPresence,

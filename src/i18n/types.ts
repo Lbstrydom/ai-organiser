@@ -2066,6 +2066,19 @@ export interface Translations {
             slideDiffIntegrityAdded: string;        // "The model added one or more slides…"
             slideDiffIntegrityRemoved: string;      // "The model removed one or more slides…"
             slideDiffIntegrityClassChanged: string; // "The model changed slide layout classes…"
+            // Assistant-message + advisory strings — moved out of hardcoded
+            // English literals after persona walkthrough flagged i18n gap.
+            slideEditFailed: string;                // "Failed to apply scoped edit: {error}"
+            slideEditApplied: string;               // "Scoped edit applied. {n} slides{drift}."
+            slideEditDriftSuffix: string;           // " (note: {n} slide{s} drifted outside scope — accepted)"
+            slideEditRejected: string;              // "Edit rejected — original deck preserved."
+            slideEditNoDeck: string;                // "No presentation to edit."
+            slideRefineFailed: string;              // "Failed to refine: {error}"
+            slideRefineApplied: string;             // "Updated. {n} slides. Continue refining or export."
+            slideRefineNoDeck: string;              // "No presentation to refine."
+            slideGenerateFailed: string;            // "Failed to generate: {error}"
+            slidePreviewEmpty: string;              // "No deck yet — generate slides to see a preview here."
+            slideDiffDriftAdvisory: string;         // "Accepting will also apply changes to {n} unselected slide{s}…"
             // Phase labels (previously hardcoded in PresentationModeHandler) —
             // both the side-panel status text and the thinking-indicator bubble
             // use these keys (F4 follow-up).

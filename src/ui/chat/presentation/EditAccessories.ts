@@ -45,6 +45,20 @@ export function renderEditAccessories(
     container.empty();
     container.addClass('ai-organiser-pres-edit-accessories');
 
+    // Live region — fires when the selected scope changes, so screen-
+    // reader users hear "Selected: Slide 3 → list-item" without having
+    // to navigate to the pill. Plan §"Accessibility" requirement that
+    // the v1 ship missed; restored after persona walkthrough.
+    // The .sr-only class is a vault-wide convention used by the slide
+    // preview live region too — visible to AT only.
+    const liveRegion = container.createDiv({
+        cls: 'sr-only',
+        attr: { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' },
+    });
+    if (opts.selection) {
+        liveRegion.textContent = `Selected: ${describeScope(opts.selection, opts.t)}`;
+    }
+
     if (opts.selection) {
         renderSelectionPill(container, opts);
     }

@@ -7625,6 +7625,16 @@
     margin-bottom: var(--size-4-2);
     font-size: var(--font-ui-smaller);
 }
+.ai-organiser-pres-diff-drift-advisory {
+    padding: var(--size-4-2) var(--size-4-3);
+    background: color-mix(in srgb, var(--color-yellow) 12%, transparent);
+    color: var(--text-normal);
+    border-left: 3px solid var(--color-yellow);
+    border-radius: var(--radius-s);
+    margin-top: var(--size-4-3);
+    font-size: var(--font-ui-smaller);
+    font-weight: 500;
+}
 .ai-organiser-pres-diff-drift {
     margin-top: var(--size-4-3);
     padding: var(--size-4-2);

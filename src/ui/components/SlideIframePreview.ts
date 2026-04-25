@@ -83,6 +83,10 @@ export interface PreviewOptions {
      *  subtree. Parent decides what scope the event represents. Optional —
      *  preview works without it for non-editable embeds. */
     onElementSelect?: (event: IframeSelectionEvent) => void;
+    /** Empty-state placeholder text. Caller passes the i18n string so the
+     *  component is i18n-agnostic. Defaults to a generic English fallback
+     *  for any caller that hasn't migrated yet. */
+    emptyPlaceholderText?: string;
 }
 
 type PreviewState = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
@@ -257,7 +261,8 @@ export class SlideIframePreview {
             // instead of producing a silent blank area.
             this.container.createEl('div', {
                 cls: 'ai-organiser-slide-preview-empty',
-                text: 'No deck yet — generate slides to see a preview here.',
+                text: this.options.emptyPlaceholderText
+                    || 'No deck yet — generate slides to see a preview here.',
                 attr: { role: 'status', 'aria-live': 'polite' },
             });
             return;
