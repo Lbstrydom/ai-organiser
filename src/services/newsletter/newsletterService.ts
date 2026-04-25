@@ -81,6 +81,17 @@ export class NewsletterService {
             await this.generateBriefsPerBucket(processed);
         }
 
+        // Phase 4b: Audio podcast recovery — catch buckets whose audio was
+        // deferred because the last newsletter landed before cutoff. Runs
+        // on every fetch (independent of `processed.length` — the whole
+        // point is to handle buckets that received NO new emails in this
+        // fetch but are now closed and missing audio).
+        try {
+            await this.recoverMissedAudioPodcasts();
+        } catch (e) {
+            logger.warn('Newsletter', 'Audio recovery sweep failed (non-fatal)', e);
+        }
+
         // Retention pruning — fire-and-forget so it never delays the fetch result.
         // Errors are logged but do not affect the returned NewsletterFetchResult.
         const retentionDays = this.plugin.settings.newsletterRetentionDays ?? 30;
@@ -759,6 +770,59 @@ export class NewsletterService {
     }
 
     /**
+     * Recovery sweep — generate audio for any recently-CLOSED bucket whose
+     * digest has Daily Brief content but no audio embed.
+     *
+     * Why this exists: `generateAndInjectBrief` only triggers audio when a
+     * bucket is closed AND fresh newsletters arrived in this fetch. The
+     * common failure case is "last newsletter for the day arrived 7 minutes
+     * before next-day cutoff at 08:00 → audio deferred → no later fetch
+     * brought new content into that closed bucket → audio never generates."
+     * The user reported this on 2026-04-25 (April 24 digest had brief but
+     * no podcast). This sweep restores the contract: once a bucket is
+     * closed, its audio WILL generate the next time fetchAndProcess runs,
+     * regardless of whether new emails arrived for that bucket.
+     *
+     * Idempotent: if the digest already has an audio embed, skip. Safe to
+     * call on every fetch.
+     *
+     * Bounded: only looks at the last RECOVERY_LOOKBACK_DAYS days to avoid
+     * touching ancient buckets the user may have intentionally cleaned up.
+     */
+    private async recoverMissedAudioPodcasts(): Promise<void> {
+        if (!this.plugin.settings.newsletterAudioPodcast) return;
+        const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+        const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
+        const vault = this.plugin.app.vault;
+
+        // Walk the last RECOVERY_LOOKBACK_DAYS days; today (still-live bucket)
+        // is excluded by the isBucketClosed check rather than by the loop bound.
+        const RECOVERY_LOOKBACK_DAYS = 3;
+        const today = new Date();
+        for (let i = 1; i <= RECOVERY_LOOKBACK_DAYS; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dateStr = formatLocalYmd(d);
+            if (!isBucketClosed(dateStr, cutoff)) continue;
+
+            const digestPath = getDigestPath(outputRoot, dateStr);
+            const digestFile = vault.getAbstractFileByPath(digestPath);
+            if (!(digestFile instanceof TFile)) continue;
+
+            try {
+                const content = await vault.cachedRead(digestFile);
+                if (hasAudioEmbed(content)) continue;
+                const brief = extractBriefFromDigest(content);
+                if (!brief || brief.length < 50) continue;
+                logger.debug('Newsletter', `Recovery sweep: generating missing audio for ${dateStr}`);
+                await this.generateAudioForBrief(brief, outputRoot, dateStr);
+            } catch (e) {
+                logger.warn('Newsletter', `Recovery sweep: audio generation failed for ${dateStr} (non-fatal)`, e);
+            }
+        }
+    }
+
+    /**
      * Inject or replace the audio embed line at the TOP of the digest file
      * — just after the H1 heading, before the Daily Brief managed block.
      * Users open the digest expecting the podcast front-and-centre; burying
@@ -1099,6 +1163,39 @@ function extractNewsletterLinks(htmlBody: string): Array<{text: string; href: st
 /** Build the vault path for today's digest note. */
 export function getDigestPath(outputRoot: string, dateStr: string): string {
     return normalizePath(`${outputRoot}/Digest — ${dateStr}.md`);
+}
+
+/** Format a Date as YYYY-MM-DD using LOCAL time parts. Mirrors the
+ *  bucket-key convention used elsewhere — never uses UTC, so a 23:00
+ *  local-time fetch the day before cutoff still maps to the correct
+ *  bucket. Exported so the recovery-sweep tests can build deterministic
+ *  date strings without timezone confusion. */
+export function formatLocalYmd(d: Date): string {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+/** True when the digest already has an audio embed line. The recovery
+ *  sweep uses this to avoid regenerating audio for already-podcasted
+ *  digests on every fetch. Match shape mirrors the strip regex in
+ *  `injectAudioEmbedIntoDigest` so they stay in lockstep. */
+export function hasAudioEmbed(digestContent: string): boolean {
+    return /🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]/.test(digestContent);
+}
+
+/** Extract just the brief paragraphs from a digest's managed
+ *  `<!-- DAILY_BRIEF_START --> ## Daily Brief … <!-- DAILY_BRIEF_END -->`
+ *  block, with any prior audio-embed line stripped. Returns '' when the
+ *  block is absent or empty. Mirrors the parsing in
+ *  `regenerateAudioForToday` so the recovery sweep and the manual command
+ *  feed identical text into the synthesis pipeline. */
+export function extractBriefFromDigest(digestContent: string): string {
+    const match = /<!--\s*DAILY_BRIEF_START\s*-->\s*##\s*Daily Brief\s*([\s\S]*?)<!--\s*DAILY_BRIEF_END\s*-->/.exec(digestContent);
+    if (!match) return '';
+    const priorEmbed = /\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*/g;
+    return match[1].replaceAll(priorEmbed, '').trim();
 }
 
 /** Extract display name from "Name <email>" format. */
