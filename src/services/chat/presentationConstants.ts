@@ -108,3 +108,47 @@ export const DECK_CLASSES = {
 
 export const SLIDE_TYPES = ['slide-title', 'slide-content', 'slide-section', 'slide-closing'] as const;
 export type SlideType = typeof SLIDE_TYPES[number];
+
+/**
+ * Canonical slide DOM selector. Matches both the LLM's `<section class="slide …">`
+ * output AND the legacy `.slide` shape that `extractSlideInfo` historically
+ * accepted. New code should import this rather than hardcoding a string —
+ * SSoT for "what counts as a slide" (Gemini final-gate finding 2026-04-25).
+ */
+export const SLIDE_SELECTOR = 'section.slide, .slide';
+
+// ── Targeted Slide Editing budgets (slide-authoring-editing plan) ──────────
+//
+// Tunable caps for the create-flow source resolution and edit-flow context.
+// All values picked to fit within the project's 40K char chunking threshold
+// (contentSizePolicy.ts) so prompts don't trigger map-reduce.
+
+/** Maximum number of files enumerated from a folder source. */
+export const FOLDER_MAX_FILES = 25;
+
+/** Total content budget across all selected folder files. */
+export const FOLDER_TOTAL_BUDGET_CHARS = 24_000;
+
+/** Files whose evenly-divided allocation falls below this are dropped
+ *  rather than included as a useless excerpt. */
+export const FOLDER_PER_FILE_MIN_CHARS = 500;
+
+/** Total budget for explicitly-named reference notes in Content-mode edits. */
+export const REFERENCES_BUDGET_CHARS = 12_000;
+
+/** Reference notes whose allocation falls below this are dropped. */
+export const REFERENCES_PER_NOTE_MIN_CHARS = 800;
+
+/** Snippet count fetched from researchSearchService for Content-mode web search. */
+export const WEB_RESEARCH_RESULT_COUNT = 5;
+
+/** Threshold above which design mode falls back to compact deck summary
+ *  instead of sending full HTML — must stay below contentSizePolicy's 40K
+ *  chunking trigger so design edits never trigger map-reduce. */
+export const DESIGN_MODE_FALLBACK_CHARS = 40_000;
+
+/** Hard reject threshold for scoped edits AND the per-prompt HTML truncation
+ *  cap used by `sanitizeHtmlForPrompt`. Single source of truth for all
+ *  prompt-side HTML budgets (R3-M3 fix, 2026-04-25). */
+export const SCOPED_EDIT_HARD_LIMIT_CHARS = 120_000;
+export const MAX_HTML_PROMPT_CHARS = SCOPED_EDIT_HARD_LIMIT_CHARS;

@@ -10,21 +10,32 @@ import type { LLMFacadeContext } from '../llmFacade';
 import { summarizeText, summarizeTextStream } from '../llmFacade';
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
-import type { AuditResult, DomFix } from './presentationTypes';
+import type {
+    AuditResult, DomFix,
+    SelectionScope, EditMode, EditFlags, RefineScopedOutcome,
+} from './presentationTypes';
 import type { BrandTheme } from './brandThemeService';
 import {
     buildPresentationSystemPrompt,
     buildGenerationPrompt,
     buildRefinementPrompt,
     buildBrandAuditPrompt,
+    buildScopedContentEditPrompt,
+    buildScopedDesignEditPrompt,
     extractHtmlFromResponse,
     wrapInDocument,
 } from '../prompts/presentationChatPrompts';
+import {
+    extractScopedFragment, estimateScopedPromptChars, stripEditorAnnotations,
+} from './presentationDomDecorator';
+import { classifyDiff } from './presentationDiff';
+import type { SlideContextProvider } from './slideContextProvider';
 import { sanitizePresentation, injectCSP } from './presentationSanitizer';
 import {
     GENERATION_HARD_BUDGET_MS,
     REFINEMENT_HARD_BUDGET_MS,
     AUDIT_TIMEOUT,
+    SCOPED_EDIT_HARD_LIMIT_CHARS,
 } from './presentationConstants';
 import { StreamingHtmlAssembler } from './streamingHtmlAssembler';
 import type { StreamingCheckpoint } from './streamingHtmlAssembler';
@@ -300,4 +311,166 @@ export async function runBrandAudit(
 
     const status = violations.length > 0 ? 'violations' : 'passed';
     return ok({ status, passed, violations });
+}
+
+// ── Scoped Refinement (slide-authoring-editing plan) ───────────────────────
+
+export interface RefineScopedOptions {
+    /** Canonical deck HTML — full document, no editor instrumentation. */
+    currentHtml: string;
+    scope: SelectionScope;
+    mode: EditMode;
+    userRequest: string;
+    flags: EditFlags;
+    contextProvider: SlideContextProvider;
+    conversationHistory?: string;
+    outputLanguage?: string;
+    theme: BrandTheme;
+    signal?: AbortSignal;
+}
+
+/**
+ * Scoped refinement orchestrator for the targeted slide editing feature.
+ *
+ *   1. Gather context in parallel: web research (if enabled) + reference notes
+ *   2. Preflight prompt-size check; reject when over hard limit
+ *   3. Build mode-dispatched prompt (content vs design); design mode picks
+ *      full-HTML vs design-summary fallback based on deck size
+ *   4. Run LLM via shared runHtmlTask (sanitise + wrap)
+ *   5. Strip any echoed editor annotations from canonical response
+ *   6. Classify diff vs original: scope diff, out-of-scope drift, structural integrity
+ *   7. Return RefineScopedOutcome — frontend renders directly
+ *
+ * Plan: docs/plans/slide-authoring-editing-backend.md §"Service signatures"
+ */
+export async function refineHtmlScoped(
+    context: LLMFacadeContext,
+    options: RefineScopedOptions,
+): Promise<Result<RefineScopedOutcome>> {
+    if (options.signal?.aborted) return err('Aborted');
+
+    // Phase 1 — gather context (parallel, signal-aware)
+    const contextResult = await gatherScopedContext(options);
+    if (!contextResult.ok) return contextResult;
+    const { references, webResearch } = contextResult.value;
+    if (options.signal?.aborted) return err('Aborted');
+
+    // Phase 2a — extract scoped fragment with fail-closed semantics.
+    // If the selection no longer resolves (slide removed by an earlier edit,
+    // element path stale after structural change), abort BEFORE the LLM call:
+    // proceeding with an empty fragment tells the LLM to "modify the indicated
+    // region" while showing it nothing, which silently widens scope to the
+    // whole deck — exactly what the fail-closed contract on
+    // `extractScopedFragment` is supposed to prevent.
+    // (Gemini final-gate finding R5, 2026-04-25.)
+    const scopedFragment = extractScopedFragment(options.currentHtml, options.scope);
+    if (!scopedFragment) {
+        return err('Scoped edit: selection no longer resolves — it may have been removed or restructured. Reselect and try again.');
+    }
+
+    // Phase 2b — preflight prompt size
+    const promptChars = estimateScopedPromptChars(options.currentHtml, options.scope, options.mode, {
+        references, webResearch, userRequest: options.userRequest,
+    });
+    if (promptChars > SCOPED_EDIT_HARD_LIMIT_CHARS) {
+        return err('Scoped edit: prompt exceeds size limit — try a narrower scope or use Polish whole deck.');
+    }
+
+    const userPrompt = buildScopedPrompt(options, scopedFragment, references, webResearch);
+
+    // Phase 3 — LLM call
+    const llmResult = await runHtmlTask(context, {
+        systemPrompt: buildPresentationSystemPrompt({
+            cssTheme: options.theme.css,
+            outputLanguage: options.outputLanguage,
+            brandRules: options.theme.promptRules || undefined,
+        }),
+        userPrompt,
+        theme: options.theme,
+        timeoutMs: REFINEMENT_HARD_BUDGET_MS,
+        signal: options.signal,
+        label: 'Scoped edit',
+        language: options.outputLanguage,
+    });
+
+    if (!llmResult.ok) return llmResult;
+    if (options.signal?.aborted) return err('Aborted');
+
+    // Phase 4 — strip any echoed editor annotations + classify diff
+    // The LLM saw canonical HTML; defensive strip catches any echoed back.
+    const newCanonicalHtml = stripEditorAnnotations(llmResult.value);
+    const { scopeDiff, outOfScopeDrift, structuralIntegrity } =
+        classifyDiff(options.currentHtml, newCanonicalHtml, options.scope);
+
+    return ok({
+        newHtml: newCanonicalHtml,
+        scopeDiff,
+        outOfScopeDrift,
+        structuralIntegrity,
+    });
+}
+
+/** Phase 1 — fetch web research + reference notes in parallel. */
+async function gatherScopedContext(
+    options: RefineScopedOptions,
+): Promise<Result<{ references: string; webResearch: string }>> {
+    if (options.mode !== 'content') {
+        // Design mode doesn't use references or web research.
+        return ok({ references: '', webResearch: '' });
+    }
+
+    try {
+        const [references, webResearch] = await Promise.all([
+            options.flags.references.length
+                ? options.contextProvider.readReferences(options.flags.references, options.signal)
+                : Promise.resolve(''),
+            options.flags.webSearch
+                ? options.contextProvider.fetchWebResearch(options.userRequest, options.signal)
+                : Promise.resolve(''),
+        ]);
+        return ok({ references, webResearch });
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'context gathering failed';
+        logger.warn('Presentation', `Scoped edit context gathering failed: ${msg}`);
+        return err(`Scoped edit: ${msg}`);
+    }
+}
+
+/**
+ * Phase 2 — build the mode-appropriate prompt.
+ *
+ * Both modes send FULL canonical HTML so the LLM can preserve unscoped
+ * slides byte-for-byte (it cannot preserve what it never saw — the
+ * earlier "subtree-only" optimisation produced an architectural paradox
+ * caught by the Gemini final-gate review, 2026-04-25).
+ *
+ * Token cost: full canonical HTML, capped at SCOPED_EDIT_HARD_LIMIT_CHARS
+ * by the preflight gate. Above that cap the service returns err() and
+ * directs the user to Polish whole deck.
+ */
+function buildScopedPrompt(
+    options: RefineScopedOptions,
+    scopedFragment: string,
+    references: string,
+    webResearch: string,
+): string {
+    if (options.mode === 'design') {
+        return buildScopedDesignEditPrompt({
+            currentHtml: options.currentHtml,
+            scopedFragment,
+            scope: options.scope,
+            userRequest: options.userRequest,
+            conversationHistory: options.conversationHistory,
+        });
+    }
+
+    return buildScopedContentEditPrompt({
+        currentHtml: options.currentHtml,
+        scopedFragment,
+        scope: options.scope,
+        userRequest: options.userRequest,
+        references: references || undefined,
+        webResearch: webResearch || undefined,
+        conversationHistory: options.conversationHistory,
+    });
 }

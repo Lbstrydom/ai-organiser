@@ -6,6 +6,8 @@
  * exported via dom-to-pptx.
  */
 
+import { SLIDE_SELECTOR } from './presentationConstants';
+
 // ── Presentation Phase (State Machine) ──────────────────────────────────────
 
 export type PresentationPhase =
@@ -136,7 +138,10 @@ export interface SlideInfo {
 }
 
 export function extractSlideInfo(doc: Document): SlideInfo[] {
-    const slides = doc.querySelectorAll('.slide');
+    // Use canonical SLIDE_SELECTOR (Gemini final-gate finding 2026-04-25 —
+    // unify slide discovery so quality assessment + decorator + diff all
+    // see the same node set).
+    const slides = doc.querySelectorAll(SLIDE_SELECTOR);
     const infos: SlideInfo[] = [];
     slides.forEach((slide, i) => {
         const heading = slide.querySelector('h1, h2');
@@ -253,4 +258,122 @@ export function migratePresentationSession(data: unknown): PresentationSession |
         createdAt: typeof o.createdAt === 'string' ? o.createdAt : new Date().toISOString(),
         lastActiveAt: typeof o.lastActiveAt === 'string' ? o.lastActiveAt : new Date().toISOString(),
     };
+}
+
+// ── Targeted Slide Editing (slide-authoring-editing plan) ───────────────────
+//
+// Plan: docs/plans/slide-authoring-editing.md +
+//       docs/plans/slide-authoring-editing-backend.md
+
+/** Speed/quality tradeoff for create-flow generation. Edit flow always uses
+ *  the user's main configured model — quality over speed when committing changes. */
+export type ModelTier = 'fast' | 'quality';
+
+/** Audience tier drives the system prompt's design-language slot. */
+export type AudienceTier = 'analyst' | 'executive' | 'general';
+
+/** Editor instrumentation kinds. The DOM decorator marks these subtrees with
+ *  `data-element` attributes in the iframe-projected HTML. */
+export type ElementKind =
+    | 'heading' | 'subheading' | 'list' | 'list-item'
+    | 'image' | 'figure' | 'table' | 'callout'
+    | 'col-container' | 'col' | 'stats-grid'
+    | 'quote' | 'code' | 'speaker-notes';
+
+/** Where the user pointed for a scoped edit. */
+export interface SelectionScope {
+    kind: 'slide' | 'element' | 'range';
+    /** Slide index (0-based). For 'range', the start. */
+    slideIndex: number;
+    /** Range only: inclusive end. */
+    slideEndIndex?: number;
+    /** Element only: data-element attribute value (e.g. 'slide-3.list-0.item-2'). */
+    elementPath?: string;
+    /** Element only: classification of what was selected. */
+    elementKind?: ElementKind;
+}
+
+/** Edit mode constrains what kind of change the LLM is allowed to make. */
+export type EditMode = 'content' | 'design';
+
+/** Optional toggles available in Content mode only. */
+export interface EditFlags {
+    webSearch: boolean;
+    /** Vault note paths to include as grounding context. */
+    references: string[];
+}
+
+/** Source descriptor for the create flow. */
+export interface SourceDescriptor {
+    kind: 'note' | 'web' | 'folder';
+    /** Vault path for note/folder; URL for web. */
+    ref: string;
+    /** Truncated content (or summary, for folder). Empty string while loading. */
+    content: string;
+    /** True when auto-detected from active note (default-on). */
+    autoDetected?: boolean;
+    /** Set when a folder source enumerated more files than allowed cap. */
+    cappedAt?: number;
+    /** Set when source resolution failed; UI shows red border + tooltip. */
+    error?: string;
+}
+
+/** Aggregate state for the create flow. */
+export interface CreationConfig {
+    sources: SourceDescriptor[];
+    audience: AudienceTier;
+    /** Target slide count (5/8/12 are presets; any positive integer accepted). */
+    length: number;
+    /** Speed/quality model dispatch — 'fast' default. */
+    speedTier: ModelTier;
+    brandOn: boolean;
+}
+
+/** Single line of a unified text diff (reused from utils/mermaidDiff). */
+export interface ScopedDiffTextLine {
+    type: 'added' | 'removed' | 'unchanged';
+    content: string;
+}
+
+/** Diff payload for the part the user asked to change. */
+export interface ScopedDiff {
+    scope: SelectionScope;
+    /** HTML of the affected subtree before. */
+    oldFragment: string;
+    /** HTML of the affected subtree after. */
+    newFragment: string;
+    /** Line-level text diff for the diff modal. */
+    textDiff: ScopedDiffTextLine[];
+}
+
+/** Drift severity classifier. Whitespace-only is filtered upstream and
+ *  never surfaced to the user. */
+export type DriftSeverity = 'identical' | 'whitespace' | 'text' | 'structural';
+
+/** A slide that drifted but was NOT in the user's scope. */
+export interface SlideDiff {
+    slideIndex: number;
+    oldHtml: string;
+    newHtml: string;
+    textDiff: ScopedDiffTextLine[];
+    severity: 'whitespace' | 'text' | 'structural';
+}
+
+/** Structural integrity classification of a refinement response. */
+export type StructuralIntegrity =
+    | 'preserved'
+    | 'slides-added'
+    | 'slides-removed'
+    | 'class-changed';
+
+/** Service result for `refineHtmlScoped` — frontend renders directly. */
+export interface RefineScopedOutcome {
+    /** Sanitised + wrapped CANONICAL HTML (no editor instrumentation). */
+    newHtml: string;
+    /** What the user asked to change. */
+    scopeDiff: ScopedDiff;
+    /** Slides that drifted outside the scope (filtered for whitespace-only). */
+    outOfScopeDrift: SlideDiff[];
+    /** Whether slide count + classes match the original. */
+    structuralIntegrity: StructuralIntegrity;
 }

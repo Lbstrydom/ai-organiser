@@ -8,30 +8,76 @@
 
 import type { BrandRule } from '../chat/brandThemeService';
 import { buildIconReference } from '../chat/brandThemeService';
-// M20 fix: import marker constants from SSOT (presentationConstants)
-import { HTML_START_MARKER, HTML_END_MARKER } from '../chat/presentationConstants';
+// M20 fix: import marker constants from SSOT (presentationConstants).
+// R3-M3 fix: MAX_HTML_PROMPT_CHARS now centralised in the same module.
+import { HTML_START_MARKER, HTML_END_MARKER, MAX_HTML_PROMPT_CHARS } from '../chat/presentationConstants';
 
-const MAX_HTML_PROMPT_CHARS = 120_000;
+/**
+ * Tag names that should be defanged in user/HTML inputs to prevent prompt
+ * injection. Includes:
+ *  - Section delimiters used by the prompt builders (`task`, `output_format`,
+ *    `user_request`, `edit_request`, `conversation_history`, `note_content`,
+ *    `current_html`, `html`, `brand_rules`, `scope`, `web_research`,
+ *    `reference_notes`, `sources`, `audience_instructions`)
+ *  - System-prompt section names produced by `buildPresentationSystemPrompt`
+ *    (`requirements`, `design_principles`, `available_icons`, `css_template`)
+ *    so user content can't inject a fake `<requirements>` block that the
+ *    LLM might honour over the real one (R2-H3 fix, 2026-04-25).
+ */
+// IMPORTANT: do not include `html`, `title`, or any other standard HTML
+// element name here — `currentHtml` ships full wrapped documents
+// (`<html lang="en">`, `<title>…</title>`, etc.) and defanging those tags
+// would corrupt the document the LLM round-trips. Defang ONLY the
+// XML-section markers our prompt builders actually emit.
+// (Gemini final-gate finding 2026-04-25.)
+const DELIMITER_TAGS = [
+    'current_html', 'task', 'output_format', 'note_content',
+    'user_request', 'edit_request', 'conversation_history', 'brand_rules',
+    'scope', 'scoped_fragment', 'web_research', 'reference_notes', 'sources',
+    'audience_instructions', 'requirements', 'design_principles',
+    'available_icons', 'css_template',
+    'context', 'critical_instructions', 'content_to_translate',
+].join('|');
 
-/** H2 fix: escape prompt XML delimiter sequences in HTML content before embedding in prompts. */
-// M5/R3-H2 fix: case-insensitive regex covers all delimiter tags used across prompt builders
-const HTML_PROMPT_DELIMITER_RE = /<\/(current_html|html|task|output_format|note_content|user_request|edit_request|conversation_history|brand_rules)(\s*>)/gi;
+/**
+ * Sanitize prompt-XML delimiters in HTML content before embedding.
+ * Matches BOTH opening (<tag>) and closing (</tag>) forms — escaping only
+ * the closing tag leaves an attacker free to inject an opening tag that
+ * swallows subsequent legitimate prompt sections (Gemini final-gate finding,
+ * 2026-04-25). The capture preserves the slash so we re-emit `< tag>` or
+ * `< /tag>` depending on the matched form.
+ */
+// Match `<tag>`, `</tag>`, `<tag attr="x">`, `<tag />`. Trailing capture
+// covers any attributes/whitespace until the closing `>`. Closing tags
+// reject inner attributes per HTML, so we accept only `\s*>` after `</tag`.
+const HTML_PROMPT_DELIMITER_RE = new RegExp(
+    String.raw`<(/)?(${DELIMITER_TAGS})(\s[^>]*)?\s*(/)?>`,
+    'gi',
+);
+
+/** Replacer for the delimiter regex — defangs the matched tag by prefixing
+ *  a literal space after `<` so the LLM no longer parses it as a section
+ *  boundary. Preserves the slash + tag name + any attributes/self-close. */
+function defangDelimiter(_match: string, slash: string | undefined, tag: string, attrs: string | undefined, selfClose: string | undefined): string {
+    return `< ${slash ?? ''}${tag}${attrs ?? ''}${selfClose ?? ''}>`;
+}
 
 function sanitizeHtmlForPrompt(html: string): string {
     const truncated = html.length > MAX_HTML_PROMPT_CHARS
         ? html.slice(0, MAX_HTML_PROMPT_CHARS) + '\n<!-- [truncated for prompt safety] -->'
         : html;
-    return truncated.replaceAll(HTML_PROMPT_DELIMITER_RE, '< /$1$2');
+    return truncated.replaceAll(HTML_PROMPT_DELIMITER_RE, defangDelimiter);
 }
 
 /**
- * M4 fix: sanitize user-authored text before embedding in XML-tagged prompt context.
- * Defangs any closing tags that match the XML delimiter names used in these prompts.
+ * Sanitize prompt-XML delimiters in user-authored text before embedding.
+ * Same logic as `sanitizeHtmlForPrompt` but no truncation — text inputs are
+ * size-bounded by the caller. Matches both opening + closing tag forms.
  */
-const TEXT_PROMPT_DELIMITER_RE = /<\/(note_content|user_request|edit_request|conversation_history|task|output_format)(\s*>)/gi;
+const TEXT_PROMPT_DELIMITER_RE = HTML_PROMPT_DELIMITER_RE;
 
 function sanitizeTextForPrompt(text: string): string {
-    return text.replaceAll(TEXT_PROMPT_DELIMITER_RE, '< /$1$2');
+    return text.replaceAll(TEXT_PROMPT_DELIMITER_RE, defangDelimiter);
 }
 
 // ── Generation ──────────────────────────────────────────────────────────────
@@ -43,8 +89,10 @@ export function buildPresentationSystemPrompt(options: {
 }): string {
     const { cssTheme, outputLanguage, brandRules } = options;
     const langLine = outputLanguage ? `\nGenerate all slide text in ${outputLanguage}.` : '';
+    // R2-H1 fix: sanitise brandRules even though they come from the plugin's
+    // own brand config — defense in depth against future config sources.
     const brandSection = brandRules
-        ? `\n<brand_rules>\n${brandRules}\n</brand_rules>\nFollow these composition rules strictly.`
+        ? `\n<brand_rules>\n${sanitizeTextForPrompt(brandRules)}\n</brand_rules>\nFollow these composition rules strictly.`
         : '';
 
     const iconRef = buildIconReference();
@@ -137,7 +185,12 @@ export function buildRefinementPrompt(options: {
 // ── Brand Audit ─────────────────────────────────────────────────────────────
 
 export function buildBrandAuditPrompt(html: string, rules: BrandRule[]): string {
-    const rulesList = rules.map(r => `- [${r.id}] ${r.description}`).join('\n');
+    // R2-H1 fix: sanitise rule id + description before interpolation. Brand
+    // rules come from plugin config today, but defending against future
+    // user-authored / imported brand kits costs us nothing.
+    const rulesList = rules
+        .map(r => `- [${sanitizeTextForPrompt(r.id)}] ${sanitizeTextForPrompt(r.description)}`)
+        .join('\n');
 
     return `<task>Audit this HTML presentation against the brand rules. Return JSON with fixes for any violations.</task>
 
@@ -257,4 +310,193 @@ export function extractDeckTitle(html: string): string {
 export function countSlides(html: string): number {
     const matches = html.match(/class="slide[\s"]/g);
     return matches?.length ?? 0;
+}
+
+// ── Targeted Slide Editing — scoped prompts (slide-authoring-editing plan) ──
+
+import type { SelectionScope, AudienceTier, SourceDescriptor } from '../chat/presentationTypes';
+
+/**
+ * Audience design-language slot. Inserted into `<audience_instructions>`
+ * within the system prompt so per-audience defaults shape the deck. Pure
+ * data — adding a new tier is one entry, no logic change.
+ */
+export const AUDIENCE_DESIGN_LANGUAGE: Record<AudienceTier, string> = {
+    analyst: [
+        'Audience: technical analysts. Prioritise data density, citations, and precise terminology.',
+        'Use 5–6 bullets per content slide; include charts, tables, or stat-cards where data supports it.',
+        'Cite sources inline as [1], [2], etc., and include a closing slide with the reference list.',
+        'Avoid metaphors; prefer concrete numbers, ratios, percentages, and named entities.',
+    ].join('\n'),
+    executive: [
+        'Audience: executives. Prioritise narrative clarity, takeaways, and brevity.',
+        'Use ≤ 4 bullets per content slide; ≤ 8 words each. Lead with the conclusion.',
+        'Use stat-cards or large-typography callouts for key numbers — never a table when a single figure will do.',
+        'Use section dividers between major themes; close with explicit next-steps and decisions.',
+    ].join('\n'),
+    general: [
+        'Audience: general professional. Balance density and clarity.',
+        'Use 4–6 bullets per content slide, concise but explanatory.',
+        'Mix charts, bullets, and stat-cards — pick the form that best fits each slide\'s content.',
+        'Close with a clear takeaway and next steps.',
+    ].join('\n'),
+};
+
+/** Format a SelectionScope as a human-readable scope description for the prompt. */
+function describeScope(scope: SelectionScope): string {
+    if (scope.kind === 'range') {
+        const end = scope.slideEndIndex ?? scope.slideIndex;
+        return `Slides ${scope.slideIndex + 1} through ${end + 1} (1-based) — labels match slide order in the input.`;
+    }
+    if (scope.kind === 'slide') {
+        return `Slide ${scope.slideIndex + 1} (1-based).`;
+    }
+    const path = scope.elementPath ?? '(unspecified)';
+    const kind = scope.elementKind ?? 'element';
+    return `Element on slide ${scope.slideIndex + 1}: kind="${kind}", path="${path}".`;
+}
+
+/**
+ * Build a scoped CONTENT-mode edit prompt. Tells the LLM to modify ONLY
+ * the indicated region's text/data, preserving everything else byte-for-byte.
+ *
+ * Sender pre-renders `references` and `webResearch` blocks (via
+ * SlideContextProvider) so this builder is a pure string-mash with no I/O.
+ */
+export function buildScopedContentEditPrompt(options: {
+    /** FULL canonical deck HTML — the LLM needs to see all slides to
+     *  preserve out-of-scope content byte-for-byte. */
+    currentHtml: string;
+    /** The scoped subtree, called out separately so the LLM knows what
+     *  to actually modify. */
+    scopedFragment: string;
+    scope: SelectionScope;
+    userRequest: string;
+    references?: string;
+    webResearch?: string;
+    conversationHistory?: string;
+}): string {
+    const {
+        currentHtml, scopedFragment, scope, userRequest,
+        references, webResearch, conversationHistory,
+    } = options;
+
+    let prompt = '<task>\n';
+    prompt += 'Make a CONTENT edit to the indicated slide region. Rewrite only the text or data inside the scope. ';
+    prompt += 'Preserve every slide OUTSIDE the scope byte-for-byte (you can see them in <current_html>). ';
+    prompt += 'Return the COMPLETE updated deck HTML, starting with `<div class="deck">` and ending with `</div>`.\n';
+    prompt += '</task>\n\n';
+
+    prompt += `<scope>\n${describeScope(scope)}\n</scope>\n\n`;
+    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
+    prompt += `<scoped_fragment>\n${sanitizeHtmlForPrompt(scopedFragment)}\n</scoped_fragment>\n\n`;
+
+    if (references?.trim()) {
+        prompt += `<reference_notes>\n${sanitizeTextForPrompt(references)}\n</reference_notes>\n\n`;
+    }
+    if (webResearch?.trim()) {
+        prompt += `<web_research>\n${sanitizeTextForPrompt(webResearch)}\n</web_research>\n\n`;
+    }
+    if (conversationHistory) {
+        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
+    }
+
+    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>\n\n`;
+    prompt += '<output_format>\n'
+        + `Wrap the COMPLETE updated deck HTML between ${HTML_START_MARKER} and ${HTML_END_MARKER}. `
+        + 'Start with `<div class="deck">`, include EVERY original slide (only the scoped region modified, '
+        + 'all others unchanged byte-for-byte), and close with `</div>`. '
+        + 'Use the existing CSS classes — do NOT introduce new ones.\n'
+        + '</output_format>';
+
+    return prompt;
+}
+
+/**
+ * Build a scoped DESIGN-mode edit prompt. Layout, hierarchy, visual emphasis,
+ * structure changes — but text content stays.
+ *
+ * For decks under the design-mode fallback threshold, `deckContextSummary`
+ * is the full deck design summary; for larger decks it's a compact token sheet.
+ * The caller picks which to pass based on deck size.
+ */
+export function buildScopedDesignEditPrompt(options: {
+    /** FULL canonical deck HTML — needed to preserve unscoped slides
+     *  byte-for-byte and to match deck design language. */
+    currentHtml: string;
+    /** The scoped subtree, called out separately so the LLM knows what to restyle. */
+    scopedFragment: string;
+    scope: SelectionScope;
+    userRequest: string;
+    conversationHistory?: string;
+}): string {
+    const { currentHtml, scopedFragment, scope, userRequest, conversationHistory } = options;
+
+    let prompt = '<task>\n';
+    prompt += 'Make a DESIGN edit to the indicated slide region. Change layout, hierarchy, structure, ';
+    prompt += 'visual emphasis, or component choice — but DO NOT change underlying text content or data values.\n';
+    prompt += 'Preserve every slide OUTSIDE the scope byte-for-byte (you can see them in <current_html>). ';
+    prompt += 'Return the COMPLETE updated deck HTML, starting with `<div class="deck">` and ending with `</div>`.\n';
+    prompt += '</task>\n\n';
+
+    prompt += `<scope>\n${describeScope(scope)}\n</scope>\n\n`;
+    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
+    prompt += `<scoped_fragment>\n${sanitizeHtmlForPrompt(scopedFragment)}\n</scoped_fragment>\n\n`;
+
+    if (conversationHistory) {
+        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
+    }
+
+    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>\n\n`;
+    prompt += '<output_format>\n'
+        + `Wrap the COMPLETE updated deck HTML between ${HTML_START_MARKER} and ${HTML_END_MARKER}. `
+        + 'Start with `<div class="deck">`, include EVERY original slide (only the scoped region restyled, '
+        + 'all others unchanged byte-for-byte), and close with `</div>`. '
+        + 'Use the existing CSS classes — do NOT introduce new ones. '
+        + 'Match the deck\'s visual rhythm and design language.\n'
+        + '</output_format>';
+
+    return prompt;
+}
+
+/**
+ * Build a creation prompt augmented with audience tier, target length, and
+ * structured source descriptors. Extends `buildGenerationPrompt` rather than
+ * replacing it — whole-deck refinement / Polish stays with the existing
+ * `buildRefinementPrompt`.
+ */
+export function buildCreationPromptWithStyle(options: {
+    userQuery: string;
+    sources: SourceDescriptor[];
+    audience: AudienceTier;
+    length: number;
+    conversationHistory?: string;
+}): string {
+    const { userQuery, sources, audience, length, conversationHistory } = options;
+
+    let prompt = '';
+
+    if (conversationHistory) {
+        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
+    }
+
+    if (sources.length > 0) {
+        prompt += '<sources>\n';
+        for (const src of sources) {
+            const refLabel = src.kind === 'web' ? 'url' : 'path';
+            prompt += `<source kind="${src.kind}" ${refLabel}="${escapeAttrValue(src.ref)}">\n`;
+            prompt += sanitizeTextForPrompt(src.content);
+            prompt += '\n</source>\n\n';
+        }
+        prompt += '</sources>\n\n';
+    }
+
+    prompt += `<audience_instructions>\n${AUDIENCE_DESIGN_LANGUAGE[audience]}\nTarget slide count: ${length}.\n</audience_instructions>\n\n`;
+    prompt += `<user_request>\n${sanitizeTextForPrompt(userQuery)}\n</user_request>`;
+
+    return prompt;
+}
+
+function escapeAttrValue(value: string): string {
+    return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
