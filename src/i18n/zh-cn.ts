@@ -2070,6 +2070,8 @@ export const zhCN: Translations = {
             presentationProgress: '第 {current} / {expected} 张幻灯片',
             presentationProgressNoTotal: '第 {current} 张幻灯片',
             presentationStarting: '正在开始生成…',
+            presentationStreamStarted: '正在接收响应…',
+            presentationBuildingSlide: '正在构建第 {n} 张幻灯片…',
             presentationElapsedSeconds: '· {elapsed} 秒',
             extendBudgetTitle: '仍在生成',
             extendBudgetBody: '生成时间超出预期（已用 {elapsed}）。延长 {extendMinutes} 分钟，或取消后尝试更短的提示。',

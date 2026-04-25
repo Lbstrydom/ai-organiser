@@ -383,3 +383,119 @@ describe('edge cases', () => {
         expect(result.markersDetected).toBe(true);
     });
 });
+
+// ── Latency-feedback signals (presentation-latency-feedback fixes #1, #2) ──
+
+describe('onStreamStart — first-byte signal (latency fix #1)', () => {
+    it('fires exactly once on the first non-empty chunk', () => {
+        const onStreamStart = vi.fn();
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onStreamStart,
+        });
+        asm.addChunk('Some thinking…');
+        asm.addChunk(' more thinking…');
+        asm.addChunk(wrapDeck(SLIDE_TITLE));
+        expect(onStreamStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT fire on empty chunks', () => {
+        const onStreamStart = vi.fn();
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onStreamStart,
+        });
+        asm.addChunk('');
+        asm.addChunk('');
+        expect(onStreamStart).not.toHaveBeenCalled();
+        // First non-empty chunk now triggers it
+        asm.addChunk('hi');
+        expect(onStreamStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('survives a throwing onStreamStart callback (non-fatal)', () => {
+        const onStreamStart = vi.fn(() => { throw new Error('UI crashed'); });
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onStreamStart,
+        });
+        // Must not throw — buffer must still accumulate.
+        expect(() => asm.addChunk('preamble')).not.toThrow();
+        const result = asm.finalize();
+        expect(result.fullResponse).toBe('preamble');
+    });
+});
+
+describe('onSlideStart — partial-slide signal (latency fix #2)', () => {
+    it('fires when an opening <section is observed, BEFORE its close', () => {
+        const onSlideStart = vi.fn();
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onSlideStart,
+        });
+        asm.addChunk('<div class="deck">');
+        expect(onSlideStart).not.toHaveBeenCalled();
+        // Just an opening — slide hasn't closed yet
+        asm.addChunk('<section class="slide slide-title"><h1>Q3</h1>');
+        expect(onSlideStart).toHaveBeenCalledTimes(1);
+        expect(onSlideStart).toHaveBeenLastCalledWith(1);
+    });
+
+    it('advances the count for each new <section opening', () => {
+        const onSlideStart = vi.fn();
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onSlideStart,
+        });
+        asm.addChunk('<div class="deck"><section class="slide slide-title">');
+        asm.addChunk('</section><section class="slide slide-content">');
+        asm.addChunk('</section><section class="slide slide-closing">');
+        expect(onSlideStart).toHaveBeenCalledTimes(3);
+        expect(onSlideStart).toHaveBeenNthCalledWith(1, 1);
+        expect(onSlideStart).toHaveBeenNthCalledWith(2, 2);
+        expect(onSlideStart).toHaveBeenNthCalledWith(3, 3);
+    });
+
+    it('does NOT re-fire when the same section bytes are observed twice in one buffer', () => {
+        const onSlideStart = vi.fn();
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onSlideStart,
+        });
+        // Single <section opening split across two chunks — should fire once.
+        asm.addChunk('<div class="deck"><sec');
+        asm.addChunk('tion class="slide slide-title"><h1>x</h1></section>');
+        expect(onSlideStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('survives a throwing onSlideStart callback (non-fatal)', () => {
+        const onSlideStart = vi.fn(() => { throw new Error('UI crashed'); });
+        const asm = new StreamingHtmlAssembler({
+            cssTheme: CSS_THEME,
+            onCheckpoint: vi.fn(),
+            onSlideStart,
+        });
+        expect(() => asm.addChunk('<div class="deck"><section class="slide">')).not.toThrow();
+    });
+});
+
+describe('finalize — extended log payload (latency fix #3)', () => {
+    it('returns the same shape as before (byte/duration log is internal only)', () => {
+        // The fix adds duration + byte count to logger.debug only — the
+        // public result shape is unchanged. This pins backward compat.
+        const asm = createAssembler();
+        asm.addChunk(wrapDeck(SLIDE_TITLE));
+        const result = asm.finalize();
+        // No new fields on StreamingResult
+        const cmp = (a: string, b: string) => a.localeCompare(b);
+        expect(Object.keys(result).sort(cmp)).toEqual(
+            ['fullResponse', 'markersDetected', 'rejectionCount', 'slideCount'].sort(cmp)
+        );
+    });
+});

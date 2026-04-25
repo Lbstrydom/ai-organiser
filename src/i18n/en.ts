@@ -2073,6 +2073,8 @@ export const en: Translations = {
             presentationProgress: 'Slide {current} of {expected}',
             presentationProgressNoTotal: 'Slide {current}',
             presentationStarting: 'Starting generation…',
+            presentationStreamStarted: 'Streaming response…',
+            presentationBuildingSlide: 'Building slide {n}…',
             presentationElapsedSeconds: '· {elapsed}s',
             extendBudgetTitle: 'Still generating',
             extendBudgetBody: 'This is taking longer than usual ({elapsed} elapsed). Extend budget by {extendMinutes} minutes, or cancel and try a shorter prompt.',

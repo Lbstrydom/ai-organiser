@@ -139,6 +139,14 @@ export async function generateHtml(
 
 export interface StreamGenerateOptions extends GenerateOptions {
     onCheckpoint: (checkpoint: StreamingCheckpoint) => void;
+    /** Fires once when the first stream chunk arrives. UI maps to a
+     *  "streaming response…" status so users see progress before any
+     *  slide closes. */
+    onStreamStart?: () => void;
+    /** Fires when a new opening `<section` is observed. Argument is the
+     *  1-based count (currently building slide N). UI maps to a
+     *  "building slide N…" status. */
+    onSlideStart?: (slideIndex: number) => void;
     debounceMs?: number;
 }
 
@@ -165,6 +173,8 @@ export async function generateHtmlStream(
             cssTheme: options.theme.css,
             language: options.outputLanguage,
             onCheckpoint: options.onCheckpoint,
+            onStreamStart: options.onStreamStart,
+            onSlideStart: options.onSlideStart,
             debounceMs: options.debounceMs,
         });
 

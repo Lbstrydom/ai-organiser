@@ -385,6 +385,23 @@ export class PresentationModeHandler implements ChatModeHandler {
                     if (this.preview) this.preview.setHtml(projectForEditor(checkpoint.html));
                     controller.recordProgress(checkpoint.slideCount);
                 },
+                // Latency-feedback fix #1: flip the thinking-indicator from
+                // "Starting generation…" the moment the SSE stream starts
+                // delivering bytes — closes the silent-spinner gap when the
+                // LLM front-loads a long preamble before any `</section>`
+                // (Pat persona, FIX-01 re-test 2026-04-25).
+                onStreamStart: () => {
+                    if (r.abort.signal.aborted) return;
+                    this.activeThinkingUpdater?.(t.presentationStreamStarted);
+                },
+                // Latency-feedback fix #2: surface "Building slide N…" while
+                // the slide is still streaming (i.e. between `<section>`
+                // open and `</section>` close).
+                onSlideStart: (slideIndex) => {
+                    if (r.abort.signal.aborted) return;
+                    const msg = t.presentationBuildingSlide.replace('{n}', String(slideIndex));
+                    this.activeThinkingUpdater?.(msg);
+                },
             });
 
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };

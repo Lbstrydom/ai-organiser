@@ -60,6 +60,18 @@ export interface StreamingHtmlAssemblerOptions {
     language?: string;
     /** Callback invoked when a new complete slide is detected. */
     onCheckpoint: (checkpoint: StreamingCheckpoint) => void;
+    /** Fires the first time any chunk arrives. Lets the UI flip from
+     *  "Starting generation…" to "Streaming response…" the moment the SSE
+     *  stream begins delivering bytes — closes the silent-spinner gap when
+     *  the LLM front-loads a long reasoning preamble before any slides
+     *  close (`docs/plans/presentation-latency-feedback.md` fix #1). */
+    onStreamStart?: () => void;
+    /** Fires when a new opening `<section` tag is observed mid-stream,
+     *  even before its closing tag. Argument is the 1-based count of
+     *  opens-seen-so-far (i.e. "currently building slide N"). Lets the UI
+     *  show "Building slide N…" while the slide is still streaming
+     *  (`docs/plans/presentation-latency-feedback.md` fix #2). */
+    onSlideStart?: (slideIndex: number) => void;
     /** Debounce interval in ms before emitting a checkpoint. Default 800. */
     debounceMs?: number;
 }
@@ -84,10 +96,15 @@ export class StreamingHtmlAssembler {
     private readonly cssTheme: string;
     private readonly language: string | undefined;
     private readonly onCheckpoint: (checkpoint: StreamingCheckpoint) => void;
+    private readonly onStreamStart: (() => void) | undefined;
+    private readonly onSlideStart: ((slideIndex: number) => void) | undefined;
     private readonly debounceMs: number;
+    private readonly startedAtMs: number;
 
     private buffer = '';
     private lastCheckpointSlideCount = 0;
+    private lastSlideStartCount = 0;
+    private streamStartFired = false;
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private disposed = false;
 
@@ -95,18 +112,54 @@ export class StreamingHtmlAssembler {
         this.cssTheme = options.cssTheme;
         this.language = options.language;
         this.onCheckpoint = options.onCheckpoint;
+        this.onStreamStart = options.onStreamStart;
+        this.onSlideStart = options.onSlideStart;
         this.debounceMs = options.debounceMs ?? STREAM_RENDER_DEBOUNCE_MS;
+        this.startedAtMs = Date.now();
     }
 
     /**
      * Feed a chunk from the LLM stream.
-     * After appending, checks whether the completed slide count has increased
-     * and schedules a debounced checkpoint if so.
+     *
+     * Three progress signals are fired off this hot path so the UI can
+     * advance status without waiting for `</section>`:
+     *  1. `onStreamStart` — once on the first non-empty chunk
+     *  2. `onSlideStart`  — when a new opening `<section` is observed
+     *  3. `onCheckpoint`  — when a slide closes (existing contract)
+     *
+     * The first two are status-only signals (no HTML payload); they exist
+     * to close the silent-spinner gap reported in
+     * `docs/plans/presentation-latency-feedback.md` (Pat persona, FIX-01
+     * re-test 2026-04-25).
      */
     addChunk(chunk: string): void {
         if (this.disposed) return;
+        if (!chunk) return;
+
+        // First-byte signal — fire BEFORE accumulating into the buffer so
+        // the UI flip happens at the earliest possible moment.
+        if (!this.streamStartFired) {
+            this.streamStartFired = true;
+            try {
+                this.onStreamStart?.();
+            } catch (e) {
+                logger.warn('StreamingHtml', 'onStreamStart callback threw (non-fatal)', e);
+            }
+        }
 
         this.buffer += chunk;
+
+        // Slide-start signal — counts opening `<section` occurrences in the
+        // accumulated buffer. The handler maps this to "Building slide N…".
+        const slideStarts = this.countSlides(this.buffer);
+        if (slideStarts > this.lastSlideStartCount) {
+            this.lastSlideStartCount = slideStarts;
+            try {
+                this.onSlideStart?.(slideStarts);
+            } catch (e) {
+                logger.warn('StreamingHtml', 'onSlideStart callback threw (non-fatal)', e);
+            }
+        }
 
         const completedSlides = this.countCompletedSlides(this.buffer);
         if (completedSlides > this.lastCheckpointSlideCount) {
@@ -124,8 +177,16 @@ export class StreamingHtmlAssembler {
         const markersDetected = this.hasMarkers();
         const slideCount = this.countSlides(this.buffer);
         const rejectionCount = this.countDangerousPatterns(this.buffer);
+        const elapsedMs = Date.now() - this.startedAtMs;
+        const byteCount = this.buffer.length;
 
-        logger.debug('StreamingHtml', `Finalized: ${slideCount} slides, ${rejectionCount} rejections, markers=${String(markersDetected)}`);
+        // Extended log payload — duration + byte count make latency
+        // regressions diagnosable from logs alone, without needing a
+        // persona-test re-run. (`docs/plans/presentation-latency-feedback.md`
+        // fix #3.)
+        logger.debug('StreamingHtml',
+            `Finalized: ${slideCount} slides, ${rejectionCount} rejections, `
+            + `markers=${String(markersDetected)}, ${byteCount} bytes, ${elapsedMs}ms`);
 
         return {
             fullResponse: this.buffer,

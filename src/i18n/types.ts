@@ -2088,6 +2088,8 @@ export interface Translations {
             presentationProgress: string;        // "Slide {current} of {expected}"
             presentationProgressNoTotal: string; // "Slide {current}"
             presentationStarting: string;        // "Starting generation…"
+            presentationStreamStarted: string;   // "Streaming response…" (latency-feedback fix #1)
+            presentationBuildingSlide: string;   // "Building slide {n}…" (latency-feedback fix #2)
             presentationElapsedSeconds: string;  // "· {elapsed}s"
             extendBudgetTitle: string;           // "Still generating"
             extendBudgetBody: string;            // see en.ts
