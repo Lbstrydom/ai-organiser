@@ -27,6 +27,7 @@ import { AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, PlacementStrategy
 import { getPlacementInstructions, getFormatInstructions, getDetailInstructions } from '../services/prompts/integrationPrompts';
 import { insertAtCursor, appendAsNewSections } from '../utils/editorUtils';
 import { showReviewOrApply } from '../utils/reviewEditsHelper';
+import { markNoteProcessed } from '../services/metadataPostOp';
 import { detectEmbeddedContent, DetectedContent } from '../utils/embeddedContentDetector';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { ContentExtractionService, ExtractionResult, AudioTranscriptionConfig, PdfExtractionConfig } from '../services/contentExtractionService';
@@ -283,12 +284,17 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                             movePendingSourcesToReferences(editor, pendingContent);
                             clearPendingIntegration(editor);
 
-                            if (autoTag) {
-                                const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                                if (view?.file) {
-                                    const noteContent = editor.getValue();
-                                    await plugin.analyzeAndTagNote(view.file, noteContent);
-                                }
+                            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+
+                            // Post-op metadata refresh (FIX-04 status, FIX-05 word_count).
+                            // Editor buffer is the source of truth — vault may not be flushed yet.
+                            if (view?.file) {
+                                await markNoteProcessed(plugin, view.file, {}, { contentForWordCount: editor.getValue() });
+                            }
+
+                            if (autoTag && view?.file) {
+                                const noteContent = editor.getValue();
+                                await plugin.analyzeAndTagNote(view.file, noteContent);
                             }
 
                             showSuccessNotice(plugin.t.messages.contentIntegratedSuccessfully);

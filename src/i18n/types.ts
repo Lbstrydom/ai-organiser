@@ -934,6 +934,11 @@ export interface Translations {
         digitiseCount: string;
         selectAll: string;
         deselectAll: string;
+        editTab: string;
+        previewTab: string;
+        discardConfirm: string;
+        copyFailed: string;
+        noActiveView: string;
     };
 
     // Sketch Pad (Phase 4)
@@ -1246,6 +1251,7 @@ export interface Translations {
         save: string;
         delete: string;
         confirm: string;
+        openSettings: string;
     };
 
     // Modal dialogs
@@ -2442,6 +2448,7 @@ export interface Translations {
     // Minutes generation
     minutes: {
         modalTitle: string;
+        recordBannerLabel: string;
         fieldTitle: string;
         fieldDate: string;
         fieldStartTime: string;

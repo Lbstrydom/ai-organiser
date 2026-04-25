@@ -9,7 +9,8 @@ export const en: Translations = {
         next: 'Next',
         save: 'Save',
         delete: 'Delete',
-        confirm: 'Confirm'
+        confirm: 'Confirm',
+        openSettings: 'Open settings'
     },
 
     // Settings sections
@@ -943,7 +944,12 @@ export const en: Translations = {
         selectImages: "Select images to digitise",
         digitiseCount: "Digitise {count} images",
         selectAll: "Select all",
-        deselectAll: "Deselect all"
+        deselectAll: "Deselect all",
+        editTab: "Edit",
+        previewTab: "Preview",
+        discardConfirm: "Discard changes? Your edits will be lost.",
+        copyFailed: "Could not copy to clipboard.",
+        noActiveView: "Open a note first, then click insert."
     },
 
     sketch: {
@@ -1191,7 +1197,7 @@ export const en: Translations = {
         insertedRelatedNotes: "Inserted {count} related notes",
         // Integration messages
         contentAddedToPending: "Content added to pending integration",
-        noPendingContentToIntegrate: "No pending content to integrate",
+        noPendingContentToIntegrate: "No pending content to integrate. Use the quick add URL command to capture content for later integration.",
         noMainContentToIntegrateInto: "No main content to integrate into",
         integratingContent: "Integrating content...",
         integratingContentFailed: "Integration failed: {error}",
@@ -2423,6 +2429,7 @@ export const en: Translations = {
     // Minutes generation
     minutes: {
         modalTitle: "Create meeting minutes",
+        recordBannerLabel: "Ready to record now?",
         fieldTitle: "Meeting title",
         fieldDate: "Date",
         fieldStartTime: "Start time",

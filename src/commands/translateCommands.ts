@@ -8,7 +8,8 @@ import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import { TranslateModal } from '../ui/modals/TranslateModal';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
-import { buildTranslatePrompt, insertContentIntoTranslatePrompt } from '../services/prompts/translatePrompts';
+import { buildTranslatePrompt, insertContentIntoTranslatePrompt, buildTitleTranslationPrompt } from '../services/prompts/translatePrompts';
+import { markNoteProcessed } from '../services/metadataPostOp';
 import { insertAtCursor } from '../utils/editorUtils';
 import { showReviewOrApply } from '../utils/reviewEditsHelper';
 import {
@@ -331,17 +332,28 @@ async function handleMultiSourceTranslate(
     const today = getTodayDate();
     let processedCount = 0;
 
-    const showProgress = (): void => {
+    const showProgress = (name: string): void => {
         _progressNotice.setMessage(
-            (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}...')
+            (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}: {name}')
                 .replace('{current}', String(processedCount + 1))
-                .replace('{total}', String(totalSources)),
+                .replace('{total}', String(totalSources))
+                .replace('{name}', name),
         );
+    };
+
+    /** Display name for a source — hostname for URLs, basename for paths. */
+    const sourceDisplayName = (raw: string): string => {
+        try {
+            const u = new URL(raw);
+            return u.hostname.replace(/^www\./, '');
+        } catch {
+            return raw.split('/').pop() ?? raw;
+        }
     };
 
     // ── Process note content first ──
     if (result.summarizeNote && view.file) {
-        showProgress();
+        showProgress(view.file.basename);
         try {
             // Use editor buffer (not vault.read) to capture unsaved edits
             // Strip References/Pending sections to prevent duplication via replaceMainContent
@@ -371,7 +383,7 @@ async function handleMultiSourceTranslate(
 
     // ── Process URLs ──
     for (const url of result.sources.urls) {
-        showProgress();
+        showProgress(sourceDisplayName(url));
         try {
             const translated = await extractAndTranslateUrl(plugin, url, targetLanguage, serviceType);
             allSources.push(translated);
@@ -391,7 +403,7 @@ async function handleMultiSourceTranslate(
 
     // ── Process YouTube videos ──
     for (const url of result.sources.youtube) {
-        showProgress();
+        showProgress(sourceDisplayName(url));
         try {
             const translated = await extractAndTranslateYouTube(plugin, url, targetLanguage, serviceType);
             allSources.push(translated);
@@ -412,8 +424,8 @@ async function handleMultiSourceTranslate(
     // ── Process PDFs ──
     const pdfService = new PdfService(plugin.app);
     for (const pdf of result.sources.pdfs) {
-        showProgress();
         const pdfTitle = pdf.path.split('/').pop() || pdf.path;
+        showProgress(pdfTitle);
         try {
             const translated = await extractAndTranslatePdf(
                 plugin, pdfService, pdf.path, pdf.isVaultFile, targetLanguage, serviceType, view.file?.path
@@ -435,8 +447,8 @@ async function handleMultiSourceTranslate(
 
     // ── Process Documents ──
     for (const doc of result.sources.documents) {
-        showProgress();
         const docTitle = doc.path.split('/').pop() || doc.path;
+        showProgress(docTitle);
         try {
             const translated = await extractAndTranslateDocument(
                 plugin, view, doc.path, doc.isVaultFile, targetLanguage, serviceType
@@ -459,8 +471,8 @@ async function handleMultiSourceTranslate(
     // ── Process Audio files ──
     const audioTranscriptionConfig = await getAudioTranscriptionApiKey(plugin);
     for (const audio of result.sources.audio) {
-        showProgress();
         const audioTitle = audio.path.split('/').pop() || audio.path;
+        showProgress(audioTitle);
         try {
             const translated = await extractAndTranslateAudio(
                 plugin, view, audio.path, audio.isVaultFile, targetLanguage, serviceType, audioTranscriptionConfig
@@ -488,8 +500,8 @@ async function handleMultiSourceTranslate(
         const canDigitise = visionService.canDigitise();
 
         for (const image of result.sources.images) {
-            showProgress();
             const imageTitle = image.path.split('/').pop() || image.path;
+            showProgress(imageTitle);
 
             if (!canDigitise.supported) {
                 allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: canDigitise.reason });
@@ -521,7 +533,7 @@ async function handleMultiSourceTranslate(
 
     // ── Assemble output ──
     hideProgress();
-    assembleTranslatedOutput(plugin, editor, view, result, allSources);
+    await assembleTranslatedOutput(plugin, editor, view, result, allSources, targetLanguage);
 }
 
 // ─── Source Extraction + Translation Functions ──────────────────────
@@ -565,6 +577,73 @@ async function translateSourceContent(
     const prompt = insertContentIntoTranslatePrompt(promptTemplate, text);
     const response = await translateWithLLM(plugin, prompt);
     return response.success && response.content ? response.content : null;
+}
+
+/**
+ * Result envelope for title translation. `fellBack: true` indicates the
+ * original title was returned because the LLM call failed or returned an
+ * unusable response. Callers normally just read `translatedTitle`; the
+ * flag exists for tests and observability.
+ */
+export interface TitleTranslationResult {
+    sourceId: string;
+    originalTitle: string;
+    translatedTitle: string;
+    fellBack: boolean;
+}
+
+const TITLE_MAX_CHARS = 200;
+
+/**
+ * Translate a source title with caching + graceful fallback.
+ *
+ * - Empty / whitespace-only title → returns input unchanged, no LLM call
+ * - Cache hit on `${sourceId}::${targetLanguage}` → returns cached value
+ * - LLM success → trim, validate length ≤ TITLE_MAX_CHARS, cache, return
+ * - LLM failure / over-length → returns original title with `fellBack: true`
+ *
+ * Side-call rather than envelope-on-body keeps the body translation pipeline
+ * unchanged and degrades title gracefully when only the title call fails.
+ */
+export async function translateTitleSafely(
+    plugin: AIOrganiserPlugin,
+    sourceId: string,
+    title: string,
+    targetLanguage: string,
+    cache: Map<string, TitleTranslationResult>,
+): Promise<TitleTranslationResult> {
+    const trimmed = title.trim();
+    if (!trimmed) {
+        return { sourceId, originalTitle: title, translatedTitle: title, fellBack: false };
+    }
+
+    const cacheKey = `${sourceId}::${targetLanguage}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    let result: TitleTranslationResult;
+    try {
+        const prompt = buildTitleTranslationPrompt(trimmed, targetLanguage);
+        const response = await translateWithLLM(plugin, prompt);
+        if (response.success && response.content) {
+            const candidate = response.content.trim();
+            if (candidate.length > 0 && candidate.length <= TITLE_MAX_CHARS) {
+                result = { sourceId, originalTitle: title, translatedTitle: candidate, fellBack: false };
+            } else {
+                logger.debug('Translate', `title translation rejected (length ${candidate.length}) for ${sourceId}`);
+                result = { sourceId, originalTitle: title, translatedTitle: title, fellBack: true };
+            }
+        } else {
+            logger.debug('Translate', `title translation failed for ${sourceId}: ${response.error ?? 'no content'}`);
+            result = { sourceId, originalTitle: title, translatedTitle: title, fellBack: true };
+        }
+    } catch (e) {
+        logger.debug('Translate', `title translation threw for ${sourceId}: ${e instanceof Error ? e.message : String(e)}`);
+        result = { sourceId, originalTitle: title, translatedTitle: title, fellBack: true };
+    }
+
+    cache.set(cacheKey, result);
+    return result;
 }
 
 /**
@@ -1083,13 +1162,14 @@ async function extractAndTranslateAudio(
 /**
  * Assemble final note with translated content + references
  */
-function assembleTranslatedOutput(
+async function assembleTranslatedOutput(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     view: MarkdownView,
     result: MultiSourceModalResult,
-    allSources: TranslatedSource[]
-): void {
+    allSources: TranslatedSource[],
+    targetLanguage: string
+): Promise<void> {
     const successCount = allSources.filter(s => s.success).length;
 
     if (successCount === 0) {
@@ -1116,9 +1196,18 @@ function assembleTranslatedOutput(
     // Step 2: Append translated external source sections
     const successfulExternal = externalSources.filter(s => s.success && s.translation);
     if (successfulExternal.length > 0) {
+        // Translate each source's title in parallel — cache + graceful fallback (FIX-03).
+        // Prefix "Translated:" stays English (the persona's complaint was the title
+        // being in source language; introducing per-language prefixes is scope creep).
+        const titleCache = new Map<string, TitleTranslationResult>();
+        const titleResults = await Promise.all(successfulExternal.map(s =>
+            translateTitleSafely(plugin, s.url ?? s.title, s.title, targetLanguage, titleCache)
+        ));
         let appendContent = '';
-        for (const source of successfulExternal) {
-            appendContent += `\n\n## Translated: ${source.title}\n\n${source.translation}`;
+        for (let i = 0; i < successfulExternal.length; i++) {
+            const source = successfulExternal[i];
+            const heading = titleResults[i].translatedTitle;
+            appendContent += `\n\n## Translated: ${heading}\n\n${source.translation}`;
         }
 
         // Insert before References section (or at end of main content)
@@ -1198,7 +1287,13 @@ function assembleTranslatedOutput(
     // Step 5: Ensure note structure
     ensureNoteStructureIfEnabled(editor, plugin.settings);
 
-    // Step 6: Show completion notice
+    // Step 6: Post-op metadata refresh (FIX-04 status flip + FIX-05 word_count)
+    // Editor buffer is the source of truth — vault may not be flushed yet.
+    if (view.file) {
+        await markNoteProcessed(plugin, view.file, {}, { contentForWordCount: editor.getValue() });
+    }
+
+    // Step 7: Show completion notice
     const totalCount = allSources.length;
     if (successCount === totalCount) {
         new Notice(

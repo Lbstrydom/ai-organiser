@@ -220,5 +220,13 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         );
         const configurationSection = new ConfigurationSettingsSection(this.plugin, content, this);
         configurationSection.display();
+
+        // UX-08: make the panel keyboard-scrollable on first render.
+        // Without this, PageDown / arrow keys are consumed by whatever had
+        // focus before the user opened settings — they have to click inside
+        // the panel first. preventScroll keeps the scroll position stable
+        // across re-renders triggered by toggling.
+        containerEl.setAttribute('tabindex', '-1');
+        containerEl.focus({ preventScroll: true });
     }
 }

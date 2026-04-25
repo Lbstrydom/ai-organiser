@@ -251,7 +251,9 @@ export class SourcePackService {
             );
             manifest.revision = registryEntry.revision;
 
-            // Apply post-export tag action
+            // Apply post-export tag action.
+            // 'keep' (default since UX-09) preserves the selection tag for
+            // persistent collections. 'clear' / 'archive' are explicit opt-ins.
             onProgress?.(totalItems, totalItems, 'Updating tags...');
             if (this.config.postExportTagAction === 'clear') {
                 await this.selectionService.clearSelection(selection.files);
@@ -259,7 +261,7 @@ export class SourcePackService {
                 await this.selectionService.archiveSelection(
                     selection.files, packId, manifest.revision
                 );
-            }
+            } // else 'keep' — no-op by design
 
             return {
                 success: true,
@@ -458,7 +460,7 @@ export class SourcePackService {
                 await this.selectionService.archiveSelection(
                     selection.files, packId, manifest.revision
                 );
-            }
+            } // else 'keep' — no-op by design (UX-09)
 
             return {
                 success: true,

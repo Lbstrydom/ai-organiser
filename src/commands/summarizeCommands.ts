@@ -3,7 +3,7 @@
  * Commands for URL and PDF summarization
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Notice, Platform, TFile, normalizePath } from 'obsidian';
+import { Editor, MarkdownView, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import { getPath } from '../utils/desktopRequire';
@@ -14,8 +14,9 @@ import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService
 import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
-import { updateAIOMetadata, createSummaryHook } from '../utils/frontmatterUtils';
-import { SourceType, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
+import { createSummaryHook } from '../utils/frontmatterUtils';
+import { markNoteProcessed } from '../services/metadataPostOp';
+import { DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS } from '../core/constants';
 import { getTranscriptFullPath } from '../core/settings';
 import { ensureFolderExists } from '../utils/minutesUtils';
 import { isContentTooLarge, getMaxContentChars, truncateContent, truncateAtBoundary } from '../services/tokenLimits';
@@ -84,41 +85,6 @@ function showSummaryPreviewOrInsert(
     }
     doInsert();
     return undefined;
-}
-
-/**
- * Update note with structured metadata after summarization
- */
-async function updateNoteMetadataAfterSummary(
-    plugin: AIOrganiserPlugin,
-    view: MarkdownView | MarkdownFileInfo,
-    summaryHook: string,
-    _suggestedTags: string[],
-    _contentType: string,
-    _sourceType?: SourceType,
-    sourceUrl?: string,
-    _personaId?: string
-): Promise<void> {
-    if (!plugin.settings.enableStructuredMetadata) {
-        return;
-    }
-
-    const file = view.file;
-    if (!file) return;
-
-    // Build minimal metadata - just summary and source URL
-    const metadata: Record<string, unknown> = {
-        summary: summaryHook
-    };
-
-    // Add source URL if available (most useful reference)
-    if (sourceUrl) {
-        metadata.source_url = sourceUrl;
-    }
-
-    // Update frontmatter
-    await updateAIOMetadata(plugin.app, file, metadata);
-
 }
 
 /**
@@ -1747,20 +1713,16 @@ async function handlePdfSummarization(
     // Only skip metadata if user actively chose NOT to insert (copy/discard)
     if (action && action !== 'cursor') return;
 
-    // Update metadata if structured metadata is enabled
-    if (plugin.settings.enableStructuredMetadata && personaId) {
+    // Post-op metadata refresh — pass editor buffer so word_count reflects
+    // the just-inserted summary (insertPdfSummary mutates editor in-memory;
+    // vault is not flushed yet).
+    if (personaId) {
         const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view) {
-            await updateNoteMetadataAfterSummary(
-                plugin,
-                view,
-                createSummaryHook(result.summary),
-                [],
-                'reference',
-                'pdf',
-                result.pdfContent.filePath,
-                personaId
-            );
+        if (view?.file) {
+            await markNoteProcessed(plugin, view.file, {
+                summary: createSummaryHook(result.summary),
+                source_url: result.pdfContent.filePath,
+            }, { contentForWordCount: editor.getValue() });
         }
     }
 }
@@ -1809,20 +1771,14 @@ async function handleExternalPdfSummarization(
     // Only skip metadata if user actively chose NOT to insert (copy/discard)
     if (action && action !== 'cursor') return;
 
-    // Update metadata if structured metadata is enabled
-    if (plugin.settings.enableStructuredMetadata && personaId) {
+    // Post-op metadata refresh — pass editor buffer (vault not flushed)
+    if (personaId) {
         const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view) {
-            await updateNoteMetadataAfterSummary(
-                plugin,
-                view,
-                createSummaryHook(result.summary),
-                [],
-                'reference',
-                'pdf',
-                result.pdfContent.filePath,
-                personaId
-            );
+        if (view?.file) {
+            await markNoteProcessed(plugin, view.file, {
+                summary: createSummaryHook(result.summary),
+                source_url: result.pdfContent.filePath,
+            }, { contentForWordCount: editor.getValue() });
         }
     }
 }
@@ -2464,20 +2420,16 @@ async function handleYouTubeSummarization(
         const insertAction = await insertYouTubeSummary(editor, summary, videoInfo, plugin, transcriptPath, true);
         if (insertAction !== 'cursor') return;
 
-        // Update metadata with persona if structured metadata is enabled
-        if (plugin.settings.enableStructuredMetadata && personaId && videoInfo) {
+        // Post-op metadata refresh — pass editor buffer so word_count
+        // reflects the just-inserted summary (insertYouTubeSummary mutates
+        // the editor in-memory; the vault file isn't flushed yet).
+        if (personaId && videoInfo) {
             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            if (view) {
-                        await updateNoteMetadataAfterSummary(
-                    plugin,
-                    view,
-                            createSummaryHook(summary),
-                    [],
-                    'research',
-                    'youtube',
-                    url,
-                    personaId
-                );
+            if (view?.file) {
+                await markNoteProcessed(plugin, view.file, {
+                    summary: createSummaryHook(summary),
+                    source_url: url,
+                }, { contentForWordCount: editor.getValue() });
             }
         }
 
@@ -2569,7 +2521,7 @@ async function summarizeAndInsert(
     webContent: WebContent,
     personaPrompt: string,
     userContext?: string,
-    personaId?: string
+    _personaId?: string
 ): Promise<{ success: boolean }> {
     logger.debug('Summary', 'summarizeAndInsert called:', {
         contentLength: content?.length || 0,
@@ -2611,23 +2563,15 @@ async function summarizeAndInsert(
 
                     if (action !== 'cursor') return { success: false };
 
-                    // Update metadata - must save editor first to prevent race condition
+                    // Post-op metadata refresh — pass editor buffer to skip
+                    // the disk read (avoids stale word_count and the prior
+                    // explicit vault.modify flush).
                     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                    if (view && view.file) {
-                        // Force save editor changes to disk before updating frontmatter
-                        // This prevents processFrontMatter from reading stale file content
-                        await plugin.app.vault.modify(view.file, editor.getValue());
-
-                        await updateNoteMetadataAfterSummary(
-                            plugin,
-                            view,
-                            structured.summary_hook,
-                            structured.suggested_tags || [],
-                            structured.content_type || 'note',
-                            'url',
-                            webContent.url,
-                            personaId
-                        );
+                    if (view?.file) {
+                        await markNoteProcessed(plugin, view.file, {
+                            summary: structured.summary_hook,
+                            source_url: webContent.url,
+                        }, { contentForWordCount: editor.getValue() });
                     }
                     return { success: true };
                 } else {

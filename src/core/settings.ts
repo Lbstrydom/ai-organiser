@@ -182,7 +182,15 @@ export interface AIOrganiserSettings {
     // === NOTEBOOKLM INTEGRATION ===
     notebooklmSelectionTag: string;      // Tag to mark notes for export (default: 'notebooklm')
     notebooklmExportFolder: string;      // Root folder for pack exports (under pluginFolder)
-    notebooklmPostExportTagAction: 'clear' | 'archive';
+    /**
+     * After export action — what happens to the selection tag once a NotebookLM
+     * source pack is exported. UX-09: 'keep' was added in April 2026 because
+     * users building persistent collections were having their selection erased
+     * on every export. New installs default to 'keep'; existing users keep
+     * whatever value they already have stored (passive default-merge migration —
+     * no active rewrite of stored 'clear' values).
+     */
+    notebooklmPostExportTagAction: 'keep' | 'clear' | 'archive';
     notebooklmExportFormat: 'text' | 'pdf';  // 'text' = clean .txt (default); 'pdf' = legacy jsPDF
 
     // Content settings (apply to both text and PDF formats)
@@ -446,7 +454,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // NotebookLM Integration Defaults
     notebooklmSelectionTag: 'notebooklm',
     notebooklmExportFolder: 'NotebookLM',
-    notebooklmPostExportTagAction: 'clear',
+    notebooklmPostExportTagAction: 'keep',
     notebooklmExportFormat: 'text' as const,            // text = clean .txt (default)
 
     // Content defaults (apply to both formats)

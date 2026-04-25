@@ -9,7 +9,8 @@ export const zhCN: Translations = {
         next: '下一步',
         save: '保存',
         delete: '删除',
-        confirm: '确认'
+        confirm: '确认',
+        openSettings: '打开设置'
     },
 
     // 设置部分
@@ -941,7 +942,12 @@ export const zhCN: Translations = {
         selectImages: "选择要数字化的图像",
         digitiseCount: "数字化 {count} 张图像",
         selectAll: "全选",
-        deselectAll: "取消全选"
+        deselectAll: "取消全选",
+        editTab: "编辑",
+        previewTab: "预览",
+        discardConfirm: "放弃更改？您的编辑将会丢失。",
+        copyFailed: "无法复制到剪贴板。",
+        noActiveView: "请先打开一个笔记，然后点击插入。"
     },
 
     sketch: {
@@ -1189,7 +1195,7 @@ export const zhCN: Translations = {
         insertedRelatedNotes: "已插入 {count} 篇相关笔记",
         // Integration messages
         contentAddedToPending: "内容已添加到待处理集成",
-        noPendingContentToIntegrate: "没有待集成的内容",
+        noPendingContentToIntegrate: "没有待集成的内容。使用「快速添加 URL」命令来捕获稍后要集成的内容。",
         noMainContentToIntegrateInto: "没有要集成的主内容",
         integratingContent: "正在集成内容...",
         integratingContentFailed: "集成失败：{error}",
@@ -2420,6 +2426,7 @@ export const zhCN: Translations = {
     // 会议记录生成
     minutes: {
         modalTitle: "\u521B\u5EFA\u4F1A\u8BAE\u7EAA\u8981",
+        recordBannerLabel: "现在准备录制？",
         fieldTitle: "\u4F1A\u8BAE\u6807\u9898",
         fieldDate: "\u65E5\u671F",
         fieldStartTime: "\u5F00\u59CB\u65F6\u95F4",

@@ -8007,3 +8007,84 @@
 .ai-organiser-progress-cancel-btn {
     margin-top: var(--size-2-2);
 }
+
+/* ── FIX-06: Notice with settings deep-link ────────────────────────── */
+
+.ai-organiser-notice-with-action {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-2);
+}
+
+.ai-organiser-notice-message {
+    margin: 0;
+}
+
+.ai-organiser-notice-settings-link {
+    align-self: flex-start;
+}
+
+/* ── UX-03: Top-of-modal Record banner ─────────────────────────────── */
+
+.ai-organiser-minutes-record-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) var(--size-4-3);
+    margin-bottom: var(--size-4-3);
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+}
+
+.ai-organiser-minutes-record-banner-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-accent);
+}
+
+.ai-organiser-minutes-record-banner-label {
+    flex: 1 1 auto;
+    color: var(--text-normal);
+}
+
+.ai-organiser-minutes-record-banner-btn {
+    flex: 0 0 auto;
+}
+
+/* ── UX-06: Editable digitisation preview tabs ─────────────────────── */
+
+.ai-organiser-vision-edit-tabs {
+    display: flex;
+    gap: var(--size-2-1);
+    margin-bottom: var(--size-2-2);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-vision-edit-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: var(--size-2-2) var(--size-4-2);
+}
+
+.ai-organiser-vision-edit-tab.is-active {
+    color: var(--text-normal);
+    border-bottom-color: var(--interactive-accent);
+}
+
+.ai-organiser-vision-edit-textarea {
+    width: 100%;
+    min-height: 240px;
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-small);
+    resize: vertical;
+}
+
+.ai-organiser-vision-edit-preview {
+    min-height: 240px;
+    overflow: auto;
+}

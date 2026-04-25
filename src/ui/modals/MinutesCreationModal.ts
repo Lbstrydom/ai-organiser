@@ -212,6 +212,10 @@ export class MinutesCreationModal extends Modal {
             await this.loadAvailableParticipantLists();
         }
 
+        // UX-03: top-of-modal Record affordance for users who opened the
+        // modal seconds before a meeting — bottom Record button stays put.
+        this.renderRecordBanner(contentEl);
+
         // Banner summarises whatever we detected — audio on any platform,
         // audio + docs on desktop.
         this.renderAutoDetectedBanner(contentEl);
@@ -1235,21 +1239,55 @@ export class MinutesCreationModal extends Modal {
         });
         const iconSpan = btn.createSpan({ cls: 'ai-organiser-minutes-record-icon' });
         setIcon(iconSpan, 'mic');
-        this.cleanups.push(listen(btn, 'click', () => {
-            new AudioRecorderModal(this.app, this.plugin, {
-                mode: 'minutes',
-                transcriptionLanguage: this.state.transcriptionLanguage,
-                onComplete: (result) => {
-                    if (result.transcript) {
-                        const sep = this.state.transcript ? '\n\n---\n\n' : '';
-                        this.state.transcript += sep + result.transcript;
-                        if (this.transcriptTextArea) {
-                            this.transcriptTextArea.value = this.state.transcript;
-                        }
+        this.cleanups.push(listen(btn, 'click', () => this.openRecorder()));
+    }
+
+    /**
+     * UX-03 top-of-modal Record affordance. Renders a compact "Ready to
+     * record now?" banner with a Record button so users opening the modal
+     * seconds before a meeting don't have to scroll past Audio / Documents /
+     * Transcript / Dictionary to find the bottom Record button.
+     */
+    private renderRecordBanner(containerEl: HTMLElement): void {
+        if (!isRecordingSupported()) return;
+        const tRec = this.plugin.t.recording;
+        const tMin = this.plugin.t.minutes;
+        const banner = containerEl.createDiv({ cls: 'ai-organiser-minutes-record-banner' });
+
+        const iconWrap = banner.createSpan({ cls: 'ai-organiser-minutes-record-banner-icon' });
+        setIcon(iconWrap, 'mic');
+
+        banner.createSpan({
+            text: tMin?.recordBannerLabel || 'Ready to record now?',
+            cls: 'ai-organiser-minutes-record-banner-label'
+        });
+
+        const btn = banner.createEl('button', {
+            text: tRec?.record || 'Record',
+            cls: 'mod-cta ai-organiser-minutes-record-banner-btn'
+        });
+        this.cleanups.push(listen(btn, 'click', () => this.openRecorder()));
+    }
+
+    /**
+     * Shared recorder-launch handler — used by both the top banner (UX-03)
+     * and the bottom Record button. Single source of truth for the recorder
+     * config + transcript-merge callback.
+     */
+    private openRecorder(): void {
+        new AudioRecorderModal(this.app, this.plugin, {
+            mode: 'minutes',
+            transcriptionLanguage: this.state.transcriptionLanguage,
+            onComplete: (result) => {
+                if (result.transcript) {
+                    const sep = this.state.transcript ? '\n\n---\n\n' : '';
+                    this.state.transcript += sep + result.transcript;
+                    if (this.transcriptTextArea) {
+                        this.transcriptTextArea.value = this.state.transcript;
                     }
                 }
-            }).open();
-        }));
+            }
+        }).open();
     }
 
     private renderAudioTranscriptionSection(containerEl: HTMLElement): void {

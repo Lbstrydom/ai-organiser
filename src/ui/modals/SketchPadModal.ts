@@ -120,7 +120,9 @@ export class SketchPadModal extends Modal {
 
     private createStyleButtons(container: HTMLElement): void {
         const colorBar = container.createEl('div', { cls: 'ai-organiser-sketch-style-row' });
-        const colors = ['#000000', '#2563eb', '#dc2626'];
+        // UX-10: extended from 3 → 6 colours so colour-coding workflows
+        // (done / question / insight) have the staple palette available.
+        const colors = ['#000000', '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea'];
         for (const color of colors) {
             const btn = colorBar.createEl('button', { cls: 'ai-organiser-sketch-color ai-organiser-color-swatch' });
             btn.setCssProps({ '--swatch-color': color });
