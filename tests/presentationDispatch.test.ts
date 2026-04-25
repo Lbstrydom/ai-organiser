@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  *
  * PresentationModeHandler — submission dispatch boundary tests.
- * Plan: docs/plans/slide-authoring-editing.md §"Submission contract":
+ * Plan: docs/completed/slide-authoring-editing.md §"Submission contract":
  *   "tests assert that handleSubmit with no selection calls refineHtml,
  *    and with selection calls refineHtmlScoped"
  *

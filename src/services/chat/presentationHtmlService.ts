@@ -351,7 +351,7 @@ export interface RefineScopedOptions {
  *   6. Classify diff vs original: scope diff, out-of-scope drift, structural integrity
  *   7. Return RefineScopedOutcome — frontend renders directly
  *
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Service signatures"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Service signatures"
  */
 export async function refineHtmlScoped(
     context: LLMFacadeContext,

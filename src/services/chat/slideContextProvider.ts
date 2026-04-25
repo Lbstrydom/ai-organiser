@@ -6,7 +6,7 @@
  * `SlideContextProvider` interface — never `App` or `ResearchSearchService`
  * directly — so backend code stays testable in isolation (DIP).
  *
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Source resolution"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Source resolution"
  */
 
 import type { App, TFile } from 'obsidian';

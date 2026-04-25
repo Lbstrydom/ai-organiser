@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  *
  * EditAccessories component tests.
- * Plan: docs/plans/slide-authoring-editing.md §"Edit accessories"
+ * Plan: docs/completed/slide-authoring-editing.md §"Edit accessories"
  *
  * Polyfills the small subset of Obsidian's HTMLElement augmentations the
  * component uses (`empty`, `addClass`, `createDiv`, `createEl`, `createSpan`).

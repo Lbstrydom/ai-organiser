@@ -6,7 +6,7 @@
  * any out-of-scope drift the orchestrator's `classifyDiff` flagged on slides
  * the user did NOT ask to change. User accepts or rejects the whole change.
  *
- * Plan: docs/plans/slide-authoring-editing.md §"Diff modal"
+ * Plan: docs/completed/slide-authoring-editing.md §"Diff modal"
  */
 
 import { App, Modal, Setting } from 'obsidian';

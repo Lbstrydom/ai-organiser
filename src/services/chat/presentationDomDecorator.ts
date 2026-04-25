@@ -5,8 +5,8 @@
  * Obsidian APIs — uses DOMParser from the hosting environment (Obsidian
  * supplies `window.DOMParser`; tests use `happy-dom`).
  *
- * Plan: docs/plans/slide-authoring-editing.md +
- *       docs/plans/slide-authoring-editing-backend.md
+ * Plan: docs/completed/slide-authoring-editing.md +
+ *       docs/completed/slide-authoring-editing-backend.md
  *
  * Critical separation enforced here:
  *   - CANONICAL HTML — what the handler holds, save/export/diff/prompt all read it.

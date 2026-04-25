@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  *
  * presentationDiff unit tests.
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Whitespace handling"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Whitespace handling"
  */
 
 import { describe, it, expect } from 'vitest';

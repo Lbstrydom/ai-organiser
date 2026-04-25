@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  *
  * presentationDomDecorator unit tests.
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Post-processor signature"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Post-processor signature"
  */
 
 import { describe, it, expect } from 'vitest';

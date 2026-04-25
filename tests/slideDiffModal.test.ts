@@ -1,6 +1,6 @@
 /**
  * SlideDiffModal action-callback tests.
- * Plan: docs/plans/slide-authoring-editing.md §"Diff modal"
+ * Plan: docs/completed/slide-authoring-editing.md §"Diff modal"
  *
  * Pinned contracts:
  *   - Accept fires onAction('accept')

@@ -491,7 +491,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  - Result is gated through `SlideDiffModal` — user explicitly accepts
      *    before the iframe updates and a version is pushed.
      *
-     *  Plan: docs/plans/slide-authoring-editing.md §"Submission contract"
+     *  Plan: docs/completed/slide-authoring-editing.md §"Submission contract"
      */
     private async runScopedEdit(
         r: RunContext,

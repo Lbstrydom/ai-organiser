@@ -8,7 +8,7 @@
  *
  * Pure DOM-only utility — no LLM, no Obsidian APIs.
  *
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Whitespace handling"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Whitespace handling"
  */
 
 import type {

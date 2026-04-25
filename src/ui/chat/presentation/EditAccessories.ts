@@ -6,7 +6,7 @@
  * PresentationModeHandler. Idempotent — safe to call repeatedly to
  * re-render in place when state changes.
  *
- * Plan: docs/plans/slide-authoring-editing.md §"Edit accessories"
+ * Plan: docs/completed/slide-authoring-editing.md §"Edit accessories"
  */
 
 import type { SelectionScope, EditMode, EditFlags } from '../../../services/chat/presentationTypes';

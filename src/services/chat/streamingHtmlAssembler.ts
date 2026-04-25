@@ -64,13 +64,13 @@ export interface StreamingHtmlAssemblerOptions {
      *  "Starting generation…" to "Streaming response…" the moment the SSE
      *  stream begins delivering bytes — closes the silent-spinner gap when
      *  the LLM front-loads a long reasoning preamble before any slides
-     *  close (`docs/plans/presentation-latency-feedback.md` fix #1). */
+     *  close (`docs/completed/presentation-latency-feedback.md` fix #1). */
     onStreamStart?: () => void;
     /** Fires when a new opening `<section` tag is observed mid-stream,
      *  even before its closing tag. Argument is the 1-based count of
      *  opens-seen-so-far (i.e. "currently building slide N"). Lets the UI
      *  show "Building slide N…" while the slide is still streaming
-     *  (`docs/plans/presentation-latency-feedback.md` fix #2). */
+     *  (`docs/completed/presentation-latency-feedback.md` fix #2). */
     onSlideStart?: (slideIndex: number) => void;
     /** Debounce interval in ms before emitting a checkpoint. Default 800. */
     debounceMs?: number;
@@ -129,7 +129,7 @@ export class StreamingHtmlAssembler {
      *
      * The first two are status-only signals (no HTML payload); they exist
      * to close the silent-spinner gap reported in
-     * `docs/plans/presentation-latency-feedback.md` (Pat persona, FIX-01
+     * `docs/completed/presentation-latency-feedback.md` (Pat persona, FIX-01
      * re-test 2026-04-25).
      */
     addChunk(chunk: string): void {
@@ -182,7 +182,7 @@ export class StreamingHtmlAssembler {
 
         // Extended log payload — duration + byte count make latency
         // regressions diagnosable from logs alone, without needing a
-        // persona-test re-run. (`docs/plans/presentation-latency-feedback.md`
+        // persona-test re-run. (`docs/completed/presentation-latency-feedback.md`
         // fix #3.)
         logger.debug('StreamingHtml',
             `Finalized: ${slideCount} slides, ${rejectionCount} rejections, `

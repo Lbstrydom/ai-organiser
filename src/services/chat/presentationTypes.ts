@@ -262,8 +262,8 @@ export function migratePresentationSession(data: unknown): PresentationSession |
 
 // ── Targeted Slide Editing (slide-authoring-editing plan) ───────────────────
 //
-// Plan: docs/plans/slide-authoring-editing.md +
-//       docs/plans/slide-authoring-editing-backend.md
+// Plan: docs/completed/slide-authoring-editing.md +
+//       docs/completed/slide-authoring-editing-backend.md
 
 /** Speed/quality tradeoff for create-flow generation. Edit flow always uses
  *  the user's main configured model — quality over speed when committing changes. */

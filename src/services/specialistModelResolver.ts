@@ -50,7 +50,7 @@ export function resolveForProvider(providerId: AdapterType, modelId: string): st
  * sides of the contract would silently send the literal sentinel string to
  * the provider API and 400 (Gemini final-gate finding R5, 2026-04-25).
  *
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Model tier dispatch"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Model tier dispatch"
  */
 const FAST_TIER_SENTINELS: Partial<Record<AdapterType, string>> = {
     claude: 'latest-haiku',

@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  *
  * refineHtmlScoped service-level integration tests.
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Service signatures"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Service signatures"
  *
  * Mocks the LLM facade and SlideContextProvider so we exercise the
  * orchestration: context gathering, preflight gate, prompt dispatch,

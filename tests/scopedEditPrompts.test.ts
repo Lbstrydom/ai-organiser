@@ -5,7 +5,7 @@
  * (Gemini final-gate finding 2026-04-25 — sanitiser must escape both
  * opening and closing XML tags).
  *
- * Plan: docs/plans/slide-authoring-editing-backend.md §"Prompt builder signatures"
+ * Plan: docs/completed/slide-authoring-editing-backend.md §"Prompt builder signatures"
  */
 
 import { describe, it, expect } from 'vitest';
