@@ -69,8 +69,20 @@ export function generateNonce(): string {
     return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Element selection scope emitted by the iframe runtime when the user
+ *  clicks an annotated subtree. `kind: 'slide'` fires on a click in slide
+ *  whitespace; `kind: 'element'` carries the data-element path the runtime
+ *  resolved. The handler interprets both. */
+export type IframeSelectionEvent =
+    | { kind: 'slide'; slideIndex: number }
+    | { kind: 'element'; slideIndex: number; elementPath: string; elementKind: string };
+
 export interface PreviewOptions {
     onSlideSelect?: (index: number) => void;
+    /** Fires when the iframe runtime's delegated click hits an annotated
+     *  subtree. Parent decides what scope the event represents. Optional —
+     *  preview works without it for non-editable embeds. */
+    onElementSelect?: (event: IframeSelectionEvent) => void;
 }
 
 type PreviewState = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
@@ -434,6 +446,28 @@ export class SlideIframePreview {
                     this.updateNav();
                     this.announce(`Slide ${payload.index + 1} of ${this.slideCount}`);
                     this.options.onSlideSelect?.(payload.index);
+                }
+                break;
+            }
+            case 'elementSelected': {
+                const payload = msg.payload as
+                    | { kind: 'slide'; slideIndex: number }
+                    | { kind: 'element'; slideIndex: number; elementPath: string; elementKind: string }
+                    | undefined;
+                if (!payload || typeof payload.slideIndex !== 'number') break;
+                if (payload.kind === 'slide') {
+                    this.options.onElementSelect?.({ kind: 'slide', slideIndex: payload.slideIndex });
+                } else if (
+                    payload.kind === 'element'
+                    && typeof payload.elementPath === 'string'
+                    && typeof payload.elementKind === 'string'
+                ) {
+                    this.options.onElementSelect?.({
+                        kind: 'element',
+                        slideIndex: payload.slideIndex,
+                        elementPath: payload.elementPath,
+                        elementKind: payload.elementKind,
+                    });
                 }
                 break;
             }

@@ -100,4 +100,63 @@ describe('buildSlideRuntimeCode', () => {
         expect(code2).toContain('nonce_bbb');
         expect(code2).not.toContain('nonce_aaa');
     });
+
+    // ── Element selection (slide-authoring-editing plan) ────────────────────
+
+    it('emits an elementSelected click handler', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        expect(code).toContain("action: 'elementSelected'");
+    });
+
+    it('walks up to find a [data-element] ancestor', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        expect(code).toContain('data-element');
+        // The walk uses parentNode, not querySelector — guard against
+        // someone replacing it with a top-down search that would match
+        // sibling elements.
+        expect(code).toContain('parentNode');
+    });
+
+    it('falls back to slide-level scope when click misses an element', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        // The slide-level branch emits kind: 'slide' with just slideIndex
+        expect(code).toContain("kind: 'slide'");
+    });
+
+    it('emits an element-level branch with elementPath + elementKind', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        expect(code).toContain("kind: 'element'");
+        expect(code).toContain('elementPath');
+        expect(code).toContain('elementKind');
+    });
+
+    it('toggles a hover class via mouseover, not inline style', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        // CSP-safe — class-list mutation only
+        expect(code).toContain('pres-slide-element-hover');
+        expect(code).toContain('mouseover');
+        expect(code).toContain('classList.add');
+        expect(code).toContain('classList.remove');
+        // No inline style assignment for the hover effect
+        expect(code).not.toContain('style.outline');
+    });
+
+    it('classifies element kinds via path-suffix regex', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        // Spot-check that the regex predicates for the most common kinds
+        // are emitted (full classification is path-driven by the parent
+        // handler — this guards against accidental removal).
+        expect(code).toContain('list-item');
+        expect(code).toContain('heading');
+        expect(code).toContain('image');
+        expect(code).toContain('table');
+    });
+
+    it('ignores clicks on speaker-notes (toggle key handles those)', () => {
+        const code = buildSlideRuntimeCode(TEST_NONCE);
+        // The click handler explicitly skips when target.closest('.speaker-notes')
+        // matches — guards against the user clicking note text and getting an
+        // edit scope they didn't intend.
+        expect(code).toMatch(/closest\([^)]*speaker-notes/);
+    });
 });

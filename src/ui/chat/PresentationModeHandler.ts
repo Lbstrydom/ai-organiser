@@ -23,10 +23,17 @@ import { pluginContext } from '../../services/llmFacade';
 import type { LLMFacadeContext } from '../../services/llmFacade';
 import {
     type PresentationPhase, type PresentationVersion, type QualityResult,
+    type SelectionScope, type EditMode, type EditFlags,
+    type RefineScopedOutcome,
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
-import { generateHtmlStream, refineHtml, runBrandAudit } from '../../services/chat/presentationHtmlService';
+import { generateHtmlStream, refineHtml, runBrandAudit, refineHtmlScoped } from '../../services/chat/presentationHtmlService';
+import { projectForEditor } from '../../services/chat/presentationDomDecorator';
+import { DefaultSlideContextProvider } from '../../services/chat/slideContextProvider';
+import { ResearchSearchService } from '../../services/research/researchSearchService';
+import { ensurePrivacyConsent } from '../../services/privacyNotice';
+import { SlideDiffModal } from '../modals/SlideDiffModal';
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import { LongRunningOpController } from '../../services/longRunningOp/progressController';
@@ -114,6 +121,31 @@ export class PresentationModeHandler implements ChatModeHandler {
     // Preview
     private preview: SlideIframePreview | null = null;
 
+    // ── Scoped editing (slide-authoring-editing plan) ───────────────────────
+    // Selection: null = whole-deck edit (existing Polish path); else the
+    //            iframe-clicked or slide-pill-clicked scope.
+    // editMode:  'content' (default) edits text/data; 'design' edits layout
+    //            without rewriting text. Hidden when no selection.
+    // editFlags: web search + reference notes — content mode only.
+    private selection: SelectionScope | null = null;
+    private editMode: EditMode = 'content';
+    private editFlags: EditFlags = { webSearch: false, references: [] };
+
+    // Container handles for the chat-input accessory area (selection pill
+    // + mode pills). Cleared in dispose() / onClear() and rebound in
+    // renderChatInputAccessory().
+    private accessoryContainer: HTMLElement | null = null;
+
+    // Active SlideDiffModal — tracked so cancelActiveOperation / onClear /
+    // dispose can force-close it. Otherwise the user could Discard the deck
+    // while the diff modal is awaiting their click, then Accept the modal
+    // and silently resurrect the discarded HTML. Audit R1 finding (HIGH-2).
+    private activeDiffModal: SlideDiffModal | null = null;
+
+    // Translations stashed when renderContextPanel runs — refreshAccessory
+    // reads from here. Stays alive between renders; nulled in dispose.
+    private accessoryT: Translations['modals']['unifiedChat'] | null = null;
+
     // ── Phase progress ──────────────────────────────────────────────────────
 
     /** Centralized phase setter that bubbles a phase-specific message to the
@@ -169,6 +201,9 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     renderContextPanel(container: HTMLElement, ctx: ModalContext): void {
         const t = ctx.plugin.t.modals.unifiedChat;
+        // Stash the i18n bundle so refreshAccessory has it available for
+        // every state-change-driven re-render between renderContextPanel calls.
+        this.accessoryT = t;
 
         // F3: dispose any prior SlideIframePreview BEFORE clearing the DOM.
         // Previously this was nested inside the `if (this.html)` recreate
@@ -182,6 +217,9 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.preview.dispose();
             this.preview = null;
         }
+        // Drop the accessory ref before container.empty() so refreshAccessory
+        // can't fire against detached DOM during the transition window.
+        this.accessoryContainer = null;
 
         container.empty();
 
@@ -195,11 +233,24 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // Slide preview
         if (this.html) {
+            // Edit-flow accessory area — selection pill + mode pills + flags.
+            // Sits above the iframe so the user sees the active scope before
+            // they type the edit. Stable container reference enables in-place
+            // re-render on state changes via refreshAccessory().
+            this.accessoryContainer = container.createEl('div', {
+                cls: 'ai-organiser-pres-accessory-host',
+            });
+            this.refreshAccessory();
+
             const previewContainer = container.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
             this.preview = new SlideIframePreview(previewContainer, {
                 onSlideSelect: (idx) => { this.activeSlideIndex = idx; },
+                onElementSelect: (event) => { this.handleElementSelect(event); },
             });
-            this.preview.setHtml(this.html);
+            // Project canonical HTML for the editor: adds data-element
+            // attributes the iframe runtime walks on click. Canonical HTML
+            // (no data-element) stays in this.html for prompts/exports.
+            this.preview.setHtml(projectForEditor(this.html));
             if (this.activeSlideIndex > 0) {
                 // F5: track the navigate handle so rapid re-render / dispose
                 // can cancel the stale callback before it fires.
@@ -284,9 +335,13 @@ export class PresentationModeHandler implements ChatModeHandler {
                             ctx, streamCb, abort, llmCtx, theme,
                             effectiveQuery, history, originalQuery: query, noteContent,
                         };
-                        return this.html
-                            ? await this.runRefine(runCtx)
-                            : await this.runGenerate(runCtx);
+                        if (!this.html) {
+                            return await this.runGenerate(runCtx);
+                        }
+                        if (this.selection) {
+                            return await this.runScopedEdit(runCtx, this.selection, this.editMode, this.editFlags);
+                        }
+                        return await this.runRefine(runCtx);
                     } finally {
                         this.mutationLock = false;
                         this.activeThinkingUpdater = null;
@@ -327,7 +382,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 signal: r.abort.signal,
                 onCheckpoint: (checkpoint) => {
                     if (r.abort.signal.aborted) return;
-                    if (this.preview) this.preview.setHtml(checkpoint.html);
+                    if (this.preview) this.preview.setHtml(projectForEditor(checkpoint.html));
                     controller.recordProgress(checkpoint.slideCount);
                 },
             });
@@ -394,6 +449,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.html = result.value;
             this.pushVersion(r.originalQuery);
             this.runQualityCheck();
+            // Whole-deck mutation invalidates positional selection paths
+            // (slide-N.list-K.item-J may now resolve to a different element).
+            // Plan §"State transitions" mandates clearing on every html mutation.
+            this.clearSelection();
             this.setPhase('preview-ready');
             void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
 
@@ -402,6 +461,146 @@ export class PresentationModeHandler implements ChatModeHandler {
         } finally {
             controller.dispose();
         }
+    }
+
+    /** Scoped (targeted) edit path — invoked when the user has clicked an
+     *  element/slide in the iframe and submitted an edit instruction.
+     *
+     *  Differs from runRefine in three ways:
+     *  - Calls `refineHtmlScoped` (sends scope + scoped fragment + full deck)
+     *  - Web search / references resolved via `DefaultSlideContextProvider`
+     *  - Result is gated through `SlideDiffModal` — user explicitly accepts
+     *    before the iframe updates and a version is pushed.
+     *
+     *  Plan: docs/plans/slide-authoring-editing.md §"Submission contract"
+     */
+    private async runScopedEdit(
+        r: RunContext,
+        scope: SelectionScope,
+        mode: EditMode,
+        flags: EditFlags,
+    ): Promise<StreamingResult> {
+        this.setPhase('refining');
+        const t = r.ctx.plugin.t.modals.unifiedChat;
+        if (!this.html) return { finalContent: 'No presentation to edit.' };
+
+        const controller = this.createProgressController(
+            r.abort, r.streamCb, t,
+            REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
+        );
+
+        try {
+            // Build a context provider that bridges to the vault + research
+            // services. Privacy consent is gated lazily — only fired if web
+            // search is actually requested (matches the existing per-feature
+            // consent pattern; no consent burden when the user only wants
+            // text-only edits).
+            const contextProvider = new DefaultSlideContextProvider({
+                app: r.ctx.app,
+                researchService: new ResearchSearchService(r.ctx.fullPlugin),
+                // Mirror ResearchModeHandler.ensureConsent: gate web-search
+                // through the existing cloud-service-type consent path so we
+                // share the "consented this session" flag instead of double-
+                // prompting users who already approved cloud research.
+                privacyConsent: async () => ensurePrivacyConsent(
+                    { app: r.ctx.app, t: r.ctx.plugin.t },
+                    r.ctx.fullPlugin.settings.cloudServiceType,
+                ),
+            });
+
+            const result = await refineHtmlScoped(r.llmCtx, {
+                currentHtml: this.html,
+                scope,
+                mode,
+                userRequest: r.effectiveQuery,
+                flags,
+                contextProvider,
+                conversationHistory: r.history,
+                outputLanguage: r.ctx.plugin.settings.summaryLanguage,
+                theme: r.theme,
+                signal: r.abort.signal,
+            });
+
+            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
+
+            if (!result.ok) {
+                this.setPhase('error');
+                this.lastError = result.error;
+                return { finalContent: `Failed to apply scoped edit: ${result.error}` };
+            }
+
+            // Gate the iframe update behind explicit user accept.
+            const accepted = await this.confirmScopedEdit(r.ctx.app, r.ctx.fullPlugin, result.value);
+            // If onClear / dispose ran during the modal wait, this.html is
+            // null and the deck has been discarded. Don't force phase back
+            // to 'preview-ready' over an empty deck — that would leave us
+            // in (html=null, phase='preview-ready') which is inconsistent.
+            // Audit R2 LOW finding fix.
+            if (!this.html) return { finalContent: t.generationCancelled };
+            if (!accepted) {
+                this.setPhase('preview-ready');
+                return { finalContent: 'Edit rejected — original deck preserved.' };
+            }
+
+            // Apply
+            this.html = result.value.newHtml;
+            this.pushVersion(r.originalQuery);
+            this.runQualityCheck();
+            this.clearSelection();
+            this.setPhase('preview-ready');
+
+            const count = countSlides(this.html);
+            const driftCount = result.value.outOfScopeDrift.length;
+            const driftPlural = driftCount === 1 ? '' : 's';
+            const driftSuffix = driftCount > 0
+                ? ` (note: ${driftCount} slide${driftPlural} drifted outside scope — accepted)`
+                : '';
+            return { finalContent: `Scoped edit applied. ${count} slides${driftSuffix}.` };
+        } finally {
+            controller.dispose();
+        }
+    }
+
+    /** Open the SlideDiffModal and wait for the user to accept or reject.
+     *  Resolves to true on accept, false on reject / ESC / X-close. */
+    private confirmScopedEdit(
+        app: import('obsidian').App,
+        plugin: import('../../main').default,
+        outcome: RefineScopedOutcome,
+    ): Promise<boolean> {
+        return new Promise<boolean>((resolve) => {
+            // Single-flight resolution guard — a force-close from
+            // cancelActiveOperation / onClear / dispose calls modal.close(),
+            // which fires the Modal's onClose() → SlideDiffModal's reject
+            // fallback. Without this guard, both that path AND a later
+            // user-initiated Accept could resolve the same Promise.
+            let resolved = false;
+            const finish = (accepted: boolean) => {
+                if (resolved) return;
+                resolved = true;
+                this.activeDiffModal = null;
+                resolve(accepted);
+            };
+            const modal = new SlideDiffModal(app, plugin, {
+                scopeDiff: outcome.scopeDiff,
+                outOfScopeDrift: outcome.outOfScopeDrift,
+                structuralIntegrity: outcome.structuralIntegrity,
+                onAction: (action) => finish(action === 'accept'),
+            });
+            this.activeDiffModal = modal;
+            modal.open();
+        });
+    }
+
+    /** Force-close the active diff modal (if any) so its Promise resolves
+     *  to false. Called from cancelActiveOperation / onClear / dispose so
+     *  the user can't accept a diff after they've already discarded the
+     *  underlying deck. Audit R1 HIGH-2 fix. */
+    private closeActiveDiffModal(): void {
+        if (!this.activeDiffModal) return;
+        const m = this.activeDiffModal;
+        this.activeDiffModal = null;
+        m.close(); // triggers Modal.onClose → SlideDiffModal.reject fallback
     }
 
     /** Build a LongRunningOpController wired to the modal's streaming
@@ -597,6 +796,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.qualityResult = null;
         this.lastError = null;
         this.phase = 'empty';
+        // Scoped-editing state — clear selection and reset mode/flags so a
+        // fresh deck doesn't inherit stale scope from the previous one.
+        this.selection = null;
+        this.editMode = 'content';
+        this.editFlags = { webSearch: false, references: [] };
     }
 
     dispose(): void {
@@ -604,6 +808,111 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.clearNavigateTimeout();  // F5
         this.preview?.dispose();
         this.preview = null;
+        this.accessoryContainer = null;
+        this.accessoryT = null;
+        this.selection = null;
+    }
+
+    // ── Selection state (slide-authoring-editing plan) ──────────────────────
+
+    /** Iframe element-click handler. Updates selection and re-renders the
+     *  chat-input accessory area so the user sees the new scope pill. */
+    private handleElementSelect(event: import('../components/SlideIframePreview').IframeSelectionEvent): void {
+        if (this.mutationLock) return; // ignore clicks during apply
+        if (event.kind === 'slide') {
+            this.selection = { kind: 'slide', slideIndex: event.slideIndex };
+        } else {
+            // Coerce the runtime-derived `elementKind` string to the typed
+            // ElementKind union; unknown kinds drop through as undefined so
+            // the prompt builder treats them as generic elements.
+            const knownKinds: ReadonlySet<string> = new Set([
+                'heading', 'subheading', 'list', 'list-item',
+                'image', 'figure', 'table', 'callout',
+                'col-container', 'col', 'stats-grid',
+                'quote', 'code', 'speaker-notes',
+            ]);
+            const elementKind = knownKinds.has(event.elementKind)
+                ? (event.elementKind as import('../../services/chat/presentationTypes').ElementKind)
+                : undefined;
+            this.selection = {
+                kind: 'element',
+                slideIndex: event.slideIndex,
+                elementPath: event.elementPath,
+                elementKind,
+            };
+        }
+        this.activeSlideIndex = event.slideIndex;
+        this.refreshAccessory();
+    }
+
+    /** Test seam — exposed for unit tests that need to drive the handler
+     *  without going through the iframe's postMessage path. */
+    setSelectionForTesting(scope: SelectionScope | null): void {
+        this.selection = scope;
+    }
+
+    /** Test seam — read the current selection without mutating. */
+    getSelection(): SelectionScope | null {
+        return this.selection;
+    }
+
+    /** Clear the active selection — called by the × button on the selection
+     *  pill, by Esc keypress, and on every successful apply (so the next
+     *  edit doesn't inadvertently target stale scope). */
+    private clearSelection(): void {
+        this.selection = null;
+        this.refreshAccessory();
+    }
+
+    /** Set edit mode (Content vs Design). Hidden when no selection set. */
+    private setEditMode(mode: EditMode): void {
+        this.editMode = mode;
+        this.refreshAccessory();
+    }
+
+    /** Toggle the web-search flag (Content mode only). */
+    private setWebSearchFlag(on: boolean): void {
+        this.editFlags = { ...this.editFlags, webSearch: on };
+        this.refreshAccessory();
+    }
+
+    /** Idempotent re-render of the accessory area when state changes.
+     *  Reads `accessoryT` which is set by renderContextPanel — this stays
+     *  populated for the panel's lifetime, unlike `activeT` which is only
+     *  alive during buildPrompt's start hook. */
+    private refreshAccessory(): void {
+        if (!this.accessoryContainer || !this.accessoryT) return;
+        const t = this.accessoryT; // capture stable ref
+        import('./presentation/EditAccessories').then(({ renderEditAccessories }) => {
+            if (!this.accessoryContainer) return;
+            renderEditAccessories(this.accessoryContainer, {
+                selection: this.selection,
+                editMode: this.editMode,
+                editFlags: this.editFlags,
+                operation: this.deriveOperation(),
+                t,
+                onClearSelection: () => this.clearSelection(),
+                onSetMode: (m) => this.setEditMode(m),
+                onSetWebSearch: (on) => this.setWebSearchFlag(on),
+            });
+        }).catch(() => { /* test env — ignore */ });
+    }
+
+    /** Map the existing PresentationPhase to the two-axis (deckPresence,
+     *  operation) view from the plan. Used by the accessory renderer to
+     *  decide whether pills are interactive or disabled-with-spinner. */
+    private deriveOperation(): 'idle' | 'applying' | 'error' {
+        switch (this.phase) {
+            case 'generating':
+            case 'refining':
+            case 'auditing':
+            case 'exporting':
+                return 'applying';
+            case 'error':
+                return 'error';
+            default:
+                return 'idle';
+        }
     }
 
     // ── Project context ─────────────────────────────────────────────────────
@@ -918,6 +1227,9 @@ export class PresentationModeHandler implements ChatModeHandler {
             }
 
             this.runQualityCheck();
+            // Whole-deck mutation invalidates positional selection paths.
+            // Plan §"State transitions" mandates clearing on every html mutation.
+            this.clearSelection();
             this.setPhase('preview-ready');
             callbacks.addSystemNotice(
                 `Polish complete. Quality: ${this.qualityResult?.totalScore ?? '?'}/100`
@@ -963,6 +1275,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.html = version.html;
         this.activeSlideIndex = version.activeSlideIndex;
         this.versionIndex = index;
+        // Restoring a version is a whole-deck swap. Selection paths that
+        // resolved against the previous version may not exist (or may
+        // resolve to different content) in the restored one. Clear it.
+        this.clearSelection();
         this.phase = 'preview-ready';
     }
 
@@ -1030,6 +1346,11 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.activeAbort.abort();
             this.activeAbort = null;
         }
+        // Force-close any pending diff modal so its Promise resolves to
+        // false BEFORE the cancelling code path nulls handler state.
+        // Otherwise an Accept click on the lingering modal would mutate
+        // disposed state. Audit R1 HIGH-2 fix.
+        this.closeActiveDiffModal();
     }
 
     private truncateNoteContent(ctx: ModalContext): string | undefined {

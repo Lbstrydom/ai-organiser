@@ -2047,6 +2047,25 @@ export interface Translations {
             placeholderPresentation: string;
             placeholderPresentationRefine: string;
             presentationUnavailable: string;
+            // Targeted slide editing (slide-authoring-editing plan).
+            // Templates with `{n}` / `{end}` / `{kind}` placeholders.
+            slideSelectionLabelSlide: string;       // "Slide {n}"
+            slideSelectionLabelRange: string;       // "Slides {n}–{end}"
+            slideSelectionLabelElement: string;     // "Slide {n} → {kind}"
+            slideSelectionClearAria: string;        // "Clear selection: {label}"
+            slideSelectionClearTitle: string;       // "Clear selection"
+            slideEditModeLabel: string;             // "Edit mode:"
+            slideEditModeContent: string;           // "Content"
+            slideEditModeDesign: string;            // "Design"
+            slideEditFlagWebSearch: string;         // "Web search"
+            slideDiffTitle: string;                 // "Review slide edit"
+            slideDiffReject: string;                // "Reject"
+            slideDiffAccept: string;                // "Accept"
+            slideDiffEmpty: string;                 // "Nothing to apply…"
+            slideDiffDriftSummary: string;          // "Model also changed {n} slide{s} outside your selection — show changes"
+            slideDiffIntegrityAdded: string;        // "The model added one or more slides…"
+            slideDiffIntegrityRemoved: string;      // "The model removed one or more slides…"
+            slideDiffIntegrityClassChanged: string; // "The model changed slide layout classes…"
             // Phase labels (previously hardcoded in PresentationModeHandler) —
             // both the side-panel status text and the thinking-indicator bubble
             // use these keys (F4 follow-up).
