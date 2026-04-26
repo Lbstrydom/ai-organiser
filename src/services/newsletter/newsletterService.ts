@@ -53,6 +53,19 @@ export class NewsletterService {
         }
 
         if (rawEmails.length === 0) {
+            // Recovery sweep MUST run even on empty fetches — that's the
+            // most common scenario where it matters (no new emails today
+            // means yesterday's bucket is closed but no fetch is bringing
+            // new content to retrigger generateBriefsPerBucket). Skipping
+            // here defeats the entire fix.
+            // (Verified via persona-harness 2026-04-26: prior version
+            // returned here before reaching the Phase 4b sweep, so April
+            // 24's missing audio was never recovered.)
+            try {
+                await this.recoverMissedAudioPodcasts();
+            } catch (e) {
+                logger.warn('Newsletter', 'Audio recovery sweep failed (non-fatal)', e);
+            }
             return { newsletters: [], totalFetched: 0, totalNew: 0, totalSkipped: 0, errors: [], hitLimit: false };
         }
 

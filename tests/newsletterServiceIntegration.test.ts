@@ -540,6 +540,46 @@ describe('NewsletterService integration', () => {
             expect(onProgress).toHaveBeenCalledWith(1, 1);
         });
     });
+
+    // ── Audio recovery on empty fetch (regression for 2026-04-26) ─────────
+    //
+    // Before this fix, an empty Apps Script response (zero new emails — the
+    // common scenario, since auto-fetch usually exhausts the Gmail label
+    // between manual fetches) returned at line 56 BEFORE the recovery sweep
+    // could run. The persona-harness verification on April 26 caught this
+    // — Phase 4b never executed because rawEmails.length === 0 short-circuited.
+    //
+    // The contract this pins: even when there are no emails, the recovery
+    // sweep MUST execute so closed-bucket digests without audio get podcasted.
+
+    describe('audio recovery on empty fetch (regression)', () => {
+        it('still runs recoverMissedAudioPodcasts when zero emails are returned', async () => {
+            mockFetchResponse([]); // Apps Script returns no emails
+            // Spy on the private recovery method via prototype access. We
+            // don't care about its internals (those are tested separately
+            // via tests/newsletterAudioRecovery.test.ts) — we care that
+            // fetchAndProcess invokes it on the empty path.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const proto: any = Object.getPrototypeOf(service);
+            const recoverSpy = vi.spyOn(proto, 'recoverMissedAudioPodcasts')
+                .mockResolvedValue(undefined);
+            const result = await service.fetchAndProcess();
+            expect(result.totalNew).toBe(0);
+            expect(recoverSpy).toHaveBeenCalledTimes(1);
+            recoverSpy.mockRestore();
+        });
+
+        it('runs recoverMissedAudioPodcasts on the non-empty fetch path too', async () => {
+            mockFetchResponse([makeRaw()]);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const proto: any = Object.getPrototypeOf(service);
+            const recoverSpy = vi.spyOn(proto, 'recoverMissedAudioPodcasts')
+                .mockResolvedValue(undefined);
+            await service.fetchAndProcess();
+            expect(recoverSpy).toHaveBeenCalledTimes(1);
+            recoverSpy.mockRestore();
+        });
+    });
 });
 
 // ── Command registration ────────────────────────────────────────────────────
