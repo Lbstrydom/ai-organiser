@@ -314,6 +314,7 @@ export interface AIOrganiserSettings {
     newsletterPreferredLanguage: string; // '' = same as source, else ISO code (e.g., 'en', 'zh-cn')
     newsletterDailyBrief: boolean;       // Synthesise a deduplicated daily brief at top of digest
     newsletterAudioPodcast: boolean;     // Generate TTS audio from the daily brief (requires Gemini)
+    newsletterTtsProvider: string;       // TTS provider for newsletter audio (default 'gemini')
     newsletterPodcastVoice: string;      // Gemini TTS voice name: 'Charon' | 'Puck' | 'Kore'
     newsletterPodcastMaxMins: number;   // Maximum podcast length in minutes (1-15, default 5)
     newsletterBriefCutoffHour: number;  // Hour (0-23) when "today" rolls over for brief grouping
@@ -571,6 +572,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterPreferredLanguage: 'en',
     newsletterDailyBrief: true,
     newsletterAudioPodcast: false,
+    newsletterTtsProvider: 'gemini',
     newsletterPodcastVoice: 'Charon',
     newsletterPodcastMaxMins: 5,
     newsletterBriefCutoffHour: 6,

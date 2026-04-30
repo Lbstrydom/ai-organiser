@@ -244,6 +244,92 @@ export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<
     return null;
 }
 
+// ── TTS provider config ──────────────────────────────────────────────────────
+
+/**
+ * Resolved TTS provider configuration.
+ * Returned by getAudioNarrationProviderConfig and getNewsletterTtsProviderConfig.
+ */
+export interface TtsProviderConfig {
+    provider: string;
+    apiKey: string;
+    voice: string;
+}
+
+/**
+ * Resolve the Gemini API key for general audio narration features.
+ *
+ * Priority: (1) SecretStorage 'gemini' provider key, (2) providerSettings.gemini.apiKey,
+ * (3) main cloudApiKey IFF cloudServiceType === 'gemini'.
+ *
+ * Returns null when no key is available so callers can show a user-friendly
+ * "add a Gemini key" message rather than crash.
+ */
+export async function getAudioNarrationProviderConfig(
+    plugin: AIOrganiserPlugin,
+): Promise<TtsProviderConfig | null> {
+    const settings = plugin.settings;
+    const useMainKeyFallback = settings.cloudServiceType === 'gemini';
+    const secretStorage = plugin.secretStorageService;
+
+    const apiKey = secretStorage.isAvailable()
+        ? await secretStorage.resolveApiKey({
+            providerFallback: 'gemini',
+            useMainKeyFallback,
+            plainTextFallback: {
+                providerKey: settings.providerSettings?.['gemini']?.apiKey,
+                mainCloudKey: useMainKeyFallback ? settings.cloudApiKey : undefined,
+            },
+        })
+        : settings.providerSettings?.['gemini']?.apiKey
+            || (useMainKeyFallback ? settings.cloudApiKey : null)
+            || null;
+
+    if (!apiKey) return null;
+
+    return { provider: 'gemini', apiKey, voice: 'Charon' };
+}
+
+/**
+ * Resolve the TTS provider config for newsletter audio podcasts.
+ *
+ * Mirrors getAudioNarrationProviderConfig but reads newsletterTtsProvider
+ * (default 'gemini') and uses the newsletter-specific voice setting.
+ *
+ * Returns null when the provider is unsupported or no API key is available.
+ */
+export async function getNewsletterTtsProviderConfig(
+    plugin: AIOrganiserPlugin,
+): Promise<TtsProviderConfig | null> {
+    const provider = plugin.settings.newsletterTtsProvider || 'gemini';
+    if (provider !== 'gemini') return null; // only Gemini TTS supported today
+
+    const settings = plugin.settings;
+    const useMainKeyFallback = settings.cloudServiceType === 'gemini';
+    const secretStorage = plugin.secretStorageService;
+
+    const apiKey = secretStorage.isAvailable()
+        ? await secretStorage.resolveApiKey({
+            providerFallback: 'gemini',
+            useMainKeyFallback,
+            plainTextFallback: {
+                providerKey: settings.providerSettings?.['gemini']?.apiKey,
+                mainCloudKey: useMainKeyFallback ? settings.cloudApiKey : undefined,
+            },
+        })
+        : settings.providerSettings?.['gemini']?.apiKey
+            || (useMainKeyFallback ? settings.cloudApiKey : null)
+            || null;
+
+    if (!apiKey) return null;
+
+    return {
+        provider: 'gemini',
+        apiKey,
+        voice: settings.newsletterPodcastVoice || 'Charon',
+    };
+}
+
 /**
  * Preflight check: is the main LLM provider actually configured?
  *

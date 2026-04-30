@@ -1,21 +1,20 @@
 /**
  * Newsletter Audio Podcast Service
  *
- * Converts a Daily Brief text into a WAV audio file using the Gemini TTS API.
- * Uses hash-in-filename for idempotency (same content → same filename, avoiding
- * Windows file-locking issues with vault.modify on open files).
+ * Converts a Daily Brief text into an MP3 audio file using the shared
+ * TtsEngine abstraction (GeminiTtsEngine). Retry-with-backoff and
+ * AbortSignal support are inherited for free from ttsRetry.ts.
+ *
+ * Uses hash-in-filename for idempotency (same content → same filename,
+ * avoiding Windows file-locking issues with vault.modify on open files).
  */
 
-import { App, normalizePath, requestUrl, TFile } from 'obsidian';
+import { App, normalizePath, TFile } from 'obsidian';
 import { ensureFolderExists } from '../../utils/minutesUtils';
 import lamejs from '@breezystack/lamejs';
+import { NARRATION_PROVIDERS } from '../tts/ttsProviderRegistry';
+import { retryWithBackoff } from '../tts/ttsRetry';
 
-// Google's naming inverted between 2.x and 3.x — 2.5 used `-preview-tts`
-// suffix, 3.1 uses `-tts-preview`. Confirmed against the official Gemini
-// API speech-generation docs (2026-04-20). All TTS models are in Preview
-// status — no GA variant yet. Response schema is unchanged between
-// versions so no other code needs to adapt.
-const GEMINI_TTS_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent';
 // Gemini returns LINEAR16 PCM at 24 kHz. For a speech-only podcast we:
 //   1. Downsample to 16 kHz (speech energy is <4 kHz — no audible loss)
 //   2. Encode as MP3 at 48 kbps mono
@@ -36,6 +35,7 @@ const TTS_CHUNK_CHAR_TARGET = 1100;
 /** Hard max per chunk — even a very long single sentence shouldn't exceed
  *  this, to keep us well inside any API limit and the model's sweet spot. */
 const TTS_CHUNK_CHAR_MAX = 1800;
+const MAX_RETRY_ATTEMPTS = 3;
 
 export interface AudioPodcastOptions {
     apiKey: string;
@@ -51,18 +51,25 @@ export interface AudioPodcastResult {
 }
 
 /**
- * Generate (or skip if already current) an audio WAV podcast from brief text.
+ * Generate (or skip if already current) an MP3 audio podcast from brief text.
  * Returns the vault path of the created file, or an error message.
+ *
+ * @param signal Optional AbortSignal — passed through to each TTS chunk call
+ *               so the user can cancel a long generation mid-flight.
+ *               The newsletter service caller does not need to pass one yet;
+ *               the parameter is optional to preserve backward compatibility.
  */
 export async function generateAudioPodcast(
     app: App,
     script: string,
-    opts: AudioPodcastOptions
+    opts: AudioPodcastOptions,
+    signal?: AbortSignal,
 ): Promise<AudioPodcastResult> {
     const { apiKey, voice, outputFolder, dateStr } = opts;
     const { vault } = app;
 
-    const fingerprint = await computeFingerprint(script, voice);
+    const engine = NARRATION_PROVIDERS.gemini.factory(apiKey, voice);
+    const fingerprint = await computeFingerprint(script, voice, engine.modelId);
     const shortFp = fingerprint.slice(0, 8);
     const fileName = `brief-${dateStr}-${shortFp}.mp3`;
     const filePath = normalizePath(`${outputFolder}/${fileName}`);
@@ -78,13 +85,20 @@ export async function generateAudioPodcast(
     // script is already short enough.
     const chunks = splitScriptForTts(script);
 
-    // Call Gemini TTS per chunk and accumulate raw PCM. LINEAR16 PCM is
+    // Synthesise each chunk with retry-with-backoff. LINEAR16 PCM is
     // naturally concatenatable (no headers, no framing) so splice-and-stitch
     // produces a continuous waveform.
     const pcmSegments: Uint8Array[] = [];
     try {
         for (let i = 0; i < chunks.length; i++) {
-            const result = await callGeminiTts(apiKey, voice, chunks[i]);
+            if (signal?.aborted) {
+                return { success: false, error: 'Aborted' };
+            }
+            const result = await retryWithBackoff(
+                () => engine.synthesizeChunk(chunks[i], signal),
+                MAX_RETRY_ATTEMPTS,
+                signal,
+            );
             if (result === null) {
                 return { success: false, error: `Gemini TTS returned no valid audio for chunk ${i + 1}/${chunks.length}` };
             }
@@ -110,66 +124,6 @@ export async function generateAudioPodcast(
     }
 
     return { success: true, filePath };
-}
-
-// ── Gemini TTS ───────────────────────────────────────────────────────────────
-
-async function callGeminiTts(apiKey: string, voice: string, text: string): Promise<string | null> {
-    const url = `${GEMINI_TTS_ENDPOINT}?key=${apiKey}`;
-    const body = {
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-                voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: voice },
-                },
-            },
-            // NOTE: no `audioConfig` field — that's Google Cloud TTS's schema.
-            // Gemini's generateContent endpoint returns LINEAR16 PCM @ 24kHz
-            // by default for TTS; adding audioConfig trips a 400 "unknown
-            // field". Persona round 11 console audit (2026-04-20) caught
-            // this: three "Request failed, status 400" warnings per run.
-        },
-    };
-
-    const response = await requestUrl({
-        url,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        // Without throw:false, requestUrl auto-throws on 4xx/5xx with the
-        // cryptic "Request failed, status 400" and discards the body. Let us
-        // read the body so users see WHY Gemini rejected the payload.
-        throw: false,
-    });
-
-    if (response.status !== 200) {
-        throw new Error(`Gemini TTS error ${response.status}: ${response.text.slice(0, 300)}`);
-    }
-
-    // Validate response structure before accessing nested fields
-    interface GeminiTtsResponse {
-        candidates?: Array<{
-            content?: {
-                parts?: Array<{
-                    inlineData?: { mimeType?: string; data?: string };
-                }>;
-            };
-        }>;
-    }
-    const json = response.json as GeminiTtsResponse | null;
-    if (!json || !Array.isArray(json.candidates) || json.candidates.length === 0) {
-        return null; // unexpected structure — caller handles gracefully
-    }
-    const inlineData = json.candidates[0]?.content?.parts?.[0]?.inlineData;
-    const data = inlineData?.data;
-    // Accept any audio MIME type (Gemini returns audio/pcm, audio/wav, etc.)
-    const mimeType = inlineData?.mimeType ?? '';
-    if (typeof data !== 'string' || data.length === 0 || !mimeType.startsWith('audio')) {
-        return null; // no valid audio payload — skip silently
-    }
-    return data;
 }
 
 // ── MP3 encoding (lamejs, pure-JS, CBR) ─────────────────────────────────────
@@ -332,9 +286,14 @@ function base64ToUint8Array(b64: string): Uint8Array {
 /**
  * Compute a SHA-256 fingerprint of (script + voice + modelId) using Web Crypto API.
  * Returns a lowercase hex string. Async because SubtleCrypto.digest is async.
+ *
+ * `modelId` replaces the old inline GEMINI_TTS_ENDPOINT constant so the
+ * fingerprint contract is now: hash(script \x00 voice \x00 engine.modelId).
+ * Because GeminiTtsEngine.modelId equals the former endpoint string, all
+ * files generated before this refactor are still recognised as current.
  */
-async function computeFingerprint(script: string, voice: string): Promise<string> {
-    const raw = script + '\x00' + voice + '\x00' + GEMINI_TTS_ENDPOINT;
+async function computeFingerprint(script: string, voice: string, modelId: string): Promise<string> {
+    const raw = script + '\x00' + voice + '\x00' + modelId;
     const encoded = new TextEncoder().encode(raw);
     const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
