@@ -536,7 +536,7 @@ describe('generateAudioPodcast', () => {
         const result = await generateAudioPodcast(mockApp as any, script, opts);
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain('no valid audio');
+        expect(result.error).toContain('Gemini TTS');
     });
 
     it('returns error when inlineData has wrong mimeType', async () => {
@@ -561,7 +561,7 @@ describe('generateAudioPodcast', () => {
         const result = await generateAudioPodcast(mockApp as any, script, opts);
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain('no valid audio');
+        expect(result.error).toContain('Gemini TTS');
     });
 
     it('returns error when inlineData is missing data field', async () => {
@@ -586,7 +586,7 @@ describe('generateAudioPodcast', () => {
         const result = await generateAudioPodcast(mockApp as any, script, opts);
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain('no valid audio');
+        expect(result.error).toContain('Gemini TTS');
     });
 
     it('creates an MP3 file when TTS returns valid audio/pcm payload', async () => {

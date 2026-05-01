@@ -1,5 +1,8 @@
 /**
- * Tests for Command Picker Modal
+ * Tests for Command Picker Modal — output-anchored taxonomy.
+ *
+ * Plan: docs/plans/command-picker-output-anchored*.md (5 docs, locked
+ * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
  */
 
 import { buildCommandCategories, type PickerCommand } from '../src/ui/modals/CommandPickerModal';
@@ -23,135 +26,189 @@ function collectLeafCommands(commands: PickerCommand[]): PickerCommand[] {
     });
 }
 
-describe('Command Picker', () => {
-    describe('buildCommandCategories', () => {
-        const mockTranslations = en;
-        const mockExecuteCommand = vi.fn();
+describe('Command Picker — output-anchored taxonomy', () => {
+    const mockTranslations = en;
+    const mockExecuteCommand = vi.fn();
 
-        it('should return all expected categories', () => {
+    describe('buildCommandCategories — top-level structure', () => {
+        it('returns the 5 locked categories in order', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const categoryIds = categories.map(c => c.id);
-            // R1 menu audit 2026-04-21: `essentials` added at top of tree
-            expect(categoryIds).toEqual(['essentials', 'active-note', 'capture', 'vault', 'tools']);
-        });
-
-        it('should have correct category names from i18n', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const categoryNames = categories.map(c => c.name);
-            expect(categoryNames).toEqual([
-                mockTranslations.modals.commandPicker.categoryEssentials,
-                mockTranslations.modals.commandPicker.categoryActiveNote,
-                mockTranslations.modals.commandPicker.categoryCapture,
-                mockTranslations.modals.commandPicker.categoryVault,
-                mockTranslations.modals.commandPicker.categoryTools,
+            expect(categories.map(c => c.id)).toEqual([
+                'essentials', 'create', 'refine', 'find', 'manage',
             ]);
         });
 
-        it('essentials should contain chat, semantic search, and quick peek (R1 menu audit)', () => {
+        it('category names resolve through i18n', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const essentials = categories.find(c => c.id === 'essentials');
-
-            expect(essentials).toBeDefined();
-            const ids = essentials!.commands.map(c => c.id);
-            expect(ids).toEqual(['chat-with-ai', 'semantic-search', 'quick-peek']);
-        });
-
-        it('active note should contain expected sub-groups (quick-peek removed, promoted to essentials)', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const activeNote = categories.find(c => c.id === 'active-note');
-
-            expect(activeNote).toBeDefined();
-            const ids = activeNote!.commands.map(c => c.id);
-            expect(ids).toEqual(['refine-group', 'export-group', 'maps-group', 'pending-group']);
-
-            const maps = activeNote!.commands.find(c => c.id === 'maps-group');
-            expect(maps?.subCommands?.map(c => c.id)).toEqual([
-                'build-investigation-canvas',
-                'build-context-canvas',
-                'find-related',
-                'insert-related-notes'
+            expect(categories.map(c => c.name)).toEqual([
+                en.modals.commandPicker.categoryEssentials,
+                en.modals.commandPicker.categoryCreate,
+                en.modals.commandPicker.categoryRefine,
+                en.modals.commandPicker.categoryFind,
+                en.modals.commandPicker.categoryManage,
             ]);
         });
+    });
 
-        it('capture should contain expected commands', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const capture = categories.find(c => c.id === 'capture');
-            const ids = capture!.commands.map(c => c.id);
-            expect(ids).toEqual(['smart-summarize', 'create-meeting-minutes', 'record-audio', 'web-reader', 'research-web', 'kindle-sync', 'newsletter-fetch', 'new-sketch']);
-        });
-
-        it('vault should contain expected sub-groups (ask-search-group removed per R1/R2 menu audit)', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const vault = categories.find(c => c.id === 'vault');
-
-            expect(vault).toBeDefined();
-            const ids = vault!.commands.map(c => c.id);
-            expect(ids).toEqual(['visualize-group', 'find-embeds']);
-
-            const visualize = vault!.commands.find(c => c.id === 'visualize-group');
-            expect(visualize?.subCommands?.map(c => c.id)).toEqual([
-                'build-cluster-canvas',
-                'show-tag-network',
-                'create-dashboard',
-                'collect-all-tags'
+    describe('Essentials', () => {
+        it('contains chat / search / quick-peek (canonical)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.map(c => c.id)).toEqual([
+                'chat-with-ai', 'semantic-search', 'quick-peek',
             ]);
         });
-
-        it('tools should contain notebooklm-export as standalone (R6 menu audit)', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const tools = categories.find(c => c.id === 'tools');
-            const ids = tools!.commands.map(c => c.id);
-            // R6: the 4-item group collapsed to a single direct leaf.
-            // Toggle/Clear/Open-folder remain in the command palette only.
-            expect(ids).toEqual(['notebooklm-export']);
-
-            const exportCmd = tools!.commands.find(c => c.id === 'notebooklm-export');
-            expect(exportCmd?.subCommands).toBeUndefined();
+        it('cross-listed entries declare canonicalCategoryId === "essentials"', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const ess = cats.find(c => c.id === 'essentials')!;
+            for (const c of ess.commands) {
+                expect(c.canonicalCategoryId).toBe('essentials');
+            }
         });
+    });
 
-        it('vault should contain find-embeds as standalone (flattened from single-child group)', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const vault = categories.find(c => c.id === 'vault');
-            const findEmbeds = vault!.commands.find(c => c.id === 'find-embeds');
-            expect(findEmbeds).toBeDefined();
-            expect(findEmbeds?.subCommands).toBeUndefined();
+    describe('Create — flat 14 leaves, no sub-groups', () => {
+        it('has 14 direct leaves with no subCommands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const create = cats.find(c => c.id === 'create')!;
+            expect(create.commands.length).toBe(14);
+            expect(create.commands.every(c => !c.subCommands || c.subCommands.length === 0)).toBe(true);
         });
-
-        it('refine group should contain tag, enhance, translate, clear, digitise, edit-mermaid', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const refine = categories
-                .find(c => c.id === 'active-note')!
-                .commands.find(c => c.id === 'refine-group')!;
-            expect(refine.subCommands?.map(c => c.id)).toEqual([
-                'smart-tag',
-                'enhance-note',
-                'smart-translate',
-                'clear-tags',
-                'digitise-image',
-                'edit-mermaid-diagram',
-                'presentation-chat'
+        it('exact leaf-id list matches the locked matrix', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const create = cats.find(c => c.id === 'create')!;
+            expect(create.commands.map(c => c.id)).toEqual([
+                'smart-summarize', 'create-meeting-minutes', 'smart-translate',
+                'narrate-note', 'export-flashcards', 'export-note', 'export-minutes-docx',
+                'smart-tag', 'presentation-chat', 'edit-mermaid-diagram', 'new-sketch',
+                'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
             ]);
         });
+    });
 
-        it('should have expected total leaf command count', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const leafCount = categories.reduce((sum, category) => sum + countLeafCommands(category.commands), 0);
-            // R6+R7 menu audit 2026-04-21: was 38 after R1/R2.
-            // R6 removed 3 NotebookLM state commands from the picker.
-            // R7 removed ensure-note-structure from the picker.
-            // Net: 38 - 4 = 34.
-            expect(leafCount).toBe(34);
+    describe('Refine — cross-lists quick-peek', () => {
+        it('contains 7 leaves; last is the cross-listed quick-peek', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const refine = cats.find(c => c.id === 'refine')!;
+            expect(refine.commands.map(c => c.id)).toEqual([
+                'enhance-note', 'integrate-pending-content', 'add-to-pending-integration',
+                'resolve-pending-embeds', 'digitise-image', 'clear-tags',
+                'quick-peek',
+            ]);
+        });
+    });
+
+    describe('Find — cross-lists chat + search', () => {
+        it('contains 9 leaves; last 2 are cross-listed chat + search', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const find = cats.find(c => c.id === 'find')!;
+            expect(find.commands.map(c => c.id)).toEqual([
+                'web-reader', 'research-web', 'find-related', 'insert-related-notes',
+                'find-embeds', 'show-tag-network', 'collect-all-tags',
+                'chat-with-ai', 'semantic-search',
+            ]);
+        });
+    });
+
+    describe('Manage — admin + recurring fetches', () => {
+        it('contains all expected leaves incl newly-surfaced migration', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            expect(manage.commands.map(c => c.id)).toEqual([
+                'kindle-sync', 'newsletter-fetch', 'record-audio', 'play-narration',
+                'upgrade-metadata', 'upgrade-folder-metadata',
+                'create-bases-dashboard', 'notebooklm-export',
+            ]);
+        });
+    });
+
+    describe('Cross-listing identity', () => {
+        it('cross-listed commands share callback identity (same object)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const ess = cats.find(c => c.id === 'essentials')!;
+            const find = cats.find(c => c.id === 'find')!;
+            const refine = cats.find(c => c.id === 'refine')!;
+            const essChat = ess.commands.find(c => c.id === 'chat-with-ai')!;
+            const findChat = find.commands.find(c => c.id === 'chat-with-ai')!;
+            expect(essChat).toBe(findChat);
+
+            const essPeek = ess.commands.find(c => c.id === 'quick-peek')!;
+            const refinePeek = refine.commands.find(c => c.id === 'quick-peek')!;
+            expect(essPeek).toBe(refinePeek);
+        });
+    });
+
+    describe('requires field — every leaf has a valid kind', () => {
+        const VALID = new Set(['none', 'active-note', 'selection', 'vault', 'semantic-search']);
+        it('every leaf declares a known requires value', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
+            for (const l of leaves) {
+                expect(typeof l.requires).toBe('string');
+                expect(VALID.has(l.requires!)).toBe(true);
+            }
+        });
+        it('semantic-search command requires "semantic-search"', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const ess = cats.find(c => c.id === 'essentials')!;
+            const search = ess.commands.find(c => c.id === 'semantic-search')!;
+            expect(search.requires).toBe('semantic-search');
+        });
+        it('notebooklm-export requires "vault" (Gemini-G1 fix)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            const nbExport = manage.commands.find(c => c.id === 'notebooklm-export')!;
+            expect(nbExport.requires).toBe('vault');
+        });
+    });
+
+    describe('legacyHomes — backward-compat alias derivation', () => {
+        it('moved commands declare legacyHomes (preserves search vocabulary)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const create = cats.find(c => c.id === 'create')!;
+            const narrate = create.commands.find(c => c.id === 'narrate-note')!;
+            // narrate-note moved out of Active Note → Export
+            expect(narrate.legacyHomes).toContain('active-note-export');
+            // Aliases should now include "export" + "active note"
+            expect(narrate.aliases).toContain('export');
+            expect(narrate.aliases).toContain('active note');
+        });
+        it('play-narration also has active-note-export legacy home (Gemini-G4 — was missing under manual approach)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            const play = manage.commands.find(c => c.id === 'play-narration')!;
+            expect(play.legacyHomes).toContain('active-note-export');
+            expect(play.aliases).toContain('export');
+        });
+    });
+
+    describe('counts', () => {
+        it('total picker rows = 41 (38 unique + 3 cross-listings)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
+            expect(leafCount).toBe(41);
+        });
+        it('unique command IDs = 38', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
+            const uniqueIds = new Set(leaves.map(l => l.id));
+            expect(uniqueIds.size).toBe(38);
         });
 
-        it('should include the expected unique command IDs across all leaf callbacks', () => {
-            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const leafCommands = categories.flatMap(category => collectLeafCommands(category.commands));
-
+        it('alphabetised ai-organiser:* callbacks (38 unique)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
-            leafCommands.forEach(command => command.callback());
-
-            const uniqueExecutedCommands = new Set(mockExecuteCommand.mock.calls.map(call => call[0]));
-            expect(Array.from(uniqueExecutedCommands).sort((a, b) => a.localeCompare(b))).toEqual([
+            // Each callback may be present multiple times via cross-listing —
+            // calling once via Set keeps the test about unique callbacks fired.
+            const seen = new Set<PickerCommand>();
+            for (const leaf of leaves) {
+                if (seen.has(leaf)) continue;
+                seen.add(leaf);
+                leaf.callback();
+            }
+            const unique = new Set(mockExecuteCommand.mock.calls.map(call => call[0]));
+            expect(Array.from(unique).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
                 'ai-organiser:add-to-pending-integration',
                 'ai-organiser:build-cluster-canvas',
                 'ai-organiser:build-context-canvas',
@@ -164,7 +221,6 @@ describe('Command Picker', () => {
                 'ai-organiser:digitise-image',
                 'ai-organiser:edit-mermaid-diagram',
                 'ai-organiser:enhance-note',
-                // ensure-note-structure removed from picker in R7 (2026-04-21)
                 'ai-organiser:export-flashcards',
                 'ai-organiser:export-minutes-docx',
                 'ai-organiser:export-note',
@@ -173,10 +229,11 @@ describe('Command Picker', () => {
                 'ai-organiser:insert-related-notes',
                 'ai-organiser:integrate-pending-content',
                 'ai-organiser:kindle-sync',
+                'ai-organiser:narrate-note',
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-fetch',
-                // notebooklm-{toggle,clear,open-folder} removed from picker in R6 (2026-04-21)
                 'ai-organiser:notebooklm-export',
+                'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
@@ -187,13 +244,11 @@ describe('Command Picker', () => {
                 'ai-organiser:smart-summarize',
                 'ai-organiser:smart-tag',
                 'ai-organiser:smart-translate',
+                'ai-organiser:upgrade-folder-metadata',
+                'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
             ]);
-            // R6+R7 menu audit 2026-04-21: was 38 after R1/R2/R5.
-            // R6 removed 3 NotebookLM state commands, R7 removed
-            // ensure-note-structure → 34 unique command IDs now surface
-            // in the picker.
-            expect(uniqueExecutedCommands.size).toBe(34);
+            expect(unique.size).toBe(38);
         });
     });
 });

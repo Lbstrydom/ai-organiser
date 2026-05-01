@@ -12,6 +12,7 @@ import { MobileSettingsSection } from './MobileSettingsSection';
 import { BasesSettingsSection } from './BasesSettingsSection';
 import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
 import { AudioTranscriptionSettingsSection } from './AudioTranscriptionSettingsSection';
+import { AudioNarrationSettingsSection } from './AudioNarrationSettingsSection';
 import { ExportSettingsSection } from './ExportSettingsSection';
 import { NewsletterSettingsSection } from './NewsletterSettingsSection';
 import { CanvasSettingsSection } from './CanvasSettingsSection';
@@ -26,9 +27,24 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
     private expandedSections = new Set<string>(['ai-provider']);
 
+    /** Sub-section id to scroll into view after the next display() — set
+     *  by `revealSubSection()` and consumed once. */
+    private pendingScrollToSubSection: string | null = null;
+
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+
+    /**
+     * Deep-link entry point: ensure the parent + sub-section are expanded
+     * and scroll the sub-section into view on the next render. Safe to
+     * call before display(); the scroll happens after the DOM is built.
+     */
+    revealSubSection(parentId: string, subId: string): void {
+        this.expandedSections.add(parentId);
+        this.expandedSections.add(subId);
+        this.pendingScrollToSubSection = subId;
     }
 
     private createSubCollapsibleSection(
@@ -38,7 +54,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         icon: string
     ): HTMLElement {
         const details = container.createEl('details', {
-            cls: 'ai-organiser-settings-sub-section'
+            cls: 'ai-organiser-settings-sub-section',
+            attr: { 'data-section-id': id },
         });
         details.open = this.expandedSections.has(id);
         details.addEventListener('toggle', () => {
@@ -141,6 +158,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         );
         let sub = this.createSubCollapsibleSection(content, 'sub-audio', t.audioTranscription?.title || 'Audio & Recording', 'mic');
         new AudioTranscriptionSettingsSection(this.plugin, sub, this).display();
+        sub = this.createSubCollapsibleSection(content, 'sub-audio-narration', t.audioNarration?.title || 'Audio narration', 'audio-lines');
+        new AudioNarrationSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-digitisation', t.digitisation?.title || 'Smart Digitisation', 'scan');
         new DigitisationSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-sketch', t.sketch?.title || 'Sketch Pad', 'pencil');
@@ -228,5 +247,18 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // across re-renders triggered by toggling.
         containerEl.setAttribute('tabindex', '-1');
         containerEl.focus({ preventScroll: true });
+
+        // Deep-link consumer — scroll the requested sub-section into view.
+        // One-shot: cleared after consumption so a later display() doesn't
+        // re-scroll. Uses scrollIntoView with {block: 'start'} so the
+        // section header is visible at the top of the panel.
+        if (this.pendingScrollToSubSection) {
+            const id = this.pendingScrollToSubSection;
+            this.pendingScrollToSubSection = null;
+            const target = containerEl.querySelector(`[data-section-id="${id}"]`);
+            if (target instanceof HTMLElement) {
+                requestAnimationFrame(() => target.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+            }
+        }
     }
 }

@@ -47,6 +47,12 @@ export interface PresentationMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
     timestamp: number;
+    /** Creation-flow epoch — increments on dispose/onClear. Used to filter
+     *  history into the current creation cycle so discarded refines don't
+     *  bleed into the next deck-creation prompt (audit Gemini-r2-G3 +
+     *  r5-G3 + r6-G1). Legacy v1-saved messages have undefined here; the
+     *  handler stamps them with the current epoch on deserialisation. */
+    epoch?: number;
 }
 
 // ── DOM Fix (from Haiku brand audit) ────────────────────────────────────────
@@ -303,30 +309,68 @@ export interface EditFlags {
     references: string[];
 }
 
-/** Source descriptor for the create flow. */
-export interface SourceDescriptor {
-    kind: 'note' | 'web' | 'folder';
-    /** Vault path for note/folder; URL for web. */
+// ── Three-layer source model (audit H1, H5, R3-H9) ─────────────────────────
+// Layer 1 (SelectedSource): persisted user choice; Layer 2 (CreationSourceState):
+// UI render state inside the panel; Layer 3 (PromptSource): content-resolved
+// entries that the prompt builder emits one block per.
+
+/** Kind of source the user can pick. v1 supports search-query web only —
+ *  URL ingestion deferred per audit R3-H9. */
+export type SourceKind = 'note' | 'web-search' | 'folder';
+
+/** Layer 1: persisted user choice. Small, serialisable, no content. */
+export interface SelectedSource {
+    kind: SourceKind;
+    /** For 'note'/'folder': vault path. For 'web-search': the search query string. */
     ref: string;
-    /** Truncated content (or summary, for folder). Empty string while loading. */
-    content: string;
-    /** True when auto-detected from active note (default-on). */
     autoDetected?: boolean;
-    /** Set when a folder source enumerated more files than allowed cap. */
-    cappedAt?: number;
-    /** Set when source resolution failed; UI shows red border + tooltip. */
-    error?: string;
 }
 
-/** Aggregate state for the create flow. */
+/** Failure codes captured by the resolver (audit M8). Each maps to an
+ *  i18n key under `slideCreateSourceFailure*`. */
+export type SourceFailureCode =
+    | 'note-not-found'
+    | 'note-empty'
+    | 'note-read-failed'
+    | 'folder-not-found'
+    | 'folder-empty'
+    | 'web-search-failed'
+    | 'web-search-no-results'
+    | 'unsupported-kind';
+
+/** Layer 2: UI render state per source row. Held inside the controller +
+ *  surfaced via `getSnapshot()`; never persisted. */
+export interface CreationSourceState {
+    selected: SelectedSource;
+    status: 'idle' | 'loading' | 'resolved' | 'error';
+    failureCode?: SourceFailureCode;
+    cappedAt?: number;
+    displayLabel?: string;
+}
+
+/** Layer 3: prompt-ready content. One per resolved file (folder kinds
+ *  expand to multiple PromptSource entries). 'folder' never appears here. */
+export type PromptSourceKind = 'note' | 'web-search';
+export interface PromptSource {
+    kind: PromptSourceKind;
+    ref: string;
+    content: string;
+    /** Provenance: which folder this file came from, if any. */
+    fromFolder?: string;
+}
+
+/** Reason category when a generation request is blocked at the gate. */
+export type GenerationBlockReason = 'no-usable-sources' | 'zero-selected';
+
+/** Aggregate config for the create flow. Sources live in
+ *  `CreationSourceController`, NOT here (audit Gemini-r3-G2). `brandOn`
+ *  removed (audit L1 — not wired this phase). */
 export interface CreationConfig {
-    sources: SourceDescriptor[];
     audience: AudienceTier;
     /** Target slide count (5/8/12 are presets; any positive integer accepted). */
     length: number;
     /** Speed/quality model dispatch — 'fast' default. */
     speedTier: ModelTier;
-    brandOn: boolean;
 }
 
 /** Single line of a unified text diff (reused from utils/mermaidDiff). */
@@ -359,12 +403,17 @@ export interface SlideDiff {
     severity: 'whitespace' | 'text' | 'structural';
 }
 
-/** Structural integrity classification of a refinement response. */
+/** Structural integrity classification of a refinement response.
+ *  - `'element-paths-changed'`: per-slide `data-element` path set lost old
+ *    paths between old and new HTML (audit G1 + Gemini-r7-G1). When this
+ *    fires, `siblingDrift` is null because the user's scope identity was
+ *    destroyed and we can't safely separate in-scope from sibling changes. */
 export type StructuralIntegrity =
     | 'preserved'
     | 'slides-added'
     | 'slides-removed'
-    | 'class-changed';
+    | 'class-changed'
+    | 'element-paths-changed';
 
 /** Service result for `refineHtmlScoped` — frontend renders directly. */
 export interface RefineScopedOutcome {
@@ -374,6 +423,13 @@ export interface RefineScopedOutcome {
     scopeDiff: ScopedDiff;
     /** Slides that drifted outside the scope (filtered for whitespace-only). */
     outOfScopeDrift: SlideDiff[];
-    /** Whether slide count + classes match the original. */
+    /** Same-slide changes outside the user's element scope (audit Item 3).
+     *  Null for non-element scope or when element-paths integrity is broken. */
+    siblingDrift: SlideDiff | null;
+    /** Number of subtree locations whose normalized text content changed
+     *  between old and new (audit Item 2). The modal renders the design-mode
+     *  banner when this is > 0 AND editMode === 'design'. */
+    textChangedLocations: number;
+    /** Whether slide count + classes + element-paths match the original. */
     structuralIntegrity: StructuralIntegrity;
 }

@@ -116,6 +116,24 @@ export async function getAuditProviderConfig(
 }
 
 /**
+ * Resolve audio narration provider.
+ *
+ * v1: Gemini-only. Uses the canonical specialist resolver — same chain Audit
+ * and Flashcard use (SecretStorage → providerSettings → main cloud key when
+ * cloudServiceType matches the target provider). v1.1 will expand the registry
+ * with OpenAI/ElevenLabs without changing this function's signature.
+ *
+ * Returns null when no API key is resolvable (caller surfaces NO_API_KEY).
+ */
+export async function getAudioNarrationProviderConfig(
+    plugin: AIOrganiserPlugin
+): Promise<SpecialistProviderConfig | null> {
+    return resolveSpecialistProvider(plugin, {
+        providerKey: 'audioNarrationProvider',
+    });
+}
+
+/**
  * Get the Gemini API key for YouTube processing.
  *
  * YouTube video ingestion hits Google's `generativelanguage.googleapis.com`

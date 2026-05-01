@@ -409,13 +409,15 @@ export async function refineHtmlScoped(
     // Phase 4 — strip any echoed editor annotations + classify diff
     // The LLM saw canonical HTML; defensive strip catches any echoed back.
     const newCanonicalHtml = stripEditorAnnotations(llmResult.value);
-    const { scopeDiff, outOfScopeDrift, structuralIntegrity } =
+    const { scopeDiff, outOfScopeDrift, siblingDrift, textChangedLocations, structuralIntegrity } =
         classifyDiff(options.currentHtml, newCanonicalHtml, options.scope);
 
     return ok({
         newHtml: newCanonicalHtml,
         scopeDiff,
         outOfScopeDrift,
+        siblingDrift,
+        textChangedLocations,
         structuralIntegrity,
     });
 }

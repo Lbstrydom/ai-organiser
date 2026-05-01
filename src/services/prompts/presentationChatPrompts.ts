@@ -314,7 +314,7 @@ export function countSlides(html: string): number {
 
 // ── Targeted Slide Editing — scoped prompts (slide-authoring-editing plan) ──
 
-import type { SelectionScope, AudienceTier, SourceDescriptor } from '../chat/presentationTypes';
+import type { SelectionScope, AudienceTier, PromptSource } from '../chat/presentationTypes';
 
 /**
  * Audience design-language slot. Inserted into `<audience_instructions>`
@@ -467,7 +467,7 @@ export function buildScopedDesignEditPrompt(options: {
  */
 export function buildCreationPromptWithStyle(options: {
     userQuery: string;
-    sources: SourceDescriptor[];
+    sources: PromptSource[];
     audience: AudienceTier;
     length: number;
     conversationHistory?: string;
@@ -483,8 +483,9 @@ export function buildCreationPromptWithStyle(options: {
     if (sources.length > 0) {
         prompt += '<sources>\n';
         for (const src of sources) {
-            const refLabel = src.kind === 'web' ? 'url' : 'path';
-            prompt += `<source kind="${src.kind}" ${refLabel}="${escapeAttrValue(src.ref)}">\n`;
+            const refLabel = src.kind === 'web-search' ? 'query' : 'path';
+            const fromAttr = src.fromFolder ? ` from="${escapeAttrValue(src.fromFolder)}"` : '';
+            prompt += `<source kind="${src.kind}" ${refLabel}="${escapeAttrValue(src.ref)}"${fromAttr}>\n`;
             prompt += sanitizeTextForPrompt(src.content);
             prompt += '\n</source>\n\n';
         }

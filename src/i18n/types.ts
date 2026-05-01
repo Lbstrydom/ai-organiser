@@ -563,6 +563,35 @@ export interface Translations {
             retentionDays: string;
             retentionDaysDesc: string;
         };
+        audioNarration: {
+            title: string;
+            description: string;
+            voice: string;
+            voiceDesc: string;
+            outputFolder: string;
+            outputFolderDesc: string;
+            embedInNote: string;
+            embedInNoteDesc: string;
+            infoBox: string;
+            notices: {
+                empty: string;
+                noKey: string;
+                consentDeclined: string;
+                success: string;
+                open: string;
+                playWithControls: string;
+                dismiss: string;
+                alreadyExists: string;
+                cancelled: string;
+                failed: string;
+                inFlight: string;
+                embedSkipped: string;
+                transformFailed: string;
+                writeFailed: string;
+                encodeFailed: string;
+                unsupportedPlatform: string;
+            };
+        };
         notebookLM: {
             title: string;
             description: string;
@@ -865,6 +894,8 @@ export interface Translations {
         kindleSync: string;
         newsletterFetch: string;
         newsletterRegenerateAudio: string;
+        narrateNote: string;
+        playNarration: string;
         digitiseImage: string;
         newSketch: string;
         researchWeb: string;
@@ -2066,6 +2097,43 @@ export interface Translations {
             slideDiffIntegrityAdded: string;        // "The model added one or more slides…"
             slideDiffIntegrityRemoved: string;      // "The model removed one or more slides…"
             slideDiffIntegrityClassChanged: string; // "The model changed slide layout classes…"
+            slideDiffIntegrityElementPathsChanged: string;
+            slideDiffDesignTextChanged: string;
+            slideDiffSiblingAdvisory: string;
+            slideDiffSiblingSummary: string;
+            slideSelectorCommand: string;
+            slideSelectorPlaceholder: string;
+            slideSelectorEntry: string;
+            slideBgHoverTooltipTemplate: string;
+            slideCreateAudienceLabel: string;
+            slideCreateAudienceAnalyst: string;
+            slideCreateAudienceExecutive: string;
+            slideCreateAudienceGeneral: string;
+            slideCreateLengthLabel: string;
+            slideCreateLengthCustom: string;
+            slideCreateSpeedLabel: string;
+            slideCreateSpeedFast: string;
+            slideCreateSpeedQuality: string;
+            slideCreateSourcesLabel: string;
+            slideCreateSourcesAddNote: string;
+            slideCreateSourcesAddWeb: string;
+            slideCreateSourcesAddFolder: string;
+            slideCreateSourcesAutoDetected: string;
+            slideCreateSourcesEmpty: string;
+            slideCreateSourceRemove: string;
+            slideCreateRedetectActive: string;
+            slideCreateValidationZeroSources: string;
+            slideCreateValidationZeroLength: string;
+            slideCreateValidationLengthOutOfRange: string;
+            slideCreateBlockNoUsableSources: string;
+            slideCreatePartialFailureNotice: string;
+            slideCreateSourceFailureNoteNotFound: string;
+            slideCreateSourceFailureNoteEmpty: string;
+            slideCreateSourceFailureNoteReadFailed: string;
+            slideCreateSourceFailureFolderNotFound: string;
+            slideCreateSourceFailureFolderEmpty: string;
+            slideCreateSourceFailureWebSearchFailed: string;
+            slideCreateSourceFailureWebSearchNoResults: string;
             // Assistant-message + advisory strings — moved out of hardcoded
             // English literals after persona walkthrough flagged i18n gap.
             slideEditFailed: string;                // "Failed to apply scoped edit: {error}"
@@ -2174,19 +2242,23 @@ export interface Translations {
             navigateHint: string;
             selectHint: string;
             closeHint: string;
+            emptyState: string;
+            // Output-anchored category labels (locked 2026-05-01)
             categoryEssentials: string;
-            categoryActiveNote: string;
-            categoryCapture: string;
-            categoryVault: string;
-            categoryTools: string;
-            groupNoteMaps: string;
-            groupRefine: string;
-            groupExport: string;
-            groupPending: string;
-            groupAskSearch: string;
-            groupVaultVisualizations: string;
-            groupNotebookLM: string;
-            groupVaultHygiene: string;
+            categoryCreate: string;
+            categoryRefine: string;
+            categoryFind: string;
+            categoryManage: string;
+            // Requirement chip + reason strings (4 chips + 5 reasons; semantic-search has 2)
+            requiresChipNote: string;
+            requiresChipSelection: string;
+            requiresChipVault: string;
+            requiresChipSemanticSearch: string;
+            requiresReasonNote: string;
+            requiresReasonSelection: string;
+            requiresReasonVault: string;
+            requiresReasonSemanticSearchDisabled: string;
+            requiresReasonSemanticSearchUnindexed: string;
             descriptions: {
                 mapsGroup: string;
                 buildInvestigationCanvas: string;
@@ -2211,6 +2283,8 @@ export interface Translations {
                 exportNote: string;
                 exportFlashcards: string;
                 exportMinutesDocx: string;
+                narrateNote: string;
+                playNarration: string;
                 smartSummarize: string;
                 createMeetingMinutes: string;
                 recordAudio: string;
@@ -2235,6 +2309,8 @@ export interface Translations {
                 notebookLMToggle: string;
                 notebookLMClear: string;
                 notebookLMOpenFolder: string;
+                upgradeMetadata: string;
+                upgradeFolderMetadata: string;
             };
             badgeComingSoonExplanation: string;
             badgeDevelopingExplanation: string;
@@ -2243,6 +2319,27 @@ export interface Translations {
             title: string;
             placeholder: string;
             noTags: string;
+        };
+        costConfirm: {
+            title: string;
+            statSpokenChars: string;
+            statEstDuration: string;
+            statChunks: string;
+            statVoice: string;
+            statEstCost: string;
+            statOutputPath: string;
+            cancel: string;
+            settings: string;
+            generate: string;
+            durationFmt: string;
+            costFmt: string;
+        };
+        audioPlayer: {
+            title: string;
+            speedLabel: string;
+            skipBack: string;
+            skipForward: string;
+            openExternal: string;
         };
         webReader: {
             title: string;
@@ -2850,6 +2947,12 @@ export interface ProgressStrings {
         triaging: string;             // "Triaging {current}/{total}"
         synthesizing: string;
         regeneratingAudio: string;
+    };
+    audioNarration: {
+        preparing: string;            // status-bar — "Preparing narration…"
+        narrating: string;            // "Narrating chunk {current}/{total}…"
+        encoding: string;             // "Encoding MP3…"
+        writing: string;              // "Saving narration…"
     };
     presentation: {
         generating: string;

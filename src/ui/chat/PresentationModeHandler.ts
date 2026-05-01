@@ -35,6 +35,10 @@ import { ResearchSearchService } from '../../services/research/researchSearchSer
 import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { SlideDiffModal } from '../modals/SlideDiffModal';
 import { renderEditAccessories } from './presentation/EditAccessories';
+import { renderCreatePanel } from './presentation/CreatePanel';
+import { PresentationSourceService, DEFAULT_CREATION_CONFIG } from '../../services/chat/presentationSourceService';
+import { CreationSourceController } from '../../services/chat/creationSourceController';
+import type { CreationConfig } from '../../services/chat/presentationTypes';
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import { LongRunningOpController } from '../../services/longRunningOp/progressController';
@@ -69,6 +73,16 @@ interface RunContext {
 
 export class PresentationModeHandler implements ChatModeHandler {
     readonly mode: ChatMode = 'presentation';
+
+    /** Singleton tracker for global commands (e.g. Mod+Shift+S slide picker)
+     *  to find the currently-mounted handler. Set in renderContextPanel,
+     *  cleared in dispose. Most-recently-mounted wins when multiple modals
+     *  exist (rare). */
+    private static activeInstance: PresentationModeHandler | null = null;
+
+    static getActiveInstance(): PresentationModeHandler | null {
+        return PresentationModeHandler.activeInstance;
+    }
 
     // State
     private phase: PresentationPhase = 'empty';
@@ -147,16 +161,28 @@ export class PresentationModeHandler implements ChatModeHandler {
     // reads from here. Stays alive between renders; nulled in dispose.
     private accessoryT: Translations['modals']['unifiedChat'] | null = null;
 
+    // ── Create-flow source state (slide-authoring-followup plan) ────────────
+    // Lazily instantiated on first renderContextPanel call so we have access
+    // to `ctx.app`. Disposed in `dispose()`. Subscription unsubscribe stored
+    // for teardown when the create panel is replaced by the iframe.
+    private sourceController: CreationSourceController | null = null;
+    private creationFlowEpoch = 1;
+    private creationConfig: CreationConfig = { ...DEFAULT_CREATION_CONFIG };
+    private createPanelDispose: (() => void) | null = null;
+
     // ── Phase progress ──────────────────────────────────────────────────────
 
     /** Centralized phase setter that bubbles a phase-specific message to the
-     *  chat "Thinking…" placeholder when an async action is active. */
+     *  chat "Thinking…" placeholder when an async action is active.
+     *  Also calls `refreshAccessory()` so the create panel / edit pills
+     *  reflect the new operation gate (audit Item 5). */
     private setPhase(phase: PresentationPhase): void {
         this.phase = phase;
         const label = this.getPhaseMessage(phase);
         if (label && this.activeThinkingUpdater) {
             this.activeThinkingUpdater(label);
         }
+        this.refreshAccessory();
     }
 
     /** Human-readable label per presentation phase. Returns null for phases
@@ -205,6 +231,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Stash the i18n bundle so refreshAccessory has it available for
         // every state-change-driven re-render between renderContextPanel calls.
         this.accessoryT = t;
+        // Register as the active instance for global commands (e.g. the
+        // slide-picker command bound to Mod+Shift+S).
+        PresentationModeHandler.activeInstance = this;
 
         // F3: dispose any prior SlideIframePreview BEFORE clearing the DOM.
         // Previously this was nested inside the `if (this.html)` recreate
@@ -221,6 +250,12 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Drop the accessory ref before container.empty() so refreshAccessory
         // can't fire against detached DOM during the transition window.
         this.accessoryContainer = null;
+        // Tear down any prior CreatePanel subscription so resubscribing
+        // below doesn't double-fire on controller events.
+        if (this.createPanelDispose) {
+            this.createPanelDispose();
+            this.createPanelDispose = null;
+        }
 
         container.empty();
 
@@ -229,6 +264,23 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // Brand toggle — always shown, disabled with instructions if no file
         this.renderBrandToggle(container, ctx);
+
+        // No deck yet — render the Create panel so the user can configure
+        // sources / audience / length / speed before generating.
+        if (!this.html) {
+            this.ensureSourceController(ctx);
+            const panelHost = container.createDiv({ cls: 'ai-organiser-pres-create-panel-host' });
+            if (this.sourceController) {
+                this.createPanelDispose = renderCreatePanel(panelHost, {
+                    app: ctx.app,
+                    plugin: ctx.fullPlugin,
+                    controller: this.sourceController,
+                    t,
+                    getConfig: () => this.creationConfig,
+                    onConfigChange: (next) => { this.creationConfig = next; },
+                });
+            }
+        }
 
         if (this.phase === 'empty') return;
 
@@ -248,6 +300,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 onSlideSelect: (idx) => { this.activeSlideIndex = idx; },
                 onElementSelect: (event) => { this.handleElementSelect(event); },
                 emptyPlaceholderText: t.slidePreviewEmpty,
+                bgHoverLabelTemplate: t.slideBgHoverTooltipTemplate,
             });
             // Project canonical HTML for the editor: adds data-element
             // attributes the iframe runtime walks on click. Canonical HTML
@@ -610,6 +663,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                 scopeDiff: outcome.scopeDiff,
                 outOfScopeDrift: outcome.outOfScopeDrift,
                 structuralIntegrity: outcome.structuralIntegrity,
+                siblingDrift: outcome.siblingDrift,
+                textChangedLocations: outcome.textChangedLocations,
+                editMode: this.editMode,
                 onAction: (action) => finish(action === 'accept'),
             });
             this.activeDiffModal = modal;
@@ -826,6 +882,13 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.selection = null;
         this.editMode = 'content';
         this.editFlags = { webSearch: false, references: [] };
+        // Increment epoch + reset source controller so the next creation
+        // cycle starts clean and conversation history from the prior cycle
+        // can be filtered out of generation prompts (audit Gemini-r2-G3 +
+        // r5-G3 + r6-G1).
+        this.creationFlowEpoch++;
+        if (this.sourceController) this.sourceController.reset();
+        this.creationConfig = { ...DEFAULT_CREATION_CONFIG };
     }
 
     dispose(): void {
@@ -836,6 +899,64 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.accessoryContainer = null;
         this.accessoryT = null;
         this.selection = null;
+        if (this.createPanelDispose) {
+            this.createPanelDispose();
+            this.createPanelDispose = null;
+        }
+        if (this.sourceController) {
+            this.sourceController.dispose();
+            this.sourceController = null;
+        }
+        this.creationFlowEpoch++;
+        if (PresentationModeHandler.activeInstance === this) {
+            PresentationModeHandler.activeInstance = null;
+        }
+    }
+
+    /** Public seam for the global slide-picker command (Mod+Shift+S).
+     *  Returns true if the picker was opened, false if no deck is loaded. */
+    hasDeck(): boolean {
+        return this.html !== null;
+    }
+
+    /** Used by the slide-picker command to read deck HTML. */
+    getDeckHtml(): string | null {
+        return this.html;
+    }
+
+    /** Set selection from outside (slide-picker command). Mirrors the
+     *  iframe-click path so the chat-input accessory updates correctly. */
+    selectSlideFromCommand(slideIndex: number): void {
+        if (!this.html) return;
+        this.selection = { kind: 'slide', slideIndex };
+        this.activeSlideIndex = slideIndex;
+        this.refreshAccessory();
+    }
+
+    /** Lazy controller construction — runs on first renderContextPanel so
+     *  we have `ctx.app`. Idempotent. */
+    private ensureSourceController(ctx: ModalContext): void {
+        if (this.sourceController) return;
+        const research = new ResearchSearchService(ctx.fullPlugin);
+        // Adapter: ResearchSearchService takes string[] queries and returns
+        // SearchResult[]. The source service only needs a string-returning
+        // `search`. Wrap with a thin adapter that concatenates results.
+        const dispatcher = {
+            search: async (query: string, _opts?: { signal?: AbortSignal }): Promise<string> => {
+                const results = await research.search([query]);
+                return results
+                    .map(r => `# ${r.title}\n${r.url}\n${r.extractedContent ?? r.snippet ?? ''}`)
+                    .join('\n\n');
+            },
+        };
+        const service = new PresentationSourceService(ctx.app, dispatcher);
+        this.sourceController = new CreationSourceController(ctx.app, service);
+        // Auto-detect active note as the first source.
+        const auto = service.detectActiveNote();
+        if (auto) {
+            this.sourceController.addSource(auto);
+            void this.sourceController.preloadAsync(0);
+        }
     }
 
     // ── Selection state (slide-authoring-editing plan) ──────────────────────

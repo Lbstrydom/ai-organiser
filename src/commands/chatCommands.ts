@@ -8,6 +8,8 @@ import AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
+import { PresentationModeHandler } from '../ui/chat/PresentationModeHandler';
+import { SlidePickerModal, parseSlideEntries } from '../ui/modals/SlidePickerModal';
 
 function notify(message: string, duration?: number): Notice {
     return new Notice(message, duration);
@@ -79,6 +81,33 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             });
             modal.open();
         }
+    });
+
+    // Slide-picker command — keyboard-reachable scope selection for the
+    // presentation builder. Bound to Mod+Shift+S by default. Falls back to
+    // a notice when no deck is loaded (audit Gemini-r7-G2).
+    plugin.addCommand({
+        // No default hotkey — Obsidian bot rule `obsidianmd/commands/no-default-hotkeys`.
+        // Users can bind one in Settings → Hotkeys if they want fast access.
+        id: 'select-presentation-slide',
+        name: plugin.t.modals.unifiedChat.slideSelectorCommand,
+        icon: 'list-tree',
+        callback: () => {
+            const handler = PresentationModeHandler.getActiveInstance();
+            const html = handler?.getDeckHtml();
+            if (!handler || !html) {
+                notify(plugin.t.modals.unifiedChat.slidePreviewEmpty);
+                return;
+            }
+            const entries = parseSlideEntries(html);
+            if (entries.length === 0) {
+                notify(plugin.t.modals.unifiedChat.slidePreviewEmpty);
+                return;
+            }
+            new SlidePickerModal(plugin.app, plugin, entries, (entry) => {
+                handler.selectSlideFromCommand(entry.slideIndex);
+            }).open();
+        },
     });
 
     // Find and insert related notes

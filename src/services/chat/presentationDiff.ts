@@ -112,10 +112,18 @@ function attributesMatch(a: Element, b: Element): boolean {
     return true;
 }
 
+/** Editor-instrumentation attributes ignored by attributesMatch (audit
+ *  Gemini-r4-G1) — these are added by `presentationDomDecorator` and the
+ *  Item 4 hover affordance, not user content. Comparing them as drift would
+ *  flag every reprojection as structural. */
+const INSTRUMENTATION_ATTRS = new Set(['data-element', 'data-bg-hover-label']);
+
 function collectAttrs(el: Element): Array<[string, string]> {
     const result: Array<[string, string]> = [];
     for (const attr of Array.from(el.attributes)) {
-        result.push([attr.name.toLowerCase(), attr.value]);
+        const name = attr.name.toLowerCase();
+        if (INSTRUMENTATION_ATTRS.has(name) || name.startsWith('data-pres-')) continue;
+        result.push([name, attr.value]);
     }
     result.sort((x, y) => x[0].localeCompare(y[0]));
     return result;
@@ -136,12 +144,26 @@ function directTextContent(el: Element): string {
  * Compare an old + new deck under a given scope, separating the user's
  * intended change ('scopeDiff') from any unwanted drift on slides outside
  * the scope ('outOfScopeDrift'). Whitespace-only drift is filtered out.
+ *
+ * Returns new fields per audit Items 2/3 + Gemini-r4-G1:
+ *   - siblingDrift: same-slide changes outside the user's element scope
+ *   - textChangedLocations: count for the design-mode banner check
+ *
+ * HTML inputs may be projected (annotated with `data-element` paths) — the
+ * function uses paths internally for sibling drift and assessStructure
+ * element-path-set check; user-visible textDiffs strip instrumentation.
  */
 export function classifyDiff(
     oldHtml: string,
     newHtml: string,
     scope: SelectionScope,
-): { scopeDiff: ScopedDiff; outOfScopeDrift: SlideDiff[]; structuralIntegrity: StructuralIntegrity } {
+): {
+    scopeDiff: ScopedDiff;
+    outOfScopeDrift: SlideDiff[];
+    siblingDrift: SlideDiff | null;
+    textChangedLocations: number;
+    structuralIntegrity: StructuralIntegrity;
+} {
     const parser = new DOMParser();
     const oldDoc = parser.parseFromString(oldHtml, 'text/html');
     const newDoc = parser.parseFromString(newHtml, 'text/html');
@@ -149,10 +171,15 @@ export function classifyDiff(
     const oldSlides = Array.from(oldDoc.querySelectorAll(SLIDE_SELECTOR));
     const newSlides = Array.from(newDoc.querySelectorAll(SLIDE_SELECTOR));
 
+    const scopeDiff = buildScopeDiff(oldHtml, newHtml, scope);
+    const structuralIntegrity = assessStructure(oldSlides, newSlides);
+
     return {
-        scopeDiff: buildScopeDiff(oldHtml, newHtml, scope),
+        scopeDiff,
         outOfScopeDrift: collectOutOfScopeDrift(oldSlides, newSlides, scope),
-        structuralIntegrity: assessStructure(oldSlides, newSlides),
+        siblingDrift: buildSiblingDrift(oldSlides, newSlides, scope, structuralIntegrity),
+        textChangedLocations: countTextChangedLocations(scopeDiff),
+        structuralIntegrity,
     };
 }
 
@@ -160,7 +187,40 @@ function assessStructure(oldSlides: Element[], newSlides: Element[]): Structural
     if (newSlides.length > oldSlides.length) return 'slides-added';
     if (newSlides.length < oldSlides.length) return 'slides-removed';
     if (slidesClassesChanged(oldSlides, newSlides)) return 'class-changed';
+    // Audit G1 + Gemini-r7-G1 corrected: only flag when paths were REMOVED
+    // (oldPaths ⊄ newPaths). Adding paths is the sibling-drift use case
+    // and must not trigger the banner.
+    if (slidesElementPathsRemoved(oldSlides, newSlides)) return 'element-paths-changed';
     return 'preserved';
+}
+
+/** Collect all `data-element` path strings on a slide (depth-first). */
+function collectElementPaths(slide: Element): Set<string> {
+    const paths = new Set<string>();
+    const walker = slide.ownerDocument.createTreeWalker(slide, NodeFilter.SHOW_ELEMENT);
+    let node = walker.currentNode as Element | null;
+    while (node) {
+        if (node instanceof Element && node.hasAttribute('data-element')) {
+            const path = node.getAttribute('data-element');
+            if (path) paths.add(path);
+        }
+        node = walker.nextNode() as Element | null;
+    }
+    return paths;
+}
+
+/** True iff any old slide has a `data-element` path missing in the new slide. */
+function slidesElementPathsRemoved(oldSlides: Element[], newSlides: Element[]): boolean {
+    const len = Math.min(oldSlides.length, newSlides.length);
+    for (let i = 0; i < len; i++) {
+        const oldPaths = collectElementPaths(oldSlides[i]);
+        if (oldPaths.size === 0) continue;  // canonical input — skip path check
+        const newPaths = collectElementPaths(newSlides[i]);
+        for (const p of oldPaths) {
+            if (!newPaths.has(p)) return true;
+        }
+    }
+    return false;
 }
 
 function collectOutOfScopeDrift(
@@ -237,6 +297,115 @@ function scopedSlideIndices(scope: SelectionScope): Set<number> {
 function buildScopeDiff(oldHtml: string, newHtml: string, scope: SelectionScope): ScopedDiff {
     const oldFragment = extractScopedFragment(oldHtml, scope);
     const newFragment = extractScopedFragment(newHtml, scope);
-    const textDiff = computeLineDiff(oldFragment, newFragment);
+    // Strip instrumentation before user-visible textDiff (audit Gemini-r5-G1).
+    // Internal classification keeps the unstripped fragments so paths remain.
+    const textDiff = computeLineDiff(
+        stripInstrumentationAttrs(oldFragment),
+        stripInstrumentationAttrs(newFragment),
+    );
     return { scope, oldFragment, newFragment, textDiff };
+}
+
+/** Strip editor-instrumentation attributes (`data-element`, `data-bg-hover-label`,
+ *  any `data-pres-*`) from an HTML string before showing it to the user.
+ *  Audit Gemini-r5-G1 + r6-G2: every user-visible textDiff path uses this. */
+export function stripInstrumentationAttrs(html: string): string {
+    return html.replaceAll(/\s+(data-element|data-bg-hover-label|data-pres-[a-z-]+)="[^"]*"/g, '');
+}
+
+/** Count subtree locations whose normalised text content changed. v1
+ *  implementation: 0 or 1 (single-subtree comparison via the existing
+ *  scopeDiff). The modal reads its own `editMode` and decides whether
+ *  to render the design-mode banner — pure DOM utility, no UI state
+ *  leak (audit Gemini-r2-G4). */
+export function countTextChangedLocations(scopeDiff: ScopedDiff): number {
+    const oldText = normaliseTextOfHtml(scopeDiff.oldFragment);
+    const newText = normaliseTextOfHtml(scopeDiff.newFragment);
+    return oldText === newText ? 0 : 1;
+}
+
+function normaliseTextOfHtml(html: string): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html');
+    const root = doc.body.firstElementChild;
+    const text = root?.textContent ?? '';
+    return text.replaceAll(/\s+/g, ' ').trim();
+}
+
+/** Build a sibling-drift SlideDiff: same-slide changes OUTSIDE the user's
+ *  element scope (audit Item 3 + G1 + Gemini-r3-G3 + r7-G1).
+ *
+ *  Returns null when:
+ *    - scope.kind !== 'element' (sibling drift only meaningful for element scope)
+ *    - structuralIntegrity === 'element-paths-changed' (LLM destroyed identity;
+ *      Gemini-r3-G3: assessStructure variant is the sole banner-driving signal)
+ *    - the slide had no sibling-level changes
+ *    - sibling changes are whitespace-only
+ *
+ *  Walks the slide's `[data-element]` descendants and identifies entries
+ *  whose path is a sibling (same parent path, different leaf) of `scope.elementPath`.
+ *  Only those subtrees contribute to the textDiff. */
+function buildSiblingDrift(
+    oldSlides: Element[],
+    newSlides: Element[],
+    scope: SelectionScope,
+    integrity: StructuralIntegrity,
+): SlideDiff | null {
+    if (scope.kind !== 'element' || !scope.elementPath) return null;
+    if (integrity === 'element-paths-changed') return null;
+    const idx = scope.slideIndex;
+    if (idx < 0 || idx >= oldSlides.length || idx >= newSlides.length) return null;
+
+    const oldSlide = oldSlides[idx];
+    const newSlide = newSlides[idx];
+    const scopePath = scope.elementPath;
+    const parentPrefix = parentPathOf(scopePath);  // 'slide-3.list-0' for 'slide-3.list-0.item-1'
+
+    const oldSiblings = findSiblingHtmls(oldSlide, scopePath, parentPrefix);
+    const newSiblings = findSiblingHtmls(newSlide, scopePath, parentPrefix);
+    if (oldSiblings === newSiblings) return null;
+
+    const sevOld = stripInstrumentationAttrs(oldSiblings);
+    const sevNew = stripInstrumentationAttrs(newSiblings);
+    if (sevOld === sevNew) return null;
+    const oldNorm = sevOld.replaceAll(/\s+/g, ' ').trim();
+    const newNorm = sevNew.replaceAll(/\s+/g, ' ').trim();
+    if (oldNorm === newNorm) return null;  // whitespace-only
+
+    const textDiff = computeLineDiff(sevOld, sevNew);
+
+    return {
+        slideIndex: idx,
+        oldHtml: oldSiblings,
+        newHtml: newSiblings,
+        textDiff,
+        // Severity is text-or-structural; fold sibling-drift severity into 'text'
+        // unless the underlying compareSlides reports structural.
+        severity: 'text',
+    };
+}
+
+/** Concatenate the outerHTML of every `[data-element]` whose path is a
+ *  sibling of `scopePath` under `parentPrefix`, sorted by path for
+ *  determinism. Returns empty string when no siblings exist. */
+function findSiblingHtmls(slide: Element, scopePath: string, parentPrefix: string): string {
+    const out: Array<{ path: string; html: string }> = [];
+    const walker = slide.ownerDocument.createTreeWalker(slide, NodeFilter.SHOW_ELEMENT);
+    let node = walker.currentNode as Element | null;
+    while (node) {
+        if (node instanceof Element && node.hasAttribute('data-element')) {
+            const path = node.getAttribute('data-element') ?? '';
+            if (path !== scopePath && parentPathOf(path) === parentPrefix) {
+                out.push({ path, html: node.outerHTML });
+            }
+        }
+        node = walker.nextNode() as Element | null;
+    }
+    out.sort((a, b) => a.path.localeCompare(b.path));
+    return out.map(o => o.html).join('\n');
+}
+
+function parentPathOf(path: string): string {
+    const dot = path.lastIndexOf('.');
+    return dot < 0 ? '' : path.slice(0, dot);
 }

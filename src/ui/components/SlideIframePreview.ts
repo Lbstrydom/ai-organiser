@@ -87,6 +87,10 @@ export interface PreviewOptions {
      *  component is i18n-agnostic. Defaults to a generic English fallback
      *  for any caller that hasn't migrated yet. */
     emptyPlaceholderText?: string;
+    /** Tooltip template for slide-bg-hover overlay. Caller passes the
+     *  i18n string with `{n}` placeholder for the 1-based slide index
+     *  (audit Item 4). The runtime substitutes it on hover. */
+    bgHoverLabelTemplate?: string;
 }
 
 type PreviewState = 'idle' | 'loading' | 'ready' | 'empty' | 'error';
@@ -380,7 +384,7 @@ export class SlideIframePreview {
 
         // Phase 6: Inject slide runtime for in-iframe keyboard nav + postMessage sync
         const runtimeScript = doc.createElement('script');
-        runtimeScript.textContent = buildSlideRuntimeCode(this.nonce);
+        runtimeScript.textContent = buildSlideRuntimeCode(this.nonce, this.options.bgHoverLabelTemplate);
         doc.body.appendChild(runtimeScript);
 
         this.updateScale();

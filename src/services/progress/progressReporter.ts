@@ -70,6 +70,8 @@ export class ProgressReporter<TKey extends string> {
     private elapsedTicker: ReturnType<typeof setInterval> | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     private startedAt: number;
+    private cancellable = true;
+    private hostCancelBtn: HTMLButtonElement | null = null;
 
     private disposables: Array<() => void> = [];
 
@@ -193,6 +195,29 @@ export class ProgressReporter<TKey extends string> {
      *  abort. Gemini-v3-M2 fix. */
     markTimedOut(): void {
         this.timedOutFlag = true;
+    }
+
+    /**
+     * Show or hide the Cancel button on the active progress surface(s).
+     * No-op when no abortController was supplied (no Cancel was rendered).
+     * The underlying AbortController is NOT disposed — callers may still
+     * call .abort() programmatically; this is purely a UI affordance.
+     *
+     * Audio Narration uses this to remove the Cancel button when the phase
+     * transitions past the chunk-synthesis loop (encoding/writing are
+     * non-cancellable because the API spend has already been incurred).
+     */
+    setCancellable(cancellable: boolean): void {
+        if (!this.abortController) return;
+        if (this.cancellable === cancellable) return;
+        this.cancellable = cancellable;
+        if (cancellable) {
+            this.noticeDom?.cancelBtn?.removeClass('is-hidden');
+            this.hostCancelBtn?.removeClass('is-hidden');
+        } else {
+            this.noticeDom?.cancelBtn?.addClass('is-hidden');
+            this.hostCancelBtn?.addClass('is-hidden');
+        }
     }
 
     // ── Internal ────────────────────────────────────────────────────────────
@@ -368,9 +393,11 @@ export class ProgressReporter<TKey extends string> {
             this.abortController?.abort();
         };
         cancelBtn.addEventListener('click', onClick);
+        this.hostCancelBtn = cancelBtn;
         this.disposables.push(() => {
             cancelBtn.removeEventListener('click', onClick);
             cancelBtn.remove();
+            this.hostCancelBtn = null;
         });
     }
 

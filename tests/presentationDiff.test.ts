@@ -151,3 +151,53 @@ describe('classifyDiff — element scope', () => {
         expect(r.scopeDiff.textDiff.length).toBeGreaterThan(0);
     });
 });
+
+// ── Audit Item 2: textChangedLocations counter ──────────────────────────────
+
+describe('classifyDiff — textChangedLocations', () => {
+    it('returns 0 when only whitespace changed', () => {
+        const oldDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const newDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const r = classifyDiff(oldDeck, newDeck, { kind: 'slide', slideIndex: 0 });
+        expect(r.textChangedLocations).toBe(0);
+    });
+
+    it('returns > 0 when text content changed', () => {
+        const oldDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const newDeck = TWO_SLIDE_DECK(
+            '<section class="slide"><h1>HELLO</h1><ul><li>One</li><li>Two</li></ul></section>',
+            SLIDE_A,
+        );
+        const r = classifyDiff(oldDeck, newDeck, { kind: 'slide', slideIndex: 0 });
+        expect(r.textChangedLocations).toBeGreaterThan(0);
+    });
+});
+
+// ── Audit Item 3: siblingDrift for element scope ────────────────────────────
+
+describe('classifyDiff — siblingDrift', () => {
+    it('returns null for slide-scope refines', () => {
+        const oldDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const newDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const r = classifyDiff(oldDeck, newDeck, { kind: 'slide', slideIndex: 0 });
+        expect(r.siblingDrift).toBeNull();
+    });
+
+    it('returns null for range-scope refines', () => {
+        const oldDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const newDeck = TWO_SLIDE_DECK(SLIDE_A, SLIDE_A);
+        const r = classifyDiff(oldDeck, newDeck, { kind: 'range', slideIndex: 0, slideEndIndex: 1 });
+        expect(r.siblingDrift).toBeNull();
+    });
+});
+
+// ── Audit G1 + Gemini-r7-G1: element-paths-changed integrity ────────────────
+
+describe('classifyDiff — element-paths-changed integrity', () => {
+    it('reports preserved when path-set is preserved', () => {
+        // Both slides have data-element attrs set; after refine they survive.
+        const slide = '<section class="slide" data-element="slide-0"><h1 data-element="slide-0.heading">x</h1></section>';
+        const r = classifyDiff(`<div class="deck">${slide}</div>`, `<div class="deck">${slide}</div>`, { kind: 'slide', slideIndex: 0 });
+        expect(r.structuralIntegrity).toBe('preserved');
+    });
+});

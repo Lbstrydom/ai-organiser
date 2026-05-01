@@ -319,6 +319,15 @@ export interface AIOrganiserSettings {
     newsletterBriefCutoffHour: number;  // Hour (0-23) when "today" rolls over for brief grouping
     newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
 
+    // === AUDIO NARRATION ===
+    audioNarrationProvider: 'gemini';                                    // v1: Gemini only; v1.1 expands to other TTS providers
+    audioNarrationVoice: string;                                         // Voice id (default 'Charon')
+    audioNarrationOutputFolder: string;                                  // Subfolder under output root
+    audioNarrationEmbedInNote: boolean;                                  // Embed 🎧 link at top of source note
+    audioNarrationCodeBlockMode: 'placeholder' | 'omit' | 'read-inline'; // Transformer behaviour for fenced code
+    audioNarrationTableMode: 'row-prose' | 'header-summary' | 'omit';    // Transformer behaviour for tables
+    audioNarrationImageMode: 'alt-text' | 'omit';                        // Transformer behaviour for images
+
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
     secretStorageMigrated: boolean;      // Whether keys have been migrated to SecretStorage
@@ -576,6 +585,15 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterBriefCutoffHour: 6,
     newsletterRetentionDays: 30,
 
+    // Audio Narration Defaults
+    audioNarrationProvider: 'gemini',
+    audioNarrationVoice: 'Charon',
+    audioNarrationOutputFolder: 'Narrations',
+    audioNarrationEmbedInNote: true,
+    audioNarrationCodeBlockMode: 'placeholder',
+    audioNarrationTableMode: 'row-prose',
+    audioNarrationImageMode: 'alt-text',
+
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet
 };
@@ -685,6 +703,10 @@ export function getExportOutputFullPath(settings: AIOrganiserSettings): string {
 
 export function getFlashcardFullPath(settings: AIOrganiserSettings): string {
     return resolveOutputPath(settings, settings.flashcardFolder, 'Flashcards');
+}
+
+export function getAudioNarrationFullPath(settings: AIOrganiserSettings): string {
+    return resolveOutputPath(settings, settings.audioNarrationOutputFolder, 'Narrations');
 }
 
 export function getChatExportFullPath(settings: AIOrganiserSettings): string {

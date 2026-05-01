@@ -13,11 +13,17 @@ import { DECK_CLASSES } from './presentationConstants';
 /**
  * Build the slide runtime JS code to inject into the iframe.
  * The nonce ties parent ↔ iframe messages to a specific preview instance.
+ *
+ * `bgHoverLabelTemplate` is the i18n string with `{n}` placeholder for the
+ * 1-based slide index (audit Item 4). Pre-substituted at the call site in
+ * SlideIframePreview using the t.modals.unifiedChat.slideBgHoverTooltipTemplate
+ * key. JSON-stringified into the runtime so it's safely escaped.
  */
-export function buildSlideRuntimeCode(nonce: string): string {
+export function buildSlideRuntimeCode(nonce: string, bgHoverLabelTemplate?: string): string {
     // Inline the class names so the runtime has no import dependencies
     const slideClass = DECK_CLASSES.slide;
     const notesClass = DECK_CLASSES.speakerNotes;
+    const labelTemplateJson = JSON.stringify(bgHoverLabelTemplate ?? 'Click to select slide {n}');
 
     return `(function() {
     'use strict';
@@ -189,20 +195,63 @@ export function buildSlideRuntimeCode(nonce: string): string {
     });
 
     var lastHoverEl = null;
+    // ── Slide-bg-hover state machine (audit Item 4) ─────────────────────────
+    // When the pointer is inside a slide but NOT inside any [data-element]
+    // subtree (i.e. over the slide's padding / background), mark the slide
+    // as bg-hover so the CSS overlay invites click-to-select-slide. This
+    // gives keyboard-only users an unmistakable visual signal that the
+    // background area is itself addressable, without needing to discover
+    // the right click target.
+    var BG_LABEL_TEMPLATE = ${labelTemplateJson};
+    var lastBgHoverSlide = null;
+    function clearBgHover() {
+        if (lastBgHoverSlide) {
+            lastBgHoverSlide.classList.remove('pres-slide-bg-hover');
+            lastBgHoverSlide.removeAttribute('data-bg-hover-label');
+            lastBgHoverSlide = null;
+        }
+    }
+    function setBgHover(slideIdx) {
+        var slides = getSlides();
+        if (slideIdx < 0 || slideIdx >= slides.length) return;
+        var slide = slides[slideIdx];
+        if (slide === lastBgHoverSlide) return;
+        clearBgHover();
+        lastBgHoverSlide = slide;
+        slide.classList.add('pres-slide-bg-hover');
+        slide.setAttribute('data-bg-hover-label',
+            BG_LABEL_TEMPLATE.replace('{n}', String(slideIdx + 1)));
+    }
     document.addEventListener('mouseover', function(e) {
         var target = e.target;
         if (!target || target.nodeType !== 1) return;
         var el = findElementAncestor(target);
-        if (el === lastHoverEl) return;
-        if (lastHoverEl) lastHoverEl.classList.remove('pres-slide-element-hover');
-        lastHoverEl = el;
-        if (el) el.classList.add('pres-slide-element-hover');
+        if (el !== lastHoverEl) {
+            if (lastHoverEl) lastHoverEl.classList.remove('pres-slide-element-hover');
+            lastHoverEl = el;
+            if (el) el.classList.add('pres-slide-element-hover');
+        }
+        // Bg-hover state: pointer is inside a slide but no element ancestor
+        // (or the only ancestor is the slide itself) → background area.
+        var slideIdx = findEnclosingSlideIndex(target);
+        if (slideIdx < 0) {
+            clearBgHover();
+            return;
+        }
+        var path = el ? (el.getAttribute('data-element') || '') : '';
+        var isSlideOnly = !el || new RegExp('^slide-\\\\d+$').test(path);
+        if (isSlideOnly) {
+            setBgHover(slideIdx);
+        } else {
+            clearBgHover();
+        }
     });
     document.addEventListener('mouseleave', function() {
         if (lastHoverEl) {
             lastHoverEl.classList.remove('pres-slide-element-hover');
             lastHoverEl = null;
         }
+        clearBgHover();
     }, true);
 
     window.addEventListener('message', function(e) {

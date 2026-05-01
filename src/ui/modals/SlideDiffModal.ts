@@ -12,7 +12,7 @@
 import { App, Modal, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type {
-    ScopedDiff, SlideDiff, StructuralIntegrity,
+    ScopedDiff, SlideDiff, StructuralIntegrity, EditMode,
 } from '../../services/chat/presentationTypes';
 
 export type SlideDiffAction = 'accept' | 'reject';
@@ -21,6 +21,15 @@ export interface SlideDiffModalOptions {
     scopeDiff: ScopedDiff;
     outOfScopeDrift: SlideDiff[];
     structuralIntegrity: StructuralIntegrity;
+    /** Same-slide sibling drift outside the user's element scope (audit Item 3).
+     *  Null for non-element scope or when element-paths integrity is broken. */
+    siblingDrift?: SlideDiff | null;
+    /** Number of subtree text-change locations (audit Item 2). The
+     *  design-mode banner fires when this is > 0 AND editMode === 'design'. */
+    textChangedLocations?: number;
+    /** Edit mode in effect when the refine was issued. Required for the
+     *  design-mode banner gate. */
+    editMode?: EditMode;
     onAction: (action: SlideDiffAction) => void;
 }
 
@@ -60,8 +69,33 @@ export class SlideDiffModal extends Modal {
             banner.textContent = describeIntegrity(this.options.structuralIntegrity, t);
         }
 
+        // Design-mode-text-changed banner (audit Item 2 + Gemini-r5-G1):
+        // Design mode promised the LLM only style changes — if normalized
+        // text content drifted between old and new HTML, surface that as a
+        // dedicated warning so the user catches LLM noncompliance.
+        if (
+            this.options.editMode === 'design'
+            && (this.options.textChangedLocations ?? 0) > 0
+            && t.slideDiffDesignTextChanged
+        ) {
+            const n = this.options.textChangedLocations ?? 0;
+            const banner = contentEl.createDiv({
+                cls: 'ai-organiser-pres-diff-design-changed-banner',
+            });
+            banner.textContent = t.slideDiffDesignTextChanged
+                .replace('{n}', String(n))
+                .replace('{s}', n === 1 ? '' : 's');
+        }
+
         // In-scope text diff — the change the user asked for
         this.renderTextDiff(contentEl, this.options.scopeDiff.textDiff);
+
+        // Sibling-drift expander (audit Item 3): same-slide changes the user
+        // didn't scope to. Distinct from out-of-scope drift (which is
+        // cross-slide). Only meaningful for element-scope refines.
+        if (this.options.siblingDrift) {
+            this.renderSiblingDrift(contentEl, this.options.siblingDrift, t);
+        }
 
         // Empty-diff guard — if the LLM returned identical HTML, there is
         // nothing to apply. The Apply button stays disabled.
@@ -123,6 +157,29 @@ export class SlideDiffModal extends Modal {
                 text: `  … ${textDiff.length - MAX_LINES} more lines (accept to apply all)`,
             });
         }
+    }
+
+    private renderSiblingDrift(
+        parent: HTMLElement,
+        sibling: SlideDiff,
+        t: import('../../i18n/types').Translations['modals']['unifiedChat'],
+    ): void {
+        const advisory = parent.createDiv({
+            cls: 'ai-organiser-pres-diff-sibling-advisory',
+        });
+        if (t.slideDiffSiblingAdvisory) {
+            const n = sibling.textDiff.filter(l => l.type !== 'unchanged').length;
+            advisory.textContent = t.slideDiffSiblingAdvisory
+                .replace('{n}', String(n))
+                .replace('{s}', n === 1 ? '' : 's');
+        }
+        const details = parent.createEl('details', {
+            cls: 'ai-organiser-pres-diff-sibling-drift',
+        });
+        const summary = details.createEl('summary');
+        summary.textContent = t.slideDiffSiblingSummary
+            ?? `Sibling changes — slide ${sibling.slideIndex + 1}`;
+        this.renderTextDiff(details, sibling.textDiff);
     }
 
     private renderDriftExpander(
@@ -203,9 +260,10 @@ function describeIntegrity(
     t: import('../../i18n/types').Translations['modals']['unifiedChat'],
 ): string {
     switch (integrity) {
-        case 'slides-added':   return t.slideDiffIntegrityAdded;
-        case 'slides-removed': return t.slideDiffIntegrityRemoved;
-        case 'class-changed':  return t.slideDiffIntegrityClassChanged;
-        case 'preserved':      return '';
+        case 'slides-added':           return t.slideDiffIntegrityAdded;
+        case 'slides-removed':         return t.slideDiffIntegrityRemoved;
+        case 'class-changed':          return t.slideDiffIntegrityClassChanged;
+        case 'element-paths-changed':  return t.slideDiffIntegrityElementPathsChanged ?? '';
+        case 'preserved':              return '';
     }
 }

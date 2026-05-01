@@ -157,7 +157,11 @@ describe('buildCreationPromptWithStyle', () => {
             userQuery: 'create',
             sources: [
                 { kind: 'note', ref: 'a.md', content: 'note A content' },
-                { kind: 'folder', ref: 'research', content: 'folder R summary' },
+                // After the slide-authoring follow-up, folder kinds expand
+                // to per-file notes via the resolver — `PromptSourceKind`
+                // is `'note' | 'web-search'` only. Use a folder-derived
+                // note (with `fromFolder` provenance) here.
+                { kind: 'note', ref: 'research/r.md', content: 'folder R summary', fromFolder: 'research' },
             ],
             audience: 'executive',
             length: 5,

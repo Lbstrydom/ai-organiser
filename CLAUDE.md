@@ -248,15 +248,26 @@ Commands registered in `src/commands/`:
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 
-**Command Picker Categories** (`CommandPickerModal.ts`):
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored taxonomy (locked 2026-05-01 after 3 GPT + 3 Gemini audit rounds):
 ```
-Active Note  ← Commands on the open file (maps, refine, pending, export)
-Capture      ← Bring external content in (smart summarize, meeting minutes, record audio)
-Vault        ← Explore the knowledge base (ask & search, visualize)
-Tools        ← Specialized/bulk operations (NotebookLM, vault hygiene)
+Essentials   ← Most-used: Chat, Semantic search, Quick peek
+Create       ← Outputs: summary, minutes, translation, audio narration,
+               flashcards, document export, tags, presentation, diagram,
+               sketch, canvas boards
+Refine       ← Mutations on existing notes (improve, integrate, digitise, etc.)
+Find         ← Discovery: web reader, research, related notes, find embeds,
+               tag network
+Manage       ← Recurring + admin: Kindle, Newsletter, recording, dashboards,
+               metadata migration, NotebookLM export
 ```
 
-**Command Picker Architecture**: Custom `Modal` (not FuzzySuggestModal) with inline tree expansion. Pure view-model logic in `commandPickerViewModel.ts` (`buildVisibleItems`, `flattenSingleChildGroups`). Browse mode = expandable tree; search mode = flat results via `prepareFuzzySearch()`. All ~34 commands have i18n descriptions shown on highlight.
+**Cross-listing**: Chat / Vault search / Quick peek live in Essentials AND in Find / Refine. Browse mode renders both placements; search mode dedupes by `command.id` and shows the canonical (Essentials) chip via `canonicalCategoryId`.
+
+**Requirement gating**: Each leaf declares `requires?: RequirementKind` (`'none' | 'active-note' | 'selection' | 'vault' | 'semantic-search'`). The picker renders an orange chip + dims the row + intercepts clicks with a Notice when the precondition isn't met. Built into `pickerRequirements.ts` with a minimal `RequirementContext` (no Obsidian `App` dependency — fully unit-testable). Context is rebuilt per render AND per click — no cache leak across the boundary.
+
+**Backward-compat search**: Each leaf optionally declares `legacyHomes: string[]` (e.g. `'active-note-export'`); the helper auto-derives legacy aliases (`'active note'`, `'export'`) so users who learned the old taxonomy still find moved commands.
+
+**Command Picker Architecture**: Custom `Modal` (not FuzzySuggestModal) with inline tree expansion. Pure view-model logic in `commandPickerViewModel.ts` (`buildVisibleItems`, `flattenSingleChildGroups`, `buildSearchResults` with explicit canonical-placement reduce). Browse mode = expandable tree; search mode = flat deduplicated results via `prepareFuzzySearch()`. 38 unique commands surfaced (41 picker rows including 3 cross-listings). All commands have i18n descriptions shown on highlight.
 
 ## AI Chat + Presentation Builder
 
@@ -775,12 +786,13 @@ Organize by **user mental model**, not technical implementation:
 
 **Sub-collapsible sections:** Umbrella groups (Capture & Input, Vault Intelligence, Integrations, Preferences) use `createSubCollapsibleSection(container, id, title, icon)` to wrap each child section class in its own nested `<details>`. The same `expandedSections` Set tracks state. CSS class `ai-organiser-settings-sub-section*` styles the nested headers; inner `h2.ai-organiser-settings-header` is hidden via CSS (sub-collapsible summary is the visual header).
 
-**Command Picker Categories** (`CommandPickerModal.ts`):
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored:
 ```
-Active Note  ← Commands on the open file (maps, refine, pending, export)
-Capture      ← Bring external content in (smart summarize, meeting minutes, record audio)
-Vault        ← Explore the knowledge base (ask & search, visualize)
-Tools        ← Specialized/bulk operations (NotebookLM, vault hygiene)
+Essentials   ← Most-used: Chat, Semantic search, Quick peek
+Create       ← Outputs (summary, minutes, audio, flashcards, exports, etc.)
+Refine       ← Mutations on existing notes
+Find         ← Discovery (web reader, research, related notes, embeds)
+Manage       ← Recurring + admin (Kindle, Newsletter, migration, dashboards)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last

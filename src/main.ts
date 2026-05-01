@@ -41,6 +41,7 @@ import { buildFolderContext, FolderContext } from './utils/folderContextUtils';
 import { resetBusyState, withBusyIndicator } from './utils/busyIndicator';
 import { TaxonomyGuardrailService } from './services/taxonomyGuardrailService';
 import { MermaidChangeDetector } from './services/mermaidChangeDetector';
+import { NarrationJobRegistry } from './services/audioNarration/narrationJobRegistry';
 import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
 import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
@@ -73,6 +74,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public notebookLMStatusBarEl: HTMLElement | null = null;
     /** Shared change detector — persists diagram snapshots across modal sessions (§4.4.2) */
     public mermaidChangeDetector = new MermaidChangeDetector();
+    public narrationJobs = new NarrationJobRegistry();
     private newsletterFetchTimer: ReturnType<typeof setInterval> | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
@@ -687,6 +689,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public onunload(): void {
         this.stopNewsletterScheduler();
+        this.narrationJobs.abortAll();
         void this.llmService?.dispose();
         void this.embeddingService?.dispose();
         if (this.vectorStoreService) {
@@ -711,7 +714,7 @@ export default class AIOrganiserPlugin extends Plugin {
             (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(commandId);
         });
 
-        const modal = new CommandPickerModal(this.app, this.t, categories);
+        const modal = new CommandPickerModal(this.app, this, this.t, categories);
         modal.open();
     }
 

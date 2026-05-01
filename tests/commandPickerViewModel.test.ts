@@ -138,13 +138,16 @@ describe('buildVisibleItems — search mode', () => {
         expect(items).toHaveLength(0);
     });
 
-    it('excludes badged commands from search results', () => {
+    it('includes badged commands in search results (audit-code R3 M10 fix)', () => {
+        // Earlier behaviour silently dropped badged commands from search,
+        // creating inconsistent discoverability vs browse mode where they
+        // remain visible with .is-unavailable styling. Audit M10 (Gemini
+        // wrongly-dismissed) corrected this — search now mirrors browse.
         const categories = makeCategories();
-        // 'Coming Feature' contains 'coming' — but it has a badge
         const matcher = simpleMatcher('coming');
         const items = buildVisibleItems(categories, new Set(), matcher);
         const ids = items.map(i => i.command.id);
-        expect(ids).not.toContain('badged');
+        expect(ids).toContain('badged');
     });
 
     it('sorts results by score descending', () => {

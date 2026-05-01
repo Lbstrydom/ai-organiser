@@ -1851,25 +1851,85 @@
     color: var(--text-on-accent);
 }
 
-/* Category-specific colors */
-.ai-organiser-command-picker-item[data-category="active-note"] .ai-organiser-command-picker-category {
-    background-color: rgba(var(--color-blue-rgb), 0.15);
-    color: var(--color-blue);
-}
-
-.ai-organiser-command-picker-item[data-category="capture"] .ai-organiser-command-picker-category {
+/* Category-specific colors — output-anchored taxonomy (locked 2026-05-01) */
+.ai-organiser-command-picker-item[data-category="create"] .ai-organiser-command-picker-category {
     background-color: rgba(var(--color-orange-rgb), 0.15);
     color: var(--color-orange);
 }
 
-.ai-organiser-command-picker-item[data-category="vault"] .ai-organiser-command-picker-category {
+.ai-organiser-command-picker-item[data-category="refine"] .ai-organiser-command-picker-category {
+    background-color: rgba(var(--color-blue-rgb), 0.15);
+    color: var(--color-blue);
+}
+
+.ai-organiser-command-picker-item[data-category="find"] .ai-organiser-command-picker-category {
     background-color: rgba(var(--color-green-rgb), 0.15);
     color: var(--color-green);
 }
 
-.ai-organiser-command-picker-item[data-category="tools"] .ai-organiser-command-picker-category {
+.ai-organiser-command-picker-item[data-category="manage"] .ai-organiser-command-picker-category {
     background-color: rgba(var(--background-modifier-hover-rgb), 0.35);
     color: var(--text-muted);
+}
+/* Essentials uses default (no override). */
+
+/* Metadata sibling — stable right-side container for chips + chevron.
+ * Sibling of .text (NOT inside) to prevent chip wrapping into description. */
+.ai-organiser-command-picker-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    flex-shrink: 0;
+}
+
+/* Requirement chip — shown only when a precondition is unmet */
+.ai-organiser-command-picker-requires {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: var(--font-smallest);
+    background-color: rgba(var(--color-orange-rgb), 0.15);
+    color: var(--color-orange);
+    border-radius: var(--radius-s);
+}
+.ai-organiser-command-picker-requires-icon {
+    display: inline-flex;
+}
+.ai-organiser-command-picker-requires-icon svg {
+    width: 10px;
+    height: 10px;
+}
+/* Hidden screen-reader text inside the chip (carries full reason) */
+.ai-organiser-command-picker-requires .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+/* Mobile: hide chip text, keep icon */
+.is-mobile .ai-organiser-command-picker-requires-text {
+    display: none;
+}
+
+/* Gated row — visually disable, intercept clicks via JS */
+.ai-organiser-command-picker-item.is-gated {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.ai-organiser-command-picker-item.is-gated:hover {
+    background-color: transparent;
+}
+
+/* Selected + gated keeps chip readable on accent background */
+.suggestion-item.is-selected .ai-organiser-command-picker-requires {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-on-accent);
 }
 
 /* Hover and selected states */
@@ -8252,4 +8312,325 @@
 .ai-organiser-vision-edit-preview {
     min-height: 240px;
     overflow: auto;
+}
+
+/* ── Audio narration ──────────────────────────────────────────────────── */
+
+.ai-organiser-progress-cancel-btn.is-hidden {
+    display: none;
+}
+
+.ai-organiser-cost-stats {
+    margin: 1em 0;
+    padding: 0.75em 1em;
+    background: var(--background-secondary);
+    border-radius: var(--radius-s);
+}
+
+.ai-organiser-cost-stats dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25em 1em;
+    margin: 0;
+}
+
+.ai-organiser-cost-stats dt {
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.ai-organiser-cost-stats dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-organiser-cost-output {
+    margin-top: 0.75em;
+    font-size: 0.9em;
+    color: var(--text-muted);
+    word-break: break-all;
+}
+
+.ai-organiser-cost-provider {
+    margin-top: 0.25em;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.ai-organiser-notice-actions {
+    display: flex;
+    gap: 0.5em;
+    margin-top: 0.5em;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.ai-organiser-audio-player-modal {
+    min-width: 480px;
+}
+.ai-organiser-audio-player-filename {
+    color: var(--text-muted);
+    margin-bottom: 0.75em;
+    font-size: 0.9em;
+    word-break: break-all;
+}
+.ai-organiser-audio-player-audio {
+    width: 100%;
+    margin-bottom: 1em;
+}
+.ai-organiser-audio-player-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5em;
+    margin-bottom: 0.75em;
+}
+.ai-organiser-audio-player-skip {
+    flex: 1 1 auto;
+    min-width: 6em;
+    padding: 0.4em 0.75em;
+}
+.ai-organiser-audio-player-speed-label {
+    color: var(--text-muted);
+    margin-right: 0.25em;
+}
+.ai-organiser-audio-player-rate {
+    padding: 0.3em 0.7em;
+    font-variant-numeric: tabular-nums;
+}
+.ai-organiser-audio-player-rate.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+.ai-organiser-audio-player-external {
+    width: 100%;
+    margin-top: 0.25em;
+}
+
+/* ── Slide-authoring follow-up — Phase G ─────────────────────────────────── */
+
+/* Slide-bg-hover overlay (audit Item 4) — appears when the cursor is over
+ * a slide's padding area (no element under the pointer). The ::after
+ * tooltip uses the runtime-substituted data-bg-hover-label attribute. */
+.pres-slide-bg-hover {
+    outline: 2px dashed var(--interactive-accent);
+    outline-offset: -2px;
+    cursor: pointer;
+    position: relative;
+}
+.pres-slide-bg-hover::after {
+    content: attr(data-bg-hover-label);
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Create panel — slide creation accessory above the iframe */
+.ai-organiser-pres-create-panel-host {
+    margin-bottom: 0.5em;
+}
+.ai-organiser-pres-create-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    padding: 0.75em;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-secondary);
+}
+.ai-organiser-pres-create-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-wrap: wrap;
+}
+.ai-organiser-pres-create-row-label {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    min-width: 5em;
+}
+.ai-organiser-pres-create-pill-group {
+    display: flex;
+    gap: 0.25em;
+}
+.ai-organiser-pres-create-pill {
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+    padding: 0.3em 0.7em;
+    border-radius: 999px;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.ai-organiser-pres-create-pill.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+}
+.ai-organiser-pres-create-pill:focus-visible {
+    outline: 2px solid var(--interactive-accent-hover);
+    outline-offset: 1px;
+}
+.ai-organiser-pres-create-length-input {
+    width: 4em;
+    padding: 0.3em 0.5em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Sources section */
+.ai-organiser-pres-create-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4em;
+}
+.ai-organiser-pres-create-sources-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+.ai-organiser-pres-create-redetect {
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-muted);
+    padding: 0.2em 0.6em;
+    border-radius: 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+.ai-organiser-pres-create-redetect.is-hidden {
+    display: none;
+}
+.ai-organiser-pres-create-sources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+}
+.ai-organiser-pres-create-sources-empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 0.5em 0;
+}
+.ai-organiser-pres-create-source-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.3em 0.5em;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+}
+.ai-organiser-pres-create-source-row[data-status="error"] {
+    border-color: var(--text-error);
+}
+.ai-organiser-pres-create-source-row[data-status="resolved"] {
+    border-color: var(--color-green);
+}
+.ai-organiser-pres-create-source-kind {
+    font-size: 1em;
+}
+.ai-organiser-pres-create-source-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85em;
+}
+.ai-organiser-pres-create-source-status {
+    font-size: 0.85em;
+}
+.ai-organiser-pres-create-source-status.is-error {
+    color: var(--text-error);
+}
+.ai-organiser-pres-create-source-status.is-resolved {
+    color: var(--color-green);
+}
+.ai-organiser-pres-create-source-status.is-loading {
+    color: var(--text-muted);
+}
+.ai-organiser-pres-create-source-remove {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 0.25em;
+    font-size: 1em;
+}
+.ai-organiser-pres-create-source-remove:hover {
+    color: var(--text-error);
+}
+.ai-organiser-pres-create-sources-actions {
+    display: flex;
+    gap: 0.4em;
+    flex-wrap: wrap;
+}
+.ai-organiser-pres-create-source-add {
+    border: 1px dashed var(--background-modifier-border);
+    background: transparent;
+    color: var(--text-muted);
+    padding: 0.3em 0.7em;
+    border-radius: 4px;
+    font-size: 0.8em;
+    cursor: pointer;
+}
+.ai-organiser-pres-create-source-add:hover {
+    border-color: var(--interactive-accent);
+    color: var(--text-normal);
+}
+.ai-organiser-pres-create-validation {
+    color: var(--text-error);
+    font-size: 0.85em;
+    padding: 0.25em 0;
+}
+.ai-organiser-pres-create-validation.is-hidden {
+    display: none;
+}
+
+/* Diff modal — design-mode-text-changed banner (audit Item 2) */
+.ai-organiser-pres-diff-design-changed-banner {
+    background: color-mix(in srgb, var(--color-orange) 15%, transparent);
+    border: 1px solid var(--color-orange);
+    border-radius: 4px;
+    padding: 0.5em 0.75em;
+    margin-bottom: 0.75em;
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
+/* Diff modal — sibling-drift expander (audit Item 3) */
+.ai-organiser-pres-diff-sibling-advisory {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin-top: 0.5em;
+}
+.ai-organiser-pres-diff-sibling-drift {
+    margin-top: 0.5em;
+    padding: 0.4em 0.6em;
+    background: var(--background-secondary);
+    border-radius: 4px;
+}
+.ai-organiser-pres-diff-sibling-drift > summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+/* Source picker modal — web search input */
+.ai-organiser-pres-web-source-picker {
+    padding: 1em;
+}
+.ai-organiser-pres-web-source-input {
+    padding: 0.5em;
+    font-size: 1em;
+}
+.ai-organiser-pres-web-source-actions {
+    margin-top: 0.75em;
+    justify-content: flex-end;
 }

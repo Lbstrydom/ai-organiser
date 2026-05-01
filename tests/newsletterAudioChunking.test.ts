@@ -29,9 +29,12 @@ describe('splitScriptForTts — short scripts pass through', () => {
         expect(chunks).toEqual(['hello world.']);
     });
 
-    it('returns empty array as a single chunk for an empty script', () => {
+    it('returns empty array for an empty script', () => {
+        // Behaviour change April 2026 after refactor onto shared splitForTts:
+        // empty input → no chunks (safer — caller's loop is a no-op rather than
+        // sending an empty TTS request).
         const chunks = splitScriptForTts('');
-        expect(chunks).toEqual(['']);
+        expect(chunks).toEqual([]);
     });
 });
 

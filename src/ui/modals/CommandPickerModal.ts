@@ -5,6 +5,7 @@
  */
 
 import { App, Modal, Notice, prepareFuzzySearch, setIcon, setTooltip } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import { Translations } from '../../i18n/types';
 import { listen } from '../utils/domUtils';
@@ -13,6 +14,7 @@ import {
 	buildVisibleItems,
 	flattenSingleChildGroups,
 } from './commandPickerViewModel';
+import { checkRequirement, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 
 export interface CommandCategory {
 	id: string;
@@ -20,6 +22,14 @@ export interface CommandCategory {
 	icon: string;
 	commands: PickerCommand[];
 }
+
+/** Render-time precondition for a command — drives the requirement chip. */
+export type RequirementKind =
+	| 'none'             // always available
+	| 'active-note'      // requires an open .md file
+	| 'selection'        // requires a non-empty editor selection
+	| 'vault'            // requires ≥1 .md file in the vault
+	| 'semantic-search'; // requires enableSemanticSearch + vectorStore
 
 export interface PickerCommand {
 	id: string;
@@ -32,12 +42,22 @@ export interface PickerCommand {
 	subCommands?: PickerCommand[];
 	/** Optional status badge: 'coming-soon' (needs IT setup) or 'developing' (needs separate API) */
 	badge?: 'coming-soon' | 'developing';
+	/** Render-time precondition — see `pickerRequirements.ts`. Defaults to 'none'. */
+	requires?: RequirementKind;
+	/** Cross-listing canonical home for search dedup chip (Gemini-G2). */
+	canonicalCategoryId?: string;
+	/** Legacy taxonomy homes — drives backward-compat alias derivation. */
+	legacyHomes?: string[];
 }
 
 export class CommandPickerModal extends Modal {
 	private readonly categories: CommandCategory[];
 	private readonly t: Translations;
+	/** Modal-lifetime listeners (input box, keydown). Cleared in onClose(). */
 	private readonly cleanups: (() => void)[] = [];
+	/** Per-render row listeners. Cleared in `rebuild()` BEFORE the list is
+	 *  emptied, so stale closures don't accumulate (audit M8). */
+	private rowCleanups: (() => void)[] = [];
 
 	// State
 	private readonly expandedGroups = new Set<string>();
@@ -45,16 +65,43 @@ export class CommandPickerModal extends Modal {
 	private query = '';
 	private visibleItems: VisibleItem[] = [];
 	private isExecuting = false;
+	/** Cached requirement context for the modal's lifetime. Built lazily on
+	 *  first render; reused across keystrokes so getFiles() doesn't scan the
+	 *  vault on every input event (audit M12). selectItem() rebuilds fresh
+	 *  to catch any state change between render and click (R2 H2). */
+	private cachedRequirementCtx: RequirementContext | null = null;
 
 	// DOM refs
 	private inputEl!: HTMLInputElement;
 	private listEl!: HTMLElement;
 
-	constructor(app: App, t: Translations, categories: CommandCategory[]) {
+	constructor(
+		app: App,
+		private readonly plugin: AIOrganiserPlugin,
+		t: Translations,
+		categories: CommandCategory[],
+	) {
 		super(app);
 		this.t = t;
 		this.categories = flattenSingleChildGroups(categories);
 		this.modalEl.addClass('ai-organiser-command-picker-modal');
+	}
+
+	/** Build a fresh `RequirementContext` from current app state. Called
+	 *  once per modal-session render (cached after first call — audit M12)
+	 *  AND once per click in selectItem (R2 H2 — never cached across
+	 *  render/click boundary). Uses `getMarkdownFiles()` which reads from
+	 *  Obsidian's pre-built markdown cache (cheaper than `getFiles()` +
+	 *  filter). Both methods allocate an array eagerly; perf hotness is
+	 *  bounded by the `cachedRequirementCtx` once-per-modal-session caching. */
+	private buildRequirementContext(): RequirementContext {
+		return buildContext({
+			activeFile: this.app.workspace.getActiveFile(),
+			editor: this.app.workspace.activeEditor?.editor ?? null,
+			hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
+			enableSemanticSearch: !!this.plugin.settings.enableSemanticSearch,
+			hasVectorStore: !!this.plugin.vectorStore,
+		});
 	}
 
 	onOpen(): void {
@@ -143,12 +190,22 @@ export class CommandPickerModal extends Modal {
 	}
 
 	onClose(): void {
+		// Audit M8: flush both row + modal-lifetime listeners.
+		for (const cleanup of this.rowCleanups) cleanup();
+		this.rowCleanups.length = 0;
 		for (const cleanup of this.cleanups) cleanup();
 		this.cleanups.length = 0;
+		this.cachedRequirementCtx = null;
 		this.contentEl.empty();
 	}
 
 	private rebuild(): void {
+		// Audit M8: drop stale per-row listeners BEFORE the DOM is wiped.
+		// Modal-lifetime cleanups (input box, keydown) live in `this.cleanups`
+		// and are NOT touched here.
+		for (const cleanup of this.rowCleanups) cleanup();
+		this.rowCleanups.length = 0;
+
 		const fuzzyMatcher = this.query
 			? prepareFuzzySearch(this.query)
 			: null;
@@ -169,41 +226,66 @@ export class CommandPickerModal extends Modal {
 		if (this.visibleItems.length === 0) {
 			this.listEl.createDiv({
 				cls: 'suggestion-empty',
-				text: 'No matching commands',
+				text: this.t.modals.commandPicker.emptyState,
 			});
 			return;
 		}
 
+		// Audit M12: build requirement context ONCE per modal session and
+		// reuse across keystrokes. Vault scan + settings reads are not
+		// per-keystroke work. selectItem() rebuilds fresh on click (R2 H2)
+		// to catch any state change between render and execution.
+		this.cachedRequirementCtx ??= this.buildRequirementContext();
+		const ctx = this.cachedRequirementCtx;
 		for (let i = 0; i < this.visibleItems.length; i++) {
-			this.renderItem(i);
+			this.renderItem(i, ctx);
 		}
 	}
 
-	private renderItem(index: number): void {
+	private renderItem(index: number, ctx: RequirementContext): void {
 		const item = this.visibleItems[index];
+		// Audit M9: cross-listed commands (chat/search/peek) render twice in
+		// browse mode — option IDs must be unique per RENDERED row, not per
+		// command, so ARIA references resolve to the correct DOM node. The
+		// row index is stable across the lifetime of one render pass.
 		const el = this.listEl.createDiv({
 			cls: 'suggestion-item ai-organiser-command-picker-item',
-			attr: { 'role': 'option', 'id': `picker-opt-${item.command.id}` }
+			attr: { 'role': 'option', 'id': `picker-opt-${item.command.id}-${index}` },
 		});
 		el.dataset.category = item.categoryId;
 
-		this.applyItemClasses(el, item, index);
+		this.applyItemClasses(el, item, index, ctx);
 		this.renderItemIcon(el, item.command.icon);
 		const textEl = el.createEl('div', { cls: 'ai-organiser-command-picker-text' });
 		this.renderItemName(textEl, item);
 		this.renderItemBadge(textEl, item);
 		this.renderItemDescription(el, textEl, item, index);
-		this.renderItemChevron(el, item);
-		this.renderItemCategory(el, item);
-		this.applyItemTooltip(el, item);
+		// Metadata sibling — chip, category, chevron live here as siblings
+		// of textEl. Stops chips from wrapping into the description on
+		// narrow widths (audit R1 M3).
+		const metaEl = el.createEl('div', { cls: 'ai-organiser-command-picker-meta' });
+		this.renderItemRequires(metaEl, item, ctx, index);
+		this.renderItemCategory(metaEl, item);
+		this.renderItemChevron(metaEl, item);
+		this.applyItemTooltip(el, item, ctx);
 
-		this.cleanups.push(
+		// Per-row listeners — go into rowCleanups so they're released on
+		// every rebuild (audit M8). Modal-lifetime listeners live in
+		// `this.cleanups` and are released only in onClose().
+		this.rowCleanups.push(
 			listen(el, 'click', () => this.selectItem(index)),
-			listen(el, 'mouseenter', () => { this.activeIndex = index; this.updateActiveHighlight(); })
+			listen(el, 'mouseenter', () => { this.activeIndex = index; this.updateActiveHighlight(); }),
 		);
 	}
 
-	private applyItemClasses(el: HTMLElement, item: VisibleItem, index: number): void {
+	private applyItemClasses(el: HTMLElement, item: VisibleItem, index: number, ctx: RequirementContext): void {
+		// Requirement gate first — render-time disable + a11y describedby.
+		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		if (!reqState.met) {
+			el.addClass('is-gated');
+			el.setAttribute('aria-disabled', 'true');
+			el.setAttribute('aria-describedby', `picker-req-${item.command.id}-${index}`);
+		}
 		if (item.kind === 'group') {
 			el.addClass('is-group');
 			if (this.expandedGroups.has(item.command.id)) el.addClass('is-expanded');
@@ -277,7 +359,42 @@ export class CommandPickerModal extends Modal {
 		catEl.appendText(item.category);
 	}
 
-	private applyItemTooltip(el: HTMLElement, item: VisibleItem): void {
+	/** Render the requires-chip into the metadata sibling — only when the
+	 *  requirement is unmet (Hick's law: don't show a chip for satisfied
+	 *  preconditions). The chip carries an icon + short label + sr-only
+	 *  full reason for screen readers (matches the row's aria-describedby). */
+	private renderItemRequires(metaEl: HTMLElement, item: VisibleItem, ctx: RequirementContext, index: number): void {
+		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		if (reqState.met) return;
+		const chip = metaEl.createEl('span', {
+			cls: 'ai-organiser-command-picker-requires',
+		});
+		const iconEl = chip.createEl('span', { cls: 'ai-organiser-command-picker-requires-icon' });
+		setIcon(iconEl, reqState.chipIcon!);
+		chip.createEl('span', {
+			cls: 'ai-organiser-command-picker-requires-text',
+			text: reqState.chipText!,
+		});
+		// Hidden reason for assistive tech — id matches the row's
+		// aria-describedby in applyItemClasses. Includes row index so
+		// cross-listed commands emit unique IDs (audit Gemini-r1 M1).
+		const reqId = `picker-req-${item.command.id}-${index}`;
+		chip.createEl('span', {
+			cls: 'sr-only',
+			attr: { id: reqId },
+			text: reqState.reason!,
+		});
+	}
+
+	private applyItemTooltip(el: HTMLElement, item: VisibleItem, ctx: RequirementContext): void {
+		// Gated row → tooltip is the requirement reason (full text). This
+		// runs before the badge tooltip so a gated badge-row prefers the
+		// gate explanation.
+		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		if (!reqState.met) {
+			setTooltip(el, reqState.reason!);
+			return;
+		}
 		if (!item.command.badge) return;
 		const key = item.command.badge === 'coming-soon' ? 'badgeComingSoonExplanation' : 'badgeDevelopingExplanation';
 		const fallback = item.command.badge === 'coming-soon'
@@ -341,18 +458,30 @@ export class CommandPickerModal extends Modal {
 		const item = this.visibleItems[index];
 		if (!item) return;
 
+		// Group toggle — fires before requirement gate. A group's children
+		// have their own per-leaf requirements; the group itself is just
+		// expand/collapse, not an executable.
+		if (item.kind === 'group') {
+			this.toggleGroup(item, index);
+			return;
+		}
+
+		// Requirement gate — rebuild context FRESH (not the render-time
+		// snapshot). User could have changed active note / opened editor /
+		// updated settings between render and click (audit R2 H2).
+		const ctx = this.buildRequirementContext();
+		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		if (!reqState.met) {
+			new Notice(reqState.reason!);
+			return;
+		}
+
 		// Badge guard — non-executable
 		if (item.command.badge) {
 			const msg = item.command.badge === 'coming-soon'
 				? this.t.modals.commandPicker.badgeComingSoonExplanation || 'This feature requires additional setup'
 				: this.t.modals.commandPicker.badgeDevelopingExplanation || 'This feature requires a separate API key';
 			new Notice(msg);
-			return;
-		}
-
-		// Group toggle
-		if (item.kind === 'group') {
-			this.toggleGroup(item, index);
 			return;
 		}
 
@@ -401,8 +530,12 @@ export class CommandPickerModal extends Modal {
 		// Rebuild
 		this.rebuild();
 
-		// Restore scroll position
-		const newAnchorEl = container.querySelector(`#picker-opt-${groupId}`) as HTMLElement;
+		// Restore scroll position — group IDs are unique (groups never
+		// cross-list) so a prefix-match on `#picker-opt-${groupId}-` finds
+		// the single rendered group row regardless of its row index.
+		const newAnchorEl = container.querySelector(
+			`[id^="picker-opt-${CSS.escape(groupId)}-"]`,
+		) as HTMLElement;
 		if (newAnchorEl) {
 			container.scrollTop = newAnchorEl.offsetTop - offsetFromTop;
 		}
@@ -423,9 +556,21 @@ export class CommandPickerModal extends Modal {
 /**
  * Build command categories from the plugin's registered commands.
  */
+/**
+ * Build command categories — output-anchored taxonomy.
+ *
+ * 5 categories: essentials / create / refine / find / manage. Create is
+ * FLAT (14 leaves, no sub-groups — persona-pass evidence). Cross-listing:
+ * AI Chat + Vault search live in Essentials AND Find; Quick peek lives
+ * in Essentials AND Refine. Same callback, two browse rows; search-mode
+ * dedupes by command.id.
+ *
+ * Plan: docs/plans/command-picker-output-anchored*.md (5 docs, locked
+ * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
+ */
 export function buildCommandCategories(
 	t: Translations,
-	executeCommand: (commandId: string) => void
+	executeCommand: (commandId: string) => void,
 ): CommandCategory[] {
 	const summarizeAliases = [
 		t.commands.summarizeSmart,
@@ -433,396 +578,192 @@ export function buildCommandCategories(
 		t.commands.summarizeFromPdf,
 		t.commands.summarizeFromYouTube,
 		t.commands.summarizeFromAudio,
-		'youtube',
-		'pdf',
-		'url',
-		'audio',
-		'video',
-		'web'
+		'youtube', 'pdf', 'url', 'audio', 'video', 'web',
 	];
 	const relatedAliases = ['related', 'similar', 'connections', 'linked'];
-
-	// Access descriptions from i18n (with fallbacks)
 	const desc = t.modals.commandPicker.descriptions ?? {} as Record<string, string>;
 
+	// Helper — terse leaf builder. legacyHomes drives backward-compat
+	// alias derivation (audit R3 M3 + Gemini-G4) — moved commands keep
+	// their old taxonomy terms searchable without manual sprinkling.
+	const cmd = (
+		id: string, name: string, icon: string, requires: RequirementKind,
+		description: string, aliases: string[] = [], legacyHomes: string[] = [],
+	): PickerCommand => ({
+		id, name, icon,
+		callback: () => executeCommand(`ai-organiser:${id}`),
+		requires, description,
+		aliases: [...aliases, ...legacyHomes.flatMap(legacyHomeAliases)],
+		legacyHomes,
+	});
+
+	// Cross-listings — defined ONCE, referenced TWICE (browse).
+	// canonicalCategoryId tells search-mode dedup which placement's chip
+	// to show (audit Gemini-G2 — explicit field, not array order).
+	const chatLeaf: PickerCommand = {
+		...cmd('chat-with-ai', t.commands.chatWithAI, 'message-circle', 'none',
+			desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
+			['ask', 'question', 'chat', 'rag', 'passages']),
+		canonicalCategoryId: 'essentials',
+	};
+	const searchLeaf: PickerCommand = {
+		...cmd('semantic-search', t.commands.searchSemanticVault, 'search', 'semantic-search',
+			desc.semanticSearch || 'Find notes by meaning, not just keywords',
+			['semantic', 'search', 'find', 'query', 'lookup']),
+		canonicalCategoryId: 'essentials',
+	};
+	const peekLeaf: PickerCommand = {
+		...cmd('quick-peek', t.commands.quickPeek, 'zap', 'active-note',
+			desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
+			['peek', 'quick', 'triage', 'skim', 'preview', 'sources']),
+		canonicalCategoryId: 'essentials',
+	};
+
 	return [
-		// R1 (menu audit 2026-04-21): Essentials sit above every category so
-		// the flagship verbs — Chat, Semantic search, Quick peek — are one
-		// click away. Earlier structure had Chat 4 clicks deep under Vault →
-		// Ask & search; every persona tested bounced to Ctrl+P instead.
 		{
 			id: 'essentials',
 			name: t.modals.commandPicker.categoryEssentials,
 			icon: 'star',
+			commands: [chatLeaf, searchLeaf, peekLeaf],
+		},
+		{
+			id: 'create',
+			name: t.modals.commandPicker.categoryCreate,
+			icon: 'sparkles',
 			commands: [
-				{
-					id: 'chat-with-ai',
-					name: t.commands.chatWithAI,
-					icon: 'message-circle',
-					description: desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
-					aliases: ['ask', 'question', 'chat', 'rag', 'vault', 'passages'],
-					callback: () => executeCommand('ai-organiser:chat-with-ai')
-				},
-				{
-					id: 'semantic-search',
-					name: t.commands.searchSemanticVault,
-					icon: 'search',
-					description: desc.semanticSearch || 'Find notes by meaning, not just keywords',
-					aliases: ['semantic', 'search', 'find', 'query', 'lookup'],
-					callback: () => executeCommand('ai-organiser:semantic-search')
-				},
-				{
-					id: 'quick-peek',
-					name: t.commands.quickPeek,
-					icon: 'zap',
-					description: desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
-					aliases: ['peek', 'quick', 'triage', 'skim', 'preview', 'sources'],
-					callback: () => executeCommand('ai-organiser:quick-peek')
-				},
+				cmd('smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
+					desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
+					[...summarizeAliases, 'create', 'summary'], ['capture']),
+				cmd('create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
+					desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
+					['minutes', 'meeting', 'transcript'], ['capture']),
+				cmd('smart-translate', t.commands.translate, 'languages', 'active-note',
+					desc.smartTranslate || 'Translate the active note into another language',
+					['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],
+					['active-note-refine']),
+				cmd('narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
+					desc.narrateNote || 'Convert this note to a spoken-audio MP3',
+					['narrate', 'audio', 'tts', 'listen', 'voice', 'speak', 'podcast', 'mp3'],
+					['active-note-export']),
+				cmd('export-flashcards', t.commands.exportFlashcards, 'layers', 'active-note',
+					desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
+					['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
+					['active-note-export']),
+				cmd('export-note', t.commands.exportNote, 'file-output', 'active-note',
+					desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
+					['pdf', 'docx', 'pptx', 'word', 'powerpoint'], ['active-note-export']),
+				cmd('export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
+					desc.exportMinutesDocx || 'Export meeting minutes as Word document',
+					['minutes', 'meeting', 'word', 'docx'], ['active-note-export']),
+				cmd('smart-tag', t.commands.generateTagsForCurrentNote, 'tag', 'active-note',
+					desc.smartTag || 'Generate tags for the active note',
+					['tag', 'tagging', 'categorise', t.commands.tag], ['active-note-refine']),
+				cmd('presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
+					desc.presentationChat || 'Generate a structured slide deck from this note',
+					['slides', 'presentation', 'deck', 'pitch'], ['active-note-refine']),
+				cmd('edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
+					desc.editMermaidDiagram || 'Conversational Mermaid diagram editing',
+					['mermaid', 'diagram', 'flowchart'], ['active-note-refine']),
+				cmd('new-sketch', t.commands.newSketch, 'pencil', 'none',
+					desc.newSketch || 'Open the sketch pad to draw a quick sketch',
+					['sketch', 'draw', 'whiteboard'], ['capture']),
+				cmd('build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
+					desc.buildInvestigationCanvas || 'Build an investigation canvas from related notes',
+					['canvas', 'investigate', 'board'], ['active-note-maps']),
+				cmd('build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
+					desc.buildContextCanvas || 'Build a context canvas from embedded sources',
+					['canvas', 'context', 'board'], ['active-note-maps']),
+				cmd('build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
+					desc.buildClusterCanvas || 'Build a cluster canvas grouping vault notes by tag',
+					['canvas', 'cluster', 'board'], ['vault-visualize']),
 			],
 		},
 		{
-			id: 'active-note',
-			name: t.modals.commandPicker.categoryActiveNote,
-			icon: 'file-edit',
+			id: 'refine',
+			name: t.modals.commandPicker.categoryRefine,
+			icon: 'wand-2',
 			commands: [
-				{
-					id: 'refine-group',
-					name: t.modals.commandPicker.groupRefine,
-					icon: 'sparkles',
-					description: desc.refineGroup || 'AI-powered note editing and enhancement',
-					aliases: ['refine', 'improve', 'translate', 'tag'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'smart-tag',
-							name: t.commands.generateTagsForCurrentNote,
-							icon: 'tag',
-							description: desc.smartTag || 'AI-powered tag generation using your vault taxonomy',
-							aliases: [t.commands.tag, 'categorize', 'label'],
-							callback: () => executeCommand('ai-organiser:smart-tag')
-						},
-						{
-							id: 'enhance-note',
-							name: t.commands.improveNote,
-							icon: 'wand-2',
-							description: desc.enhanceNote || 'Rewrite or improve the current note with AI',
-							aliases: [t.commands.enhance, t.commands.findResources, t.commands.generateMermaidDiagram, 'rewrite'],
-							callback: () => executeCommand('ai-organiser:enhance-note')
-						},
-						{
-							id: 'smart-translate',
-							name: t.commands.translate,
-							icon: 'languages',
-							description: desc.smartTranslate || 'Translate note, selection, or external sources',
-							aliases: [t.commands.translateNote, t.commands.translateSelection, 'language', 'convert'],
-							callback: () => executeCommand('ai-organiser:smart-translate')
-						},
-						{
-							id: 'clear-tags',
-							name: t.commands.clearTags,
-							icon: 'eraser',
-							description: desc.clearTags || 'Remove AI-generated tags from notes',
-							aliases: [t.commands.clearTagsForCurrentNote, t.commands.clearTagsForCurrentFolder, t.commands.clearTagsForVault, 'remove'],
-							callback: () => executeCommand('ai-organiser:clear-tags')
-						},
-						{
-							id: 'digitise-image',
-							name: t.commands.digitiseImage,
-							icon: 'sparkles',
-							description: desc.digitiseImage || 'Extract text from handwriting, whiteboards, or diagrams',
-							aliases: ['digitise', 'digitize', 'ocr', 'handwriting', 'whiteboard', 'sketch', 'vision'],
-							callback: () => executeCommand('ai-organiser:digitise-image')
-						},
-						{
-							id: 'edit-mermaid-diagram',
-							name: t.commands.editMermaidDiagram,
-							icon: 'git-branch',
-							description: desc.editMermaidDiagram || 'Chat-based Mermaid diagram editing with live preview',
-							aliases: ['mermaid', 'diagram', 'flowchart', 'chart', 'edit diagram'],
-							callback: () => executeCommand('ai-organiser:edit-mermaid-diagram')
-						},
-						{
-							id: 'presentation-chat',
-							name: t.commands.presentationChat,
-							icon: 'presentation',
-							description: desc.presentationChat || 'Build themed presentations from your notes',
-							aliases: ['presentation', 'slides', 'pptx', 'powerpoint', 'deck', 'slideshow'],
-							callback: () => executeCommand('ai-organiser:presentation-chat')
-						}
-					]
-				},
-				// quick-peek promoted to Essentials (R1 menu audit 2026-04-21)
-				{
-					id: 'export-group',
-					name: t.modals.commandPicker.groupExport,
-					icon: 'file-output',
-					description: desc.exportGroup || 'Export notes as PDF, Word, PowerPoint, or flashcards',
-					aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint', 'flashcards', 'anki', 'brainscape', 'cards', 'study'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'export-note',
-							name: t.commands.exportNote,
-							icon: 'file-output',
-							description: desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
-							aliases: ['export', 'pdf', 'docx', 'pptx', 'word', 'powerpoint'],
-							callback: () => executeCommand('ai-organiser:export-note')
-						},
-						{
-							id: 'export-flashcards',
-							name: t.commands.exportFlashcards,
-							icon: 'layers',
-							description: desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
-							aliases: ['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
-							callback: () => executeCommand('ai-organiser:export-flashcards')
-						},
-						{
-							id: 'export-minutes-docx',
-							name: t.commands.exportMinutesDocx,
-							icon: 'file-text',
-							description: desc.exportMinutesDocx || 'Export meeting minutes as Word document',
-							aliases: ['minutes', 'meeting', 'word', 'docx'],
-							callback: () => executeCommand('ai-organiser:export-minutes-docx')
-						}
-					]
-				},
-				{
-					id: 'maps-group',
-					name: t.modals.commandPicker.groupNoteMaps,
-					icon: 'network',
-					description: desc.mapsGroup || 'Visualize connections and attachments as canvases',
-					aliases: ['maps', 'connections', 'investigation', 'context', 'related', 'canvas'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'build-investigation-canvas',
-							name: t.commands.mapRelatedConcepts,
-							icon: 'network',
-							description: desc.buildInvestigationCanvas || 'Build a canvas of semantically related notes',
-							aliases: ['investigation', 'concepts', ...relatedAliases],
-							callback: () => executeCommand('ai-organiser:build-investigation-canvas')
-						},
-						{
-							id: 'build-context-canvas',
-							name: t.commands.mapAttachments,
-							icon: 'git-branch',
-							description: desc.buildContextCanvas || 'Map all embedded sources and attachments',
-							aliases: ['context', 'attachments', 'sources', 'links', 'references'],
-							callback: () => executeCommand('ai-organiser:build-context-canvas')
-						},
-						{
-							id: 'find-related',
-							name: t.commands.showRelatedNotes,
-							icon: 'link-2',
-							description: desc.findRelated || 'Show semantically similar notes in sidebar',
-							aliases: relatedAliases,
-							callback: () => executeCommand('ai-organiser:find-related')
-						},
-						{
-							id: 'insert-related-notes',
-							name: t.commands.insertRelatedNotes,
-							icon: 'copy-plus',
-							description: desc.insertRelatedNotes || 'Insert links to related notes at cursor',
-							aliases: ['insert', 'embed', ...relatedAliases],
-							callback: () => executeCommand('ai-organiser:insert-related-notes')
-						}
-					]
-				},
-				{
-					id: 'pending-group',
-					name: t.modals.commandPicker.groupPending,
-					icon: 'inbox',
-					description: desc.pendingGroup || 'Manage pending content integration',
-					aliases: ['pending', 'add', 'integrate', 'merge', 'embeds', 'resolve', 'extract', 'structure', 'references'],
-					callback: () => {},
-					subCommands: [
-						// R7 (menu audit 2026-04-21): ensure-note-structure
-						// is a one-time setup action, not a per-note choice.
-						// Hidden from the picker; stays in the command palette
-						// (Ctrl+P) for the rare case of rebuilding the
-						// canonical structure.
-						{
-							id: 'add-to-pending',
-							name: t.commands.addToPendingIntegration,
-							icon: 'plus-circle',
-							description: desc.addToPending || 'Add selected content to pending integration queue',
-							aliases: ['pending', 'add', 'integration'],
-							callback: () => executeCommand('ai-organiser:add-to-pending-integration')
-						},
-						{
-							id: 'integrate-pending',
-							name: t.commands.integratePendingContent,
-							icon: 'git-merge',
-							description: desc.integratePending || 'AI merges pending content into your note structure',
-							aliases: ['integrate', 'merge', 'pending'],
-							callback: () => executeCommand('ai-organiser:integrate-pending-content')
-						},
-						{
-							id: 'resolve-embeds',
-							name: t.commands.resolvePendingEmbeds,
-							icon: 'scan-text',
-							description: desc.resolveEmbeds || 'Extract text from embedded documents for review',
-							aliases: ['embeds', 'resolve', 'extract'],
-							callback: () => executeCommand('ai-organiser:resolve-pending-embeds')
-						}
-					]
-				}
-			]
+				cmd('enhance-note', t.commands.improveNote, 'sparkles', 'active-note',
+					desc.enhanceNote || 'Improve the active note with AI suggestions',
+					['improve', 'polish', 'enhance', 'rewrite', t.commands.enhance],
+					['active-note-refine']),
+				cmd('integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
+					desc.integratePending || 'Integrate pending content into the active note',
+					['integrate', 'merge'], ['active-note-pending']),
+				cmd('add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
+					desc.addToPending || 'Add the active note to the pending-integration queue',
+					['add'], ['active-note-pending']),
+				cmd('resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
+					desc.resolveEmbeds || 'Resolve embedded content references in the active note',
+					['embeds', 'resolve', 'expand'], ['active-note-pending']),
+				cmd('digitise-image', t.commands.digitiseImage, 'scan', 'active-note',
+					desc.digitiseImage || 'Digitise a handwritten or whiteboard image',
+					['digitise', 'digitize', 'ocr', 'image', 'scan'], ['active-note-refine']),
+				cmd('clear-tags', t.commands.clearTags, 'eraser', 'active-note',
+					desc.clearTags || 'Clear tags from the active note',
+					['clear', 'tags', 'reset'], ['active-note-refine']),
+				peekLeaf,
+			],
 		},
 		{
-			id: 'capture',
-			name: t.modals.commandPicker.categoryCapture,
-			icon: 'plus-circle',
+			id: 'find',
+			name: t.modals.commandPicker.categoryFind,
+			icon: 'search',
 			commands: [
-				{
-					id: 'smart-summarize',
-					name: t.commands.summarizeSmart,
-					icon: 'link',
-					description: desc.smartSummarize || 'Summarize URLs, PDFs, YouTube, audio, or note content',
-					aliases: summarizeAliases,
-					callback: () => executeCommand('ai-organiser:smart-summarize')
-				},
-				{
-					id: 'create-meeting-minutes',
-					name: t.commands.createMeetingMinutes,
-					icon: 'clipboard-list',
-					description: desc.createMeetingMinutes || 'Generate structured minutes from transcripts or audio',
-					aliases: ['meeting', 'minutes', 'transcript', 'notes'],
-					callback: () => executeCommand('ai-organiser:create-meeting-minutes')
-				},
-				{
-					id: 'record-audio',
-					name: t.commands.recordAudio,
-					icon: 'mic',
-					description: desc.recordAudio || 'Record audio directly in Obsidian with optional transcription',
-					aliases: ['record', 'voice', 'dictate', 'audio', 'microphone', 'memo'],
-					callback: () => executeCommand('ai-organiser:record-audio')
-				},
-				{
-					id: 'web-reader',
-					name: t.commands.webReader,
-					icon: 'newspaper',
-					description: desc.webReader || 'Triage web links from this note — preview before reading',
-					aliases: ['web', 'reader', 'triage', 'articles', 'links', 'news', 'browse'],
-					callback: () => executeCommand('ai-organiser:web-reader')
-				},
-				{
-					id: 'research-web',
-					name: (t.commands as Record<string, string>).researchWeb || 'Research',
-					icon: 'telescope',
-					description: desc.researchWeb || 'Web research with AI search, scoring, and citations',
-					aliases: ['research', 'search', 'web search', 'find sources', 'look up'],
-					callback: () => executeCommand('ai-organiser:research-web')
-				},
-				{
-					id: 'kindle-sync',
-					name: t.commands.kindleSync,
-					icon: 'book-open',
-					description: desc.kindleSync || 'Import Kindle highlights and notes into your vault',
-					aliases: ['kindle', 'highlights', 'book', 'reading', 'amazon', 'ebook'],
-					callback: () => executeCommand('ai-organiser:kindle-sync')
-				},
-				{
-					id: 'newsletter-fetch',
-					name: t.commands.newsletterFetch,
-					icon: 'mail',
-					description: desc.newsletterFetch || 'Fetch unread newsletters from Gmail',
-					aliases: ['fetch', 'newsletter', 'email', 'gmail', 'inbox', 'digest', 'news'],
-					callback: () => executeCommand('ai-organiser:newsletter-fetch')
-				},
-				{
-					id: 'new-sketch',
-					name: t.commands.newSketch,
-					icon: 'pencil',
-					description: desc.newSketch || 'Open a sketch pad for freehand drawing',
-					aliases: ['sketch', 'draw', 'whiteboard', 'handwrite', 'pen'],
-					callback: () => executeCommand('ai-organiser:new-sketch')
-				}
-			]
+				cmd('web-reader', t.commands.webReader, 'newspaper', 'active-note',
+					desc.webReader || 'Triage web URLs in the active note',
+					['web', 'reader', 'triage', 'article'], ['capture']),
+				cmd('research-web', t.commands.researchWeb, 'globe', 'none',
+					desc.researchWeb || 'Web research with citations',
+					['research', 'web', 'citations'], ['capture']),
+				cmd('find-related', t.commands.findResources, 'compass', 'active-note',
+					desc.findRelated || 'Find related resources for the active note',
+					[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
+				cmd('insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
+					desc.insertRelatedNotes || 'Insert related notes into the active note',
+					[...relatedAliases, 'insert'], ['active-note-maps']),
+				cmd('find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
+					desc.findEmbeds || 'Find every embedded asset in the vault',
+					['embeds', 'find', 'hygiene'], ['vault']),
+				cmd('show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
+					desc.showTagNetwork || 'Visualise the tag network for the vault',
+					['tags', 'network', 'graph'], ['vault-visualize']),
+				cmd('collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
+					desc.collectAllTags || 'Collect every tag in the vault into a list',
+					['tags', 'collect', 'list'], ['vault-visualize']),
+				chatLeaf, searchLeaf,
+			],
 		},
 		{
-			id: 'vault',
-			name: t.modals.commandPicker.categoryVault,
-			icon: 'brain',
+			id: 'manage',
+			name: t.modals.commandPicker.categoryManage,
+			icon: 'wrench',
 			commands: [
-				// Ask & search group removed (R1 + R2 menu audit 2026-04-21).
-				// chat-with-ai and semantic-search promoted to Essentials; the
-				// duplicate presentation-chat-from-ask is gone (canonical entry
-				// stays under Active Note → Refine).
-				{
-					id: 'visualize-group',
-					name: t.modals.commandPicker.groupVaultVisualizations,
-					icon: 'eye',
-					description: desc.visualizeGroup || 'Visual overviews of vault structure and tags',
-					aliases: ['cluster', 'group', 'tag', 'graph', 'visualization', 'map', 'bases', 'dashboard', 'view', 'organize'],
-					callback: () => {},
-					subCommands: [
-						{
-							id: 'build-cluster-canvas',
-							name: t.commands.groupNotesByTag,
-							icon: 'boxes',
-							description: desc.buildClusterCanvas || 'Group notes by tag into a clustered canvas',
-							aliases: ['cluster', 'group', 'tag', 'organize'],
-							callback: () => executeCommand('ai-organiser:build-cluster-canvas')
-						},
-						{
-							id: 'show-tag-network',
-							name: t.commands.visualizeTagGraph,
-							icon: 'network',
-							description: desc.showTagNetwork || 'Interactive D3 graph of tag relationships',
-							aliases: ['graph', 'visualization', 'map', 'tags'],
-							callback: () => executeCommand('ai-organiser:show-tag-network')
-						},
-						{
-							id: 'create-dashboard',
-							name: t.commands.createBasesDashboard,
-							icon: 'layout-dashboard',
-							description: desc.createDashboard || 'Create an Obsidian Bases dashboard for a folder',
-							aliases: ['bases', 'dashboard', 'view'],
-							callback: () => executeCommand('ai-organiser:create-bases-dashboard')
-						},
-						{
-							id: 'collect-all-tags',
-							name: t.commands.collectAllTags,
-							icon: 'tags',
-							description: desc.collectAllTags || 'Export every tag in the vault to a note',
-							aliases: ['tags', 'export', 'collect', 'all', 'list'],
-							callback: () => executeCommand('ai-organiser:collect-all-tags')
-						}
-					]
-				},
-				// Vault Hygiene flattened — single-child group promoted to standalone
-				{
-					id: 'find-embeds',
-					name: t.commands.findEmbeds,
-					icon: 'hard-drive',
-					description: desc.findEmbeds || 'Scan vault for embedded files, orphans, and references',
-					aliases: ['hygiene', 'embeds', 'find', 'attachments', 'orphan', 'files'],
-					callback: () => executeCommand('ai-organiser:find-embeds')
-				}
-			]
+				cmd('kindle-sync', t.commands.kindleSync, 'book-open', 'none',
+					desc.kindleSync || 'Sync Kindle highlights into the vault',
+					['kindle', 'sync', 'highlights'], ['capture']),
+				cmd('newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
+					desc.newsletter || 'Fetch newsletters from Gmail and triage them',
+					['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
+				cmd('record-audio', t.commands.recordAudio, 'mic', 'none',
+					desc.recordAudio || 'Record audio directly in Obsidian',
+					['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
+				cmd('play-narration', t.commands.playNarration, 'play-circle', 'active-note',
+					desc.playNarration || 'Open mp3 in a player with speed and skip controls',
+					['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
+				cmd('upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
+					desc.upgradeMetadata || 'Upgrade vault notes to Bases metadata format',
+					['migrate', 'upgrade', 'bases', 'metadata']),
+				cmd('upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
+					desc.upgradeFolderMetadata || 'Upgrade current folder notes to Bases metadata',
+					['migrate', 'folder', 'upgrade', 'bases']),
+				cmd('create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
+					desc.createDashboard || 'Create a Bases dashboard for the vault',
+					['dashboard', 'bases', 'create'], ['vault-visualize']),
+				cmd('notebooklm-export', t.commands.notebookLMExport, 'book-open', 'vault',
+					desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
+					['notebooklm', 'export', 'pdf', 'pack'], ['tools']),
+			],
 		},
-		{
-			id: 'tools',
-			name: t.modals.commandPicker.categoryTools,
-			icon: 'settings',
-			commands: [
-				{
-					// R6 (menu audit 2026-04-21): NotebookLM state commands
-					// (toggle/clear/open-folder) are plumbing for the one real
-					// user action — Export. Only the export surfaces in the
-					// picker now; the state commands remain available via
-					// command palette (Ctrl+P) and their selection context
-					// menus for power users who want direct access.
-					id: 'notebooklm-export',
-					name: t.commands.notebookLMExport,
-					icon: 'book-open',
-					description: desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
-					aliases: ['notebooklm', 'export', 'pdf', 'pack'],
-					callback: () => executeCommand('ai-organiser:notebooklm-export')
-				}
-			]
-		}
 	];
 }

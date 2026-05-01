@@ -23,6 +23,7 @@ import { registerResearchCommands } from './researchCommands';
 import { registerEmbedScanCommands } from './embedScanCommands';
 import { registerQuickPeekCommands } from './quickPeekCommands';
 import { registerNewsletterCommands } from './newsletterCommands';
+import { registerAudioNarrationCommands } from './audioNarrationCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 
@@ -52,5 +53,6 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
     registerEmbedScanCommands(plugin);
     registerQuickPeekCommands(plugin);
     registerNewsletterCommands(plugin);
+    registerAudioNarrationCommands(plugin);
     registerContextMenu(plugin);
 }
