@@ -1,7 +1,7 @@
 /**
  * Tests for Command Picker Modal — output-anchored taxonomy.
  *
- * Plan: docs/plans/command-picker-output-anchored*.md (5 docs, locked
+ * Plan: docs/completed/command-picker-output-anchored*.md (5 docs, locked
  * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
  */
 

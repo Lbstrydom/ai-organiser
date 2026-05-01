@@ -9,7 +9,7 @@
  * Pure functions on plain objects — no Obsidian `App` or `Modal` import,
  * fully testable without the harness (audit response: R1 M5 + R2 H2).
  *
- * Plan: docs/plans/command-picker-output-anchored-frontend.md (Phase 4 +
+ * Plan: docs/completed/command-picker-output-anchored-frontend.md (Phase 4 +
  *       File 2). Locked after 3 GPT audit rounds + 3 Gemini final reviews.
  */
 

@@ -565,7 +565,7 @@ export class CommandPickerModal extends Modal {
  * in Essentials AND Refine. Same callback, two browse rows; search-mode
  * dedupes by command.id.
  *
- * Plan: docs/plans/command-picker-output-anchored*.md (5 docs, locked
+ * Plan: docs/completed/command-picker-output-anchored*.md (5 docs, locked
  * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
  */
 export function buildCommandCategories(
