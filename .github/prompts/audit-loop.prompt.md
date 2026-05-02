@@ -1,11 +1,11 @@
 <!-- audit-loop-bundle:prompt:start -->
 ---
-description: "Orchestrator for /audit-plan + /audit-code."
+description: "DEPRECATED — use `/cycle` for the full chained workflow, OR `/audit-plan` / `/audit-code` for atomic invocations."
 mode: agent
 ---
 # /audit-loop
 
-Orchestrator for /audit-plan + /audit-code; dispatches by mode keyword or shorthand.
+DEPRECATED — use /cycle for chained workflow, /audit-plan or /audit-code for atomic invocations.
 
 ## Run
 

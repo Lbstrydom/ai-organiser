@@ -111,3 +111,6 @@ scripts/write-plan-outcomes.mjs
 scripts/setup-permissions.mjs
 scripts/lib/
 skills.manifest.json
+
+# Architectural-memory cache (intent embeddings, regenerated on demand).
+.audit-loop/cache/
