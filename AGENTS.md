@@ -2190,3 +2190,43 @@ See `docs/` folder for additional documentation:
 - [docs/plans/command-picker-ux.md](docs/plans/command-picker-ux.md): Command Picker UX overhaul plan (implemented)
 - [docs/cde-plan.md](docs/cde-plan.md): Chunking, Decomposition & Extraction quality plan (6 phases)
 - [docs/det-plan.md](docs/det-plan.md): Deterministic Validation & LLM Audit plan (6 phases)
+
+## Architectural Memory — Pre-fix Consultation (MANDATORY)
+
+The architectural-memory feature indexes every symbol in this repo into
+Supabase with embeddings, so we can find near-duplicates BEFORE writing
+new code. The `/plan-*` skills consult it automatically. Ad-hoc fixes
+in Claude Code or Copilot bypass `/plan-*` entirely — that's where most
+architectural drift creeps in.
+
+**Rule** — if you (the AI agent reading this) are about to write a new
+function, class, hook, component, route, method, or constant as part of
+a fix or feature request, you MUST first run:
+
+```bash
+node scripts/cross-skill.mjs get-neighbourhood --json '{
+  "targetPaths": ["<files you intend to touch>"],
+  "intentDescription": "<one-line summary of what you are about to write>",
+  "k": 8
+}'
+```
+
+Then act on the recommendation column:
+
+- **`reuse`** (cosine ≥ 0.90) — reuse the existing symbol unless the user explicitly wants a sibling. Note it in your reply.
+- **`extend`** (0.85–0.90) — strongly prefer extending the existing symbol; document why if you create a new one.
+- **`justify-divergence`** (0.75–0.85) — write the new code, but explicitly mention in your reply why divergence is the right call.
+- **`review`** (<0.75) or empty records — proceed greenfield.
+
+**Skip the consultation when**: pure body-only bug fixes, typos, doc-only,
+test-only changes, or when cloud is offline (`{"cloud": false}`).
+
+**Auto-fired via hook**: `.claude/hooks/arch-memory-check.sh` runs on
+`UserPromptSubmit` when the prompt contains intent verbs (`fix`, `add`,
+`implement`, `create`, `build`, `write`, `refactor`, `make`, `wire`,
+`hook`, `introduce`, `replace`, `extend`). If the hook fired you'll see
+a `> **Architectural-memory consultation**` callout — treat it as
+authoritative. Disable per-session with `ARCH_MEMORY_HOOK_DISABLE=1`.
+
+**Cost**: ~$0.0003/consultation (Gemini embed) + ~50–200ms RPC. Cached
+24h on disk by `(intent, model, dim)`.

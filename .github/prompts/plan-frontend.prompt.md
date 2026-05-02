@@ -1,11 +1,11 @@
 <!-- audit-loop-bundle:prompt:start -->
 ---
-description: "Frontend UX and implementation planning with design and engineering principles."
+description: "DEPRECATED — thin alias for `/plan --scope=frontend`."
 mode: agent
 ---
 # /plan-frontend
 
-Generate a frontend/UX plan with acceptance criteria. Output to docs/plans/.
+DEPRECATED alias — invokes /plan with --scope=frontend. Prefer /plan directly.
 
 ## Run
 

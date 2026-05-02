@@ -154,14 +154,20 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Refine — cross-lists quick-peek', () => {
-        it('contains 7 leaves; last is the cross-listed quick-peek', () => {
+    describe('Refine — Pending sub-group + cross-listed quick-peek', () => {
+        it('first-expansion has 5 rows: improve, Pending sub-group, digitise, clear-tags, peek', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'enhance-note', 'integrate-pending-content', 'add-to-pending-integration',
-                'resolve-pending-embeds', 'digitise-image', 'clear-tags',
-                'quick-peek',
+                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'quick-peek',
+            ]);
+        });
+        it('Process pending sub-group contains the 3 pending commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const refine = cats.find(c => c.id === 'refine')!;
+            const pending = refine.commands.find(c => c.id === 'refine-pending')!;
+            expect(pending.subCommands?.map(c => c.id)).toEqual([
+                'integrate-pending-content', 'add-to-pending-integration', 'resolve-pending-embeds',
             ]);
         });
     });
@@ -193,14 +199,32 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Manage — admin + recurring fetches', () => {
-        it('contains all expected leaves incl newly-surfaced migration', () => {
+    describe('Manage — 3 sub-groups + 1 direct leaf', () => {
+        it('first-expansion has 4 rows: Sync, Audio, Bases sub-groups + NotebookLM leaf', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const manage = cats.find(c => c.id === 'manage')!;
             expect(manage.commands.map(c => c.id)).toEqual([
-                'kindle-sync', 'newsletter-fetch', 'record-audio', 'play-narration',
-                'upgrade-metadata', 'upgrade-folder-metadata',
-                'create-bases-dashboard', 'notebooklm-export',
+                'manage-sync', 'manage-audio', 'manage-bases', 'notebooklm-export',
+            ]);
+        });
+        it('Sync sub-group contains kindle-sync + newsletter-fetch', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            const sync = manage.commands.find(c => c.id === 'manage-sync')!;
+            expect(sync.subCommands?.map(c => c.id)).toEqual(['kindle-sync', 'newsletter-fetch']);
+        });
+        it('Audio admin sub-group contains record + play', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            const audio = manage.commands.find(c => c.id === 'manage-audio')!;
+            expect(audio.subCommands?.map(c => c.id)).toEqual(['record-audio', 'play-narration']);
+        });
+        it('Bases sub-group contains migration + dashboard commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const manage = cats.find(c => c.id === 'manage')!;
+            const bases = manage.commands.find(c => c.id === 'manage-bases')!;
+            expect(bases.subCommands?.map(c => c.id)).toEqual([
+                'upgrade-metadata', 'upgrade-folder-metadata', 'create-bases-dashboard',
             ]);
         });
     });
@@ -259,7 +283,9 @@ describe('Command Picker — output-anchored taxonomy', () => {
         it('play-narration also has active-note-export legacy home (Gemini-G4 — was missing under manual approach)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const manage = cats.find(c => c.id === 'manage')!;
-            const play = manage.commands.find(c => c.id === 'play-narration')!;
+            // play-narration now lives under the Audio admin sub-group
+            const audio = manage.commands.find(c => c.id === 'manage-audio')!;
+            const play = audio.subCommands!.find(c => c.id === 'play-narration')!;
             expect(play.legacyHomes).toContain('active-note-export');
             expect(play.aliases).toContain('export');
         });

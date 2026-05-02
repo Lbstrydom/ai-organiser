@@ -333,6 +333,10 @@ export interface AIOrganiserSettings {
      *  promoted to the top "Essentials" category in the picker. Empty
      *  array means use the static default (chat / search / quick-peek). */
     pickerEssentialsCommandIds: string[];
+    /** Persisted set of category IDs the user has expanded in the picker.
+     *  Defaults to ['essentials'] only — other categories collapsed.
+     *  Updated on toggle so picker remembers preference across opens. */
+    pickerExpandedCategoryIds: string[];
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -603,6 +607,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // Command picker — Essentials defaults to empty array (picker falls
     // back to static chat / search / quick-peek defaults).
     pickerEssentialsCommandIds: [],
+    // Only Essentials expanded by default; other categories collapsed.
+    pickerExpandedCategoryIds: ['essentials'],
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

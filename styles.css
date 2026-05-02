@@ -1991,6 +1991,36 @@
     transform: rotate(90deg);
 }
 
+/* Category header — clickable section divider with chevron */
+.ai-organiser-command-picker-item.is-category-header {
+    background: var(--background-secondary);
+    border-left: 2px solid transparent;
+    font-weight: var(--font-weight-semibold, 600);
+    cursor: pointer;
+}
+.ai-organiser-command-picker-item.is-category-header.is-expanded {
+    border-left-color: var(--interactive-accent);
+}
+.ai-organiser-command-picker-item.is-category-header .ai-organiser-command-picker-name {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: var(--font-smaller);
+    color: var(--text-muted);
+}
+.ai-organiser-command-picker-item.is-category-header.is-expanded .ai-organiser-command-picker-name {
+    color: var(--text-normal);
+}
+.ai-organiser-command-picker-item.is-category-header .ai-organiser-command-picker-category {
+    /* The category chip is redundant on the header itself. */
+    display: none;
+}
+.ai-organiser-command-picker-category-count {
+    color: var(--text-faint);
+    font-weight: normal;
+    margin-left: 4px;
+    font-size: var(--font-smallest);
+}
+
 /* Description secondary line — always visible on first paint so users don't
  * need to hover each row to see what a command does (persona round 4 P2 #3).
  * Dimmed via --text-faint; highlighted/hovered state bumps to --text-muted. */

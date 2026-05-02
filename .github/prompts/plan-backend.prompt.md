@@ -1,11 +1,11 @@
 <!-- audit-loop-bundle:prompt:start -->
 ---
-description: "Backend architecture planning with engineering principles."
+description: "DEPRECATED — thin alias for `/plan --scope=backend`."
 mode: agent
 ---
 # /plan-backend
 
-Generate a backend architecture plan. Output to docs/plans/.
+DEPRECATED alias — invokes /plan with --scope=backend. Prefer /plan directly.
 
 ## Run
 

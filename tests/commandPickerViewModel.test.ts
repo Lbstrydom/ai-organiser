@@ -82,6 +82,42 @@ describe('flattenSingleChildGroups', () => {
     });
 });
 
+describe('buildVisibleItems — collapsible categories (added 2026-05-02)', () => {
+    it('legacy callers (no expandedCategories arg) see no category-header rows', () => {
+        const categories = makeCategories();
+        const items = buildVisibleItems(categories, new Set(), null);
+        expect(items.every(i => i.kind !== 'category-header')).toBe(true);
+    });
+
+    it('collapsibility opt-in: pass an empty Set → only headers visible', () => {
+        const categories = makeCategories();
+        const items = buildVisibleItems(categories, new Set(), null, new Set());
+        expect(items.every(i => i.kind === 'category-header')).toBe(true);
+        expect(items.length).toBe(categories.length);
+    });
+
+    it('expanding a category shows its header + that category contents', () => {
+        const categories = makeCategories();
+        const items = buildVisibleItems(categories, new Set(), null, new Set(['cat-a']));
+        const headers = items.filter(i => i.kind === 'category-header');
+        // Both categories get headers; only cat-a is expanded
+        expect(headers.length).toBe(2);
+        expect(headers[0].categoryExpanded).toBe(true);
+        expect(headers[1].categoryExpanded).toBe(false);
+        // cat-a contents visible (group-1, leaf-1) but not cat-b's
+        const nonHeader = items.filter(i => i.kind !== 'category-header');
+        expect(nonHeader.every(i => i.categoryId === 'cat-a')).toBe(true);
+    });
+
+    it('category-header carries leaf count for scent-of-content', () => {
+        const categories = makeCategories();
+        const items = buildVisibleItems(categories, new Set(), null, new Set());
+        const catA = items.find(i => i.categoryId === 'cat-a' && i.kind === 'category-header')!;
+        // cat-a has group-1 (with 2 sub-commands) + leaf-1 = 3 leaves
+        expect(catA.categoryLeafCount).toBe(3);
+    });
+});
+
 describe('buildVisibleItems — browse mode', () => {
     it('shows only top-level items when all groups collapsed', () => {
         const categories = makeCategories();

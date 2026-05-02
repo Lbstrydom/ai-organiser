@@ -7,7 +7,7 @@
 import type { CommandCategory, PickerCommand } from './CommandPickerModal';
 
 export interface VisibleItem {
-	kind: 'group' | 'leaf' | 'sub-leaf';
+	kind: 'group' | 'leaf' | 'sub-leaf' | 'category-header';
 	command: PickerCommand;
 	category: string;
 	categoryIcon: string;
@@ -22,6 +22,10 @@ export interface VisibleItem {
 	searchText: string;
 	/** Fuzzy match score — only set during search mode */
 	score?: number;
+	/** True for `category-header` rows when the category is expanded. */
+	categoryExpanded?: boolean;
+	/** Number of leaf descendants — shown next to the category-header label. */
+	categoryLeafCount?: number;
 }
 
 /**
@@ -84,70 +88,101 @@ function buildSearchText(
 export function buildVisibleItems(
 	categories: CommandCategory[],
 	expandedGroups: Set<string>,
-	fuzzyMatcher: ((text: string) => { score: number } | null) | null
+	fuzzyMatcher: ((text: string) => { score: number } | null) | null,
+	expandedCategories?: Set<string>,
 ): VisibleItem[] {
 	if (fuzzyMatcher) {
 		return buildSearchResults(categories, fuzzyMatcher);
 	}
-	return buildBrowseTree(categories, expandedGroups);
+	return buildBrowseTree(categories, expandedGroups, expandedCategories);
 }
 
 /**
- * Browse mode: build tree with expandable groups.
+ * Browse mode: build tree with expandable category headers + groups.
+ *
+ * Each category renders as a `category-header` row. When the category is
+ * expanded (per `expandedCategories`), its commands render below — with
+ * groups collapsed by default unless their id is in `expandedGroups`.
+ *
+ * `expandedCategories === undefined` means "show all" (legacy behaviour
+ * for callers that haven't migrated).
  */
 function buildBrowseTree(
 	categories: CommandCategory[],
-	expandedGroups: Set<string>
+	expandedGroups: Set<string>,
+	expandedCategories: Set<string> | undefined,
 ): VisibleItem[] {
 	const items: VisibleItem[] = [];
-
+	// `expandedCategories === undefined` is the legacy contract: no
+	// category-header rows, all categories' contents inlined. Callers
+	// that opt into collapsibility (the modal) pass a Set explicitly.
 	for (const cat of categories) {
+		const isCategoryExpanded = !expandedCategories || expandedCategories.has(cat.id);
+		if (expandedCategories) {
+			items.push(buildCategoryHeader(cat, isCategoryExpanded));
+		}
+		if (!isCategoryExpanded) continue;
 		for (const cmd of cat.commands) {
-			const isGroup = !!(cmd.subCommands && cmd.subCommands.length > 0);
-			const searchText = buildSearchText(cmd, cat.name);
-
-			if (isGroup) {
-				items.push({
-					kind: 'group',
-					command: cmd,
-					category: cat.name,
-					categoryIcon: cat.icon,
-					categoryId: cat.id,
-					depth: 0,
-					searchText,
-				});
-
-				// If expanded, add sub-commands
-				if (expandedGroups.has(cmd.id)) {
-					for (const sub of cmd.subCommands!) {
-						items.push({
-							kind: 'sub-leaf',
-							command: sub,
-							category: cat.name,
-							categoryIcon: cat.icon,
-							categoryId: cat.id,
-							parentGroupId: cmd.id,
-							parentGroupName: cmd.name,
-							depth: 1,
-							searchText: buildSearchText(sub, cat.name, cmd.name),
-						});
-					}
-				}
-			} else {
-				items.push({
-					kind: 'leaf',
-					command: cmd,
-					category: cat.name,
-					categoryIcon: cat.icon,
-					categoryId: cat.id,
-					depth: 0,
-					searchText,
-				});
-			}
+			pushCategoryEntry(items, cat, cmd, expandedGroups);
 		}
 	}
-
 	return items;
+}
+
+function buildCategoryHeader(cat: CommandCategory, isExpanded: boolean): VisibleItem {
+	return {
+		kind: 'category-header',
+		// Synthesize a placeholder PickerCommand so callers that read
+		// `command.id` etc. don't break. The toggle handler keys off
+		// `categoryId`.
+		command: { id: `__category__${cat.id}`, name: cat.name, icon: cat.icon, callback: () => {} },
+		category: cat.name,
+		categoryIcon: cat.icon,
+		categoryId: cat.id,
+		depth: 0,
+		searchText: cat.name,
+		categoryExpanded: isExpanded,
+		categoryLeafCount: countCategoryLeaves(cat),
+	};
+}
+
+function pushCategoryEntry(
+	items: VisibleItem[],
+	cat: CommandCategory,
+	cmd: PickerCommand,
+	expandedGroups: Set<string>,
+): void {
+	const isGroup = !!(cmd.subCommands && cmd.subCommands.length > 0);
+	const searchText = buildSearchText(cmd, cat.name);
+	if (!isGroup) {
+		items.push({
+			kind: 'leaf', command: cmd, category: cat.name,
+			categoryIcon: cat.icon, categoryId: cat.id, depth: 0, searchText,
+		});
+		return;
+	}
+	items.push({
+		kind: 'group', command: cmd, category: cat.name,
+		categoryIcon: cat.icon, categoryId: cat.id, depth: 0, searchText,
+	});
+	if (!expandedGroups.has(cmd.id)) return;
+	for (const sub of cmd.subCommands!) {
+		items.push({
+			kind: 'sub-leaf', command: sub, category: cat.name,
+			categoryIcon: cat.icon, categoryId: cat.id,
+			parentGroupId: cmd.id, parentGroupName: cmd.name,
+			depth: 1, searchText: buildSearchText(sub, cat.name, cmd.name),
+		});
+	}
+}
+
+function countCategoryLeaves(cat: CommandCategory): number {
+	let count = 0;
+	for (const cmd of cat.commands) {
+		if (cmd.subCommands && cmd.subCommands.length > 0) count += cmd.subCommands.length;
+		else count++;
+	}
+	return count;
 }
 
 /**

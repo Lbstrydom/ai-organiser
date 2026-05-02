@@ -2263,6 +2263,10 @@ export interface Translations {
             groupCreateVisualise: string;
             groupFindDiscover: string;
             groupFindAudit: string;
+            groupRefinePending: string;
+            groupManageSync: string;
+            groupManageAudio: string;
+            groupManageBases: string;
             // Requirement chip + reason strings (4 chips + 5 reasons; semantic-search has 2)
             requiresChipNote: string;
             requiresChipSelection: string;
@@ -2329,6 +2333,10 @@ export interface Translations {
                 groupCreateVisualise: string;
                 groupFindDiscover: string;
                 groupFindAudit: string;
+                groupRefinePending: string;
+                groupManageSync: string;
+                groupManageAudio: string;
+                groupManageBases: string;
             };
             badgeComingSoonExplanation: string;
             badgeDevelopingExplanation: string;

@@ -61,6 +61,10 @@ export class CommandPickerModal extends Modal {
 
 	// State
 	private readonly expandedGroups = new Set<string>();
+	/** Categories the user has expanded. Hydrated from
+	 *  `settings.pickerExpandedCategoryIds`; written back on every
+	 *  toggle so the preference persists across modal opens. */
+	private readonly expandedCategories: Set<string>;
 	private activeIndex = 0;
 	private query = '';
 	private visibleItems: VisibleItem[] = [];
@@ -85,6 +89,12 @@ export class CommandPickerModal extends Modal {
 		this.t = t;
 		this.categories = flattenSingleChildGroups(categories);
 		this.modalEl.addClass('ai-organiser-command-picker-modal');
+		// Hydrate expanded-categories from persisted settings. Falls back
+		// to ['essentials'] only when settings haven't been written yet.
+		const persisted = this.plugin.settings.pickerExpandedCategoryIds;
+		this.expandedCategories = new Set<string>(
+			persisted && persisted.length > 0 ? persisted : ['essentials'],
+		);
 	}
 
 	/** Build a fresh `RequirementContext` from current app state. Called
@@ -210,7 +220,9 @@ export class CommandPickerModal extends Modal {
 			? prepareFuzzySearch(this.query)
 			: null;
 
-		this.visibleItems = buildVisibleItems(this.categories, this.expandedGroups, fuzzyMatcher);
+		this.visibleItems = buildVisibleItems(
+			this.categories, this.expandedGroups, fuzzyMatcher, this.expandedCategories,
+		);
 
 		// Clamp active index
 		if (this.activeIndex >= this.visibleItems.length) {
@@ -290,6 +302,12 @@ export class CommandPickerModal extends Modal {
 			el.addClass('is-group');
 			if (this.expandedGroups.has(item.command.id)) el.addClass('is-expanded');
 		}
+		if (item.kind === 'category-header') {
+			el.addClass('is-category-header');
+			if (item.categoryExpanded) el.addClass('is-expanded');
+			el.setAttribute('aria-expanded', item.categoryExpanded ? 'true' : 'false');
+			el.setAttribute('role', 'button');
+		}
 		if (item.kind === 'sub-leaf' && !this.query) el.addClass('is-sub-command');
 		if (item.command.badge) el.addClass('is-unavailable');
 		if (index === this.activeIndex) {
@@ -314,10 +332,18 @@ export class CommandPickerModal extends Modal {
 				text: item.command.name,
 				cls: 'ai-organiser-command-picker-name',
 			});
-		} else {
+			return;
+		}
+		textEl.createEl('span', {
+			text: item.command.name,
+			cls: 'ai-organiser-command-picker-name',
+		});
+		// Append leaf count hint to category headers — gives the user a
+		// scent of what's inside before they click to expand.
+		if (item.kind === 'category-header' && typeof item.categoryLeafCount === 'number') {
 			textEl.createEl('span', {
-				text: item.command.name,
-				cls: 'ai-organiser-command-picker-name',
+				cls: 'ai-organiser-command-picker-category-count',
+				text: ` (${item.categoryLeafCount})`,
 			});
 		}
 	}
@@ -345,10 +371,17 @@ export class CommandPickerModal extends Modal {
 	}
 
 	private renderItemChevron(el: HTMLElement, item: VisibleItem): void {
-		if (item.kind !== 'group') return;
-		const chevronEl = el.createEl('span', { cls: 'ai-organiser-command-picker-chevron' });
-		setIcon(chevronEl.createEl('span'), 'chevron-right');
-		el.setAttribute('aria-expanded', this.expandedGroups.has(item.command.id) ? 'true' : 'false');
+		if (item.kind === 'group') {
+			const chevronEl = el.createEl('span', { cls: 'ai-organiser-command-picker-chevron' });
+			setIcon(chevronEl.createEl('span'), 'chevron-right');
+			el.setAttribute('aria-expanded', this.expandedGroups.has(item.command.id) ? 'true' : 'false');
+			return;
+		}
+		if (item.kind === 'category-header') {
+			const chevronEl = el.createEl('span', { cls: 'ai-organiser-command-picker-chevron' });
+			setIcon(chevronEl.createEl('span'), 'chevron-right');
+			// aria-expanded is set in applyItemClasses for header rows.
+		}
 	}
 
 	private renderItemCategory(el: HTMLElement, item: VisibleItem): void {
@@ -458,6 +491,12 @@ export class CommandPickerModal extends Modal {
 		const item = this.visibleItems[index];
 		if (!item) return;
 
+		// Category-header toggle — show/hide the category's contents.
+		if (item.kind === 'category-header') {
+			this.toggleCategory(item.categoryId, index);
+			return;
+		}
+
 		// Group toggle — fires before requirement gate. A group's children
 		// have their own per-leaf requirements; the group itself is just
 		// expand/collapse, not an executable.
@@ -507,6 +546,43 @@ export class CommandPickerModal extends Modal {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 			new Notice(`Command failed: ${errorMessage}`);
 		}
+	}
+
+	/** Toggle a category's expansion. Preserves scroll position relative to
+	 *  the clicked header so expand/collapse doesn't jolt the viewport. */
+	private toggleCategory(categoryId: string, index: number): void {
+		const wasExpanded = this.expandedCategories.has(categoryId);
+		const container = this.listEl;
+		const anchorEl = container.children[index] as HTMLElement;
+		const offsetFromTop = anchorEl
+			? anchorEl.getBoundingClientRect().top - container.getBoundingClientRect().top
+			: 0;
+
+		if (wasExpanded) this.expandedCategories.delete(categoryId);
+		else this.expandedCategories.add(categoryId);
+
+		// Persist preference so the next picker open respects it.
+		this.plugin.settings.pickerExpandedCategoryIds = [...this.expandedCategories];
+		void this.plugin.saveSettings();
+
+		this.rebuild();
+
+		const newAnchorEl = container.querySelector(
+			`[id^="picker-opt-__category__${CSS.escape(categoryId)}-"]`,
+		) as HTMLElement;
+		if (newAnchorEl) {
+			container.scrollTop = newAnchorEl.offsetTop - offsetFromTop;
+		}
+
+		// Move active index to the header (or the first child after expand)
+		const newHeaderIndex = this.visibleItems.findIndex(
+			v => v.kind === 'category-header' && v.categoryId === categoryId,
+		);
+		if (newHeaderIndex >= 0) {
+			this.activeIndex = wasExpanded ? newHeaderIndex : newHeaderIndex + 1;
+			if (this.activeIndex >= this.visibleItems.length) this.activeIndex = newHeaderIndex;
+		}
+		this.updateActiveHighlight();
 	}
 
 	private toggleGroup(item: VisibleItem, index: number): void {
@@ -728,15 +804,24 @@ export function buildCommandCategories(
 					desc.enhanceNote || 'Improve the active note with AI suggestions',
 					['improve', 'polish', 'enhance', 'rewrite', t.commands.enhance],
 					['active-note-refine']),
-				cmd('integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
-					desc.integratePending || 'Integrate pending content into the active note',
-					['integrate', 'merge'], ['active-note-pending']),
-				cmd('add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
-					desc.addToPending || 'Add the active note to the pending-integration queue',
-					['add'], ['active-note-pending']),
-				cmd('resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
-					desc.resolveEmbeds || 'Resolve embedded content references in the active note',
-					['embeds', 'resolve', 'expand'], ['active-note-pending']),
+				{
+					id: 'refine-pending',
+					name: t.modals.commandPicker.groupRefinePending,
+					icon: 'merge',
+					description: t.modals.commandPicker.descriptions.groupRefinePending,
+					callback: () => {},
+					subCommands: [
+						cmd('integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
+							desc.integratePending || 'Integrate pending content into the active note',
+							['integrate', 'merge'], ['active-note-pending']),
+						cmd('add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
+							desc.addToPending || 'Add the active note to the pending-integration queue',
+							['add'], ['active-note-pending']),
+						cmd('resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
+							desc.resolveEmbeds || 'Resolve embedded content references in the active note',
+							['embeds', 'resolve', 'expand'], ['active-note-pending']),
+					],
+				},
 				cmd('digitise-image', t.commands.digitiseImage, 'scan', 'active-note',
 					desc.digitiseImage || 'Digitise a handwritten or whiteboard image',
 					['digitise', 'digitize', 'ocr', 'image', 'scan'], ['active-note-refine']),
@@ -801,27 +886,54 @@ export function buildCommandCategories(
 			name: t.modals.commandPicker.categoryManage,
 			icon: 'wrench',
 			commands: [
-				cmd('kindle-sync', t.commands.kindleSync, 'book-open', 'none',
-					desc.kindleSync || 'Sync Kindle highlights into the vault',
-					['kindle', 'sync', 'highlights'], ['capture']),
-				cmd('newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
-					desc.newsletter || 'Fetch newsletters from Gmail and triage them',
-					['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
-				cmd('record-audio', t.commands.recordAudio, 'mic', 'none',
-					desc.recordAudio || 'Record audio directly in Obsidian',
-					['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
-				cmd('play-narration', t.commands.playNarration, 'play-circle', 'active-note',
-					desc.playNarration || 'Open mp3 in a player with speed and skip controls',
-					['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
-				cmd('upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
-					desc.upgradeMetadata || 'Upgrade vault notes to Bases metadata format',
-					['migrate', 'upgrade', 'bases', 'metadata']),
-				cmd('upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
-					desc.upgradeFolderMetadata || 'Upgrade current folder notes to Bases metadata',
-					['migrate', 'folder', 'upgrade', 'bases']),
-				cmd('create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
-					desc.createDashboard || 'Create a Bases dashboard for the vault',
-					['dashboard', 'bases', 'create'], ['vault-visualize']),
+				{
+					id: 'manage-sync',
+					name: t.modals.commandPicker.groupManageSync,
+					icon: 'rss',
+					description: t.modals.commandPicker.descriptions.groupManageSync,
+					callback: () => {},
+					subCommands: [
+						cmd('kindle-sync', t.commands.kindleSync, 'book-open', 'none',
+							desc.kindleSync || 'Sync Kindle highlights into the vault',
+							['kindle', 'sync', 'highlights'], ['capture']),
+						cmd('newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
+							desc.newsletter || 'Fetch newsletters from Gmail and triage them',
+							['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
+					],
+				},
+				{
+					id: 'manage-audio',
+					name: t.modals.commandPicker.groupManageAudio,
+					icon: 'mic',
+					description: t.modals.commandPicker.descriptions.groupManageAudio,
+					callback: () => {},
+					subCommands: [
+						cmd('record-audio', t.commands.recordAudio, 'mic', 'none',
+							desc.recordAudio || 'Record audio directly in Obsidian',
+							['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
+						cmd('play-narration', t.commands.playNarration, 'play-circle', 'active-note',
+							desc.playNarration || 'Open mp3 in a player with speed and skip controls',
+							['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
+					],
+				},
+				{
+					id: 'manage-bases',
+					name: t.modals.commandPicker.groupManageBases,
+					icon: 'database',
+					description: t.modals.commandPicker.descriptions.groupManageBases,
+					callback: () => {},
+					subCommands: [
+						cmd('upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
+							desc.upgradeMetadata || 'Upgrade vault notes to Bases metadata format',
+							['migrate', 'upgrade', 'bases', 'metadata']),
+						cmd('upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
+							desc.upgradeFolderMetadata || 'Upgrade current folder notes to Bases metadata',
+							['migrate', 'folder', 'upgrade', 'bases']),
+						cmd('create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
+							desc.createDashboard || 'Create a Bases dashboard for the vault',
+							['dashboard', 'bases', 'create'], ['vault-visualize']),
+					],
+				},
 				cmd('notebooklm-export', t.commands.notebookLMExport, 'book-open', 'vault',
 					desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
 					['notebooklm', 'export', 'pdf', 'pack'], ['tools']),
