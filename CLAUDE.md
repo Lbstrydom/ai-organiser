@@ -248,18 +248,24 @@ Commands registered in `src/commands/`:
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 
-**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored taxonomy (locked 2026-05-01 after 3 GPT + 3 Gemini audit rounds):
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored, two-layer (locked 2026-05-02):
 ```
-Essentials   ← Most-used: Chat, Semantic search, Quick peek
-Create       ← Outputs: summary, minutes, translation, audio narration,
-               flashcards, document export, tags, presentation, diagram,
-               sketch, canvas boards
+Essentials   ← User-configurable favourites (max 5; default = Chat / Search / Quick peek)
+Create       ← Outputs (verb-anchored sub-groups + 3 direct leaves):
+               • Write       (summarize, minutes, translate, export note, export minutes)
+               • Visualise   (presentation, diagram, sketch, 3 canvas variants)
+               • Audio narration / Flashcards / Tags (direct leaves)
 Refine       ← Mutations on existing notes (improve, integrate, digitise, etc.)
-Find         ← Discovery: web reader, research, related notes, find embeds,
-               tag network
+Find         ← Search (chat + semantic-search at top via cross-listing) +
+               • Discover    (web reader, research, find related, insert related)
+               • Audit vault (find embeds, tag network, collect tags)
 Manage       ← Recurring + admin: Kindle, Newsletter, recording, dashboards,
                metadata migration, NotebookLM export
 ```
+
+**User-configurable Essentials** (added 2026-05-02): `settings.pickerEssentialsCommandIds` (max 5). Empty = static defaults. UI in *Settings → Language → Quick commands* — pick from any leaf via FuzzySuggestModal. Selected leaves keep cross-listing identity (same `PickerCommand` object reference), so search dedup still works.
+
+**Sub-grouping**: only Create + Find. Refine and Manage stay flat (≤ 8 leaves each). Sub-group labels are action-verbs (`Write`, `Visualise`, `Discover`, `Audit vault`) — sub-groups collapse by default; user expands via chevron click.
 
 **Cross-listing**: Chat / Vault search / Quick peek live in Essentials AND in Find / Refine. Browse mode renders both placements; search mode dedupes by `command.id` and shows the canonical (Essentials) chip via `canonicalCategoryId`.
 
@@ -786,13 +792,13 @@ Organize by **user mental model**, not technical implementation:
 
 **Sub-collapsible sections:** Umbrella groups (Capture & Input, Vault Intelligence, Integrations, Preferences) use `createSubCollapsibleSection(container, id, title, icon)` to wrap each child section class in its own nested `<details>`. The same `expandedSections` Set tracks state. CSS class `ai-organiser-settings-sub-section*` styles the nested headers; inner `h2.ai-organiser-settings-header` is hidden via CSS (sub-collapsible summary is the visual header).
 
-**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored:
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored, two-layer:
 ```
-Essentials   ← Most-used: Chat, Semantic search, Quick peek
-Create       ← Outputs (summary, minutes, audio, flashcards, exports, etc.)
-Refine       ← Mutations on existing notes
-Find         ← Discovery (web reader, research, related notes, embeds)
-Manage       ← Recurring + admin (Kindle, Newsletter, migration, dashboards)
+Essentials   ← User-configurable favourites (max 5; default = chat / search / quick peek)
+Create       ← Write + Visualise sub-groups + 3 direct leaves
+Refine       ← Mutations on existing notes (flat)
+Find         ← Search at top + Discover / Audit-vault sub-groups
+Manage       ← Recurring + admin (flat)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last

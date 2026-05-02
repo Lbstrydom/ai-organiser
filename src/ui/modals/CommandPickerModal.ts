@@ -554,23 +554,48 @@ export class CommandPickerModal extends Modal {
 }
 
 /**
- * Build command categories from the plugin's registered commands.
- */
-/**
  * Build command categories — output-anchored taxonomy.
  *
- * 5 categories: essentials / create / refine / find / manage. Create is
- * FLAT (14 leaves, no sub-groups — persona-pass evidence). Cross-listing:
- * AI Chat + Vault search live in Essentials AND Find; Quick peek lives
- * in Essentials AND Refine. Same callback, two browse rows; search-mode
- * dedupes by command.id.
+ * 5 categories: essentials / create / refine / find / manage. Create has
+ * verb-anchored sub-groups (Write, Visualise) plus 3 direct leaves (audit
+ * 2026-05-02 user feedback — flat 14 was too long). Find has Discover +
+ * Audit-vault sub-groups. Cross-listing: AI Chat + Vault search live in
+ * Essentials AND Find; Quick peek lives in Essentials AND Refine. Same
+ * callback, two browse rows; search-mode dedupes by command.id.
+ *
+ * Essentials is user-configurable: if `essentialsCommandIds` is provided
+ * (max 5 entries), the Essentials category is built from those command
+ * objects looked up across every other category. Empty / undefined ⇒
+ * use the static default (chat / search / quick-peek).
  *
  * Plan: docs/completed/command-picker-output-anchored*.md (5 docs, locked
  * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
  */
+/** Find a leaf command by id across an arbitrary category tree. Searches
+ *  top-level commands first, then descends into `subCommands`. Returns
+ *  the SAME object reference (preserves cross-listing identity for the
+ *  search-mode dedup logic). Used by `buildCommandCategories` to resolve
+ *  user-configurable Essentials. */
+function findLeafByIdInCategories(
+	id: string,
+	categories: readonly CommandCategory[],
+): PickerCommand | null {
+	for (const cat of categories) {
+		for (const c of cat.commands) {
+			if (c.id === id) return c;
+			if (c.subCommands) {
+				const sub = c.subCommands.find(s => s.id === id);
+				if (sub) return sub;
+			}
+		}
+	}
+	return null;
+}
+
 export function buildCommandCategories(
 	t: Translations,
 	executeCommand: (commandId: string) => void,
+	essentialsCommandIds: readonly string[] = [],
 ): CommandCategory[] {
 	const summarizeAliases = [
 		t.commands.summarizeSmart,
@@ -619,28 +644,68 @@ export function buildCommandCategories(
 		canonicalCategoryId: 'essentials',
 	};
 
-	return [
-		{
-			id: 'essentials',
-			name: t.modals.commandPicker.categoryEssentials,
-			icon: 'star',
-			commands: [chatLeaf, searchLeaf, peekLeaf],
-		},
+	const nonEssentialCategories: CommandCategory[] = [
 		{
 			id: 'create',
 			name: t.modals.commandPicker.categoryCreate,
 			icon: 'sparkles',
 			commands: [
-				cmd('smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
-					desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
-					[...summarizeAliases, 'create', 'summary'], ['capture']),
-				cmd('create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
-					desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
-					['minutes', 'meeting', 'transcript'], ['capture']),
-				cmd('smart-translate', t.commands.translate, 'languages', 'active-note',
-					desc.smartTranslate || 'Translate the active note into another language',
-					['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],
-					['active-note-refine']),
+				// Verb-anchored sub-groups (depth 1 — collapsed by default).
+				// User feedback 2026-05-02: 14 leaves was too long to scan;
+				// each sub-group is a discoverable verb-anchored bucket.
+				{
+					id: 'create-write',
+					name: t.modals.commandPicker.groupCreateWrite,
+					icon: 'pen-line',
+					description: t.modals.commandPicker.descriptions.groupCreateWrite,
+					callback: () => {},
+					subCommands: [
+						cmd('smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
+							desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
+							[...summarizeAliases, 'create', 'summary'], ['capture']),
+						cmd('create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
+							desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
+							['minutes', 'meeting', 'transcript'], ['capture']),
+						cmd('smart-translate', t.commands.translate, 'languages', 'active-note',
+							desc.smartTranslate || 'Translate the active note into another language',
+							['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],
+							['active-note-refine']),
+						cmd('export-note', t.commands.exportNote, 'file-output', 'active-note',
+							desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
+							['pdf', 'docx', 'pptx', 'word', 'powerpoint'], ['active-note-export']),
+						cmd('export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
+							desc.exportMinutesDocx || 'Export meeting minutes as Word document',
+							['minutes', 'meeting', 'word', 'docx'], ['active-note-export']),
+					],
+				},
+				{
+					id: 'create-visualise',
+					name: t.modals.commandPicker.groupCreateVisualise,
+					icon: 'palette',
+					description: t.modals.commandPicker.descriptions.groupCreateVisualise,
+					callback: () => {},
+					subCommands: [
+						cmd('presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
+							desc.presentationChat || 'Generate a structured slide deck from this note',
+							['slides', 'presentation', 'deck', 'pitch'], ['active-note-refine']),
+						cmd('edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
+							desc.editMermaidDiagram || 'Conversational Mermaid diagram editing',
+							['mermaid', 'diagram', 'flowchart'], ['active-note-refine']),
+						cmd('new-sketch', t.commands.newSketch, 'pencil', 'none',
+							desc.newSketch || 'Open the sketch pad to draw a quick sketch',
+							['sketch', 'draw', 'whiteboard'], ['capture']),
+						cmd('build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
+							desc.buildInvestigationCanvas || 'Build an investigation canvas from related notes',
+							['canvas', 'investigate', 'board'], ['active-note-maps']),
+						cmd('build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
+							desc.buildContextCanvas || 'Build a context canvas from embedded sources',
+							['canvas', 'context', 'board'], ['active-note-maps']),
+						cmd('build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
+							desc.buildClusterCanvas || 'Build a cluster canvas grouping vault notes by tag',
+							['canvas', 'cluster', 'board'], ['vault-visualize']),
+					],
+				},
+				// Direct leaves — single-action verbs.
 				cmd('narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
 					desc.narrateNote || 'Convert this note to a spoken-audio MP3',
 					['narrate', 'audio', 'tts', 'listen', 'voice', 'speak', 'podcast', 'mp3'],
@@ -649,33 +714,9 @@ export function buildCommandCategories(
 					desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
 					['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
 					['active-note-export']),
-				cmd('export-note', t.commands.exportNote, 'file-output', 'active-note',
-					desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
-					['pdf', 'docx', 'pptx', 'word', 'powerpoint'], ['active-note-export']),
-				cmd('export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
-					desc.exportMinutesDocx || 'Export meeting minutes as Word document',
-					['minutes', 'meeting', 'word', 'docx'], ['active-note-export']),
 				cmd('smart-tag', t.commands.generateTagsForCurrentNote, 'tag', 'active-note',
 					desc.smartTag || 'Generate tags for the active note',
 					['tag', 'tagging', 'categorise', t.commands.tag], ['active-note-refine']),
-				cmd('presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
-					desc.presentationChat || 'Generate a structured slide deck from this note',
-					['slides', 'presentation', 'deck', 'pitch'], ['active-note-refine']),
-				cmd('edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
-					desc.editMermaidDiagram || 'Conversational Mermaid diagram editing',
-					['mermaid', 'diagram', 'flowchart'], ['active-note-refine']),
-				cmd('new-sketch', t.commands.newSketch, 'pencil', 'none',
-					desc.newSketch || 'Open the sketch pad to draw a quick sketch',
-					['sketch', 'draw', 'whiteboard'], ['capture']),
-				cmd('build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
-					desc.buildInvestigationCanvas || 'Build an investigation canvas from related notes',
-					['canvas', 'investigate', 'board'], ['active-note-maps']),
-				cmd('build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
-					desc.buildContextCanvas || 'Build a context canvas from embedded sources',
-					['canvas', 'context', 'board'], ['active-note-maps']),
-				cmd('build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
-					desc.buildClusterCanvas || 'Build a cluster canvas grouping vault notes by tag',
-					['canvas', 'cluster', 'board'], ['vault-visualize']),
 			],
 		},
 		{
@@ -710,28 +751,49 @@ export function buildCommandCategories(
 			name: t.modals.commandPicker.categoryFind,
 			icon: 'search',
 			commands: [
-				cmd('web-reader', t.commands.webReader, 'newspaper', 'active-note',
-					desc.webReader || 'Triage web URLs in the active note',
-					['web', 'reader', 'triage', 'article'], ['capture']),
-				cmd('research-web', t.commands.researchWeb, 'globe', 'none',
-					desc.researchWeb || 'Web research with citations',
-					['research', 'web', 'citations'], ['capture']),
-				cmd('find-related', t.commands.findResources, 'compass', 'active-note',
-					desc.findRelated || 'Find related resources for the active note',
-					[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
-				cmd('insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
-					desc.insertRelatedNotes || 'Insert related notes into the active note',
-					[...relatedAliases, 'insert'], ['active-note-maps']),
-				cmd('find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
-					desc.findEmbeds || 'Find every embedded asset in the vault',
-					['embeds', 'find', 'hygiene'], ['vault']),
-				cmd('show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
-					desc.showTagNetwork || 'Visualise the tag network for the vault',
-					['tags', 'network', 'graph'], ['vault-visualize']),
-				cmd('collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
-					desc.collectAllTags || 'Collect every tag in the vault into a list',
-					['tags', 'collect', 'list'], ['vault-visualize']),
-				chatLeaf, searchLeaf,
+				// Cross-listed from Essentials — keep at top so users who jumped
+				// straight to "Find" still see the search verbs.
+				chatLeaf,
+				searchLeaf,
+				{
+					id: 'find-discover',
+					name: t.modals.commandPicker.groupFindDiscover,
+					icon: 'compass',
+					description: t.modals.commandPicker.descriptions.groupFindDiscover,
+					callback: () => {},
+					subCommands: [
+						cmd('web-reader', t.commands.webReader, 'newspaper', 'active-note',
+							desc.webReader || 'Triage web URLs in the active note',
+							['web', 'reader', 'triage', 'article'], ['capture']),
+						cmd('research-web', t.commands.researchWeb, 'globe', 'none',
+							desc.researchWeb || 'Web research with citations',
+							['research', 'web', 'citations'], ['capture']),
+						cmd('find-related', t.commands.findResources, 'compass', 'active-note',
+							desc.findRelated || 'Find related resources for the active note',
+							[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
+						cmd('insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
+							desc.insertRelatedNotes || 'Insert related notes into the active note',
+							[...relatedAliases, 'insert'], ['active-note-maps']),
+					],
+				},
+				{
+					id: 'find-audit',
+					name: t.modals.commandPicker.groupFindAudit,
+					icon: 'shield-check',
+					description: t.modals.commandPicker.descriptions.groupFindAudit,
+					callback: () => {},
+					subCommands: [
+						cmd('find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
+							desc.findEmbeds || 'Find every embedded asset in the vault',
+							['embeds', 'find', 'hygiene'], ['vault']),
+						cmd('show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
+							desc.showTagNetwork || 'Visualise the tag network for the vault',
+							['tags', 'network', 'graph'], ['vault-visualize']),
+						cmd('collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
+							desc.collectAllTags || 'Collect every tag in the vault into a list',
+							['tags', 'collect', 'list'], ['vault-visualize']),
+					],
+				},
 			],
 		},
 		{
@@ -765,5 +827,28 @@ export function buildCommandCategories(
 					['notebooklm', 'export', 'pdf', 'pack'], ['tools']),
 			],
 		},
+	];
+
+	// Resolve the user's Essentials selection (max 5). Empty / undefined →
+	// fall back to the static default (chat / search / quick-peek). Look up
+	// each ID across nonEssentialCategories so the SAME object reference is
+	// pushed into Essentials too — preserves cross-listing semantics for
+	// search dedup. IDs not found are silently skipped.
+	const customEssentials = essentialsCommandIds
+		.slice(0, 5)
+		.map(id => findLeafByIdInCategories(id, nonEssentialCategories))
+		.filter((leaf): leaf is PickerCommand => leaf !== null);
+	const essentialCommands = customEssentials.length > 0
+		? customEssentials
+		: [chatLeaf, searchLeaf, peekLeaf];
+
+	return [
+		{
+			id: 'essentials',
+			name: t.modals.commandPicker.categoryEssentials,
+			icon: 'star',
+			commands: essentialCommands,
+		},
+		...nonEssentialCategories,
 	];
 }

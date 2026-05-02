@@ -50,7 +50,65 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Essentials', () => {
+    describe('Essentials — user-configurable favourites (2026-05-02)', () => {
+        it('uses default chat/search/quick-peek when no custom selection', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.map(c => c.id)).toEqual([
+                'chat-with-ai', 'semantic-search', 'quick-peek',
+            ]);
+        });
+
+        it('replaces defaults with user selection (any IDs across the tree)', () => {
+            // User pins narrate-note + smart-tag — non-cross-listed picks.
+            const cats = buildCommandCategories(
+                mockTranslations, mockExecuteCommand, ['narrate-note', 'smart-tag'],
+            );
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
+        });
+
+        it('caps user selection at 5 commands', () => {
+            const cats = buildCommandCategories(
+                mockTranslations, mockExecuteCommand,
+                ['chat-with-ai', 'semantic-search', 'quick-peek',
+                 'narrate-note', 'smart-tag', 'kindle-sync', 'export-flashcards'],
+            );
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.length).toBe(5);
+        });
+
+        it('preserves cross-listing object identity for promoted leaves', () => {
+            const cats = buildCommandCategories(
+                mockTranslations, mockExecuteCommand, ['narrate-note'],
+            );
+            const ess = cats.find(c => c.id === 'essentials')!;
+            const create = cats.find(c => c.id === 'create')!;
+            const essNarrate = ess.commands.find(c => c.id === 'narrate-note')!;
+            const createNarrate = create.commands.find(c => c.id === 'narrate-note')!;
+            // Same object → search dedup will treat them as one command.
+            expect(essNarrate).toBe(createNarrate);
+        });
+
+        it('silently skips unknown IDs', () => {
+            const cats = buildCommandCategories(
+                mockTranslations, mockExecuteCommand,
+                ['narrate-note', 'made-up-command', 'smart-tag'],
+            );
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
+        });
+
+        it('finds leaves nested in sub-groups (e.g. Create → Write → smart-summarize)', () => {
+            const cats = buildCommandCategories(
+                mockTranslations, mockExecuteCommand, ['smart-summarize'],
+            );
+            const ess = cats.find(c => c.id === 'essentials')!;
+            expect(ess.commands.map(c => c.id)).toEqual(['smart-summarize']);
+        });
+    });
+
+    describe('Essentials (cross-listing default)', () => {
         it('contains chat / search / quick-peek (canonical)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const ess = cats.find(c => c.id === 'essentials')!;
@@ -67,20 +125,30 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Create — flat 14 leaves, no sub-groups', () => {
-        it('has 14 direct leaves with no subCommands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const create = cats.find(c => c.id === 'create')!;
-            expect(create.commands.length).toBe(14);
-            expect(create.commands.every(c => !c.subCommands || c.subCommands.length === 0)).toBe(true);
-        });
-        it('exact leaf-id list matches the locked matrix', () => {
+    describe('Create — verb-anchored sub-groups + 3 direct leaves', () => {
+        it('has 2 sub-groups (Write, Visualise) + 3 direct leaves on first expansion', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const create = cats.find(c => c.id === 'create')!;
             expect(create.commands.map(c => c.id)).toEqual([
+                'create-write', 'create-visualise',
+                'narrate-note', 'export-flashcards', 'smart-tag',
+            ]);
+        });
+        it('Write sub-group contains the 5 written-output commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const create = cats.find(c => c.id === 'create')!;
+            const write = create.commands.find(c => c.id === 'create-write')!;
+            expect(write.subCommands?.map(c => c.id)).toEqual([
                 'smart-summarize', 'create-meeting-minutes', 'smart-translate',
-                'narrate-note', 'export-flashcards', 'export-note', 'export-minutes-docx',
-                'smart-tag', 'presentation-chat', 'edit-mermaid-diagram', 'new-sketch',
+                'export-note', 'export-minutes-docx',
+            ]);
+        });
+        it('Visualise sub-group contains the 6 visual-output commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const create = cats.find(c => c.id === 'create')!;
+            const visualise = create.commands.find(c => c.id === 'create-visualise')!;
+            expect(visualise.subCommands?.map(c => c.id)).toEqual([
+                'presentation-chat', 'edit-mermaid-diagram', 'new-sketch',
                 'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
             ]);
         });
@@ -98,14 +166,29 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Find — cross-lists chat + search', () => {
-        it('contains 9 leaves; last 2 are cross-listed chat + search', () => {
+    describe('Find — cross-lists chat + search at top, sub-groups below', () => {
+        it('contains chat + search at top, then Discover + Audit sub-groups', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const find = cats.find(c => c.id === 'find')!;
             expect(find.commands.map(c => c.id)).toEqual([
-                'web-reader', 'research-web', 'find-related', 'insert-related-notes',
-                'find-embeds', 'show-tag-network', 'collect-all-tags',
                 'chat-with-ai', 'semantic-search',
+                'find-discover', 'find-audit',
+            ]);
+        });
+        it('Discover sub-group contains web/research/related commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const find = cats.find(c => c.id === 'find')!;
+            const discover = find.commands.find(c => c.id === 'find-discover')!;
+            expect(discover.subCommands?.map(c => c.id)).toEqual([
+                'web-reader', 'research-web', 'find-related', 'insert-related-notes',
+            ]);
+        });
+        it('Audit sub-group contains the vault inspection commands', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const find = cats.find(c => c.id === 'find')!;
+            const audit = find.commands.find(c => c.id === 'find-audit')!;
+            expect(audit.subCommands?.map(c => c.id)).toEqual([
+                'find-embeds', 'show-tag-network', 'collect-all-tags',
             ]);
         });
     });

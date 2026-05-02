@@ -328,6 +328,12 @@ export interface AIOrganiserSettings {
     audioNarrationTableMode: 'row-prose' | 'header-summary' | 'omit';    // Transformer behaviour for tables
     audioNarrationImageMode: 'alt-text' | 'omit';                        // Transformer behaviour for images
 
+    // === COMMAND PICKER ===
+    /** User-configurable Essentials list — up to 5 favourite command IDs
+     *  promoted to the top "Essentials" category in the picker. Empty
+     *  array means use the static default (chat / search / quick-peek). */
+    pickerEssentialsCommandIds: string[];
+
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
     secretStorageMigrated: boolean;      // Whether keys have been migrated to SecretStorage
@@ -593,6 +599,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     audioNarrationCodeBlockMode: 'placeholder',
     audioNarrationTableMode: 'row-prose',
     audioNarrationImageMode: 'alt-text',
+
+    // Command picker — Essentials defaults to empty array (picker falls
+    // back to static chat / search / quick-peek defaults).
+    pickerEssentialsCommandIds: [],
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet

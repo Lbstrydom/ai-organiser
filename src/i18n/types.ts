@@ -85,6 +85,15 @@ export interface Translations {
             languageDesc: string;
             outputLanguage: string;
             outputLanguageDesc: string;
+            // Command picker — Essentials customisation (added 2026-05-02)
+            essentialsTitle: string;
+            essentialsDesc: string;
+            essentialsAddButton: string;
+            essentialsRemoveAria: string;
+            essentialsLimitNotice: string;
+            essentialsResetButton: string;
+            essentialsPickerPlaceholder: string;
+            essentialsEmpty: string;
         };
         summarization: {
             title: string;
@@ -2249,6 +2258,11 @@ export interface Translations {
             categoryRefine: string;
             categoryFind: string;
             categoryManage: string;
+            // Verb-anchored sub-group labels (added 2026-05-02)
+            groupCreateWrite: string;
+            groupCreateVisualise: string;
+            groupFindDiscover: string;
+            groupFindAudit: string;
             // Requirement chip + reason strings (4 chips + 5 reasons; semantic-search has 2)
             requiresChipNote: string;
             requiresChipSelection: string;
@@ -2311,6 +2325,10 @@ export interface Translations {
                 notebookLMOpenFolder: string;
                 upgradeMetadata: string;
                 upgradeFolderMetadata: string;
+                groupCreateWrite: string;
+                groupCreateVisualise: string;
+                groupFindDiscover: string;
+                groupFindAudit: string;
             };
             badgeComingSoonExplanation: string;
             badgeDevelopingExplanation: string;

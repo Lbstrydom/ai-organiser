@@ -21,7 +21,13 @@
     "persona:entry-points": "node scripts/persona-harness/inspect-entry-points.mjs",
     "persona:register": "node scripts/persona-harness/register-personas.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
-    "install-ffmpeg": "node scripts/install-ffmpeg.js"
+    "install-ffmpeg": "node scripts/install-ffmpeg.js",
+    "arch:refresh": "node scripts/symbol-index/refresh.mjs",
+    "arch:refresh:full": "node scripts/symbol-index/refresh.mjs --full",
+    "arch:render": "node scripts/symbol-index/render-mermaid.mjs",
+    "arch:drift": "node scripts/symbol-index/drift.mjs",
+    "arch:prune": "node scripts/symbol-index/prune.mjs",
+    "arch:spike": "node scripts/symbol-index/spike-extract.mjs"
   },
   "keywords": [
     "obsidian",
@@ -57,7 +63,9 @@
     "tslib": "^2.8.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.58.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "ts-morph": "^28.0.0",
+    "dependency-cruiser": "^17.3.10"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
