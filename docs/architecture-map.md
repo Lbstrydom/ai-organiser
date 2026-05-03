@@ -1,53 +1,133 @@
 <!-- audit-loop:architectural-map -->
 # Architecture Map — Lbstrydom/ai-organiser
 
-- Generated: 2026-05-03T08:53:09.918Z   commit: 3a1315c9d5eb   refresh_id: 925a6c29-baca-45b0-8a91-58029205c5a0
+- Generated: 2026-05-03T14:57:39.747Z   commit: 523ae4e0ca50   refresh_id: aae69fda-9f3e-44f6-b9bc-eab6f216696d
 - Drift score: 0 / threshold 20   status: `INSUFFICIENT_DATA`
-- Domains: 1   Symbols: 2394   Layering violations: 0
+- Domains: 33   Symbols: 2394   Layering violations: 0
 
 ## Contents
-- [_other](#-other) — 2394 symbols
+- [arch-memory](#arch-memory) — 37 symbols
+- [audio-narration](#audio-narration) — 28 symbols
+- [audit-loop-lib](#audit-loop-lib) — 279 symbols
+- [audit-loop-scripts](#audit-loop-scripts) — 222 symbols
+- [canvas](#canvas) — 33 symbols
+- [chat](#chat) — 109 symbols
+- [commands](#commands) — 183 symbols
+- [core](#core) — 29 symbols
+- [embeddings](#embeddings) — 13 symbols
+- [export](#export) — 21 symbols
+- [i18n](#i18n) — 3 symbols
+- [kindle](#kindle) — 102 symbols
+- [llm-adapters](#llm-adapters) — 45 symbols
+- [long-running-ops](#long-running-ops) — 2 symbols
+- [newsletter](#newsletter) — 17 symbols
+- [notebooklm](#notebooklm) — 31 symbols
+- [persona-harness](#persona-harness) — 97 symbols
+- [pptx-export](#pptx-export) — 27 symbols
+- [progress](#progress) — 11 symbols
+- [prompts](#prompts) — 115 symbols
+- [research](#research) — 24 symbols
+- [root-scripts](#root-scripts) — 15 symbols
+- [services](#services) — 206 symbols
+- [sketch](#sketch) — 7 symbols
+- [src](#src) — 2 symbols
+- [tests](#tests) — 217 symbols
+- [tests-mocks](#tests-mocks) — 23 symbols
+- [tts](#tts) — 20 symbols
+- [ui](#ui) — 169 symbols
+- [ui-chat](#ui-chat) — 37 symbols
+- [utils](#utils) — 237 symbols
+- [validators](#validators) — 24 symbols
+- [vector-store](#vector-store) — 9 symbols
 
 ---
 
-## _other
+## arch-memory
 
 ```mermaid
 flowchart TB
-subgraph dom__other ["_other"]
-  file_scripts_automated_tests_js["scripts/automated-tests.js"]:::component
-  sym_scripts_automated_tests_js_assertContain["assertContains"]:::symbol
-  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertContain
-  sym_scripts_automated_tests_js_assertEqual["assertEqual"]:::symbol
-  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertEqual
-  sym_scripts_automated_tests_js_assertTrue["assertTrue"]:::symbol
-  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertTrue
-  sym_scripts_automated_tests_js_test["test"]:::symbol
-  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_test
-  file_scripts_bandit_mjs["scripts/bandit.mjs"]:::component
-  sym_scripts_bandit_mjs_buildContext["buildContext"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_buildContext
-  sym_scripts_bandit_mjs_computePassReward["computePassReward"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computePassReward
-  sym_scripts_bandit_mjs_computeReward["computeReward"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computeReward
-  sym_scripts_bandit_mjs_computeUserImpactRewa["computeUserImpactReward"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computeUserImpactRewa
-  sym_scripts_bandit_mjs_contextBucketKey["contextBucketKey"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_contextBucketKey
-  sym_scripts_bandit_mjs_contextSizeTier["contextSizeTier"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_contextSizeTier
-  sym_scripts_bandit_mjs_deliberationSignal["deliberationSignal"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_deliberationSignal
-  sym_scripts_bandit_mjs_PromptBandit["PromptBandit"]:::symbol
-  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_PromptBandit
-  file_scripts_check_setup_mjs["scripts/check-setup.mjs"]:::component
-  sym_scripts_check_setup_mjs_checkAuditApiKey["checkAuditApiKeys"]:::symbol
-  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditApiKey
-  sym_scripts_check_setup_mjs_checkAuditLoop["checkAuditLoop"]:::symbol
-  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditLoop
-  sym_scripts_check_setup_mjs_checkAuditSupaba["checkAuditSupabase"]:::symbol
-  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditSupaba
+subgraph dom_arch_memory ["arch-memory"]
+  file_scripts_symbol_index_drift_mjs["scripts/symbol-index/drift.mjs"]:::component
+  sym_scripts_symbol_index_drift_mjs_atomicWri["atomicWrite"]:::symbol
+  file_scripts_symbol_index_drift_mjs --> sym_scripts_symbol_index_drift_mjs_atomicWri
+  sym_scripts_symbol_index_drift_mjs_classify["classify"]:::symbol
+  file_scripts_symbol_index_drift_mjs --> sym_scripts_symbol_index_drift_mjs_classify
+  sym_scripts_symbol_index_drift_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_drift_mjs --> sym_scripts_symbol_index_drift_mjs_main
+  sym_scripts_symbol_index_drift_mjs_parseArgs["parseArgs"]:::symbol
+  file_scripts_symbol_index_drift_mjs --> sym_scripts_symbol_index_drift_mjs_parseArgs
+  sym_scripts_symbol_index_drift_mjs_renderMar["renderMarkdownViaShared"]:::symbol
+  file_scripts_symbol_index_drift_mjs --> sym_scripts_symbol_index_drift_mjs_renderMar
+  file_scripts_symbol_index_embed_mjs["scripts/symbol-index/embed.mjs"]:::component
+  sym_scripts_symbol_index_embed_mjs_compose["compose"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_compose
+  sym_scripts_symbol_index_embed_mjs_embedBatc["embedBatch"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_embedBatc
+  sym_scripts_symbol_index_embed_mjs_emit["emit"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_emit
+  sym_scripts_symbol_index_embed_mjs_getGemini["getGeminiClient"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_getGemini
+  sym_scripts_symbol_index_embed_mjs_logProgre["logProgress"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_logProgre
+  sym_scripts_symbol_index_embed_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_embed_mjs --> sym_scripts_symbol_index_embed_mjs_main
+  file_scripts_symbol_index_extract_mjs["scripts/symbol-index/extract.mjs"]:::component
+  sym_scripts_symbol_index_extract_mjs_emit["emit"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_emit
+  sym_scripts_symbol_index_extract_mjs_emitPro["emitProgress"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_emitPro
+  sym_scripts_symbol_index_extract_mjs_enumera["enumerateFiles"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_enumera
+  sym_scripts_symbol_index_extract_mjs_extract["extractGraphAndViolations"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_extract
+  sym_scripts_symbol_index_extract_mjs_extract["extractSymbols"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_extract
+  sym_scripts_symbol_index_extract_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_main
+  sym_scripts_symbol_index_extract_mjs_parseAr["parseArgs"]:::symbol
+  file_scripts_symbol_index_extract_mjs --> sym_scripts_symbol_index_extract_mjs_parseAr
+  file_scripts_symbol_index_prune_mjs["scripts/symbol-index/prune.mjs"]:::component
+  sym_scripts_symbol_index_prune_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_prune_mjs --> sym_scripts_symbol_index_prune_mjs_main
+  sym_scripts_symbol_index_prune_mjs_parseArgs["parseArgs"]:::symbol
+  file_scripts_symbol_index_prune_mjs --> sym_scripts_symbol_index_prune_mjs_parseArgs
+  file_scripts_symbol_index_refresh_mjs["scripts/symbol-index/refresh.mjs"]:::component
+  sym_scripts_symbol_index_refresh_mjs_gitComm["gitCommitSha"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_gitComm
+  sym_scripts_symbol_index_refresh_mjs_gitDiff["gitDiffWithWorkingTree"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_gitDiff
+  sym_scripts_symbol_index_refresh_mjs_isSafeG["isSafeGitRevision"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_isSafeG
+  sym_scripts_symbol_index_refresh_mjs_logErr["logErr"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_logErr
+  sym_scripts_symbol_index_refresh_mjs_logOk["logOk"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_logOk
+  sym_scripts_symbol_index_refresh_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_main
+  sym_scripts_symbol_index_refresh_mjs_parseAr["parseArgs"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_parseAr
+  sym_scripts_symbol_index_refresh_mjs_runJson["runJsonLines"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_runJson
+  sym_scripts_symbol_index_refresh_mjs_runWith["runWithHeartbeat"]:::symbol
+  file_scripts_symbol_index_refresh_mjs --> sym_scripts_symbol_index_refresh_mjs_runWith
+  file_scripts_symbol_index_render_mermaid_mjs["scripts/symbol-index/render-mermaid.mjs"]:::component
+  sym_scripts_symbol_index_render_mermaid_mjs_["classify"]:::symbol
+  file_scripts_symbol_index_render_mermaid_mjs --> sym_scripts_symbol_index_render_mermaid_mjs_
+  sym_scripts_symbol_index_render_mermaid_mjs_["commitSha"]:::symbol
+  file_scripts_symbol_index_render_mermaid_mjs --> sym_scripts_symbol_index_render_mermaid_mjs_
+  sym_scripts_symbol_index_render_mermaid_mjs_["main"]:::symbol
+  file_scripts_symbol_index_render_mermaid_mjs --> sym_scripts_symbol_index_render_mermaid_mjs_
+  sym_scripts_symbol_index_render_mermaid_mjs_["parseArgs"]:::symbol
+  file_scripts_symbol_index_render_mermaid_mjs --> sym_scripts_symbol_index_render_mermaid_mjs_
+  file_scripts_symbol_index_summarise_mjs["scripts/symbol-index/summarise.mjs"]:::component
+  sym_scripts_symbol_index_summarise_mjs_emit["emit"]:::symbol
+  file_scripts_symbol_index_summarise_mjs --> sym_scripts_symbol_index_summarise_mjs_emit
+  sym_scripts_symbol_index_summarise_mjs_logPr["logProgress"]:::symbol
+  file_scripts_symbol_index_summarise_mjs --> sym_scripts_symbol_index_summarise_mjs_logPr
+  sym_scripts_symbol_index_summarise_mjs_main["main"]:::symbol
+  file_scripts_symbol_index_summarise_mjs --> sym_scripts_symbol_index_summarise_mjs_main
+  sym_scripts_symbol_index_summarise_mjs_summa["summariseBatch"]:::symbol
+  file_scripts_symbol_index_summarise_mjs --> sym_scripts_symbol_index_summarise_mjs_summa
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -56,204 +136,211 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`atomicWrite`](../scripts/symbol-index/drift.mjs#L40) | function | `scripts/symbol-index/drift.mjs` | 40-46 | Atomically writes content to a file using a temporary file and rename. |
+| [`classify`](../scripts/symbol-index/drift.mjs#L48) | function | `scripts/symbol-index/drift.mjs` | 48-52 | Maps a drift score to a status color (GREEN/AMBER/RED) based on threshold. |
+| [`main`](../scripts/symbol-index/drift.mjs#L73) | function | `scripts/symbol-index/drift.mjs` | 73-114 | Computes repository drift score, classifies status, and outputs result as JSON or markdown with exit code based on severity. |
+| [`parseArgs`](../scripts/symbol-index/drift.mjs#L31) | function | `scripts/symbol-index/drift.mjs` | 31-38 | Parses --out and --json command-line flags into an options object. |
+| [`renderMarkdownViaShared`](../scripts/symbol-index/drift.mjs#L58) | function | `scripts/symbol-index/drift.mjs` | 58-71 | Renders drift issue data as markdown via shared formatting utilities. |
+| [`compose`](../scripts/symbol-index/embed.mjs#L82) | function | `scripts/symbol-index/embed.mjs` | 82-88 | Composes a stable text representation of a symbol combining kind, name, file path, summary, and signature for embedding. |
+| [`embedBatch`](../scripts/symbol-index/embed.mjs#L35) | function | `scripts/symbol-index/embed.mjs` | 35-80 | Embeds a batch of texts via Gemini API with retry/backoff logic for rate limits and transient errors. |
+| [`emit`](../scripts/symbol-index/embed.mjs#L17) | function | `scripts/symbol-index/embed.mjs` | 17-17 | Writes a JSON object to stdout followed by a newline. |
+| [`getGeminiClient`](../scripts/symbol-index/embed.mjs#L22) | function | `scripts/symbol-index/embed.mjs` | 22-28 | Returns a cached or newly initialized Gemini API client, or null if API key is missing. |
+| [`logProgress`](../scripts/symbol-index/embed.mjs#L18) | function | `scripts/symbol-index/embed.mjs` | 18-18 | Writes a progress message to stderr with [embed] prefix. |
+| [`main`](../scripts/symbol-index/embed.mjs#L90) | function | `scripts/symbol-index/embed.mjs` | 90-132 | Reads JSON symbols from stdin, batches them for embedding via Gemini, and emits enriched records with embedding vectors. |
+| [`emit`](../scripts/symbol-index/extract.mjs#L47) | function | `scripts/symbol-index/extract.mjs` | 47-49 | Writes a JSON object to stdout followed by a newline. |
+| [`emitProgress`](../scripts/symbol-index/extract.mjs#L51) | function | `scripts/symbol-index/extract.mjs` | 51-53 | Writes a progress message to stderr with [extract] prefix. |
+| [`enumerateFiles`](../scripts/symbol-index/extract.mjs#L282) | function | `scripts/symbol-index/extract.mjs` | 282-300 | Enumerates all source files in a repository via recursive walk, optionally filtered to specific files. |
+| [`extractGraphAndViolations`](../scripts/symbol-index/extract.mjs#L206) | function | `scripts/symbol-index/extract.mjs` | 206-253 | Analyzes dependency graph via dep-cruiser to extract inter-file violations and outputs them as records. |
+| [`extractSymbols`](../scripts/symbol-index/extract.mjs#L62) | function | `scripts/symbol-index/extract.mjs` | 62-199 | <no body> |
+| [`main`](../scripts/symbol-index/extract.mjs#L302) | function | `scripts/symbol-index/extract.mjs` | 302-311 | Orchestrates symbol extraction, dependency analysis, and summarization statistics output. |
+| [`parseArgs`](../scripts/symbol-index/extract.mjs#L35) | function | `scripts/symbol-index/extract.mjs` | 35-45 | Parses command-line arguments for root directory, file filter, extraction mode, and commit threshold. |
+| [`main`](../scripts/symbol-index/prune.mjs#L39) | function | `scripts/symbol-index/prune.mjs` | 39-120 | <no body> |
+| [`parseArgs`](../scripts/symbol-index/prune.mjs#L26) | function | `scripts/symbol-index/prune.mjs` | 26-32 | Parses command-line arguments for dry-run flag. |
+| [`gitCommitSha`](../scripts/symbol-index/refresh.mjs#L67) | function | `scripts/symbol-index/refresh.mjs` | 67-70 | Returns the current HEAD commit SHA via git, or null if unavailable. |
+| [`gitDiffWithWorkingTree`](../scripts/symbol-index/refresh.mjs#L91) | function | `scripts/symbol-index/refresh.mjs` | 91-124 | Retrieves added/modified/deleted/renamed files between a commit and working tree via git diff and ls-files. |
+| [`isSafeGitRevision`](../scripts/symbol-index/refresh.mjs#L78) | function | `scripts/symbol-index/refresh.mjs` | 78-82 | Validates that a git revision string is safe for shell execution (alphanumeric and safe punctuation only). |
+| [`logErr`](../scripts/symbol-index/refresh.mjs#L64) | function | `scripts/symbol-index/refresh.mjs` | 64-64 | Writes an error message to stderr with [refresh] prefix. |
+| [`logOk`](../scripts/symbol-index/refresh.mjs#L65) | function | `scripts/symbol-index/refresh.mjs` | 65-65 | Writes a success message to stderr with [refresh] prefix. |
+| [`main`](../scripts/symbol-index/refresh.mjs#L156) | function | `scripts/symbol-index/refresh.mjs` | 156-377 | <no body> |
+| [`parseArgs`](../scripts/symbol-index/refresh.mjs#L53) | function | `scripts/symbol-index/refresh.mjs` | 53-62 | Parses command-line arguments for full refresh, commit threshold, and force flag. |
+| [`runJsonLines`](../scripts/symbol-index/refresh.mjs#L130) | function | `scripts/symbol-index/refresh.mjs` | 130-145 | Spawns a subprocess, captures JSON-line output, parses records, and returns non-null results. |
+| [`runWithHeartbeat`](../scripts/symbol-index/refresh.mjs#L147) | function | `scripts/symbol-index/refresh.mjs` | 147-154 | Executes an async function while periodically sending heartbeat updates to refresh tracking. |
+| [`classify`](../scripts/symbol-index/render-mermaid.mjs#L44) | function | `scripts/symbol-index/render-mermaid.mjs` | 44-48 | Maps a drift score to a status color (GREEN/AMBER/RED) based on threshold. |
+| [`commitSha`](../scripts/symbol-index/render-mermaid.mjs#L39) | function | `scripts/symbol-index/render-mermaid.mjs` | 39-42 | Returns the first 12 characters of the current HEAD commit SHA via git, or null if unavailable. |
+| [`main`](../scripts/symbol-index/render-mermaid.mjs#L50) | function | `scripts/symbol-index/render-mermaid.mjs` | 50-133 | <no body> |
+| [`parseArgs`](../scripts/symbol-index/render-mermaid.mjs#L31) | function | `scripts/symbol-index/render-mermaid.mjs` | 31-37 | Parses command-line arguments for output file path. |
+| [`emit`](../scripts/symbol-index/summarise.mjs#L26) | function | `scripts/symbol-index/summarise.mjs` | 26-26 | Writes a JSON object to stdout followed by a newline. |
+| [`logProgress`](../scripts/symbol-index/summarise.mjs#L27) | function | `scripts/symbol-index/summarise.mjs` | 27-27 | Writes a progress message to stderr with [summarise] prefix. |
+| [`main`](../scripts/symbol-index/summarise.mjs#L70) | function | `scripts/symbol-index/summarise.mjs` | 70-113 | Reads symbols from stdin, batches them for summarization, emits enriched records, and outputs summary statistics. |
+| [`summariseBatch`](../scripts/symbol-index/summarise.mjs#L33) | function | `scripts/symbol-index/summarise.mjs` | 33-68 | Summarizes a batch of symbols via Anthropic API with fallback to null summaries if API key missing. |
+
+---
+
+## audio-narration
+
+```mermaid
+flowchart TB
+subgraph dom_audio_narration ["audio-narration"]
+  file_src_services_audioNarration_audioNarrati["src/services/audioNarration/audioNarrationService.ts"]:::component
+  sym_src_services_audioNarration_audioNarrati["buildOutputPath"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["describeError"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["executeNarration"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["isAbort"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["parentFolder"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["prepareNarration"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  sym_src_services_audioNarration_audioNarrati["sanitiseFilename"]:::symbol
+  file_src_services_audioNarration_audioNarrati --> sym_src_services_audioNarration_audioNarrati
+  file_src_services_audioNarration_markdownToPr["src/services/audioNarration/markdownToProseTransformer.ts"]:::component
+  sym_src_services_audioNarration_markdownToPr["capitalize"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["computeStats"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["dedupe"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["isTableAlignmentRow"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["splitTableRow"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["stripInlineFormatting"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["stripInlineFormattingMinimal"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["tableToProse"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  sym_src_services_audioNarration_markdownToPr["transformToSpokenProse"]:::symbol
+  file_src_services_audioNarration_markdownToPr --> sym_src_services_audioNarration_markdownToPr
+  file_src_services_audioNarration_narrationCos["src/services/audioNarration/narrationCostEstimator.ts"]:::component
+  sym_src_services_audioNarration_narrationCos["estimateNarrationCost"]:::symbol
+  file_src_services_audioNarration_narrationCos --> sym_src_services_audioNarration_narrationCos
+  file_src_services_audioNarration_narrationEmb["src/services/audioNarration/narrationEmbedManager.ts"]:::component
+  sym_src_services_audioNarration_narrationEmb["buildBlock"]:::symbol
+  file_src_services_audioNarration_narrationEmb --> sym_src_services_audioNarration_narrationEmb
+  sym_src_services_audioNarration_narrationEmb["describeError"]:::symbol
+  file_src_services_audioNarration_narrationEmb --> sym_src_services_audioNarration_narrationEmb
+  sym_src_services_audioNarration_narrationEmb["findEmbedBlock"]:::symbol
+  file_src_services_audioNarration_narrationEmb --> sym_src_services_audioNarration_narrationEmb
+  sym_src_services_audioNarration_narrationEmb["syncEmbed"]:::symbol
+  file_src_services_audioNarration_narrationEmb --> sym_src_services_audioNarration_narrationEmb
+  file_src_services_audioNarration_narrationJob["src/services/audioNarration/narrationJobRegistry.ts"]:::component
+  sym_src_services_audioNarration_narrationJob["JobInFlightError"]:::symbol
+  file_src_services_audioNarration_narrationJob --> sym_src_services_audioNarration_narrationJob
+  sym_src_services_audioNarration_narrationJob["NarrationJobRegistry"]:::symbol
+  file_src_services_audioNarration_narrationJob --> sym_src_services_audioNarration_narrationJob
+  file_src_services_audioNarration_narrationTyp["src/services/audioNarration/narrationTypes.ts"]:::component
+  sym_src_services_audioNarration_narrationTyp["decodeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp --> sym_src_services_audioNarration_narrationTyp
+  sym_src_services_audioNarration_narrationTyp["encodeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp --> sym_src_services_audioNarration_narrationTyp
+  sym_src_services_audioNarration_narrationTyp["errFrom"]:::symbol
+  file_src_services_audioNarration_narrationTyp --> sym_src_services_audioNarration_narrationTyp
+  sym_src_services_audioNarration_narrationTyp["isNarrationErrorCode"]:::symbol
+  file_src_services_audioNarration_narrationTyp --> sym_src_services_audioNarration_narrationTyp
+  sym_src_services_audioNarration_narrationTyp["makeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp --> sym_src_services_audioNarration_narrationTyp
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
 
 ### Symbols in this domain
 
 | Symbol | Kind | Path | Lines | Purpose |
 |---|---|---|---|---|
-| [`assertContains`](../scripts/automated-tests.js#L48) | function | `scripts/automated-tests.js` | 48-52 | Throws an error if a string doesn't contain an expected substring. |
-| [`assertEqual`](../scripts/automated-tests.js#L36) | function | `scripts/automated-tests.js` | 36-40 | Throws an error if actual value doesn't match expected value. |
-| [`assertTrue`](../scripts/automated-tests.js#L42) | function | `scripts/automated-tests.js` | 42-46 | Throws an error if a value is not truthy. |
-| [`test`](../scripts/automated-tests.js#L23) | function | `scripts/automated-tests.js` | 23-34 | Executes a test function, tracks pass/fail, and logs results with error details. |
-| [`buildContext`](../scripts/bandit.mjs#L28) | function | `scripts/bandit.mjs` | 28-34 | Returns a context object with size tier and dominant language from a repo profile. |
-| [`computePassReward`](../scripts/bandit.mjs#L409) | function | `scripts/bandit.mjs` | 409-415 | Averages individual finding rewards to produce a pass-level reward score. |
-| [`computeReward`](../scripts/bandit.mjs#L309) | function | `scripts/bandit.mjs` | 309-347 | Calculates a multi-signal reward score for prompt variants based on procedural outcomes, substantive changes, deliberation quality, and user impact. |
-| [`computeUserImpactReward`](../scripts/bandit.mjs#L358) | function | `scripts/bandit.mjs` | 358-378 | Computes a user-impact reward factor weighted by correlation type and persona severity. |
-| [`contextBucketKey`](../scripts/bandit.mjs#L43) | function | `scripts/bandit.mjs` | 43-45 | Creates a bucket key combining size tier and dominant language. |
-| [`contextSizeTier`](../scripts/bandit.mjs#L36) | function | `scripts/bandit.mjs` | 36-41 | Categorizes character count into size tiers (small, medium, large, xlarge). |
-| [`deliberationSignal`](../scripts/bandit.mjs#L385) | function | `scripts/bandit.mjs` | 385-402 | Scores deliberation quality based on challenge positions, rulings, and rationale length. |
-| [`PromptBandit`](../scripts/bandit.mjs#L49) | class | `scripts/bandit.mjs` | 49-292 | <no body> |
-| [`checkAuditApiKeys`](../scripts/check-setup.mjs#L157) | function | `scripts/check-setup.mjs` | 157-174 | Validates that required API keys for OpenAI/Gemini/Anthropic are configured. |
-| [`checkAuditLoop`](../scripts/check-setup.mjs#L233) | function | `scripts/check-setup.mjs` | 233-237 | Runs audit-loop checks (API keys and Supabase configuration). |
-| [`checkAuditSupabase`](../scripts/check-setup.mjs#L180) | function | `scripts/check-setup.mjs` | 180-231 | Checks Supabase audit configuration, tables, and views; reports missing setup. |
-| [`checkPersonaTest`](../scripts/check-setup.mjs#L241) | function | `scripts/check-setup.mjs` | 241-297 | <no body> |
-| [`checkTables`](../scripts/check-setup.mjs#L71) | function | `scripts/check-setup.mjs` | 71-78 | Checks whether specified tables exist in Supabase by querying them. |
-| [`getSupabaseClient`](../scripts/check-setup.mjs#L61) | function | `scripts/check-setup.mjs` | 61-64 | Creates and returns a Supabase client using provided URL and key. |
-| [`loadEnv`](../scripts/check-setup.mjs#L42) | function | `scripts/check-setup.mjs` | 42-57 | Parses a .env file into a key-value object, skipping comments and malformed lines. |
-| [`main`](../scripts/check-setup.mjs#L374) | function | `scripts/check-setup.mjs` | 374-385 | Loads environment, runs checks, and exits with appropriate code. |
-| [`printJsonReport`](../scripts/check-setup.mjs#L360) | function | `scripts/check-setup.mjs` | 360-370 | Outputs the report as JSON to stdout. |
-| [`printReport`](../scripts/check-setup.mjs#L328) | function | `scripts/check-setup.mjs` | 328-358 | Prints a formatted setup check report with sections and colored output. |
-| [`Report`](../scripts/check-setup.mjs#L118) | class | `scripts/check-setup.mjs` | 118-153 | <no body> |
-| [`shortUrl`](../scripts/check-setup.mjs#L176) | function | `scripts/check-setup.mjs` | 176-178 | Truncates a URL by removing protocol and limiting to 30 characters. |
-| [`statusIcon`](../scripts/check-setup.mjs#L304) | function | `scripts/check-setup.mjs` | 304-313 | Returns a colored status icon (PASS, FAIL, WARN, INFO, FIX). |
-| [`verdictLine`](../scripts/check-setup.mjs#L315) | function | `scripts/check-setup.mjs` | 315-326 | Formats a summary line of test failures and warnings. |
-| [`checkSync`](../scripts/check-sync.mjs#L25) | function | `scripts/check-sync.mjs` | 25-157 | <no body> |
-| [`fail`](../scripts/check-sync.mjs#L20) | function | `scripts/check-sync.mjs` | 20-20 | Logs a failed check. |
-| [`finish`](../scripts/check-sync.mjs#L159) | function | `scripts/check-sync.mjs` | 159-182 | Prints or outputs a sync-check report and exits with appropriate code. |
-| [`info`](../scripts/check-sync.mjs#L21) | function | `scripts/check-sync.mjs` | 21-21 | Logs an informational message. |
-| [`log`](../scripts/check-sync.mjs#L17) | function | `scripts/check-sync.mjs` | 17-17 | Logs a message to stdout unless in JSON mode. |
-| [`pass`](../scripts/check-sync.mjs#L19) | function | `scripts/check-sync.mjs` | 19-19 | Logs a passed check. |
-| [`argOption`](../scripts/cross-skill.mjs#L96) | function | `scripts/cross-skill.mjs` | 96-100 | Retrieves the value of a named command-line option. |
-| [`cmdAbortRefreshRun`](../scripts/cross-skill.mjs#L511) | function | `scripts/cross-skill.mjs` | 511-521 | Cancels an in-progress refresh run with an optional reason. |
-| [`cmdAddPersona`](../scripts/cross-skill.mjs#L348) | function | `scripts/cross-skill.mjs` | 348-360 | Creates or updates a persona with name, description, and app URL in the cloud. |
-| [`cmdAuditEffectiveness`](../scripts/cross-skill.mjs#L311) | function | `scripts/cross-skill.mjs` | 311-318 | Reads audit effectiveness metrics for a repo and emits them. |
-| [`cmdComputeDriftScore`](../scripts/cross-skill.mjs#L615) | function | `scripts/cross-skill.mjs` | 615-626 | Computes an architectural drift score comparing current and previous snapshots. |
-| [`cmdDetectStack`](../scripts/cross-skill.mjs#L399) | function | `scripts/cross-skill.mjs` | 399-415 | Detects the tech stack and optional environment manager of a repository. |
-| [`cmdGetActiveRefreshId`](../scripts/cross-skill.mjs#L431) | function | `scripts/cross-skill.mjs` | 431-447 | Retrieves the active refresh ID and embedding model metadata for a given repository UUID. |
-| [`cmdGetNeighbourhood`](../scripts/cross-skill.mjs#L449) | function | `scripts/cross-skill.mjs` | 449-477 | Finds similar code symbols (neighborhood) matching an intent query from the cloud index. |
-| [`cmdListLayeringViolationsForSnapshot`](../scripts/cross-skill.mjs#L602) | function | `scripts/cross-skill.mjs` | 602-613 | Lists architectural layering violations for a snapshot. |
-| [`cmdListPersonas`](../scripts/cross-skill.mjs#L326) | function | `scripts/cross-skill.mjs` | 326-337 | Fetches personas for a given app URL from the cloud persona service. |
-| [`cmdListSymbolsForSnapshot`](../scripts/cross-skill.mjs#L589) | function | `scripts/cross-skill.mjs` | 589-600 | Lists all symbol definitions recorded in a snapshot. |
-| [`cmdListUnlockedFixes`](../scripts/cross-skill.mjs#L303) | function | `scripts/cross-skill.mjs` | 303-309 | Retrieves unlocked fix records and emits them. |
-| [`cmdOpenRefreshRun`](../scripts/cross-skill.mjs#L479) | function | `scripts/cross-skill.mjs` | 479-497 | Opens a new code-refresh run for a repository, creating the repo if it doesn't exist. |
-| [`cmdPlanSatisfaction`](../scripts/cross-skill.mjs#L268) | function | `scripts/cross-skill.mjs` | 268-278 | Reads plan satisfaction data and persistent failures, then emits them. |
-| [`cmdPublishRefreshRun`](../scripts/cross-skill.mjs#L499) | function | `scripts/cross-skill.mjs` | 499-509 | Marks a refresh run as complete and publishes its results to the cloud. |
-| [`cmdRecordCorrelation`](../scripts/cross-skill.mjs#L216) | function | `scripts/cross-skill.mjs` | 216-233 | Records a correlation between a persona finding and audit finding. |
-| [`cmdRecordLayeringViolations`](../scripts/cross-skill.mjs#L563) | function | `scripts/cross-skill.mjs` | 563-575 | Records architectural layering violations detected during a refresh run. |
-| [`cmdRecordPersonaSession`](../scripts/cross-skill.mjs#L384) | function | `scripts/cross-skill.mjs` | 384-397 | Records a persona session with optional commit SHA and returns session metadata. |
-| [`cmdRecordPlanVerifyItems`](../scripts/cross-skill.mjs#L257) | function | `scripts/cross-skill.mjs` | 257-266 | Records individual verification items from a plan test run. |
-| [`cmdRecordPlanVerifyRun`](../scripts/cross-skill.mjs#L235) | function | `scripts/cross-skill.mjs` | 235-255 | Records a plan verification run with criterion counts and emits its ID. |
-| [`cmdRecordRegressionSpec`](../scripts/cross-skill.mjs#L177) | function | `scripts/cross-skill.mjs` | 177-196 | Records a regression spec and emits its ID. |
-| [`cmdRecordRegressionSpecRun`](../scripts/cross-skill.mjs#L198) | function | `scripts/cross-skill.mjs` | 198-214 | Records a regression spec test run with pass/fail status. |
-| [`cmdRecordShipEvent`](../scripts/cross-skill.mjs#L280) | function | `scripts/cross-skill.mjs` | 280-301 | Records a ship event with outcome, block reasons, and metadata. |
-| [`cmdRecordSymbolDefinitions`](../scripts/cross-skill.mjs#L523) | function | `scripts/cross-skill.mjs` | 523-533 | Stores symbol definitions (names, signatures, locations) for a repository. |
-| [`cmdRecordSymbolEmbedding`](../scripts/cross-skill.mjs#L549) | function | `scripts/cross-skill.mjs` | 549-561 | Saves a vector embedding for a symbol definition. |
-| [`cmdRecordSymbolIndex`](../scripts/cross-skill.mjs#L535) | function | `scripts/cross-skill.mjs` | 535-547 | Bulk records symbol index rows (locations and references) for a refresh snapshot. |
-| [`cmdResolveRepoIdentity`](../scripts/cross-skill.mjs#L628) | function | `scripts/cross-skill.mjs` | 628-634 | Derives or persists a stable repository UUID based on Git origin and codebase. |
-| [`cmdSetActiveEmbeddingModel`](../scripts/cross-skill.mjs#L577) | function | `scripts/cross-skill.mjs` | 577-587 | Sets the active embedding model and dimension for a repository's snapshots. |
-| [`cmdUpdatePlanStatus`](../scripts/cross-skill.mjs#L168) | function | `scripts/cross-skill.mjs` | 168-175 | Updates an existing plan's status in the cloud. |
-| [`cmdUpsertPlan`](../scripts/cross-skill.mjs#L150) | function | `scripts/cross-skill.mjs` | 150-166 | Upserts a remediation plan record and emits its ID. |
-| [`cmdWhoami`](../scripts/cross-skill.mjs#L417) | function | `scripts/cross-skill.mjs` | 417-427 | Reports system status including cloud enablement, commit SHA, branch, and Supabase configuration. |
-| [`currentBranch`](../scripts/cross-skill.mjs#L125) | function | `scripts/cross-skill.mjs` | 125-130 | Returns the current Git branch name. |
-| [`currentCommitSha`](../scripts/cross-skill.mjs#L118) | function | `scripts/cross-skill.mjs` | 118-123 | Returns the current Git commit SHA. |
-| [`emit`](../scripts/cross-skill.mjs#L102) | function | `scripts/cross-skill.mjs` | 102-104 | Outputs a JSON object to stdout. |
-| [`emitError`](../scripts/cross-skill.mjs#L111) | function | `scripts/cross-skill.mjs` | 111-114 | Emits a JSON error and exits with a specified code. |
-| [`main`](../scripts/cross-skill.mjs#L672) | function | `scripts/cross-skill.mjs` | 672-695 | Routes CLI subcommands to their handlers, displaying usage or executing the command. |
-| [`parsePayload`](../scripts/cross-skill.mjs#L79) | function | `scripts/cross-skill.mjs` | 79-94 | Parses a JSON payload from --json, --stdin, or bare JSON argument. |
-| [`resolveRepoId`](../scripts/cross-skill.mjs#L140) | function | `scripts/cross-skill.mjs` | 140-146 | Returns the repo ID from payload or null if not provided. |
-| [`checkBaselineValidity`](../scripts/evolve-prompts.mjs#L340) | function | `scripts/evolve-prompts.mjs` | 340-348 | Checks if an active experiment's parent baseline has changed and marks it stale if so. |
-| [`evolveWorstPass`](../scripts/evolve-prompts.mjs#L92) | function | `scripts/evolve-prompts.mjs` | 92-234 | <no body> |
-| [`formatExample`](../scripts/evolve-prompts.mjs#L336) | function | `scripts/evolve-prompts.mjs` | 336-338 | Formats a finding example as a human-readable bullet point with severity and file. |
-| [`getExperimentManifestStore`](../scripts/evolve-prompts.mjs#L64) | function | `scripts/evolve-prompts.mjs` | 64-66 | Returns a file-backed mutex store for experiment manifest persistence. |
-| [`killExperiment`](../scripts/evolve-prompts.mjs#L306) | function | `scripts/evolve-prompts.mjs` | 306-317 | Marks a revision as abandoned and updates the experiment status to killed. |
-| [`main`](../scripts/evolve-prompts.mjs#L373) | function | `scripts/evolve-prompts.mjs` | 373-469 | <no body> |
-| [`promoteExperiment`](../scripts/evolve-prompts.mjs#L289) | function | `scripts/evolve-prompts.mjs` | 289-301 | Promotes a revision to active status and marks its experiment as promoted. |
-| [`reconcileOrphanedExperiments`](../scripts/evolve-prompts.mjs#L353) | function | `scripts/evolve-prompts.mjs` | 353-369 | Scans for incomplete experiment manifests and logs cleanup opportunities. |
-| [`reviewExperiments`](../scripts/evolve-prompts.mjs#L239) | function | `scripts/evolve-prompts.mjs` | 239-284 | <no body> |
-| [`showStats`](../scripts/evolve-prompts.mjs#L322) | function | `scripts/evolve-prompts.mjs` | 322-332 | Aggregates pass statistics, active experiments, and bandit arm performance data. |
-| [`_collectMaxLengths`](../scripts/gemini-review.mjs#L100) | function | `scripts/gemini-review.mjs` | 100-118 | Recursively collects maximum string lengths from a JSON schema for truncation. |
-| [`addSemanticIds`](../scripts/gemini-review.mjs#L805) | function | `scripts/gemini-review.mjs` | 805-813 | Assigns semantic IDs and hashes to new findings and marks their source provider. |
-| [`applyDebtSuppression`](../scripts/gemini-review.mjs#L768) | function | `scripts/gemini-review.mjs` | 768-803 | Suppresses new findings that match pre-filtered debt via Jaccard similarity scoring. |
-| [`buildClient`](../scripts/gemini-review.mjs#L734) | function | `scripts/gemini-review.mjs` | 734-741 | Creates and returns an authenticated client for the selected AI provider. |
-| [`callClaudeOpus`](../scripts/gemini-review.mjs#L386) | function | `scripts/gemini-review.mjs` | 386-449 | <no body> |
-| [`callGemini`](../scripts/gemini-review.mjs#L278) | function | `scripts/gemini-review.mjs` | 278-372 | <no body> |
-| [`emitReviewOutput`](../scripts/gemini-review.mjs#L815) | function | `scripts/gemini-review.mjs` | 815-830 | Outputs the review result as JSON (with optional file save) or formatted markdown. |
-| [`formatReviewResult`](../scripts/gemini-review.mjs#L574) | function | `scripts/gemini-review.mjs` | 574-637 | Formats a review result object into human-readable markdown with verdict, deliberation quality, and findings. |
-| [`getReviewPrompt`](../scripts/gemini-review.mjs#L259) | function | `scripts/gemini-review.mjs` | 259-261 | Retrieves the active gemini-review prompt or falls back to the default system prompt. |
-| [`isJsonTruncationError`](../scripts/gemini-review.mjs#L743) | function | `scripts/gemini-review.mjs` | 743-747 | Detects whether an error is due to JSON response truncation. |
-| [`main`](../scripts/gemini-review.mjs#L901) | function | `scripts/gemini-review.mjs` | 901-937 | Main entry point that parses arguments, runs code/plan review with Gemini, and saves results. |
-| [`parseReviewArgs`](../scripts/gemini-review.mjs#L693) | function | `scripts/gemini-review.mjs` | 693-704 | Parses CLI arguments for final review, extracting file paths, output mode, and provider override. |
-| [`recordGeminiOutcomes`](../scripts/gemini-review.mjs#L877) | function | `scripts/gemini-review.mjs` | 877-899 | Records Gemini review outcomes, false positives, and bandit learning rewards to persistent storage. |
-| [`recordNewFindings`](../scripts/gemini-review.mjs#L832) | function | `scripts/gemini-review.mjs` | 832-851 | Records new findings from the review into outcomes.jsonl and updates the false-positive tracker. |
-| [`recordWronglyDismissed`](../scripts/gemini-review.mjs#L853) | function | `scripts/gemini-review.mjs` | 853-875 | Logs wrongly-dismissed findings from Gemini review to audit outcomes file. |
-| [`refreshCatalogAndWarn`](../scripts/gemini-review.mjs#L643) | function | `scripts/gemini-review.mjs` | 643-654 | Refreshes the live Gemini model catalog and warns if the session model is outdated. |
-| [`runFinalReview`](../scripts/gemini-review.mjs#L462) | function | `scripts/gemini-review.mjs` | 462-570 | <no body> |
-| [`runPing`](../scripts/gemini-review.mjs#L686) | function | `scripts/gemini-review.mjs` | 686-691 | Pings both Gemini and Claude APIs to verify credentials and availability. |
-| [`runPingClaude`](../scripts/gemini-review.mjs#L668) | function | `scripts/gemini-review.mjs` | 668-684 | Tests connectivity to Claude Opus by sending a simple request. |
-| [`runPingGemini`](../scripts/gemini-review.mjs#L656) | function | `scripts/gemini-review.mjs` | 656-666 | Tests connectivity to Gemini by sending a simple request. |
-| [`runReviewWithRetry`](../scripts/gemini-review.mjs#L749) | function | `scripts/gemini-review.mjs` | 749-766 | Retries final review with conciseness hints if JSON truncation occurs. |
-| [`selectProvider`](../scripts/gemini-review.mjs#L706) | function | `scripts/gemini-review.mjs` | 706-732 | Selects the AI provider (Gemini or Claude) based on environment variables and CLI override. |
-| [`truncateToSchema`](../scripts/gemini-review.mjs#L132) | function | `scripts/gemini-review.mjs` | 132-152 | Truncates object field values to schema-defined max lengths, logging what was cut. |
-| [`askYesNo`](../scripts/install-ffmpeg.js#L48) | function | `scripts/install-ffmpeg.js` | 48-60 | Prompts user for yes/no input via stdin and returns boolean result. |
-| [`checkFFmpegAtPath`](../scripts/install-ffmpeg.js#L108) | function | `scripts/install-ffmpeg.js` | 108-121 | Verifies ffmpeg exists at a specific file path and extracts its version. |
-| [`checkFFprobe`](../scripts/install-ffmpeg.js#L93) | function | `scripts/install-ffmpeg.js` | 93-103 | Checks if ffprobe command is available by running its version command. |
-| [`detectPlatform`](../scripts/install-ffmpeg.js#L126) | function | `scripts/install-ffmpeg.js` | 126-138 | Detects the current operating system, architecture, and platform properties. |
-| [`downloadFile`](../scripts/install-ffmpeg.js#L321) | function | `scripts/install-ffmpeg.js` | 321-367 | Downloads a file from URL to destination path with progress reporting and redirect handling. |
-| [`extractZip`](../scripts/install-ffmpeg.js#L372) | function | `scripts/install-ffmpeg.js` | 372-383 | Extracts a zip archive using PowerShell on Windows or unzip on Unix systems. |
-| [`findAllFFmpegInstallations`](../scripts/install-ffmpeg.js#L143) | function | `scripts/install-ffmpeg.js` | 143-197 | Searches for all ffmpeg installations across system PATH and common installation directories. |
-| [`getFFmpegInfo`](../scripts/install-ffmpeg.js#L65) | function | `scripts/install-ffmpeg.js` | 65-88 | Executes ffmpeg version command and extracts version and path information. |
-| [`hasPackageManager`](../scripts/install-ffmpeg.js#L309) | function | `scripts/install-ffmpeg.js` | 309-316 | Tests if a package manager command (apt, brew, etc.) is available on the system. |
-| [`installLinux`](../scripts/install-ffmpeg.js#L541) | function | `scripts/install-ffmpeg.js` | 541-631 | <no body> |
-| [`installMac`](../scripts/install-ffmpeg.js#L500) | function | `scripts/install-ffmpeg.js` | 500-536 | Installs ffmpeg on macOS using Homebrew, MacPorts, or provides installation instructions. |
-| [`installWindows`](../scripts/install-ffmpeg.js#L388) | function | `scripts/install-ffmpeg.js` | 388-495 | <no body> |
-| [`isInstallationProblematic`](../scripts/install-ffmpeg.js#L202) | function | `scripts/install-ffmpeg.js` | 202-232 | Evaluates whether an ffmpeg installation is problematic based on missing ffprobe or outdated version. |
-| [`log`](../scripts/install-ffmpeg.js#L36) | function | `scripts/install-ffmpeg.js` | 36-38 | Outputs a colored log message to console. |
-| [`logError`](../scripts/install-ffmpeg.js#L42) | function | `scripts/install-ffmpeg.js` | 42-42 | Logs an error message with red X symbol. |
-| [`logInfo`](../scripts/install-ffmpeg.js#L43) | function | `scripts/install-ffmpeg.js` | 43-43 | Logs an info message with cyan information symbol. |
-| [`logSuccess`](../scripts/install-ffmpeg.js#L40) | function | `scripts/install-ffmpeg.js` | 40-40 | Logs a success message with green checkmark. |
-| [`logWarning`](../scripts/install-ffmpeg.js#L41) | function | `scripts/install-ffmpeg.js` | 41-41 | Logs a warning message with yellow warning symbol. |
-| [`main`](../scripts/install-ffmpeg.js#L636) | function | `scripts/install-ffmpeg.js` | 636-785 | <no body> |
-| [`removeInstallation`](../scripts/install-ffmpeg.js#L237) | function | `scripts/install-ffmpeg.js` | 237-304 | Attempts to remove an existing ffmpeg installation directory or guides user toward package manager uninstall. |
-| [`_resetClassificationColumnCache`](../scripts/learning-store.mjs#L217) | function | `scripts/learning-store.mjs` | 217-217 | Resets the classification column cache to force re-detection on next check. |
-| [`abortRefreshRun`](../scripts/learning-store.mjs#L1598) | function | `scripts/learning-store.mjs` | 1598-1605 | Marks a refresh run as aborted with an optional error reason. |
-| [`appendDebtEventsCloud`](../scripts/learning-store.mjs#L495) | function | `scripts/learning-store.mjs` | 495-523 | Appends debt lifecycle events (e.g., raised, resolved) to cloud event log with idempotent upsert. |
-| [`callNeighbourhoodRpc`](../scripts/learning-store.mjs#L1807) | function | `scripts/learning-store.mjs` | 1807-1823 | Calls a database RPC to find neighboring symbols by semantic similarity and kind. |
-| [`chunk`](../scripts/learning-store.mjs#L1644) | function | `scripts/learning-store.mjs` | 1644-1648 | Splits an array into fixed-size chunks. |
-| [`computeDriftScore`](../scripts/learning-store.mjs#L1829) | function | `scripts/learning-store.mjs` | 1829-1843 | Calls a database RPC to compute a drift score measuring codebase volatility. |
-| [`copyForwardUntouchedFiles`](../scripts/learning-store.mjs#L1905) | function | `scripts/learning-store.mjs` | 1905-1942 | Copies symbol index entries from a prior refresh to a new one, excluding touched files. |
-| [`detectClassificationColumns`](../scripts/learning-store.mjs#L198) | function | `scripts/learning-store.mjs` | 198-214 | Checks if Supabase has classification columns by querying the schema and caches result. |
-| [`getActiveEmbeddingModel`](../scripts/learning-store.mjs#L1790) | function | `scripts/learning-store.mjs` | 1790-1799 | Retrieves the currently active embedding model and dimension for a repository. |
-| [`getActiveSnapshot`](../scripts/learning-store.mjs#L1622) | function | `scripts/learning-store.mjs` | 1622-1635 | Fetches the active refresh snapshot ID and embedding model for a repository. |
-| [`getFalsePositivePatterns`](../scripts/learning-store.mjs#L836) | function | `scripts/learning-store.mjs` | 836-850 | Retrieves auto-suppressed false positive patterns for a repository from the database. |
-| [`getPassEffectiveness`](../scripts/learning-store.mjs#L806) | function | `scripts/learning-store.mjs` | 806-831 | Retrieves pass effectiveness metrics (findings raised/accepted/dismissed) for a repository from all audit runs. |
-| [`getPassTimings`](../scripts/learning-store.mjs#L306) | function | `scripts/learning-store.mjs` | 306-337 | Retrieves historical token usage and latency data for all audit passes to compute averages. |
-| [`getPersonaSupabase`](../scripts/learning-store.mjs#L1275) | function | `scripts/learning-store.mjs` | 1275-1294 | Lazily initializes and returns a Supabase client for persona tests, or null if unconfigured. |
-| [`getReadClient`](../scripts/learning-store.mjs#L1489) | function | `scripts/learning-store.mjs` | 1489-1489 | Returns the read-only Supabase client. |
-| [`getRepoIdByUuid`](../scripts/learning-store.mjs#L1498) | function | `scripts/learning-store.mjs` | 1498-1513 | Looks up a repository by UUID and returns its ID, name, and active embedding metadata. |
-| [`getUnlockedFixes`](../scripts/learning-store.mjs#L994) | function | `scripts/learning-store.mjs` | 994-1006 | Fetches up to 20 unlocked fixes, optionally filtered by repository. |
-| [`getWriteClient`](../scripts/learning-store.mjs#L1468) | function | `scripts/learning-store.mjs` | 1468-1486 | Obtains or initializes a write-capable Supabase client using service-role credentials. |
-| [`heartbeatRefreshRun`](../scripts/learning-store.mjs#L1608) | function | `scripts/learning-store.mjs` | 1608-1613 | Updates the heartbeat timestamp of an in-flight refresh run. |
-| [`initLearningStore`](../scripts/learning-store.mjs#L27) | function | `scripts/learning-store.mjs` | 27-55 | Initializes Supabase client for cloud-based learning store, falling back to local mode on failure. |
-| [`isCloudEnabled`](../scripts/learning-store.mjs#L58) | function | `scripts/learning-store.mjs` | 58-60 | Returns whether cloud learning store is currently enabled and connected. |
-| [`isPersonaCloudEnabled`](../scripts/learning-store.mjs#L1297) | function | `scripts/learning-store.mjs` | 1297-1300 | Returns true if persona cloud is enabled via environment configuration. |
-| [`listLayeringViolationsForSnapshot`](../scripts/learning-store.mjs#L1883) | function | `scripts/learning-store.mjs` | 1883-1898 | Lists all layering violations detected in a refresh snapshot. |
-| [`listPersonasForApp`](../scripts/learning-store.mjs#L1310) | function | `scripts/learning-store.mjs` | 1310-1324 | Lists all personas associated with a given app URL. |
-| [`listSymbolsForSnapshot`](../scripts/learning-store.mjs#L1849) | function | `scripts/learning-store.mjs` | 1849-1881 | Lists symbols from a snapshot with optional filtering by kind, domain, or file prefix. |
-| [`loadBanditArms`](../scripts/learning-store.mjs#L625) | function | `scripts/learning-store.mjs` | 625-653 | Loads bandit arm statistics from cloud database organized by pass and context bucket. |
-| [`loadFalsePositivePatterns`](../scripts/learning-store.mjs#L779) | function | `scripts/learning-store.mjs` | 779-799 | Loads repository-specific and global false positive patterns with auto-suppress flags from cloud. |
-| [`openRefreshRun`](../scripts/learning-store.mjs#L1552) | function | `scripts/learning-store.mjs` | 1552-1575 | Opens a new refresh run and returns a refresh ID plus cancellation token. |
-| [`publishRefreshRun`](../scripts/learning-store.mjs#L1585) | function | `scripts/learning-store.mjs` | 1585-1595 | Publishes a completed refresh run and activates it as the current snapshot. |
-| [`readAuditEffectiveness`](../scripts/learning-store.mjs#L1087) | function | `scripts/learning-store.mjs` | 1087-1099 | Fetches audit effectiveness metrics for a repository. |
-| [`readCorrelationsForFinding`](../scripts/learning-store.mjs#L1070) | function | `scripts/learning-store.mjs` | 1070-1081 | Retrieves all persona-audit correlations for a specific audit finding. |
-| [`readCorrelationsForRun`](../scripts/learning-store.mjs#L1051) | function | `scripts/learning-store.mjs` | 1051-1062 | Retrieves all persona-audit correlations for a specific audit run. |
-| [`readDebtEntriesCloud`](../scripts/learning-store.mjs#L429) | function | `scripts/learning-store.mjs` | 429-466 | Loads all technical debt entries for a repository from cloud storage. |
-| [`readDebtEventsCloud`](../scripts/learning-store.mjs#L530) | function | `scripts/learning-store.mjs` | 530-551 | Retrieves chronologically ordered debt events for a repository from cloud storage. |
-| [`readPersistentPlanFailures`](../scripts/learning-store.mjs#L1210) | function | `scripts/learning-store.mjs` | 1210-1221 | Fetches persistent failure records associated with a plan. |
-| [`readPlanSatisfaction`](../scripts/learning-store.mjs#L1192) | function | `scripts/learning-store.mjs` | 1192-1204 | Retrieves plan satisfaction metrics for a given plan. |
-| [`recordAdjudicationEvent`](../scripts/learning-store.mjs#L560) | function | `scripts/learning-store.mjs` | 560-590 | Records finding adjudication outcomes and remediation state changes to cloud database. |
-| [`recordFindings`](../scripts/learning-store.mjs#L222) | function | `scripts/learning-store.mjs` | 222-249 | Inserts finding records from an audit pass into the cloud database with optional classification data. |
-| [`recordLayeringViolations`](../scripts/learning-store.mjs#L1750) | function | `scripts/learning-store.mjs` | 1750-1773 | Batch upserts detected layering violations in the codebase. |
-| [`recordPassStats`](../scripts/learning-store.mjs#L254) | function | `scripts/learning-store.mjs` | 254-274 | Records aggregated statistics for a single audit pass into the cloud database. |
-| [`recordPersonaAuditCorrelation`](../scripts/learning-store.mjs#L1025) | function | `scripts/learning-store.mjs` | 1025-1043 | Records a correlation between a persona finding and an audit finding. |
-| [`recordPersonaSession`](../scripts/learning-store.mjs#L1387) | function | `scripts/learning-store.mjs` | 1387-1452 | Records a persona test session with findings and returns session metadata with stats update flag. |
-| [`recordPlanVerificationItems`](../scripts/learning-store.mjs#L1166) | function | `scripts/learning-store.mjs` | 1166-1186 | Batch inserts individual verification criteria results for a plan run. |
-| [`recordPlanVerificationRun`](../scripts/learning-store.mjs#L1122) | function | `scripts/learning-store.mjs` | 1122-1147 | Creates a new plan verification run record and returns its ID. |
-| [`recordRegressionSpec`](../scripts/learning-store.mjs#L931) | function | `scripts/learning-store.mjs` | 931-957 | Records a regression test specification and returns its database ID. |
-| [`recordRegressionSpecRun`](../scripts/learning-store.mjs#L971) | function | `scripts/learning-store.mjs` | 971-987 | Logs the result of running a regression specification. |
-| [`recordRunComplete`](../scripts/learning-store.mjs#L153) | function | `scripts/learning-store.mjs` | 153-175 | Updates a completed audit run with final statistics, costs, and metadata. |
-| [`recordRunStart`](../scripts/learning-store.mjs#L106) | function | `scripts/learning-store.mjs` | 106-133 | Creates a new audit run record in cloud database and returns its ID. |
-| [`recordShipEvent`](../scripts/learning-store.mjs#L1241) | function | `scripts/learning-store.mjs` | 1241-1264 | Records a ship event (deployment decision) with outcome and context. |
-| [`recordSuppressionEvents`](../scripts/learning-store.mjs#L342) | function | `scripts/learning-store.mjs` | 342-367 | Records suppression and reopening events for findings into cloud event log. |
-| [`recordSymbolDefinitions`](../scripts/learning-store.mjs#L1680) | function | `scripts/learning-store.mjs` | 1680-1705 | Batch upserts symbol definitions and returns a map of definition IDs by canonical path. |
-| [`recordSymbolEmbedding`](../scripts/learning-store.mjs#L1734) | function | `scripts/learning-store.mjs` | 1734-1748 | Upserts a vector embedding for a symbol definition. |
-| [`recordSymbolIndex`](../scripts/learning-store.mjs#L1707) | function | `scripts/learning-store.mjs` | 1707-1732 | Batch inserts symbol index entries linking definitions to file locations. |
-| [`removeDebtEntryCloud`](../scripts/learning-store.mjs#L472) | function | `scripts/learning-store.mjs` | 472-484 | Deletes a specific technical debt entry from cloud storage. |
-| [`setActiveEmbeddingModel`](../scripts/learning-store.mjs#L1779) | function | `scripts/learning-store.mjs` | 1779-1787 | Updates the active embedding model and dimension for a repository. |
-| [`syncBanditArms`](../scripts/learning-store.mjs#L598) | function | `scripts/learning-store.mjs` | 598-619 | Syncs multi-armed bandit algorithm arm statistics to cloud for persistent learning. |
-| [`syncExperiments`](../scripts/learning-store.mjs#L717) | function | `scripts/learning-store.mjs` | 717-743 | Inserts or updates prompt experiment metadata and results to cloud database. |
-| [`syncFalsePositivePatterns`](../scripts/learning-store.mjs#L686) | function | `scripts/learning-store.mjs` | 686-709 | Syncs false positive patterns with auto-suppression flags to cloud storage. |
-| [`syncPromptRevision`](../scripts/learning-store.mjs#L753) | function | `scripts/learning-store.mjs` | 753-770 | Syncs a prompt revision with its text and checksum to cloud database. |
-| [`updatePassStatsPostDeliberation`](../scripts/learning-store.mjs#L283) | function | `scripts/learning-store.mjs` | 283-299 | Updates pass statistics after deliberation round with accepted/dismissed/compromised counts. |
-| [`updatePlanStatus`](../scripts/learning-store.mjs#L905) | function | `scripts/learning-store.mjs` | 905-912 | Updates the status of an existing plan record. |
-| [`updateRunMeta`](../scripts/learning-store.mjs#L182) | function | `scripts/learning-store.mjs` | 182-190 | Updates specific metadata fields on an existing audit run record. |
-| [`upsertDebtEntries`](../scripts/learning-store.mjs#L380) | function | `scripts/learning-store.mjs` | 380-421 | Inserts or updates technical debt entries in cloud database with classification and deferral metadata. |
-| [`upsertPersona`](../scripts/learning-store.mjs#L1339) | function | `scripts/learning-store.mjs` | 1339-1374 | Upserts a persona record and returns its ID plus whether it already existed. |
-| [`upsertPlan`](../scripts/learning-store.mjs#L875) | function | `scripts/learning-store.mjs` | 875-900 | Inserts or updates a learning plan with metadata and returns its ID. |
-| [`upsertPromptVariant`](../scripts/learning-store.mjs#L660) | function | `scripts/learning-store.mjs` | 660-677 | Inserts or updates prompt variant performance metrics in cloud database. |
-| [`upsertRepo`](../scripts/learning-store.mjs#L69) | function | `scripts/learning-store.mjs` | 69-90 | Inserts or updates a repository profile record in cloud database by fingerprint. |
-| [`upsertRepoByUuid`](../scripts/learning-store.mjs#L1521) | function | `scripts/learning-store.mjs` | 1521-1543 | Upserts a repository by UUID (or fingerprint) and returns its ID. |
-| [`withRetry`](../scripts/learning-store.mjs#L1661) | function | `scripts/learning-store.mjs` | 1661-1677 | Executes a function with exponential backoff retry on network errors. |
+| [`buildOutputPath`](../src/services/audioNarration/audioNarrationService.ts#L86) | function | `src/services/audioNarration/audioNarrationService.ts` | 86-95 | Constructs full output path for narration MP3 using note basename and fingerprint prefix. |
+| [`describeError`](../src/services/audioNarration/audioNarrationService.ts#L310) | function | `src/services/audioNarration/audioNarrationService.ts` | 310-313 | Returns error message from Error object or string coercion. |
+| [`executeNarration`](../src/services/audioNarration/audioNarrationService.ts#L198) | function | `src/services/audioNarration/audioNarrationService.ts` | 198-301 | Synthesizes audio narration by calling TTS provider in chunks with retry logic and cancellation support. |
+| [`isAbort`](../src/services/audioNarration/audioNarrationService.ts#L315) | function | `src/services/audioNarration/audioNarrationService.ts` | 315-319 | Checks if error is an AbortError (DOM or standard Error variant). |
+| [`parentFolder`](../src/services/audioNarration/audioNarrationService.ts#L305) | function | `src/services/audioNarration/audioNarrationService.ts` | 305-308 | Returns parent directory path by finding last forward slash. |
+| [`prepareNarration`](../src/services/audioNarration/audioNarrationService.ts#L99) | function | `src/services/audioNarration/audioNarrationService.ts` | 99-189 | Transforms note content to spoken prose by parsing markdown, validating provider/voice, and preparing text. |
+| [`sanitiseFilename`](../src/services/audioNarration/audioNarrationService.ts#L68) | function | `src/services/audioNarration/audioNarrationService.ts` | 68-84 | Sanitizes note title to valid filename by removing special characters, trimming, and handling Windows reserved names. |
+| [`capitalize`](../src/services/audioNarration/markdownToProseTransformer.ts#L334) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 334-337 | Capitalizes first character and lowercases rest of string. |
+| [`computeStats`](../src/services/audioNarration/markdownToProseTransformer.ts#L343) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 343-348 | Calculates character/word count and estimated speaking duration for given text. |
+| [`dedupe`](../src/services/audioNarration/markdownToProseTransformer.ts#L339) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 339-341 | Returns unique array elements using Set. |
+| [`isTableAlignmentRow`](../src/services/audioNarration/markdownToProseTransformer.ts#L291) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 291-293 | Tests if row is markdown table alignment separator (colons and dashes). |
+| [`splitTableRow`](../src/services/audioNarration/markdownToProseTransformer.ts#L287) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 287-289 | Splits pipe-delimited table row into trimmed cell values. |
+| [`stripInlineFormatting`](../src/services/audioNarration/markdownToProseTransformer.ts#L228) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 228-283 | Strips markdown syntax (links, embeds, formatting) from text while preserving semantic content. |
+| [`stripInlineFormattingMinimal`](../src/services/audioNarration/markdownToProseTransformer.ts#L320) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 320-330 | Strips inline markdown formatting (links, bold, italic, code) while preserving readable text. |
+| [`tableToProse`](../src/services/audioNarration/markdownToProseTransformer.ts#L295) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 295-317 | Converts markdown table to prose description using headers and selected verbosity mode. |
+| [`transformToSpokenProse`](../src/services/audioNarration/markdownToProseTransformer.ts#L28) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 28-224 | Transforms markdown note to spoken prose by stripping formatting, handling code/math blocks, and converting tables. |
+| [`estimateNarrationCost`](../src/services/audioNarration/narrationCostEstimator.ts#L14) | function | `src/services/audioNarration/narrationCostEstimator.ts` | 14-34 | Estimates narration cost and duration for text using provider rates and TTS chunk splitting. |
+| [`buildBlock`](../src/services/audioNarration/narrationEmbedManager.ts#L36) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 36-38 | Builds narration embed block markdown with audio file reference. |
+| [`describeError`](../src/services/audioNarration/narrationEmbedManager.ts#L159) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 159-162 | Extracts error message from Error objects, falling back to string conversion for unknown error types. |
+| [`findEmbedBlock`](../src/services/audioNarration/narrationEmbedManager.ts#L30) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 30-34 | Finds and returns start/end position of existing narration embed block in content. |
+| [`syncEmbed`](../src/services/audioNarration/narrationEmbedManager.ts#L54) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 54-157 | Syncs narration MP3 embed into note after frontmatter, replacing existing embed or removing if disabled. |
+| [`JobInFlightError`](../src/services/audioNarration/narrationJobRegistry.ts#L6) | class | `src/services/audioNarration/narrationJobRegistry.ts` | 6-12 | Custom error class thrown when a narration job is already running for a given file path. |
+| [`NarrationJobRegistry`](../src/services/audioNarration/narrationJobRegistry.ts#L14) | class | `src/services/audioNarration/narrationJobRegistry.ts` | 14-74 | Registry that tracks in-flight narration jobs using AbortControllers and provides cancellation and cleanup utilities. |
+| [`decodeError`](../src/services/audioNarration/narrationTypes.ts#L43) | function | `src/services/audioNarration/narrationTypes.ts` | 43-50 | Decodes a colon-separated error string back into a structured error object with validation. |
+| [`encodeError`](../src/services/audioNarration/narrationTypes.ts#L38) | function | `src/services/audioNarration/narrationTypes.ts` | 38-40 | Encodes a narration error into a string by concatenating code and message with a colon separator. |
+| [`errFrom`](../src/services/audioNarration/narrationTypes.ts#L63) | function | `src/services/audioNarration/narrationTypes.ts` | 63-65 | Wraps a narration error by encoding it and returning a failure result. |
+| [`isNarrationErrorCode`](../src/services/audioNarration/narrationTypes.ts#L58) | function | `src/services/audioNarration/narrationTypes.ts` | 58-60 | Validates whether a string is a recognized narration error code. |
+| [`makeError`](../src/services/audioNarration/narrationTypes.ts#L33) | function | `src/services/audioNarration/narrationTypes.ts` | 33-35 | Returns an object containing error code, message, and optional cause. |
+
+---
+
+## audit-loop-lib
+
+```mermaid
+flowchart TB
+subgraph dom_audit_loop_lib ["audit-loop-lib"]
+  file_scripts_lib_arch_render_mjs["scripts/lib/arch-render.mjs"]:::component
+  sym_scripts_lib_arch_render_mjs_escapeMarkdo["escapeMarkdown"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_escapeMarkdo
+  sym_scripts_lib_arch_render_mjs_escapeMermai["escapeMermaidLabel"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_escapeMermai
+  sym_scripts_lib_arch_render_mjs_groupByDomai["groupByDomain"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_groupByDomai
+  sym_scripts_lib_arch_render_mjs_mermaidId["mermaidId"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_mermaidId
+  sym_scripts_lib_arch_render_mjs_renderArchit["renderArchitectureMap"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderArchit
+  sym_scripts_lib_arch_render_mjs_renderDriftI["renderDriftIssue"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderDriftI
+  sym_scripts_lib_arch_render_mjs_renderHeader["renderHeader"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderHeader
+  sym_scripts_lib_arch_render_mjs_renderMermai["renderMermaidContainer"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderMermai
+  sym_scripts_lib_arch_render_mjs_renderNeighb["renderNeighbourhoodCallout"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderNeighb
+  sym_scripts_lib_arch_render_mjs_renderSymbol["renderSymbolTable"]:::symbol
+  file_scripts_lib_arch_render_mjs --> sym_scripts_lib_arch_render_mjs_renderSymbol
+  file_scripts_lib_audit_scope_mjs["scripts/lib/audit-scope.mjs"]:::component
+  sym_scripts_lib_audit_scope_mjs_classifyFile["classifyFiles"]:::symbol
+  file_scripts_lib_audit_scope_mjs --> sym_scripts_lib_audit_scope_mjs_classifyFile
+  sym_scripts_lib_audit_scope_mjs_isAuditInfra["isAuditInfraFile"]:::symbol
+  file_scripts_lib_audit_scope_mjs --> sym_scripts_lib_audit_scope_mjs_isAuditInfra
+  sym_scripts_lib_audit_scope_mjs_isSensitiveF["isSensitiveFile"]:::symbol
+  file_scripts_lib_audit_scope_mjs --> sym_scripts_lib_audit_scope_mjs_isSensitiveF
+  sym_scripts_lib_audit_scope_mjs_readFilesAsC["readFilesAsContext"]:::symbol
+  file_scripts_lib_audit_scope_mjs --> sym_scripts_lib_audit_scope_mjs_readFilesAsC
+  sym_scripts_lib_audit_scope_mjs_safeReadFile["safeReadFile"]:::symbol
+  file_scripts_lib_audit_scope_mjs --> sym_scripts_lib_audit_scope_mjs_safeReadFile
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 279 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`escapeMarkdown`](../scripts/lib/arch-render.mjs#L22) | function | `scripts/lib/arch-render.mjs` | 22-28 | Escapes pipe characters and whitespace for Markdown table rendering. |
 | [`escapeMermaidLabel`](../scripts/lib/arch-render.mjs#L31) | function | `scripts/lib/arch-render.mjs` | 31-37 | Escapes quotes and special characters for Mermaid diagram labels. |
 | [`groupByDomain`](../scripts/lib/arch-render.mjs#L45) | function | `scripts/lib/arch-render.mjs` | 45-63 | Groups symbols by domain tag and sorts them alphabetically by domain then file. |
@@ -533,6 +620,253 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`rankNeighbourhood`](../scripts/lib/symbol-index.mjs#L110) | function | `scripts/lib/symbol-index.mjs` | 110-125 | Ranks records by a weighted combination of target-path match (40%) and embedding similarity (60%), then sorts by score and name. |
 | [`recommendationFromSimilarity`](../scripts/lib/symbol-index.mjs#L132) | function | `scripts/lib/symbol-index.mjs` | 132-137 | Returns a code-reuse recommendation ('reuse', 'extend', 'justify-divergence', or 'review') based on similarity thresholds. |
 | [`signatureHash`](../scripts/lib/symbol-index.mjs#L52) | function | `scripts/lib/symbol-index.mjs` | 52-60 | Computes a SHA256 hash of a symbol using its normalized signature, name, and body hash. |
+
+---
+
+## audit-loop-scripts
+
+```mermaid
+flowchart TB
+subgraph dom_audit_loop_scripts ["audit-loop-scripts"]
+  file_scripts_automated_tests_js["scripts/automated-tests.js"]:::component
+  sym_scripts_automated_tests_js_assertContain["assertContains"]:::symbol
+  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertContain
+  sym_scripts_automated_tests_js_assertEqual["assertEqual"]:::symbol
+  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertEqual
+  sym_scripts_automated_tests_js_assertTrue["assertTrue"]:::symbol
+  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_assertTrue
+  sym_scripts_automated_tests_js_test["test"]:::symbol
+  file_scripts_automated_tests_js --> sym_scripts_automated_tests_js_test
+  file_scripts_bandit_mjs["scripts/bandit.mjs"]:::component
+  sym_scripts_bandit_mjs_buildContext["buildContext"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_buildContext
+  sym_scripts_bandit_mjs_computePassReward["computePassReward"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computePassReward
+  sym_scripts_bandit_mjs_computeReward["computeReward"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computeReward
+  sym_scripts_bandit_mjs_computeUserImpactRewa["computeUserImpactReward"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_computeUserImpactRewa
+  sym_scripts_bandit_mjs_contextBucketKey["contextBucketKey"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_contextBucketKey
+  sym_scripts_bandit_mjs_contextSizeTier["contextSizeTier"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_contextSizeTier
+  sym_scripts_bandit_mjs_deliberationSignal["deliberationSignal"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_deliberationSignal
+  sym_scripts_bandit_mjs_PromptBandit["PromptBandit"]:::symbol
+  file_scripts_bandit_mjs --> sym_scripts_bandit_mjs_PromptBandit
+  file_scripts_check_setup_mjs["scripts/check-setup.mjs"]:::component
+  sym_scripts_check_setup_mjs_checkAuditApiKey["checkAuditApiKeys"]:::symbol
+  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditApiKey
+  sym_scripts_check_setup_mjs_checkAuditLoop["checkAuditLoop"]:::symbol
+  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditLoop
+  sym_scripts_check_setup_mjs_checkAuditSupaba["checkAuditSupabase"]:::symbol
+  file_scripts_check_setup_mjs --> sym_scripts_check_setup_mjs_checkAuditSupaba
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 222 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`assertContains`](../scripts/automated-tests.js#L48) | function | `scripts/automated-tests.js` | 48-52 | Throws an error if a string doesn't contain an expected substring. |
+| [`assertEqual`](../scripts/automated-tests.js#L36) | function | `scripts/automated-tests.js` | 36-40 | Throws an error if actual value doesn't match expected value. |
+| [`assertTrue`](../scripts/automated-tests.js#L42) | function | `scripts/automated-tests.js` | 42-46 | Throws an error if a value is not truthy. |
+| [`test`](../scripts/automated-tests.js#L23) | function | `scripts/automated-tests.js` | 23-34 | Executes a test function, tracks pass/fail, and logs results with error details. |
+| [`buildContext`](../scripts/bandit.mjs#L28) | function | `scripts/bandit.mjs` | 28-34 | Returns a context object with size tier and dominant language from a repo profile. |
+| [`computePassReward`](../scripts/bandit.mjs#L409) | function | `scripts/bandit.mjs` | 409-415 | Averages individual finding rewards to produce a pass-level reward score. |
+| [`computeReward`](../scripts/bandit.mjs#L309) | function | `scripts/bandit.mjs` | 309-347 | Calculates a multi-signal reward score for prompt variants based on procedural outcomes, substantive changes, deliberation quality, and user impact. |
+| [`computeUserImpactReward`](../scripts/bandit.mjs#L358) | function | `scripts/bandit.mjs` | 358-378 | Computes a user-impact reward factor weighted by correlation type and persona severity. |
+| [`contextBucketKey`](../scripts/bandit.mjs#L43) | function | `scripts/bandit.mjs` | 43-45 | Creates a bucket key combining size tier and dominant language. |
+| [`contextSizeTier`](../scripts/bandit.mjs#L36) | function | `scripts/bandit.mjs` | 36-41 | Categorizes character count into size tiers (small, medium, large, xlarge). |
+| [`deliberationSignal`](../scripts/bandit.mjs#L385) | function | `scripts/bandit.mjs` | 385-402 | Scores deliberation quality based on challenge positions, rulings, and rationale length. |
+| [`PromptBandit`](../scripts/bandit.mjs#L49) | class | `scripts/bandit.mjs` | 49-292 | <no body> |
+| [`checkAuditApiKeys`](../scripts/check-setup.mjs#L157) | function | `scripts/check-setup.mjs` | 157-174 | Validates that required API keys for OpenAI/Gemini/Anthropic are configured. |
+| [`checkAuditLoop`](../scripts/check-setup.mjs#L233) | function | `scripts/check-setup.mjs` | 233-237 | Runs audit-loop checks (API keys and Supabase configuration). |
+| [`checkAuditSupabase`](../scripts/check-setup.mjs#L180) | function | `scripts/check-setup.mjs` | 180-231 | Checks Supabase audit configuration, tables, and views; reports missing setup. |
+| [`checkPersonaTest`](../scripts/check-setup.mjs#L241) | function | `scripts/check-setup.mjs` | 241-297 | <no body> |
+| [`checkTables`](../scripts/check-setup.mjs#L71) | function | `scripts/check-setup.mjs` | 71-78 | Checks whether specified tables exist in Supabase by querying them. |
+| [`getSupabaseClient`](../scripts/check-setup.mjs#L61) | function | `scripts/check-setup.mjs` | 61-64 | Creates and returns a Supabase client using provided URL and key. |
+| [`loadEnv`](../scripts/check-setup.mjs#L42) | function | `scripts/check-setup.mjs` | 42-57 | Parses a .env file into a key-value object, skipping comments and malformed lines. |
+| [`main`](../scripts/check-setup.mjs#L374) | function | `scripts/check-setup.mjs` | 374-385 | Loads environment, runs checks, and exits with appropriate code. |
+| [`printJsonReport`](../scripts/check-setup.mjs#L360) | function | `scripts/check-setup.mjs` | 360-370 | Outputs the report as JSON to stdout. |
+| [`printReport`](../scripts/check-setup.mjs#L328) | function | `scripts/check-setup.mjs` | 328-358 | Prints a formatted setup check report with sections and colored output. |
+| [`Report`](../scripts/check-setup.mjs#L118) | class | `scripts/check-setup.mjs` | 118-153 | <no body> |
+| [`shortUrl`](../scripts/check-setup.mjs#L176) | function | `scripts/check-setup.mjs` | 176-178 | Truncates a URL by removing protocol and limiting to 30 characters. |
+| [`statusIcon`](../scripts/check-setup.mjs#L304) | function | `scripts/check-setup.mjs` | 304-313 | Returns a colored status icon (PASS, FAIL, WARN, INFO, FIX). |
+| [`verdictLine`](../scripts/check-setup.mjs#L315) | function | `scripts/check-setup.mjs` | 315-326 | Formats a summary line of test failures and warnings. |
+| [`checkSync`](../scripts/check-sync.mjs#L25) | function | `scripts/check-sync.mjs` | 25-157 | <no body> |
+| [`fail`](../scripts/check-sync.mjs#L20) | function | `scripts/check-sync.mjs` | 20-20 | Logs a failed check. |
+| [`finish`](../scripts/check-sync.mjs#L159) | function | `scripts/check-sync.mjs` | 159-182 | Prints or outputs a sync-check report and exits with appropriate code. |
+| [`info`](../scripts/check-sync.mjs#L21) | function | `scripts/check-sync.mjs` | 21-21 | Logs an informational message. |
+| [`log`](../scripts/check-sync.mjs#L17) | function | `scripts/check-sync.mjs` | 17-17 | Logs a message to stdout unless in JSON mode. |
+| [`pass`](../scripts/check-sync.mjs#L19) | function | `scripts/check-sync.mjs` | 19-19 | Logs a passed check. |
+| [`argOption`](../scripts/cross-skill.mjs#L96) | function | `scripts/cross-skill.mjs` | 96-100 | Retrieves the value of a named command-line option. |
+| [`cmdAbortRefreshRun`](../scripts/cross-skill.mjs#L511) | function | `scripts/cross-skill.mjs` | 511-521 | Cancels an in-progress refresh run with an optional reason. |
+| [`cmdAddPersona`](../scripts/cross-skill.mjs#L348) | function | `scripts/cross-skill.mjs` | 348-360 | Creates or updates a persona with name, description, and app URL in the cloud. |
+| [`cmdAuditEffectiveness`](../scripts/cross-skill.mjs#L311) | function | `scripts/cross-skill.mjs` | 311-318 | Reads audit effectiveness metrics for a repo and emits them. |
+| [`cmdComputeDriftScore`](../scripts/cross-skill.mjs#L615) | function | `scripts/cross-skill.mjs` | 615-626 | Computes an architectural drift score comparing current and previous snapshots. |
+| [`cmdDetectStack`](../scripts/cross-skill.mjs#L399) | function | `scripts/cross-skill.mjs` | 399-415 | Detects the tech stack and optional environment manager of a repository. |
+| [`cmdGetActiveRefreshId`](../scripts/cross-skill.mjs#L431) | function | `scripts/cross-skill.mjs` | 431-447 | Retrieves the active refresh ID and embedding model metadata for a given repository UUID. |
+| [`cmdGetNeighbourhood`](../scripts/cross-skill.mjs#L449) | function | `scripts/cross-skill.mjs` | 449-477 | Finds similar code symbols (neighborhood) matching an intent query from the cloud index. |
+| [`cmdListLayeringViolationsForSnapshot`](../scripts/cross-skill.mjs#L602) | function | `scripts/cross-skill.mjs` | 602-613 | Lists architectural layering violations for a snapshot. |
+| [`cmdListPersonas`](../scripts/cross-skill.mjs#L326) | function | `scripts/cross-skill.mjs` | 326-337 | Fetches personas for a given app URL from the cloud persona service. |
+| [`cmdListSymbolsForSnapshot`](../scripts/cross-skill.mjs#L589) | function | `scripts/cross-skill.mjs` | 589-600 | Lists all symbol definitions recorded in a snapshot. |
+| [`cmdListUnlockedFixes`](../scripts/cross-skill.mjs#L303) | function | `scripts/cross-skill.mjs` | 303-309 | Retrieves unlocked fix records and emits them. |
+| [`cmdOpenRefreshRun`](../scripts/cross-skill.mjs#L479) | function | `scripts/cross-skill.mjs` | 479-497 | Opens a new code-refresh run for a repository, creating the repo if it doesn't exist. |
+| [`cmdPlanSatisfaction`](../scripts/cross-skill.mjs#L268) | function | `scripts/cross-skill.mjs` | 268-278 | Reads plan satisfaction data and persistent failures, then emits them. |
+| [`cmdPublishRefreshRun`](../scripts/cross-skill.mjs#L499) | function | `scripts/cross-skill.mjs` | 499-509 | Marks a refresh run as complete and publishes its results to the cloud. |
+| [`cmdRecordCorrelation`](../scripts/cross-skill.mjs#L216) | function | `scripts/cross-skill.mjs` | 216-233 | Records a correlation between a persona finding and audit finding. |
+| [`cmdRecordLayeringViolations`](../scripts/cross-skill.mjs#L563) | function | `scripts/cross-skill.mjs` | 563-575 | Records architectural layering violations detected during a refresh run. |
+| [`cmdRecordPersonaSession`](../scripts/cross-skill.mjs#L384) | function | `scripts/cross-skill.mjs` | 384-397 | Records a persona session with optional commit SHA and returns session metadata. |
+| [`cmdRecordPlanVerifyItems`](../scripts/cross-skill.mjs#L257) | function | `scripts/cross-skill.mjs` | 257-266 | Records individual verification items from a plan test run. |
+| [`cmdRecordPlanVerifyRun`](../scripts/cross-skill.mjs#L235) | function | `scripts/cross-skill.mjs` | 235-255 | Records a plan verification run with criterion counts and emits its ID. |
+| [`cmdRecordRegressionSpec`](../scripts/cross-skill.mjs#L177) | function | `scripts/cross-skill.mjs` | 177-196 | Records a regression spec and emits its ID. |
+| [`cmdRecordRegressionSpecRun`](../scripts/cross-skill.mjs#L198) | function | `scripts/cross-skill.mjs` | 198-214 | Records a regression spec test run with pass/fail status. |
+| [`cmdRecordShipEvent`](../scripts/cross-skill.mjs#L280) | function | `scripts/cross-skill.mjs` | 280-301 | Records a ship event with outcome, block reasons, and metadata. |
+| [`cmdRecordSymbolDefinitions`](../scripts/cross-skill.mjs#L523) | function | `scripts/cross-skill.mjs` | 523-533 | Stores symbol definitions (names, signatures, locations) for a repository. |
+| [`cmdRecordSymbolEmbedding`](../scripts/cross-skill.mjs#L549) | function | `scripts/cross-skill.mjs` | 549-561 | Saves a vector embedding for a symbol definition. |
+| [`cmdRecordSymbolIndex`](../scripts/cross-skill.mjs#L535) | function | `scripts/cross-skill.mjs` | 535-547 | Bulk records symbol index rows (locations and references) for a refresh snapshot. |
+| [`cmdResolveRepoIdentity`](../scripts/cross-skill.mjs#L628) | function | `scripts/cross-skill.mjs` | 628-634 | Derives or persists a stable repository UUID based on Git origin and codebase. |
+| [`cmdSetActiveEmbeddingModel`](../scripts/cross-skill.mjs#L577) | function | `scripts/cross-skill.mjs` | 577-587 | Sets the active embedding model and dimension for a repository's snapshots. |
+| [`cmdUpdatePlanStatus`](../scripts/cross-skill.mjs#L168) | function | `scripts/cross-skill.mjs` | 168-175 | Updates an existing plan's status in the cloud. |
+| [`cmdUpsertPlan`](../scripts/cross-skill.mjs#L150) | function | `scripts/cross-skill.mjs` | 150-166 | Upserts a remediation plan record and emits its ID. |
+| [`cmdWhoami`](../scripts/cross-skill.mjs#L417) | function | `scripts/cross-skill.mjs` | 417-427 | Reports system status including cloud enablement, commit SHA, branch, and Supabase configuration. |
+| [`currentBranch`](../scripts/cross-skill.mjs#L125) | function | `scripts/cross-skill.mjs` | 125-130 | Returns the current Git branch name. |
+| [`currentCommitSha`](../scripts/cross-skill.mjs#L118) | function | `scripts/cross-skill.mjs` | 118-123 | Returns the current Git commit SHA. |
+| [`emit`](../scripts/cross-skill.mjs#L102) | function | `scripts/cross-skill.mjs` | 102-104 | Outputs a JSON object to stdout. |
+| [`emitError`](../scripts/cross-skill.mjs#L111) | function | `scripts/cross-skill.mjs` | 111-114 | Emits a JSON error and exits with a specified code. |
+| [`main`](../scripts/cross-skill.mjs#L672) | function | `scripts/cross-skill.mjs` | 672-695 | Routes CLI subcommands to their handlers, displaying usage or executing the command. |
+| [`parsePayload`](../scripts/cross-skill.mjs#L79) | function | `scripts/cross-skill.mjs` | 79-94 | Parses a JSON payload from --json, --stdin, or bare JSON argument. |
+| [`resolveRepoId`](../scripts/cross-skill.mjs#L140) | function | `scripts/cross-skill.mjs` | 140-146 | Returns the repo ID from payload or null if not provided. |
+| [`checkBaselineValidity`](../scripts/evolve-prompts.mjs#L340) | function | `scripts/evolve-prompts.mjs` | 340-348 | Checks if an active experiment's parent baseline has changed and marks it stale if so. |
+| [`evolveWorstPass`](../scripts/evolve-prompts.mjs#L92) | function | `scripts/evolve-prompts.mjs` | 92-234 | <no body> |
+| [`formatExample`](../scripts/evolve-prompts.mjs#L336) | function | `scripts/evolve-prompts.mjs` | 336-338 | Formats a finding example as a human-readable bullet point with severity and file. |
+| [`getExperimentManifestStore`](../scripts/evolve-prompts.mjs#L64) | function | `scripts/evolve-prompts.mjs` | 64-66 | Returns a file-backed mutex store for experiment manifest persistence. |
+| [`killExperiment`](../scripts/evolve-prompts.mjs#L306) | function | `scripts/evolve-prompts.mjs` | 306-317 | Marks a revision as abandoned and updates the experiment status to killed. |
+| [`main`](../scripts/evolve-prompts.mjs#L373) | function | `scripts/evolve-prompts.mjs` | 373-469 | <no body> |
+| [`promoteExperiment`](../scripts/evolve-prompts.mjs#L289) | function | `scripts/evolve-prompts.mjs` | 289-301 | Promotes a revision to active status and marks its experiment as promoted. |
+| [`reconcileOrphanedExperiments`](../scripts/evolve-prompts.mjs#L353) | function | `scripts/evolve-prompts.mjs` | 353-369 | Scans for incomplete experiment manifests and logs cleanup opportunities. |
+| [`reviewExperiments`](../scripts/evolve-prompts.mjs#L239) | function | `scripts/evolve-prompts.mjs` | 239-284 | <no body> |
+| [`showStats`](../scripts/evolve-prompts.mjs#L322) | function | `scripts/evolve-prompts.mjs` | 322-332 | Aggregates pass statistics, active experiments, and bandit arm performance data. |
+| [`_collectMaxLengths`](../scripts/gemini-review.mjs#L100) | function | `scripts/gemini-review.mjs` | 100-118 | Recursively collects maximum string lengths from a JSON schema for truncation. |
+| [`addSemanticIds`](../scripts/gemini-review.mjs#L805) | function | `scripts/gemini-review.mjs` | 805-813 | Assigns semantic IDs and hashes to new findings and marks their source provider. |
+| [`applyDebtSuppression`](../scripts/gemini-review.mjs#L768) | function | `scripts/gemini-review.mjs` | 768-803 | Suppresses new findings that match pre-filtered debt via Jaccard similarity scoring. |
+| [`buildClient`](../scripts/gemini-review.mjs#L734) | function | `scripts/gemini-review.mjs` | 734-741 | Creates and returns an authenticated client for the selected AI provider. |
+| [`callClaudeOpus`](../scripts/gemini-review.mjs#L386) | function | `scripts/gemini-review.mjs` | 386-449 | <no body> |
+| [`callGemini`](../scripts/gemini-review.mjs#L278) | function | `scripts/gemini-review.mjs` | 278-372 | <no body> |
+| [`emitReviewOutput`](../scripts/gemini-review.mjs#L815) | function | `scripts/gemini-review.mjs` | 815-830 | Outputs the review result as JSON (with optional file save) or formatted markdown. |
+| [`formatReviewResult`](../scripts/gemini-review.mjs#L574) | function | `scripts/gemini-review.mjs` | 574-637 | Formats a review result object into human-readable markdown with verdict, deliberation quality, and findings. |
+| [`getReviewPrompt`](../scripts/gemini-review.mjs#L259) | function | `scripts/gemini-review.mjs` | 259-261 | Retrieves the active gemini-review prompt or falls back to the default system prompt. |
+| [`isJsonTruncationError`](../scripts/gemini-review.mjs#L743) | function | `scripts/gemini-review.mjs` | 743-747 | Detects whether an error is due to JSON response truncation. |
+| [`main`](../scripts/gemini-review.mjs#L901) | function | `scripts/gemini-review.mjs` | 901-937 | Main entry point that parses arguments, runs code/plan review with Gemini, and saves results. |
+| [`parseReviewArgs`](../scripts/gemini-review.mjs#L693) | function | `scripts/gemini-review.mjs` | 693-704 | Parses CLI arguments for final review, extracting file paths, output mode, and provider override. |
+| [`recordGeminiOutcomes`](../scripts/gemini-review.mjs#L877) | function | `scripts/gemini-review.mjs` | 877-899 | Records Gemini review outcomes, false positives, and bandit learning rewards to persistent storage. |
+| [`recordNewFindings`](../scripts/gemini-review.mjs#L832) | function | `scripts/gemini-review.mjs` | 832-851 | Records new findings from the review into outcomes.jsonl and updates the false-positive tracker. |
+| [`recordWronglyDismissed`](../scripts/gemini-review.mjs#L853) | function | `scripts/gemini-review.mjs` | 853-875 | Logs wrongly-dismissed findings from Gemini review to audit outcomes file. |
+| [`refreshCatalogAndWarn`](../scripts/gemini-review.mjs#L643) | function | `scripts/gemini-review.mjs` | 643-654 | Refreshes the live Gemini model catalog and warns if the session model is outdated. |
+| [`runFinalReview`](../scripts/gemini-review.mjs#L462) | function | `scripts/gemini-review.mjs` | 462-570 | <no body> |
+| [`runPing`](../scripts/gemini-review.mjs#L686) | function | `scripts/gemini-review.mjs` | 686-691 | Pings both Gemini and Claude APIs to verify credentials and availability. |
+| [`runPingClaude`](../scripts/gemini-review.mjs#L668) | function | `scripts/gemini-review.mjs` | 668-684 | Tests connectivity to Claude Opus by sending a simple request. |
+| [`runPingGemini`](../scripts/gemini-review.mjs#L656) | function | `scripts/gemini-review.mjs` | 656-666 | Tests connectivity to Gemini by sending a simple request. |
+| [`runReviewWithRetry`](../scripts/gemini-review.mjs#L749) | function | `scripts/gemini-review.mjs` | 749-766 | Retries final review with conciseness hints if JSON truncation occurs. |
+| [`selectProvider`](../scripts/gemini-review.mjs#L706) | function | `scripts/gemini-review.mjs` | 706-732 | Selects the AI provider (Gemini or Claude) based on environment variables and CLI override. |
+| [`truncateToSchema`](../scripts/gemini-review.mjs#L132) | function | `scripts/gemini-review.mjs` | 132-152 | Truncates object field values to schema-defined max lengths, logging what was cut. |
+| [`askYesNo`](../scripts/install-ffmpeg.js#L48) | function | `scripts/install-ffmpeg.js` | 48-60 | Prompts user for yes/no input via stdin and returns boolean result. |
+| [`checkFFmpegAtPath`](../scripts/install-ffmpeg.js#L108) | function | `scripts/install-ffmpeg.js` | 108-121 | Verifies ffmpeg exists at a specific file path and extracts its version. |
+| [`checkFFprobe`](../scripts/install-ffmpeg.js#L93) | function | `scripts/install-ffmpeg.js` | 93-103 | Checks if ffprobe command is available by running its version command. |
+| [`detectPlatform`](../scripts/install-ffmpeg.js#L126) | function | `scripts/install-ffmpeg.js` | 126-138 | Detects the current operating system, architecture, and platform properties. |
+| [`downloadFile`](../scripts/install-ffmpeg.js#L321) | function | `scripts/install-ffmpeg.js` | 321-367 | Downloads a file from URL to destination path with progress reporting and redirect handling. |
+| [`extractZip`](../scripts/install-ffmpeg.js#L372) | function | `scripts/install-ffmpeg.js` | 372-383 | Extracts a zip archive using PowerShell on Windows or unzip on Unix systems. |
+| [`findAllFFmpegInstallations`](../scripts/install-ffmpeg.js#L143) | function | `scripts/install-ffmpeg.js` | 143-197 | Searches for all ffmpeg installations across system PATH and common installation directories. |
+| [`getFFmpegInfo`](../scripts/install-ffmpeg.js#L65) | function | `scripts/install-ffmpeg.js` | 65-88 | Executes ffmpeg version command and extracts version and path information. |
+| [`hasPackageManager`](../scripts/install-ffmpeg.js#L309) | function | `scripts/install-ffmpeg.js` | 309-316 | Tests if a package manager command (apt, brew, etc.) is available on the system. |
+| [`installLinux`](../scripts/install-ffmpeg.js#L541) | function | `scripts/install-ffmpeg.js` | 541-631 | <no body> |
+| [`installMac`](../scripts/install-ffmpeg.js#L500) | function | `scripts/install-ffmpeg.js` | 500-536 | Installs ffmpeg on macOS using Homebrew, MacPorts, or provides installation instructions. |
+| [`installWindows`](../scripts/install-ffmpeg.js#L388) | function | `scripts/install-ffmpeg.js` | 388-495 | <no body> |
+| [`isInstallationProblematic`](../scripts/install-ffmpeg.js#L202) | function | `scripts/install-ffmpeg.js` | 202-232 | Evaluates whether an ffmpeg installation is problematic based on missing ffprobe or outdated version. |
+| [`log`](../scripts/install-ffmpeg.js#L36) | function | `scripts/install-ffmpeg.js` | 36-38 | Outputs a colored log message to console. |
+| [`logError`](../scripts/install-ffmpeg.js#L42) | function | `scripts/install-ffmpeg.js` | 42-42 | Logs an error message with red X symbol. |
+| [`logInfo`](../scripts/install-ffmpeg.js#L43) | function | `scripts/install-ffmpeg.js` | 43-43 | Logs an info message with cyan information symbol. |
+| [`logSuccess`](../scripts/install-ffmpeg.js#L40) | function | `scripts/install-ffmpeg.js` | 40-40 | Logs a success message with green checkmark. |
+| [`logWarning`](../scripts/install-ffmpeg.js#L41) | function | `scripts/install-ffmpeg.js` | 41-41 | Logs a warning message with yellow warning symbol. |
+| [`main`](../scripts/install-ffmpeg.js#L636) | function | `scripts/install-ffmpeg.js` | 636-785 | <no body> |
+| [`removeInstallation`](../scripts/install-ffmpeg.js#L237) | function | `scripts/install-ffmpeg.js` | 237-304 | Attempts to remove an existing ffmpeg installation directory or guides user toward package manager uninstall. |
+| [`_resetClassificationColumnCache`](../scripts/learning-store.mjs#L217) | function | `scripts/learning-store.mjs` | 217-217 | Resets the classification column cache to force re-detection on next check. |
+| [`abortRefreshRun`](../scripts/learning-store.mjs#L1598) | function | `scripts/learning-store.mjs` | 1598-1605 | Marks a refresh run as aborted with an optional error reason. |
+| [`appendDebtEventsCloud`](../scripts/learning-store.mjs#L495) | function | `scripts/learning-store.mjs` | 495-523 | Appends debt lifecycle events (e.g., raised, resolved) to cloud event log with idempotent upsert. |
+| [`callNeighbourhoodRpc`](../scripts/learning-store.mjs#L1807) | function | `scripts/learning-store.mjs` | 1807-1823 | Calls a database RPC to find neighboring symbols by semantic similarity and kind. |
+| [`chunk`](../scripts/learning-store.mjs#L1644) | function | `scripts/learning-store.mjs` | 1644-1648 | Splits an array into fixed-size chunks. |
+| [`computeDriftScore`](../scripts/learning-store.mjs#L1829) | function | `scripts/learning-store.mjs` | 1829-1843 | Calls a database RPC to compute a drift score measuring codebase volatility. |
+| [`copyForwardUntouchedFiles`](../scripts/learning-store.mjs#L1905) | function | `scripts/learning-store.mjs` | 1905-1942 | Copies symbol index entries from a prior refresh to a new one, excluding touched files. |
+| [`detectClassificationColumns`](../scripts/learning-store.mjs#L198) | function | `scripts/learning-store.mjs` | 198-214 | Checks if Supabase has classification columns by querying the schema and caches result. |
+| [`getActiveEmbeddingModel`](../scripts/learning-store.mjs#L1790) | function | `scripts/learning-store.mjs` | 1790-1799 | Retrieves the currently active embedding model and dimension for a repository. |
+| [`getActiveSnapshot`](../scripts/learning-store.mjs#L1622) | function | `scripts/learning-store.mjs` | 1622-1635 | Fetches the active refresh snapshot ID and embedding model for a repository. |
+| [`getFalsePositivePatterns`](../scripts/learning-store.mjs#L836) | function | `scripts/learning-store.mjs` | 836-850 | Retrieves auto-suppressed false positive patterns for a repository from the database. |
+| [`getPassEffectiveness`](../scripts/learning-store.mjs#L806) | function | `scripts/learning-store.mjs` | 806-831 | Retrieves pass effectiveness metrics (findings raised/accepted/dismissed) for a repository from all audit runs. |
+| [`getPassTimings`](../scripts/learning-store.mjs#L306) | function | `scripts/learning-store.mjs` | 306-337 | Retrieves historical token usage and latency data for all audit passes to compute averages. |
+| [`getPersonaSupabase`](../scripts/learning-store.mjs#L1275) | function | `scripts/learning-store.mjs` | 1275-1294 | Lazily initializes and returns a Supabase client for persona tests, or null if unconfigured. |
+| [`getReadClient`](../scripts/learning-store.mjs#L1489) | function | `scripts/learning-store.mjs` | 1489-1489 | Returns the read-only Supabase client. |
+| [`getRepoIdByUuid`](../scripts/learning-store.mjs#L1498) | function | `scripts/learning-store.mjs` | 1498-1513 | Looks up a repository by UUID and returns its ID, name, and active embedding metadata. |
+| [`getUnlockedFixes`](../scripts/learning-store.mjs#L994) | function | `scripts/learning-store.mjs` | 994-1006 | Fetches up to 20 unlocked fixes, optionally filtered by repository. |
+| [`getWriteClient`](../scripts/learning-store.mjs#L1468) | function | `scripts/learning-store.mjs` | 1468-1486 | Obtains or initializes a write-capable Supabase client using service-role credentials. |
+| [`heartbeatRefreshRun`](../scripts/learning-store.mjs#L1608) | function | `scripts/learning-store.mjs` | 1608-1613 | Updates the heartbeat timestamp of an in-flight refresh run. |
+| [`initLearningStore`](../scripts/learning-store.mjs#L27) | function | `scripts/learning-store.mjs` | 27-55 | Initializes Supabase client for cloud-based learning store, falling back to local mode on failure. |
+| [`isCloudEnabled`](../scripts/learning-store.mjs#L58) | function | `scripts/learning-store.mjs` | 58-60 | Returns whether cloud learning store is currently enabled and connected. |
+| [`isPersonaCloudEnabled`](../scripts/learning-store.mjs#L1297) | function | `scripts/learning-store.mjs` | 1297-1300 | Returns true if persona cloud is enabled via environment configuration. |
+| [`listLayeringViolationsForSnapshot`](../scripts/learning-store.mjs#L1883) | function | `scripts/learning-store.mjs` | 1883-1898 | Lists all layering violations detected in a refresh snapshot. |
+| [`listPersonasForApp`](../scripts/learning-store.mjs#L1310) | function | `scripts/learning-store.mjs` | 1310-1324 | Lists all personas associated with a given app URL. |
+| [`listSymbolsForSnapshot`](../scripts/learning-store.mjs#L1849) | function | `scripts/learning-store.mjs` | 1849-1881 | Lists symbols from a snapshot with optional filtering by kind, domain, or file prefix. |
+| [`loadBanditArms`](../scripts/learning-store.mjs#L625) | function | `scripts/learning-store.mjs` | 625-653 | Loads bandit arm statistics from cloud database organized by pass and context bucket. |
+| [`loadFalsePositivePatterns`](../scripts/learning-store.mjs#L779) | function | `scripts/learning-store.mjs` | 779-799 | Loads repository-specific and global false positive patterns with auto-suppress flags from cloud. |
+| [`openRefreshRun`](../scripts/learning-store.mjs#L1552) | function | `scripts/learning-store.mjs` | 1552-1575 | Opens a new refresh run and returns a refresh ID plus cancellation token. |
+| [`publishRefreshRun`](../scripts/learning-store.mjs#L1585) | function | `scripts/learning-store.mjs` | 1585-1595 | Publishes a completed refresh run and activates it as the current snapshot. |
+| [`readAuditEffectiveness`](../scripts/learning-store.mjs#L1087) | function | `scripts/learning-store.mjs` | 1087-1099 | Fetches audit effectiveness metrics for a repository. |
+| [`readCorrelationsForFinding`](../scripts/learning-store.mjs#L1070) | function | `scripts/learning-store.mjs` | 1070-1081 | Retrieves all persona-audit correlations for a specific audit finding. |
+| [`readCorrelationsForRun`](../scripts/learning-store.mjs#L1051) | function | `scripts/learning-store.mjs` | 1051-1062 | Retrieves all persona-audit correlations for a specific audit run. |
+| [`readDebtEntriesCloud`](../scripts/learning-store.mjs#L429) | function | `scripts/learning-store.mjs` | 429-466 | Loads all technical debt entries for a repository from cloud storage. |
+| [`readDebtEventsCloud`](../scripts/learning-store.mjs#L530) | function | `scripts/learning-store.mjs` | 530-551 | Retrieves chronologically ordered debt events for a repository from cloud storage. |
+| [`readPersistentPlanFailures`](../scripts/learning-store.mjs#L1210) | function | `scripts/learning-store.mjs` | 1210-1221 | Fetches persistent failure records associated with a plan. |
+| [`readPlanSatisfaction`](../scripts/learning-store.mjs#L1192) | function | `scripts/learning-store.mjs` | 1192-1204 | Retrieves plan satisfaction metrics for a given plan. |
+| [`recordAdjudicationEvent`](../scripts/learning-store.mjs#L560) | function | `scripts/learning-store.mjs` | 560-590 | Records finding adjudication outcomes and remediation state changes to cloud database. |
+| [`recordFindings`](../scripts/learning-store.mjs#L222) | function | `scripts/learning-store.mjs` | 222-249 | Inserts finding records from an audit pass into the cloud database with optional classification data. |
+| [`recordLayeringViolations`](../scripts/learning-store.mjs#L1750) | function | `scripts/learning-store.mjs` | 1750-1773 | Batch upserts detected layering violations in the codebase. |
+| [`recordPassStats`](../scripts/learning-store.mjs#L254) | function | `scripts/learning-store.mjs` | 254-274 | Records aggregated statistics for a single audit pass into the cloud database. |
+| [`recordPersonaAuditCorrelation`](../scripts/learning-store.mjs#L1025) | function | `scripts/learning-store.mjs` | 1025-1043 | Records a correlation between a persona finding and an audit finding. |
+| [`recordPersonaSession`](../scripts/learning-store.mjs#L1387) | function | `scripts/learning-store.mjs` | 1387-1452 | Records a persona test session with findings and returns session metadata with stats update flag. |
+| [`recordPlanVerificationItems`](../scripts/learning-store.mjs#L1166) | function | `scripts/learning-store.mjs` | 1166-1186 | Batch inserts individual verification criteria results for a plan run. |
+| [`recordPlanVerificationRun`](../scripts/learning-store.mjs#L1122) | function | `scripts/learning-store.mjs` | 1122-1147 | Creates a new plan verification run record and returns its ID. |
+| [`recordRegressionSpec`](../scripts/learning-store.mjs#L931) | function | `scripts/learning-store.mjs` | 931-957 | Records a regression test specification and returns its database ID. |
+| [`recordRegressionSpecRun`](../scripts/learning-store.mjs#L971) | function | `scripts/learning-store.mjs` | 971-987 | Logs the result of running a regression specification. |
+| [`recordRunComplete`](../scripts/learning-store.mjs#L153) | function | `scripts/learning-store.mjs` | 153-175 | Updates a completed audit run with final statistics, costs, and metadata. |
+| [`recordRunStart`](../scripts/learning-store.mjs#L106) | function | `scripts/learning-store.mjs` | 106-133 | Creates a new audit run record in cloud database and returns its ID. |
+| [`recordShipEvent`](../scripts/learning-store.mjs#L1241) | function | `scripts/learning-store.mjs` | 1241-1264 | Records a ship event (deployment decision) with outcome and context. |
+| [`recordSuppressionEvents`](../scripts/learning-store.mjs#L342) | function | `scripts/learning-store.mjs` | 342-367 | Records suppression and reopening events for findings into cloud event log. |
+| [`recordSymbolDefinitions`](../scripts/learning-store.mjs#L1680) | function | `scripts/learning-store.mjs` | 1680-1705 | Batch upserts symbol definitions and returns a map of definition IDs by canonical path. |
+| [`recordSymbolEmbedding`](../scripts/learning-store.mjs#L1734) | function | `scripts/learning-store.mjs` | 1734-1748 | Upserts a vector embedding for a symbol definition. |
+| [`recordSymbolIndex`](../scripts/learning-store.mjs#L1707) | function | `scripts/learning-store.mjs` | 1707-1732 | Batch inserts symbol index entries linking definitions to file locations. |
+| [`removeDebtEntryCloud`](../scripts/learning-store.mjs#L472) | function | `scripts/learning-store.mjs` | 472-484 | Deletes a specific technical debt entry from cloud storage. |
+| [`setActiveEmbeddingModel`](../scripts/learning-store.mjs#L1779) | function | `scripts/learning-store.mjs` | 1779-1787 | Updates the active embedding model and dimension for a repository. |
+| [`syncBanditArms`](../scripts/learning-store.mjs#L598) | function | `scripts/learning-store.mjs` | 598-619 | Syncs multi-armed bandit algorithm arm statistics to cloud for persistent learning. |
+| [`syncExperiments`](../scripts/learning-store.mjs#L717) | function | `scripts/learning-store.mjs` | 717-743 | Inserts or updates prompt experiment metadata and results to cloud database. |
+| [`syncFalsePositivePatterns`](../scripts/learning-store.mjs#L686) | function | `scripts/learning-store.mjs` | 686-709 | Syncs false positive patterns with auto-suppression flags to cloud storage. |
+| [`syncPromptRevision`](../scripts/learning-store.mjs#L753) | function | `scripts/learning-store.mjs` | 753-770 | Syncs a prompt revision with its text and checksum to cloud database. |
+| [`updatePassStatsPostDeliberation`](../scripts/learning-store.mjs#L283) | function | `scripts/learning-store.mjs` | 283-299 | Updates pass statistics after deliberation round with accepted/dismissed/compromised counts. |
+| [`updatePlanStatus`](../scripts/learning-store.mjs#L905) | function | `scripts/learning-store.mjs` | 905-912 | Updates the status of an existing plan record. |
+| [`updateRunMeta`](../scripts/learning-store.mjs#L182) | function | `scripts/learning-store.mjs` | 182-190 | Updates specific metadata fields on an existing audit run record. |
+| [`upsertDebtEntries`](../scripts/learning-store.mjs#L380) | function | `scripts/learning-store.mjs` | 380-421 | Inserts or updates technical debt entries in cloud database with classification and deferral metadata. |
+| [`upsertPersona`](../scripts/learning-store.mjs#L1339) | function | `scripts/learning-store.mjs` | 1339-1374 | Upserts a persona record and returns its ID plus whether it already existed. |
+| [`upsertPlan`](../scripts/learning-store.mjs#L875) | function | `scripts/learning-store.mjs` | 875-900 | Inserts or updates a learning plan with metadata and returns its ID. |
+| [`upsertPromptVariant`](../scripts/learning-store.mjs#L660) | function | `scripts/learning-store.mjs` | 660-677 | Inserts or updates prompt variant performance metrics in cloud database. |
+| [`upsertRepo`](../scripts/learning-store.mjs#L69) | function | `scripts/learning-store.mjs` | 69-90 | Inserts or updates a repository profile record in cloud database by fingerprint. |
+| [`upsertRepoByUuid`](../scripts/learning-store.mjs#L1521) | function | `scripts/learning-store.mjs` | 1521-1543 | Upserts a repository by UUID (or fingerprint) and returns its ID. |
+| [`withRetry`](../scripts/learning-store.mjs#L1661) | function | `scripts/learning-store.mjs` | 1661-1677 | Executes a function with exponential backoff retry on network errors. |
 | [`computeAssessmentMetrics`](../scripts/meta-assess.mjs#L48) | function | `scripts/meta-assess.mjs` | 48-150 | <no body> |
 | [`emptyMetrics`](../scripts/meta-assess.mjs#L152) | function | `scripts/meta-assess.mjs` | 152-162 | Returns an empty assessment metrics object with zero values and no window data. |
 | [`formatAssessmentReport`](../scripts/meta-assess.mjs#L353) | function | `scripts/meta-assess.mjs` | 353-398 | <no body> |
@@ -559,144 +893,352 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`shouldMapReduce`](../scripts/openai-audit.mjs#L134) | function | `scripts/openai-audit.mjs` | 134-138 | Returns true if file count exceeds threshold or total character size exceeds map-reduce token limit. |
 | [`shouldMapReduceHighReasoning`](../scripts/openai-audit.mjs#L145) | function | `scripts/openai-audit.mjs` | 145-149 | Returns true if file count exceeds high-reasoning threshold or character size exceeds high-reasoning token limit. |
 | [`validateLedgerForR2`](../scripts/openai-audit.mjs#L540) | function | `scripts/openai-audit.mjs` | 540-559 | Validates that a ledger file exists and is parseable for use in round 2+, returning validity status. |
-| [`closeAll`](../scripts/persona-harness/command-picker-redesign.mjs#L51) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 51-61 | Iteratively closes all open modals on the page by clicking close buttons or pressing Escape up to 4 times. |
-| [`idMatches`](../scripts/persona-harness/command-picker-redesign.mjs#L111) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 111-111 | Filters tree elements whose IDs start with a picker option prefix. |
-| [`pass`](../scripts/persona-harness/command-picker-redesign.mjs#L34) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 34-34 | Logs a pass label to console. |
-| [`record`](../scripts/persona-harness/command-picker-redesign.mjs#L30) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 30-33 | Records a finding (severity, summary, detail) to a findings array and logs it. |
-| [`shotPath`](../scripts/persona-harness/command-picker-redesign.mjs#L26) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 26-26 | Constructs the output file path for a screenshot by name. |
-| [`closeAll`](../scripts/persona-harness/command-picker-subgroups.mjs#L48) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 48-58 | Attempts to close all open modals by clicking close buttons or pressing Escape up to 4 times. |
-| [`pass`](../scripts/persona-harness/command-picker-subgroups.mjs#L32) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 32-32 | Logs a pass result with a label to console. |
-| [`record`](../scripts/persona-harness/command-picker-subgroups.mjs#L28) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 28-31 | Records a finding with severity and detail, then logs it to console. |
-| [`shotPath`](../scripts/persona-harness/command-picker-subgroups.mjs#L24) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 24-24 | Constructs the output file path for a screenshot by name. |
-| [`dismissModal`](../scripts/persona-harness/driver.mjs#L302) | function | `scripts/persona-harness/driver.mjs` | 302-305 | Dismisses the current modal by pressing Escape. |
-| [`dumpCommandPickerStructure`](../scripts/persona-harness/driver.mjs#L315) | function | `scripts/persona-harness/driver.mjs` | 315-328 | Extracts all AI Organiser plugin commands from the app's command registry. |
-| [`ensureVaultOpen`](../scripts/persona-harness/driver.mjs#L128) | function | `scripts/persona-harness/driver.mjs` | 128-177 | Waits for a vault to open by clicking its entry on the starter page and polling for the vault window. |
-| [`findMainPage`](../scripts/persona-harness/driver.mjs#L106) | function | `scripts/persona-harness/driver.mjs` | 106-117 | Finds the main Obsidian app page by searching for the app:// URL across all browser contexts. |
-| [`isObsidianRunning`](../scripts/persona-harness/driver.mjs#L24) | function | `scripts/persona-harness/driver.mjs` | 24-34 | Checks if Obsidian.exe is currently running on Windows. |
-| [`launchOrAttach`](../scripts/persona-harness/driver.mjs#L63) | function | `scripts/persona-harness/driver.mjs` | 63-99 | Launches Obsidian with remote debugging enabled or attaches to an already-running instance via CDP. |
-| [`openPaletteAndType`](../scripts/persona-harness/driver.mjs#L295) | function | `scripts/persona-harness/driver.mjs` | 295-299 | Opens the command palette with Ctrl+P and types a query if provided. |
-| [`openPluginCommandPicker`](../scripts/persona-harness/driver.mjs#L208) | function | `scripts/persona-harness/driver.mjs` | 208-214 | Opens the plugin's command picker modal by running a ready command. |
-| [`openPluginCommandPickerViaRibbon`](../scripts/persona-harness/driver.mjs#L224) | function | `scripts/persona-harness/driver.mjs` | 224-228 | Opens the plugin's command picker via a ribbon button with the given tooltip. |
-| [`openVaultFile`](../scripts/persona-harness/driver.mjs#L271) | function | `scripts/persona-harness/driver.mjs` | 271-282 | Opens a vault file by its path and waits for it to display. |
-| [`readVisibleMenuItems`](../scripts/persona-harness/driver.mjs#L285) | function | `scripts/persona-harness/driver.mjs` | 285-292 | Reads all visible menu items and returns their text and submenu status. |
-| [`rightClickEditor`](../scripts/persona-harness/driver.mjs#L244) | function | `scripts/persona-harness/driver.mjs` | 244-248 | Right-clicks in the editor body to open its context menu. |
-| [`rightClickEditorWithSelection`](../scripts/persona-harness/driver.mjs#L255) | function | `scripts/persona-harness/driver.mjs` | 255-261 | Double-clicks to select text in the editor, then right-clicks to open the context menu. |
-| [`rightClickFileInTree`](../scripts/persona-harness/driver.mjs#L234) | function | `scripts/persona-harness/driver.mjs` | 234-238 | Right-clicks a file in the vault tree to open its context menu. |
-| [`runCommand`](../scripts/persona-harness/driver.mjs#L198) | function | `scripts/persona-harness/driver.mjs` | 198-205 | Executes a plugin command by ID and returns success or failure. |
-| [`stampedName`](../scripts/persona-harness/driver.mjs#L331) | function | `scripts/persona-harness/driver.mjs` | 331-333 | Creates a timestamped screenshot filename. |
-| [`waitForPluginReady`](../scripts/persona-harness/driver.mjs#L183) | function | `scripts/persona-harness/driver.mjs` | 183-192 | Waits for a plugin command to be registered and ready in the app's command registry. |
-| [`waitForPort`](../scripts/persona-harness/driver.mjs#L37) | function | `scripts/persona-harness/driver.mjs` | 37-54 | Polls a network port until it becomes available or times out. |
-| [`closeAllModals`](../scripts/persona-harness/explore-audio-narration.mjs#L78) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 78-90 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
-| [`record`](../scripts/persona-harness/explore-audio-narration.mjs#L39) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 39-48 | Records an observation with a severity emoji and logs it to console. |
-| [`shotPath`](../scripts/persona-harness/explore-audio-narration.mjs#L36) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 36-36 | Constructs the output file path for a screenshot by name. |
-| [`sortBySev`](../scripts/persona-harness/explore-audio-narration.mjs#L363) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 363-366 | Sorts findings by severity level (P0 through PASS). |
-| [`captureModalState`](../scripts/persona-harness/explore-errors.mjs#L105) | function | `scripts/persona-harness/explore-errors.mjs` | 105-115 | Captures the title, text, and button count of the currently visible modal. |
-| [`captureNotices`](../scripts/persona-harness/explore-errors.mjs#L117) | function | `scripts/persona-harness/explore-errors.mjs` | 117-121 | Extracts text content from all visible notice elements. |
-| [`classifyEmptyResponse`](../scripts/persona-harness/explore-errors.mjs#L135) | function | `scripts/persona-harness/explore-errors.mjs` | 135-162 | Classifies whether an empty-state response provides helpful guidance or is a silent failure. |
-| [`closeAllModals`](../scripts/persona-harness/explore-errors.mjs#L49) | function | `scripts/persona-harness/explore-errors.mjs` | 49-61 | Closes all open modals by attempting close buttons and Escape presses up to 8 times. |
-| [`prepareEmptyFile`](../scripts/persona-harness/explore-errors.mjs#L70) | function | `scripts/persona-harness/explore-errors.mjs` | 70-86 | Creates or clears a vault file and opens it in the editor. |
-| [`prepareTextOnlyFile`](../scripts/persona-harness/explore-errors.mjs#L88) | function | `scripts/persona-harness/explore-errors.mjs` | 88-103 | Creates or overwrites a vault file with text content and opens it in the editor. |
-| [`record`](../scripts/persona-harness/explore-errors.mjs#L35) | function | `scripts/persona-harness/explore-errors.mjs` | 35-43 | Records a finding and logs it with a severity icon and feature/condition labels. |
-| [`shotPath`](../scripts/persona-harness/explore-errors.mjs#L32) | function | `scripts/persona-harness/explore-errors.mjs` | 32-32 | Constructs the output file path for a screenshot by name. |
-| [`snapshotAfterCommand`](../scripts/persona-harness/explore-errors.mjs#L123) | function | `scripts/persona-harness/explore-errors.mjs` | 123-132 | Runs a command and captures any resulting modal or notice messages. |
-| [`classifyResponse`](../scripts/persona-harness/explore-onboarding.mjs#L114) | function | `scripts/persona-harness/explore-onboarding.mjs` | 114-130 | Classifies onboarding responses based on whether they guide users to configure an API key. |
-| [`closeAllModals`](../scripts/persona-harness/explore-onboarding.mjs#L41) | function | `scripts/persona-harness/explore-onboarding.mjs` | 41-53 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
-| [`prepareNote`](../scripts/persona-harness/explore-onboarding.mjs#L97) | function | `scripts/persona-harness/explore-onboarding.mjs` | 97-111 | Creates or updates a test note with sample content and opens it in the editor. |
-| [`record`](../scripts/persona-harness/explore-onboarding.mjs#L27) | function | `scripts/persona-harness/explore-onboarding.mjs` | 27-35 | Records a finding and logs it with a severity icon and feature label. |
-| [`shotPath`](../scripts/persona-harness/explore-onboarding.mjs#L24) | function | `scripts/persona-harness/explore-onboarding.mjs` | 24-24 | Constructs the output file path for a screenshot by name. |
-| [`snapshotAfterCommand`](../scripts/persona-harness/explore-onboarding.mjs#L132) | function | `scripts/persona-harness/explore-onboarding.mjs` | 132-149 | Runs a command and captures resulting notices and modal state. |
-| [`captureModalState`](../scripts/persona-harness/explore-r6.mjs#L57) | function | `scripts/persona-harness/explore-r6.mjs` | 57-87 | Captures detailed modal state including title, buttons, inputs, error messages, and body text. |
-| [`captureNotices`](../scripts/persona-harness/explore-r6.mjs#L89) | function | `scripts/persona-harness/explore-r6.mjs` | 89-93 | Extracts text content from all visible notice elements. |
-| [`closeAllModals`](../scripts/persona-harness/explore-r6.mjs#L42) | function | `scripts/persona-harness/explore-r6.mjs` | 42-54 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
-| [`openFirstMarkdownFile`](../scripts/persona-harness/explore-r6.mjs#L95) | function | `scripts/persona-harness/explore-r6.mjs` | 95-109 | Opens the first Markdown file in the vault and returns its path. |
-| [`record`](../scripts/persona-harness/explore-r6.mjs#L28) | function | `scripts/persona-harness/explore-r6.mjs` | 28-36 | Records a finding and logs it with a severity icon, feature, and persona labels. |
-| [`shotPath`](../scripts/persona-harness/explore-r6.mjs#L25) | function | `scripts/persona-harness/explore-r6.mjs` | 25-25 | Constructs the output file path for a screenshot by name. |
-| [`captureModalState`](../scripts/persona-harness/explore.mjs#L87) | function | `scripts/persona-harness/explore.mjs` | 87-112 | Extracts and returns the title, buttons, headings, inputs, and size of the current modal. |
-| [`closeAllModals`](../scripts/persona-harness/explore.mjs#L67) | function | `scripts/persona-harness/explore.mjs` | 67-84 | Repeatedly clicks the modal close button (X) or presses Escape until all modals are dismissed. |
-| [`closeModal`](../scripts/persona-harness/explore.mjs#L85) | function | `scripts/persona-harness/explore.mjs` | 85-85 | Closes all open modals. |
-| [`initialCleanup`](../scripts/persona-harness/explore.mjs#L54) | function | `scripts/persona-harness/explore.mjs` | 54-64 | Closes all open modals by attempting to click close buttons up to 6 times. |
-| [`record`](../scripts/persona-harness/explore.mjs#L39) | function | `scripts/persona-harness/explore.mjs` | 39-47 | Logs a test finding with severity-based emoji and adds it to the observations array. |
-| [`shotPath`](../scripts/persona-harness/explore.mjs#L36) | function | `scripts/persona-harness/explore.mjs` | 36-36 | Constructs a screenshot file path from a name in the output directory. |
-| [`elapsed`](../scripts/persona-harness/fix01-extend.mjs#L52) | function | `scripts/persona-harness/fix01-extend.mjs` | 52-52 | Returns elapsed seconds since a start timestamp. |
-| [`log`](../scripts/persona-harness/fix01-extend.mjs#L17) | function | `scripts/persona-harness/fix01-extend.mjs` | 17-17 | Logs arguments to the console. |
-| [`shotPath`](../scripts/persona-harness/fix01-extend.mjs#L15) | function | `scripts/persona-harness/fix01-extend.mjs` | 15-15 | Constructs a screenshot file path from a name in the output directory. |
-| [`bail`](../scripts/persona-harness/fix01-retest.mjs#L56) | function | `scripts/persona-harness/fix01-retest.mjs` | 56-64 | Records the test outcome, writes findings to JSON, logs the result, and exits with an appropriate status code. |
-| [`closeAll`](../scripts/persona-harness/fix01-retest.mjs#L87) | function | `scripts/persona-harness/fix01-retest.mjs` | 87-99 | Repeatedly clicks the modal close button or presses Escape until all modals are gone. |
-| [`elapsed`](../scripts/persona-harness/fix01-retest.mjs#L215) | function | `scripts/persona-harness/fix01-retest.mjs` | 215-215 | Returns elapsed seconds since a start timestamp. |
-| [`log`](../scripts/persona-harness/fix01-retest.mjs#L50) | function | `scripts/persona-harness/fix01-retest.mjs` | 50-54 | Logs arguments to console and appends the line to a findings notes array. |
-| [`shotPath`](../scripts/persona-harness/fix01-retest.mjs#L28) | function | `scripts/persona-harness/fix01-retest.mjs` | 28-28 | Constructs a screenshot file path from a name in the output directory. |
-| [`shot`](../scripts/persona-harness/inspect-entry-points.mjs#L34) | function | `scripts/persona-harness/inspect-entry-points.mjs` | 34-34 | Constructs a screenshot path with a timestamp and name in a designated directory. |
-| [`log`](../scripts/persona-harness/menu-audit-walkthrough.mjs#L30) | function | `scripts/persona-harness/menu-audit-walkthrough.mjs` | 30-30 | Logs arguments with a [menu-audit] prefix. |
-| [`shot`](../scripts/persona-harness/menu-audit-walkthrough.mjs#L31) | function | `scripts/persona-harness/menu-audit-walkthrough.mjs` | 31-31 | Constructs a screenshot file path from a name in the output directory. |
-| [`gradeFlashcards`](../scripts/persona-harness/output-quality-matrix.mjs#L112) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 112-123 | Grades flashcard content based on Q/A pair count and whether questions are testable. |
-| [`gradeSummary`](../scripts/persona-harness/output-quality-matrix.mjs#L99) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 99-110 | Grades a summary based on fact density (95, 2018, locations, costs) and length constraints. |
-| [`gradeTag`](../scripts/persona-harness/output-quality-matrix.mjs#L76) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 76-97 | Grades tag quality based on count, format, relevance to farming/agriculture topics, and hallucinations. |
-| [`gradeTranslation`](../scripts/persona-harness/output-quality-matrix.mjs#L125) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 125-137 | Grades a French translation based on French language markers and fact preservation. |
-| [`swapProvider`](../scripts/persona-harness/output-quality-matrix.mjs#L53) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 53-73 | Switches the AI plugin's provider, model, and service type, then reloads the plugin. |
-| [`score`](../scripts/persona-harness/output-quality.mjs#L58) | function | `scripts/persona-harness/output-quality.mjs` | 58-65 | Records a quality finding with a letter grade and logs it with a color-coded emoji. |
-| [`closeAllModals`](../scripts/persona-harness/pres-create-panel.mjs#L61) | function | `scripts/persona-harness/pres-create-panel.mjs` | 61-73 | Repeatedly clicks the modal close button or presses Escape until all modals are closed. |
-| [`pass`](../scripts/persona-harness/pres-create-panel.mjs#L41) | function | `scripts/persona-harness/pres-create-panel.mjs` | 41-43 | Logs a passing test label. |
-| [`record`](../scripts/persona-harness/pres-create-panel.mjs#L37) | function | `scripts/persona-harness/pres-create-panel.mjs` | 37-40 | Records a finding with severity level and logs it. |
-| [`shotPath`](../scripts/persona-harness/pres-create-panel.mjs#L27) | function | `scripts/persona-harness/pres-create-panel.mjs` | 27-27 | Constructs a screenshot file path from a name in the output directory. |
-| [`closeAll`](../scripts/persona-harness/pres-e2e.mjs#L46) | function | `scripts/persona-harness/pres-e2e.mjs` | 46-58 | Repeatedly clicks the modal close button or presses Escape until all modals are gone. |
-| [`elapsed`](../scripts/persona-harness/pres-e2e.mjs#L319) | function | `scripts/persona-harness/pres-e2e.mjs` | 319-319 | Returns elapsed seconds since a start timestamp. |
-| [`shotPath`](../scripts/persona-harness/pres-e2e.mjs#L25) | function | `scripts/persona-harness/pres-e2e.mjs` | 25-25 | Constructs a screenshot file path from a name in the output directory. |
-| [`assert`](../scripts/persona-harness/pres-progress-ux.mjs#L43) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 43-46 | Records an assertion result and logs it with a checkmark or X. |
-| [`closeAll`](../scripts/persona-harness/pres-progress-ux.mjs#L64) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 64-76 | Repeatedly clicks the modal close button or presses Escape until all modals are dismissed. |
-| [`shotPath`](../scripts/persona-harness/pres-progress-ux.mjs#L35) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 35-35 | Constructs a screenshot file path from a name in the output directory. |
-| [`loadDotenv`](../scripts/persona-harness/register-personas.mjs#L26) | function | `scripts/persona-harness/register-personas.mjs` | 26-35 | Reads a .env file and loads KEY=VALUE pairs into process.env if not already set. |
-| [`upsertPersona`](../scripts/persona-harness/register-personas.mjs#L88) | function | `scripts/persona-harness/register-personas.mjs` | 88-109 | POSTs a persona to Supabase with merge-duplicates resolution and returns the created record. |
-| [`clickPickerRow`](../scripts/persona-harness/reverify.mjs#L52) | function | `scripts/persona-harness/reverify.mjs` | 52-55 | Clicks the first picker row matching the given label text. |
-| [`closeModal`](../scripts/persona-harness/reverify.mjs#L58) | function | `scripts/persona-harness/reverify.mjs` | 58-60 | Dismisses a modal by calling dismissModal. |
-| [`record`](../scripts/persona-harness/reverify.mjs#L41) | function | `scripts/persona-harness/reverify.mjs` | 41-45 | Records a reverify result with status and logs it with an emoji. |
-| [`shotPath`](../scripts/persona-harness/reverify.mjs#L38) | function | `scripts/persona-harness/reverify.mjs` | 38-38 | Constructs a screenshot file path from a name in the output directory. |
-| [`takeShot`](../scripts/persona-harness/session-step.mjs#L62) | function | `scripts/persona-harness/session-step.mjs` | 62-66 | Takes a screenshot and saves it to the session directory. |
-| [`shotPath`](../scripts/persona-harness/smoke.mjs#L48) | function | `scripts/persona-harness/smoke.mjs` | 48-48 | Constructs a timestamped screenshot file path. |
-| [`waitForPort`](../scripts/persona-harness/smoke.mjs#L50) | function | `scripts/persona-harness/smoke.mjs` | 50-67 | Polls a TCP port until it opens or times out. |
-| [`digestHasAudioEmbed`](../scripts/persona-harness/verify-audio-recovery.mjs#L36) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 36-40 | Checks if the digest file contains an audio embed regex pattern. |
-| [`findAudioFile`](../scripts/persona-harness/verify-audio-recovery.mjs#L42) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 42-46 | Returns the first audio file in the target folder matching a naming pattern or null. |
-| [`log`](../scripts/persona-harness/verify-audio-recovery.mjs#L34) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 34-34 | Logs a message with a [verify] prefix. |
 | [`checkReadiness`](../scripts/phase7-check.mjs#L12) | function | `scripts/phase7-check.mjs` | 12-64 | <no body> |
 | [`analyzePass`](../scripts/refine-prompts.mjs#L38) | function | `scripts/refine-prompts.mjs` | 38-68 | Loads outcomes, filters by pass name, computes effectiveness stats and EWR, and displays results and top dismissed categories. |
 | [`main`](../scripts/refine-prompts.mjs#L192) | function | `scripts/refine-prompts.mjs` | 192-231 | Parses command-line arguments, refreshes model catalog, and routes to analysis or suggestion based on flags. |
 | [`suggestRefinements`](../scripts/refine-prompts.mjs#L74) | function | `scripts/refine-prompts.mjs` | 74-190 | <no body> |
-| [`atomicWrite`](../scripts/symbol-index/drift.mjs#L40) | function | `scripts/symbol-index/drift.mjs` | 40-46 | Atomically writes content to a file using a temporary file and rename. |
-| [`classify`](../scripts/symbol-index/drift.mjs#L48) | function | `scripts/symbol-index/drift.mjs` | 48-52 | Maps a drift score to a status color (GREEN/AMBER/RED) based on threshold. |
-| [`main`](../scripts/symbol-index/drift.mjs#L73) | function | `scripts/symbol-index/drift.mjs` | 73-114 | Computes repository drift score, classifies status, and outputs result as JSON or markdown with exit code based on severity. |
-| [`parseArgs`](../scripts/symbol-index/drift.mjs#L31) | function | `scripts/symbol-index/drift.mjs` | 31-38 | Parses --out and --json command-line flags into an options object. |
-| [`renderMarkdownViaShared`](../scripts/symbol-index/drift.mjs#L58) | function | `scripts/symbol-index/drift.mjs` | 58-71 | Renders drift issue data as markdown via shared formatting utilities. |
-| [`compose`](../scripts/symbol-index/embed.mjs#L82) | function | `scripts/symbol-index/embed.mjs` | 82-88 | Composes a stable text representation of a symbol combining kind, name, file path, summary, and signature for embedding. |
-| [`embedBatch`](../scripts/symbol-index/embed.mjs#L35) | function | `scripts/symbol-index/embed.mjs` | 35-80 | Embeds a batch of texts via Gemini API with retry/backoff logic for rate limits and transient errors. |
-| [`emit`](../scripts/symbol-index/embed.mjs#L17) | function | `scripts/symbol-index/embed.mjs` | 17-17 | Writes a JSON object to stdout followed by a newline. |
-| [`getGeminiClient`](../scripts/symbol-index/embed.mjs#L22) | function | `scripts/symbol-index/embed.mjs` | 22-28 | Returns a cached or newly initialized Gemini API client, or null if API key is missing. |
-| [`logProgress`](../scripts/symbol-index/embed.mjs#L18) | function | `scripts/symbol-index/embed.mjs` | 18-18 | Writes a progress message to stderr with [embed] prefix. |
-| [`main`](../scripts/symbol-index/embed.mjs#L90) | function | `scripts/symbol-index/embed.mjs` | 90-132 | Reads JSON symbols from stdin, batches them for embedding via Gemini, and emits enriched records with embedding vectors. |
-| [`emit`](../scripts/symbol-index/extract.mjs#L47) | function | `scripts/symbol-index/extract.mjs` | 47-49 | Writes a JSON object to stdout followed by a newline. |
-| [`emitProgress`](../scripts/symbol-index/extract.mjs#L51) | function | `scripts/symbol-index/extract.mjs` | 51-53 | Writes a progress message to stderr with [extract] prefix. |
-| [`enumerateFiles`](../scripts/symbol-index/extract.mjs#L282) | function | `scripts/symbol-index/extract.mjs` | 282-300 | Enumerates all source files in a repository via recursive walk, optionally filtered to specific files. |
-| [`extractGraphAndViolations`](../scripts/symbol-index/extract.mjs#L206) | function | `scripts/symbol-index/extract.mjs` | 206-253 | Analyzes dependency graph via dep-cruiser to extract inter-file violations and outputs them as records. |
-| [`extractSymbols`](../scripts/symbol-index/extract.mjs#L62) | function | `scripts/symbol-index/extract.mjs` | 62-199 | <no body> |
-| [`main`](../scripts/symbol-index/extract.mjs#L302) | function | `scripts/symbol-index/extract.mjs` | 302-311 | Orchestrates symbol extraction, dependency analysis, and summarization statistics output. |
-| [`parseArgs`](../scripts/symbol-index/extract.mjs#L35) | function | `scripts/symbol-index/extract.mjs` | 35-45 | Parses command-line arguments for root directory, file filter, extraction mode, and commit threshold. |
-| [`main`](../scripts/symbol-index/prune.mjs#L39) | function | `scripts/symbol-index/prune.mjs` | 39-120 | <no body> |
-| [`parseArgs`](../scripts/symbol-index/prune.mjs#L26) | function | `scripts/symbol-index/prune.mjs` | 26-32 | Parses command-line arguments for dry-run flag. |
-| [`gitCommitSha`](../scripts/symbol-index/refresh.mjs#L67) | function | `scripts/symbol-index/refresh.mjs` | 67-70 | Returns the current HEAD commit SHA via git, or null if unavailable. |
-| [`gitDiffWithWorkingTree`](../scripts/symbol-index/refresh.mjs#L91) | function | `scripts/symbol-index/refresh.mjs` | 91-124 | Retrieves added/modified/deleted/renamed files between a commit and working tree via git diff and ls-files. |
-| [`isSafeGitRevision`](../scripts/symbol-index/refresh.mjs#L78) | function | `scripts/symbol-index/refresh.mjs` | 78-82 | Validates that a git revision string is safe for shell execution (alphanumeric and safe punctuation only). |
-| [`logErr`](../scripts/symbol-index/refresh.mjs#L64) | function | `scripts/symbol-index/refresh.mjs` | 64-64 | Writes an error message to stderr with [refresh] prefix. |
-| [`logOk`](../scripts/symbol-index/refresh.mjs#L65) | function | `scripts/symbol-index/refresh.mjs` | 65-65 | Writes a success message to stderr with [refresh] prefix. |
-| [`main`](../scripts/symbol-index/refresh.mjs#L156) | function | `scripts/symbol-index/refresh.mjs` | 156-377 | <no body> |
-| [`parseArgs`](../scripts/symbol-index/refresh.mjs#L53) | function | `scripts/symbol-index/refresh.mjs` | 53-62 | Parses command-line arguments for full refresh, commit threshold, and force flag. |
-| [`runJsonLines`](../scripts/symbol-index/refresh.mjs#L130) | function | `scripts/symbol-index/refresh.mjs` | 130-145 | Spawns a subprocess, captures JSON-line output, parses records, and returns non-null results. |
-| [`runWithHeartbeat`](../scripts/symbol-index/refresh.mjs#L147) | function | `scripts/symbol-index/refresh.mjs` | 147-154 | Executes an async function while periodically sending heartbeat updates to refresh tracking. |
-| [`classify`](../scripts/symbol-index/render-mermaid.mjs#L44) | function | `scripts/symbol-index/render-mermaid.mjs` | 44-48 | Maps a drift score to a status color (GREEN/AMBER/RED) based on threshold. |
-| [`commitSha`](../scripts/symbol-index/render-mermaid.mjs#L39) | function | `scripts/symbol-index/render-mermaid.mjs` | 39-42 | Returns the first 12 characters of the current HEAD commit SHA via git, or null if unavailable. |
-| [`main`](../scripts/symbol-index/render-mermaid.mjs#L50) | function | `scripts/symbol-index/render-mermaid.mjs` | 50-133 | <no body> |
-| [`parseArgs`](../scripts/symbol-index/render-mermaid.mjs#L31) | function | `scripts/symbol-index/render-mermaid.mjs` | 31-37 | Parses command-line arguments for output file path. |
-| [`emit`](../scripts/symbol-index/summarise.mjs#L26) | function | `scripts/symbol-index/summarise.mjs` | 26-26 | Writes a JSON object to stdout followed by a newline. |
-| [`logProgress`](../scripts/symbol-index/summarise.mjs#L27) | function | `scripts/symbol-index/summarise.mjs` | 27-27 | Writes a progress message to stderr with [summarise] prefix. |
-| [`main`](../scripts/symbol-index/summarise.mjs#L70) | function | `scripts/symbol-index/summarise.mjs` | 70-113 | Reads symbols from stdin, batches them for summarization, emits enriched records, and outputs summary statistics. |
-| [`summariseBatch`](../scripts/symbol-index/summarise.mjs#L33) | function | `scripts/symbol-index/summarise.mjs` | 33-68 | Summarizes a batch of symbols via Anthropic API with fallback to null summaries if API key missing. |
+
+---
+
+## canvas
+
+```mermaid
+flowchart TB
+subgraph dom_canvas ["canvas"]
+  file_src_services_canvas_canvasUtils_ts["src/services/canvas/canvasUtils.ts"]:::component
+  sym_src_services_canvas_canvasUtils_ts_build["buildCanvasEdge"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_build
+  sym_src_services_canvas_canvasUtils_ts_build["buildCanvasNode"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_build
+  sym_src_services_canvas_canvasUtils_ts_ensur["ensureCanvasExtension"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_ensur
+  sym_src_services_canvas_canvasUtils_ts_ensur["ensureFolderExists"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_ensur
+  sym_src_services_canvas_canvasUtils_ts_gener["generateId"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_gener
+  sym_src_services_canvas_canvasUtils_ts_getAv["getAvailableCanvasPath"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_getAv
+  sym_src_services_canvas_canvasUtils_ts_norma["normalizeFolderPath"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_norma
+  sym_src_services_canvas_canvasUtils_ts_openC["openCanvasFile"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_openC
+  sym_src_services_canvas_canvasUtils_ts_sanit["sanitizeCanvasName"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_sanit
+  sym_src_services_canvas_canvasUtils_ts_seria["serializeCanvas"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_seria
+  sym_src_services_canvas_canvasUtils_ts_write["writeCanvasFile"]:::symbol
+  file_src_services_canvas_canvasUtils_ts --> sym_src_services_canvas_canvasUtils_ts_write
+  file_src_services_canvas_clusterBoard_ts["src/services/canvas/clusterBoard.ts"]:::component
+  sym_src_services_canvas_clusterBoard_ts_buil["buildClusterBoard"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_buil
+  sym_src_services_canvas_clusterBoard_ts_comp["computeMaxNotes"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_comp
+  sym_src_services_canvas_clusterBoard_ts_dete["deterministicClustering"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_dete
+  sym_src_services_canvas_clusterBoard_ts_extr["extractIndexes"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_extr
+  sym_src_services_canvas_clusterBoard_ts_getC["getClusterColor"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_getC
+  sym_src_services_canvas_clusterBoard_ts_grou["groupBySubtag"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_grou
+  sym_src_services_canvas_clusterBoard_ts_pars["parseClusterResponse"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_pars
+  sym_src_services_canvas_clusterBoard_ts_rema["remapClusterIds"]:::symbol
+  file_src_services_canvas_clusterBoard_ts --> sym_src_services_canvas_clusterBoard_ts_rema
+  file_src_services_canvas_contextBoard_ts["src/services/canvas/contextBoard.ts"]:::component
+  sym_src_services_canvas_contextBoard_ts_buil["buildContextBoard"]:::symbol
+  file_src_services_canvas_contextBoard_ts --> sym_src_services_canvas_contextBoard_ts_buil
+  sym_src_services_canvas_contextBoard_ts_buil["buildFileOrMissingNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts --> sym_src_services_canvas_contextBoard_ts_buil
+  sym_src_services_canvas_contextBoard_ts_buil["buildMissingNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts --> sym_src_services_canvas_contextBoard_ts_buil
+  sym_src_services_canvas_contextBoard_ts_mapC["mapContentTypeToNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts --> sym_src_services_canvas_contextBoard_ts_mapC
+  file_src_services_canvas_investigationBoard_t["src/services/canvas/investigationBoard.ts"]:::component
+  sym_src_services_canvas_investigationBoard_t["buildInvestigationBoard"]:::symbol
+  file_src_services_canvas_investigationBoard_t --> sym_src_services_canvas_investigationBoard_t
+  sym_src_services_canvas_investigationBoard_t["extractLabelArray"]:::symbol
+  file_src_services_canvas_investigationBoard_t --> sym_src_services_canvas_investigationBoard_t
+  sym_src_services_canvas_investigationBoard_t["getFallbackEdgeLabel"]:::symbol
+  file_src_services_canvas_investigationBoard_t --> sym_src_services_canvas_investigationBoard_t
+  sym_src_services_canvas_investigationBoard_t["parseEdgeLabelResponse"]:::symbol
+  file_src_services_canvas_investigationBoard_t --> sym_src_services_canvas_investigationBoard_t
+  file_src_services_canvas_layouts_ts["src/services/canvas/layouts.ts"]:::component
+  sym_src_services_canvas_layouts_ts_adaptiveL["adaptiveLayout"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_adaptiveL
+  sym_src_services_canvas_layouts_ts_chooseLay["chooseLayout"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_chooseLay
+  sym_src_services_canvas_layouts_ts_clustered["clusteredLayout"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_clustered
+  sym_src_services_canvas_layouts_ts_computeEd["computeEdgeSides"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_computeEd
+  sym_src_services_canvas_layouts_ts_gridLayou["gridLayout"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_gridLayou
+  sym_src_services_canvas_layouts_ts_radialLay["radialLayout"]:::symbol
+  file_src_services_canvas_layouts_ts --> sym_src_services_canvas_layouts_ts_radialLay
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`buildCanvasEdge`](../src/services/canvas/canvasUtils.ts#L54) | function | `src/services/canvas/canvasUtils.ts` | 54-75 | Constructs a CanvasEdge object with computed connection sides based on node positions. |
+| [`buildCanvasNode`](../src/services/canvas/canvasUtils.ts#L29) | function | `src/services/canvas/canvasUtils.ts` | 29-52 | Constructs a CanvasNode object from a descriptor with position and optional dimensions. |
+| [`ensureCanvasExtension`](../src/services/canvas/canvasUtils.ts#L148) | function | `src/services/canvas/canvasUtils.ts` | 148-150 | Ensures a filename has the .canvas extension, adding it if missing. |
+| [`ensureFolderExists`](../src/services/canvas/canvasUtils.ts#L117) | function | `src/services/canvas/canvasUtils.ts` | 117-135 | Recursively creates nested folders if they don't already exist. |
+| [`generateId`](../src/services/canvas/canvasUtils.ts#L19) | function | `src/services/canvas/canvasUtils.ts` | 19-27 | Generates a cryptographically random or fallback pseudorandom ID string. |
+| [`getAvailableCanvasPath`](../src/services/canvas/canvasUtils.ts#L152) | function | `src/services/canvas/canvasUtils.ts` | 152-182 | Finds an available canvas file path by appending a counter if the base name already exists. |
+| [`normalizeFolderPath`](../src/services/canvas/canvasUtils.ts#L137) | function | `src/services/canvas/canvasUtils.ts` | 137-146 | Normalizes and trims folder path separators for consistent path formatting. |
+| [`openCanvasFile`](../src/services/canvas/canvasUtils.ts#L113) | function | `src/services/canvas/canvasUtils.ts` | 113-115 | Opens a canvas file in the Obsidian workspace. |
+| [`sanitizeCanvasName`](../src/services/canvas/canvasUtils.ts#L81) | function | `src/services/canvas/canvasUtils.ts` | 81-87 | Sanitizes a canvas name by removing invalid characters and normalizing whitespace. |
+| [`serializeCanvas`](../src/services/canvas/canvasUtils.ts#L77) | function | `src/services/canvas/canvasUtils.ts` | 77-79 | Serializes canvas data to a formatted JSON string. |
+| [`writeCanvasFile`](../src/services/canvas/canvasUtils.ts#L89) | function | `src/services/canvas/canvasUtils.ts` | 89-111 | Writes canvas data to a file in the vault, creating folders and handling naming conflicts. |
+| [`buildClusterBoard`](../src/services/canvas/clusterBoard.ts#L30) | function | `src/services/canvas/clusterBoard.ts` | 30-116 | <no body> |
+| [`computeMaxNotes`](../src/services/canvas/clusterBoard.ts#L161) | function | `src/services/canvas/clusterBoard.ts` | 161-165 | Calculates the maximum number of notes that fit within token budget for LLM clustering. |
+| [`deterministicClustering`](../src/services/canvas/clusterBoard.ts#L118) | function | `src/services/canvas/clusterBoard.ts` | 118-159 | Groups files into clusters by folder, subtag, or fixed-size chunks if no semantic grouping available. |
+| [`extractIndexes`](../src/services/canvas/clusterBoard.ts#L188) | function | `src/services/canvas/clusterBoard.ts` | 188-197 | Extracts and validates note indexes from various possible object key names, filtering by count bounds. |
+| [`getClusterColor`](../src/services/canvas/clusterBoard.ts#L26) | function | `src/services/canvas/clusterBoard.ts` | 26-28 | Returns a cluster color from a fixed palette based on index modulo. |
+| [`groupBySubtag`](../src/services/canvas/clusterBoard.ts#L231) | function | `src/services/canvas/clusterBoard.ts` | 231-249 | Groups files by subtag hierarchy within a parent tag, returning a map of subtag labels to file indices. |
+| [`parseClusterResponse`](../src/services/canvas/clusterBoard.ts#L167) | function | `src/services/canvas/clusterBoard.ts` | 167-186 | Parses JSON cluster response from LLM and validates that clusters contain valid labels and note indexes. |
+| [`remapClusterIds`](../src/services/canvas/clusterBoard.ts#L199) | function | `src/services/canvas/clusterBoard.ts` | 199-229 | Converts cluster node indices to file IDs and groups unassigned nodes into an "Other" cluster. |
+| [`buildContextBoard`](../src/services/canvas/contextBoard.ts#L14) | function | `src/services/canvas/contextBoard.ts` | 14-73 | Detects embedded content in a file, creates a canvas with the file at center and content items as satellites, then writes and optionally opens it. |
+| [`buildFileOrMissingNode`](../src/services/canvas/contextBoard.ts#L116) | function | `src/services/canvas/contextBoard.ts` | 116-128 | Returns a file node if the item resolves to a vault file, otherwise a missing text node. |
+| [`buildMissingNode`](../src/services/canvas/contextBoard.ts#L106) | function | `src/services/canvas/contextBoard.ts` | 106-114 | Creates a text node marked as missing for unresolved content items. |
+| [`mapContentTypeToNode`](../src/services/canvas/contextBoard.ts#L75) | function | `src/services/canvas/contextBoard.ts` | 75-104 | Maps embedded content types (YouTube, PDF, links, audio) to canvas node descriptors with appropriate colors and node types. |
+| [`buildInvestigationBoard`](../src/services/canvas/investigationBoard.ts#L50) | function | `src/services/canvas/investigationBoard.ts` | 50-154 | Queries RAG for related notes, ranks them by relevance score, positions them around a central file node, generates edge labels via LLM, and creates a canvas. |
+| [`extractLabelArray`](../src/services/canvas/investigationBoard.ts#L195) | function | `src/services/canvas/investigationBoard.ts` | 195-210 | Extracts labels from a parsed object's labels array, validating indices and returning a padded array of labels. |
+| [`getFallbackEdgeLabel`](../src/services/canvas/investigationBoard.ts#L189) | function | `src/services/canvas/investigationBoard.ts` | 189-193 | Returns a relatedness label (closely/related/loosely) based on the semantic similarity score threshold. |
+| [`parseEdgeLabelResponse`](../src/services/canvas/investigationBoard.ts#L156) | function | `src/services/canvas/investigationBoard.ts` | 156-181 | Attempts to parse edge labels from LLM response via JSON, code fence, or regex fallback, returning an array padded to pair count. |
+| [`adaptiveLayout`](../src/services/canvas/layouts.ts#L89) | function | `src/services/canvas/layouts.ts` | 89-98 | Selects and applies the appropriate layout (radial or grid) to a set of nodes. |
+| [`chooseLayout`](../src/services/canvas/layouts.ts#L26) | function | `src/services/canvas/layouts.ts` | 26-28 | Chooses radial layout for small node counts, grid layout for larger ones. |
+| [`clusteredLayout`](../src/services/canvas/layouts.ts#L100) | function | `src/services/canvas/layouts.ts` | 100-141 | Arranges clusters as horizontally stacked groups, each with internal grid layout and a group boundary. |
+| [`computeEdgeSides`](../src/services/canvas/layouts.ts#L143) | function | `src/services/canvas/layouts.ts` | 143-159 | Determines edge connection sides (top/bottom/left/right) based on relative positions of two nodes. |
+| [`gridLayout`](../src/services/canvas/layouts.ts#L70) | function | `src/services/canvas/layouts.ts` | 70-87 | Arranges nodes in a grid with configurable columns based on node count. |
+| [`radialLayout`](../src/services/canvas/layouts.ts#L30) | function | `src/services/canvas/layouts.ts` | 30-68 | Positions nodes in a circle around a center node, with radius computed to prevent overlap. |
+
+---
+
+## chat
+
+```mermaid
+flowchart TB
+subgraph dom_chat ["chat"]
+  file_src_services_chat_attachmentIndexService["src/services/chat/attachmentIndexService.ts"]:::component
+  sym_src_services_chat_attachmentIndexService["AttachmentIndexService"]:::symbol
+  file_src_services_chat_attachmentIndexService --> sym_src_services_chat_attachmentIndexService
+  sym_src_services_chat_attachmentIndexService["cosineSimilarity"]:::symbol
+  file_src_services_chat_attachmentIndexService --> sym_src_services_chat_attachmentIndexService
+  file_src_services_chat_brandThemeService_ts["src/services/chat/brandThemeService.ts"]:::component
+  sym_src_services_chat_brandThemeService_ts_b["buildCssFromColors"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_b
+  sym_src_services_chat_brandThemeService_ts_b["buildIconCss"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_b
+  sym_src_services_chat_brandThemeService_ts_b["buildIconReference"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_b
+  sym_src_services_chat_brandThemeService_ts_e["extractSection"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_e
+  sym_src_services_chat_brandThemeService_ts_g["getBrandPath"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_g
+  sym_src_services_chat_brandThemeService_ts_g["getDefaultTheme"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_g
+  sym_src_services_chat_brandThemeService_ts_i["isBrandAvailable"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_i
+  sym_src_services_chat_brandThemeService_ts_l["loadBrandTheme"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_l
+  sym_src_services_chat_brandThemeService_ts_p["parseAuditChecklist"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_p
+  sym_src_services_chat_brandThemeService_ts_p["parseBrandFile"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_p
+  sym_src_services_chat_brandThemeService_ts_p["parseColors"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_p
+  sym_src_services_chat_brandThemeService_ts_p["parseFont"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_p
+  sym_src_services_chat_brandThemeService_ts_p["parseRules"]:::symbol
+  file_src_services_chat_brandThemeService_ts --> sym_src_services_chat_brandThemeService_ts_p
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 109 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`AttachmentIndexService`](../src/services/chat/attachmentIndexService.ts#L17) | class | `src/services/chat/attachmentIndexService.ts` | 17-146 | Chunks and embeds document text in batches, tracking progress and enforcing mobile chunk limits. |
+| [`cosineSimilarity`](../src/services/chat/attachmentIndexService.ts#L6) | function | `src/services/chat/attachmentIndexService.ts` | 6-15 | Computes cosine similarity between two vectors by calculating dot product and magnitudes. |
+| [`buildCssFromColors`](../src/services/chat/brandThemeService.ts#L176) | function | `src/services/chat/brandThemeService.ts` | 176-263 | Builds comprehensive CSS for slide presentation styling including slide types, typography, and color theming. |
+| [`buildIconCss`](../src/services/chat/brandThemeService.ts#L107) | function | `src/services/chat/brandThemeService.ts` | 107-131 | Generates CSS rules for inline SVG icons with stroke styling and mask-based rendering at multiple sizes. |
+| [`buildIconReference`](../src/services/chat/brandThemeService.ts#L134) | function | `src/services/chat/brandThemeService.ts` | 134-139 | Returns a formatted list of icon names grouped by category for template reference. |
+| [`extractSection`](../src/services/chat/brandThemeService.ts#L321) | function | `src/services/chat/brandThemeService.ts` | 321-325 | Extracts markdown section content between level-2 headings using regex. |
+| [`getBrandPath`](../src/services/chat/brandThemeService.ts#L312) | function | `src/services/chat/brandThemeService.ts` | 312-317 | Constructs the full path to the brand guidelines file, using custom or default locations. |
+| [`getDefaultTheme`](../src/services/chat/brandThemeService.ts#L267) | function | `src/services/chat/brandThemeService.ts` | 267-273 | Returns default theme CSS, prompt rules, and audit checklist when custom branding is unavailable. |
+| [`isBrandAvailable`](../src/services/chat/brandThemeService.ts#L275) | function | `src/services/chat/brandThemeService.ts` | 275-278 | Checks if a brand guidelines file exists at the configured path. |
+| [`loadBrandTheme`](../src/services/chat/brandThemeService.ts#L280) | function | `src/services/chat/brandThemeService.ts` | 280-298 | Loads and parses a brand guidelines markdown file from the vault, with error handling for missing or malformed files. |
+| [`parseAuditChecklist`](../src/services/chat/brandThemeService.ts#L407) | function | `src/services/chat/brandThemeService.ts` | 407-414 | Converts markdown bullet points into audit checklist items with sequential IDs and descriptions. |
+| [`parseBrandFile`](../src/services/chat/brandThemeService.ts#L327) | function | `src/services/chat/brandThemeService.ts` | 327-342 | Parses brand guidelines file into CSS, composition rules, and audit checklist by extracting and processing sections. |
+| [`parseColors`](../src/services/chat/brandThemeService.ts#L345) | function | `src/services/chat/brandThemeService.ts` | 345-388 | Extracts hex colors from markdown table and maps role keywords to color properties, filling defaults as needed. |
+| [`parseFont`](../src/services/chat/brandThemeService.ts#L390) | function | `src/services/chat/brandThemeService.ts` | 390-395 | Parses font name from markdown list item and wraps it in a font-family stack. |
+| [`parseRules`](../src/services/chat/brandThemeService.ts#L397) | function | `src/services/chat/brandThemeService.ts` | 397-405 | Extracts bullet-point rules from markdown, stripping bullets and joining into newline-separated text. |
+| [`resolveTheme`](../src/services/chat/brandThemeService.ts#L300) | function | `src/services/chat/brandThemeService.ts` | 300-308 | Returns custom brand theme if enabled and available, otherwise the default theme. |
+| [`ChatSearchService`](../src/services/chat/chatSearchService.ts#L114) | class | `src/services/chat/chatSearchService.ts` | 114-265 | Searches conversation files by query and filters (mode, project, date range), returning ranked matches with metadata. |
+| [`countMessages`](../src/services/chat/chatSearchService.ts#L92) | function | `src/services/chat/chatSearchService.ts` | 92-95 | Counts the number of message headers in searchable content. |
+| [`extractTitle`](../src/services/chat/chatSearchService.ts#L99) | function | `src/services/chat/chatSearchService.ts` | 99-108 | Extracts title from first markdown heading or falls back to filename without extension. |
+| [`isWithinDateRange`](../src/services/chat/chatSearchService.ts#L42) | function | `src/services/chat/chatSearchService.ts` | 42-49 | Checks if a file's creation date falls within a specified date range filter. |
+| [`parseFrontmatter`](../src/services/chat/chatSearchService.ts#L66) | function | `src/services/chat/chatSearchService.ts` | 66-86 | Extracts chat metadata (mode, project ID, creation date, tags) from frontmatter using lightweight regex. |
+| [`ConversationCompactionService`](../src/services/chat/conversationCompactionService.ts#L15) | class | `src/services/chat/conversationCompactionService.ts` | 15-100 | Manages conversation history compaction by detecting when to summarize old messages and formatting them for LLM injection. |
+| [`ConversationPersistenceService`](../src/services/chat/conversationPersistenceService.ts#L11) | class | `src/services/chat/conversationPersistenceService.ts` | 11-228 | Persists and loads conversation state to/from markdown files with debounced saves and retrieval of recent conversations. |
+| [`extractSlideCount`](../src/services/chat/conversationPersistenceService.ts#L231) | function | `src/services/chat/conversationPersistenceService.ts` | 231-237 | Extracts slide count from presentation snapshot HTML by counting slide class elements. |
+| [`collectFolderMdPaths`](../src/services/chat/creationSourceController.ts#L364) | function | `src/services/chat/creationSourceController.ts` | 364-376 | Recursively collects markdown file paths from a folder tree by walking children. |
+| [`CreationSourceController`](../src/services/chat/creationSourceController.ts#L52) | class | `src/services/chat/creationSourceController.ts` | 52-357 | Manages selected creation sources, tracks status/errors per source, listens for stale auto-detection, and notifies listeners of changes. |
+| [`isTFile`](../src/services/chat/creationSourceController.ts#L359) | function | `src/services/chat/creationSourceController.ts` | 359-362 | Type guard checking if an object is a TFile by inspecting stat and md extension properties. |
+| [`nextId`](../src/services/chat/creationSourceController.ts#L48) | function | `src/services/chat/creationSourceController.ts` | 48-50 | Generates a unique stable ID for a creation source row. |
+| [`GenerationProgressController`](../src/services/chat/generationProgressController.ts#L50) | class | `src/services/chat/generationProgressController.ts` | 50-74 | Wraps a LongRunningOpController to track presentation generation progress and budget constraints per slide. |
+| [`parseExpectedSlideCount`](../src/services/chat/generationProgressController.ts#L80) | function | `src/services/chat/generationProgressController.ts` | 80-88 | Parses expected slide count from prompt text, defaulting to a fallback and clamping to valid range. |
+| [`GlobalMemoryService`](../src/services/chat/globalMemoryService.ts#L9) | class | `src/services/chat/globalMemoryService.ts` | 9-69 | Loads, adds, removes, and persists memory items (facts) from a vault file, enforcing deduplication and capacity limits. |
+| [`getExtendDisplayMs`](../src/services/chat/presentationConstants.ts#L69) | function | `src/services/chat/presentationConstants.ts` | 69-76 | Computes the time window available to extend generation before the hard budget fires. |
+| [`assessStructure`](../src/services/chat/presentationDiff.ts#L186) | function | `src/services/chat/presentationDiff.ts` | 186-195 | Determines whether slide count, classes, or element paths changed between versions, returning a severity classification. |
+| [`attributesMatch`](../src/services/chat/presentationDiff.ts#L96) | function | `src/services/chat/presentationDiff.ts` | 96-113 | Compares two HTML elements' attributes, treating CSS class tokens as unordered sets while other attributes must match exactly. |
+| [`buildScopeDiff`](../src/services/chat/presentationDiff.ts#L297) | function | `src/services/chat/presentationDiff.ts` | 297-307 | Extracts the HTML fragment for the scoped region, computes a text diff, and strips instrumentation attributes for display. |
+| [`buildSiblingDrift`](../src/services/chat/presentationDiff.ts#L348) | function | `src/services/chat/presentationDiff.ts` | 348-386 | Detects sibling element mutations within a scope by finding siblings of the target element and comparing their combined HTML. |
+| [`classifyDiff`](../src/services/chat/presentationDiff.ts#L156) | function | `src/services/chat/presentationDiff.ts` | 156-184 | Parses old and new HTML, identifies slides, and classifies differences into scope changes, out-of-scope drift, sibling mutations, and structural integrity status. |
+| [`collectAttrs`](../src/services/chat/presentationDiff.ts#L121) | function | `src/services/chat/presentationDiff.ts` | 121-130 | Extracts and normalizes a DOM element's attributes, excluding instrumentation markers and sorting by name. |
+| [`collectElementPaths`](../src/services/chat/presentationDiff.ts#L198) | function | `src/services/chat/presentationDiff.ts` | 198-210 | Walks a slide's DOM tree and collects all unique paths from `data-element` attributes. |
+| [`collectOutOfScopeDrift`](../src/services/chat/presentationDiff.ts#L226) | function | `src/services/chat/presentationDiff.ts` | 226-240 | Compares slides outside the edit scope and records detailed drift for those that changed. |
+| [`compareSlides`](../src/services/chat/presentationDiff.ts#L39) | function | `src/services/chat/presentationDiff.ts` | 39-58 | Compares two slide HTML strings, detecting identical, whitespace-only, text, or structural changes. |
+| [`countTextChangedLocations`](../src/services/chat/presentationDiff.ts#L321) | function | `src/services/chat/presentationDiff.ts` | 321-325 | Counts whether text content changed between old and new scope fragments by normalizing whitespace. |
+| [`describeSlideDrift`](../src/services/chat/presentationDiff.ts#L242) | function | `src/services/chat/presentationDiff.ts` | 242-254 | Compares two slides' HTML and produces a structured diff record if they differ meaningfully. |
+| [`directTextContent`](../src/services/chat/presentationDiff.ts#L133) | function | `src/services/chat/presentationDiff.ts` | 133-139 | Collects direct text node content from an element without recursing into children. |
+| [`findSiblingHtmls`](../src/services/chat/presentationDiff.ts#L391) | function | `src/services/chat/presentationDiff.ts` | 391-406 | Finds all sibling elements (same parent path) and returns their concatenated outer HTML, sorted by element path. |
+| [`normaliseTextOfHtml`](../src/services/chat/presentationDiff.ts#L327) | function | `src/services/chat/presentationDiff.ts` | 327-333 | Parses HTML, strips it of wrapper, normalizes all whitespace, and trims to produce a comparable text representation. |
+| [`parentPathOf`](../src/services/chat/presentationDiff.ts#L408) | function | `src/services/chat/presentationDiff.ts` | 408-411 | Extracts the parent path by removing the last dot-separated segment from an element path. |
+| [`scopedSlideIndices`](../src/services/chat/presentationDiff.ts#L286) | function | `src/services/chat/presentationDiff.ts` | 286-295 | Returns a Set of slide indices that fall within the given scope (single slide, range, or point). |
+| [`slidesClassesChanged`](../src/services/chat/presentationDiff.ts#L256) | function | `src/services/chat/presentationDiff.ts` | 256-265 | Checks if any slide's CSS class list changed between old and new versions, ignoring token order. |
+| [`slidesElementPathsRemoved`](../src/services/chat/presentationDiff.ts#L213) | function | `src/services/chat/presentationDiff.ts` | 213-224 | Checks whether any `data-element` paths present in old slides are missing from corresponding new slides. |
+| [`stripInstrumentationAttrs`](../src/services/chat/presentationDiff.ts#L312) | function | `src/services/chat/presentationDiff.ts` | 312-314 | Removes `data-element`, `data-bg-hover-label`, and `data-pres-*` attributes from HTML using regex replacement. |
+| [`walkCompare`](../src/services/chat/presentationDiff.ts#L61) | function | `src/services/chat/presentationDiff.ts` | 61-93 | Recursively walks two DOM trees in lockstep, returning the highest-severity change detected (structural > text > whitespace > identical). |
+| [`buildDeckContextSummary`](../src/services/chat/presentationDomDecorator.ts#L260) | function | `src/services/chat/presentationDomDecorator.ts` | 260-280 | Summarizes the deck's structure: slide count, title, and section headings. |
+| [`buildDesignSummary`](../src/services/chat/presentationDomDecorator.ts#L290) | function | `src/services/chat/presentationDomDecorator.ts` | 290-330 | Analyzes the deck's design: layout classes, component counts, and reminds the user to match existing CSS patterns. |
+| [`cssAttrEscape`](../src/services/chat/presentationDomDecorator.ts#L249) | function | `src/services/chat/presentationDomDecorator.ts` | 249-251 | Escapes double-quotes and backslashes in a CSS attribute value string for safe selector use. |
+| [`decorateByKind`](../src/services/chat/presentationDomDecorator.ts#L116) | function | `src/services/chat/presentationDomDecorator.ts` | 116-131 | Finds undecorated elements matching a CSS selector within a slide and assigns them sequential `data-element` identifiers by kind. |
+| [`decorateSlideElements`](../src/services/chat/presentationDomDecorator.ts#L68) | function | `src/services/chat/presentationDomDecorator.ts` | 68-114 | <no body> |
+| [`estimateScopedPromptChars`](../src/services/chat/presentationDomDecorator.ts#L351) | function | `src/services/chat/presentationDomDecorator.ts` | 351-369 | Estimates the total character count for a scoped edit prompt, including system overhead, canonical HTML (doubled), and extra references. |
+| [`extractScopedFragment`](../src/services/chat/presentationDomDecorator.ts#L207) | function | `src/services/chat/presentationDomDecorator.ts` | 207-246 | <no body> |
+| [`projectForEditor`](../src/services/chat/presentationDomDecorator.ts#L50) | function | `src/services/chat/presentationDomDecorator.ts` | 50-65 | Parses canonical HTML, assigns `data-element` identifiers to the deck and each slide, decorates slide children, and re-serializes. |
+| [`serializePreservingWrapper`](../src/services/chat/presentationDomDecorator.ts#L172) | function | `src/services/chat/presentationDomDecorator.ts` | 172-184 | Returns the full serialized document with doctype if the input was a full document, otherwise returns just the body innerHTML. |
+| [`stripEditorAnnotations`](../src/services/chat/presentationDomDecorator.ts#L147) | function | `src/services/chat/presentationDomDecorator.ts` | 147-155 | Removes all `data-element` attributes from the given HTML, preserving document structure and wrapper. |
+| [`buildScopedPrompt`](../src/services/chat/presentationHtmlService.ts#L463) | function | `src/services/chat/presentationHtmlService.ts` | 463-488 | Routes to either design or content scoped edit prompt builder based on mode. |
+| [`gatherScopedContext`](../src/services/chat/presentationHtmlService.ts#L426) | function | `src/services/chat/presentationHtmlService.ts` | 426-449 | Fetches references and web research in parallel (only for content mode), returns empty strings for design mode, handles signals. |
+| [`generateHtml`](../src/services/chat/presentationHtmlService.ts#L113) | function | `src/services/chat/presentationHtmlService.ts` | 113-136 | Builds a generation prompt with theme and language settings and calls `runHtmlTask`. |
+| [`generateHtmlStream`](../src/services/chat/presentationHtmlService.ts#L153) | function | `src/services/chat/presentationHtmlService.ts` | 153-225 | <no body> |
+| [`processExtractedHtml`](../src/services/chat/presentationHtmlService.ts#L88) | function | `src/services/chat/presentationHtmlService.ts` | 88-100 | Extracts HTML from LLM response, sanitizes it, validates deck structure, wraps in document, and injects CSP. |
+| [`refineHtml`](../src/services/chat/presentationHtmlService.ts#L238) | function | `src/services/chat/presentationHtmlService.ts` | 238-260 | Builds a refinement prompt with the current HTML and calls `runHtmlTask` with a separate hard budget timeout. |
+| [`refineHtmlScoped`](../src/services/chat/presentationHtmlService.ts#L356) | function | `src/services/chat/presentationHtmlService.ts` | 356-423 | <no body> |
+| [`runBrandAudit`](../src/services/chat/presentationHtmlService.ts#L264) | function | `src/services/chat/presentationHtmlService.ts` | 264-324 | <no body> |
+| [`runHtmlTask`](../src/services/chat/presentationHtmlService.ts#L57) | function | `src/services/chat/presentationHtmlService.ts` | 57-83 | Combines system and user prompts, calls the LLM via `summarizeText`, aborts on signal, and processes the extracted HTML response. |
+| [`deduplicateFindings`](../src/services/chat/presentationQualityService.ts#L67) | function | `src/services/chat/presentationQualityService.ts` | 67-82 | Deduplicates findings from two scan passes by merging into a Map keyed on slide/category/issue, with pass 2 overwriting collisions. |
+| [`findingKey`](../src/services/chat/presentationQualityService.ts#L266) | function | `src/services/chat/presentationQualityService.ts` | 266-271 | Generates a deduplication key from a finding's slide index, category, and truncated issue text. |
+| [`parseFindings`](../src/services/chat/presentationQualityService.ts#L230) | function | `src/services/chat/presentationQualityService.ts` | 230-264 | Parses the LLM's JSON response to extract structured quality findings, validating required fields and optional metadata. |
+| [`runDeepScan`](../src/services/chat/presentationQualityService.ts#L57) | function | `src/services/chat/presentationQualityService.ts` | 57-64 | Delegates to `runScan` with 'deep' mode. |
+| [`runFastScan`](../src/services/chat/presentationQualityService.ts#L47) | function | `src/services/chat/presentationQualityService.ts` | 47-54 | Delegates to `runScan` with 'fast' mode. |
+| [`runScan`](../src/services/chat/presentationQualityService.ts#L163) | function | `src/services/chat/presentationQualityService.ts` | 163-223 | <no body> |
+| [`sampleLargeDeck`](../src/services/chat/presentationQualityService.ts#L96) | function | `src/services/chat/presentationQualityService.ts` | 96-159 | <no body> |
+| [`decodeEntities`](../src/services/chat/presentationSanitizer.ts#L273) | function | `src/services/chat/presentationSanitizer.ts` | 273-277 | Decodes HTML numeric character entities (both hex and decimal) into Unicode characters. |
+| [`filterAttribute`](../src/services/chat/presentationSanitizer.ts#L215) | function | `src/services/chat/presentationSanitizer.ts` | 215-238 | Validates and escapes individual HTML attributes based on tag context and security rules. |
+| [`filterAttributes`](../src/services/chat/presentationSanitizer.ts#L241) | function | `src/services/chat/presentationSanitizer.ts` | 241-270 | Parses attribute strings using regex, filters each via `filterAttribute`, and counts rejected security-sensitive attributes. |
+| [`injectCSP`](../src/services/chat/presentationSanitizer.ts#L350) | function | `src/services/chat/presentationSanitizer.ts` | 350-365 | Adds a Content-Security-Policy meta tag to HTML if not already present. |
+| [`isAllowedCssUrl`](../src/services/chat/presentationSanitizer.ts#L145) | function | `src/services/chat/presentationSanitizer.ts` | 145-148 | Validates a CSS `url()` reference by checking for allowed data: image URIs. |
+| [`isAllowedDataImageUri`](../src/services/chat/presentationSanitizer.ts#L136) | function | `src/services/chat/presentationSanitizer.ts` | 136-138 | Checks if a trimmed lowercase URL is a non-SVG data: image URI. |
+| [`isAllowedHref`](../src/services/chat/presentationSanitizer.ts#L129) | function | `src/services/chat/presentationSanitizer.ts` | 129-133 | Validates that a URL is HTTP(S), a fragment anchor, or a mailto: link. |
+| [`isAllowedImgSrc`](../src/services/chat/presentationSanitizer.ts#L140) | function | `src/services/chat/presentationSanitizer.ts` | 140-143 | Validates an `img` src attribute by checking for allowed data: image URIs. |
+| [`sanitizeCssValue`](../src/services/chat/presentationSanitizer.ts#L152) | function | `src/services/chat/presentationSanitizer.ts` | 152-163 | Rejects CSS values matching dangerous patterns or containing unsafe `url()` references via global matching. |
+| [`sanitizePresentation`](../src/services/chat/presentationSanitizer.ts#L286) | function | `src/services/chat/presentationSanitizer.ts` | 286-340 | Removes blocked tags entirely, filters allowed tags' attributes for safety, injects CSP meta tag, and returns sanitized HTML with violation counts. |
+| [`sanitizeStyleAttribute`](../src/services/chat/presentationSanitizer.ts#L190) | function | `src/services/chat/presentationSanitizer.ts` | 190-205 | Filters and reassembles CSS declarations, keeping only whitelisted properties with sanitized values. |
+| [`splitCssDeclarations`](../src/services/chat/presentationSanitizer.ts#L170) | function | `src/services/chat/presentationSanitizer.ts` | 170-188 | Splits a CSS style string by semicolons while respecting parenthesis nesting (for `url()` and function calls). |
+| [`allocateBudget`](../src/services/chat/presentationSourceBudget.ts#L34) | function | `src/services/chat/presentationSourceBudget.ts` | 34-97 | Distributes a character budget across note, web-search, and folder-file sources with per-category caps and proportional sharing. |
+| [`PresentationSourceService`](../src/services/chat/presentationSourceService.ts#L54) | class | `src/services/chat/presentationSourceService.ts` | 54-220 | Resolves user-selected sources (notes, folders, web searches) into usable content with deduplication and per-source error tracking. |
+| [`validateCreationConfig`](../src/services/chat/presentationSourceService.ts#L238) | function | `src/services/chat/presentationSourceService.ts` | 238-246 | Validates that a presentation creation request has at least one source, a positive length within bounds. |
+| [`classifyReliability`](../src/services/chat/presentationTypes.ts#L116) | function | `src/services/chat/presentationTypes.ts` | 116-134 | Classifies presentation HTML reliability as one of: ok, warning, structurally-damaged, or unreliable based on rejection count and structure flags. |
+| [`computeQualityScore`](../src/services/chat/presentationTypes.ts#L205) | function | `src/services/chat/presentationTypes.ts` | 205-221 | Computes an overall quality score by penalizing structure findings and audit violations. |
+| [`extractSlideInfo`](../src/services/chat/presentationTypes.ts#L146) | function | `src/services/chat/presentationTypes.ts` | 146-168 | Extracts metadata (headings, text length, speaker notes, type) from slide elements in parsed HTML. |
+| [`migratePresentationSession`](../src/services/chat/presentationTypes.ts#L225) | function | `src/services/chat/presentationTypes.ts` | 225-267 | Migrates persisted presentation session data, validating schema version and required fields for versions and messages. |
+| [`runStructureChecks`](../src/services/chat/presentationTypes.ts#L170) | function | `src/services/chat/presentationTypes.ts` | 170-203 | Audits slide deck structure and returns quality findings (missing content, overcrowding, duplicate headings, missing speaker notes). |
+| [`buildProjectMd`](../src/services/chat/projectService.ts#L100) | function | `src/services/chat/projectService.ts` | 100-128 | Generates markdown frontmatter and sections for a project configuration file. |
+| [`extractWikilinks`](../src/services/chat/projectService.ts#L46) | function | `src/services/chat/projectService.ts` | 46-49 | Extracts all wikilink references from markdown text. |
+| [`parseProjectMd`](../src/services/chat/projectService.ts#L55) | function | `src/services/chat/projectService.ts` | 55-98 | Parses a project markdown file to extract metadata, instructions, memory items, and pinned file references. |
+| [`ProjectService`](../src/services/chat/projectService.ts#L139) | class | `src/services/chat/projectService.ts` | 139-616 | <no body> |
+| [`slugify`](../src/services/chat/projectService.ts#L51) | function | `src/services/chat/projectService.ts` | 51-53 | Converts project names to URL-safe slugs by replacing problematic characters. |
+| [`collectMarkdownFiles`](../src/services/chat/slideContextProvider.ts#L194) | function | `src/services/chat/slideContextProvider.ts` | 194-204 | Recursively collects all markdown files from a folder and its subfolders. |
+| [`DefaultSlideContextProvider`](../src/services/chat/slideContextProvider.ts#L73) | class | `src/services/chat/slideContextProvider.ts` | 73-190 | <no body> |
+| [`escapeAttr`](../src/services/chat/slideContextProvider.ts#L221) | function | `src/services/chat/slideContextProvider.ts` | 221-223 | Escapes double quotes in attribute values for safe HTML re-serialization. |
+| [`truncateAtSentence`](../src/services/chat/slideContextProvider.ts#L207) | function | `src/services/chat/slideContextProvider.ts` | 207-219 | Truncates text at sentence boundaries within a budget, appending a truncation notice. |
+| [`buildSlideRuntimeCode`](../src/services/chat/slideRuntime.ts#L22) | function | `src/services/chat/slideRuntime.ts` | 22-272 | Generates JavaScript runtime code for slide navigation, notes toggling, and inter-window messaging with nonce-based security. |
+| [`StreamingHtmlAssembler`](../src/services/chat/streamingHtmlAssembler.ts#L95) | class | `src/services/chat/streamingHtmlAssembler.ts` | 95-360 | <no body> |
+
+---
+
+## commands
+
+```mermaid
+flowchart TB
+subgraph dom_commands ["commands"]
+  file_src_commands_audioNarrationCommands_ts["src/commands/audioNarrationCommands.ts"]:::component
+  sym_src_commands_audioNarrationCommands_ts_f["formatBytes"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_f
+  sym_src_commands_audioNarrationCommands_ts_f["formatDurationDisplay"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_f
+  sym_src_commands_audioNarrationCommands_ts_h["handleNarrateActiveNote"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_h
+  sym_src_commands_audioNarrationCommands_ts_m["mapErrorToNotice"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_m
+  sym_src_commands_audioNarrationCommands_ts_o["openAudioPlayer"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_o
+  sym_src_commands_audioNarrationCommands_ts_r["registerAudioNarrationCommands"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_r
+  sym_src_commands_audioNarrationCommands_ts_s["showErrorNotice"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_s
+  sym_src_commands_audioNarrationCommands_ts_s["showSuccessNotice"]:::symbol
+  file_src_commands_audioNarrationCommands_ts --> sym_src_commands_audioNarrationCommands_ts_s
+  file_src_commands_canvasCommands_ts["src/commands/canvasCommands.ts"]:::component
+  sym_src_commands_canvasCommands_ts_getCurren["getCurrentNoteFolder"]:::symbol
+  file_src_commands_canvasCommands_ts --> sym_src_commands_canvasCommands_ts_getCurren
+  sym_src_commands_canvasCommands_ts_getFilesW["getFilesWithTag"]:::symbol
+  file_src_commands_canvasCommands_ts --> sym_src_commands_canvasCommands_ts_getFilesW
+  sym_src_commands_canvasCommands_ts_registerC["registerCanvasCommands"]:::symbol
+  file_src_commands_canvasCommands_ts --> sym_src_commands_canvasCommands_ts_registerC
+  sym_src_commands_canvasCommands_ts_resolveCa["resolveCanvasLanguage"]:::symbol
+  file_src_commands_canvasCommands_ts --> sym_src_commands_canvasCommands_ts_resolveCa
+  file_src_commands_chatCommands_ts["src/commands/chatCommands.ts"]:::component
+  sym_src_commands_chatCommands_ts_notify["notify"]:::symbol
+  file_src_commands_chatCommands_ts --> sym_src_commands_chatCommands_ts_notify
+  sym_src_commands_chatCommands_ts_openAIChat["openAIChat"]:::symbol
+  file_src_commands_chatCommands_ts --> sym_src_commands_chatCommands_ts_openAIChat
+  sym_src_commands_chatCommands_ts_openChatWit["openChatWithSelection"]:::symbol
+  file_src_commands_chatCommands_ts --> sym_src_commands_chatCommands_ts_openChatWit
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 183 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`formatBytes`](../src/commands/audioNarrationCommands.ts#L85) | function | `src/commands/audioNarrationCommands.ts` | 85-91 | Formats a byte count as a human-readable string with appropriate units (B/KB/MB/GB). |
 | [`formatDurationDisplay`](../src/commands/audioNarrationCommands.ts#L93) | function | `src/commands/audioNarrationCommands.ts` | 93-97 | Formats seconds as a mm:ss display string. |
 | [`handleNarrateActiveNote`](../src/commands/audioNarrationCommands.ts#L141) | function | `src/commands/audioNarrationCommands.ts` | 141-262 | <no body> |
@@ -880,6 +1422,86 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`registerUtilityCommands`](../src/commands/utilityCommands.ts#L5) | function | `src/commands/utilityCommands.ts` | 5-26 | Registers commands to collect all vault tags and display tag network visualization. |
 | [`confirmLargeUrlSet`](../src/commands/webReaderCommands.ts#L56) | function | `src/commands/webReaderCommands.ts` | 56-80 | Shows a confirmation dialog for processing large URL sets before proceeding with web reader. |
 | [`registerWebReaderCommands`](../src/commands/webReaderCommands.ts#L15) | function | `src/commands/webReaderCommands.ts` | 15-54 | Registers web-reader command that detects URLs in current note and opens a modal to fetch and translate them. |
+
+---
+
+## core
+
+```mermaid
+flowchart TB
+subgraph dom_core ["core"]
+  file_src_core_result_ts["src/core/result.ts"]:::component
+  sym_src_core_result_ts_err["err"]:::symbol
+  file_src_core_result_ts --> sym_src_core_result_ts_err
+  sym_src_core_result_ts_ok["ok"]:::symbol
+  file_src_core_result_ts --> sym_src_core_result_ts_ok
+  file_src_core_settings_ts["src/core/settings.ts"]:::component
+  sym_src_core_settings_ts_collapseDuplicatePr["collapseDuplicatePrefix"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_collapseDuplicatePr
+  sym_src_core_settings_ts_getAudioNarrationFu["getAudioNarrationFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getAudioNarrationFu
+  sym_src_core_settings_ts_getCanvasOutputFull["getCanvasOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getCanvasOutputFull
+  sym_src_core_settings_ts_getChatExportFullPa["getChatExportFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getChatExportFullPa
+  sym_src_core_settings_ts_getChatRootFullPath["getChatRootFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getChatRootFullPath
+  sym_src_core_settings_ts_getConfigFolderFull["getConfigFolderFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getConfigFolderFull
+  sym_src_core_settings_ts_getDefaultTimezone["getDefaultTimezone"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getDefaultTimezone
+  sym_src_core_settings_ts_getDictionariesFold["getDictionariesFolderFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getDictionariesFold
+  sym_src_core_settings_ts_getEffectiveOutputR["getEffectiveOutputRoot"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getEffectiveOutputR
+  sym_src_core_settings_ts_getExportOutputFull["getExportOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getExportOutputFull
+  sym_src_core_settings_ts_getFlashcardFullPat["getFlashcardFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getFlashcardFullPat
+  sym_src_core_settings_ts_getKindleOutputFull["getKindleOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getKindleOutputFull
+  sym_src_core_settings_ts_getMinutesOutputFul["getMinutesOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getMinutesOutputFul
+  sym_src_core_settings_ts_getNewsletterOutput["getNewsletterOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getNewsletterOutput
+  sym_src_core_settings_ts_getNotebookLMExport["getNotebookLMExportFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getNotebookLMExport
+  sym_src_core_settings_ts_getOutputSubfolderP["getOutputSubfolderPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getOutputSubfolderP
+  sym_src_core_settings_ts_getPluginManagedFol["getPluginManagedFolders"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getPluginManagedFol
+  sym_src_core_settings_ts_getPluginSubfolderP["getPluginSubfolderPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getPluginSubfolderP
+  sym_src_core_settings_ts_getResearchOutputFu["getResearchOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getResearchOutputFu
+  sym_src_core_settings_ts_getSketchOutputFull["getSketchOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getSketchOutputFull
+  sym_src_core_settings_ts_getTranscriptFullPa["getTranscriptFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getTranscriptFullPa
+  sym_src_core_settings_ts_getWebReaderOutputF["getWebReaderOutputFullPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_getWebReaderOutputF
+  sym_src_core_settings_ts_migrateDeprecatedGe["migrateDeprecatedGeminiIds"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_migrateDeprecatedGe
+  sym_src_core_settings_ts_migrateOldSettings["migrateOldSettings"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_migrateOldSettings
+  sym_src_core_settings_ts_normalizeFolderSegm["normalizeFolderSegment"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_normalizeFolderSegm
+  sym_src_core_settings_ts_resolveOutputPath["resolveOutputPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_resolveOutputPath
+  sym_src_core_settings_ts_resolvePluginPath["resolvePluginPath"]:::symbol
+  file_src_core_settings_ts --> sym_src_core_settings_ts_resolvePluginPath
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`err`](../src/core/result.ts#L6) | function | `src/core/result.ts` | 6-6 | Wraps an error in a failure result object. |
 | [`ok`](../src/core/result.ts#L5) | function | `src/core/result.ts` | 5-5 | Wraps a value in a success result object. |
 | [`collapseDuplicatePrefix`](../src/core/settings.ts#L633) | function | `src/core/settings.ts` | 633-643 | Removes duplicate plugin folder prefixes from a full path. |
@@ -909,307 +1531,61 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`normalizeFolderSegment`](../src/core/settings.ts#L624) | function | `src/core/settings.ts` | 624-631 | Normalizes a folder name by trimming whitespace, converting backslashes, and removing leading/trailing slashes. |
 | [`resolveOutputPath`](../src/core/settings.ts#L674) | function | `src/core/settings.ts` | 674-691 | Resolves a subfolder value to a full output path, handling legacy prefix migrations. |
 | [`resolvePluginPath`](../src/core/settings.ts#L645) | function | `src/core/settings.ts` | 645-656 | Resolves a subfolder value to a full plugin path, handling legacy full-path inputs. |
-| [`getLanguageOptions`](../src/i18n/index.ts#L38) | function | `src/i18n/index.ts` | 38-43 | Returns a map of all supported language codes to their display names. |
-| [`getTranslations`](../src/i18n/index.ts#L30) | function | `src/i18n/index.ts` | 30-32 | Returns the translation object for a given language code, defaulting to English. |
-| [`isSupportedLanguage`](../src/i18n/index.ts#L50) | function | `src/i18n/index.ts` | 50-52 | Checks whether a language code is supported by the plugin's translation system. |
-| [`AIOrganiserPlugin`](../src/main.ts#L54) | class | `src/main.ts` | 54-1234 | Main plugin class that orchestrates AI-powered organization features, managing settings, services, and UI elements. |
-| [`formatElapsedForNotice`](../src/main.ts#L1236) | function | `src/main.ts` | 1236-1241 | Converts milliseconds to a human-readable elapsed time format (e.g., "2m 30s" or "45s"). |
-| [`AliyunAdapter`](../src/services/adapters/aliyunAdapter.ts#L5) | class | `src/services/adapters/aliyunAdapter.ts` | 5-137 | Adapter for Aliyun's Qwen LLM, formatting requests and parsing responses in Aliyun's expected format. |
-| [`BaseAdapter`](../src/services/adapters/baseAdapter.ts#L7) | class | `src/services/adapters/baseAdapter.ts` | 7-280 | Base class for LLM adapters that provides request formatting and response parsing utilities for cloud service providers. |
-| [`BedrockAdapter`](../src/services/adapters/bedrockAdapter.ts#L5) | class | `src/services/adapters/bedrockAdapter.ts` | 5-126 | Adapter for AWS Bedrock, supporting multiple model types (Claude, Titan) with model-specific request formatting. |
-| [`ClaudeAdapter`](../src/services/adapters/claudeAdapter.ts#L14) | class | `src/services/adapters/claudeAdapter.ts` | 14-199 | Adapter for Anthropic's Claude API, implementing adaptive thinking parameters and message-based API interactions. |
-| [`supportsAdaptiveThinking`](../src/services/adapters/claudeAdapter.ts#L10) | function | `src/services/adapters/claudeAdapter.ts` | 10-12 | Checks whether a Claude model supports adaptive thinking mode based on its version. |
-| [`CohereAdapter`](../src/services/adapters/cohereAdapter.ts#L6) | class | `src/services/adapters/cohereAdapter.ts` | 6-102 | Adapter for Cohere's v2 API, using OpenAI-compatible message format with Cohere-specific response paths. |
-| [`DeepseekAdapter`](../src/services/adapters/deepseekAdapter.ts#L5) | class | `src/services/adapters/deepseekAdapter.ts` | 5-83 | Adapter for Deepseek models, parsing JSON responses and handling structured data extraction. |
-| [`__resetDynamicModelCache`](../src/services/adapters/dynamicModelService.ts#L46) | function | `src/services/adapters/dynamicModelService.ts` | 46-48 | Clears the live model cache for all providers. |
-| [`fetchAnthropic`](../src/services/adapters/dynamicModelService.ts#L119) | function | `src/services/adapters/dynamicModelService.ts` | 119-140 | Fetches available models from Anthropic's API and maps them to a standardized format. |
-| [`fetchGemini`](../src/services/adapters/dynamicModelService.ts#L161) | function | `src/services/adapters/dynamicModelService.ts` | 161-187 | Fetches available Gemini models from Google's API, filtering for generative capabilities and extracting context windows. |
-| [`fetchLiveModels`](../src/services/adapters/dynamicModelService.ts#L59) | function | `src/services/adapters/dynamicModelService.ts` | 59-68 | Fetches live model lists from a provider's API using the registered fetcher function. |
-| [`fetchOpenAICompat`](../src/services/adapters/dynamicModelService.ts#L142) | function | `src/services/adapters/dynamicModelService.ts` | 142-159 | Creates a reusable fetcher function for OpenAI-compatible model list endpoints. |
-| [`getCachedModels`](../src/services/adapters/dynamicModelService.ts#L51) | function | `src/services/adapters/dynamicModelService.ts` | 51-53 | Retrieves cached models for a specific provider if available. |
-| [`getLiveModels`](../src/services/adapters/dynamicModelService.ts#L78) | function | `src/services/adapters/dynamicModelService.ts` | 78-101 | Returns live models for a provider, using cache when fresh, falling back to static models if fetch fails. |
-| [`providerSupportsLiveFetch`](../src/services/adapters/dynamicModelService.ts#L191) | function | `src/services/adapters/dynamicModelService.ts` | 191-193 | Checks if a provider supports live model fetching. |
-| [`GeminiAdapter`](../src/services/adapters/geminiAdapter.ts#L5) | class | `src/services/adapters/geminiAdapter.ts` | 5-78 | Adapter for Google Gemini API, supporting multimodal (image + document) content. |
-| [`GrokAdapter`](../src/services/adapters/grokAdapter.ts#L6) | class | `src/services/adapters/grokAdapter.ts` | 6-102 | Adapter for xAI's Grok API, formatting requests and extracting JSON from responses. |
-| [`GroqAdapter`](../src/services/adapters/groqAdapter.ts#L6) | class | `src/services/adapters/groqAdapter.ts` | 6-102 | Adapter for Groq's fast inference API, using OpenAI-compatible format with Groq-specific defaults. |
-| [`createAdapter`](../src/services/adapters/index.ts#L28) | function | `src/services/adapters/index.ts` | 28-100 | Factory function that creates the appropriate adapter instance based on provider type. |
-| [`MistralAdapter`](../src/services/adapters/mistralAdapter.ts#L5) | class | `src/services/adapters/mistralAdapter.ts` | 5-44 | Adapter for Mistral AI, supporting streaming with OpenAI-compatible endpoints and safe mode. |
-| [`claudeHas1MContext`](../src/services/adapters/modelCapabilities.ts#L69) | function | `src/services/adapters/modelCapabilities.ts` | 69-71 | Checks if a Claude model has 1M context window support. |
-| [`claudeSupportsAdaptiveThinking`](../src/services/adapters/modelCapabilities.ts#L52) | function | `src/services/adapters/modelCapabilities.ts` | 52-57 | Determines if a Claude model supports adaptive thinking (Opus/Sonnet 4.6+). |
-| [`claudeSupportsDynamicWebSearch`](../src/services/adapters/modelCapabilities.ts#L78) | function | `src/services/adapters/modelCapabilities.ts` | 78-80 | Checks if a Claude model supports dynamic web search capability. |
-| [`geminiSupportsThinking`](../src/services/adapters/modelCapabilities.ts#L178) | function | `src/services/adapters/modelCapabilities.ts` | 178-184 | Checks if a Gemini model supports thinking mode (2.5+ Pro/Flash). |
-| [`openaiIsReasoningModel`](../src/services/adapters/modelCapabilities.ts#L129) | function | `src/services/adapters/modelCapabilities.ts` | 129-132 | Determines if an OpenAI model is a reasoning model (O-series). |
-| [`parseClaudeModel`](../src/services/adapters/modelCapabilities.ts#L30) | function | `src/services/adapters/modelCapabilities.ts` | 30-39 | Parses a Claude model ID into version components (tier, major, minor). |
-| [`parseGeminiModel`](../src/services/adapters/modelCapabilities.ts#L162) | function | `src/services/adapters/modelCapabilities.ts` | 162-175 | Parses a Gemini model ID into version, tier, and capability flags. |
-| [`parseOpenAIModel`](../src/services/adapters/modelCapabilities.ts#L103) | function | `src/services/adapters/modelCapabilities.ts` | 103-126 | Parses an OpenAI model ID into family, version, and variant components (GPT or O-series). |
-| [`pickNewestClaude`](../src/services/adapters/modelCapabilities.ts#L203) | function | `src/services/adapters/modelCapabilities.ts` | 203-213 | Selects the newest Claude model of a specified tier from available IDs. |
-| [`pickNewestGemini`](../src/services/adapters/modelCapabilities.ts#L219) | function | `src/services/adapters/modelCapabilities.ts` | 219-232 | Selects the newest Gemini model of a specified tier, preferring GA over preview versions. |
-| [`pickNewestOpenAI`](../src/services/adapters/modelCapabilities.ts#L235) | function | `src/services/adapters/modelCapabilities.ts` | 235-253 | Selects the newest OpenAI model matching a specified tier (GPT, mini, nano, or O-series). |
-| [`resolveLatestModel`](../src/services/adapters/modelCapabilities.ts#L267) | function | `src/services/adapters/modelCapabilities.ts` | 267-303 | Resolves "latest-" sentinel model IDs to actual model IDs using available model pools and version parsing. |
-| [`resolveSpecialistModel`](../src/services/adapters/modelCapabilities.ts#L318) | function | `src/services/adapters/modelCapabilities.ts` | 318-328 | Resolves specialist model IDs to concrete models, preferring live IDs when available. |
-| [`versionAtLeast`](../src/services/adapters/modelCapabilities.ts#L42) | function | `src/services/adapters/modelCapabilities.ts` | 42-45 | Checks if a parsed Claude version is at least a specified major.minor version. |
-| [`getFirstModel`](../src/services/adapters/modelRegistry.ts#L163) | function | `src/services/adapters/modelRegistry.ts` | 163-167 | Returns the first (default) model ID for a provider. |
-| [`getProviderModels`](../src/services/adapters/modelRegistry.ts#L149) | function | `src/services/adapters/modelRegistry.ts` | 149-151 | Returns all models registered for a specific provider. |
-| [`hasModelList`](../src/services/adapters/modelRegistry.ts#L156) | function | `src/services/adapters/modelRegistry.ts` | 156-158 | Checks if a provider has any registered models in the model registry. |
-| [`isValidModel`](../src/services/adapters/modelRegistry.ts#L172) | function | `src/services/adapters/modelRegistry.ts` | 172-176 | Validates whether a model ID is registered for a given provider. |
-| [`OpenAIAdapter`](../src/services/adapters/openaiAdapter.ts#L6) | class | `src/services/adapters/openaiAdapter.ts` | 6-87 | Adapter for OpenAI's Chat API, supporting image multimodal content with hard error for unsupported documents. |
-| [`OpenAICompatibleAdapter`](../src/services/adapters/openaiCompatibleAdapter.ts#L5) | class | `src/services/adapters/openaiCompatibleAdapter.ts` | 5-115 | Generic adapter for OpenAI-compatible endpoints, allowing custom configurations beyond standard parameters. |
-| [`OpenRouterAdapter`](../src/services/adapters/openRouterAdapter.ts#L5) | class | `src/services/adapters/openRouterAdapter.ts` | 5-86 | Adapter for OpenRouter, parsing responses and extracting matched/suggested tags from JSON content. |
-| [`buildProviderOptions`](../src/services/adapters/providerRegistry.ts#L68) | function | `src/services/adapters/providerRegistry.ts` | 68-85 | Builds a localized provider options object mapping provider names to their display labels. |
-| [`RequestyAdapter`](../src/services/adapters/requestyAdapter.ts#L6) | class | `src/services/adapters/requestyAdapter.ts` | 6-103 | Adapter for Requesty service, using OpenAI-compatible format with customizable temperature and token limits. |
-| [`SiliconflowAdapter`](../src/services/adapters/siliconflowAdapter.ts#L6) | class | `src/services/adapters/siliconflowAdapter.ts` | 6-92 | Adapter for Siliconflow's chat API with bearer token authentication and connection testing. |
-| [`VertexAdapter`](../src/services/adapters/vertexAdapter.ts#L6) | class | `src/services/adapters/vertexAdapter.ts` | 6-131 | Adapter for Google Vertex AI, formatting requests with Vertex-specific instance/parameter structure. |
-| [`checkMainProviderConfigured`](../src/services/apiKeyHelpers.ts#L273) | function | `src/services/apiKeyHelpers.ts` | 273-298 | Validates that the main AI provider (local or cloud) has a configured endpoint or API key. |
-| [`getAudioNarrationProviderConfig`](../src/services/apiKeyHelpers.ts#L128) | function | `src/services/apiKeyHelpers.ts` | 128-134 | Retrieves the audio narration provider configuration from plugin settings. |
-| [`getAudioTranscriptionApiKey`](../src/services/apiKeyHelpers.ts#L179) | function | `src/services/apiKeyHelpers.ts` | 179-215 | Fetches audio transcription API key, trying OpenAI first then Groq, with fallback chains for each. |
-| [`getAuditProviderConfig`](../src/services/apiKeyHelpers.ts#L107) | function | `src/services/apiKeyHelpers.ts` | 107-116 | Returns the audit provider configuration by resolving its settings through the specialist provider helper. |
-| [`getClaudeWebSearchKey`](../src/services/apiKeyHelpers.ts#L249) | function | `src/services/apiKeyHelpers.ts` | 249-263 | Fetches Claude web search API key from dedicated storage or main cloud key if service type is Claude. |
-| [`getFlashcardProviderConfig`](../src/services/apiKeyHelpers.ts#L221) | function | `src/services/apiKeyHelpers.ts` | 221-229 | Retrieves the flashcard generation provider configuration with model settings. |
-| [`getQuickPeekProviderConfig`](../src/services/apiKeyHelpers.ts#L235) | function | `src/services/apiKeyHelpers.ts` | 235-243 | Retrieves the quick peek provider configuration with model settings. |
-| [`getYouTubeGeminiApiKey`](../src/services/apiKeyHelpers.ts#L150) | function | `src/services/apiKeyHelpers.ts` | 150-173 | Resolves YouTube Gemini API key from secure storage or fallback settings with provider precedence. |
-| [`resolvePlainTextKey`](../src/services/apiKeyHelpers.ts#L39) | function | `src/services/apiKeyHelpers.ts` | 39-54 | Resolves an API key from settings, checking plain text storage, provider-specific settings, and cloud defaults in order. |
-| [`resolveSpecialistProvider`](../src/services/apiKeyHelpers.ts#L60) | function | `src/services/apiKeyHelpers.ts` | 60-101 | Resolves a specialist LLM provider configuration (API key, model, endpoint) with guard conditions and fallback logic. |
-| [`deleteAudioFile`](../src/services/audioCleanupService.ts#L108) | function | `src/services/audioCleanupService.ts` | 108-119 | Moves audio file to trash with error handling and user notification. |
-| [`offerPostTranscriptionCleanup`](../src/services/audioCleanupService.ts#L30) | function | `src/services/audioCleanupService.ts` | 30-83 | Determines post-transcription audio file policy (keep, compress, or delete) based on settings and file size savings. |
-| [`replaceWithCompressed`](../src/services/audioCleanupService.ts#L86) | function | `src/services/audioCleanupService.ts` | 86-105 | Replaces original audio file with compressed MP3 version and updates backlinks. |
-| [`calculateBitrate`](../src/services/audioCompressionService.ts#L145) | function | `src/services/audioCompressionService.ts` | 145-150 | Calculates optimal MP3 bitrate for target file size, clamped between 24–96 kbps for speech. |
-| [`cleanupChunks`](../src/services/audioCompressionService.ts#L910) | function | `src/services/audioCompressionService.ts` | 910-918 | Removes temporary chunk output directory and temp files with error suppression. |
-| [`cleanupOrphanedChunks`](../src/services/audioCompressionService.ts#L925) | function | `src/services/audioCompressionService.ts` | 925-959 | Cleans up orphaned chunk directories older than 1 hour from system temp directory. |
-| [`compressAndChunkAudio`](../src/services/audioCompressionService.ts#L625) | function | `src/services/audioCompressionService.ts` | 625-751 | Compresses and splits audio into overlapping chunks for large files, with progress reporting. |
-| [`compressAndSplitWithOverlap`](../src/services/audioCompressionService.ts#L788) | function | `src/services/audioCompressionService.ts` | 788-905 | Compresses full audio then segments it with overlap using two-pass FFmpeg processing. |
-| [`compressAudio`](../src/services/audioCompressionService.ts#L271) | function | `src/services/audioCompressionService.ts` | 271-424 | Compresses audio file to MP3 format using FFmpeg, with fallback duration estimation and error handling. |
-| [`compressWithFFmpeg`](../src/services/audioCompressionService.ts#L197) | function | `src/services/audioCompressionService.ts` | 197-265 | Compresses audio to MP3 using FFmpeg with progress tracking and bitrate limiting. |
-| [`disposeFFmpeg`](../src/services/audioCompressionService.ts#L444) | function | `src/services/audioCompressionService.ts` | 444-446 | <no body> |
-| [`findFFmpegPath`](../src/services/audioCompressionService.ts#L78) | function | `src/services/audioCompressionService.ts` | 78-109 | Searches for FFmpeg executable in common installation paths on Windows and Unix systems. |
-| [`getAudioDuration`](../src/services/audioCompressionService.ts#L155) | function | `src/services/audioCompressionService.ts` | 155-192 | Extracts audio duration in seconds using FFprobe with timeout protection. |
-| [`getChunkDurations`](../src/services/audioCompressionService.ts#L757) | function | `src/services/audioCompressionService.ts` | 757-774 | Reads chunk durations from output directory using FFprobe for each MP3 file. |
-| [`getCompressionEstimate`](../src/services/audioCompressionService.ts#L436) | function | `src/services/audioCompressionService.ts` | 436-439 | Estimates compressed file size reduction using 30% ratio capped at target size. |
-| [`isFFmpegAvailable`](../src/services/audioCompressionService.ts#L114) | function | `src/services/audioCompressionService.ts` | 114-140 | Checks if FFmpeg is available and executable by running a version check. |
-| [`needsChunking`](../src/services/audioCompressionService.ts#L547) | function | `src/services/audioCompressionService.ts` | 547-613 | Analyzes audio duration to decide if chunking is needed (>20 minutes or estimated compressed size exceeds target). |
-| [`needsCompression`](../src/services/audioCompressionService.ts#L429) | function | `src/services/audioCompressionService.ts` | 429-431 | Determines if audio file exceeds maximum allowed size threshold. |
-| [`replaceAudioFile`](../src/services/audioCompressionService.ts#L464) | function | `src/services/audioCompressionService.ts` | 464-505 | Replaces original audio file with compressed bytes, handles extension changes with collision-safe rename, and counts updated backlinks. |
-| [`requireFs`](../src/services/audioCompressionService.ts#L21) | function | `src/services/audioCompressionService.ts` | 21-25 | Returns the fs module or throws if unavailable on desktop. |
-| [`requireOs`](../src/services/audioCompressionService.ts#L31) | function | `src/services/audioCompressionService.ts` | 31-35 | Returns the os module or throws if unavailable on desktop. |
-| [`requirePath`](../src/services/audioCompressionService.ts#L26) | function | `src/services/audioCompressionService.ts` | 26-30 | Returns the path module or throws if unavailable on desktop. |
-| [`requireSpawn`](../src/services/audioCompressionService.ts#L36) | function | `src/services/audioCompressionService.ts` | 36-40 | Returns the spawn function from child_process or throws if unavailable on desktop. |
-| [`buildOutputPath`](../src/services/audioNarration/audioNarrationService.ts#L86) | function | `src/services/audioNarration/audioNarrationService.ts` | 86-95 | Constructs full output path for narration MP3 using note basename and fingerprint prefix. |
-| [`describeError`](../src/services/audioNarration/audioNarrationService.ts#L310) | function | `src/services/audioNarration/audioNarrationService.ts` | 310-313 | Returns error message from Error object or string coercion. |
-| [`executeNarration`](../src/services/audioNarration/audioNarrationService.ts#L198) | function | `src/services/audioNarration/audioNarrationService.ts` | 198-301 | Synthesizes audio narration by calling TTS provider in chunks with retry logic and cancellation support. |
-| [`isAbort`](../src/services/audioNarration/audioNarrationService.ts#L315) | function | `src/services/audioNarration/audioNarrationService.ts` | 315-319 | Checks if error is an AbortError (DOM or standard Error variant). |
-| [`parentFolder`](../src/services/audioNarration/audioNarrationService.ts#L305) | function | `src/services/audioNarration/audioNarrationService.ts` | 305-308 | Returns parent directory path by finding last forward slash. |
-| [`prepareNarration`](../src/services/audioNarration/audioNarrationService.ts#L99) | function | `src/services/audioNarration/audioNarrationService.ts` | 99-189 | Transforms note content to spoken prose by parsing markdown, validating provider/voice, and preparing text. |
-| [`sanitiseFilename`](../src/services/audioNarration/audioNarrationService.ts#L68) | function | `src/services/audioNarration/audioNarrationService.ts` | 68-84 | Sanitizes note title to valid filename by removing special characters, trimming, and handling Windows reserved names. |
-| [`capitalize`](../src/services/audioNarration/markdownToProseTransformer.ts#L334) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 334-337 | Capitalizes first character and lowercases rest of string. |
-| [`computeStats`](../src/services/audioNarration/markdownToProseTransformer.ts#L343) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 343-348 | Calculates character/word count and estimated speaking duration for given text. |
-| [`dedupe`](../src/services/audioNarration/markdownToProseTransformer.ts#L339) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 339-341 | Returns unique array elements using Set. |
-| [`isTableAlignmentRow`](../src/services/audioNarration/markdownToProseTransformer.ts#L291) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 291-293 | Tests if row is markdown table alignment separator (colons and dashes). |
-| [`splitTableRow`](../src/services/audioNarration/markdownToProseTransformer.ts#L287) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 287-289 | Splits pipe-delimited table row into trimmed cell values. |
-| [`stripInlineFormatting`](../src/services/audioNarration/markdownToProseTransformer.ts#L228) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 228-283 | Strips markdown syntax (links, embeds, formatting) from text while preserving semantic content. |
-| [`stripInlineFormattingMinimal`](../src/services/audioNarration/markdownToProseTransformer.ts#L320) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 320-330 | Strips inline markdown formatting (links, bold, italic, code) while preserving readable text. |
-| [`tableToProse`](../src/services/audioNarration/markdownToProseTransformer.ts#L295) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 295-317 | Converts markdown table to prose description using headers and selected verbosity mode. |
-| [`transformToSpokenProse`](../src/services/audioNarration/markdownToProseTransformer.ts#L28) | function | `src/services/audioNarration/markdownToProseTransformer.ts` | 28-224 | Transforms markdown note to spoken prose by stripping formatting, handling code/math blocks, and converting tables. |
-| [`estimateNarrationCost`](../src/services/audioNarration/narrationCostEstimator.ts#L14) | function | `src/services/audioNarration/narrationCostEstimator.ts` | 14-34 | Estimates narration cost and duration for text using provider rates and TTS chunk splitting. |
-| [`buildBlock`](../src/services/audioNarration/narrationEmbedManager.ts#L36) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 36-38 | Builds narration embed block markdown with audio file reference. |
-| [`describeError`](../src/services/audioNarration/narrationEmbedManager.ts#L159) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 159-162 | Extracts error message from Error objects, falling back to string conversion for unknown error types. |
-| [`findEmbedBlock`](../src/services/audioNarration/narrationEmbedManager.ts#L30) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 30-34 | Finds and returns start/end position of existing narration embed block in content. |
-| [`syncEmbed`](../src/services/audioNarration/narrationEmbedManager.ts#L54) | function | `src/services/audioNarration/narrationEmbedManager.ts` | 54-157 | Syncs narration MP3 embed into note after frontmatter, replacing existing embed or removing if disabled. |
-| [`JobInFlightError`](../src/services/audioNarration/narrationJobRegistry.ts#L6) | class | `src/services/audioNarration/narrationJobRegistry.ts` | 6-12 | Custom error class thrown when a narration job is already running for a given file path. |
-| [`NarrationJobRegistry`](../src/services/audioNarration/narrationJobRegistry.ts#L14) | class | `src/services/audioNarration/narrationJobRegistry.ts` | 14-74 | Registry that tracks in-flight narration jobs using AbortControllers and provides cancellation and cleanup utilities. |
-| [`decodeError`](../src/services/audioNarration/narrationTypes.ts#L43) | function | `src/services/audioNarration/narrationTypes.ts` | 43-50 | Decodes a colon-separated error string back into a structured error object with validation. |
-| [`encodeError`](../src/services/audioNarration/narrationTypes.ts#L38) | function | `src/services/audioNarration/narrationTypes.ts` | 38-40 | Encodes a narration error into a string by concatenating code and message with a colon separator. |
-| [`errFrom`](../src/services/audioNarration/narrationTypes.ts#L63) | function | `src/services/audioNarration/narrationTypes.ts` | 63-65 | Wraps a narration error by encoding it and returning a failure result. |
-| [`isNarrationErrorCode`](../src/services/audioNarration/narrationTypes.ts#L58) | function | `src/services/audioNarration/narrationTypes.ts` | 58-60 | Validates whether a string is a recognized narration error code. |
-| [`makeError`](../src/services/audioNarration/narrationTypes.ts#L33) | function | `src/services/audioNarration/narrationTypes.ts` | 33-35 | Returns an object containing error code, message, and optional cause. |
-| [`AudioRecordingService`](../src/services/audioRecordingService.ts#L76) | class | `src/services/audioRecordingService.ts` | 76-259 | <no body> |
-| [`getMaxRecordingMinutes`](../src/services/audioRecordingService.ts#L71) | function | `src/services/audioRecordingService.ts` | 71-74 | Calculates maximum recordable duration in minutes based on bitrate and file size limits. |
-| [`isRecordingSupported`](../src/services/audioRecordingService.ts#L39) | function | `src/services/audioRecordingService.ts` | 39-45 | Checks if the browser supports audio recording via MediaRecorder and getUserMedia APIs. |
-| [`mapMimeToExtension`](../src/services/audioRecordingService.ts#L28) | function | `src/services/audioRecordingService.ts` | 28-33 | Maps audio MIME types to file extensions, defaulting to WebM. |
-| [`selectMime`](../src/services/audioRecordingService.ts#L52) | function | `src/services/audioRecordingService.ts` | 52-65 | Selects the best supported audio MIME type and extension from a priority list of candidates. |
-| [`buildMultipartFormData`](../src/services/audioTranscriptionService.ts#L315) | function | `src/services/audioTranscriptionService.ts` | 315-374 | Builds a multipart form data request body for Whisper API with file, model, and optional language/prompt parameters. |
-| [`combineArrayBuffers`](../src/services/audioTranscriptionService.ts#L380) | function | `src/services/audioTranscriptionService.ts` | 380-409 | Combines multiple strings and ArrayBuffers into a single contiguous ArrayBuffer. |
-| [`formatFileSize`](../src/services/audioTranscriptionService.ts#L108) | function | `src/services/audioTranscriptionService.ts` | 108-112 | Formats a byte size into human-readable units (B, KB, or MB). |
-| [`getAllAudioFiles`](../src/services/audioTranscriptionService.ts#L93) | function | `src/services/audioTranscriptionService.ts` | 93-96 | Retrieves all audio files from the entire vault. |
-| [`getAudioFilesFromFolder`](../src/services/audioTranscriptionService.ts#L83) | function | `src/services/audioTranscriptionService.ts` | 83-88 | Retrieves all audio files within a specific folder from the vault. |
-| [`getAudioMimeType`](../src/services/audioTranscriptionService.ts#L117) | function | `src/services/audioTranscriptionService.ts` | 117-130 | Maps audio file extensions to their corresponding MIME types. |
-| [`getAvailableTranscriptionProvider`](../src/services/audioTranscriptionService.ts#L524) | function | `src/services/audioTranscriptionService.ts` | 524-538 | Returns an available transcription provider (OpenAI or Groq) based on configuration, or null if none available. |
-| [`getWhisperEndpoint`](../src/services/audioTranscriptionService.ts#L301) | function | `src/services/audioTranscriptionService.ts` | 301-303 | Returns the API endpoint URL for the specified Whisper provider. |
-| [`getWhisperModel`](../src/services/audioTranscriptionService.ts#L308) | function | `src/services/audioTranscriptionService.ts` | 308-310 | Returns the model identifier for the specified Whisper provider. |
-| [`isAudioFile`](../src/services/audioTranscriptionService.ts#L75) | function | `src/services/audioTranscriptionService.ts` | 75-78 | Determines if a file is audio by checking its extension against supported formats. |
-| [`isFileSizeValid`](../src/services/audioTranscriptionService.ts#L101) | function | `src/services/audioTranscriptionService.ts` | 101-103 | Validates that a file size does not exceed the maximum allowed limit. |
-| [`parseWhisperSegments`](../src/services/audioTranscriptionService.ts#L544) | function | `src/services/audioTranscriptionService.ts` | 544-564 | Parses raw Whisper segment data into typed WhisperSegment objects with fallback defaults. |
-| [`transcribeAudio`](../src/services/audioTranscriptionService.ts#L135) | function | `src/services/audioTranscriptionService.ts` | 135-213 | <no body> |
-| [`transcribeAudioFromData`](../src/services/audioTranscriptionService.ts#L218) | function | `src/services/audioTranscriptionService.ts` | 218-296 | <no body> |
-| [`transcribeAudioWithFullWorkflow`](../src/services/audioTranscriptionService.ts#L845) | function | `src/services/audioTranscriptionService.ts` | 845-1029 | <no body> |
-| [`transcribeChunkedAudio`](../src/services/audioTranscriptionService.ts#L596) | function | `src/services/audioTranscriptionService.ts` | 596-790 | <no body> |
-| [`transcribeChunkedAudioWithCleanup`](../src/services/audioTranscriptionService.ts#L796) | function | `src/services/audioTranscriptionService.ts` | 796-809 | Transcribes chunked audio while ensuring temporary files are cleaned up afterward. |
-| [`transcribeExternalAudio`](../src/services/audioTranscriptionService.ts#L414) | function | `src/services/audioTranscriptionService.ts` | 414-519 | <no body> |
-| [`BaseLLMService`](../src/services/baseService.ts#L12) | class | `src/services/baseService.ts` | 12-968 | <no body> |
-| [`BasesService`](../src/services/basesService.ts#L24) | class | `src/services/basesService.ts` | 24-79 | <no body> |
-| [`buildCanvasEdge`](../src/services/canvas/canvasUtils.ts#L54) | function | `src/services/canvas/canvasUtils.ts` | 54-75 | Constructs a CanvasEdge object with computed connection sides based on node positions. |
-| [`buildCanvasNode`](../src/services/canvas/canvasUtils.ts#L29) | function | `src/services/canvas/canvasUtils.ts` | 29-52 | Constructs a CanvasNode object from a descriptor with position and optional dimensions. |
-| [`ensureCanvasExtension`](../src/services/canvas/canvasUtils.ts#L148) | function | `src/services/canvas/canvasUtils.ts` | 148-150 | Ensures a filename has the .canvas extension, adding it if missing. |
-| [`ensureFolderExists`](../src/services/canvas/canvasUtils.ts#L117) | function | `src/services/canvas/canvasUtils.ts` | 117-135 | Recursively creates nested folders if they don't already exist. |
-| [`generateId`](../src/services/canvas/canvasUtils.ts#L19) | function | `src/services/canvas/canvasUtils.ts` | 19-27 | Generates a cryptographically random or fallback pseudorandom ID string. |
-| [`getAvailableCanvasPath`](../src/services/canvas/canvasUtils.ts#L152) | function | `src/services/canvas/canvasUtils.ts` | 152-182 | Finds an available canvas file path by appending a counter if the base name already exists. |
-| [`normalizeFolderPath`](../src/services/canvas/canvasUtils.ts#L137) | function | `src/services/canvas/canvasUtils.ts` | 137-146 | Normalizes and trims folder path separators for consistent path formatting. |
-| [`openCanvasFile`](../src/services/canvas/canvasUtils.ts#L113) | function | `src/services/canvas/canvasUtils.ts` | 113-115 | Opens a canvas file in the Obsidian workspace. |
-| [`sanitizeCanvasName`](../src/services/canvas/canvasUtils.ts#L81) | function | `src/services/canvas/canvasUtils.ts` | 81-87 | Sanitizes a canvas name by removing invalid characters and normalizing whitespace. |
-| [`serializeCanvas`](../src/services/canvas/canvasUtils.ts#L77) | function | `src/services/canvas/canvasUtils.ts` | 77-79 | Serializes canvas data to a formatted JSON string. |
-| [`writeCanvasFile`](../src/services/canvas/canvasUtils.ts#L89) | function | `src/services/canvas/canvasUtils.ts` | 89-111 | Writes canvas data to a file in the vault, creating folders and handling naming conflicts. |
-| [`buildClusterBoard`](../src/services/canvas/clusterBoard.ts#L30) | function | `src/services/canvas/clusterBoard.ts` | 30-116 | <no body> |
-| [`computeMaxNotes`](../src/services/canvas/clusterBoard.ts#L161) | function | `src/services/canvas/clusterBoard.ts` | 161-165 | Calculates the maximum number of notes that fit within token budget for LLM clustering. |
-| [`deterministicClustering`](../src/services/canvas/clusterBoard.ts#L118) | function | `src/services/canvas/clusterBoard.ts` | 118-159 | Groups files into clusters by folder, subtag, or fixed-size chunks if no semantic grouping available. |
-| [`extractIndexes`](../src/services/canvas/clusterBoard.ts#L188) | function | `src/services/canvas/clusterBoard.ts` | 188-197 | Extracts and validates note indexes from various possible object key names, filtering by count bounds. |
-| [`getClusterColor`](../src/services/canvas/clusterBoard.ts#L26) | function | `src/services/canvas/clusterBoard.ts` | 26-28 | Returns a cluster color from a fixed palette based on index modulo. |
-| [`groupBySubtag`](../src/services/canvas/clusterBoard.ts#L231) | function | `src/services/canvas/clusterBoard.ts` | 231-249 | Groups files by subtag hierarchy within a parent tag, returning a map of subtag labels to file indices. |
-| [`parseClusterResponse`](../src/services/canvas/clusterBoard.ts#L167) | function | `src/services/canvas/clusterBoard.ts` | 167-186 | Parses JSON cluster response from LLM and validates that clusters contain valid labels and note indexes. |
-| [`remapClusterIds`](../src/services/canvas/clusterBoard.ts#L199) | function | `src/services/canvas/clusterBoard.ts` | 199-229 | Converts cluster node indices to file IDs and groups unassigned nodes into an "Other" cluster. |
-| [`buildContextBoard`](../src/services/canvas/contextBoard.ts#L14) | function | `src/services/canvas/contextBoard.ts` | 14-73 | Detects embedded content in a file, creates a canvas with the file at center and content items as satellites, then writes and optionally opens it. |
-| [`buildFileOrMissingNode`](../src/services/canvas/contextBoard.ts#L116) | function | `src/services/canvas/contextBoard.ts` | 116-128 | Returns a file node if the item resolves to a vault file, otherwise a missing text node. |
-| [`buildMissingNode`](../src/services/canvas/contextBoard.ts#L106) | function | `src/services/canvas/contextBoard.ts` | 106-114 | Creates a text node marked as missing for unresolved content items. |
-| [`mapContentTypeToNode`](../src/services/canvas/contextBoard.ts#L75) | function | `src/services/canvas/contextBoard.ts` | 75-104 | Maps embedded content types (YouTube, PDF, links, audio) to canvas node descriptors with appropriate colors and node types. |
-| [`buildInvestigationBoard`](../src/services/canvas/investigationBoard.ts#L50) | function | `src/services/canvas/investigationBoard.ts` | 50-154 | Queries RAG for related notes, ranks them by relevance score, positions them around a central file node, generates edge labels via LLM, and creates a canvas. |
-| [`extractLabelArray`](../src/services/canvas/investigationBoard.ts#L195) | function | `src/services/canvas/investigationBoard.ts` | 195-210 | Extracts labels from a parsed object's labels array, validating indices and returning a padded array of labels. |
-| [`getFallbackEdgeLabel`](../src/services/canvas/investigationBoard.ts#L189) | function | `src/services/canvas/investigationBoard.ts` | 189-193 | Returns a relatedness label (closely/related/loosely) based on the semantic similarity score threshold. |
-| [`parseEdgeLabelResponse`](../src/services/canvas/investigationBoard.ts#L156) | function | `src/services/canvas/investigationBoard.ts` | 156-181 | Attempts to parse edge labels from LLM response via JSON, code fence, or regex fallback, returning an array padded to pair count. |
-| [`adaptiveLayout`](../src/services/canvas/layouts.ts#L89) | function | `src/services/canvas/layouts.ts` | 89-98 | Selects and applies the appropriate layout (radial or grid) to a set of nodes. |
-| [`chooseLayout`](../src/services/canvas/layouts.ts#L26) | function | `src/services/canvas/layouts.ts` | 26-28 | Chooses radial layout for small node counts, grid layout for larger ones. |
-| [`clusteredLayout`](../src/services/canvas/layouts.ts#L100) | function | `src/services/canvas/layouts.ts` | 100-141 | Arranges clusters as horizontally stacked groups, each with internal grid layout and a group boundary. |
-| [`computeEdgeSides`](../src/services/canvas/layouts.ts#L143) | function | `src/services/canvas/layouts.ts` | 143-159 | Determines edge connection sides (top/bottom/left/right) based on relative positions of two nodes. |
-| [`gridLayout`](../src/services/canvas/layouts.ts#L70) | function | `src/services/canvas/layouts.ts` | 70-87 | Arranges nodes in a grid with configurable columns based on node count. |
-| [`radialLayout`](../src/services/canvas/layouts.ts#L30) | function | `src/services/canvas/layouts.ts` | 30-68 | Positions nodes in a circle around a center node, with radius computed to prevent overlap. |
-| [`AttachmentIndexService`](../src/services/chat/attachmentIndexService.ts#L17) | class | `src/services/chat/attachmentIndexService.ts` | 17-146 | Chunks and embeds document text in batches, tracking progress and enforcing mobile chunk limits. |
-| [`cosineSimilarity`](../src/services/chat/attachmentIndexService.ts#L6) | function | `src/services/chat/attachmentIndexService.ts` | 6-15 | Computes cosine similarity between two vectors by calculating dot product and magnitudes. |
-| [`buildCssFromColors`](../src/services/chat/brandThemeService.ts#L176) | function | `src/services/chat/brandThemeService.ts` | 176-263 | Builds comprehensive CSS for slide presentation styling including slide types, typography, and color theming. |
-| [`buildIconCss`](../src/services/chat/brandThemeService.ts#L107) | function | `src/services/chat/brandThemeService.ts` | 107-131 | Generates CSS rules for inline SVG icons with stroke styling and mask-based rendering at multiple sizes. |
-| [`buildIconReference`](../src/services/chat/brandThemeService.ts#L134) | function | `src/services/chat/brandThemeService.ts` | 134-139 | Returns a formatted list of icon names grouped by category for template reference. |
-| [`extractSection`](../src/services/chat/brandThemeService.ts#L321) | function | `src/services/chat/brandThemeService.ts` | 321-325 | Extracts markdown section content between level-2 headings using regex. |
-| [`getBrandPath`](../src/services/chat/brandThemeService.ts#L312) | function | `src/services/chat/brandThemeService.ts` | 312-317 | Constructs the full path to the brand guidelines file, using custom or default locations. |
-| [`getDefaultTheme`](../src/services/chat/brandThemeService.ts#L267) | function | `src/services/chat/brandThemeService.ts` | 267-273 | Returns default theme CSS, prompt rules, and audit checklist when custom branding is unavailable. |
-| [`isBrandAvailable`](../src/services/chat/brandThemeService.ts#L275) | function | `src/services/chat/brandThemeService.ts` | 275-278 | Checks if a brand guidelines file exists at the configured path. |
-| [`loadBrandTheme`](../src/services/chat/brandThemeService.ts#L280) | function | `src/services/chat/brandThemeService.ts` | 280-298 | Loads and parses a brand guidelines markdown file from the vault, with error handling for missing or malformed files. |
-| [`parseAuditChecklist`](../src/services/chat/brandThemeService.ts#L407) | function | `src/services/chat/brandThemeService.ts` | 407-414 | Converts markdown bullet points into audit checklist items with sequential IDs and descriptions. |
-| [`parseBrandFile`](../src/services/chat/brandThemeService.ts#L327) | function | `src/services/chat/brandThemeService.ts` | 327-342 | Parses brand guidelines file into CSS, composition rules, and audit checklist by extracting and processing sections. |
-| [`parseColors`](../src/services/chat/brandThemeService.ts#L345) | function | `src/services/chat/brandThemeService.ts` | 345-388 | Extracts hex colors from markdown table and maps role keywords to color properties, filling defaults as needed. |
-| [`parseFont`](../src/services/chat/brandThemeService.ts#L390) | function | `src/services/chat/brandThemeService.ts` | 390-395 | Parses font name from markdown list item and wraps it in a font-family stack. |
-| [`parseRules`](../src/services/chat/brandThemeService.ts#L397) | function | `src/services/chat/brandThemeService.ts` | 397-405 | Extracts bullet-point rules from markdown, stripping bullets and joining into newline-separated text. |
-| [`resolveTheme`](../src/services/chat/brandThemeService.ts#L300) | function | `src/services/chat/brandThemeService.ts` | 300-308 | Returns custom brand theme if enabled and available, otherwise the default theme. |
-| [`ChatSearchService`](../src/services/chat/chatSearchService.ts#L114) | class | `src/services/chat/chatSearchService.ts` | 114-265 | Searches conversation files by query and filters (mode, project, date range), returning ranked matches with metadata. |
-| [`countMessages`](../src/services/chat/chatSearchService.ts#L92) | function | `src/services/chat/chatSearchService.ts` | 92-95 | Counts the number of message headers in searchable content. |
-| [`extractTitle`](../src/services/chat/chatSearchService.ts#L99) | function | `src/services/chat/chatSearchService.ts` | 99-108 | Extracts title from first markdown heading or falls back to filename without extension. |
-| [`isWithinDateRange`](../src/services/chat/chatSearchService.ts#L42) | function | `src/services/chat/chatSearchService.ts` | 42-49 | Checks if a file's creation date falls within a specified date range filter. |
-| [`parseFrontmatter`](../src/services/chat/chatSearchService.ts#L66) | function | `src/services/chat/chatSearchService.ts` | 66-86 | Extracts chat metadata (mode, project ID, creation date, tags) from frontmatter using lightweight regex. |
-| [`ConversationCompactionService`](../src/services/chat/conversationCompactionService.ts#L15) | class | `src/services/chat/conversationCompactionService.ts` | 15-100 | Manages conversation history compaction by detecting when to summarize old messages and formatting them for LLM injection. |
-| [`ConversationPersistenceService`](../src/services/chat/conversationPersistenceService.ts#L11) | class | `src/services/chat/conversationPersistenceService.ts` | 11-228 | Persists and loads conversation state to/from markdown files with debounced saves and retrieval of recent conversations. |
-| [`extractSlideCount`](../src/services/chat/conversationPersistenceService.ts#L231) | function | `src/services/chat/conversationPersistenceService.ts` | 231-237 | Extracts slide count from presentation snapshot HTML by counting slide class elements. |
-| [`collectFolderMdPaths`](../src/services/chat/creationSourceController.ts#L364) | function | `src/services/chat/creationSourceController.ts` | 364-376 | Recursively collects markdown file paths from a folder tree by walking children. |
-| [`CreationSourceController`](../src/services/chat/creationSourceController.ts#L52) | class | `src/services/chat/creationSourceController.ts` | 52-357 | Manages selected creation sources, tracks status/errors per source, listens for stale auto-detection, and notifies listeners of changes. |
-| [`isTFile`](../src/services/chat/creationSourceController.ts#L359) | function | `src/services/chat/creationSourceController.ts` | 359-362 | Type guard checking if an object is a TFile by inspecting stat and md extension properties. |
-| [`nextId`](../src/services/chat/creationSourceController.ts#L48) | function | `src/services/chat/creationSourceController.ts` | 48-50 | Generates a unique stable ID for a creation source row. |
-| [`GenerationProgressController`](../src/services/chat/generationProgressController.ts#L50) | class | `src/services/chat/generationProgressController.ts` | 50-74 | Wraps a LongRunningOpController to track presentation generation progress and budget constraints per slide. |
-| [`parseExpectedSlideCount`](../src/services/chat/generationProgressController.ts#L80) | function | `src/services/chat/generationProgressController.ts` | 80-88 | Parses expected slide count from prompt text, defaulting to a fallback and clamping to valid range. |
-| [`GlobalMemoryService`](../src/services/chat/globalMemoryService.ts#L9) | class | `src/services/chat/globalMemoryService.ts` | 9-69 | Loads, adds, removes, and persists memory items (facts) from a vault file, enforcing deduplication and capacity limits. |
-| [`getExtendDisplayMs`](../src/services/chat/presentationConstants.ts#L69) | function | `src/services/chat/presentationConstants.ts` | 69-76 | Computes the time window available to extend generation before the hard budget fires. |
-| [`assessStructure`](../src/services/chat/presentationDiff.ts#L186) | function | `src/services/chat/presentationDiff.ts` | 186-195 | Determines whether slide count, classes, or element paths changed between versions, returning a severity classification. |
-| [`attributesMatch`](../src/services/chat/presentationDiff.ts#L96) | function | `src/services/chat/presentationDiff.ts` | 96-113 | Compares two HTML elements' attributes, treating CSS class tokens as unordered sets while other attributes must match exactly. |
-| [`buildScopeDiff`](../src/services/chat/presentationDiff.ts#L297) | function | `src/services/chat/presentationDiff.ts` | 297-307 | Extracts the HTML fragment for the scoped region, computes a text diff, and strips instrumentation attributes for display. |
-| [`buildSiblingDrift`](../src/services/chat/presentationDiff.ts#L348) | function | `src/services/chat/presentationDiff.ts` | 348-386 | Detects sibling element mutations within a scope by finding siblings of the target element and comparing their combined HTML. |
-| [`classifyDiff`](../src/services/chat/presentationDiff.ts#L156) | function | `src/services/chat/presentationDiff.ts` | 156-184 | Parses old and new HTML, identifies slides, and classifies differences into scope changes, out-of-scope drift, sibling mutations, and structural integrity status. |
-| [`collectAttrs`](../src/services/chat/presentationDiff.ts#L121) | function | `src/services/chat/presentationDiff.ts` | 121-130 | Extracts and normalizes a DOM element's attributes, excluding instrumentation markers and sorting by name. |
-| [`collectElementPaths`](../src/services/chat/presentationDiff.ts#L198) | function | `src/services/chat/presentationDiff.ts` | 198-210 | Walks a slide's DOM tree and collects all unique paths from `data-element` attributes. |
-| [`collectOutOfScopeDrift`](../src/services/chat/presentationDiff.ts#L226) | function | `src/services/chat/presentationDiff.ts` | 226-240 | Compares slides outside the edit scope and records detailed drift for those that changed. |
-| [`compareSlides`](../src/services/chat/presentationDiff.ts#L39) | function | `src/services/chat/presentationDiff.ts` | 39-58 | Compares two slide HTML strings, detecting identical, whitespace-only, text, or structural changes. |
-| [`countTextChangedLocations`](../src/services/chat/presentationDiff.ts#L321) | function | `src/services/chat/presentationDiff.ts` | 321-325 | Counts whether text content changed between old and new scope fragments by normalizing whitespace. |
-| [`describeSlideDrift`](../src/services/chat/presentationDiff.ts#L242) | function | `src/services/chat/presentationDiff.ts` | 242-254 | Compares two slides' HTML and produces a structured diff record if they differ meaningfully. |
-| [`directTextContent`](../src/services/chat/presentationDiff.ts#L133) | function | `src/services/chat/presentationDiff.ts` | 133-139 | Collects direct text node content from an element without recursing into children. |
-| [`findSiblingHtmls`](../src/services/chat/presentationDiff.ts#L391) | function | `src/services/chat/presentationDiff.ts` | 391-406 | Finds all sibling elements (same parent path) and returns their concatenated outer HTML, sorted by element path. |
-| [`normaliseTextOfHtml`](../src/services/chat/presentationDiff.ts#L327) | function | `src/services/chat/presentationDiff.ts` | 327-333 | Parses HTML, strips it of wrapper, normalizes all whitespace, and trims to produce a comparable text representation. |
-| [`parentPathOf`](../src/services/chat/presentationDiff.ts#L408) | function | `src/services/chat/presentationDiff.ts` | 408-411 | Extracts the parent path by removing the last dot-separated segment from an element path. |
-| [`scopedSlideIndices`](../src/services/chat/presentationDiff.ts#L286) | function | `src/services/chat/presentationDiff.ts` | 286-295 | Returns a Set of slide indices that fall within the given scope (single slide, range, or point). |
-| [`slidesClassesChanged`](../src/services/chat/presentationDiff.ts#L256) | function | `src/services/chat/presentationDiff.ts` | 256-265 | Checks if any slide's CSS class list changed between old and new versions, ignoring token order. |
-| [`slidesElementPathsRemoved`](../src/services/chat/presentationDiff.ts#L213) | function | `src/services/chat/presentationDiff.ts` | 213-224 | Checks whether any `data-element` paths present in old slides are missing from corresponding new slides. |
-| [`stripInstrumentationAttrs`](../src/services/chat/presentationDiff.ts#L312) | function | `src/services/chat/presentationDiff.ts` | 312-314 | Removes `data-element`, `data-bg-hover-label`, and `data-pres-*` attributes from HTML using regex replacement. |
-| [`walkCompare`](../src/services/chat/presentationDiff.ts#L61) | function | `src/services/chat/presentationDiff.ts` | 61-93 | Recursively walks two DOM trees in lockstep, returning the highest-severity change detected (structural > text > whitespace > identical). |
-| [`buildDeckContextSummary`](../src/services/chat/presentationDomDecorator.ts#L260) | function | `src/services/chat/presentationDomDecorator.ts` | 260-280 | Summarizes the deck's structure: slide count, title, and section headings. |
-| [`buildDesignSummary`](../src/services/chat/presentationDomDecorator.ts#L290) | function | `src/services/chat/presentationDomDecorator.ts` | 290-330 | Analyzes the deck's design: layout classes, component counts, and reminds the user to match existing CSS patterns. |
-| [`cssAttrEscape`](../src/services/chat/presentationDomDecorator.ts#L249) | function | `src/services/chat/presentationDomDecorator.ts` | 249-251 | Escapes double-quotes and backslashes in a CSS attribute value string for safe selector use. |
-| [`decorateByKind`](../src/services/chat/presentationDomDecorator.ts#L116) | function | `src/services/chat/presentationDomDecorator.ts` | 116-131 | Finds undecorated elements matching a CSS selector within a slide and assigns them sequential `data-element` identifiers by kind. |
-| [`decorateSlideElements`](../src/services/chat/presentationDomDecorator.ts#L68) | function | `src/services/chat/presentationDomDecorator.ts` | 68-114 | <no body> |
-| [`estimateScopedPromptChars`](../src/services/chat/presentationDomDecorator.ts#L351) | function | `src/services/chat/presentationDomDecorator.ts` | 351-369 | Estimates the total character count for a scoped edit prompt, including system overhead, canonical HTML (doubled), and extra references. |
-| [`extractScopedFragment`](../src/services/chat/presentationDomDecorator.ts#L207) | function | `src/services/chat/presentationDomDecorator.ts` | 207-246 | <no body> |
-| [`projectForEditor`](../src/services/chat/presentationDomDecorator.ts#L50) | function | `src/services/chat/presentationDomDecorator.ts` | 50-65 | Parses canonical HTML, assigns `data-element` identifiers to the deck and each slide, decorates slide children, and re-serializes. |
-| [`serializePreservingWrapper`](../src/services/chat/presentationDomDecorator.ts#L172) | function | `src/services/chat/presentationDomDecorator.ts` | 172-184 | Returns the full serialized document with doctype if the input was a full document, otherwise returns just the body innerHTML. |
-| [`stripEditorAnnotations`](../src/services/chat/presentationDomDecorator.ts#L147) | function | `src/services/chat/presentationDomDecorator.ts` | 147-155 | Removes all `data-element` attributes from the given HTML, preserving document structure and wrapper. |
-| [`buildScopedPrompt`](../src/services/chat/presentationHtmlService.ts#L463) | function | `src/services/chat/presentationHtmlService.ts` | 463-488 | Routes to either design or content scoped edit prompt builder based on mode. |
-| [`gatherScopedContext`](../src/services/chat/presentationHtmlService.ts#L426) | function | `src/services/chat/presentationHtmlService.ts` | 426-449 | Fetches references and web research in parallel (only for content mode), returns empty strings for design mode, handles signals. |
-| [`generateHtml`](../src/services/chat/presentationHtmlService.ts#L113) | function | `src/services/chat/presentationHtmlService.ts` | 113-136 | Builds a generation prompt with theme and language settings and calls `runHtmlTask`. |
-| [`generateHtmlStream`](../src/services/chat/presentationHtmlService.ts#L153) | function | `src/services/chat/presentationHtmlService.ts` | 153-225 | <no body> |
-| [`processExtractedHtml`](../src/services/chat/presentationHtmlService.ts#L88) | function | `src/services/chat/presentationHtmlService.ts` | 88-100 | Extracts HTML from LLM response, sanitizes it, validates deck structure, wraps in document, and injects CSP. |
-| [`refineHtml`](../src/services/chat/presentationHtmlService.ts#L238) | function | `src/services/chat/presentationHtmlService.ts` | 238-260 | Builds a refinement prompt with the current HTML and calls `runHtmlTask` with a separate hard budget timeout. |
-| [`refineHtmlScoped`](../src/services/chat/presentationHtmlService.ts#L356) | function | `src/services/chat/presentationHtmlService.ts` | 356-423 | <no body> |
-| [`runBrandAudit`](../src/services/chat/presentationHtmlService.ts#L264) | function | `src/services/chat/presentationHtmlService.ts` | 264-324 | <no body> |
-| [`runHtmlTask`](../src/services/chat/presentationHtmlService.ts#L57) | function | `src/services/chat/presentationHtmlService.ts` | 57-83 | Combines system and user prompts, calls the LLM via `summarizeText`, aborts on signal, and processes the extracted HTML response. |
-| [`deduplicateFindings`](../src/services/chat/presentationQualityService.ts#L67) | function | `src/services/chat/presentationQualityService.ts` | 67-82 | Deduplicates findings from two scan passes by merging into a Map keyed on slide/category/issue, with pass 2 overwriting collisions. |
-| [`findingKey`](../src/services/chat/presentationQualityService.ts#L266) | function | `src/services/chat/presentationQualityService.ts` | 266-271 | Generates a deduplication key from a finding's slide index, category, and truncated issue text. |
-| [`parseFindings`](../src/services/chat/presentationQualityService.ts#L230) | function | `src/services/chat/presentationQualityService.ts` | 230-264 | Parses the LLM's JSON response to extract structured quality findings, validating required fields and optional metadata. |
-| [`runDeepScan`](../src/services/chat/presentationQualityService.ts#L57) | function | `src/services/chat/presentationQualityService.ts` | 57-64 | Delegates to `runScan` with 'deep' mode. |
-| [`runFastScan`](../src/services/chat/presentationQualityService.ts#L47) | function | `src/services/chat/presentationQualityService.ts` | 47-54 | Delegates to `runScan` with 'fast' mode. |
-| [`runScan`](../src/services/chat/presentationQualityService.ts#L163) | function | `src/services/chat/presentationQualityService.ts` | 163-223 | <no body> |
-| [`sampleLargeDeck`](../src/services/chat/presentationQualityService.ts#L96) | function | `src/services/chat/presentationQualityService.ts` | 96-159 | <no body> |
-| [`decodeEntities`](../src/services/chat/presentationSanitizer.ts#L273) | function | `src/services/chat/presentationSanitizer.ts` | 273-277 | Decodes HTML numeric character entities (both hex and decimal) into Unicode characters. |
-| [`filterAttribute`](../src/services/chat/presentationSanitizer.ts#L215) | function | `src/services/chat/presentationSanitizer.ts` | 215-238 | Validates and escapes individual HTML attributes based on tag context and security rules. |
-| [`filterAttributes`](../src/services/chat/presentationSanitizer.ts#L241) | function | `src/services/chat/presentationSanitizer.ts` | 241-270 | Parses attribute strings using regex, filters each via `filterAttribute`, and counts rejected security-sensitive attributes. |
-| [`injectCSP`](../src/services/chat/presentationSanitizer.ts#L350) | function | `src/services/chat/presentationSanitizer.ts` | 350-365 | Adds a Content-Security-Policy meta tag to HTML if not already present. |
-| [`isAllowedCssUrl`](../src/services/chat/presentationSanitizer.ts#L145) | function | `src/services/chat/presentationSanitizer.ts` | 145-148 | Validates a CSS `url()` reference by checking for allowed data: image URIs. |
-| [`isAllowedDataImageUri`](../src/services/chat/presentationSanitizer.ts#L136) | function | `src/services/chat/presentationSanitizer.ts` | 136-138 | Checks if a trimmed lowercase URL is a non-SVG data: image URI. |
-| [`isAllowedHref`](../src/services/chat/presentationSanitizer.ts#L129) | function | `src/services/chat/presentationSanitizer.ts` | 129-133 | Validates that a URL is HTTP(S), a fragment anchor, or a mailto: link. |
-| [`isAllowedImgSrc`](../src/services/chat/presentationSanitizer.ts#L140) | function | `src/services/chat/presentationSanitizer.ts` | 140-143 | Validates an `img` src attribute by checking for allowed data: image URIs. |
-| [`sanitizeCssValue`](../src/services/chat/presentationSanitizer.ts#L152) | function | `src/services/chat/presentationSanitizer.ts` | 152-163 | Rejects CSS values matching dangerous patterns or containing unsafe `url()` references via global matching. |
-| [`sanitizePresentation`](../src/services/chat/presentationSanitizer.ts#L286) | function | `src/services/chat/presentationSanitizer.ts` | 286-340 | Removes blocked tags entirely, filters allowed tags' attributes for safety, injects CSP meta tag, and returns sanitized HTML with violation counts. |
-| [`sanitizeStyleAttribute`](../src/services/chat/presentationSanitizer.ts#L190) | function | `src/services/chat/presentationSanitizer.ts` | 190-205 | Filters and reassembles CSS declarations, keeping only whitelisted properties with sanitized values. |
-| [`splitCssDeclarations`](../src/services/chat/presentationSanitizer.ts#L170) | function | `src/services/chat/presentationSanitizer.ts` | 170-188 | Splits a CSS style string by semicolons while respecting parenthesis nesting (for `url()` and function calls). |
-| [`allocateBudget`](../src/services/chat/presentationSourceBudget.ts#L34) | function | `src/services/chat/presentationSourceBudget.ts` | 34-97 | Distributes a character budget across note, web-search, and folder-file sources with per-category caps and proportional sharing. |
-| [`PresentationSourceService`](../src/services/chat/presentationSourceService.ts#L54) | class | `src/services/chat/presentationSourceService.ts` | 54-220 | Resolves user-selected sources (notes, folders, web searches) into usable content with deduplication and per-source error tracking. |
-| [`validateCreationConfig`](../src/services/chat/presentationSourceService.ts#L238) | function | `src/services/chat/presentationSourceService.ts` | 238-246 | Validates that a presentation creation request has at least one source, a positive length within bounds. |
-| [`classifyReliability`](../src/services/chat/presentationTypes.ts#L116) | function | `src/services/chat/presentationTypes.ts` | 116-134 | Classifies presentation HTML reliability as one of: ok, warning, structurally-damaged, or unreliable based on rejection count and structure flags. |
-| [`computeQualityScore`](../src/services/chat/presentationTypes.ts#L205) | function | `src/services/chat/presentationTypes.ts` | 205-221 | Computes an overall quality score by penalizing structure findings and audit violations. |
-| [`extractSlideInfo`](../src/services/chat/presentationTypes.ts#L146) | function | `src/services/chat/presentationTypes.ts` | 146-168 | Extracts metadata (headings, text length, speaker notes, type) from slide elements in parsed HTML. |
-| [`migratePresentationSession`](../src/services/chat/presentationTypes.ts#L225) | function | `src/services/chat/presentationTypes.ts` | 225-267 | Migrates persisted presentation session data, validating schema version and required fields for versions and messages. |
-| [`runStructureChecks`](../src/services/chat/presentationTypes.ts#L170) | function | `src/services/chat/presentationTypes.ts` | 170-203 | Audits slide deck structure and returns quality findings (missing content, overcrowding, duplicate headings, missing speaker notes). |
-| [`buildProjectMd`](../src/services/chat/projectService.ts#L100) | function | `src/services/chat/projectService.ts` | 100-128 | Generates markdown frontmatter and sections for a project configuration file. |
-| [`extractWikilinks`](../src/services/chat/projectService.ts#L46) | function | `src/services/chat/projectService.ts` | 46-49 | Extracts all wikilink references from markdown text. |
-| [`parseProjectMd`](../src/services/chat/projectService.ts#L55) | function | `src/services/chat/projectService.ts` | 55-98 | Parses a project markdown file to extract metadata, instructions, memory items, and pinned file references. |
-| [`ProjectService`](../src/services/chat/projectService.ts#L139) | class | `src/services/chat/projectService.ts` | 139-616 | <no body> |
-| [`slugify`](../src/services/chat/projectService.ts#L51) | function | `src/services/chat/projectService.ts` | 51-53 | Converts project names to URL-safe slugs by replacing problematic characters. |
-| [`collectMarkdownFiles`](../src/services/chat/slideContextProvider.ts#L194) | function | `src/services/chat/slideContextProvider.ts` | 194-204 | Recursively collects all markdown files from a folder and its subfolders. |
-| [`DefaultSlideContextProvider`](../src/services/chat/slideContextProvider.ts#L73) | class | `src/services/chat/slideContextProvider.ts` | 73-190 | <no body> |
-| [`escapeAttr`](../src/services/chat/slideContextProvider.ts#L221) | function | `src/services/chat/slideContextProvider.ts` | 221-223 | Escapes double quotes in attribute values for safe HTML re-serialization. |
-| [`truncateAtSentence`](../src/services/chat/slideContextProvider.ts#L207) | function | `src/services/chat/slideContextProvider.ts` | 207-219 | Truncates text at sentence boundaries within a budget, appending a truncation notice. |
-| [`buildSlideRuntimeCode`](../src/services/chat/slideRuntime.ts#L22) | function | `src/services/chat/slideRuntime.ts` | 22-272 | Generates JavaScript runtime code for slide navigation, notes toggling, and inter-window messaging with nonce-based security. |
-| [`StreamingHtmlAssembler`](../src/services/chat/streamingHtmlAssembler.ts#L95) | class | `src/services/chat/streamingHtmlAssembler.ts` | 95-360 | <no body> |
-| [`capString`](../src/services/chunkingOrchestrator.ts#L318) | function | `src/services/chunkingOrchestrator.ts` | 318-324 | Truncates a string at the last sentence boundary within a limit, or at the limit if no boundary found. |
-| [`executeMapPhase`](../src/services/chunkingOrchestrator.ts#L170) | function | `src/services/chunkingOrchestrator.ts` | 170-199 | Executes the map phase by processing each chunk independently, tracking errors and optional continuation context. |
-| [`hierarchicalReduce`](../src/services/chunkingOrchestrator.ts#L221) | function | `src/services/chunkingOrchestrator.ts` | 221-248 | Recursively collapses many partial summaries into groups, then reduces the final batch to prevent prompt overflow. |
-| [`mergeBatch`](../src/services/chunkingOrchestrator.ts#L279) | function | `src/services/chunkingOrchestrator.ts` | 279-296 | Merges a batch of partial summaries into fewer partials, falling back to originals on error. |
-| [`orchestrateChunked`](../src/services/chunkingOrchestrator.ts#L71) | function | `src/services/chunkingOrchestrator.ts` | 71-128 | Splits text into chunks and orchestrates map-reduce or hierarchical summarization via an LLM service. |
-| [`parseMapOutput`](../src/services/chunkingOrchestrator.ts#L307) | function | `src/services/chunkingOrchestrator.ts` | 307-316 | Extracts optional continuation context from map output, defaulting to the entire raw response as summary. |
-| [`reduceOneLayer`](../src/services/chunkingOrchestrator.ts#L254) | function | `src/services/chunkingOrchestrator.ts` | 254-274 | Batches partials into groups and merges each batch, passing through single items unchanged. |
-| [`runSingleChunk`](../src/services/chunkingOrchestrator.ts#L142) | function | `src/services/chunkingOrchestrator.ts` | 142-165 | Summarizes a single chunk directly without splitting via the map prompt builder. |
-| [`singleReduce`](../src/services/chunkingOrchestrator.ts#L201) | function | `src/services/chunkingOrchestrator.ts` | 201-217 | Reduces partial summaries to a final summary via a single LLM call. |
-| [`CloudLLMService`](../src/services/cloudService.ts#L13) | class | `src/services/cloudService.ts` | 13-784 | <no body> |
-| [`ConfigurationService`](../src/services/configurationService.ts#L530) | class | `src/services/configurationService.ts` | 530-1824 | <no body> |
-| [`personaVersionMarker`](../src/services/configurationService.ts#L523) | function | `src/services/configurationService.ts` | 523-525 | Generates an HTML comment marker for a persona configuration version. |
-| [`ContentExtractionService`](../src/services/contentExtractionService.ts#L52) | class | `src/services/contentExtractionService.ts` | 52-804 | <no body> |
-| [`serviceSupportsMultimodal`](../src/services/contentExtractionService.ts#L809) | function | `src/services/contentExtractionService.ts` | 809-812 | Returns true if a service type (claude or gemini) supports multimodal inputs. |
-| [`assessContent`](../src/services/contentSizePolicy.ts#L124) | function | `src/services/contentSizePolicy.ts` | 124-161 | Analyzes content size and recommends a chunking strategy (direct, chunk, or hierarchical) with cost warnings. |
-| [`estimateCharsPerToken`](../src/services/contentSizePolicy.ts#L101) | function | `src/services/contentSizePolicy.ts` | 101-113 | Estimates characters per token for a text sample by detecting CJK, code patterns, or returning a Latin default. |
-| [`exceedsProviderHardLimit`](../src/services/contentSizePolicy.ts#L203) | function | `src/services/contentSizePolicy.ts` | 203-205 | Returns true if content exceeds the provider's hard character limit. |
-| [`getHierarchicalThreshold`](../src/services/contentSizePolicy.ts#L89) | function | `src/services/contentSizePolicy.ts` | 89-93 | Returns the hierarchical reduction threshold for the given content type. |
-| [`getQualityChunkThreshold`](../src/services/contentSizePolicy.ts#L69) | function | `src/services/contentSizePolicy.ts` | 69-86 | Returns the chunk size threshold for quality assessment based on content type and user settings. |
-| [`resolveFastModel`](../src/services/contentSizePolicy.ts#L175) | function | `src/services/contentSizePolicy.ts` | 175-195 | Returns a fast (Haiku) model override if settings enable it and context windows are sufficient. |
-| [`DashboardService`](../src/services/dashboardService.ts#L25) | class | `src/services/dashboardService.ts` | 25-251 | <no body> |
-| [`DictionaryService`](../src/services/dictionaryService.ts#L35) | class | `src/services/dictionaryService.ts` | 35-655 | <no body> |
-| [`DocumentExtractionService`](../src/services/documentExtractionService.ts#L25) | class | `src/services/documentExtractionService.ts` | 25-380 | <no body> |
+
+---
+
+## embeddings
+
+```mermaid
+flowchart TB
+subgraph dom_embeddings ["embeddings"]
+  file_src_services_embeddings_cohereEmbeddingS["src/services/embeddings/cohereEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_cohereEmbeddingS["CohereEmbeddingService"]:::symbol
+  file_src_services_embeddings_cohereEmbeddingS --> sym_src_services_embeddings_cohereEmbeddingS
+  file_src_services_embeddings_embeddingRegistr["src/services/embeddings/embeddingRegistry.ts"]:::component
+  sym_src_services_embeddings_embeddingRegistr["getEmbeddingModelOptions"]:::symbol
+  file_src_services_embeddings_embeddingRegistr --> sym_src_services_embeddings_embeddingRegistr
+  file_src_services_embeddings_embeddingService["src/services/embeddings/embeddingServiceFactory.ts"]:::component
+  sym_src_services_embeddings_embeddingService["createEmbeddingService"]:::symbol
+  file_src_services_embeddings_embeddingService --> sym_src_services_embeddings_embeddingService
+  sym_src_services_embeddings_embeddingService["createEmbeddingServiceFromSettings"]:::symbol
+  file_src_services_embeddings_embeddingService --> sym_src_services_embeddings_embeddingService
+  sym_src_services_embeddings_embeddingService["getAvailableEmbeddingModels"]:::symbol
+  file_src_services_embeddings_embeddingService --> sym_src_services_embeddings_embeddingService
+  sym_src_services_embeddings_embeddingService["getDefaultEmbeddingModel"]:::symbol
+  file_src_services_embeddings_embeddingService --> sym_src_services_embeddings_embeddingService
+  sym_src_services_embeddings_embeddingService["requiresApiKey"]:::symbol
+  file_src_services_embeddings_embeddingService --> sym_src_services_embeddings_embeddingService
+  file_src_services_embeddings_geminiEmbeddingS["src/services/embeddings/geminiEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_geminiEmbeddingS["GeminiEmbeddingService"]:::symbol
+  file_src_services_embeddings_geminiEmbeddingS --> sym_src_services_embeddings_geminiEmbeddingS
+  file_src_services_embeddings_localOnnxEmbeddi["src/services/embeddings/localOnnxEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_localOnnxEmbeddi["LocalOnnxEmbeddingService"]:::symbol
+  file_src_services_embeddings_localOnnxEmbeddi --> sym_src_services_embeddings_localOnnxEmbeddi
+  file_src_services_embeddings_ollamaEmbeddingS["src/services/embeddings/ollamaEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_ollamaEmbeddingS["OllamaEmbeddingService"]:::symbol
+  file_src_services_embeddings_ollamaEmbeddingS --> sym_src_services_embeddings_ollamaEmbeddingS
+  file_src_services_embeddings_openaiEmbeddingS["src/services/embeddings/openaiEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_openaiEmbeddingS["OpenAIEmbeddingService"]:::symbol
+  file_src_services_embeddings_openaiEmbeddingS --> sym_src_services_embeddings_openaiEmbeddingS
+  file_src_services_embeddings_types_ts["src/services/embeddings/types.ts"]:::component
+  sym_src_services_embeddings_types_ts_getEmbe["getEmbeddingDimensions"]:::symbol
+  file_src_services_embeddings_types_ts --> sym_src_services_embeddings_types_ts_getEmbe
+  file_src_services_embeddings_voyageEmbeddingS["src/services/embeddings/voyageEmbeddingService.ts"]:::component
+  sym_src_services_embeddings_voyageEmbeddingS["VoyageEmbeddingService"]:::symbol
+  file_src_services_embeddings_voyageEmbeddingS --> sym_src_services_embeddings_voyageEmbeddingS
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`CohereEmbeddingService`](../src/services/embeddings/cohereEmbeddingService.ts#L36) | class | `src/services/embeddings/cohereEmbeddingService.ts` | 36-193 | <no body> |
 | [`getEmbeddingModelOptions`](../src/services/embeddings/embeddingRegistry.ts#L75) | function | `src/services/embeddings/embeddingRegistry.ts` | 75-121 | <no body> |
 | [`createEmbeddingService`](../src/services/embeddings/embeddingServiceFactory.ts#L22) | function | `src/services/embeddings/embeddingServiceFactory.ts` | 22-86 | Creates and returns an embedding service instance based on the specified provider configuration. |
@@ -1223,17 +1599,72 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`OpenAIEmbeddingService`](../src/services/embeddings/openaiEmbeddingService.ts#L29) | class | `src/services/embeddings/openaiEmbeddingService.ts` | 29-211 | Calls OpenAI's API to generate text embeddings with token limit handling. |
 | [`getEmbeddingDimensions`](../src/services/embeddings/types.ts#L123) | function | `src/services/embeddings/types.ts` | 123-125 | Looks up and returns the vector dimension size for a given embedding model. |
 | [`VoyageEmbeddingService`](../src/services/embeddings/voyageEmbeddingService.ts#L39) | class | `src/services/embeddings/voyageEmbeddingService.ts` | 39-195 | Calls Voyage's API to generate text embeddings. |
-| [`classifyExtension`](../src/services/embedScanService.ts#L96) | function | `src/services/embedScanService.ts` | 96-106 | Classifies a file extension into types like image, pdf, audio, video, document, or other. |
-| [`extractReferencesFromLine`](../src/services/embedScanService.ts#L150) | function | `src/services/embedScanService.ts` | 150-170 | Extracts markdown embeds and links from a single line, returning normalized file references. |
-| [`findPossiblyOrphanedFiles`](../src/services/embedScanService.ts#L285) | function | `src/services/embedScanService.ts` | 285-297 | Finds vault files that are embed-type but not referenced anywhere. |
-| [`formatFileSize`](../src/services/embedScanService.ts#L321) | function | `src/services/embedScanService.ts` | 321-327 | Formats a byte size into human-readable units (B, KB, MB, GB). |
-| [`getEmbedTypeIcon`](../src/services/embedScanService.ts#L332) | function | `src/services/embedScanService.ts` | 332-341 | Maps embed type classifications to their corresponding icon names. |
-| [`getExtensionFromPath`](../src/services/embedScanService.ts#L310) | function | `src/services/embedScanService.ts` | 310-314 | Extracts and returns the file extension from a path in lowercase. |
-| [`getMarkdownFilesInFolder`](../src/services/embedScanService.ts#L346) | function | `src/services/embedScanService.ts` | 346-356 | Recursively collects all markdown files within a folder and its subfolders. |
-| [`hasEmbedTypeExtension`](../src/services/embedScanService.ts#L302) | function | `src/services/embedScanService.ts` | 302-305 | Checks if a filename has an embed-compatible extension. |
-| [`isExternalUrl`](../src/services/embedScanService.ts#L175) | function | `src/services/embedScanService.ts` | 175-177 | Checks whether a path is an external HTTP(S) URL. |
-| [`normalizeEmbedPath`](../src/services/embedScanService.ts#L114) | function | `src/services/embedScanService.ts` | 114-126 | Strips wiki-link aliases, anchors, and query parameters from file paths. |
-| [`scanNotes`](../src/services/embedScanService.ts#L185) | function | `src/services/embedScanService.ts` | 185-275 | Scans markdown notes to find all embedded and linked files, returning embed targets and orphaned files. |
+
+---
+
+## export
+
+```mermaid
+flowchart TB
+subgraph dom_export ["export"]
+  file_src_services_export_exportService_ts["src/services/export/exportService.ts"]:::component
+  sym_src_services_export_exportService_ts_def["defaultTheme"]:::symbol
+  file_src_services_export_exportService_ts --> sym_src_services_export_exportService_ts_def
+  sym_src_services_export_exportService_ts_Exp["ExportService"]:::symbol
+  file_src_services_export_exportService_ts --> sym_src_services_export_exportService_ts_Exp
+  file_src_services_export_markdownDocxGenerato["src/services/export/markdownDocxGenerator.ts"]:::component
+  sym_src_services_export_markdownDocxGenerato["buildDocxTable"]:::symbol
+  file_src_services_export_markdownDocxGenerato --> sym_src_services_export_markdownDocxGenerato
+  sym_src_services_export_markdownDocxGenerato["generateDocx"]:::symbol
+  file_src_services_export_markdownDocxGenerato --> sym_src_services_export_markdownDocxGenerato
+  file_src_services_export_markdownPptxGenerato["src/services/export/markdownPptxGenerator.ts"]:::component
+  sym_src_services_export_markdownPptxGenerato["darkenHex"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["generatePptx"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["generatePptxFromDeck"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["generatePptxFromHtml"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["hexToRgb"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["lightenHex"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["resolveTheme"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  sym_src_services_export_markdownPptxGenerato["rgbToHex"]:::symbol
+  file_src_services_export_markdownPptxGenerato --> sym_src_services_export_markdownPptxGenerato
+  file_src_services_export_minutesDocxGenerator["src/services/export/minutesDocxGenerator.ts"]:::component
+  sym_src_services_export_minutesDocxGenerator["boldLabel"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["deepStripConfidence"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["extractMinutesJsonFromNote"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["generateMinutesDocx"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["heading2"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["renderDocxAgendaGrouped"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["spacer"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["tableDataRow"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+  sym_src_services_export_minutesDocxGenerator["tableHeaderRow"]:::symbol
+  file_src_services_export_minutesDocxGenerator --> sym_src_services_export_minutesDocxGenerator
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`defaultTheme`](../src/services/export/exportService.ts#L17) | function | `src/services/export/exportService.ts` | 17-19 | Returns the default navy-gold theme for presentations. |
 | [`ExportService`](../src/services/export/exportService.ts#L52) | class | `src/services/export/exportService.ts` | 52-166 | Exports multiple notes to PDF, DOCX, or PPTX format. |
 | [`buildDocxTable`](../src/services/export/markdownDocxGenerator.ts#L165) | function | `src/services/export/markdownDocxGenerator.ts` | 165-194 | Renders a markdown table as a DOCX table with styled headers and data rows. |
@@ -1255,7 +1686,90 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`spacer`](../src/services/export/minutesDocxGenerator.ts#L570) | function | `src/services/export/minutesDocxGenerator.ts` | 570-572 | Creates an empty spacing paragraph for DOCX layout. |
 | [`tableDataRow`](../src/services/export/minutesDocxGenerator.ts#L604) | function | `src/services/export/minutesDocxGenerator.ts` | 604-613 | Creates a table data row for DOCX documents. |
 | [`tableHeaderRow`](../src/services/export/minutesDocxGenerator.ts#L591) | function | `src/services/export/minutesDocxGenerator.ts` | 591-602 | Creates a styled table header row for DOCX documents. |
-| [`ImageProcessorService`](../src/services/imageProcessorService.ts#L46) | class | `src/services/imageProcessorService.ts` | 46-641 | Processes vault images by converting, resizing, compressing, and encoding them to base64. |
+
+---
+
+## i18n
+
+```mermaid
+flowchart TB
+subgraph dom_i18n ["i18n"]
+  file_src_i18n_index_ts["src/i18n/index.ts"]:::component
+  sym_src_i18n_index_ts_getLanguageOptions["getLanguageOptions"]:::symbol
+  file_src_i18n_index_ts --> sym_src_i18n_index_ts_getLanguageOptions
+  sym_src_i18n_index_ts_getTranslations["getTranslations"]:::symbol
+  file_src_i18n_index_ts --> sym_src_i18n_index_ts_getTranslations
+  sym_src_i18n_index_ts_isSupportedLanguage["isSupportedLanguage"]:::symbol
+  file_src_i18n_index_ts --> sym_src_i18n_index_ts_isSupportedLanguage
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`getLanguageOptions`](../src/i18n/index.ts#L38) | function | `src/i18n/index.ts` | 38-43 | Returns a map of all supported language codes to their display names. |
+| [`getTranslations`](../src/i18n/index.ts#L30) | function | `src/i18n/index.ts` | 30-32 | Returns the translation object for a given language code, defaulting to English. |
+| [`isSupportedLanguage`](../src/i18n/index.ts#L50) | function | `src/i18n/index.ts` | 50-52 | Checks whether a language code is supported by the plugin's translation system. |
+
+---
+
+## kindle
+
+```mermaid
+flowchart TB
+subgraph dom_kindle ["kindle"]
+  file_src_services_kindle_kindleAuthMethods_ts["src/services/kindle/kindleAuthMethods.ts"]:::component
+  sym_src_services_kindle_kindleAuthMethods_ts["BookmarkletAuthMethod"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts --> sym_src_services_kindle_kindleAuthMethods_ts
+  sym_src_services_kindle_kindleAuthMethods_ts["buildAuthMethodChain"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts --> sym_src_services_kindle_kindleAuthMethods_ts
+  sym_src_services_kindle_kindleAuthMethods_ts["ConsoleAuthMethod"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts --> sym_src_services_kindle_kindleAuthMethods_ts
+  sym_src_services_kindle_kindleAuthMethods_ts["renderCookieTextarea"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts --> sym_src_services_kindle_kindleAuthMethods_ts
+  file_src_services_kindle_kindleAuthService_ts["src/services/kindle/kindleAuthService.ts"]:::component
+  sym_src_services_kindle_kindleAuthService_ts["buildRequestHeaders"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["clearCookies"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["detectAuthExpiry"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["getCookieAgeDays"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["getNotebookUrl"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["getStoredAmazonEmail"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["getStoredAmazonPassword"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["getStoredCookies"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["isAuthenticated"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["isEnhancedPayload"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+  sym_src_services_kindle_kindleAuthService_ts["openAmazonInBrowser"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts --> sym_src_services_kindle_kindleAuthService_ts
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 102 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`BookmarkletAuthMethod`](../src/services/kindle/kindleAuthMethods.ts#L109) | class | `src/services/kindle/kindleAuthMethods.ts` | 109-179 | Provides bookmarklet-based cookie extraction for Kindle authentication. |
 | [`buildAuthMethodChain`](../src/services/kindle/kindleAuthMethods.ts#L247) | function | `src/services/kindle/kindleAuthMethods.ts` | 247-264 | Builds an ordered chain of available authentication methods for Kindle sync. |
 | [`ConsoleAuthMethod`](../src/services/kindle/kindleAuthMethods.ts#L185) | class | `src/services/kindle/kindleAuthMethods.ts` | 185-235 | Provides browser console-based cookie extraction instructions for Kindle authentication. |
@@ -1358,30 +1872,265 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`generateBookKey`](../src/services/kindle/kindleTypes.ts#L149) | function | `src/services/kindle/kindleTypes.ts` | 149-152 | Generates a normalized book identifier by hashing the combined title and author with 'kb-' prefix. |
 | [`generateHighlightId`](../src/services/kindle/kindleTypes.ts#L134) | function | `src/services/kindle/kindleTypes.ts` | 134-143 | Generates a stable numeric hash from text and returns it as an 8-character hex string prefixed with 'kh-'. |
 | [`toKindleBook`](../src/services/kindle/kindleTypes.ts#L222) | function | `src/services/kindle/kindleTypes.ts` | 222-232 | Converts a scraped Amazon book and its highlights into a KindleBook object. |
-| [`getLanguageByCode`](../src/services/languages.ts#L61) | function | `src/services/languages.ts` | 61-63 | Looks up a language object by its code from the common languages list. |
-| [`getLanguageDisplayName`](../src/services/languages.ts#L48) | function | `src/services/languages.ts` | 48-56 | Returns language display name using native name in parentheses if different from English name. |
-| [`getLanguageNameForPrompt`](../src/services/languages.ts#L68) | function | `src/services/languages.ts` | 68-74 | Returns the language name for use in prompts, returning undefined for auto or invalid codes. |
-| [`getLanguageName`](../src/services/languageUtils.ts#L38) | function | `src/services/languageUtils.ts` | 38-43 | Returns the display name for a language code, defaulting to 'Default' if code is empty. |
-| [`getServiceType`](../src/services/llmFacade.ts#L28) | function | `src/services/llmFacade.ts` | 28-40 | Returns service configuration indicating whether the LLM is cloud-based or local with its provider identifier. |
-| [`isMultimodalService`](../src/services/llmFacade.ts#L23) | function | `src/services/llmFacade.ts` | 23-26 | Checks if a service implements multimodal capabilities by verifying presence of `sendMultimodal` and `getMultimodalCapability` methods. |
-| [`pluginContext`](../src/services/llmFacade.ts#L46) | function | `src/services/llmFacade.ts` | 46-48 | Extracts and returns the llmService and settings from a plugin context object. |
-| [`sendMultimodal`](../src/services/llmFacade.ts#L116) | function | `src/services/llmFacade.ts` | 116-137 | Sends multimodal content to a cloud LLM provider, validating that the service supports multimodal analysis. |
-| [`summarizeText`](../src/services/llmFacade.ts#L50) | function | `src/services/llmFacade.ts` | 50-61 | Calls the LLM service to summarize text, catching and returning errors as failed results. |
-| [`summarizeTextStream`](../src/services/llmFacade.ts#L65) | function | `src/services/llmFacade.ts` | 65-114 | Streams text summarization from the LLM service with fallback prevention when chunks have already been emitted to avoid duplication. |
-| [`extractAuthFromUrl`](../src/services/localModelFetcher.ts#L103) | function | `src/services/localModelFetcher.ts` | 103-129 | Extracts HTTP Basic authentication credentials from a URL and constructs appropriate Authorization headers. |
-| [`fetchLocalModels`](../src/services/localModelFetcher.ts#L4) | function | `src/services/localModelFetcher.ts` | 4-100 | Fetches available models from a local LLM endpoint, with special handling for Ollama's API endpoints. |
-| [`normalizeEndpoint`](../src/services/localModelFetcher.ts#L131) | function | `src/services/localModelFetcher.ts` | 131-144 | Normalizes a local LLM endpoint URL by removing trailing slashes and standard path components. |
-| [`LocalLLMService`](../src/services/localService.ts#L8) | class | `src/services/localService.ts` | 8-370 | <no body> |
+
+---
+
+## llm-adapters
+
+```mermaid
+flowchart TB
+subgraph dom_llm_adapters ["llm-adapters"]
+  file_src_services_adapters_aliyunAdapter_ts["src/services/adapters/aliyunAdapter.ts"]:::component
+  sym_src_services_adapters_aliyunAdapter_ts_A["AliyunAdapter"]:::symbol
+  file_src_services_adapters_aliyunAdapter_ts --> sym_src_services_adapters_aliyunAdapter_ts_A
+  file_src_services_adapters_baseAdapter_ts["src/services/adapters/baseAdapter.ts"]:::component
+  sym_src_services_adapters_baseAdapter_ts_Bas["BaseAdapter"]:::symbol
+  file_src_services_adapters_baseAdapter_ts --> sym_src_services_adapters_baseAdapter_ts_Bas
+  file_src_services_adapters_bedrockAdapter_ts["src/services/adapters/bedrockAdapter.ts"]:::component
+  sym_src_services_adapters_bedrockAdapter_ts_["BedrockAdapter"]:::symbol
+  file_src_services_adapters_bedrockAdapter_ts --> sym_src_services_adapters_bedrockAdapter_ts_
+  file_src_services_adapters_claudeAdapter_ts["src/services/adapters/claudeAdapter.ts"]:::component
+  sym_src_services_adapters_claudeAdapter_ts_C["ClaudeAdapter"]:::symbol
+  file_src_services_adapters_claudeAdapter_ts --> sym_src_services_adapters_claudeAdapter_ts_C
+  sym_src_services_adapters_claudeAdapter_ts_s["supportsAdaptiveThinking"]:::symbol
+  file_src_services_adapters_claudeAdapter_ts --> sym_src_services_adapters_claudeAdapter_ts_s
+  file_src_services_adapters_cohereAdapter_ts["src/services/adapters/cohereAdapter.ts"]:::component
+  sym_src_services_adapters_cohereAdapter_ts_C["CohereAdapter"]:::symbol
+  file_src_services_adapters_cohereAdapter_ts --> sym_src_services_adapters_cohereAdapter_ts_C
+  file_src_services_adapters_deepseekAdapter_ts["src/services/adapters/deepseekAdapter.ts"]:::component
+  sym_src_services_adapters_deepseekAdapter_ts["DeepseekAdapter"]:::symbol
+  file_src_services_adapters_deepseekAdapter_ts --> sym_src_services_adapters_deepseekAdapter_ts
+  file_src_services_adapters_dynamicModelServic["src/services/adapters/dynamicModelService.ts"]:::component
+  sym_src_services_adapters_dynamicModelServic["__resetDynamicModelCache"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["fetchAnthropic"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["fetchGemini"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["fetchLiveModels"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["fetchOpenAICompat"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["getCachedModels"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["getLiveModels"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  sym_src_services_adapters_dynamicModelServic["providerSupportsLiveFetch"]:::symbol
+  file_src_services_adapters_dynamicModelServic --> sym_src_services_adapters_dynamicModelServic
+  file_src_services_adapters_geminiAdapter_ts["src/services/adapters/geminiAdapter.ts"]:::component
+  sym_src_services_adapters_geminiAdapter_ts_G["GeminiAdapter"]:::symbol
+  file_src_services_adapters_geminiAdapter_ts --> sym_src_services_adapters_geminiAdapter_ts_G
+  file_src_services_adapters_grokAdapter_ts["src/services/adapters/grokAdapter.ts"]:::component
+  sym_src_services_adapters_grokAdapter_ts_Gro["GrokAdapter"]:::symbol
+  file_src_services_adapters_grokAdapter_ts --> sym_src_services_adapters_grokAdapter_ts_Gro
+  file_src_services_adapters_groqAdapter_ts["src/services/adapters/groqAdapter.ts"]:::component
+  sym_src_services_adapters_groqAdapter_ts_Gro["GroqAdapter"]:::symbol
+  file_src_services_adapters_groqAdapter_ts --> sym_src_services_adapters_groqAdapter_ts_Gro
+  file_src_services_adapters_index_ts["src/services/adapters/index.ts"]:::component
+  sym_src_services_adapters_index_ts_createAda["createAdapter"]:::symbol
+  file_src_services_adapters_index_ts --> sym_src_services_adapters_index_ts_createAda
+  file_src_services_adapters_mistralAdapter_ts["src/services/adapters/mistralAdapter.ts"]:::component
+  sym_src_services_adapters_mistralAdapter_ts_["MistralAdapter"]:::symbol
+  file_src_services_adapters_mistralAdapter_ts --> sym_src_services_adapters_mistralAdapter_ts_
+  file_src_services_adapters_modelCapabilities_["src/services/adapters/modelCapabilities.ts"]:::component
+  sym_src_services_adapters_modelCapabilities_["claudeHas1MContext"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["claudeSupportsAdaptiveThinking"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["claudeSupportsDynamicWebSearch"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["geminiSupportsThinking"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["openaiIsReasoningModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["parseClaudeModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["parseGeminiModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["parseOpenAIModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["pickNewestClaude"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["pickNewestGemini"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["pickNewestOpenAI"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["resolveLatestModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["resolveSpecialistModel"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  sym_src_services_adapters_modelCapabilities_["versionAtLeast"]:::symbol
+  file_src_services_adapters_modelCapabilities_ --> sym_src_services_adapters_modelCapabilities_
+  file_src_services_adapters_modelRegistry_ts["src/services/adapters/modelRegistry.ts"]:::component
+  sym_src_services_adapters_modelRegistry_ts_g["getFirstModel"]:::symbol
+  file_src_services_adapters_modelRegistry_ts --> sym_src_services_adapters_modelRegistry_ts_g
+  sym_src_services_adapters_modelRegistry_ts_g["getProviderModels"]:::symbol
+  file_src_services_adapters_modelRegistry_ts --> sym_src_services_adapters_modelRegistry_ts_g
+  sym_src_services_adapters_modelRegistry_ts_h["hasModelList"]:::symbol
+  file_src_services_adapters_modelRegistry_ts --> sym_src_services_adapters_modelRegistry_ts_h
+  sym_src_services_adapters_modelRegistry_ts_i["isValidModel"]:::symbol
+  file_src_services_adapters_modelRegistry_ts --> sym_src_services_adapters_modelRegistry_ts_i
+  file_src_services_adapters_openaiAdapter_ts["src/services/adapters/openaiAdapter.ts"]:::component
+  sym_src_services_adapters_openaiAdapter_ts_O["OpenAIAdapter"]:::symbol
+  file_src_services_adapters_openaiAdapter_ts --> sym_src_services_adapters_openaiAdapter_ts_O
+  file_src_services_adapters_openaiCompatibleAd["src/services/adapters/openaiCompatibleAdapter.ts"]:::component
+  sym_src_services_adapters_openaiCompatibleAd["OpenAICompatibleAdapter"]:::symbol
+  file_src_services_adapters_openaiCompatibleAd --> sym_src_services_adapters_openaiCompatibleAd
+  file_src_services_adapters_openRouterAdapter_["src/services/adapters/openRouterAdapter.ts"]:::component
+  sym_src_services_adapters_openRouterAdapter_["OpenRouterAdapter"]:::symbol
+  file_src_services_adapters_openRouterAdapter_ --> sym_src_services_adapters_openRouterAdapter_
+  file_src_services_adapters_providerRegistry_t["src/services/adapters/providerRegistry.ts"]:::component
+  sym_src_services_adapters_providerRegistry_t["buildProviderOptions"]:::symbol
+  file_src_services_adapters_providerRegistry_t --> sym_src_services_adapters_providerRegistry_t
+  file_src_services_adapters_requestyAdapter_ts["src/services/adapters/requestyAdapter.ts"]:::component
+  sym_src_services_adapters_requestyAdapter_ts["RequestyAdapter"]:::symbol
+  file_src_services_adapters_requestyAdapter_ts --> sym_src_services_adapters_requestyAdapter_ts
+  file_src_services_adapters_siliconflowAdapter["src/services/adapters/siliconflowAdapter.ts"]:::component
+  sym_src_services_adapters_siliconflowAdapter["SiliconflowAdapter"]:::symbol
+  file_src_services_adapters_siliconflowAdapter --> sym_src_services_adapters_siliconflowAdapter
+  file_src_services_adapters_vertexAdapter_ts["src/services/adapters/vertexAdapter.ts"]:::component
+  sym_src_services_adapters_vertexAdapter_ts_V["VertexAdapter"]:::symbol
+  file_src_services_adapters_vertexAdapter_ts --> sym_src_services_adapters_vertexAdapter_ts_V
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`AliyunAdapter`](../src/services/adapters/aliyunAdapter.ts#L5) | class | `src/services/adapters/aliyunAdapter.ts` | 5-137 | Adapter for Aliyun's Qwen LLM, formatting requests and parsing responses in Aliyun's expected format. |
+| [`BaseAdapter`](../src/services/adapters/baseAdapter.ts#L7) | class | `src/services/adapters/baseAdapter.ts` | 7-280 | Base class for LLM adapters that provides request formatting and response parsing utilities for cloud service providers. |
+| [`BedrockAdapter`](../src/services/adapters/bedrockAdapter.ts#L5) | class | `src/services/adapters/bedrockAdapter.ts` | 5-126 | Adapter for AWS Bedrock, supporting multiple model types (Claude, Titan) with model-specific request formatting. |
+| [`ClaudeAdapter`](../src/services/adapters/claudeAdapter.ts#L14) | class | `src/services/adapters/claudeAdapter.ts` | 14-199 | Adapter for Anthropic's Claude API, implementing adaptive thinking parameters and message-based API interactions. |
+| [`supportsAdaptiveThinking`](../src/services/adapters/claudeAdapter.ts#L10) | function | `src/services/adapters/claudeAdapter.ts` | 10-12 | Checks whether a Claude model supports adaptive thinking mode based on its version. |
+| [`CohereAdapter`](../src/services/adapters/cohereAdapter.ts#L6) | class | `src/services/adapters/cohereAdapter.ts` | 6-102 | Adapter for Cohere's v2 API, using OpenAI-compatible message format with Cohere-specific response paths. |
+| [`DeepseekAdapter`](../src/services/adapters/deepseekAdapter.ts#L5) | class | `src/services/adapters/deepseekAdapter.ts` | 5-83 | Adapter for Deepseek models, parsing JSON responses and handling structured data extraction. |
+| [`__resetDynamicModelCache`](../src/services/adapters/dynamicModelService.ts#L46) | function | `src/services/adapters/dynamicModelService.ts` | 46-48 | Clears the live model cache for all providers. |
+| [`fetchAnthropic`](../src/services/adapters/dynamicModelService.ts#L119) | function | `src/services/adapters/dynamicModelService.ts` | 119-140 | Fetches available models from Anthropic's API and maps them to a standardized format. |
+| [`fetchGemini`](../src/services/adapters/dynamicModelService.ts#L161) | function | `src/services/adapters/dynamicModelService.ts` | 161-187 | Fetches available Gemini models from Google's API, filtering for generative capabilities and extracting context windows. |
+| [`fetchLiveModels`](../src/services/adapters/dynamicModelService.ts#L59) | function | `src/services/adapters/dynamicModelService.ts` | 59-68 | Fetches live model lists from a provider's API using the registered fetcher function. |
+| [`fetchOpenAICompat`](../src/services/adapters/dynamicModelService.ts#L142) | function | `src/services/adapters/dynamicModelService.ts` | 142-159 | Creates a reusable fetcher function for OpenAI-compatible model list endpoints. |
+| [`getCachedModels`](../src/services/adapters/dynamicModelService.ts#L51) | function | `src/services/adapters/dynamicModelService.ts` | 51-53 | Retrieves cached models for a specific provider if available. |
+| [`getLiveModels`](../src/services/adapters/dynamicModelService.ts#L78) | function | `src/services/adapters/dynamicModelService.ts` | 78-101 | Returns live models for a provider, using cache when fresh, falling back to static models if fetch fails. |
+| [`providerSupportsLiveFetch`](../src/services/adapters/dynamicModelService.ts#L191) | function | `src/services/adapters/dynamicModelService.ts` | 191-193 | Checks if a provider supports live model fetching. |
+| [`GeminiAdapter`](../src/services/adapters/geminiAdapter.ts#L5) | class | `src/services/adapters/geminiAdapter.ts` | 5-78 | Adapter for Google Gemini API, supporting multimodal (image + document) content. |
+| [`GrokAdapter`](../src/services/adapters/grokAdapter.ts#L6) | class | `src/services/adapters/grokAdapter.ts` | 6-102 | Adapter for xAI's Grok API, formatting requests and extracting JSON from responses. |
+| [`GroqAdapter`](../src/services/adapters/groqAdapter.ts#L6) | class | `src/services/adapters/groqAdapter.ts` | 6-102 | Adapter for Groq's fast inference API, using OpenAI-compatible format with Groq-specific defaults. |
+| [`createAdapter`](../src/services/adapters/index.ts#L28) | function | `src/services/adapters/index.ts` | 28-100 | Factory function that creates the appropriate adapter instance based on provider type. |
+| [`MistralAdapter`](../src/services/adapters/mistralAdapter.ts#L5) | class | `src/services/adapters/mistralAdapter.ts` | 5-44 | Adapter for Mistral AI, supporting streaming with OpenAI-compatible endpoints and safe mode. |
+| [`claudeHas1MContext`](../src/services/adapters/modelCapabilities.ts#L69) | function | `src/services/adapters/modelCapabilities.ts` | 69-71 | Checks if a Claude model has 1M context window support. |
+| [`claudeSupportsAdaptiveThinking`](../src/services/adapters/modelCapabilities.ts#L52) | function | `src/services/adapters/modelCapabilities.ts` | 52-57 | Determines if a Claude model supports adaptive thinking (Opus/Sonnet 4.6+). |
+| [`claudeSupportsDynamicWebSearch`](../src/services/adapters/modelCapabilities.ts#L78) | function | `src/services/adapters/modelCapabilities.ts` | 78-80 | Checks if a Claude model supports dynamic web search capability. |
+| [`geminiSupportsThinking`](../src/services/adapters/modelCapabilities.ts#L178) | function | `src/services/adapters/modelCapabilities.ts` | 178-184 | Checks if a Gemini model supports thinking mode (2.5+ Pro/Flash). |
+| [`openaiIsReasoningModel`](../src/services/adapters/modelCapabilities.ts#L129) | function | `src/services/adapters/modelCapabilities.ts` | 129-132 | Determines if an OpenAI model is a reasoning model (O-series). |
+| [`parseClaudeModel`](../src/services/adapters/modelCapabilities.ts#L30) | function | `src/services/adapters/modelCapabilities.ts` | 30-39 | Parses a Claude model ID into version components (tier, major, minor). |
+| [`parseGeminiModel`](../src/services/adapters/modelCapabilities.ts#L162) | function | `src/services/adapters/modelCapabilities.ts` | 162-175 | Parses a Gemini model ID into version, tier, and capability flags. |
+| [`parseOpenAIModel`](../src/services/adapters/modelCapabilities.ts#L103) | function | `src/services/adapters/modelCapabilities.ts` | 103-126 | Parses an OpenAI model ID into family, version, and variant components (GPT or O-series). |
+| [`pickNewestClaude`](../src/services/adapters/modelCapabilities.ts#L203) | function | `src/services/adapters/modelCapabilities.ts` | 203-213 | Selects the newest Claude model of a specified tier from available IDs. |
+| [`pickNewestGemini`](../src/services/adapters/modelCapabilities.ts#L219) | function | `src/services/adapters/modelCapabilities.ts` | 219-232 | Selects the newest Gemini model of a specified tier, preferring GA over preview versions. |
+| [`pickNewestOpenAI`](../src/services/adapters/modelCapabilities.ts#L235) | function | `src/services/adapters/modelCapabilities.ts` | 235-253 | Selects the newest OpenAI model matching a specified tier (GPT, mini, nano, or O-series). |
+| [`resolveLatestModel`](../src/services/adapters/modelCapabilities.ts#L267) | function | `src/services/adapters/modelCapabilities.ts` | 267-303 | Resolves "latest-" sentinel model IDs to actual model IDs using available model pools and version parsing. |
+| [`resolveSpecialistModel`](../src/services/adapters/modelCapabilities.ts#L318) | function | `src/services/adapters/modelCapabilities.ts` | 318-328 | Resolves specialist model IDs to concrete models, preferring live IDs when available. |
+| [`versionAtLeast`](../src/services/adapters/modelCapabilities.ts#L42) | function | `src/services/adapters/modelCapabilities.ts` | 42-45 | Checks if a parsed Claude version is at least a specified major.minor version. |
+| [`getFirstModel`](../src/services/adapters/modelRegistry.ts#L163) | function | `src/services/adapters/modelRegistry.ts` | 163-167 | Returns the first (default) model ID for a provider. |
+| [`getProviderModels`](../src/services/adapters/modelRegistry.ts#L149) | function | `src/services/adapters/modelRegistry.ts` | 149-151 | Returns all models registered for a specific provider. |
+| [`hasModelList`](../src/services/adapters/modelRegistry.ts#L156) | function | `src/services/adapters/modelRegistry.ts` | 156-158 | Checks if a provider has any registered models in the model registry. |
+| [`isValidModel`](../src/services/adapters/modelRegistry.ts#L172) | function | `src/services/adapters/modelRegistry.ts` | 172-176 | Validates whether a model ID is registered for a given provider. |
+| [`OpenAIAdapter`](../src/services/adapters/openaiAdapter.ts#L6) | class | `src/services/adapters/openaiAdapter.ts` | 6-87 | Adapter for OpenAI's Chat API, supporting image multimodal content with hard error for unsupported documents. |
+| [`OpenAICompatibleAdapter`](../src/services/adapters/openaiCompatibleAdapter.ts#L5) | class | `src/services/adapters/openaiCompatibleAdapter.ts` | 5-115 | Generic adapter for OpenAI-compatible endpoints, allowing custom configurations beyond standard parameters. |
+| [`OpenRouterAdapter`](../src/services/adapters/openRouterAdapter.ts#L5) | class | `src/services/adapters/openRouterAdapter.ts` | 5-86 | Adapter for OpenRouter, parsing responses and extracting matched/suggested tags from JSON content. |
+| [`buildProviderOptions`](../src/services/adapters/providerRegistry.ts#L68) | function | `src/services/adapters/providerRegistry.ts` | 68-85 | Builds a localized provider options object mapping provider names to their display labels. |
+| [`RequestyAdapter`](../src/services/adapters/requestyAdapter.ts#L6) | class | `src/services/adapters/requestyAdapter.ts` | 6-103 | Adapter for Requesty service, using OpenAI-compatible format with customizable temperature and token limits. |
+| [`SiliconflowAdapter`](../src/services/adapters/siliconflowAdapter.ts#L6) | class | `src/services/adapters/siliconflowAdapter.ts` | 6-92 | Adapter for Siliconflow's chat API with bearer token authentication and connection testing. |
+| [`VertexAdapter`](../src/services/adapters/vertexAdapter.ts#L6) | class | `src/services/adapters/vertexAdapter.ts` | 6-131 | Adapter for Google Vertex AI, formatting requests with Vertex-specific instance/parameter structure. |
+
+---
+
+## long-running-ops
+
+```mermaid
+flowchart TB
+subgraph dom_long_running_ops ["long-running-ops"]
+  file_src_services_longRunningOp_progressContr["src/services/longRunningOp/progressController.ts"]:::component
+  sym_src_services_longRunningOp_progressContr["LongRunningOpController"]:::symbol
+  file_src_services_longRunningOp_progressContr --> sym_src_services_longRunningOp_progressContr
+  sym_src_services_longRunningOp_progressContr["parseCountFromPrompt"]:::symbol
+  file_src_services_longRunningOp_progressContr --> sym_src_services_longRunningOp_progressContr
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`LongRunningOpController`](../src/services/longRunningOp/progressController.ts#L29) | class | `src/services/longRunningOp/progressController.ts` | 29-197 | <no body> |
 | [`parseCountFromPrompt`](../src/services/longRunningOp/progressController.ts#L209) | function | `src/services/longRunningOp/progressController.ts` | 209-219 | Parses an integer count from a prompt using a regex pattern, returning a value clamped between 1 and a maximum. |
-| [`MermaidChangeDetector`](../src/services/mermaidChangeDetector.ts#L50) | class | `src/services/mermaidChangeDetector.ts` | 50-169 | <no body> |
-| [`MermaidContextService`](../src/services/mermaidContextService.ts#L27) | class | `src/services/mermaidContextService.ts` | 27-164 | <no body> |
-| [`MermaidExportService`](../src/services/mermaidExportService.ts#L20) | class | `src/services/mermaidExportService.ts` | 20-319 | <no body> |
-| [`MermaidTemplateService`](../src/services/mermaidTemplateService.ts#L45) | class | `src/services/mermaidTemplateService.ts` | 45-179 | <no body> |
-| [`markNoteProcessed`](../src/services/metadataPostOp.ts#L56) | function | `src/services/metadataPostOp.ts` | 56-107 | Updates a note's metadata to mark it as processed, optionally updating status and word count. |
-| [`MigrationService`](../src/services/migrationService.ts#L48) | class | `src/services/migrationService.ts` | 48-318 | <no body> |
-| [`computeMinutesBudget`](../src/services/minutesBudgets.ts#L29) | function | `src/services/minutesBudgets.ts` | 29-46 | Computes soft and hard time budgets for a long operation based on chunk count, with floor and ceiling constraints. |
-| [`MinutesService`](../src/services/minutesService.ts#L170) | class | `src/services/minutesService.ts` | 170-966 | <no body> |
+
+---
+
+## newsletter
+
+```mermaid
+flowchart TB
+subgraph dom_newsletter ["newsletter"]
+  file_src_services_newsletter_newsletterAudioS["src/services/newsletter/newsletterAudioService.ts"]:::component
+  sym_src_services_newsletter_newsletterAudioS["describeError"]:::symbol
+  file_src_services_newsletter_newsletterAudioS --> sym_src_services_newsletter_newsletterAudioS
+  sym_src_services_newsletter_newsletterAudioS["generateAudioPodcast"]:::symbol
+  file_src_services_newsletter_newsletterAudioS --> sym_src_services_newsletter_newsletterAudioS
+  sym_src_services_newsletter_newsletterAudioS["pruneStaleAudioFiles"]:::symbol
+  file_src_services_newsletter_newsletterAudioS --> sym_src_services_newsletter_newsletterAudioS
+  sym_src_services_newsletter_newsletterAudioS["splitScriptForTts"]:::symbol
+  file_src_services_newsletter_newsletterAudioS --> sym_src_services_newsletter_newsletterAudioS
+  file_src_services_newsletter_newsletterServic["src/services/newsletter/newsletterService.ts"]:::component
+  sym_src_services_newsletter_newsletterServic["extractBriefFromDigest"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["extractFrontmatterField"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["extractNewsletterLinks"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["extractSenderName"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["extractTriageFromNote"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["formatLocalYmd"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["getBriefDateStr"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["getBucketDateStr"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["getDigestPath"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["hasAudioEmbed"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["isBucketClosed"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["isExpiredNewsletterEntry"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+  sym_src_services_newsletter_newsletterServic["NewsletterService"]:::symbol
+  file_src_services_newsletter_newsletterServic --> sym_src_services_newsletter_newsletterServic
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`describeError`](../src/services/newsletter/newsletterAudioService.ts#L161) | function | `src/services/newsletter/newsletterAudioService.ts` | 161-163 | Converts an error to its string message representation. |
 | [`generateAudioPodcast`](../src/services/newsletter/newsletterAudioService.ts#L66) | function | `src/services/newsletter/newsletterAudioService.ts` | 66-146 | Synthesizes audio from a script using Gemini TTS, splitting text into chunks and writing MP3 output with idempotency and retry logic. |
 | [`pruneStaleAudioFiles`](../src/services/newsletter/newsletterAudioService.ts#L169) | function | `src/services/newsletter/newsletterAudioService.ts` | 169-195 | Removes stale or legacy audio files (WAV format or outdated fingerprints) from an output folder. |
@@ -1399,6 +2148,97 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`isBucketClosed`](../src/services/newsletter/newsletterService.ts#L1114) | function | `src/services/newsletter/newsletterService.ts` | 1114-1121 | Determines whether a newsletter bucket is closed by comparing its boundary date to the current time. |
 | [`isExpiredNewsletterEntry`](../src/services/newsletter/newsletterService.ts#L1157) | function | `src/services/newsletter/newsletterService.ts` | 1157-1162 | Checks if a newsletter entry folder or file is expired by comparing its date string to a cutoff. |
 | [`NewsletterService`](../src/services/newsletter/newsletterService.ts#L29) | class | `src/services/newsletter/newsletterService.ts` | 29-1088 | <no body> |
+
+---
+
+## notebooklm
+
+```mermaid
+flowchart TB
+subgraph dom_notebooklm ["notebooklm"]
+  file_src_services_notebooklm_chunking_ts["src/services/notebooklm/chunking.ts"]:::component
+  sym_src_services_notebooklm_chunking_ts_auto["autoSelectExportMode"]:::symbol
+  file_src_services_notebooklm_chunking_ts --> sym_src_services_notebooklm_chunking_ts_auto
+  sym_src_services_notebooklm_chunking_ts_chec["checkModuleLimits"]:::symbol
+  file_src_services_notebooklm_chunking_ts --> sym_src_services_notebooklm_chunking_ts_chec
+  sym_src_services_notebooklm_chunking_ts_chec["checkModuleWordLimit"]:::symbol
+  file_src_services_notebooklm_chunking_ts --> sym_src_services_notebooklm_chunking_ts_chec
+  sym_src_services_notebooklm_chunking_ts_esti["estimateModuleCount"]:::symbol
+  file_src_services_notebooklm_chunking_ts --> sym_src_services_notebooklm_chunking_ts_esti
+  sym_src_services_notebooklm_chunking_ts_vali["validateExportParameters"]:::symbol
+  file_src_services_notebooklm_chunking_ts --> sym_src_services_notebooklm_chunking_ts_vali
+  file_src_services_notebooklm_hashing_ts["src/services/notebooklm/hashing.ts"]:::component
+  sym_src_services_notebooklm_hashing_ts_bytes["bytesToHex"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_bytes
+  sym_src_services_notebooklm_hashing_ts_compu["computeBinarySHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_compu
+  sym_src_services_notebooklm_hashing_ts_compu["computePackHash"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_compu
+  sym_src_services_notebooklm_hashing_ts_compu["computeSHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_compu
+  sym_src_services_notebooklm_hashing_ts_gener["generateShortId"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_gener
+  sym_src_services_notebooklm_hashing_ts_hashe["hashesMatch"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_hashe
+  sym_src_services_notebooklm_hashing_ts_hashN["hashNoteContent"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_hashN
+  sym_src_services_notebooklm_hashing_ts_isVal["isValidSHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts --> sym_src_services_notebooklm_hashing_ts_isVal
+  file_src_services_notebooklm_notebooklmUtils_["src/services/notebooklm/notebooklmUtils.ts"]:::component
+  sym_src_services_notebooklm_notebooklmUtils_["formatBytes"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils_ --> sym_src_services_notebooklm_notebooklmUtils_
+  sym_src_services_notebooklm_notebooklmUtils_["resolveOutputName"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils_ --> sym_src_services_notebooklm_notebooklmUtils_
+  sym_src_services_notebooklm_notebooklmUtils_["sanitizeFilename"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils_ --> sym_src_services_notebooklm_notebooklmUtils_
+  file_src_services_notebooklm_pdf_MarkdownPdfG["src/services/notebooklm/pdf/MarkdownPdfGenerator.ts"]:::component
+  sym_src_services_notebooklm_pdf_MarkdownPdfG["MarkdownPdfGenerator"]:::symbol
+  file_src_services_notebooklm_pdf_MarkdownPdfG --> sym_src_services_notebooklm_pdf_MarkdownPdfG
+  file_src_services_notebooklm_registry_ts["src/services/notebooklm/registry.ts"]:::component
+  sym_src_services_notebooklm_registry_ts_norm["normalizePackEntry"]:::symbol
+  file_src_services_notebooklm_registry_ts --> sym_src_services_notebooklm_registry_ts_norm
+  sym_src_services_notebooklm_registry_ts_norm["normalizeRegistryEntry"]:::symbol
+  file_src_services_notebooklm_registry_ts --> sym_src_services_notebooklm_registry_ts_norm
+  sym_src_services_notebooklm_registry_ts_Regi["RegistryService"]:::symbol
+  file_src_services_notebooklm_registry_ts --> sym_src_services_notebooklm_registry_ts_Regi
+  file_src_services_notebooklm_selectionService["src/services/notebooklm/selectionService.ts"]:::component
+  sym_src_services_notebooklm_selectionService["SelectionService"]:::symbol
+  file_src_services_notebooklm_selectionService --> sym_src_services_notebooklm_selectionService
+  file_src_services_notebooklm_sourcePackServic["src/services/notebooklm/sourcePackService.ts"]:::component
+  sym_src_services_notebooklm_sourcePackServic["computeConfigHash"]:::symbol
+  file_src_services_notebooklm_sourcePackServic --> sym_src_services_notebooklm_sourcePackServic
+  sym_src_services_notebooklm_sourcePackServic["sleep"]:::symbol
+  file_src_services_notebooklm_sourcePackServic --> sym_src_services_notebooklm_sourcePackServic
+  sym_src_services_notebooklm_sourcePackServic["SourcePackService"]:::symbol
+  file_src_services_notebooklm_sourcePackServic --> sym_src_services_notebooklm_sourcePackServic
+  file_src_services_notebooklm_textPreprocessor["src/services/notebooklm/textPreprocessor.ts"]:::component
+  sym_src_services_notebooklm_textPreprocessor["getExtension"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  sym_src_services_notebooklm_textPreprocessor["htmlBlockTag"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  sym_src_services_notebooklm_textPreprocessor["isImageExtension"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  sym_src_services_notebooklm_textPreprocessor["parseFence"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  sym_src_services_notebooklm_textPreprocessor["preprocessNoteForNotebookLM"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  sym_src_services_notebooklm_textPreprocessor["replaceImageEmbeds"]:::symbol
+  file_src_services_notebooklm_textPreprocessor --> sym_src_services_notebooklm_textPreprocessor
+  file_src_services_notebooklm_writer_ts["src/services/notebooklm/writer.ts"]:::component
+  sym_src_services_notebooklm_writer_ts_Writer["WriterService"]:::symbol
+  file_src_services_notebooklm_writer_ts --> sym_src_services_notebooklm_writer_ts_Writer
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`autoSelectExportMode`](../src/services/notebooklm/chunking.ts#L15) | function | `src/services/notebooklm/chunking.ts` | 15-17 | <no body> |
 | [`checkModuleLimits`](../src/services/notebooklm/chunking.ts#L23) | function | `src/services/notebooklm/chunking.ts` | 23-25 | <no body> |
 | [`checkModuleWordLimit`](../src/services/notebooklm/chunking.ts#L27) | function | `src/services/notebooklm/chunking.ts` | 27-29 | <no body> |
@@ -1430,11 +2270,235 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`preprocessNoteForNotebookLM`](../src/services/notebooklm/textPreprocessor.ts#L105) | function | `src/services/notebooklm/textPreprocessor.ts` | 105-234 | Preprocesses note content by handling frontmatter, fenced code blocks, HTML blocks, and image embeds. |
 | [`replaceImageEmbeds`](../src/services/notebooklm/textPreprocessor.ts#L57) | function | `src/services/notebooklm/textPreprocessor.ts` | 57-76 | Replaces image embeds (both wiki and markdown syntax) with descriptive text placeholders. |
 | [`WriterService`](../src/services/notebooklm/writer.ts#L11) | class | `src/services/notebooklm/writer.ts` | 11-125 | Writes pack metadata files (README, manifest, changelog) to the export folder. |
-| [`ParticipantListService`](../src/services/participantListService.ts#L20) | class | `src/services/participantListService.ts` | 20-159 | Manages participant list files stored in a dedicated vault subfolder. |
-| [`PdfService`](../src/services/pdfService.ts#L27) | class | `src/services/pdfService.ts` | 27-293 | Reads PDF files and converts them to base64 for multimodal LLM consumption, with size validation. |
-| [`serviceCanSummarizePdf`](../src/services/pdfService.ts#L298) | function | `src/services/pdfService.ts` | 298-301 | Returns true if a cloud service type supports PDF summarization (Claude/Gemini only). |
-| [`getPdfProviderConfig`](../src/services/pdfTranslationService.ts#L10) | function | `src/services/pdfTranslationService.ts` | 10-96 | Resolves which cloud provider and API key to use for PDF translation based on plugin settings. |
-| [`translatePdfWithLLM`](../src/services/pdfTranslationService.ts#L104) | function | `src/services/pdfTranslationService.ts` | 104-158 | Translates PDF content using Claude or Gemini, creating a temporary service if needed. |
+
+---
+
+## persona-harness
+
+```mermaid
+flowchart TB
+subgraph dom_persona_harness ["persona-harness"]
+  file_scripts_persona_harness_command_picker_r["scripts/persona-harness/command-picker-redesign.mjs"]:::component
+  sym_scripts_persona_harness_command_picker_r["closeAll"]:::symbol
+  file_scripts_persona_harness_command_picker_r --> sym_scripts_persona_harness_command_picker_r
+  sym_scripts_persona_harness_command_picker_r["idMatches"]:::symbol
+  file_scripts_persona_harness_command_picker_r --> sym_scripts_persona_harness_command_picker_r
+  sym_scripts_persona_harness_command_picker_r["pass"]:::symbol
+  file_scripts_persona_harness_command_picker_r --> sym_scripts_persona_harness_command_picker_r
+  sym_scripts_persona_harness_command_picker_r["record"]:::symbol
+  file_scripts_persona_harness_command_picker_r --> sym_scripts_persona_harness_command_picker_r
+  sym_scripts_persona_harness_command_picker_r["shotPath"]:::symbol
+  file_scripts_persona_harness_command_picker_r --> sym_scripts_persona_harness_command_picker_r
+  file_scripts_persona_harness_command_picker_s["scripts/persona-harness/command-picker-subgroups.mjs"]:::component
+  sym_scripts_persona_harness_command_picker_s["closeAll"]:::symbol
+  file_scripts_persona_harness_command_picker_s --> sym_scripts_persona_harness_command_picker_s
+  sym_scripts_persona_harness_command_picker_s["pass"]:::symbol
+  file_scripts_persona_harness_command_picker_s --> sym_scripts_persona_harness_command_picker_s
+  sym_scripts_persona_harness_command_picker_s["record"]:::symbol
+  file_scripts_persona_harness_command_picker_s --> sym_scripts_persona_harness_command_picker_s
+  sym_scripts_persona_harness_command_picker_s["shotPath"]:::symbol
+  file_scripts_persona_harness_command_picker_s --> sym_scripts_persona_harness_command_picker_s
+  file_scripts_persona_harness_driver_mjs["scripts/persona-harness/driver.mjs"]:::component
+  sym_scripts_persona_harness_driver_mjs_dismi["dismissModal"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_dismi
+  sym_scripts_persona_harness_driver_mjs_dumpC["dumpCommandPickerStructure"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_dumpC
+  sym_scripts_persona_harness_driver_mjs_ensur["ensureVaultOpen"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_ensur
+  sym_scripts_persona_harness_driver_mjs_findM["findMainPage"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_findM
+  sym_scripts_persona_harness_driver_mjs_isObs["isObsidianRunning"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_isObs
+  sym_scripts_persona_harness_driver_mjs_launc["launchOrAttach"]:::symbol
+  file_scripts_persona_harness_driver_mjs --> sym_scripts_persona_harness_driver_mjs_launc
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 97 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`closeAll`](../scripts/persona-harness/command-picker-redesign.mjs#L51) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 51-61 | Iteratively closes all open modals on the page by clicking close buttons or pressing Escape up to 4 times. |
+| [`idMatches`](../scripts/persona-harness/command-picker-redesign.mjs#L111) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 111-111 | Filters tree elements whose IDs start with a picker option prefix. |
+| [`pass`](../scripts/persona-harness/command-picker-redesign.mjs#L34) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 34-34 | Logs a pass label to console. |
+| [`record`](../scripts/persona-harness/command-picker-redesign.mjs#L30) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 30-33 | Records a finding (severity, summary, detail) to a findings array and logs it. |
+| [`shotPath`](../scripts/persona-harness/command-picker-redesign.mjs#L26) | function | `scripts/persona-harness/command-picker-redesign.mjs` | 26-26 | Constructs the output file path for a screenshot by name. |
+| [`closeAll`](../scripts/persona-harness/command-picker-subgroups.mjs#L48) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 48-58 | Attempts to close all open modals by clicking close buttons or pressing Escape up to 4 times. |
+| [`pass`](../scripts/persona-harness/command-picker-subgroups.mjs#L32) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 32-32 | Logs a pass result with a label to console. |
+| [`record`](../scripts/persona-harness/command-picker-subgroups.mjs#L28) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 28-31 | Records a finding with severity and detail, then logs it to console. |
+| [`shotPath`](../scripts/persona-harness/command-picker-subgroups.mjs#L24) | function | `scripts/persona-harness/command-picker-subgroups.mjs` | 24-24 | Constructs the output file path for a screenshot by name. |
+| [`dismissModal`](../scripts/persona-harness/driver.mjs#L302) | function | `scripts/persona-harness/driver.mjs` | 302-305 | Dismisses the current modal by pressing Escape. |
+| [`dumpCommandPickerStructure`](../scripts/persona-harness/driver.mjs#L315) | function | `scripts/persona-harness/driver.mjs` | 315-328 | Extracts all AI Organiser plugin commands from the app's command registry. |
+| [`ensureVaultOpen`](../scripts/persona-harness/driver.mjs#L128) | function | `scripts/persona-harness/driver.mjs` | 128-177 | Waits for a vault to open by clicking its entry on the starter page and polling for the vault window. |
+| [`findMainPage`](../scripts/persona-harness/driver.mjs#L106) | function | `scripts/persona-harness/driver.mjs` | 106-117 | Finds the main Obsidian app page by searching for the app:// URL across all browser contexts. |
+| [`isObsidianRunning`](../scripts/persona-harness/driver.mjs#L24) | function | `scripts/persona-harness/driver.mjs` | 24-34 | Checks if Obsidian.exe is currently running on Windows. |
+| [`launchOrAttach`](../scripts/persona-harness/driver.mjs#L63) | function | `scripts/persona-harness/driver.mjs` | 63-99 | Launches Obsidian with remote debugging enabled or attaches to an already-running instance via CDP. |
+| [`openPaletteAndType`](../scripts/persona-harness/driver.mjs#L295) | function | `scripts/persona-harness/driver.mjs` | 295-299 | Opens the command palette with Ctrl+P and types a query if provided. |
+| [`openPluginCommandPicker`](../scripts/persona-harness/driver.mjs#L208) | function | `scripts/persona-harness/driver.mjs` | 208-214 | Opens the plugin's command picker modal by running a ready command. |
+| [`openPluginCommandPickerViaRibbon`](../scripts/persona-harness/driver.mjs#L224) | function | `scripts/persona-harness/driver.mjs` | 224-228 | Opens the plugin's command picker via a ribbon button with the given tooltip. |
+| [`openVaultFile`](../scripts/persona-harness/driver.mjs#L271) | function | `scripts/persona-harness/driver.mjs` | 271-282 | Opens a vault file by its path and waits for it to display. |
+| [`readVisibleMenuItems`](../scripts/persona-harness/driver.mjs#L285) | function | `scripts/persona-harness/driver.mjs` | 285-292 | Reads all visible menu items and returns their text and submenu status. |
+| [`rightClickEditor`](../scripts/persona-harness/driver.mjs#L244) | function | `scripts/persona-harness/driver.mjs` | 244-248 | Right-clicks in the editor body to open its context menu. |
+| [`rightClickEditorWithSelection`](../scripts/persona-harness/driver.mjs#L255) | function | `scripts/persona-harness/driver.mjs` | 255-261 | Double-clicks to select text in the editor, then right-clicks to open the context menu. |
+| [`rightClickFileInTree`](../scripts/persona-harness/driver.mjs#L234) | function | `scripts/persona-harness/driver.mjs` | 234-238 | Right-clicks a file in the vault tree to open its context menu. |
+| [`runCommand`](../scripts/persona-harness/driver.mjs#L198) | function | `scripts/persona-harness/driver.mjs` | 198-205 | Executes a plugin command by ID and returns success or failure. |
+| [`stampedName`](../scripts/persona-harness/driver.mjs#L331) | function | `scripts/persona-harness/driver.mjs` | 331-333 | Creates a timestamped screenshot filename. |
+| [`waitForPluginReady`](../scripts/persona-harness/driver.mjs#L183) | function | `scripts/persona-harness/driver.mjs` | 183-192 | Waits for a plugin command to be registered and ready in the app's command registry. |
+| [`waitForPort`](../scripts/persona-harness/driver.mjs#L37) | function | `scripts/persona-harness/driver.mjs` | 37-54 | Polls a network port until it becomes available or times out. |
+| [`closeAllModals`](../scripts/persona-harness/explore-audio-narration.mjs#L78) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 78-90 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
+| [`record`](../scripts/persona-harness/explore-audio-narration.mjs#L39) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 39-48 | Records an observation with a severity emoji and logs it to console. |
+| [`shotPath`](../scripts/persona-harness/explore-audio-narration.mjs#L36) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 36-36 | Constructs the output file path for a screenshot by name. |
+| [`sortBySev`](../scripts/persona-harness/explore-audio-narration.mjs#L363) | function | `scripts/persona-harness/explore-audio-narration.mjs` | 363-366 | Sorts findings by severity level (P0 through PASS). |
+| [`captureModalState`](../scripts/persona-harness/explore-errors.mjs#L105) | function | `scripts/persona-harness/explore-errors.mjs` | 105-115 | Captures the title, text, and button count of the currently visible modal. |
+| [`captureNotices`](../scripts/persona-harness/explore-errors.mjs#L117) | function | `scripts/persona-harness/explore-errors.mjs` | 117-121 | Extracts text content from all visible notice elements. |
+| [`classifyEmptyResponse`](../scripts/persona-harness/explore-errors.mjs#L135) | function | `scripts/persona-harness/explore-errors.mjs` | 135-162 | Classifies whether an empty-state response provides helpful guidance or is a silent failure. |
+| [`closeAllModals`](../scripts/persona-harness/explore-errors.mjs#L49) | function | `scripts/persona-harness/explore-errors.mjs` | 49-61 | Closes all open modals by attempting close buttons and Escape presses up to 8 times. |
+| [`prepareEmptyFile`](../scripts/persona-harness/explore-errors.mjs#L70) | function | `scripts/persona-harness/explore-errors.mjs` | 70-86 | Creates or clears a vault file and opens it in the editor. |
+| [`prepareTextOnlyFile`](../scripts/persona-harness/explore-errors.mjs#L88) | function | `scripts/persona-harness/explore-errors.mjs` | 88-103 | Creates or overwrites a vault file with text content and opens it in the editor. |
+| [`record`](../scripts/persona-harness/explore-errors.mjs#L35) | function | `scripts/persona-harness/explore-errors.mjs` | 35-43 | Records a finding and logs it with a severity icon and feature/condition labels. |
+| [`shotPath`](../scripts/persona-harness/explore-errors.mjs#L32) | function | `scripts/persona-harness/explore-errors.mjs` | 32-32 | Constructs the output file path for a screenshot by name. |
+| [`snapshotAfterCommand`](../scripts/persona-harness/explore-errors.mjs#L123) | function | `scripts/persona-harness/explore-errors.mjs` | 123-132 | Runs a command and captures any resulting modal or notice messages. |
+| [`classifyResponse`](../scripts/persona-harness/explore-onboarding.mjs#L114) | function | `scripts/persona-harness/explore-onboarding.mjs` | 114-130 | Classifies onboarding responses based on whether they guide users to configure an API key. |
+| [`closeAllModals`](../scripts/persona-harness/explore-onboarding.mjs#L41) | function | `scripts/persona-harness/explore-onboarding.mjs` | 41-53 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
+| [`prepareNote`](../scripts/persona-harness/explore-onboarding.mjs#L97) | function | `scripts/persona-harness/explore-onboarding.mjs` | 97-111 | Creates or updates a test note with sample content and opens it in the editor. |
+| [`record`](../scripts/persona-harness/explore-onboarding.mjs#L27) | function | `scripts/persona-harness/explore-onboarding.mjs` | 27-35 | Records a finding and logs it with a severity icon and feature label. |
+| [`shotPath`](../scripts/persona-harness/explore-onboarding.mjs#L24) | function | `scripts/persona-harness/explore-onboarding.mjs` | 24-24 | Constructs the output file path for a screenshot by name. |
+| [`snapshotAfterCommand`](../scripts/persona-harness/explore-onboarding.mjs#L132) | function | `scripts/persona-harness/explore-onboarding.mjs` | 132-149 | Runs a command and captures resulting notices and modal state. |
+| [`captureModalState`](../scripts/persona-harness/explore-r6.mjs#L57) | function | `scripts/persona-harness/explore-r6.mjs` | 57-87 | Captures detailed modal state including title, buttons, inputs, error messages, and body text. |
+| [`captureNotices`](../scripts/persona-harness/explore-r6.mjs#L89) | function | `scripts/persona-harness/explore-r6.mjs` | 89-93 | Extracts text content from all visible notice elements. |
+| [`closeAllModals`](../scripts/persona-harness/explore-r6.mjs#L42) | function | `scripts/persona-harness/explore-r6.mjs` | 42-54 | Closes all open modals by attempting close buttons and Escape presses up to 6 times. |
+| [`openFirstMarkdownFile`](../scripts/persona-harness/explore-r6.mjs#L95) | function | `scripts/persona-harness/explore-r6.mjs` | 95-109 | Opens the first Markdown file in the vault and returns its path. |
+| [`record`](../scripts/persona-harness/explore-r6.mjs#L28) | function | `scripts/persona-harness/explore-r6.mjs` | 28-36 | Records a finding and logs it with a severity icon, feature, and persona labels. |
+| [`shotPath`](../scripts/persona-harness/explore-r6.mjs#L25) | function | `scripts/persona-harness/explore-r6.mjs` | 25-25 | Constructs the output file path for a screenshot by name. |
+| [`captureModalState`](../scripts/persona-harness/explore.mjs#L87) | function | `scripts/persona-harness/explore.mjs` | 87-112 | Extracts and returns the title, buttons, headings, inputs, and size of the current modal. |
+| [`closeAllModals`](../scripts/persona-harness/explore.mjs#L67) | function | `scripts/persona-harness/explore.mjs` | 67-84 | Repeatedly clicks the modal close button (X) or presses Escape until all modals are dismissed. |
+| [`closeModal`](../scripts/persona-harness/explore.mjs#L85) | function | `scripts/persona-harness/explore.mjs` | 85-85 | Closes all open modals. |
+| [`initialCleanup`](../scripts/persona-harness/explore.mjs#L54) | function | `scripts/persona-harness/explore.mjs` | 54-64 | Closes all open modals by attempting to click close buttons up to 6 times. |
+| [`record`](../scripts/persona-harness/explore.mjs#L39) | function | `scripts/persona-harness/explore.mjs` | 39-47 | Logs a test finding with severity-based emoji and adds it to the observations array. |
+| [`shotPath`](../scripts/persona-harness/explore.mjs#L36) | function | `scripts/persona-harness/explore.mjs` | 36-36 | Constructs a screenshot file path from a name in the output directory. |
+| [`elapsed`](../scripts/persona-harness/fix01-extend.mjs#L52) | function | `scripts/persona-harness/fix01-extend.mjs` | 52-52 | Returns elapsed seconds since a start timestamp. |
+| [`log`](../scripts/persona-harness/fix01-extend.mjs#L17) | function | `scripts/persona-harness/fix01-extend.mjs` | 17-17 | Logs arguments to the console. |
+| [`shotPath`](../scripts/persona-harness/fix01-extend.mjs#L15) | function | `scripts/persona-harness/fix01-extend.mjs` | 15-15 | Constructs a screenshot file path from a name in the output directory. |
+| [`bail`](../scripts/persona-harness/fix01-retest.mjs#L56) | function | `scripts/persona-harness/fix01-retest.mjs` | 56-64 | Records the test outcome, writes findings to JSON, logs the result, and exits with an appropriate status code. |
+| [`closeAll`](../scripts/persona-harness/fix01-retest.mjs#L87) | function | `scripts/persona-harness/fix01-retest.mjs` | 87-99 | Repeatedly clicks the modal close button or presses Escape until all modals are gone. |
+| [`elapsed`](../scripts/persona-harness/fix01-retest.mjs#L215) | function | `scripts/persona-harness/fix01-retest.mjs` | 215-215 | Returns elapsed seconds since a start timestamp. |
+| [`log`](../scripts/persona-harness/fix01-retest.mjs#L50) | function | `scripts/persona-harness/fix01-retest.mjs` | 50-54 | Logs arguments to console and appends the line to a findings notes array. |
+| [`shotPath`](../scripts/persona-harness/fix01-retest.mjs#L28) | function | `scripts/persona-harness/fix01-retest.mjs` | 28-28 | Constructs a screenshot file path from a name in the output directory. |
+| [`shot`](../scripts/persona-harness/inspect-entry-points.mjs#L34) | function | `scripts/persona-harness/inspect-entry-points.mjs` | 34-34 | Constructs a screenshot path with a timestamp and name in a designated directory. |
+| [`log`](../scripts/persona-harness/menu-audit-walkthrough.mjs#L30) | function | `scripts/persona-harness/menu-audit-walkthrough.mjs` | 30-30 | Logs arguments with a [menu-audit] prefix. |
+| [`shot`](../scripts/persona-harness/menu-audit-walkthrough.mjs#L31) | function | `scripts/persona-harness/menu-audit-walkthrough.mjs` | 31-31 | Constructs a screenshot file path from a name in the output directory. |
+| [`gradeFlashcards`](../scripts/persona-harness/output-quality-matrix.mjs#L112) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 112-123 | Grades flashcard content based on Q/A pair count and whether questions are testable. |
+| [`gradeSummary`](../scripts/persona-harness/output-quality-matrix.mjs#L99) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 99-110 | Grades a summary based on fact density (95, 2018, locations, costs) and length constraints. |
+| [`gradeTag`](../scripts/persona-harness/output-quality-matrix.mjs#L76) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 76-97 | Grades tag quality based on count, format, relevance to farming/agriculture topics, and hallucinations. |
+| [`gradeTranslation`](../scripts/persona-harness/output-quality-matrix.mjs#L125) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 125-137 | Grades a French translation based on French language markers and fact preservation. |
+| [`swapProvider`](../scripts/persona-harness/output-quality-matrix.mjs#L53) | function | `scripts/persona-harness/output-quality-matrix.mjs` | 53-73 | Switches the AI plugin's provider, model, and service type, then reloads the plugin. |
+| [`score`](../scripts/persona-harness/output-quality.mjs#L58) | function | `scripts/persona-harness/output-quality.mjs` | 58-65 | Records a quality finding with a letter grade and logs it with a color-coded emoji. |
+| [`closeAllModals`](../scripts/persona-harness/pres-create-panel.mjs#L61) | function | `scripts/persona-harness/pres-create-panel.mjs` | 61-73 | Repeatedly clicks the modal close button or presses Escape until all modals are closed. |
+| [`pass`](../scripts/persona-harness/pres-create-panel.mjs#L41) | function | `scripts/persona-harness/pres-create-panel.mjs` | 41-43 | Logs a passing test label. |
+| [`record`](../scripts/persona-harness/pres-create-panel.mjs#L37) | function | `scripts/persona-harness/pres-create-panel.mjs` | 37-40 | Records a finding with severity level and logs it. |
+| [`shotPath`](../scripts/persona-harness/pres-create-panel.mjs#L27) | function | `scripts/persona-harness/pres-create-panel.mjs` | 27-27 | Constructs a screenshot file path from a name in the output directory. |
+| [`closeAll`](../scripts/persona-harness/pres-e2e.mjs#L46) | function | `scripts/persona-harness/pres-e2e.mjs` | 46-58 | Repeatedly clicks the modal close button or presses Escape until all modals are gone. |
+| [`elapsed`](../scripts/persona-harness/pres-e2e.mjs#L319) | function | `scripts/persona-harness/pres-e2e.mjs` | 319-319 | Returns elapsed seconds since a start timestamp. |
+| [`shotPath`](../scripts/persona-harness/pres-e2e.mjs#L25) | function | `scripts/persona-harness/pres-e2e.mjs` | 25-25 | Constructs a screenshot file path from a name in the output directory. |
+| [`assert`](../scripts/persona-harness/pres-progress-ux.mjs#L43) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 43-46 | Records an assertion result and logs it with a checkmark or X. |
+| [`closeAll`](../scripts/persona-harness/pres-progress-ux.mjs#L64) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 64-76 | Repeatedly clicks the modal close button or presses Escape until all modals are dismissed. |
+| [`shotPath`](../scripts/persona-harness/pres-progress-ux.mjs#L35) | function | `scripts/persona-harness/pres-progress-ux.mjs` | 35-35 | Constructs a screenshot file path from a name in the output directory. |
+| [`loadDotenv`](../scripts/persona-harness/register-personas.mjs#L26) | function | `scripts/persona-harness/register-personas.mjs` | 26-35 | Reads a .env file and loads KEY=VALUE pairs into process.env if not already set. |
+| [`upsertPersona`](../scripts/persona-harness/register-personas.mjs#L88) | function | `scripts/persona-harness/register-personas.mjs` | 88-109 | POSTs a persona to Supabase with merge-duplicates resolution and returns the created record. |
+| [`clickPickerRow`](../scripts/persona-harness/reverify.mjs#L52) | function | `scripts/persona-harness/reverify.mjs` | 52-55 | Clicks the first picker row matching the given label text. |
+| [`closeModal`](../scripts/persona-harness/reverify.mjs#L58) | function | `scripts/persona-harness/reverify.mjs` | 58-60 | Dismisses a modal by calling dismissModal. |
+| [`record`](../scripts/persona-harness/reverify.mjs#L41) | function | `scripts/persona-harness/reverify.mjs` | 41-45 | Records a reverify result with status and logs it with an emoji. |
+| [`shotPath`](../scripts/persona-harness/reverify.mjs#L38) | function | `scripts/persona-harness/reverify.mjs` | 38-38 | Constructs a screenshot file path from a name in the output directory. |
+| [`takeShot`](../scripts/persona-harness/session-step.mjs#L62) | function | `scripts/persona-harness/session-step.mjs` | 62-66 | Takes a screenshot and saves it to the session directory. |
+| [`shotPath`](../scripts/persona-harness/smoke.mjs#L48) | function | `scripts/persona-harness/smoke.mjs` | 48-48 | Constructs a timestamped screenshot file path. |
+| [`waitForPort`](../scripts/persona-harness/smoke.mjs#L50) | function | `scripts/persona-harness/smoke.mjs` | 50-67 | Polls a TCP port until it opens or times out. |
+| [`digestHasAudioEmbed`](../scripts/persona-harness/verify-audio-recovery.mjs#L36) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 36-40 | Checks if the digest file contains an audio embed regex pattern. |
+| [`findAudioFile`](../scripts/persona-harness/verify-audio-recovery.mjs#L42) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 42-46 | Returns the first audio file in the target folder matching a naming pattern or null. |
+| [`log`](../scripts/persona-harness/verify-audio-recovery.mjs#L34) | function | `scripts/persona-harness/verify-audio-recovery.mjs` | 34-34 | Logs a message with a [verify] prefix. |
+
+---
+
+## pptx-export
+
+```mermaid
+flowchart TB
+subgraph dom_pptx_export ["pptx-export"]
+  file_src_services_pptxExport_htmlToRichSlideP["src/services/pptxExport/htmlToRichSlideParser.ts"]:::component
+  sym_src_services_pptxExport_htmlToRichSlideP["detectSlideType"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["extractElements"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["firstText"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["htmlToRichSlides"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["isSemanticBlock"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["parseSlide"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["toStatCard"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["toTable"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  sym_src_services_pptxExport_htmlToRichSlideP["walkBlockChildren"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP --> sym_src_services_pptxExport_htmlToRichSlideP
+  file_src_services_pptxExport_richPptxRenderer["src/services/pptxExport/richPptxRenderer.ts"]:::component
+  sym_src_services_pptxExport_richPptxRenderer["estimateTextHeight"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["lightenedFill"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderClosingSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderColumn"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderContentSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderElement"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderImage"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderList"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderRichPptx"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderSectionSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderStatCard"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderStatsGrid"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderTable"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderText"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  sym_src_services_pptxExport_richPptxRenderer["renderTitleSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer --> sym_src_services_pptxExport_richPptxRenderer
+  file_src_services_pptxExport_richSlideTypes_t["src/services/pptxExport/richSlideTypes.ts"]:::component
+  sym_src_services_pptxExport_richSlideTypes_t["isRichSlide"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t --> sym_src_services_pptxExport_richSlideTypes_t
+  sym_src_services_pptxExport_richSlideTypes_t["isRichSlideArray"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t --> sym_src_services_pptxExport_richSlideTypes_t
+  sym_src_services_pptxExport_richSlideTypes_t["isSlideElement"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t --> sym_src_services_pptxExport_richSlideTypes_t
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`detectSlideType`](../src/services/pptxExport/htmlToRichSlideParser.ts#L87) | function | `src/services/pptxExport/htmlToRichSlideParser.ts` | 87-92 | Determines slide type (title, section, content, or closing) from CSS classes. |
 | [`extractElements`](../src/services/pptxExport/htmlToRichSlideParser.ts#L107) | function | `src/services/pptxExport/htmlToRichSlideParser.ts` | 107-203 | Walks the DOM to extract slide elements (headings, paragraphs, lists, tables, stat cards). |
 | [`firstText`](../src/services/pptxExport/htmlToRichSlideParser.ts#L94) | function | `src/services/pptxExport/htmlToRichSlideParser.ts` | 94-97 | Extracts text content from the first matching element selector. |
@@ -1462,11 +2526,51 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`isRichSlide`](../src/services/pptxExport/richSlideTypes.ts#L52) | function | `src/services/pptxExport/richSlideTypes.ts` | 52-59 | Type guard that validates a slide object has required structure and element array. |
 | [`isRichSlideArray`](../src/services/pptxExport/richSlideTypes.ts#L47) | function | `src/services/pptxExport/richSlideTypes.ts` | 47-50 | Type guard that validates an array contains only RichSlide objects. |
 | [`isSlideElement`](../src/services/pptxExport/richSlideTypes.ts#L61) | function | `src/services/pptxExport/richSlideTypes.ts` | 61-75 | Type guard that validates a slide element matches one of the defined kinds. |
-| [`ensurePrivacyConsent`](../src/services/privacyNotice.ts#L57) | function | `src/services/privacyNotice.ts` | 57-73 | Displays a privacy consent modal for cloud providers and returns a promise resolving to the user's consent decision. |
-| [`isCloudProvider`](../src/services/privacyNotice.ts#L38) | function | `src/services/privacyNotice.ts` | 38-51 | Checks if a given service type is a cloud-based provider. |
-| [`markPrivacyNoticeShown`](../src/services/privacyNotice.ts#L31) | function | `src/services/privacyNotice.ts` | 31-33 | Marks the privacy notice as shown in the current session. |
-| [`resetPrivacyNotice`](../src/services/privacyNotice.ts#L15) | function | `src/services/privacyNotice.ts` | 15-17 | Resets the session flag that tracks whether the privacy notice has been shown. |
-| [`shouldShowPrivacyNotice`](../src/services/privacyNotice.ts#L22) | function | `src/services/privacyNotice.ts` | 22-26 | Determines whether the privacy notice should be displayed based on provider type and session state. |
+
+---
+
+## progress
+
+```mermaid
+flowchart TB
+subgraph dom_progress ["progress"]
+  file_src_services_progress_progressReporter_t["src/services/progress/progressReporter.ts"]:::component
+  sym_src_services_progress_progressReporter_t["formatDuration"]:::symbol
+  file_src_services_progress_progressReporter_t --> sym_src_services_progress_progressReporter_t
+  sym_src_services_progress_progressReporter_t["neverAbortSignal"]:::symbol
+  file_src_services_progress_progressReporter_t --> sym_src_services_progress_progressReporter_t
+  sym_src_services_progress_progressReporter_t["normalizeError"]:::symbol
+  file_src_services_progress_progressReporter_t --> sym_src_services_progress_progressReporter_t
+  sym_src_services_progress_progressReporter_t["ProgressReporter"]:::symbol
+  file_src_services_progress_progressReporter_t --> sym_src_services_progress_progressReporter_t
+  file_src_services_progress_statusBarBroker_ts["src/services/progress/statusBarBroker.ts"]:::component
+  sym_src_services_progress_statusBarBroker_ts["__resetStatusBarBroker"]:::symbol
+  file_src_services_progress_statusBarBroker_ts --> sym_src_services_progress_statusBarBroker_ts
+  sym_src_services_progress_statusBarBroker_ts["Broker"]:::symbol
+  file_src_services_progress_statusBarBroker_ts --> sym_src_services_progress_statusBarBroker_ts
+  file_src_services_progress_withProgress_ts["src/services/progress/withProgress.ts"]:::component
+  sym_src_services_progress_withProgress_ts_is["isAbortError"]:::symbol
+  file_src_services_progress_withProgress_ts --> sym_src_services_progress_withProgress_ts_is
+  sym_src_services_progress_withProgress_ts_is["isCancelSentinel"]:::symbol
+  file_src_services_progress_withProgress_ts --> sym_src_services_progress_withProgress_ts_is
+  sym_src_services_progress_withProgress_ts_is["isTerminalState"]:::symbol
+  file_src_services_progress_withProgress_ts --> sym_src_services_progress_withProgress_ts_is
+  sym_src_services_progress_withProgress_ts_wi["withProgress"]:::symbol
+  file_src_services_progress_withProgress_ts --> sym_src_services_progress_withProgress_ts_wi
+  sym_src_services_progress_withProgress_ts_wi["withProgressResult"]:::symbol
+  file_src_services_progress_withProgress_ts --> sym_src_services_progress_withProgress_ts_wi
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`formatDuration`](../src/services/progress/progressReporter.ts#L532) | function | `src/services/progress/progressReporter.ts` | 532-537 | Formats milliseconds into a human-readable duration string in MM:SS format. |
 | [`neverAbortSignal`](../src/services/progress/progressReporter.ts#L539) | function | `src/services/progress/progressReporter.ts` | 539-541 | Returns an AbortSignal that will never fire. |
 | [`normalizeError`](../src/services/progress/progressReporter.ts#L39) | function | `src/services/progress/progressReporter.ts` | 39-48 | Converts various error types into a normalized error message string. |
@@ -1478,6 +2582,65 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`isTerminalState`](../src/services/progress/withProgress.ts#L93) | function | `src/services/progress/withProgress.ts` | 93-101 | Returns false as a conservative placeholder check for terminal state (actual state managed internally by reporter). |
 | [`withProgress`](../src/services/progress/withProgress.ts#L28) | function | `src/services/progress/withProgress.ts` | 28-47 | Wraps an async operation with progress reporting, handling errors and abort signals gracefully. |
 | [`withProgressResult`](../src/services/progress/withProgress.ts#L54) | function | `src/services/progress/withProgress.ts` | 54-81 | Wraps an async operation that returns a Result, handling both exceptions and error results with progress reporting. |
+
+---
+
+## prompts
+
+```mermaid
+flowchart TB
+subgraph dom_prompts ["prompts"]
+  file_src_services_prompts_auditPrompts_ts["src/services/prompts/auditPrompts.ts"]:::component
+  sym_src_services_prompts_auditPrompts_ts_bui["buildIntegrationAuditPrompt"]:::symbol
+  file_src_services_prompts_auditPrompts_ts --> sym_src_services_prompts_auditPrompts_ts_bui
+  sym_src_services_prompts_auditPrompts_ts_bui["buildMinutesAuditPrompt"]:::symbol
+  file_src_services_prompts_auditPrompts_ts --> sym_src_services_prompts_auditPrompts_ts_bui
+  file_src_services_prompts_canvasPrompts_ts["src/services/prompts/canvasPrompts.ts"]:::component
+  sym_src_services_prompts_canvasPrompts_ts_bu["buildClusterPrompt"]:::symbol
+  file_src_services_prompts_canvasPrompts_ts --> sym_src_services_prompts_canvasPrompts_ts_bu
+  sym_src_services_prompts_canvasPrompts_ts_bu["buildEdgeLabelPrompt"]:::symbol
+  file_src_services_prompts_canvasPrompts_ts --> sym_src_services_prompts_canvasPrompts_ts_bu
+  file_src_services_prompts_chatPrompts_ts["src/services/prompts/chatPrompts.ts"]:::component
+  sym_src_services_prompts_chatPrompts_ts_buil["buildChatFileNamePrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts --> sym_src_services_prompts_chatPrompts_ts_buil
+  sym_src_services_prompts_chatPrompts_ts_buil["buildCompactionPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts --> sym_src_services_prompts_chatPrompts_ts_buil
+  sym_src_services_prompts_chatPrompts_ts_buil["buildNoteChatPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts --> sym_src_services_prompts_chatPrompts_ts_buil
+  sym_src_services_prompts_chatPrompts_ts_buil["buildVaultFallbackPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts --> sym_src_services_prompts_chatPrompts_ts_buil
+  file_src_services_prompts_diagramPrompts_ts["src/services/prompts/diagramPrompts.ts"]:::component
+  sym_src_services_prompts_diagramPrompts_ts_b["buildDiagramPrompt"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts --> sym_src_services_prompts_diagramPrompts_ts_b
+  sym_src_services_prompts_diagramPrompts_ts_c["cleanMermaidOutput"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts --> sym_src_services_prompts_diagramPrompts_ts_c
+  sym_src_services_prompts_diagramPrompts_ts_w["wrapInCodeFence"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts --> sym_src_services_prompts_diagramPrompts_ts_w
+  file_src_services_prompts_dictionaryPrompts_t["src/services/prompts/dictionaryPrompts.ts"]:::component
+  sym_src_services_prompts_dictionaryPrompts_t["buildTermExtractionPrompt"]:::symbol
+  file_src_services_prompts_dictionaryPrompts_t --> sym_src_services_prompts_dictionaryPrompts_t
+  file_src_services_prompts_digitisePrompts_ts["src/services/prompts/digitisePrompts.ts"]:::component
+  sym_src_services_prompts_digitisePrompts_ts_["buildDigitisePrompt"]:::symbol
+  file_src_services_prompts_digitisePrompts_ts --> sym_src_services_prompts_digitisePrompts_ts_
+  sym_src_services_prompts_digitisePrompts_ts_["getModeHint"]:::symbol
+  file_src_services_prompts_digitisePrompts_ts --> sym_src_services_prompts_digitisePrompts_ts_
+  file_src_services_prompts_flashcardPrompts_ts["src/services/prompts/flashcardPrompts.ts"]:::component
+  sym_src_services_prompts_flashcardPrompts_ts["buildFlashcardPrompt"]:::symbol
+  file_src_services_prompts_flashcardPrompts_ts --> sym_src_services_prompts_flashcardPrompts_ts
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 115 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`buildIntegrationAuditPrompt`](../src/services/prompts/auditPrompts.ts#L74) | function | `src/services/prompts/auditPrompts.ts` | 74-116 | Builds a prompt for auditing note content integration quality and accuracy. |
 | [`buildMinutesAuditPrompt`](../src/services/prompts/auditPrompts.ts#L17) | function | `src/services/prompts/auditPrompts.ts` | 17-67 | Builds a prompt for auditing AI-generated meeting minutes against the original transcript. |
 | [`buildClusterPrompt`](../src/services/prompts/canvasPrompts.ts#L38) | function | `src/services/prompts/canvasPrompts.ts` | 38-69 | Builds a prompt for clustering tagged notes into meaningful groups with labels. |
@@ -1593,8 +2756,86 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`buildTriagePrompt`](../src/services/prompts/triagePrompts.ts#L26) | function | `src/services/prompts/triagePrompts.ts` | 26-87 | Generates a prompt for triaging newsletters into key stories or other content into key takeaways. |
 | [`getTypeLabel`](../src/services/prompts/triagePrompts.ts#L14) | function | `src/services/prompts/triagePrompts.ts` | 14-24 | Maps content type codes (web, pdf, youtube, etc.) to human-readable labels. |
 | [`insertContentIntoTriagePrompt`](../src/services/prompts/triagePrompts.ts#L89) | function | `src/services/prompts/triagePrompts.ts` | 89-91 | Replaces the content placeholder in a triage prompt. |
-| [`QuickPeekService`](../src/services/quickPeekService.ts#L34) | class | `src/services/quickPeekService.ts` | 34-192 | Parallelizes triage processing of detected content sources and returns results in input order with progress callbacks. |
-| [`RAGService`](../src/services/ragService.ts#L36) | class | `src/services/ragService.ts` | 36-271 | Retrieves relevant context from a vector store for a query, with optional folder scope and similarity filtering. |
+
+---
+
+## research
+
+```mermaid
+flowchart TB
+subgraph dom_research ["research"]
+  file_src_services_research_academicUtils_ts["src/services/research/academicUtils.ts"]:::component
+  sym_src_services_research_academicUtils_ts_b["buildAcademicQueries"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_b
+  sym_src_services_research_academicUtils_ts_b["buildAuthorYearRef"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_b
+  sym_src_services_research_academicUtils_ts_e["enrichWithAcademicMetadata"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_e
+  sym_src_services_research_academicUtils_ts_e["extractAuthors"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_e
+  sym_src_services_research_academicUtils_ts_e["extractDOI"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_e
+  sym_src_services_research_academicUtils_ts_e["extractYear"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_e
+  sym_src_services_research_academicUtils_ts_f["formatAcademicCitation"]:::symbol
+  file_src_services_research_academicUtils_ts --> sym_src_services_research_academicUtils_ts_f
+  file_src_services_research_adapters_brightdat["src/services/research/adapters/brightdataSerpAdapter.ts"]:::component
+  sym_src_services_research_adapters_brightdat["BrightDataSerpAdapter"]:::symbol
+  file_src_services_research_adapters_brightdat --> sym_src_services_research_adapters_brightdat
+  file_src_services_research_adapters_claudeWeb["src/services/research/adapters/claudeWebSearchAdapter.ts"]:::component
+  sym_src_services_research_adapters_claudeWeb["ClaudeWebSearchAdapter"]:::symbol
+  file_src_services_research_adapters_claudeWeb --> sym_src_services_research_adapters_claudeWeb
+  file_src_services_research_adapters_tavilyAda["src/services/research/adapters/tavilyAdapter.ts"]:::component
+  sym_src_services_research_adapters_tavilyAda["TavilyAdapter"]:::symbol
+  file_src_services_research_adapters_tavilyAda --> sym_src_services_research_adapters_tavilyAda
+  file_src_services_research_brightdata_cdpClie["src/services/research/brightdata/cdpClient.ts"]:::component
+  sym_src_services_research_brightdata_cdpClie["CDPClient"]:::symbol
+  file_src_services_research_brightdata_cdpClie --> sym_src_services_research_brightdata_cdpClie
+  file_src_services_research_brightdata_scrapin["src/services/research/brightdata/scrapingBrowser.ts"]:::component
+  sym_src_services_research_brightdata_scrapin["ScrapingBrowser"]:::symbol
+  file_src_services_research_brightdata_scrapin --> sym_src_services_research_brightdata_scrapin
+  file_src_services_research_brightdata_webUnlo["src/services/research/brightdata/webUnlocker.ts"]:::component
+  sym_src_services_research_brightdata_webUnlo["WebUnlocker"]:::symbol
+  file_src_services_research_brightdata_webUnlo --> sym_src_services_research_brightdata_webUnlo
+  file_src_services_research_researchOrchestrat["src/services/research/researchOrchestrator.ts"]:::component
+  sym_src_services_research_researchOrchestrat["ResearchOrchestrator"]:::symbol
+  file_src_services_research_researchOrchestrat --> sym_src_services_research_researchOrchestrat
+  file_src_services_research_researchSearchServ["src/services/research/researchSearchService.ts"]:::component
+  sym_src_services_research_researchSearchServ["ResearchSearchService"]:::symbol
+  file_src_services_research_researchSearchServ --> sym_src_services_research_researchSearchServ
+  file_src_services_research_researchUsageServi["src/services/research/researchUsageService.ts"]:::component
+  sym_src_services_research_researchUsageServi["createEmptyLedger"]:::symbol
+  file_src_services_research_researchUsageServi --> sym_src_services_research_researchUsageServi
+  sym_src_services_research_researchUsageServi["getCurrentMonth"]:::symbol
+  file_src_services_research_researchUsageServi --> sym_src_services_research_researchUsageServi
+  sym_src_services_research_researchUsageServi["getTodayKey"]:::symbol
+  file_src_services_research_researchUsageServi --> sym_src_services_research_researchUsageServi
+  sym_src_services_research_researchUsageServi["ResearchUsageService"]:::symbol
+  file_src_services_research_researchUsageServi --> sym_src_services_research_researchUsageServi
+  file_src_services_research_sourceQualityServi["src/services/research/sourceQualityService.ts"]:::component
+  sym_src_services_research_sourceQualityServi["computeDepth"]:::symbol
+  file_src_services_research_sourceQualityServi --> sym_src_services_research_sourceQualityServi
+  sym_src_services_research_sourceQualityServi["computeFreshness"]:::symbol
+  file_src_services_research_sourceQualityServi --> sym_src_services_research_sourceQualityServi
+  sym_src_services_research_sourceQualityServi["lookupAuthority"]:::symbol
+  file_src_services_research_sourceQualityServi --> sym_src_services_research_sourceQualityServi
+  sym_src_services_research_sourceQualityServi["SourceQualityService"]:::symbol
+  file_src_services_research_sourceQualityServi --> sym_src_services_research_sourceQualityServi
+  file_src_services_research_zoteroBridgeServic["src/services/research/zoteroBridgeService.ts"]:::component
+  sym_src_services_research_zoteroBridgeServic["ZoteroBridgeService"]:::symbol
+  file_src_services_research_zoteroBridgeServic --> sym_src_services_research_zoteroBridgeServic
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`buildAcademicQueries`](../src/services/research/academicUtils.ts#L97) | function | `src/services/research/academicUtils.ts` | 97-108 | Builds academic-focused search queries including arXiv, PubMed, and systematic review variations. |
 | [`buildAuthorYearRef`](../src/services/research/academicUtils.ts#L163) | function | `src/services/research/academicUtils.ts` | 163-176 | Builds a short author-year parenthetical citation (e.g., "Smith, 2024" or "Smith et al., n.d."). |
 | [`enrichWithAcademicMetadata`](../src/services/research/academicUtils.ts#L114) | function | `src/services/research/academicUtils.ts` | 114-130 | Enriches search results with extracted DOI, year, and author metadata. |
@@ -1619,19 +2860,261 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`lookupAuthority`](../src/services/research/sourceQualityService.ts#L97) | function | `src/services/research/sourceQualityService.ts` | 97-113 | Looks up domain authority tier from a static registry, with fallback checks for parent domains and institutional suffixes. |
 | [`SourceQualityService`](../src/services/research/sourceQualityService.ts#L115) | class | `src/services/research/sourceQualityService.ts` | 115-184 | Assigns quality scores to search results using weighted signals (relevance, authority, freshness, depth, diversity) and sorts by score. |
 | [`ZoteroBridgeService`](../src/services/research/zoteroBridgeService.ts#L18) | class | `src/services/research/zoteroBridgeService.ts` | 18-106 | Converts research sources to CSL-JSON format for export to Zotero and checks if the Zotero connector plugin is available. |
+
+---
+
+## root-scripts
+
+```mermaid
+flowchart TB
+subgraph dom_root_scripts ["root-scripts"]
+  file_test_nested_tags_implementation_js["test-nested-tags-implementation.js"]:::component
+  sym_test_nested_tags_implementation_js_gener["generateReport"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_gener
+  sym_test_nested_tags_implementation_js_log["log"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_log
+  sym_test_nested_tags_implementation_js_runAl["runAllTests"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_runAl
+  sym_test_nested_tags_implementation_js_testB["testBuildOutput"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testB
+  sym_test_nested_tags_implementation_js_testC["testChineseTranslations"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testC
+  sym_test_nested_tags_implementation_js_testC["testConsistency"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testC
+  sym_test_nested_tags_implementation_js_testE["testEnglishTranslations"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testE
+  sym_test_nested_tags_implementation_js_testF["testFailed"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testF
+  sym_test_nested_tags_implementation_js_testP["testPassed"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testP
+  sym_test_nested_tags_implementation_js_testP["testPromptEnhancements"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testP
+  sym_test_nested_tags_implementation_js_testS["testSettingsSchema"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testS
+  sym_test_nested_tags_implementation_js_testT["testTranslationTypes"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testT
+  sym_test_nested_tags_implementation_js_testU["testUISettings"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testU
+  sym_test_nested_tags_implementation_js_testW["testWarning"]:::symbol
+  file_test_nested_tags_implementation_js --> sym_test_nested_tags_implementation_js_testW
+  file_vitest_config_ts["vitest.config.ts"]:::component
+  sym_vitest_config_ts_markdownTextPlugin["markdownTextPlugin"]:::symbol
+  file_vitest_config_ts --> sym_vitest_config_ts_markdownTextPlugin
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`generateReport`](../test-nested-tags-implementation.js#L302) | function | `test-nested-tags-implementation.js` | 302-331 | Generates formatted test report with pass rate and exit code. |
+| [`log`](../test-nested-tags-implementation.js#L30) | function | `test-nested-tags-implementation.js` | 30-32 | Logs colored message to console. |
+| [`runAllTests`](../test-nested-tags-implementation.js#L334) | function | `test-nested-tags-implementation.js` | 334-356 | Executes all test suites and generates final report. |
+| [`testBuildOutput`](../test-nested-tags-implementation.js#L243) | function | `test-nested-tags-implementation.js` | 243-263 | Validates that build output file exists and has reasonable size. |
+| [`testChineseTranslations`](../test-nested-tags-implementation.js#L188) | function | `test-nested-tags-implementation.js` | 188-216 | Verifies required Chinese translation keys and character presence. |
+| [`testConsistency`](../test-nested-tags-implementation.js#L266) | function | `test-nested-tags-implementation.js` | 266-299 | Cross-references nested tags implementation across settings, translations, and types. |
+| [`testEnglishTranslations`](../test-nested-tags-implementation.js#L164) | function | `test-nested-tags-implementation.js` | 164-185 | Verifies required English translation keys for nested tags feature. |
+| [`testFailed`](../test-nested-tags-implementation.js#L40) | function | `test-nested-tags-implementation.js` | 40-45 | Records failed test with error and logs failure message. |
+| [`testPassed`](../test-nested-tags-implementation.js#L34) | function | `test-nested-tags-implementation.js` | 34-38 | Records passed test and logs success message. |
+| [`testPromptEnhancements`](../test-nested-tags-implementation.js#L90) | function | `test-nested-tags-implementation.js` | 90-125 | Checks for nested tag instructions in tag generation prompts. |
+| [`testSettingsSchema`](../test-nested-tags-implementation.js#L55) | function | `test-nested-tags-implementation.js` | 55-87 | Validates nested tags settings schema fields and defaults. |
+| [`testTranslationTypes`](../test-nested-tags-implementation.js#L219) | function | `test-nested-tags-implementation.js` | 219-240 | Checks type definitions for all nested tags translation keys. |
+| [`testUISettings`](../test-nested-tags-implementation.js#L128) | function | `test-nested-tags-implementation.js` | 128-161 | Verifies nested tags UI controls exist in settings panel. |
+| [`testWarning`](../test-nested-tags-implementation.js#L47) | function | `test-nested-tags-implementation.js` | 47-52 | Records test warning and logs warning message. |
+| [`markdownTextPlugin`](../vitest.config.ts#L9) | function | `vitest.config.ts` | 9-18 | Vite plugin that transforms markdown imports into exported string constants. |
+
+---
+
+## services
+
+```mermaid
+flowchart TB
+subgraph dom_services ["services"]
+  file_src_services_apiKeyHelpers_ts["src/services/apiKeyHelpers.ts"]:::component
+  sym_src_services_apiKeyHelpers_ts_checkMainP["checkMainProviderConfigured"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_checkMainP
+  sym_src_services_apiKeyHelpers_ts_getAudioNa["getAudioNarrationProviderConfig"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getAudioNa
+  sym_src_services_apiKeyHelpers_ts_getAudioTr["getAudioTranscriptionApiKey"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getAudioTr
+  sym_src_services_apiKeyHelpers_ts_getAuditPr["getAuditProviderConfig"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getAuditPr
+  sym_src_services_apiKeyHelpers_ts_getClaudeW["getClaudeWebSearchKey"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getClaudeW
+  sym_src_services_apiKeyHelpers_ts_getFlashca["getFlashcardProviderConfig"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getFlashca
+  sym_src_services_apiKeyHelpers_ts_getQuickPe["getQuickPeekProviderConfig"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getQuickPe
+  sym_src_services_apiKeyHelpers_ts_getYouTube["getYouTubeGeminiApiKey"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_getYouTube
+  sym_src_services_apiKeyHelpers_ts_resolvePla["resolvePlainTextKey"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_resolvePla
+  sym_src_services_apiKeyHelpers_ts_resolveSpe["resolveSpecialistProvider"]:::symbol
+  file_src_services_apiKeyHelpers_ts --> sym_src_services_apiKeyHelpers_ts_resolveSpe
+  file_src_services_audioCleanupService_ts["src/services/audioCleanupService.ts"]:::component
+  sym_src_services_audioCleanupService_ts_dele["deleteAudioFile"]:::symbol
+  file_src_services_audioCleanupService_ts --> sym_src_services_audioCleanupService_ts_dele
+  sym_src_services_audioCleanupService_ts_offe["offerPostTranscriptionCleanup"]:::symbol
+  file_src_services_audioCleanupService_ts --> sym_src_services_audioCleanupService_ts_offe
+  sym_src_services_audioCleanupService_ts_repl["replaceWithCompressed"]:::symbol
+  file_src_services_audioCleanupService_ts --> sym_src_services_audioCleanupService_ts_repl
+  file_src_services_audioCompressionService_ts["src/services/audioCompressionService.ts"]:::component
+  sym_src_services_audioCompressionService_ts_["calculateBitrate"]:::symbol
+  file_src_services_audioCompressionService_ts --> sym_src_services_audioCompressionService_ts_
+  sym_src_services_audioCompressionService_ts_["cleanupChunks"]:::symbol
+  file_src_services_audioCompressionService_ts --> sym_src_services_audioCompressionService_ts_
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 206 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`checkMainProviderConfigured`](../src/services/apiKeyHelpers.ts#L273) | function | `src/services/apiKeyHelpers.ts` | 273-298 | Validates that the main AI provider (local or cloud) has a configured endpoint or API key. |
+| [`getAudioNarrationProviderConfig`](../src/services/apiKeyHelpers.ts#L128) | function | `src/services/apiKeyHelpers.ts` | 128-134 | Retrieves the audio narration provider configuration from plugin settings. |
+| [`getAudioTranscriptionApiKey`](../src/services/apiKeyHelpers.ts#L179) | function | `src/services/apiKeyHelpers.ts` | 179-215 | Fetches audio transcription API key, trying OpenAI first then Groq, with fallback chains for each. |
+| [`getAuditProviderConfig`](../src/services/apiKeyHelpers.ts#L107) | function | `src/services/apiKeyHelpers.ts` | 107-116 | Returns the audit provider configuration by resolving its settings through the specialist provider helper. |
+| [`getClaudeWebSearchKey`](../src/services/apiKeyHelpers.ts#L249) | function | `src/services/apiKeyHelpers.ts` | 249-263 | Fetches Claude web search API key from dedicated storage or main cloud key if service type is Claude. |
+| [`getFlashcardProviderConfig`](../src/services/apiKeyHelpers.ts#L221) | function | `src/services/apiKeyHelpers.ts` | 221-229 | Retrieves the flashcard generation provider configuration with model settings. |
+| [`getQuickPeekProviderConfig`](../src/services/apiKeyHelpers.ts#L235) | function | `src/services/apiKeyHelpers.ts` | 235-243 | Retrieves the quick peek provider configuration with model settings. |
+| [`getYouTubeGeminiApiKey`](../src/services/apiKeyHelpers.ts#L150) | function | `src/services/apiKeyHelpers.ts` | 150-173 | Resolves YouTube Gemini API key from secure storage or fallback settings with provider precedence. |
+| [`resolvePlainTextKey`](../src/services/apiKeyHelpers.ts#L39) | function | `src/services/apiKeyHelpers.ts` | 39-54 | Resolves an API key from settings, checking plain text storage, provider-specific settings, and cloud defaults in order. |
+| [`resolveSpecialistProvider`](../src/services/apiKeyHelpers.ts#L60) | function | `src/services/apiKeyHelpers.ts` | 60-101 | Resolves a specialist LLM provider configuration (API key, model, endpoint) with guard conditions and fallback logic. |
+| [`deleteAudioFile`](../src/services/audioCleanupService.ts#L108) | function | `src/services/audioCleanupService.ts` | 108-119 | Moves audio file to trash with error handling and user notification. |
+| [`offerPostTranscriptionCleanup`](../src/services/audioCleanupService.ts#L30) | function | `src/services/audioCleanupService.ts` | 30-83 | Determines post-transcription audio file policy (keep, compress, or delete) based on settings and file size savings. |
+| [`replaceWithCompressed`](../src/services/audioCleanupService.ts#L86) | function | `src/services/audioCleanupService.ts` | 86-105 | Replaces original audio file with compressed MP3 version and updates backlinks. |
+| [`calculateBitrate`](../src/services/audioCompressionService.ts#L145) | function | `src/services/audioCompressionService.ts` | 145-150 | Calculates optimal MP3 bitrate for target file size, clamped between 24–96 kbps for speech. |
+| [`cleanupChunks`](../src/services/audioCompressionService.ts#L910) | function | `src/services/audioCompressionService.ts` | 910-918 | Removes temporary chunk output directory and temp files with error suppression. |
+| [`cleanupOrphanedChunks`](../src/services/audioCompressionService.ts#L925) | function | `src/services/audioCompressionService.ts` | 925-959 | Cleans up orphaned chunk directories older than 1 hour from system temp directory. |
+| [`compressAndChunkAudio`](../src/services/audioCompressionService.ts#L625) | function | `src/services/audioCompressionService.ts` | 625-751 | Compresses and splits audio into overlapping chunks for large files, with progress reporting. |
+| [`compressAndSplitWithOverlap`](../src/services/audioCompressionService.ts#L788) | function | `src/services/audioCompressionService.ts` | 788-905 | Compresses full audio then segments it with overlap using two-pass FFmpeg processing. |
+| [`compressAudio`](../src/services/audioCompressionService.ts#L271) | function | `src/services/audioCompressionService.ts` | 271-424 | Compresses audio file to MP3 format using FFmpeg, with fallback duration estimation and error handling. |
+| [`compressWithFFmpeg`](../src/services/audioCompressionService.ts#L197) | function | `src/services/audioCompressionService.ts` | 197-265 | Compresses audio to MP3 using FFmpeg with progress tracking and bitrate limiting. |
+| [`disposeFFmpeg`](../src/services/audioCompressionService.ts#L444) | function | `src/services/audioCompressionService.ts` | 444-446 | <no body> |
+| [`findFFmpegPath`](../src/services/audioCompressionService.ts#L78) | function | `src/services/audioCompressionService.ts` | 78-109 | Searches for FFmpeg executable in common installation paths on Windows and Unix systems. |
+| [`getAudioDuration`](../src/services/audioCompressionService.ts#L155) | function | `src/services/audioCompressionService.ts` | 155-192 | Extracts audio duration in seconds using FFprobe with timeout protection. |
+| [`getChunkDurations`](../src/services/audioCompressionService.ts#L757) | function | `src/services/audioCompressionService.ts` | 757-774 | Reads chunk durations from output directory using FFprobe for each MP3 file. |
+| [`getCompressionEstimate`](../src/services/audioCompressionService.ts#L436) | function | `src/services/audioCompressionService.ts` | 436-439 | Estimates compressed file size reduction using 30% ratio capped at target size. |
+| [`isFFmpegAvailable`](../src/services/audioCompressionService.ts#L114) | function | `src/services/audioCompressionService.ts` | 114-140 | Checks if FFmpeg is available and executable by running a version check. |
+| [`needsChunking`](../src/services/audioCompressionService.ts#L547) | function | `src/services/audioCompressionService.ts` | 547-613 | Analyzes audio duration to decide if chunking is needed (>20 minutes or estimated compressed size exceeds target). |
+| [`needsCompression`](../src/services/audioCompressionService.ts#L429) | function | `src/services/audioCompressionService.ts` | 429-431 | Determines if audio file exceeds maximum allowed size threshold. |
+| [`replaceAudioFile`](../src/services/audioCompressionService.ts#L464) | function | `src/services/audioCompressionService.ts` | 464-505 | Replaces original audio file with compressed bytes, handles extension changes with collision-safe rename, and counts updated backlinks. |
+| [`requireFs`](../src/services/audioCompressionService.ts#L21) | function | `src/services/audioCompressionService.ts` | 21-25 | Returns the fs module or throws if unavailable on desktop. |
+| [`requireOs`](../src/services/audioCompressionService.ts#L31) | function | `src/services/audioCompressionService.ts` | 31-35 | Returns the os module or throws if unavailable on desktop. |
+| [`requirePath`](../src/services/audioCompressionService.ts#L26) | function | `src/services/audioCompressionService.ts` | 26-30 | Returns the path module or throws if unavailable on desktop. |
+| [`requireSpawn`](../src/services/audioCompressionService.ts#L36) | function | `src/services/audioCompressionService.ts` | 36-40 | Returns the spawn function from child_process or throws if unavailable on desktop. |
+| [`AudioRecordingService`](../src/services/audioRecordingService.ts#L76) | class | `src/services/audioRecordingService.ts` | 76-259 | <no body> |
+| [`getMaxRecordingMinutes`](../src/services/audioRecordingService.ts#L71) | function | `src/services/audioRecordingService.ts` | 71-74 | Calculates maximum recordable duration in minutes based on bitrate and file size limits. |
+| [`isRecordingSupported`](../src/services/audioRecordingService.ts#L39) | function | `src/services/audioRecordingService.ts` | 39-45 | Checks if the browser supports audio recording via MediaRecorder and getUserMedia APIs. |
+| [`mapMimeToExtension`](../src/services/audioRecordingService.ts#L28) | function | `src/services/audioRecordingService.ts` | 28-33 | Maps audio MIME types to file extensions, defaulting to WebM. |
+| [`selectMime`](../src/services/audioRecordingService.ts#L52) | function | `src/services/audioRecordingService.ts` | 52-65 | Selects the best supported audio MIME type and extension from a priority list of candidates. |
+| [`buildMultipartFormData`](../src/services/audioTranscriptionService.ts#L315) | function | `src/services/audioTranscriptionService.ts` | 315-374 | Builds a multipart form data request body for Whisper API with file, model, and optional language/prompt parameters. |
+| [`combineArrayBuffers`](../src/services/audioTranscriptionService.ts#L380) | function | `src/services/audioTranscriptionService.ts` | 380-409 | Combines multiple strings and ArrayBuffers into a single contiguous ArrayBuffer. |
+| [`formatFileSize`](../src/services/audioTranscriptionService.ts#L108) | function | `src/services/audioTranscriptionService.ts` | 108-112 | Formats a byte size into human-readable units (B, KB, or MB). |
+| [`getAllAudioFiles`](../src/services/audioTranscriptionService.ts#L93) | function | `src/services/audioTranscriptionService.ts` | 93-96 | Retrieves all audio files from the entire vault. |
+| [`getAudioFilesFromFolder`](../src/services/audioTranscriptionService.ts#L83) | function | `src/services/audioTranscriptionService.ts` | 83-88 | Retrieves all audio files within a specific folder from the vault. |
+| [`getAudioMimeType`](../src/services/audioTranscriptionService.ts#L117) | function | `src/services/audioTranscriptionService.ts` | 117-130 | Maps audio file extensions to their corresponding MIME types. |
+| [`getAvailableTranscriptionProvider`](../src/services/audioTranscriptionService.ts#L524) | function | `src/services/audioTranscriptionService.ts` | 524-538 | Returns an available transcription provider (OpenAI or Groq) based on configuration, or null if none available. |
+| [`getWhisperEndpoint`](../src/services/audioTranscriptionService.ts#L301) | function | `src/services/audioTranscriptionService.ts` | 301-303 | Returns the API endpoint URL for the specified Whisper provider. |
+| [`getWhisperModel`](../src/services/audioTranscriptionService.ts#L308) | function | `src/services/audioTranscriptionService.ts` | 308-310 | Returns the model identifier for the specified Whisper provider. |
+| [`isAudioFile`](../src/services/audioTranscriptionService.ts#L75) | function | `src/services/audioTranscriptionService.ts` | 75-78 | Determines if a file is audio by checking its extension against supported formats. |
+| [`isFileSizeValid`](../src/services/audioTranscriptionService.ts#L101) | function | `src/services/audioTranscriptionService.ts` | 101-103 | Validates that a file size does not exceed the maximum allowed limit. |
+| [`parseWhisperSegments`](../src/services/audioTranscriptionService.ts#L544) | function | `src/services/audioTranscriptionService.ts` | 544-564 | Parses raw Whisper segment data into typed WhisperSegment objects with fallback defaults. |
+| [`transcribeAudio`](../src/services/audioTranscriptionService.ts#L135) | function | `src/services/audioTranscriptionService.ts` | 135-213 | <no body> |
+| [`transcribeAudioFromData`](../src/services/audioTranscriptionService.ts#L218) | function | `src/services/audioTranscriptionService.ts` | 218-296 | <no body> |
+| [`transcribeAudioWithFullWorkflow`](../src/services/audioTranscriptionService.ts#L845) | function | `src/services/audioTranscriptionService.ts` | 845-1029 | <no body> |
+| [`transcribeChunkedAudio`](../src/services/audioTranscriptionService.ts#L596) | function | `src/services/audioTranscriptionService.ts` | 596-790 | <no body> |
+| [`transcribeChunkedAudioWithCleanup`](../src/services/audioTranscriptionService.ts#L796) | function | `src/services/audioTranscriptionService.ts` | 796-809 | Transcribes chunked audio while ensuring temporary files are cleaned up afterward. |
+| [`transcribeExternalAudio`](../src/services/audioTranscriptionService.ts#L414) | function | `src/services/audioTranscriptionService.ts` | 414-519 | <no body> |
+| [`BaseLLMService`](../src/services/baseService.ts#L12) | class | `src/services/baseService.ts` | 12-968 | <no body> |
+| [`BasesService`](../src/services/basesService.ts#L24) | class | `src/services/basesService.ts` | 24-79 | <no body> |
+| [`capString`](../src/services/chunkingOrchestrator.ts#L318) | function | `src/services/chunkingOrchestrator.ts` | 318-324 | Truncates a string at the last sentence boundary within a limit, or at the limit if no boundary found. |
+| [`executeMapPhase`](../src/services/chunkingOrchestrator.ts#L170) | function | `src/services/chunkingOrchestrator.ts` | 170-199 | Executes the map phase by processing each chunk independently, tracking errors and optional continuation context. |
+| [`hierarchicalReduce`](../src/services/chunkingOrchestrator.ts#L221) | function | `src/services/chunkingOrchestrator.ts` | 221-248 | Recursively collapses many partial summaries into groups, then reduces the final batch to prevent prompt overflow. |
+| [`mergeBatch`](../src/services/chunkingOrchestrator.ts#L279) | function | `src/services/chunkingOrchestrator.ts` | 279-296 | Merges a batch of partial summaries into fewer partials, falling back to originals on error. |
+| [`orchestrateChunked`](../src/services/chunkingOrchestrator.ts#L71) | function | `src/services/chunkingOrchestrator.ts` | 71-128 | Splits text into chunks and orchestrates map-reduce or hierarchical summarization via an LLM service. |
+| [`parseMapOutput`](../src/services/chunkingOrchestrator.ts#L307) | function | `src/services/chunkingOrchestrator.ts` | 307-316 | Extracts optional continuation context from map output, defaulting to the entire raw response as summary. |
+| [`reduceOneLayer`](../src/services/chunkingOrchestrator.ts#L254) | function | `src/services/chunkingOrchestrator.ts` | 254-274 | Batches partials into groups and merges each batch, passing through single items unchanged. |
+| [`runSingleChunk`](../src/services/chunkingOrchestrator.ts#L142) | function | `src/services/chunkingOrchestrator.ts` | 142-165 | Summarizes a single chunk directly without splitting via the map prompt builder. |
+| [`singleReduce`](../src/services/chunkingOrchestrator.ts#L201) | function | `src/services/chunkingOrchestrator.ts` | 201-217 | Reduces partial summaries to a final summary via a single LLM call. |
+| [`CloudLLMService`](../src/services/cloudService.ts#L13) | class | `src/services/cloudService.ts` | 13-784 | <no body> |
+| [`ConfigurationService`](../src/services/configurationService.ts#L530) | class | `src/services/configurationService.ts` | 530-1824 | <no body> |
+| [`personaVersionMarker`](../src/services/configurationService.ts#L523) | function | `src/services/configurationService.ts` | 523-525 | Generates an HTML comment marker for a persona configuration version. |
+| [`ContentExtractionService`](../src/services/contentExtractionService.ts#L52) | class | `src/services/contentExtractionService.ts` | 52-804 | <no body> |
+| [`serviceSupportsMultimodal`](../src/services/contentExtractionService.ts#L809) | function | `src/services/contentExtractionService.ts` | 809-812 | Returns true if a service type (claude or gemini) supports multimodal inputs. |
+| [`assessContent`](../src/services/contentSizePolicy.ts#L124) | function | `src/services/contentSizePolicy.ts` | 124-161 | Analyzes content size and recommends a chunking strategy (direct, chunk, or hierarchical) with cost warnings. |
+| [`estimateCharsPerToken`](../src/services/contentSizePolicy.ts#L101) | function | `src/services/contentSizePolicy.ts` | 101-113 | Estimates characters per token for a text sample by detecting CJK, code patterns, or returning a Latin default. |
+| [`exceedsProviderHardLimit`](../src/services/contentSizePolicy.ts#L203) | function | `src/services/contentSizePolicy.ts` | 203-205 | Returns true if content exceeds the provider's hard character limit. |
+| [`getHierarchicalThreshold`](../src/services/contentSizePolicy.ts#L89) | function | `src/services/contentSizePolicy.ts` | 89-93 | Returns the hierarchical reduction threshold for the given content type. |
+| [`getQualityChunkThreshold`](../src/services/contentSizePolicy.ts#L69) | function | `src/services/contentSizePolicy.ts` | 69-86 | Returns the chunk size threshold for quality assessment based on content type and user settings. |
+| [`resolveFastModel`](../src/services/contentSizePolicy.ts#L175) | function | `src/services/contentSizePolicy.ts` | 175-195 | Returns a fast (Haiku) model override if settings enable it and context windows are sufficient. |
+| [`DashboardService`](../src/services/dashboardService.ts#L25) | class | `src/services/dashboardService.ts` | 25-251 | <no body> |
+| [`DictionaryService`](../src/services/dictionaryService.ts#L35) | class | `src/services/dictionaryService.ts` | 35-655 | <no body> |
+| [`DocumentExtractionService`](../src/services/documentExtractionService.ts#L25) | class | `src/services/documentExtractionService.ts` | 25-380 | <no body> |
+| [`classifyExtension`](../src/services/embedScanService.ts#L96) | function | `src/services/embedScanService.ts` | 96-106 | Classifies a file extension into types like image, pdf, audio, video, document, or other. |
+| [`extractReferencesFromLine`](../src/services/embedScanService.ts#L150) | function | `src/services/embedScanService.ts` | 150-170 | Extracts markdown embeds and links from a single line, returning normalized file references. |
+| [`findPossiblyOrphanedFiles`](../src/services/embedScanService.ts#L285) | function | `src/services/embedScanService.ts` | 285-297 | Finds vault files that are embed-type but not referenced anywhere. |
+| [`formatFileSize`](../src/services/embedScanService.ts#L321) | function | `src/services/embedScanService.ts` | 321-327 | Formats a byte size into human-readable units (B, KB, MB, GB). |
+| [`getEmbedTypeIcon`](../src/services/embedScanService.ts#L332) | function | `src/services/embedScanService.ts` | 332-341 | Maps embed type classifications to their corresponding icon names. |
+| [`getExtensionFromPath`](../src/services/embedScanService.ts#L310) | function | `src/services/embedScanService.ts` | 310-314 | Extracts and returns the file extension from a path in lowercase. |
+| [`getMarkdownFilesInFolder`](../src/services/embedScanService.ts#L346) | function | `src/services/embedScanService.ts` | 346-356 | Recursively collects all markdown files within a folder and its subfolders. |
+| [`hasEmbedTypeExtension`](../src/services/embedScanService.ts#L302) | function | `src/services/embedScanService.ts` | 302-305 | Checks if a filename has an embed-compatible extension. |
+| [`isExternalUrl`](../src/services/embedScanService.ts#L175) | function | `src/services/embedScanService.ts` | 175-177 | Checks whether a path is an external HTTP(S) URL. |
+| [`normalizeEmbedPath`](../src/services/embedScanService.ts#L114) | function | `src/services/embedScanService.ts` | 114-126 | Strips wiki-link aliases, anchors, and query parameters from file paths. |
+| [`scanNotes`](../src/services/embedScanService.ts#L185) | function | `src/services/embedScanService.ts` | 185-275 | Scans markdown notes to find all embedded and linked files, returning embed targets and orphaned files. |
+| [`ImageProcessorService`](../src/services/imageProcessorService.ts#L46) | class | `src/services/imageProcessorService.ts` | 46-641 | Processes vault images by converting, resizing, compressing, and encoding them to base64. |
+| [`getLanguageByCode`](../src/services/languages.ts#L61) | function | `src/services/languages.ts` | 61-63 | Looks up a language object by its code from the common languages list. |
+| [`getLanguageDisplayName`](../src/services/languages.ts#L48) | function | `src/services/languages.ts` | 48-56 | Returns language display name using native name in parentheses if different from English name. |
+| [`getLanguageNameForPrompt`](../src/services/languages.ts#L68) | function | `src/services/languages.ts` | 68-74 | Returns the language name for use in prompts, returning undefined for auto or invalid codes. |
+| [`getLanguageName`](../src/services/languageUtils.ts#L38) | function | `src/services/languageUtils.ts` | 38-43 | Returns the display name for a language code, defaulting to 'Default' if code is empty. |
+| [`getServiceType`](../src/services/llmFacade.ts#L28) | function | `src/services/llmFacade.ts` | 28-40 | Returns service configuration indicating whether the LLM is cloud-based or local with its provider identifier. |
+| [`isMultimodalService`](../src/services/llmFacade.ts#L23) | function | `src/services/llmFacade.ts` | 23-26 | Checks if a service implements multimodal capabilities by verifying presence of `sendMultimodal` and `getMultimodalCapability` methods. |
+| [`pluginContext`](../src/services/llmFacade.ts#L46) | function | `src/services/llmFacade.ts` | 46-48 | Extracts and returns the llmService and settings from a plugin context object. |
+| [`sendMultimodal`](../src/services/llmFacade.ts#L116) | function | `src/services/llmFacade.ts` | 116-137 | Sends multimodal content to a cloud LLM provider, validating that the service supports multimodal analysis. |
+| [`summarizeText`](../src/services/llmFacade.ts#L50) | function | `src/services/llmFacade.ts` | 50-61 | Calls the LLM service to summarize text, catching and returning errors as failed results. |
+| [`summarizeTextStream`](../src/services/llmFacade.ts#L65) | function | `src/services/llmFacade.ts` | 65-114 | Streams text summarization from the LLM service with fallback prevention when chunks have already been emitted to avoid duplication. |
+| [`extractAuthFromUrl`](../src/services/localModelFetcher.ts#L103) | function | `src/services/localModelFetcher.ts` | 103-129 | Extracts HTTP Basic authentication credentials from a URL and constructs appropriate Authorization headers. |
+| [`fetchLocalModels`](../src/services/localModelFetcher.ts#L4) | function | `src/services/localModelFetcher.ts` | 4-100 | Fetches available models from a local LLM endpoint, with special handling for Ollama's API endpoints. |
+| [`normalizeEndpoint`](../src/services/localModelFetcher.ts#L131) | function | `src/services/localModelFetcher.ts` | 131-144 | Normalizes a local LLM endpoint URL by removing trailing slashes and standard path components. |
+| [`LocalLLMService`](../src/services/localService.ts#L8) | class | `src/services/localService.ts` | 8-370 | <no body> |
+| [`MermaidChangeDetector`](../src/services/mermaidChangeDetector.ts#L50) | class | `src/services/mermaidChangeDetector.ts` | 50-169 | <no body> |
+| [`MermaidContextService`](../src/services/mermaidContextService.ts#L27) | class | `src/services/mermaidContextService.ts` | 27-164 | <no body> |
+| [`MermaidExportService`](../src/services/mermaidExportService.ts#L20) | class | `src/services/mermaidExportService.ts` | 20-319 | <no body> |
+| [`MermaidTemplateService`](../src/services/mermaidTemplateService.ts#L45) | class | `src/services/mermaidTemplateService.ts` | 45-179 | <no body> |
+| [`markNoteProcessed`](../src/services/metadataPostOp.ts#L56) | function | `src/services/metadataPostOp.ts` | 56-107 | Updates a note's metadata to mark it as processed, optionally updating status and word count. |
+| [`MigrationService`](../src/services/migrationService.ts#L48) | class | `src/services/migrationService.ts` | 48-318 | <no body> |
+| [`computeMinutesBudget`](../src/services/minutesBudgets.ts#L29) | function | `src/services/minutesBudgets.ts` | 29-46 | Computes soft and hard time budgets for a long operation based on chunk count, with floor and ceiling constraints. |
+| [`MinutesService`](../src/services/minutesService.ts#L170) | class | `src/services/minutesService.ts` | 170-966 | <no body> |
+| [`ParticipantListService`](../src/services/participantListService.ts#L20) | class | `src/services/participantListService.ts` | 20-159 | Manages participant list files stored in a dedicated vault subfolder. |
+| [`PdfService`](../src/services/pdfService.ts#L27) | class | `src/services/pdfService.ts` | 27-293 | Reads PDF files and converts them to base64 for multimodal LLM consumption, with size validation. |
+| [`serviceCanSummarizePdf`](../src/services/pdfService.ts#L298) | function | `src/services/pdfService.ts` | 298-301 | Returns true if a cloud service type supports PDF summarization (Claude/Gemini only). |
+| [`getPdfProviderConfig`](../src/services/pdfTranslationService.ts#L10) | function | `src/services/pdfTranslationService.ts` | 10-96 | Resolves which cloud provider and API key to use for PDF translation based on plugin settings. |
+| [`translatePdfWithLLM`](../src/services/pdfTranslationService.ts#L104) | function | `src/services/pdfTranslationService.ts` | 104-158 | Translates PDF content using Claude or Gemini, creating a temporary service if needed. |
+| [`ensurePrivacyConsent`](../src/services/privacyNotice.ts#L57) | function | `src/services/privacyNotice.ts` | 57-73 | Displays a privacy consent modal for cloud providers and returns a promise resolving to the user's consent decision. |
+| [`isCloudProvider`](../src/services/privacyNotice.ts#L38) | function | `src/services/privacyNotice.ts` | 38-51 | Checks if a given service type is a cloud-based provider. |
+| [`markPrivacyNoticeShown`](../src/services/privacyNotice.ts#L31) | function | `src/services/privacyNotice.ts` | 31-33 | Marks the privacy notice as shown in the current session. |
+| [`resetPrivacyNotice`](../src/services/privacyNotice.ts#L15) | function | `src/services/privacyNotice.ts` | 15-17 | Resets the session flag that tracks whether the privacy notice has been shown. |
+| [`shouldShowPrivacyNotice`](../src/services/privacyNotice.ts#L22) | function | `src/services/privacyNotice.ts` | 22-26 | Determines whether the privacy notice should be displayed based on provider type and session state. |
+| [`QuickPeekService`](../src/services/quickPeekService.ts#L34) | class | `src/services/quickPeekService.ts` | 34-192 | Parallelizes triage processing of detected content sources and returns results in input order with progress callbacks. |
+| [`RAGService`](../src/services/ragService.ts#L36) | class | `src/services/ragService.ts` | 36-271 | Retrieves relevant context from a vector store for a query, with optional folder scope and similarity filtering. |
 | [`escapeRegex`](../src/services/resourceSearchService.ts#L230) | function | `src/services/resourceSearchService.ts` | 230-232 | Escapes special regex characters in a string. |
 | [`removeDuplicates`](../src/services/resourceSearchService.ts#L237) | function | `src/services/resourceSearchService.ts` | 237-245 | Removes duplicate results by normalizing and tracking seen URLs. |
 | [`searchDuckDuckGo`](../src/services/resourceSearchService.ts#L166) | function | `src/services/resourceSearchService.ts` | 166-225 | Scrapes DuckDuckGo HTML search results and extracts title, URL, and description while filtering out YouTube links. |
 | [`searchResources`](../src/services/resourceSearchService.ts#L21) | function | `src/services/resourceSearchService.ts` | 21-65 | Searches YouTube and web (DuckDuckGo) for resources based on user query intent, deduplicates results, and returns top 10. |
 | [`searchYouTube`](../src/services/resourceSearchService.ts#L71) | function | `src/services/resourceSearchService.ts` | 71-161 | Scrapes YouTube search results by parsing initial data JSON embedded in the HTML response. |
 | [`SecretStorageService`](../src/services/secretStorageService.ts#L54) | class | `src/services/secretStorageService.ts` | 54-381 | Provides access to Obsidian's SecretStorage API for encrypted secret storage with fallback support. |
-| [`buildSketchEmbed`](../src/services/sketch/sketchExport.ts#L58) | function | `src/services/sketch/sketchExport.ts` | 58-60 | Builds a markdown embed syntax for a sketch file. |
-| [`canvasToBlob`](../src/services/sketch/sketchExport.ts#L7) | function | `src/services/sketch/sketchExport.ts` | 7-17 | Converts a canvas element to a blob in the configured export MIME type. |
-| [`cropCanvasToContent`](../src/services/sketch/sketchExport.ts#L20) | function | `src/services/sketch/sketchExport.ts` | 20-40 | Crops a canvas to content bounds with padding and fills the background white. |
-| [`exportSketchToVault`](../src/services/sketch/sketchExport.ts#L42) | function | `src/services/sketch/sketchExport.ts` | 42-56 | Exports a canvas sketch to the vault as a binary file with a timestamp filename. |
-| [`clampPressure`](../src/services/sketch/strokeManager.ts#L38) | function | `src/services/sketch/strokeManager.ts` | 38-41 | Clamps pressure value to valid range [0.05, 1.0], treating invalid values as 0.5. |
-| [`distToSegmentSq`](../src/services/sketch/strokeManager.ts#L21) | function | `src/services/sketch/strokeManager.ts` | 21-36 | Computes squared distance from a point to a line segment. |
-| [`StrokeManager`](../src/services/sketch/strokeManager.ts#L43) | class | `src/services/sketch/strokeManager.ts` | 43-183 | Manages undo/redo stacks and stroke lifecycle (start, add point, commit) with bounds tracking. |
 | [`computeSmartTagBudget`](../src/services/smartTagBudgets.ts#L24) | function | `src/services/smartTagBudgets.ts` | 24-33 | Computes soft and hard time budgets for smart tagging based on item count with ceiling caps. |
 | [`extractSpeakerNames`](../src/services/speakerLabellingService.ts#L217) | function | `src/services/speakerLabellingService.ts` | 217-235 | Extracts speaker names from a transcript by pattern-matching labeled lines. |
 | [`hasExistingSpeakerLabels`](../src/services/speakerLabellingService.ts#L42) | function | `src/services/speakerLabellingService.ts` | 42-55 | Detects if a transcript already has speaker labels by checking line prefix patterns. |
@@ -1675,59 +3158,6 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`stripCorruptTail`](../src/services/transcriptQualityService.ts#L194) | function | `src/services/transcriptQualityService.ts` | 194-218 | Removes corrupt repetition patterns from the end of a transcript and returns the clean text with a warning. |
 | [`validateChunkQuality`](../src/services/transcriptQualityService.ts#L235) | function | `src/services/transcriptQualityService.ts` | 235-254 | Validates a transcript chunk by measuring word count, words-per-minute ratio, and detecting repetition corruption. |
 | [`validateTranscriptCompleteness`](../src/services/transcriptQualityService.ts#L268) | function | `src/services/transcriptQualityService.ts` | 268-314 | Calculates transcript coverage percentage against expected meeting duration and returns a severity verdict. |
-| [`CryptoUnavailableError`](../src/services/tts/fingerprint.ts#L11) | class | `src/services/tts/fingerprint.ts` | 11-17 | Error class raised when the Web Crypto API is unavailable on the runtime platform. |
-| [`sha256Hex`](../src/services/tts/fingerprint.ts#L29) | function | `src/services/tts/fingerprint.ts` | 29-53 | Computes a SHA-256 hash of length-prefixed input parts using the Web Crypto API. |
-| [`Mp3Writer`](../src/services/tts/mp3Writer.ts#L22) | class | `src/services/tts/mp3Writer.ts` | 22-121 | <no body> |
-| [`base64ToUint8Array`](../src/services/tts/pcmUtils.ts#L63) | function | `src/services/tts/pcmUtils.ts` | 63-70 | Decodes a base64-encoded string into a Uint8Array of bytes. |
-| [`downsamplePcm16`](../src/services/tts/pcmUtils.ts#L26) | function | `src/services/tts/pcmUtils.ts` | 26-57 | Downsamples PCM audio from one sample rate to another using averaging. |
-| [`pcmBytesToInt16`](../src/services/tts/pcmUtils.ts#L14) | function | `src/services/tts/pcmUtils.ts` | 14-18 | Converts raw PCM bytes to a typed Int16Array representing 16-bit audio samples. |
-| [`hardSplit`](../src/services/tts/ttsChunker.ts#L25) | function | `src/services/tts/ttsChunker.ts` | 25-40 | Splits text longer than max length by finding word boundaries in the last 10% of the window. |
-| [`normaliseNewlines`](../src/services/tts/ttsChunker.ts#L18) | function | `src/services/tts/ttsChunker.ts` | 18-20 | Normalizes line endings (CRLF and CR) to LF in text. |
-| [`splitForTts`](../src/services/tts/ttsChunker.ts#L49) | function | `src/services/tts/ttsChunker.ts` | 49-85 | Chunks text for TTS by respecting paragraph breaks and sentence boundaries up to target/max sizes. |
-| [`splitParagraphIntoSentences`](../src/services/tts/ttsChunker.ts#L92) | function | `src/services/tts/ttsChunker.ts` | 92-129 | Splits a paragraph into sentences and groups them into chunks respecting target and maximum length constraints. |
-| [`createGeminiTtsEngine`](../src/services/tts/ttsEngine.ts#L133) | function | `src/services/tts/ttsEngine.ts` | 133-147 | Creates a GeminiTtsEngine instance if a Gemini provider is configured, otherwise returns null. |
-| [`GeminiTtsEngine`](../src/services/tts/ttsEngine.ts#L55) | class | `src/services/tts/ttsEngine.ts` | 55-127 | <no body> |
-| [`makeGeminiError`](../src/services/tts/ttsEngine.ts#L47) | function | `src/services/tts/ttsEngine.ts` | 47-53 | Constructs a GeminiHttpError from an HTTP status code and response body. |
-| [`getProvider`](../src/services/tts/ttsProviderRegistry.ts#L53) | function | `src/services/tts/ttsProviderRegistry.ts` | 53-59 | Retrieves a narration provider definition by ID, throwing an error if not found. |
-| [`listProviders`](../src/services/tts/ttsProviderRegistry.ts#L61) | function | `src/services/tts/ttsProviderRegistry.ts` | 61-63 | Returns all available audio narration providers. |
-| [`abortableSleep`](../src/services/tts/ttsRetry.ts#L50) | function | `src/services/tts/ttsRetry.ts` | 50-66 | Sleeps for a duration while respecting an AbortSignal for early cancellation. |
-| [`computeDelay`](../src/services/tts/ttsRetry.ts#L69) | function | `src/services/tts/ttsRetry.ts` | 69-72 | Computes exponential backoff delay with jitter capped at maximum delay. |
-| [`isAbort`](../src/services/tts/ttsRetry.ts#L43) | function | `src/services/tts/ttsRetry.ts` | 43-47 | Checks if an error is an abort/cancellation error. |
-| [`isRetryable`](../src/services/tts/ttsRetry.ts#L32) | function | `src/services/tts/ttsRetry.ts` | 32-41 | Determines if an error is retryable based on custom retryable flag, HTTP status codes, or error type. |
-| [`retryWithBackoff`](../src/services/tts/ttsRetry.ts#L74) | function | `src/services/tts/ttsRetry.ts` | 74-99 | Retries an async operation with exponential backoff, respecting abort signals and retryability rules. |
-| [`auditIntegrationWithLLM`](../src/services/validators/integrationAuditor.ts#L39) | function | `src/services/validators/integrationAuditor.ts` | 39-82 | Audits LLM integration output against original content using an LLM to flag quality issues. |
-| [`resolveAuditService`](../src/services/validators/integrationAuditor.ts#L90) | function | `src/services/validators/integrationAuditor.ts` | 90-104 | Resolves which LLM service to use for auditing—a dedicated cloud provider or the main service. |
-| [`checkContentPreservation`](../src/services/validators/integrationValidator.ts#L74) | function | `src/services/validators/integrationValidator.ts` | 74-98 | Checks that headings and embedded content from the original are preserved in the output. |
-| [`checkEmbedPreservation`](../src/services/validators/integrationValidator.ts#L100) | function | `src/services/validators/integrationValidator.ts` | 100-113 | Verifies that embedded content (images, links) count has not dropped below a threshold. |
-| [`checkFormatCompliance`](../src/services/validators/integrationValidator.ts#L117) | function | `src/services/validators/integrationValidator.ts` | 117-148 | Validates that output matches the requested format (tasks with checkboxes, table, bullets, or prose). |
-| [`checkLengthSanity`](../src/services/validators/integrationValidator.ts#L152) | function | `src/services/validators/integrationValidator.ts` | 152-178 | Checks that output length is within reasonable bounds relative to input length to detect data loss or hallucination. |
-| [`stripPreamble`](../src/services/validators/integrationValidator.ts#L58) | function | `src/services/validators/integrationValidator.ts` | 58-70 | Strips LLM preambles (e.g. "Here's the summary:") from output and records the removal. |
-| [`validateIntegrationOutput`](../src/services/validators/integrationValidator.ts#L26) | function | `src/services/validators/integrationValidator.ts` | 26-54 | Validates LLM-generated integration output by checking for instruction leakage, content preservation, format compliance, and length sanity. |
-| [`auditMinutesWithLLM`](../src/services/validators/minutesAuditor.ts#L38) | function | `src/services/validators/minutesAuditor.ts` | 38-98 | Audits generated minutes JSON against transcript and validation issues using an LLM to optimize or flag problems. |
-| [`makeSkipResult`](../src/services/validators/minutesAuditor.ts#L122) | function | `src/services/validators/minutesAuditor.ts` | 122-132 | Returns a pass result indicating the LLM audit was skipped. |
-| [`resolveAuditService`](../src/services/validators/minutesAuditor.ts#L106) | function | `src/services/validators/minutesAuditor.ts` | 106-120 | Resolves which LLM service to use for auditing—a dedicated cloud provider or the main service. |
-| [`auditConfidence`](../src/services/validators/minutesValidator.ts#L326) | function | `src/services/validators/minutesValidator.ts` | 326-346 | Audits confidence levels across all item types and warns if low-confidence items exceed a threshold. |
-| [`crossRefOwners`](../src/services/validators/minutesValidator.ts#L258) | function | `src/services/validators/minutesValidator.ts` | 258-286 | Cross-references action owners and GTD waiting_on persons against participant names to warn of mismatches. |
-| [`isParseableDate`](../src/services/validators/minutesValidator.ts#L350) | function | `src/services/validators/minutesValidator.ts` | 350-355 | Checks whether a date string can be parsed into a valid Date object. |
-| [`validateActions`](../src/services/validators/minutesValidator.ts#L112) | function | `src/services/validators/minutesValidator.ts` | 112-162 | <no body> |
-| [`validateDecisions`](../src/services/validators/minutesValidator.ts#L166) | function | `src/services/validators/minutesValidator.ts` | 166-194 | Validates decisions by auto-generating IDs and detecting duplicate IDs and missing text. |
-| [`validateDeferredItems`](../src/services/validators/minutesValidator.ts#L243) | function | `src/services/validators/minutesValidator.ts` | 243-254 | Ensures deferred_items array exists and generates missing IDs with P-prefixed labels. |
-| [`validateGTD`](../src/services/validators/minutesValidator.ts#L290) | function | `src/services/validators/minutesValidator.ts` | 290-322 | Validates GTD next_actions contexts against allowed values and checks waiting_for items for empty waiting_on fields. |
-| [`validateMetadata`](../src/services/validators/minutesValidator.ts#L75) | function | `src/services/validators/minutesValidator.ts` | 75-94 | Validates meeting metadata fields including title, date, and time for completeness and parseability. |
-| [`validateMinutesJSON`](../src/services/validators/minutesValidator.ts#L22) | function | `src/services/validators/minutesValidator.ts` | 22-71 | Validates a minutes JSON structure by checking metadata, participants, actions, decisions, risks, and cross-references. |
-| [`validateNotablePoints`](../src/services/validators/minutesValidator.ts#L213) | function | `src/services/validators/minutesValidator.ts` | 213-224 | Ensures notable_points array exists and generates missing IDs with N-prefixed labels. |
-| [`validateOpenQuestions`](../src/services/validators/minutesValidator.ts#L228) | function | `src/services/validators/minutesValidator.ts` | 228-239 | Ensures open_questions array exists and generates missing IDs with Q-prefixed labels. |
-| [`validateParticipants`](../src/services/validators/minutesValidator.ts#L98) | function | `src/services/validators/minutesValidator.ts` | 98-108 | Validates that participants array exists and contains entries with non-empty names. |
-| [`validateRisks`](../src/services/validators/minutesValidator.ts#L198) | function | `src/services/validators/minutesValidator.ts` | 198-209 | Validates risks by auto-generating IDs for any missing ones. |
-| [`createContentHash`](../src/services/vector/hashUtils.ts#L10) | function | `src/services/vector/hashUtils.ts` | 10-19 | Computes SHA-256 hash of content as a hex string. |
-| [`SimpleFileChangeTracker`](../src/services/vector/simpleVectorStore.ts#L14) | class | `src/services/vector/simpleVectorStore.ts` | 14-37 | In-memory tracker that stores and compares file content hashes to detect changes. |
-| [`SimpleVectorStore`](../src/services/vector/simpleVectorStore.ts#L43) | class | `src/services/vector/simpleVectorStore.ts` | 43-211 | <no body> |
-| [`cosineSimilarity`](../src/services/vector/vectorMath.ts#L6) | function | `src/services/vector/vectorMath.ts` | 6-24 | Calculates cosine similarity between two numeric vectors. |
-| [`SearchCache`](../src/services/vector/vectorStoreService.ts#L29) | class | `src/services/vector/vectorStoreService.ts` | 29-108 | LRU cache with TTL for storing and retrieving search query results. |
-| [`VectorStoreService`](../src/services/vector/vectorStoreService.ts#L113) | class | `src/services/vector/vectorStoreService.ts` | 113-739 | <no body> |
-| [`ensureVoyWasmReady`](../src/services/vector/voyVectorStore.ts#L24) | function | `src/services/vector/voyVectorStore.ts` | 24-44 | Ensures Voy WASM module is initialized and ready before use. |
-| [`SimpleFileChangeTracker`](../src/services/vector/voyVectorStore.ts#L49) | class | `src/services/vector/voyVectorStore.ts` | 49-72 | In-memory tracker that stores and compares file content hashes to detect changes. |
-| [`VoyVectorStore`](../src/services/vector/voyVectorStore.ts#L78) | class | `src/services/vector/voyVectorStore.ts` | 78-441 | <no body> |
 | [`VisionService`](../src/services/visionService.ts#L33) | class | `src/services/visionService.ts` | 33-316 | <no body> |
 | [`attemptDirectFetch`](../src/services/webContentService.ts#L208) | function | `src/services/webContentService.ts` | 208-223 | Fetches a URL with standard headers and checks content-type before parsing. |
 | [`buildSuccessResult`](../src/services/webContentService.ts#L85) | function | `src/services/webContentService.ts` | 85-99 | Wraps extracted article metadata and content into a standardized success result. |
@@ -1758,43 +3188,592 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`selectBestCaptionTrack`](../src/services/youtubeService.ts#L626) | function | `src/services/youtubeService.ts` | 626-641 | Selects the best English or auto-generated caption track from available options. |
 | [`summarizeYouTubeWithGemini`](../src/services/youtubeService.ts#L541) | function | `src/services/youtubeService.ts` | 541-560 | Calls processYouTubeWithGemini in summarization mode with custom prompt and maps result to legacy type. |
 | [`transcribeYouTubeWithGemini`](../src/services/youtubeService.ts#L525) | function | `src/services/youtubeService.ts` | 525-535 | Calls processYouTubeWithGemini in transcription mode to extract transcript. |
-| [`FreeChatModeHandler`](../src/ui/chat/FreeChatModeHandler.ts#L38) | class | `src/ui/chat/FreeChatModeHandler.ts` | 38-736 | <no body> |
-| [`HighlightModeHandler`](../src/ui/chat/HighlightModeHandler.ts#L6) | class | `src/ui/chat/HighlightModeHandler.ts` | 6-253 | <no body> |
-| [`NoteModeHandler`](../src/ui/chat/NoteModeHandler.ts#L5) | class | `src/ui/chat/NoteModeHandler.ts` | 5-49 | <no body> |
-| [`addAudiencePill`](../src/ui/chat/presentation/CreatePanel.ts#L128) | function | `src/ui/chat/presentation/CreatePanel.ts` | 128-159 | Creates an interactive audience-selection button that updates config and manages active state across siblings. |
-| [`addLengthPill`](../src/ui/chat/presentation/CreatePanel.ts#L203) | function | `src/ui/chat/presentation/CreatePanel.ts` | 203-232 | Creates a clickable length-preset button that syncs the custom input and toggles active state across siblings. |
-| [`addSourceButton`](../src/ui/chat/presentation/CreatePanel.ts#L430) | function | `src/ui/chat/presentation/CreatePanel.ts` | 430-451 | Creates an add-source button that opens a picker and preloads the selected source. |
-| [`addSpeedPill`](../src/ui/chat/presentation/CreatePanel.ts#L247) | function | `src/ui/chat/presentation/CreatePanel.ts` | 247-277 | Creates an interactive speed-tier button that updates config and manages active state across siblings. |
-| [`describeFailure`](../src/ui/chat/presentation/CreatePanel.ts#L410) | function | `src/ui/chat/presentation/CreatePanel.ts` | 410-428 | Maps failure codes to localized error messages with template variable replacement. |
-| [`describeSource`](../src/ui/chat/presentation/CreatePanel.ts#L378) | function | `src/ui/chat/presentation/CreatePanel.ts` | 378-385 | Returns a display label for a source, including auto-detected flag if applicable. |
-| [`handleChange`](../src/ui/chat/presentation/CreatePanel.ts#L496) | function | `src/ui/chat/presentation/CreatePanel.ts` | 496-523 | Rebuilds UI sections in response to source list changes, status updates, or redetection. |
-| [`kindIconChar`](../src/ui/chat/presentation/CreatePanel.ts#L372) | function | `src/ui/chat/presentation/CreatePanel.ts` | 372-376 | Returns a single-character emoji icon matching the source kind (note/folder/web). |
-| [`rebuildSourcesList`](../src/ui/chat/presentation/CreatePanel.ts#L322) | function | `src/ui/chat/presentation/CreatePanel.ts` | 322-340 | Empties and rebuilds the sources list, displaying either selected sources or an empty-state message. |
-| [`renderAudienceRow`](../src/ui/chat/presentation/CreatePanel.ts#L116) | function | `src/ui/chat/presentation/CreatePanel.ts` | 116-126 | Renders a labeled radio-group row for selecting presentation audience (analyst/executive/general). |
-| [`renderCreatePanel`](../src/ui/chat/presentation/CreatePanel.ts#L79) | function | `src/ui/chat/presentation/CreatePanel.ts` | 79-112 | Renders presentation creation panel with audience, length, speed, sources, and validation controls. |
-| [`renderLengthRow`](../src/ui/chat/presentation/CreatePanel.ts#L163) | function | `src/ui/chat/presentation/CreatePanel.ts` | 163-201 | Renders a row with preset length pills and a custom numeric input field for slide count. |
-| [`renderRedetectButton`](../src/ui/chat/presentation/CreatePanel.ts#L304) | function | `src/ui/chat/presentation/CreatePanel.ts` | 304-315 | Creates a redetect button that triggers auto-detection of active note and reflects stale status visibility. |
-| [`renderSourceRow`](../src/ui/chat/presentation/CreatePanel.ts#L342) | function | `src/ui/chat/presentation/CreatePanel.ts` | 342-370 | Renders a single source row with icon, label, status indicator, and remove button. |
-| [`renderSourcesSection`](../src/ui/chat/presentation/CreatePanel.ts#L281) | function | `src/ui/chat/presentation/CreatePanel.ts` | 281-302 | Builds the sources section with header, redetect button, sources list, and add-source action buttons. |
-| [`renderSpeedRow`](../src/ui/chat/presentation/CreatePanel.ts#L236) | function | `src/ui/chat/presentation/CreatePanel.ts` | 236-245 | Renders a labeled radio-group row for selecting presentation speed tier (fast/quality). |
-| [`renderValidationRow`](../src/ui/chat/presentation/CreatePanel.ts#L455) | function | `src/ui/chat/presentation/CreatePanel.ts` | 455-462 | Creates a hidden validation status container with live-region announcements. |
-| [`runValidation`](../src/ui/chat/presentation/CreatePanel.ts#L464) | function | `src/ui/chat/presentation/CreatePanel.ts` | 464-492 | Validates presentation config and sources, displaying appropriate error or warning messages. |
-| [`setStatusContent`](../src/ui/chat/presentation/CreatePanel.ts#L387) | function | `src/ui/chat/presentation/CreatePanel.ts` | 387-408 | Updates status element content with loading/resolved/error indicators and optional failure tooltips. |
-| [`syncRedetectVisibility`](../src/ui/chat/presentation/CreatePanel.ts#L317) | function | `src/ui/chat/presentation/CreatePanel.ts` | 317-320 | Toggles redetect button visibility based on whether auto-detected sources are stale. |
-| [`updateRowInPlace`](../src/ui/chat/presentation/CreatePanel.ts#L525) | function | `src/ui/chat/presentation/CreatePanel.ts` | 525-535 | Updates a source row in-place with fresh status and label without rebuilding the entire list. |
-| [`addModePill`](../src/ui/chat/presentation/EditAccessories.ts#L146) | function | `src/ui/chat/presentation/EditAccessories.ts` | 146-187 | Creates an interactive mode-selection button with arrow-key navigation and auto-focus on mode change. |
-| [`describeScope`](../src/ui/chat/presentation/EditAccessories.ts#L111) | function | `src/ui/chat/presentation/EditAccessories.ts` | 111-125 | Generates a human-readable description of a selected slide scope (range/slide/element). |
-| [`handleModeKeydown`](../src/ui/chat/presentation/EditAccessories.ts#L189) | function | `src/ui/chat/presentation/EditAccessories.ts` | 189-203 | Handles arrow-key and space navigation across mode radio pills. |
-| [`renderEditAccessories`](../src/ui/chat/presentation/EditAccessories.ts#L41) | function | `src/ui/chat/presentation/EditAccessories.ts` | 41-72 | Renders edit accessories (selection pill, mode pills, edit flags) conditionally based on selection state. |
-| [`renderEditFlags`](../src/ui/chat/presentation/EditAccessories.ts#L207) | function | `src/ui/chat/presentation/EditAccessories.ts` | 207-222 | Renders a checkbox flag for toggling web-search inclusion in content-edit mode. |
-| [`renderModePills`](../src/ui/chat/presentation/EditAccessories.ts#L129) | function | `src/ui/chat/presentation/EditAccessories.ts` | 129-138 | Renders a radio-group row with mode-selection pills (content/design). |
-| [`renderSelectionPill`](../src/ui/chat/presentation/EditAccessories.ts#L76) | function | `src/ui/chat/presentation/EditAccessories.ts` | 76-109 | Creates a dismissible selection pill showing the currently-selected scope with keyboard support (Esc/Delete). |
-| [`getAvailablePath`](../src/ui/chat/PresentationModeHandler.ts#L1569) | function | `src/ui/chat/PresentationModeHandler.ts` | 1569-1583 | Returns an available file path in the vault, auto-incrementing if the base path exists. |
-| [`PresentationModeHandler`](../src/ui/chat/PresentationModeHandler.ts#L74) | class | `src/ui/chat/PresentationModeHandler.ts` | 74-1561 | <no body> |
-| [`sanitizeFileName`](../src/ui/chat/PresentationModeHandler.ts#L1565) | function | `src/ui/chat/PresentationModeHandler.ts` | 1565-1567 | Strips invalid filename characters and collapses runs of hyphens. |
-| [`extractHighlightSpans`](../src/ui/chat/ResearchModeHandler.ts#L44) | function | `src/ui/chat/ResearchModeHandler.ts` | 44-59 | Extracts highlighted text spans from content blocks using markdown and HTML highlight patterns. |
-| [`ResearchModeHandler`](../src/ui/chat/ResearchModeHandler.ts#L61) | class | `src/ui/chat/ResearchModeHandler.ts` | 61-1444 | <no body> |
-| [`VaultModeHandler`](../src/ui/chat/VaultModeHandler.ts#L9) | class | `src/ui/chat/VaultModeHandler.ts` | 9-216 | <no body> |
+
+---
+
+## sketch
+
+```mermaid
+flowchart TB
+subgraph dom_sketch ["sketch"]
+  file_src_services_sketch_sketchExport_ts["src/services/sketch/sketchExport.ts"]:::component
+  sym_src_services_sketch_sketchExport_ts_buil["buildSketchEmbed"]:::symbol
+  file_src_services_sketch_sketchExport_ts --> sym_src_services_sketch_sketchExport_ts_buil
+  sym_src_services_sketch_sketchExport_ts_canv["canvasToBlob"]:::symbol
+  file_src_services_sketch_sketchExport_ts --> sym_src_services_sketch_sketchExport_ts_canv
+  sym_src_services_sketch_sketchExport_ts_crop["cropCanvasToContent"]:::symbol
+  file_src_services_sketch_sketchExport_ts --> sym_src_services_sketch_sketchExport_ts_crop
+  sym_src_services_sketch_sketchExport_ts_expo["exportSketchToVault"]:::symbol
+  file_src_services_sketch_sketchExport_ts --> sym_src_services_sketch_sketchExport_ts_expo
+  file_src_services_sketch_strokeManager_ts["src/services/sketch/strokeManager.ts"]:::component
+  sym_src_services_sketch_strokeManager_ts_cla["clampPressure"]:::symbol
+  file_src_services_sketch_strokeManager_ts --> sym_src_services_sketch_strokeManager_ts_cla
+  sym_src_services_sketch_strokeManager_ts_dis["distToSegmentSq"]:::symbol
+  file_src_services_sketch_strokeManager_ts --> sym_src_services_sketch_strokeManager_ts_dis
+  sym_src_services_sketch_strokeManager_ts_Str["StrokeManager"]:::symbol
+  file_src_services_sketch_strokeManager_ts --> sym_src_services_sketch_strokeManager_ts_Str
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`buildSketchEmbed`](../src/services/sketch/sketchExport.ts#L58) | function | `src/services/sketch/sketchExport.ts` | 58-60 | Builds a markdown embed syntax for a sketch file. |
+| [`canvasToBlob`](../src/services/sketch/sketchExport.ts#L7) | function | `src/services/sketch/sketchExport.ts` | 7-17 | Converts a canvas element to a blob in the configured export MIME type. |
+| [`cropCanvasToContent`](../src/services/sketch/sketchExport.ts#L20) | function | `src/services/sketch/sketchExport.ts` | 20-40 | Crops a canvas to content bounds with padding and fills the background white. |
+| [`exportSketchToVault`](../src/services/sketch/sketchExport.ts#L42) | function | `src/services/sketch/sketchExport.ts` | 42-56 | Exports a canvas sketch to the vault as a binary file with a timestamp filename. |
+| [`clampPressure`](../src/services/sketch/strokeManager.ts#L38) | function | `src/services/sketch/strokeManager.ts` | 38-41 | Clamps pressure value to valid range [0.05, 1.0], treating invalid values as 0.5. |
+| [`distToSegmentSq`](../src/services/sketch/strokeManager.ts#L21) | function | `src/services/sketch/strokeManager.ts` | 21-36 | Computes squared distance from a point to a line segment. |
+| [`StrokeManager`](../src/services/sketch/strokeManager.ts#L43) | class | `src/services/sketch/strokeManager.ts` | 43-183 | Manages undo/redo stacks and stroke lifecycle (start, add point, commit) with bounds tracking. |
+
+---
+
+## src
+
+```mermaid
+flowchart TB
+subgraph dom_src ["src"]
+  file_src_main_ts["src/main.ts"]:::component
+  sym_src_main_ts_AIOrganiserPlugin["AIOrganiserPlugin"]:::symbol
+  file_src_main_ts --> sym_src_main_ts_AIOrganiserPlugin
+  sym_src_main_ts_formatElapsedForNotice["formatElapsedForNotice"]:::symbol
+  file_src_main_ts --> sym_src_main_ts_formatElapsedForNotice
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`AIOrganiserPlugin`](../src/main.ts#L54) | class | `src/main.ts` | 54-1234 | Main plugin class that orchestrates AI-powered organization features, managing settings, services, and UI elements. |
+| [`formatElapsedForNotice`](../src/main.ts#L1236) | function | `src/main.ts` | 1236-1241 | Converts milliseconds to a human-readable elapsed time format (e.g., "2m 30s" or "45s"). |
+
+---
+
+## tests
+
+```mermaid
+flowchart TB
+subgraph dom_tests ["tests"]
+  file_tests_academicUtils_test_ts["tests/academicUtils.test.ts"]:::component
+  sym_tests_academicUtils_test_ts_makeResult["makeResult"]:::symbol
+  file_tests_academicUtils_test_ts --> sym_tests_academicUtils_test_ts_makeResult
+  file_tests_apiKeyHelpersAudioNarration_test_t["tests/apiKeyHelpersAudioNarration.test.ts"]:::component
+  sym_tests_apiKeyHelpersAudioNarration_test_t["makePlugin"]:::symbol
+  file_tests_apiKeyHelpersAudioNarration_test_t --> sym_tests_apiKeyHelpersAudioNarration_test_t
+  file_tests_attachmentIndexService_test_ts["tests/attachmentIndexService.test.ts"]:::component
+  sym_tests_attachmentIndexService_test_ts_mak["makeEmbeddingService"]:::symbol
+  file_tests_attachmentIndexService_test_ts --> sym_tests_attachmentIndexService_test_ts_mak
+  file_tests_audioNarrationService_test_ts["tests/audioNarrationService.test.ts"]:::component
+  sym_tests_audioNarrationService_test_ts_make["makeMockFile"]:::symbol
+  file_tests_audioNarrationService_test_ts --> sym_tests_audioNarrationService_test_ts_make
+  sym_tests_audioNarrationService_test_ts_make["makeMockPlugin"]:::symbol
+  file_tests_audioNarrationService_test_ts --> sym_tests_audioNarrationService_test_ts_make
+  sym_tests_audioNarrationService_test_ts_make["makeMp3File"]:::symbol
+  file_tests_audioNarrationService_test_ts --> sym_tests_audioNarrationService_test_ts_make
+  file_tests_audioPlayerModal_test_ts["tests/audioPlayerModal.test.ts"]:::component
+  sym_tests_audioPlayerModal_test_ts_makeFile["makeFile"]:::symbol
+  file_tests_audioPlayerModal_test_ts --> sym_tests_audioPlayerModal_test_ts_makeFile
+  file_tests_busyIndicator_test_ts["tests/busyIndicator.test.ts"]:::component
+  sym_tests_busyIndicator_test_ts_createMockPl["createMockPlugin"]:::symbol
+  file_tests_busyIndicator_test_ts --> sym_tests_busyIndicator_test_ts_createMockPl
+  file_tests_canvasLayouts_test_ts["tests/canvasLayouts.test.ts"]:::component
+  sym_tests_canvasLayouts_test_ts_overlaps["overlaps"]:::symbol
+  file_tests_canvasLayouts_test_ts --> sym_tests_canvasLayouts_test_ts_overlaps
+  file_tests_canvasUtils_test_ts["tests/canvasUtils.test.ts"]:::component
+  sym_tests_canvasUtils_test_ts_createMockApp["createMockApp"]:::symbol
+  file_tests_canvasUtils_test_ts --> sym_tests_canvasUtils_test_ts_createMockApp
+  file_tests_cdpClient_test_ts["tests/cdpClient.test.ts"]:::component
+  sym_tests_cdpClient_test_ts_MockWebSocket["MockWebSocket"]:::symbol
+  file_tests_cdpClient_test_ts --> sym_tests_cdpClient_test_ts_MockWebSocket
+  file_tests_chatExport_test_ts["tests/chatExport.test.ts"]:::component
+  sym_tests_chatExport_test_ts_msg["msg"]:::symbol
+  file_tests_chatExport_test_ts --> sym_tests_chatExport_test_ts_msg
+  file_tests_chatPersistenceUtils_test_ts["tests/chatPersistenceUtils.test.ts"]:::component
+  sym_tests_chatPersistenceUtils_test_ts_makeS["makeState"]:::symbol
+  file_tests_chatPersistenceUtils_test_ts --> sym_tests_chatPersistenceUtils_test_ts_makeS
+  file_tests_chatResumePicker_test_ts["tests/chatResumePicker.test.ts"]:::component
+  sym_tests_chatResumePicker_test_ts_makeMockE["makeMockEl"]:::symbol
+  file_tests_chatResumePicker_test_ts --> sym_tests_chatResumePicker_test_ts_makeMockE
+  sym_tests_chatResumePicker_test_ts_makeProje["makeProject"]:::symbol
+  file_tests_chatResumePicker_test_ts --> sym_tests_chatResumePicker_test_ts_makeProje
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 217 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`makeResult`](../tests/academicUtils.test.ts#L21) | function | `tests/academicUtils.test.ts` | 21-30 | Creates a test academic search result with customizable overrides. |
+| [`makePlugin`](../tests/apiKeyHelpersAudioNarration.test.ts#L14) | function | `tests/apiKeyHelpersAudioNarration.test.ts` | 14-35 | Creates a test plugin configuration with audio narration and API key settings. |
+| [`makeEmbeddingService`](../tests/attachmentIndexService.test.ts#L13) | function | `tests/attachmentIndexService.test.ts` | 13-32 | Creates a mock embedding service that generates deterministic vector embeddings for testing. |
+| [`makeMockFile`](../tests/audioNarrationService.test.ts#L86) | function | `tests/audioNarrationService.test.ts` | 86-92 | Creates a mock Markdown file object with specified path and basename. |
+| [`makeMockPlugin`](../tests/audioNarrationService.test.ts#L102) | function | `tests/audioNarrationService.test.ts` | 102-129 | Creates a mock plugin instance with vault operations, settings, and narration job tracking. |
+| [`makeMp3File`](../tests/audioNarrationService.test.ts#L94) | function | `tests/audioNarrationService.test.ts` | 94-100 | Creates a mock MP3 narration file object with standard naming convention. |
+| [`makeFile`](../tests/audioPlayerModal.test.ts#L87) | function | `tests/audioPlayerModal.test.ts` | 87-93 | Creates a mock MP3 file object for audio player testing. |
+| [`createMockPlugin`](../tests/busyIndicator.test.ts#L3) | function | `tests/busyIndicator.test.ts` | 3-12 | Creates a minimal mock plugin with busy status bar and localization. |
+| [`overlaps`](../tests/canvasLayouts.test.ts#L14) | function | `tests/canvasLayouts.test.ts` | 14-16 | Checks if two rectangular bounding boxes overlap in 2D space. |
+| [`createMockApp`](../tests/canvasUtils.test.ts#L5) | function | `tests/canvasUtils.test.ts` | 5-24 | Creates a mock Obsidian app with vault file operations and workspace linking. |
+| [`MockWebSocket`](../tests/cdpClient.test.ts#L12) | class | `tests/cdpClient.test.ts` | 12-52 | Simulates a WebSocket connection for testing Chrome DevTools Protocol client communication. |
+| [`msg`](../tests/chatExport.test.ts#L16) | function | `tests/chatExport.test.ts` | 16-18 | Creates a chat message object with role, content, and timestamp. |
+| [`makeState`](../tests/chatPersistenceUtils.test.ts#L11) | function | `tests/chatPersistenceUtils.test.ts` | 11-24 | Creates a mock chat session state with messages and metadata. |
+| [`makeMockEl`](../tests/chatResumePicker.test.ts#L54) | function | `tests/chatResumePicker.test.ts` | 54-83 | Creates a mock DOM element with event listeners and child element creation. |
+| [`makeProject`](../tests/chatResumePicker.test.ts#L85) | function | `tests/chatResumePicker.test.ts` | 85-98 | Creates a test project object with folder structure and metadata. |
+| [`makeRecentConversation`](../tests/chatResumePicker.test.ts#L100) | function | `tests/chatResumePicker.test.ts` | 100-109 | Creates a test recent conversation metadata object. |
+| [`makeState`](../tests/chatResumePicker.test.ts#L111) | function | `tests/chatResumePicker.test.ts` | 111-124 | Creates a mock chat state for conversation picker testing. |
+| [`createMockApp`](../tests/chatSearchService.test.ts#L129) | function | `tests/chatSearchService.test.ts` | 129-138 | Creates a mock Obsidian app with vault file reading capabilities. |
+| [`createMockSettings`](../tests/chatSearchService.test.ts#L140) | function | `tests/chatSearchService.test.ts` | 140-147 | Creates mock plugin settings with folder paths. |
+| [`makeMockFile`](../tests/chatSearchService.test.ts#L118) | function | `tests/chatSearchService.test.ts` | 118-127 | Creates a mock TFile object representing a markdown file with metadata. |
+| [`baseAssessment`](../tests/chunkingOrchestrator.test.ts#L37) | function | `tests/chunkingOrchestrator.test.ts` | 37-44 | Creates a base assessment object defining chunking strategy metrics. |
+| [`baseOptions`](../tests/chunkingOrchestrator.test.ts#L24) | function | `tests/chunkingOrchestrator.test.ts` | 24-35 | Creates base options for text chunking and orchestration with prompt builders. |
+| [`makeLLM`](../tests/chunkingOrchestrator.test.ts#L12) | function | `tests/chunkingOrchestrator.test.ts` | 12-22 | Creates a mock LLM service that tracks summarization calls. |
+| [`buildMockResponse`](../tests/claudeWebSearchAdapter.test.ts#L23) | function | `tests/claudeWebSearchAdapter.test.ts` | 23-81 | <no body> |
+| [`buildApiResponse`](../tests/claudeWebSearchIntegration.test.ts#L85) | function | `tests/claudeWebSearchIntegration.test.ts` | 85-120 | Builds a mock Claude API response with web search results, citations, and token usage. |
+| [`buildPausedResponse`](../tests/claudeWebSearchIntegration.test.ts#L122) | function | `tests/claudeWebSearchIntegration.test.ts` | 122-124 | Builds a paused Claude API response for multi-turn search interactions. |
+| [`makePlugin`](../tests/claudeWebSearchIntegration.test.ts#L56) | function | `tests/claudeWebSearchIntegration.test.ts` | 56-68 | Creates a mock plugin with Claude cloud service and research quality settings. |
+| [`makeSearchService`](../tests/claudeWebSearchIntegration.test.ts#L70) | function | `tests/claudeWebSearchIntegration.test.ts` | 70-75 | Creates a mock web search service with provider adapter. |
+| [`makeUsageService`](../tests/claudeWebSearchIntegration.test.ts#L77) | function | `tests/claudeWebSearchIntegration.test.ts` | 77-82 | Creates a mock usage tracking service with budget checking. |
+| [`buildTypicalSSEStream`](../tests/claudeWebSearchStreaming.test.ts#L87) | function | `tests/claudeWebSearchStreaming.test.ts` | 87-145 | <no body> |
+| [`makeAdapter`](../tests/claudeWebSearchStreaming.test.ts#L161) | function | `tests/claudeWebSearchStreaming.test.ts` | 161-165 | Creates a Claude web search adapter instance with configuration. |
+| [`makePlugin`](../tests/claudeWebSearchStreaming.test.ts#L167) | function | `tests/claudeWebSearchStreaming.test.ts` | 167-180 | Creates a mock plugin with Claude streaming and research quality settings. |
+| [`makeSearchService`](../tests/claudeWebSearchStreaming.test.ts#L182) | function | `tests/claudeWebSearchStreaming.test.ts` | 182-187 | Creates a mock web search service for streaming tests. |
+| [`makeUsageService`](../tests/claudeWebSearchStreaming.test.ts#L189) | function | `tests/claudeWebSearchStreaming.test.ts` | 189-194 | Creates a mock usage service for streaming response budget tracking. |
+| [`mockFetchResponse`](../tests/claudeWebSearchStreaming.test.ts#L148) | function | `tests/claudeWebSearchStreaming.test.ts` | 148-157 | Creates a mock fetch response with server-sent events stream. |
+| [`sse`](../tests/claudeWebSearchStreaming.test.ts#L54) | function | `tests/claudeWebSearchStreaming.test.ts` | 54-56 | Formats JSON data as a server-sent event string. |
+| [`sseBlockDelta`](../tests/claudeWebSearchStreaming.test.ts#L66) | function | `tests/claudeWebSearchStreaming.test.ts` | 66-68 | Creates an SSE content_block_delta event with partial content updates. |
+| [`sseBlockStart`](../tests/claudeWebSearchStreaming.test.ts#L62) | function | `tests/claudeWebSearchStreaming.test.ts` | 62-64 | Creates an SSE content_block_start event for a specific block type. |
+| [`sseBlockStop`](../tests/claudeWebSearchStreaming.test.ts#L70) | function | `tests/claudeWebSearchStreaming.test.ts` | 70-72 | Creates an SSE content_block_stop event marking block completion. |
+| [`sseMessageDelta`](../tests/claudeWebSearchStreaming.test.ts#L74) | function | `tests/claudeWebSearchStreaming.test.ts` | 74-80 | Creates an SSE message_delta event with stop reason and token usage. |
+| [`sseMessageStart`](../tests/claudeWebSearchStreaming.test.ts#L58) | function | `tests/claudeWebSearchStreaming.test.ts` | 58-60 | Creates an SSE message_start event with input token usage. |
+| [`sseMessageStop`](../tests/claudeWebSearchStreaming.test.ts#L82) | function | `tests/claudeWebSearchStreaming.test.ts` | 82-84 | Creates an SSE message_stop event signaling response completion. |
+| [`createClaudeService`](../tests/cloudService.defaults.test.ts#L168) | function | `tests/cloudService.defaults.test.ts` | 168-177 | Creates a Claude cloud LLM service instance for testing. |
+| [`createGeminiService`](../tests/cloudService.defaults.test.ts#L179) | function | `tests/cloudService.defaults.test.ts` | 179-187 | Creates a Gemini cloud LLM service instance for testing. |
+| [`createOpenAIService`](../tests/cloudService.defaults.test.ts#L189) | function | `tests/cloudService.defaults.test.ts` | 189-197 | Creates an OpenAI cloud LLM service instance for testing. |
+| [`createFile`](../tests/clusterBoard.test.ts#L4) | function | `tests/clusterBoard.test.ts` | 4-10 | Creates a mock TFile object with path, basename, and folder information. |
+| [`createMockApp`](../tests/clusterBoard.test.ts#L12) | function | `tests/clusterBoard.test.ts` | 12-21 | Creates a mock Obsidian app with metadata cache for file tag retrieval. |
+| [`collectLeafCommands`](../tests/commandPicker.test.ts#L20) | function | `tests/commandPicker.test.ts` | 20-27 | Recursively flattens a command tree into a flat array of leaf commands. |
+| [`countLeafCommands`](../tests/commandPicker.test.ts#L11) | function | `tests/commandPicker.test.ts` | 11-18 | Recursively counts the total number of leaf commands in a command tree. |
+| [`makeCategories`](../tests/commandPickerViewModel.test.ts#L5) | function | `tests/commandPickerViewModel.test.ts` | 5-27 | Constructs a test fixture with two categories containing groups and leaves for testing the command picker. |
+| [`simpleMatcher`](../tests/commandPickerViewModel.test.ts#L29) | function | `tests/commandPickerViewModel.test.ts` | 29-35 | Creates a simple fuzzy matcher function that scores based on substring position within text. |
+| [`createMockFile`](../tests/companionUtils.test.ts#L76) | function | `tests/companionUtils.test.ts` | 76-82 | Creates a mock file object with path, basename, and optional parent folder reference. |
+| [`createMockPlugin`](../tests/companionUtils.test.ts#L49) | function | `tests/companionUtils.test.ts` | 49-73 | Creates a mock plugin with vault file creation tracking and configurable failure modes for testing. |
+| [`makeCtx`](../tests/conversationCompaction.test.ts#L32) | function | `tests/conversationCompaction.test.ts` | 32-38 | Creates a mock context object with OpenAI provider settings and optional summarization function. |
+| [`makeLongConversation`](../tests/conversationCompaction.test.ts#L21) | function | `tests/conversationCompaction.test.ts` | 21-30 | Creates a long conversation with 20 message pairs of 15k characters each plus a final user message. |
+| [`makeLongMessage`](../tests/conversationCompaction.test.ts#L16) | function | `tests/conversationCompaction.test.ts` | 16-18 | Creates a message with a role and specified character count of repeated 'x' characters. |
+| [`msg`](../tests/conversationCompaction.test.ts#L12) | function | `tests/conversationCompaction.test.ts` | 12-14 | Creates a message object with role, content, and current timestamp. |
+| [`buildMockApp`](../tests/conversationPersistence.test.ts#L61) | function | `tests/conversationPersistence.test.ts` | 61-104 | Builds a mock app with in-memory vault implementation supporting file creation, modification, reading, and lookup operations. |
+| [`buildSettings`](../tests/conversationPersistence.test.ts#L106) | function | `tests/conversationPersistence.test.ts` | 106-111 | Returns minimal settings object with chat and output folder paths. |
+| [`makeEmptyState`](../tests/conversationPersistence.test.ts#L49) | function | `tests/conversationPersistence.test.ts` | 49-59 | Creates an empty conversation state object with no messages, mergeable with overrides. |
+| [`makeState`](../tests/conversationPersistence.test.ts#L34) | function | `tests/conversationPersistence.test.ts` | 34-47 | Creates a conversation state object with default messages and timestamps, mergeable with overrides. |
+| [`buildApp`](../tests/creationSourceController.test.ts#L20) | function | `tests/creationSourceController.test.ts` | 20-36 | Builds a mock app with customizable file/folder maps and mocked workspace/vault methods. |
+| [`buildController`](../tests/creationSourceController.test.ts#L38) | function | `tests/creationSourceController.test.ts` | 38-43 | Creates a presentation source controller with mocked app and service dependencies. |
+| [`createTestDict`](../tests/dictionaryController.test.ts#L53) | function | `tests/dictionaryController.test.ts` | 53-55 | Returns a deep copy of a test dictionary object. |
+| [`createTestDict2`](../tests/dictionaryController.test.ts#L57) | function | `tests/dictionaryController.test.ts` | 57-59 | Returns a deep copy of a second test dictionary object. |
+| [`makeMockApp`](../tests/digitiseUtils.test.ts#L20) | function | `tests/digitiseUtils.test.ts` | 20-29 | Creates a mock app with mocked metadata cache and vault link resolution methods. |
+| [`makeMockTFile`](../tests/digitiseUtils.test.ts#L16) | function | `tests/digitiseUtils.test.ts` | 16-18 | Creates a mock TFile object with the specified path. |
+| [`makeMockVisionService`](../tests/digitiseUtils.test.ts#L31) | function | `tests/digitiseUtils.test.ts` | 31-35 | Creates a mock vision service with a mocked digitise method returning specified result. |
+| [`createTestFile`](../tests/documentExtractionService.test.ts#L14) | function | `tests/documentExtractionService.test.ts` | 14-23 | Creates a TFile object with path, name, basename, extension, and stat properties populated. |
+| [`makeOpts`](../tests/editAccessories.test.ts#L67) | function | `tests/editAccessories.test.ts` | 67-79 | Returns editor options object with null selection, content edit mode, and mocked callback functions. |
+| [`createMockEditor`](../tests/editorUtils.test.ts#L7) | function | `tests/editorUtils.test.ts` | 7-18 | Creates a mock editor with cursor position, content, and range replacement capabilities. |
+| [`createResolver`](../tests/embeddedContentDetector.test.ts#L8) | function | `tests/embeddedContentDetector.test.ts` | 8-10 | Sets up file link resolution in app metadata cache from a file map. |
+| [`makePlugin`](../tests/escalation.test.ts#L78) | function | `tests/escalation.test.ts` | 78-94 | Creates a mock plugin with vault operations and secret storage for escalation testing. |
+| [`makeResult`](../tests/escalation.test.ts#L100) | function | `tests/escalation.test.ts` | 100-109 | Creates a mock search result object with title, URL, snippet, and domain fields. |
+| [`makeSearchService`](../tests/escalation.test.ts#L96) | function | `tests/escalation.test.ts` | 96-98 | Creates a mock search service with a mocked search method. |
+| [`setupReadability`](../tests/escalation.test.ts#L111) | function | `tests/escalation.test.ts` | 111-115 | Mocks the Readability parser to return text content and title or null. |
+| [`createMockPlugin`](../tests/flashcardCommands.test.ts#L12) | function | `tests/flashcardCommands.test.ts` | 12-48 | Creates a mock plugin with vault file reading and flashcard-related settings and services. |
+| [`makeContext`](../tests/freeChatModeHandler.test.ts#L62) | function | `tests/freeChatModeHandler.test.ts` | 62-69 | Creates a mock context object wrapping a plugin instance for free chat mode testing. |
+| [`makePlugin`](../tests/freeChatModeHandler.test.ts#L33) | function | `tests/freeChatModeHandler.test.ts` | 33-60 | Creates a mock plugin with vault, file manager, cloud service settings, and translation stubs. |
+| [`makeEl`](../tests/globalMemoryModal.test.ts#L11) | function | `tests/globalMemoryModal.test.ts` | 11-65 | <no body> |
+| [`makeServiceMock`](../tests/globalMemoryModal.test.ts#L85) | function | `tests/globalMemoryModal.test.ts` | 85-92 | Creates a mock global memory service with mocked load, save, add, and remove operations. |
+| [`makeTranslations`](../tests/globalMemoryModal.test.ts#L69) | function | `tests/globalMemoryModal.test.ts` | 69-81 | Returns translation strings for global memory modal UI elements. |
+| [`ModalLogicHarness`](../tests/globalMemoryModal.test.ts#L98) | class | `tests/globalMemoryModal.test.ts` | 98-140 | Class that mirrors GlobalMemoryModal logic for testing memory item management, addition, removal, and persistence. |
+| [`makeApp`](../tests/globalMemoryService.test.ts#L15) | function | `tests/globalMemoryService.test.ts` | 15-32 | Creates a mock app with in-memory file system supporting read, create, modify, and folder operations. |
+| [`makeSettings`](../tests/globalMemoryService.test.ts#L11) | function | `tests/globalMemoryService.test.ts` | 11-13 | Returns settings object with chat root folder and plugin folder paths. |
+| [`memoryPath`](../tests/globalMemoryService.test.ts#L35) | function | `tests/globalMemoryService.test.ts` | 35-37 | Returns the full path for the global memory file in the chat root folder. |
+| [`wrapDeck`](../tests/htmlToRichSlideParser.test.ts#L7) | function | `tests/htmlToRichSlideParser.test.ts` | 7-9 | Wraps slide HTML strings in a complete HTML document with a deck container. |
+| [`createMockApp`](../tests/imageProcessorService.test.ts#L14) | function | `tests/imageProcessorService.test.ts` | 14-18 | Creates a mock app with vault readBinary method returning an ArrayBuffer. |
+| [`createMockFile`](../tests/imageProcessorService.test.ts#L21) | function | `tests/imageProcessorService.test.ts` | 21-26 | Creates a mock file object with specified extension, size, path, and name. |
+| [`mockCanvas`](../tests/imageProcessorService.test.ts#L29) | function | `tests/imageProcessorService.test.ts` | 29-46 | Creates a mock canvas object with toDataURL, toBlob, getContext methods and dimension properties. |
+| [`mockImage`](../tests/imageProcessorService.test.ts#L49) | function | `tests/imageProcessorService.test.ts` | 49-64 | Creates a mock image object with dimensions and simulated async onload callback. |
+| [`collectText`](../tests/indexingChoiceModal.test.ts#L46) | function | `tests/indexingChoiceModal.test.ts` | 46-53 | Recursively collects all text content from an element and its children into a flat array. |
+| [`makeModal`](../tests/indexingChoiceModal.test.ts#L28) | function | `tests/indexingChoiceModal.test.ts` | 28-43 | Creates an IndexingChoiceModal instance with default test parameters and translations. |
+| [`makeT`](../tests/indexingChoiceModal.test.ts#L9) | function | `tests/indexingChoiceModal.test.ts` | 9-26 | Returns translation strings for indexing choice modal UI elements and progress indicators. |
+| [`makeMockLLM`](../tests/integrationAuditor.test.ts#L14) | function | `tests/integrationAuditor.test.ts` | 14-21 | Creates a mock LLM service that resolves to a summarized JSON response. |
+| [`makeMockLLMFailing`](../tests/integrationAuditor.test.ts#L32) | function | `tests/integrationAuditor.test.ts` | 32-36 | Creates a mock LLM service that rejects with a network timeout error. |
+| [`makeMockLLMRaw`](../tests/integrationAuditor.test.ts#L23) | function | `tests/integrationAuditor.test.ts` | 23-30 | Creates a mock LLM service that resolves to raw text content without parsing. |
+| [`makeMockLLMUnsuccessful`](../tests/integrationAuditor.test.ts#L38) | function | `tests/integrationAuditor.test.ts` | 38-46 | Creates a mock LLM service that resolves with a failed status and rate limit error. |
+| [`buildExtractionResult`](../tests/integrationResolve.test.ts#L66) | function | `tests/integrationResolve.test.ts` | 66-73 | Creates an extraction result object partitioning items by success status and content type (text vs binary). |
+| [`createPlugin`](../tests/integrationResolve.test.ts#L50) | function | `tests/integrationResolve.test.ts` | 50-64 | Creates a mock plugin with app, translations, cloud service settings, and PDF/document services. |
+| [`opts`](../tests/integrationValidator.test.ts#L10) | function | `tests/integrationValidator.test.ts` | 10-18 | Creates a default test configuration object for content integration with override support. |
+| [`makeMockPlugin`](../tests/kindleAuthService.test.ts#L29) | function | `tests/kindleAuthService.test.ts` | 29-42 | Creates a mock plugin with fake Kindle settings and secret storage for authentication testing. |
+| [`makeBook`](../tests/kindleNoteBuilder.test.ts#L32) | function | `tests/kindleNoteBuilder.test.ts` | 32-40 | Creates a test book object containing highlights for Kindle note builder testing. |
+| [`makeHighlight`](../tests/kindleNoteBuilder.test.ts#L22) | function | `tests/kindleNoteBuilder.test.ts` | 22-30 | Creates a test highlight object with standard Kindle metadata fields. |
+| [`makeBook`](../tests/kindlePrompts.test.ts#L21) | function | `tests/kindlePrompts.test.ts` | 21-33 | Creates a test book with three predefined highlights for prompt testing. |
+| [`makeHighlight`](../tests/kindlePrompts.test.ts#L11) | function | `tests/kindlePrompts.test.ts` | 11-19 | Creates a test highlight object for Kindle prompt generation testing. |
+| [`loadFixture`](../tests/kindleScraperService.test.ts#L33) | function | `tests/kindleScraperService.test.ts` | 33-35 | Reads and returns fixture file content from the test fixtures directory. |
+| [`makeBook`](../tests/kindleSyncService.test.ts#L59) | function | `tests/kindleSyncService.test.ts` | 59-67 | Creates a test book object for Kindle sync service testing. |
+| [`makeHighlight`](../tests/kindleSyncService.test.ts#L49) | function | `tests/kindleSyncService.test.ts` | 49-57 | Creates a test highlight object for Kindle sync service testing. |
+| [`makeMockPlugin`](../tests/kindleSyncService.test.ts#L76) | function | `tests/kindleSyncService.test.ts` | 76-89 | Creates a mock plugin with Kindle sync settings and configuration for testing. |
+| [`makeState`](../tests/kindleSyncService.test.ts#L69) | function | `tests/kindleSyncService.test.ts` | 69-74 | Creates a minimal sync state object with imported highlights tracking. |
+| [`createMockPlugin`](../tests/llmFacade.test.ts#L3) | function | `tests/llmFacade.test.ts` | 3-16 | Creates a mock plugin with LLM service and cloud configuration for facade testing. |
+| [`makeContext`](../tests/llmFacadeStream.test.ts#L13) | function | `tests/llmFacadeStream.test.ts` | 13-18 | Creates a context object pairing an LLM service with cloud settings for streaming tests. |
+| [`transform`](../tests/markdownToProseTransformer.test.ts#L10) | function | `tests/markdownToProseTransformer.test.ts` | 10-12 | Transforms Markdown to spoken prose format for output testing. |
+| [`makeFile`](../tests/mermaidContextService.test.ts#L48) | function | `tests/mermaidContextService.test.ts` | 48-53 | Creates a mock TFile object with path and basename properties. |
+| [`makeMockApp`](../tests/mermaidContextService.test.ts#L80) | function | `tests/mermaidContextService.test.ts` | 80-95 | Creates a mock Obsidian app with vault and metadata cache for file resolution. |
+| [`makeMockPlugin`](../tests/mermaidContextService.test.ts#L61) | function | `tests/mermaidContextService.test.ts` | 61-77 | Creates a mock plugin with LLM and Mermaid chat settings for context service testing. |
+| [`mdWithMermaid`](../tests/mermaidContextService.test.ts#L56) | function | `tests/mermaidContextService.test.ts` | 56-58 | Wraps Mermaid code blocks in markdown fences with separator text. |
+| [`makeApp`](../tests/mermaidExportService.test.ts#L49) | function | `tests/mermaidExportService.test.ts` | 49-62 | Creates a mock Obsidian app with mocked vault and workspace methods for export testing. |
+| [`makePlugin`](../tests/mermaidExportService.test.ts#L29) | function | `tests/mermaidExportService.test.ts` | 29-47 | Creates a mock plugin with export folder paths and translation strings for Mermaid export. |
+| [`createMockPlugin`](../tests/mermaidTemplateService.test.ts#L15) | function | `tests/mermaidTemplateService.test.ts` | 15-28 | Creates a mock plugin with config service for Mermaid template resolution. |
+| [`createService`](../tests/mermaidTemplateService.test.ts#L30) | function | `tests/mermaidTemplateService.test.ts` | 30-35 | Creates a service instance with mocked app and plugin for template testing. |
+| [`makeFile`](../tests/metadataPostOp.test.ts#L31) | function | `tests/metadataPostOp.test.ts` | 31-35 | Creates a mock TFile object with path, name, and extension properties. |
+| [`makePlugin`](../tests/metadataPostOp.test.ts#L37) | function | `tests/metadataPostOp.test.ts` | 37-65 | Creates a mock plugin with frontmatter processor and vault read functionality for metadata operations. |
+| [`makeMinimalMinutesJSON`](../tests/minutesAuditor.test.ts#L15) | function | `tests/minutesAuditor.test.ts` | 15-41 | Creates a minimal meeting minutes JSON structure with metadata, participants, and agenda items. |
+| [`makeMockLLM`](../tests/minutesAuditor.test.ts#L43) | function | `tests/minutesAuditor.test.ts` | 43-50 | Creates a mock LLM returning a successful summarization response as JSON. |
+| [`makeMockLLMFailing`](../tests/minutesAuditor.test.ts#L61) | function | `tests/minutesAuditor.test.ts` | 61-65 | Creates a mock LLM that rejects with a timeout error. |
+| [`makeMockLLMRaw`](../tests/minutesAuditor.test.ts#L52) | function | `tests/minutesAuditor.test.ts` | 52-59 | Creates a mock LLM returning raw successful summarization content without parsing. |
+| [`makeMockLLMUnsuccessful`](../tests/minutesAuditor.test.ts#L67) | function | `tests/minutesAuditor.test.ts` | 67-75 | Creates a mock LLM returning an unsuccessful response with rate limit error. |
+| [`createModal`](../tests/minutesAutoFill.test.ts#L41) | function | `tests/minutesAutoFill.test.ts` | 41-46 | Creates a minutes creation modal with app and plugin for testing. |
+| [`createPlugin`](../tests/minutesAutoFill.test.ts#L13) | function | `tests/minutesAutoFill.test.ts` | 13-39 | Creates a plugin with minutes settings, audio config, and translation strings for modal testing. |
+| [`makeAgendaGroupedJson`](../tests/minutesDocxGenerator.test.ts#L303) | function | `tests/minutesDocxGenerator.test.ts` | 303-347 | Creates a board meeting minutes JSON with decisions and actions linked to agenda items. |
+| [`makeMinutesJson`](../tests/minutesDocxGenerator.test.ts#L10) | function | `tests/minutesDocxGenerator.test.ts` | 10-52 | Creates a comprehensive minutes JSON structure with all meeting components and metadata. |
+| [`makeMinimalJson`](../tests/minutesGTDRendering.test.ts#L9) | function | `tests/minutesGTDRendering.test.ts` | 9-35 | Creates a minimal meeting minutes JSON for GTD rendering test setup. |
+| [`makeMinimalJson`](../tests/minutesRendering.test.ts#L17) | function | `tests/minutesRendering.test.ts` | 17-46 | Creates a minimal meeting minutes JSON with participants and metadata for rendering tests. |
+| [`issuesForField`](../tests/minutesValidator.test.ts#L41) | function | `tests/minutesValidator.test.ts` | 41-43 | Filters validation issues by field name for targeted assertion checking. |
+| [`makeMinimalJson`](../tests/minutesValidator.test.ts#L12) | function | `tests/minutesValidator.test.ts` | 12-38 | Creates a minimal meeting minutes JSON with all required fields for validation testing. |
+| [`concat`](../tests/mp3Writer.test.ts#L21) | function | `tests/mp3Writer.test.ts` | 21-31 | Concatenates multiple Int16Array buffers into a single combined array. |
+| [`makeSine`](../tests/mp3Writer.test.ts#L13) | function | `tests/mp3Writer.test.ts` | 13-19 | Generates a sine wave as a 16-bit audio sample array at specified frequency. |
+| [`getMessages`](../tests/multimodal.test.ts#L18) | function | `tests/multimodal.test.ts` | 18-20 | Extracts the messages array from an API request object with multimodal content. |
+| [`makeMockApp`](../tests/narrationEmbedManager.test.ts#L14) | function | `tests/narrationEmbedManager.test.ts` | 14-25 | Creates a mock Obsidian vault with file read/modify operations for testing. |
+| [`paragraph`](../tests/newsletterAudioChunking.test.ts#L15) | function | `tests/newsletterAudioChunking.test.ts` | 15-17 | Generates a paragraph of repeated words ending with a period. |
+| [`createMockPlugin`](../tests/newsletterServiceIntegration.test.ts#L105) | function | `tests/newsletterServiceIntegration.test.ts` | 105-129 | Creates a mock plugin instance with settings, app, and data persistence methods. |
+| [`createMockVault`](../tests/newsletterServiceIntegration.test.ts#L74) | function | `tests/newsletterServiceIntegration.test.ts` | 74-103 | Creates a mock Obsidian vault with file management and caching capabilities. |
+| [`makeRaw`](../tests/newsletterServiceIntegration.test.ts#L61) | function | `tests/newsletterServiceIntegration.test.ts` | 61-71 | Creates a mock email object with headers, HTML body, and plain text content. |
+| [`mockFetchResponse`](../tests/newsletterServiceIntegration.test.ts#L132) | function | `tests/newsletterServiceIntegration.test.ts` | 132-140 | Mocks HTTP requests to return email data or confirmation responses. |
+| [`makeConfig`](../tests/notebooklmIncrementalExport.test.ts#L11) | function | `tests/notebooklmIncrementalExport.test.ts` | 11-29 | Creates a configuration object for NotebookLM export with PDF formatting options. |
+| [`makeApp`](../tests/notebooklmWriter.test.ts#L9) | function | `tests/notebooklmWriter.test.ts` | 9-27 | Creates a mock Obsidian app with vault file/folder management operations. |
+| [`makeManifest`](../tests/notebooklmWriter.test.ts#L29) | function | `tests/notebooklmWriter.test.ts` | 29-75 | Creates a manifest describing exported notes with metadata and configuration details. |
+| [`makePlugin`](../tests/noticeUtils.test.ts#L30) | function | `tests/noticeUtils.test.ts` | 30-44 | Creates a mock plugin with settings API and translation strings for testing. |
+| [`cloneSettings`](../tests/pathUtils.test.ts#L17) | function | `tests/pathUtils.test.ts` | 17-19 | Clones default settings with optional override properties. |
+| [`createArrayBuffer`](../tests/pdfService.test.ts#L42) | function | `tests/pdfService.test.ts` | 42-44 | Creates an empty ArrayBuffer of specified byte size. |
+| [`createMockApp`](../tests/pdfService.test.ts#L32) | function | `tests/pdfService.test.ts` | 32-40 | Creates a mock Obsidian app with vault configuration and file system methods. |
+| [`TWO_SLIDE_DECK`](../tests/presentationDiff.test.ts#L13) | function | `tests/presentationDiff.test.ts` | 13-14 | Wraps HTML slide content in a container div with deck styling. |
+| [`buildCtx`](../tests/presentationDispatch.test.ts#L60) | function | `tests/presentationDispatch.test.ts` | 60-89 | Builds a context object with plugin, app, settings, and translation data for presentations. |
+| [`makeHandler`](../tests/presentationDispatch.test.ts#L51) | function | `tests/presentationDispatch.test.ts` | 51-58 | Creates a PresentationModeHandler instance with stub HTML for testing. |
+| [`makeFinding`](../tests/presentationQualityService.test.ts#L28) | function | `tests/presentationQualityService.test.ts` | 28-35 | Creates a finding object describing a presentation quality issue with severity level. |
+| [`makeSlideHtml`](../tests/presentationQualityService.test.ts#L38) | function | `tests/presentationQualityService.test.ts` | 38-43 | Generates HTML with multiple slides containing headings and paragraph content. |
+| [`mockLLMResponse`](../tests/presentationQualityService.test.ts#L45) | function | `tests/presentationQualityService.test.ts` | 45-50 | Mocks the summarizeText function to return findings as JSON-stringified data. |
+| [`note`](../tests/presentationSourceBudget.test.ts#L16) | function | `tests/presentationSourceBudget.test.ts` | 16-21 | Creates a note-type prompt source with content length and optional folder. |
+| [`web`](../tests/presentationSourceBudget.test.ts#L22) | function | `tests/presentationSourceBudget.test.ts` | 22-26 | Creates a web-search-type prompt source with content length. |
+| [`buildApp`](../tests/presentationSourceService.test.ts#L16) | function | `tests/presentationSourceService.test.ts` | 16-30 | Creates a mock Obsidian app with vault file/folder lookup and read operations. |
+| [`makeSlides`](../tests/presentationTypes.test.ts#L13) | function | `tests/presentationTypes.test.ts` | 13-23 | Creates an array of SlideInfo objects describing presentation slides. |
+| [`baseOptions`](../tests/progressReporter.test.ts#L134) | function | `tests/progressReporter.test.ts` | 134-141 | Creates default options for a progress reporter with plugin, phase resolution, and overrides. |
+| [`makeEl`](../tests/progressReporter.test.ts#L74) | function | `tests/progressReporter.test.ts` | 74-132 | Creates a mock DOM element with children, event listeners, and CSS/attribute management. |
+| [`makeHost`](../tests/progressReporter.test.ts#L57) | function | `tests/progressReporter.test.ts` | 57-72 | Creates a mock host object for progress UI with container and detach callbacks. |
+| [`makePlugin`](../tests/progressReporter.test.ts#L34) | function | `tests/progressReporter.test.ts` | 34-55 | Creates a mock plugin with status bar element and translated progress messages. |
+| [`makeApp`](../tests/projectServicePersistence.test.ts#L12) | function | `tests/projectServicePersistence.test.ts` | 12-41 | Creates a mock app with vault operations for file and folder management. |
+| [`makeSettings`](../tests/projectServicePersistence.test.ts#L8) | function | `tests/projectServicePersistence.test.ts` | 8-10 | Creates settings with chat root folder and plugin folder paths. |
+| [`makeApp`](../tests/projectTree.test.ts#L13) | function | `tests/projectTree.test.ts` | 13-98 | Creates a mock app with hierarchical folder/file structure and lookup methods. |
+| [`makeSettings`](../tests/projectTree.test.ts#L8) | function | `tests/projectTree.test.ts` | 8-10 | Creates settings with chat root folder and plugin folder paths. |
+| [`projectMd`](../tests/projectTree.test.ts#L100) | function | `tests/projectTree.test.ts` | 100-122 | Generates markdown frontmatter and structure for a project file. |
+| [`makeExtractResult`](../tests/quickPeekService.test.ts#L87) | function | `tests/quickPeekService.test.ts` | 87-91 | Creates an extraction result object with success/content/error states. |
+| [`makeItem`](../tests/quickPeekService.test.ts#L75) | function | `tests/quickPeekService.test.ts` | 75-85 | Creates a detected content item representing a URL for Quick Peek analysis. |
+| [`makePlugin`](../tests/quickPeekService.test.ts#L56) | function | `tests/quickPeekService.test.ts` | 56-73 | Creates a mock plugin with QuickPeek settings and provider fallback message. |
+| [`createMockFile`](../tests/ragService.test.ts#L366) | function | `tests/ragService.test.ts` | 366-369 | Creates a mock file object with path and basename properties. |
+| [`createMockSettings`](../tests/ragService.test.ts#L354) | function | `tests/ragService.test.ts` | 354-361 | Creates mock RAG service settings with context chunk count and metadata options. |
+| [`MockEmbeddingService`](../tests/ragService.test.ts#L22) | class | `tests/ragService.test.ts` | 22-64 | Generates deterministic test embeddings based on text length and provides mock embedding service methods. |
+| [`TestVectorStore`](../tests/ragService.test.ts#L70) | class | `tests/ragService.test.ts` | 70-349 | In-memory vector store implementation that stores documents and embeddings for testing RAG functionality. |
+| [`buildLLMResponse`](../tests/refineHtmlScoped.test.ts#L54) | function | `tests/refineHtmlScoped.test.ts` | 54-56 | Wraps HTML content with start and end markers for deck parsing. |
+| [`makeMockProvider`](../tests/refineHtmlScoped.test.ts#L45) | function | `tests/refineHtmlScoped.test.ts` | 45-52 | Creates a mock provider with stubbed web research, reference, and folder reading methods. |
+| [`makePlugin`](../tests/researchOrchestrator.test.ts#L68) | function | `tests/researchOrchestrator.test.ts` | 68-87 | Creates a mock plugin with vault operations, file management, and secret storage for testing. |
+| [`makeResult`](../tests/researchOrchestrator.test.ts#L95) | function | `tests/researchOrchestrator.test.ts` | 95-104 | Builds a test search result object with customizable fields. |
+| [`makeSearchService`](../tests/researchOrchestrator.test.ts#L89) | function | `tests/researchOrchestrator.test.ts` | 89-93 | Creates a mock search service with a mocked search method. |
+| [`makeSessionState`](../tests/researchOrchestrator.test.ts#L106) | function | `tests/researchOrchestrator.test.ts` | 106-118 | Creates a test research session state with default question, results, and metadata. |
+| [`makeMockPlugin`](../tests/researchSearchService.test.ts#L36) | function | `tests/researchSearchService.test.ts` | 36-43 | Creates a mock plugin with research provider settings and secret storage. |
+| [`makeMockProvider`](../tests/researchSearchService.test.ts#L27) | function | `tests/researchSearchService.test.ts` | 27-34 | Creates a mock search provider with tavily type and configurable search behavior. |
+| [`makeResult`](../tests/researchSearchService.test.ts#L16) | function | `tests/researchSearchService.test.ts` | 16-25 | Builds a test search result with title, URL, snippet, and domain. |
+| [`createMockApp`](../tests/researchUsageService.test.ts#L13) | function | `tests/researchUsageService.test.ts` | 13-26 | Creates a mock Obsidian app with vault and file operations. |
+| [`createMockSettings`](../tests/researchUsageService.test.ts#L29) | function | `tests/researchUsageService.test.ts` | 29-39 | Creates mock AI Organiser settings with budget and guardrail configuration. |
+| [`makePlugin`](../tests/reviewEditsHelper.test.ts#L63) | function | `tests/reviewEditsHelper.test.ts` | 63-72 | Creates a mock plugin with review edits settings and translation strings. |
+| [`makeDiff`](../tests/reviewEditsModal.test.ts#L44) | function | `tests/reviewEditsModal.test.ts` | 44-54 | Builds a test diff object with added, removed, and unchanged line changes. |
+| [`mockEmbeddingService`](../tests/semanticSearchPlan.test.ts#L21) | function | `tests/semanticSearchPlan.test.ts` | 21-31 | Creates a mock embedding service with stubbed methods for dimension and model info. |
+| [`makeOptions`](../tests/slideDiffModal.test.ts#L37) | function | `tests/slideDiffModal.test.ts` | 37-53 | Creates test options for slide diff modal with scope and integrity configuration. |
+| [`makeResult`](../tests/sourceQualityService.test.ts#L19) | function | `tests/sourceQualityService.test.ts` | 19-28 | Builds a test search result for quality assessment testing. |
+| [`buildCsv`](../tests/spreadsheetService.test.ts#L28) | function | `tests/spreadsheetService.test.ts` | 28-31 | Converts CSV text into a binary ArrayBuffer for testing CSV export. |
+| [`buildXlsx`](../tests/spreadsheetService.test.ts#L14) | function | `tests/spreadsheetService.test.ts` | 14-26 | Converts sheet data into an XLSX binary ArrayBuffer for testing spreadsheet export. |
+| [`createAssembler`](../tests/streamingHtmlAssembler.test.ts#L22) | function | `tests/streamingHtmlAssembler.test.ts` | 22-31 | Instantiates a StreamingHtmlAssembler with CSS theme and checkpoint callback. |
+| [`wrapDeck`](../tests/streamingHtmlAssembler.test.ts#L39) | function | `tests/streamingHtmlAssembler.test.ts` | 39-41 | Wraps slide HTML with deck markers for streaming assembly testing. |
+| [`adapterConfig`](../tests/streamingSynthesis.test.ts#L75) | function | `tests/streamingSynthesis.test.ts` | 75-79 | Returns adapter configuration with endpoint, API key, and model name. |
+| [`makePlugin`](../tests/streamingSynthesis.test.ts#L81) | function | `tests/streamingSynthesis.test.ts` | 81-95 | Creates a mock plugin with cloud LLM settings and vault operations. |
+| [`makeSearchService`](../tests/streamingSynthesis.test.ts#L97) | function | `tests/streamingSynthesis.test.ts` | 97-99 | Creates a mock search service for streaming synthesis testing. |
+| [`makeLLMService`](../tests/taxonomyGuardrailService.test.ts#L26) | function | `tests/taxonomyGuardrailService.test.ts` | 26-30 | Creates a mock LLM service that returns successful text summaries. |
+| [`makeLLMServiceFailing`](../tests/taxonomyGuardrailService.test.ts#L32) | function | `tests/taxonomyGuardrailService.test.ts` | 32-36 | Creates a mock LLM service that rejects with an unavailable error. |
+| [`makeTaxonomy`](../tests/taxonomyGuardrailService.test.ts#L16) | function | `tests/taxonomyGuardrailService.test.ts` | 16-24 | Creates a mock taxonomy with themes and disciplines containing metadata. |
+| [`makePlugin`](../tests/translateTitleSafely.test.ts#L28) | function | `tests/translateTitleSafely.test.ts` | 28-30 | Creates a minimal mock plugin for safe title translation testing. |
+| [`createMockContext`](../tests/unifiedChat.test.ts#L84) | function | `tests/unifiedChat.test.ts` | 84-104 | Creates a mock context with app, plugin, and chat configuration for modal testing. |
+| [`createMockTranslations`](../tests/unifiedChat.test.ts#L18) | function | `tests/unifiedChat.test.ts` | 18-82 | Creates comprehensive mock translation strings for unified chat modal interface. |
+| [`createStubHandler`](../tests/unifiedChat.test.ts#L106) | function | `tests/unifiedChat.test.ts` | 106-118 | Creates a stub chat mode handler with all required methods for handler testing. |
+| [`makeArticle`](../tests/webContentService.test.ts#L57) | function | `tests/webContentService.test.ts` | 57-66 | Creates a mock article object with parsed content metadata. |
+| [`makeHtmlResponse`](../tests/webContentService.test.ts#L49) | function | `tests/webContentService.test.ts` | 49-54 | Builds a mock HTTP response with HTML content and headers. |
+| [`makeFetchFailure`](../tests/webReaderService.test.ts#L91) | function | `tests/webReaderService.test.ts` | 91-97 | Creates a failed web content fetch result with error message. |
+| [`makeFetchSuccess`](../tests/webReaderService.test.ts#L77) | function | `tests/webReaderService.test.ts` | 77-89 | Creates a successful web content fetch result with article metadata. |
+| [`makePlugin`](../tests/webReaderService.test.ts#L55) | function | `tests/webReaderService.test.ts` | 55-75 | Creates a mock plugin with web reader settings and LLM service. |
+| [`makePlugin`](../tests/withProgress.test.ts#L32) | function | `tests/withProgress.test.ts` | 32-48 | Creates a mock plugin with progress UI elements and localization strings. |
+| [`opts`](../tests/withProgress.test.ts#L50) | function | `tests/withProgress.test.ts` | 50-56 | Creates options for progress tracking with plugin and phase configuration. |
+| [`makeSource`](../tests/zoteroBridgeService.test.ts#L23) | function | `tests/zoteroBridgeService.test.ts` | 23-33 | Builds a mock web source with URL, title, domain, and extraction metadata. |
+
+---
+
+## tests-mocks
+
+```mermaid
+flowchart TB
+subgraph dom_tests_mocks ["tests-mocks"]
+  file_tests_mocks_mockSecretStorage_ts["tests/mocks/mockSecretStorage.ts"]:::component
+  sym_tests_mocks_mockSecretStorage_ts_MockSec["MockSecretStorage"]:::symbol
+  file_tests_mocks_mockSecretStorage_ts --> sym_tests_mocks_mockSecretStorage_ts_MockSec
+  file_tests_mocks_obsidian_ts["tests/mocks/obsidian.ts"]:::component
+  sym_tests_mocks_obsidian_ts_App["App"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_App
+  sym_tests_mocks_obsidian_ts_clearMockNotices["clearMockNotices"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_clearMockNotices
+  sym_tests_mocks_obsidian_ts_createTFile["createTFile"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_createTFile
+  sym_tests_mocks_obsidian_ts_createTFolder["createTFolder"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_createTFolder
+  sym_tests_mocks_obsidian_ts_FuzzySuggestModa["FuzzySuggestModal"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_FuzzySuggestModa
+  sym_tests_mocks_obsidian_ts_ItemView["ItemView"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_ItemView
+  sym_tests_mocks_obsidian_ts_MockButton["MockButton"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockButton
+  sym_tests_mocks_obsidian_ts_MockDropdown["MockDropdown"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockDropdown
+  sym_tests_mocks_obsidian_ts_MockHTMLElement["MockHTMLElement"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockHTMLElement
+  sym_tests_mocks_obsidian_ts_MockTextAreaComp["MockTextAreaComponent"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockTextAreaComp
+  sym_tests_mocks_obsidian_ts_MockTextComponen["MockTextComponent"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockTextComponen
+  sym_tests_mocks_obsidian_ts_MockToggle["MockToggle"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_MockToggle
+  sym_tests_mocks_obsidian_ts_Modal["Modal"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_Modal
+  sym_tests_mocks_obsidian_ts_normalizePath["normalizePath"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_normalizePath
+  sym_tests_mocks_obsidian_ts_Notice["Notice"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_Notice
+  sym_tests_mocks_obsidian_ts_Plugin["Plugin"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_Plugin
+  sym_tests_mocks_obsidian_ts_PluginSettingTab["PluginSettingTab"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_PluginSettingTab
+  sym_tests_mocks_obsidian_ts_setIcon["setIcon"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_setIcon
+  sym_tests_mocks_obsidian_ts_Setting["Setting"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_Setting
+  sym_tests_mocks_obsidian_ts_TFile["TFile"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_TFile
+  sym_tests_mocks_obsidian_ts_TFolder["TFolder"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_TFolder
+  sym_tests_mocks_obsidian_ts_WorkspaceLeaf["WorkspaceLeaf"]:::symbol
+  file_tests_mocks_obsidian_ts --> sym_tests_mocks_obsidian_ts_WorkspaceLeaf
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`MockSecretStorage`](../tests/mocks/mockSecretStorage.ts#L6) | class | `tests/mocks/mockSecretStorage.ts` | 6-65 | Provides a mock implementation of Obsidian's SecretStorage API with in-memory store. |
+| [`App`](../tests/mocks/obsidian.ts#L85) | class | `tests/mocks/obsidian.ts` | 85-123 | Represents a mock Obsidian application with vault, metadata cache, and workspace APIs. |
+| [`clearMockNotices`](../tests/mocks/obsidian.ts#L81) | function | `tests/mocks/obsidian.ts` | 81-83 | Clears the array of mock notice messages for test isolation. |
+| [`createTFile`](../tests/mocks/obsidian.ts#L20) | function | `tests/mocks/obsidian.ts` | 20-28 | Creates a mock TFile with realistic path, name, basename, and extension properties. |
+| [`createTFolder`](../tests/mocks/obsidian.ts#L43) | function | `tests/mocks/obsidian.ts` | 43-48 | Creates a mock TFolder with path and name properties. |
+| [`FuzzySuggestModal`](../tests/mocks/obsidian.ts#L268) | class | `tests/mocks/obsidian.ts` | 268-279 | Mock class for Obsidian's fuzzy search modal with selectable items. |
+| [`ItemView`](../tests/mocks/obsidian.ts#L253) | class | `tests/mocks/obsidian.ts` | 253-266 | Mock class for Obsidian's ItemView that displays content in a workspace leaf. |
+| [`MockButton`](../tests/mocks/obsidian.ts#L397) | class | `tests/mocks/obsidian.ts` | 397-413 | Mock button control that stores text and executes click callbacks. |
+| [`MockDropdown`](../tests/mocks/obsidian.ts#L372) | class | `tests/mocks/obsidian.ts` | 372-395 | Mock dropdown selector that manages options and tracks selected value. |
+| [`MockHTMLElement`](../tests/mocks/obsidian.ts#L126) | class | `tests/mocks/obsidian.ts` | 126-210 | Represents a mock DOM element with class list, children, styles, and element creation methods. |
+| [`MockTextAreaComponent`](../tests/mocks/obsidian.ts#L368) | class | `tests/mocks/obsidian.ts` | 368-370 | Mock textarea component extending text input with customizable row height. |
+| [`MockTextComponent`](../tests/mocks/obsidian.ts#L349) | class | `tests/mocks/obsidian.ts` | 349-366 | Mock text input component that stores string values with onChange support. |
+| [`MockToggle`](../tests/mocks/obsidian.ts#L326) | class | `tests/mocks/obsidian.ts` | 326-347 | Mock toggle control that stores a boolean value and triggers change callbacks. |
+| [`Modal`](../tests/mocks/obsidian.ts#L212) | class | `tests/mocks/obsidian.ts` | 212-237 | Represents a mock modal dialog with open/closed state tracking. |
+| [`normalizePath`](../tests/mocks/obsidian.ts#L415) | function | `tests/mocks/obsidian.ts` | 415-417 | Normalizes file paths by converting backslashes to forward slashes and removing duplicates. |
+| [`Notice`](../tests/mocks/obsidian.ts#L52) | class | `tests/mocks/obsidian.ts` | 52-78 | Represents a mock notification toast with message, elements, and visibility control. |
+| [`Plugin`](../tests/mocks/obsidian.ts#L430) | class | `tests/mocks/obsidian.ts` | 430-444 | Mock plugin base class with app reference, manifest, and data persistence methods. |
+| [`PluginSettingTab`](../tests/mocks/obsidian.ts#L446) | class | `tests/mocks/obsidian.ts` | 446-456 | Mock settings tab base class for organizing plugin configuration UI. |
+| [`setIcon`](../tests/mocks/obsidian.ts#L419) | function | `tests/mocks/obsidian.ts` | 419-421 | <no body> |
+| [`Setting`](../tests/mocks/obsidian.ts#L281) | class | `tests/mocks/obsidian.ts` | 281-324 | Builder for creating configurable settings UI with various input types. |
+| [`TFile`](../tests/mocks/obsidian.ts#L9) | class | `tests/mocks/obsidian.ts` | 9-17 | Represents a mock file object with path, basename, extension, and stat metadata. |
+| [`TFolder`](../tests/mocks/obsidian.ts#L30) | class | `tests/mocks/obsidian.ts` | 30-40 | Represents a mock folder object with path, name, children, and root detection. |
+| [`WorkspaceLeaf`](../tests/mocks/obsidian.ts#L239) | class | `tests/mocks/obsidian.ts` | 239-251 | Represents a mock workspace leaf that can hold views and manage view state. |
+
+---
+
+## tts
+
+```mermaid
+flowchart TB
+subgraph dom_tts ["tts"]
+  file_src_services_tts_fingerprint_ts["src/services/tts/fingerprint.ts"]:::component
+  sym_src_services_tts_fingerprint_ts_CryptoUn["CryptoUnavailableError"]:::symbol
+  file_src_services_tts_fingerprint_ts --> sym_src_services_tts_fingerprint_ts_CryptoUn
+  sym_src_services_tts_fingerprint_ts_sha256He["sha256Hex"]:::symbol
+  file_src_services_tts_fingerprint_ts --> sym_src_services_tts_fingerprint_ts_sha256He
+  file_src_services_tts_mp3Writer_ts["src/services/tts/mp3Writer.ts"]:::component
+  sym_src_services_tts_mp3Writer_ts_Mp3Writer["Mp3Writer"]:::symbol
+  file_src_services_tts_mp3Writer_ts --> sym_src_services_tts_mp3Writer_ts_Mp3Writer
+  file_src_services_tts_pcmUtils_ts["src/services/tts/pcmUtils.ts"]:::component
+  sym_src_services_tts_pcmUtils_ts_base64ToUin["base64ToUint8Array"]:::symbol
+  file_src_services_tts_pcmUtils_ts --> sym_src_services_tts_pcmUtils_ts_base64ToUin
+  sym_src_services_tts_pcmUtils_ts_downsampleP["downsamplePcm16"]:::symbol
+  file_src_services_tts_pcmUtils_ts --> sym_src_services_tts_pcmUtils_ts_downsampleP
+  sym_src_services_tts_pcmUtils_ts_pcmBytesToI["pcmBytesToInt16"]:::symbol
+  file_src_services_tts_pcmUtils_ts --> sym_src_services_tts_pcmUtils_ts_pcmBytesToI
+  file_src_services_tts_ttsChunker_ts["src/services/tts/ttsChunker.ts"]:::component
+  sym_src_services_tts_ttsChunker_ts_hardSplit["hardSplit"]:::symbol
+  file_src_services_tts_ttsChunker_ts --> sym_src_services_tts_ttsChunker_ts_hardSplit
+  sym_src_services_tts_ttsChunker_ts_normalise["normaliseNewlines"]:::symbol
+  file_src_services_tts_ttsChunker_ts --> sym_src_services_tts_ttsChunker_ts_normalise
+  sym_src_services_tts_ttsChunker_ts_splitForT["splitForTts"]:::symbol
+  file_src_services_tts_ttsChunker_ts --> sym_src_services_tts_ttsChunker_ts_splitForT
+  sym_src_services_tts_ttsChunker_ts_splitPara["splitParagraphIntoSentences"]:::symbol
+  file_src_services_tts_ttsChunker_ts --> sym_src_services_tts_ttsChunker_ts_splitPara
+  file_src_services_tts_ttsEngine_ts["src/services/tts/ttsEngine.ts"]:::component
+  sym_src_services_tts_ttsEngine_ts_createGemi["createGeminiTtsEngine"]:::symbol
+  file_src_services_tts_ttsEngine_ts --> sym_src_services_tts_ttsEngine_ts_createGemi
+  sym_src_services_tts_ttsEngine_ts_GeminiTtsE["GeminiTtsEngine"]:::symbol
+  file_src_services_tts_ttsEngine_ts --> sym_src_services_tts_ttsEngine_ts_GeminiTtsE
+  sym_src_services_tts_ttsEngine_ts_makeGemini["makeGeminiError"]:::symbol
+  file_src_services_tts_ttsEngine_ts --> sym_src_services_tts_ttsEngine_ts_makeGemini
+  file_src_services_tts_ttsProviderRegistry_ts["src/services/tts/ttsProviderRegistry.ts"]:::component
+  sym_src_services_tts_ttsProviderRegistry_ts_["getProvider"]:::symbol
+  file_src_services_tts_ttsProviderRegistry_ts --> sym_src_services_tts_ttsProviderRegistry_ts_
+  sym_src_services_tts_ttsProviderRegistry_ts_["listProviders"]:::symbol
+  file_src_services_tts_ttsProviderRegistry_ts --> sym_src_services_tts_ttsProviderRegistry_ts_
+  file_src_services_tts_ttsRetry_ts["src/services/tts/ttsRetry.ts"]:::component
+  sym_src_services_tts_ttsRetry_ts_abortableSl["abortableSleep"]:::symbol
+  file_src_services_tts_ttsRetry_ts --> sym_src_services_tts_ttsRetry_ts_abortableSl
+  sym_src_services_tts_ttsRetry_ts_computeDela["computeDelay"]:::symbol
+  file_src_services_tts_ttsRetry_ts --> sym_src_services_tts_ttsRetry_ts_computeDela
+  sym_src_services_tts_ttsRetry_ts_isAbort["isAbort"]:::symbol
+  file_src_services_tts_ttsRetry_ts --> sym_src_services_tts_ttsRetry_ts_isAbort
+  sym_src_services_tts_ttsRetry_ts_isRetryable["isRetryable"]:::symbol
+  file_src_services_tts_ttsRetry_ts --> sym_src_services_tts_ttsRetry_ts_isRetryable
+  sym_src_services_tts_ttsRetry_ts_retryWithBa["retryWithBackoff"]:::symbol
+  file_src_services_tts_ttsRetry_ts --> sym_src_services_tts_ttsRetry_ts_retryWithBa
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`CryptoUnavailableError`](../src/services/tts/fingerprint.ts#L11) | class | `src/services/tts/fingerprint.ts` | 11-17 | Error class raised when the Web Crypto API is unavailable on the runtime platform. |
+| [`sha256Hex`](../src/services/tts/fingerprint.ts#L29) | function | `src/services/tts/fingerprint.ts` | 29-53 | Computes a SHA-256 hash of length-prefixed input parts using the Web Crypto API. |
+| [`Mp3Writer`](../src/services/tts/mp3Writer.ts#L22) | class | `src/services/tts/mp3Writer.ts` | 22-121 | <no body> |
+| [`base64ToUint8Array`](../src/services/tts/pcmUtils.ts#L63) | function | `src/services/tts/pcmUtils.ts` | 63-70 | Decodes a base64-encoded string into a Uint8Array of bytes. |
+| [`downsamplePcm16`](../src/services/tts/pcmUtils.ts#L26) | function | `src/services/tts/pcmUtils.ts` | 26-57 | Downsamples PCM audio from one sample rate to another using averaging. |
+| [`pcmBytesToInt16`](../src/services/tts/pcmUtils.ts#L14) | function | `src/services/tts/pcmUtils.ts` | 14-18 | Converts raw PCM bytes to a typed Int16Array representing 16-bit audio samples. |
+| [`hardSplit`](../src/services/tts/ttsChunker.ts#L25) | function | `src/services/tts/ttsChunker.ts` | 25-40 | Splits text longer than max length by finding word boundaries in the last 10% of the window. |
+| [`normaliseNewlines`](../src/services/tts/ttsChunker.ts#L18) | function | `src/services/tts/ttsChunker.ts` | 18-20 | Normalizes line endings (CRLF and CR) to LF in text. |
+| [`splitForTts`](../src/services/tts/ttsChunker.ts#L49) | function | `src/services/tts/ttsChunker.ts` | 49-85 | Chunks text for TTS by respecting paragraph breaks and sentence boundaries up to target/max sizes. |
+| [`splitParagraphIntoSentences`](../src/services/tts/ttsChunker.ts#L92) | function | `src/services/tts/ttsChunker.ts` | 92-129 | Splits a paragraph into sentences and groups them into chunks respecting target and maximum length constraints. |
+| [`createGeminiTtsEngine`](../src/services/tts/ttsEngine.ts#L133) | function | `src/services/tts/ttsEngine.ts` | 133-147 | Creates a GeminiTtsEngine instance if a Gemini provider is configured, otherwise returns null. |
+| [`GeminiTtsEngine`](../src/services/tts/ttsEngine.ts#L55) | class | `src/services/tts/ttsEngine.ts` | 55-127 | <no body> |
+| [`makeGeminiError`](../src/services/tts/ttsEngine.ts#L47) | function | `src/services/tts/ttsEngine.ts` | 47-53 | Constructs a GeminiHttpError from an HTTP status code and response body. |
+| [`getProvider`](../src/services/tts/ttsProviderRegistry.ts#L53) | function | `src/services/tts/ttsProviderRegistry.ts` | 53-59 | Retrieves a narration provider definition by ID, throwing an error if not found. |
+| [`listProviders`](../src/services/tts/ttsProviderRegistry.ts#L61) | function | `src/services/tts/ttsProviderRegistry.ts` | 61-63 | Returns all available audio narration providers. |
+| [`abortableSleep`](../src/services/tts/ttsRetry.ts#L50) | function | `src/services/tts/ttsRetry.ts` | 50-66 | Sleeps for a duration while respecting an AbortSignal for early cancellation. |
+| [`computeDelay`](../src/services/tts/ttsRetry.ts#L69) | function | `src/services/tts/ttsRetry.ts` | 69-72 | Computes exponential backoff delay with jitter capped at maximum delay. |
+| [`isAbort`](../src/services/tts/ttsRetry.ts#L43) | function | `src/services/tts/ttsRetry.ts` | 43-47 | Checks if an error is an abort/cancellation error. |
+| [`isRetryable`](../src/services/tts/ttsRetry.ts#L32) | function | `src/services/tts/ttsRetry.ts` | 32-41 | Determines if an error is retryable based on custom retryable flag, HTTP status codes, or error type. |
+| [`retryWithBackoff`](../src/services/tts/ttsRetry.ts#L74) | function | `src/services/tts/ttsRetry.ts` | 74-99 | Retries an async operation with exponential backoff, respecting abort signals and retryability rules. |
+
+---
+
+## ui
+
+```mermaid
+flowchart TB
+subgraph dom_ui ["ui"]
+  file_src_ui_components_audioPlayerEnhancer_ts["src/ui/components/audioPlayerEnhancer.ts"]:::component
+  sym_src_ui_components_audioPlayerEnhancer_ts["createSpeedControls"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts --> sym_src_ui_components_audioPlayerEnhancer_ts
+  sym_src_ui_components_audioPlayerEnhancer_ts["enhanceAudioPlayersIn"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts --> sym_src_ui_components_audioPlayerEnhancer_ts
+  sym_src_ui_components_audioPlayerEnhancer_ts["formatSpeedLabel"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts --> sym_src_ui_components_audioPlayerEnhancer_ts
+  file_src_ui_components_SlideIframePreview_ts["src/ui/components/SlideIframePreview.ts"]:::component
+  sym_src_ui_components_SlideIframePreview_ts_["generateNonce"]:::symbol
+  file_src_ui_components_SlideIframePreview_ts --> sym_src_ui_components_SlideIframePreview_ts_
+  sym_src_ui_components_SlideIframePreview_ts_["isAllowedCssProperty"]:::symbol
+  file_src_ui_components_SlideIframePreview_ts --> sym_src_ui_components_SlideIframePreview_ts_
+  sym_src_ui_components_SlideIframePreview_ts_["isSafeCssValue"]:::symbol
+  file_src_ui_components_SlideIframePreview_ts --> sym_src_ui_components_SlideIframePreview_ts_
+  sym_src_ui_components_SlideIframePreview_ts_["sanitizeCssSelector"]:::symbol
+  file_src_ui_components_SlideIframePreview_ts --> sym_src_ui_components_SlideIframePreview_ts_
+  sym_src_ui_components_SlideIframePreview_ts_["SlideIframePreview"]:::symbol
+  file_src_ui_components_SlideIframePreview_ts --> sym_src_ui_components_SlideIframePreview_ts_
+  file_src_ui_components_TagProgressStatusBar_t["src/ui/components/TagProgressStatusBar.ts"]:::component
+  sym_src_ui_components_TagProgressStatusBar_t["createNoticeFallback"]:::symbol
+  file_src_ui_components_TagProgressStatusBar_t --> sym_src_ui_components_TagProgressStatusBar_t
+  sym_src_ui_components_TagProgressStatusBar_t["createTagProgressStatusBar"]:::symbol
+  file_src_ui_components_TagProgressStatusBar_t --> sym_src_ui_components_TagProgressStatusBar_t
+  sym_src_ui_components_TagProgressStatusBar_t["formatElapsed"]:::symbol
+  file_src_ui_components_TagProgressStatusBar_t --> sym_src_ui_components_TagProgressStatusBar_t
+  file_src_ui_components_TruncationControls_ts["src/ui/components/TruncationControls.ts"]:::component
+  sym_src_ui_components_TruncationControls_ts_["createBulkTruncationControls"]:::symbol
+  file_src_ui_components_TruncationControls_ts --> sym_src_ui_components_TruncationControls_ts_
+  sym_src_ui_components_TruncationControls_ts_["createTruncationDropdown"]:::symbol
+  file_src_ui_components_TruncationControls_ts --> sym_src_ui_components_TruncationControls_ts_
+  sym_src_ui_components_TruncationControls_ts_["createTruncationWarning"]:::symbol
+  file_src_ui_components_TruncationControls_ts --> sym_src_ui_components_TruncationControls_ts_
+  file_src_ui_contextMenu_ts["src/ui/contextMenu.ts"]:::component
+  sym_src_ui_contextMenu_ts_addQuickPeekCursor["addQuickPeekCursorItem"]:::symbol
+  file_src_ui_contextMenu_ts --> sym_src_ui_contextMenu_ts_addQuickPeekCursor
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 169 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`createSpeedControls`](../src/ui/components/audioPlayerEnhancer.ts#L39) | function | `src/ui/components/audioPlayerEnhancer.ts` | 39-80 | Creates a wrapper div with speed-control buttons that set audio playback rate and track ratechange events. |
 | [`enhanceAudioPlayersIn`](../src/ui/components/audioPlayerEnhancer.ts#L25) | function | `src/ui/components/audioPlayerEnhancer.ts` | 25-37 | Enhances audio elements in a container by adding playback-speed controls after each. |
 | [`formatSpeedLabel`](../src/ui/components/audioPlayerEnhancer.ts#L82) | function | `src/ui/components/audioPlayerEnhancer.ts` | 82-85 | Formats a numeric playback speed as a string with the × multiplier symbol. |
@@ -1964,6 +3943,203 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`computeFilterSets`](../src/ui/views/TagNetworkView.ts#L37) | function | `src/ui/views/TagNetworkView.ts` | 37-48 | Computes set of neighboring tag nodes connected to selected tags via edges. |
 | [`filterSuggestions`](../src/ui/views/TagNetworkView.ts#L21) | function | `src/ui/views/TagNetworkView.ts` | 21-35 | Filters suggestion list by search term, excluding selected items, and limits results. |
 | [`TagNetworkView`](../src/ui/views/TagNetworkView.ts#L152) | class | `src/ui/views/TagNetworkView.ts` | 152-853 | ItemView rendering an interactive network graph of tags with filtering and selection controls. |
+
+---
+
+## ui-chat
+
+```mermaid
+flowchart TB
+subgraph dom_ui_chat ["ui-chat"]
+  file_src_ui_chat_FreeChatModeHandler_ts["src/ui/chat/FreeChatModeHandler.ts"]:::component
+  sym_src_ui_chat_FreeChatModeHandler_ts_FreeC["FreeChatModeHandler"]:::symbol
+  file_src_ui_chat_FreeChatModeHandler_ts --> sym_src_ui_chat_FreeChatModeHandler_ts_FreeC
+  file_src_ui_chat_HighlightModeHandler_ts["src/ui/chat/HighlightModeHandler.ts"]:::component
+  sym_src_ui_chat_HighlightModeHandler_ts_High["HighlightModeHandler"]:::symbol
+  file_src_ui_chat_HighlightModeHandler_ts --> sym_src_ui_chat_HighlightModeHandler_ts_High
+  file_src_ui_chat_NoteModeHandler_ts["src/ui/chat/NoteModeHandler.ts"]:::component
+  sym_src_ui_chat_NoteModeHandler_ts_NoteModeH["NoteModeHandler"]:::symbol
+  file_src_ui_chat_NoteModeHandler_ts --> sym_src_ui_chat_NoteModeHandler_ts_NoteModeH
+  file_src_ui_chat_presentation_CreatePanel_ts["src/ui/chat/presentation/CreatePanel.ts"]:::component
+  sym_src_ui_chat_presentation_CreatePanel_ts_["addAudiencePill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["addLengthPill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["addSourceButton"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["addSpeedPill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["describeFailure"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["describeSource"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["handleChange"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["kindIconChar"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["rebuildSourcesList"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderAudienceRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderCreatePanel"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderLengthRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderRedetectButton"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderSourceRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderSourcesSection"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderSpeedRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["renderValidationRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["runValidation"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["setStatusContent"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["syncRedetectVisibility"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  sym_src_ui_chat_presentation_CreatePanel_ts_["updateRowInPlace"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts --> sym_src_ui_chat_presentation_CreatePanel_ts_
+  file_src_ui_chat_presentation_EditAccessories["src/ui/chat/presentation/EditAccessories.ts"]:::component
+  sym_src_ui_chat_presentation_EditAccessories["addModePill"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["describeScope"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["handleModeKeydown"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["renderEditAccessories"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["renderEditFlags"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["renderModePills"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  sym_src_ui_chat_presentation_EditAccessories["renderSelectionPill"]:::symbol
+  file_src_ui_chat_presentation_EditAccessories --> sym_src_ui_chat_presentation_EditAccessories
+  file_src_ui_chat_PresentationModeHandler_ts["src/ui/chat/PresentationModeHandler.ts"]:::component
+  sym_src_ui_chat_PresentationModeHandler_ts_g["getAvailablePath"]:::symbol
+  file_src_ui_chat_PresentationModeHandler_ts --> sym_src_ui_chat_PresentationModeHandler_ts_g
+  sym_src_ui_chat_PresentationModeHandler_ts_P["PresentationModeHandler"]:::symbol
+  file_src_ui_chat_PresentationModeHandler_ts --> sym_src_ui_chat_PresentationModeHandler_ts_P
+  sym_src_ui_chat_PresentationModeHandler_ts_s["sanitizeFileName"]:::symbol
+  file_src_ui_chat_PresentationModeHandler_ts --> sym_src_ui_chat_PresentationModeHandler_ts_s
+  file_src_ui_chat_ResearchModeHandler_ts["src/ui/chat/ResearchModeHandler.ts"]:::component
+  sym_src_ui_chat_ResearchModeHandler_ts_extra["extractHighlightSpans"]:::symbol
+  file_src_ui_chat_ResearchModeHandler_ts --> sym_src_ui_chat_ResearchModeHandler_ts_extra
+  sym_src_ui_chat_ResearchModeHandler_ts_Resea["ResearchModeHandler"]:::symbol
+  file_src_ui_chat_ResearchModeHandler_ts --> sym_src_ui_chat_ResearchModeHandler_ts_Resea
+  file_src_ui_chat_VaultModeHandler_ts["src/ui/chat/VaultModeHandler.ts"]:::component
+  sym_src_ui_chat_VaultModeHandler_ts_VaultMod["VaultModeHandler"]:::symbol
+  file_src_ui_chat_VaultModeHandler_ts --> sym_src_ui_chat_VaultModeHandler_ts_VaultMod
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`FreeChatModeHandler`](../src/ui/chat/FreeChatModeHandler.ts#L38) | class | `src/ui/chat/FreeChatModeHandler.ts` | 38-736 | <no body> |
+| [`HighlightModeHandler`](../src/ui/chat/HighlightModeHandler.ts#L6) | class | `src/ui/chat/HighlightModeHandler.ts` | 6-253 | <no body> |
+| [`NoteModeHandler`](../src/ui/chat/NoteModeHandler.ts#L5) | class | `src/ui/chat/NoteModeHandler.ts` | 5-49 | <no body> |
+| [`addAudiencePill`](../src/ui/chat/presentation/CreatePanel.ts#L128) | function | `src/ui/chat/presentation/CreatePanel.ts` | 128-159 | Creates an interactive audience-selection button that updates config and manages active state across siblings. |
+| [`addLengthPill`](../src/ui/chat/presentation/CreatePanel.ts#L203) | function | `src/ui/chat/presentation/CreatePanel.ts` | 203-232 | Creates a clickable length-preset button that syncs the custom input and toggles active state across siblings. |
+| [`addSourceButton`](../src/ui/chat/presentation/CreatePanel.ts#L430) | function | `src/ui/chat/presentation/CreatePanel.ts` | 430-451 | Creates an add-source button that opens a picker and preloads the selected source. |
+| [`addSpeedPill`](../src/ui/chat/presentation/CreatePanel.ts#L247) | function | `src/ui/chat/presentation/CreatePanel.ts` | 247-277 | Creates an interactive speed-tier button that updates config and manages active state across siblings. |
+| [`describeFailure`](../src/ui/chat/presentation/CreatePanel.ts#L410) | function | `src/ui/chat/presentation/CreatePanel.ts` | 410-428 | Maps failure codes to localized error messages with template variable replacement. |
+| [`describeSource`](../src/ui/chat/presentation/CreatePanel.ts#L378) | function | `src/ui/chat/presentation/CreatePanel.ts` | 378-385 | Returns a display label for a source, including auto-detected flag if applicable. |
+| [`handleChange`](../src/ui/chat/presentation/CreatePanel.ts#L496) | function | `src/ui/chat/presentation/CreatePanel.ts` | 496-523 | Rebuilds UI sections in response to source list changes, status updates, or redetection. |
+| [`kindIconChar`](../src/ui/chat/presentation/CreatePanel.ts#L372) | function | `src/ui/chat/presentation/CreatePanel.ts` | 372-376 | Returns a single-character emoji icon matching the source kind (note/folder/web). |
+| [`rebuildSourcesList`](../src/ui/chat/presentation/CreatePanel.ts#L322) | function | `src/ui/chat/presentation/CreatePanel.ts` | 322-340 | Empties and rebuilds the sources list, displaying either selected sources or an empty-state message. |
+| [`renderAudienceRow`](../src/ui/chat/presentation/CreatePanel.ts#L116) | function | `src/ui/chat/presentation/CreatePanel.ts` | 116-126 | Renders a labeled radio-group row for selecting presentation audience (analyst/executive/general). |
+| [`renderCreatePanel`](../src/ui/chat/presentation/CreatePanel.ts#L79) | function | `src/ui/chat/presentation/CreatePanel.ts` | 79-112 | Renders presentation creation panel with audience, length, speed, sources, and validation controls. |
+| [`renderLengthRow`](../src/ui/chat/presentation/CreatePanel.ts#L163) | function | `src/ui/chat/presentation/CreatePanel.ts` | 163-201 | Renders a row with preset length pills and a custom numeric input field for slide count. |
+| [`renderRedetectButton`](../src/ui/chat/presentation/CreatePanel.ts#L304) | function | `src/ui/chat/presentation/CreatePanel.ts` | 304-315 | Creates a redetect button that triggers auto-detection of active note and reflects stale status visibility. |
+| [`renderSourceRow`](../src/ui/chat/presentation/CreatePanel.ts#L342) | function | `src/ui/chat/presentation/CreatePanel.ts` | 342-370 | Renders a single source row with icon, label, status indicator, and remove button. |
+| [`renderSourcesSection`](../src/ui/chat/presentation/CreatePanel.ts#L281) | function | `src/ui/chat/presentation/CreatePanel.ts` | 281-302 | Builds the sources section with header, redetect button, sources list, and add-source action buttons. |
+| [`renderSpeedRow`](../src/ui/chat/presentation/CreatePanel.ts#L236) | function | `src/ui/chat/presentation/CreatePanel.ts` | 236-245 | Renders a labeled radio-group row for selecting presentation speed tier (fast/quality). |
+| [`renderValidationRow`](../src/ui/chat/presentation/CreatePanel.ts#L455) | function | `src/ui/chat/presentation/CreatePanel.ts` | 455-462 | Creates a hidden validation status container with live-region announcements. |
+| [`runValidation`](../src/ui/chat/presentation/CreatePanel.ts#L464) | function | `src/ui/chat/presentation/CreatePanel.ts` | 464-492 | Validates presentation config and sources, displaying appropriate error or warning messages. |
+| [`setStatusContent`](../src/ui/chat/presentation/CreatePanel.ts#L387) | function | `src/ui/chat/presentation/CreatePanel.ts` | 387-408 | Updates status element content with loading/resolved/error indicators and optional failure tooltips. |
+| [`syncRedetectVisibility`](../src/ui/chat/presentation/CreatePanel.ts#L317) | function | `src/ui/chat/presentation/CreatePanel.ts` | 317-320 | Toggles redetect button visibility based on whether auto-detected sources are stale. |
+| [`updateRowInPlace`](../src/ui/chat/presentation/CreatePanel.ts#L525) | function | `src/ui/chat/presentation/CreatePanel.ts` | 525-535 | Updates a source row in-place with fresh status and label without rebuilding the entire list. |
+| [`addModePill`](../src/ui/chat/presentation/EditAccessories.ts#L146) | function | `src/ui/chat/presentation/EditAccessories.ts` | 146-187 | Creates an interactive mode-selection button with arrow-key navigation and auto-focus on mode change. |
+| [`describeScope`](../src/ui/chat/presentation/EditAccessories.ts#L111) | function | `src/ui/chat/presentation/EditAccessories.ts` | 111-125 | Generates a human-readable description of a selected slide scope (range/slide/element). |
+| [`handleModeKeydown`](../src/ui/chat/presentation/EditAccessories.ts#L189) | function | `src/ui/chat/presentation/EditAccessories.ts` | 189-203 | Handles arrow-key and space navigation across mode radio pills. |
+| [`renderEditAccessories`](../src/ui/chat/presentation/EditAccessories.ts#L41) | function | `src/ui/chat/presentation/EditAccessories.ts` | 41-72 | Renders edit accessories (selection pill, mode pills, edit flags) conditionally based on selection state. |
+| [`renderEditFlags`](../src/ui/chat/presentation/EditAccessories.ts#L207) | function | `src/ui/chat/presentation/EditAccessories.ts` | 207-222 | Renders a checkbox flag for toggling web-search inclusion in content-edit mode. |
+| [`renderModePills`](../src/ui/chat/presentation/EditAccessories.ts#L129) | function | `src/ui/chat/presentation/EditAccessories.ts` | 129-138 | Renders a radio-group row with mode-selection pills (content/design). |
+| [`renderSelectionPill`](../src/ui/chat/presentation/EditAccessories.ts#L76) | function | `src/ui/chat/presentation/EditAccessories.ts` | 76-109 | Creates a dismissible selection pill showing the currently-selected scope with keyboard support (Esc/Delete). |
+| [`getAvailablePath`](../src/ui/chat/PresentationModeHandler.ts#L1569) | function | `src/ui/chat/PresentationModeHandler.ts` | 1569-1583 | Returns an available file path in the vault, auto-incrementing if the base path exists. |
+| [`PresentationModeHandler`](../src/ui/chat/PresentationModeHandler.ts#L74) | class | `src/ui/chat/PresentationModeHandler.ts` | 74-1561 | <no body> |
+| [`sanitizeFileName`](../src/ui/chat/PresentationModeHandler.ts#L1565) | function | `src/ui/chat/PresentationModeHandler.ts` | 1565-1567 | Strips invalid filename characters and collapses runs of hyphens. |
+| [`extractHighlightSpans`](../src/ui/chat/ResearchModeHandler.ts#L44) | function | `src/ui/chat/ResearchModeHandler.ts` | 44-59 | Extracts highlighted text spans from content blocks using markdown and HTML highlight patterns. |
+| [`ResearchModeHandler`](../src/ui/chat/ResearchModeHandler.ts#L61) | class | `src/ui/chat/ResearchModeHandler.ts` | 61-1444 | <no body> |
+| [`VaultModeHandler`](../src/ui/chat/VaultModeHandler.ts#L9) | class | `src/ui/chat/VaultModeHandler.ts` | 9-216 | <no body> |
+
+---
+
+## utils
+
+```mermaid
+flowchart TB
+subgraph dom_utils ["utils"]
+  file_src_utils_abortableRequestUrl_ts["src/utils/abortableRequestUrl.ts"]:::component
+  sym_src_utils_abortableRequestUrl_ts_abortab["abortableRequestUrl"]:::symbol
+  file_src_utils_abortableRequestUrl_ts --> sym_src_utils_abortableRequestUrl_ts_abortab
+  file_src_utils_adapterUtils_ts["src/utils/adapterUtils.ts"]:::component
+  sym_src_utils_adapterUtils_ts_extractTextFro["extractTextFromParts"]:::symbol
+  file_src_utils_adapterUtils_ts --> sym_src_utils_adapterUtils_ts_extractTextFro
+  file_src_utils_batchProcessor_ts["src/utils/batchProcessor.ts"]:::component
+  sym_src_utils_batchProcessor_ts_BatchProcess["BatchProcessor"]:::symbol
+  file_src_utils_batchProcessor_ts --> sym_src_utils_batchProcessor_ts_BatchProcess
+  file_src_utils_busyIndicator_ts["src/utils/busyIndicator.ts"]:::component
+  sym_src_utils_busyIndicator_ts_hideBusy["hideBusy"]:::symbol
+  file_src_utils_busyIndicator_ts --> sym_src_utils_busyIndicator_ts_hideBusy
+  sym_src_utils_busyIndicator_ts_resetBusyStat["resetBusyState"]:::symbol
+  file_src_utils_busyIndicator_ts --> sym_src_utils_busyIndicator_ts_resetBusyStat
+  sym_src_utils_busyIndicator_ts_showBusy["showBusy"]:::symbol
+  file_src_utils_busyIndicator_ts --> sym_src_utils_busyIndicator_ts_showBusy
+  sym_src_utils_busyIndicator_ts_withBusyIndic["withBusyIndicator"]:::symbol
+  file_src_utils_busyIndicator_ts --> sym_src_utils_busyIndicator_ts_withBusyIndic
+  file_src_utils_chatExportUtils_ts["src/utils/chatExportUtils.ts"]:::component
+  sym_src_utils_chatExportUtils_ts_base64ToUtf["base64ToUtf8"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_base64ToUtf
+  sym_src_utils_chatExportUtils_ts_extractConv["extractConversationState"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_extractConv
+  sym_src_utils_chatExportUtils_ts_formatConve["formatConversationHistory"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_formatConve
+  sym_src_utils_chatExportUtils_ts_formatExpor["formatExportMarkdown"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_formatExpor
+  sym_src_utils_chatExportUtils_ts_serializeCo["serializeConversationNote"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_serializeCo
+  sym_src_utils_chatExportUtils_ts_utf8ToBase6["utf8ToBase64"]:::symbol
+  file_src_utils_chatExportUtils_ts --> sym_src_utils_chatExportUtils_ts_utf8ToBase6
+  file_src_utils_companionUtils_ts["src/utils/companionUtils.ts"]:::component
+  sym_src_utils_companionUtils_ts_processCompa["processCompanionOutput"]:::symbol
+  file_src_utils_companionUtils_ts --> sym_src_utils_companionUtils_ts_processCompa
+  sym_src_utils_companionUtils_ts_shouldInclud["shouldIncludeCompanion"]:::symbol
+  file_src_utils_companionUtils_ts --> sym_src_utils_companionUtils_ts_shouldInclud
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+_Domain has 237 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
 | [`abortableRequestUrl`](../src/utils/abortableRequestUrl.ts#L25) | function | `src/utils/abortableRequestUrl.ts` | 25-53 | Wraps requestUrl to support AbortSignal cancellation by racing the request against an abort promise. |
 | [`extractTextFromParts`](../src/utils/adapterUtils.ts#L9) | function | `src/utils/adapterUtils.ts` | 9-16 | Extracts text content from either a string or array of content parts. |
 | [`BatchProcessor`](../src/utils/batchProcessor.ts#L16) | class | `src/utils/batchProcessor.ts` | 16-99 | Processes files in configurable batches with concurrency control, progress tracking, and cancellation support. |
@@ -2201,261 +4377,154 @@ _Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`getPathStrings`](../src/utils/vaultPathFetcher.ts#L88) | function | `src/utils/vaultPathFetcher.ts` | 88-96 | Returns list of vault paths, optionally filtered to folders only. |
 | [`getVaultItems`](../src/utils/vaultPathFetcher.ts#L13) | function | `src/utils/vaultPathFetcher.ts` | 13-29 | Returns filtered vault files and folders matching optional search term. |
 | [`isPathExcluded`](../src/utils/vaultPathFetcher.ts#L101) | function | `src/utils/vaultPathFetcher.ts` | 101-129 | Tests if a path matches any exclusion pattern (regex, glob, or literal). |
-| [`generateReport`](../test-nested-tags-implementation.js#L302) | function | `test-nested-tags-implementation.js` | 302-331 | Generates formatted test report with pass rate and exit code. |
-| [`log`](../test-nested-tags-implementation.js#L30) | function | `test-nested-tags-implementation.js` | 30-32 | Logs colored message to console. |
-| [`runAllTests`](../test-nested-tags-implementation.js#L334) | function | `test-nested-tags-implementation.js` | 334-356 | Executes all test suites and generates final report. |
-| [`testBuildOutput`](../test-nested-tags-implementation.js#L243) | function | `test-nested-tags-implementation.js` | 243-263 | Validates that build output file exists and has reasonable size. |
-| [`testChineseTranslations`](../test-nested-tags-implementation.js#L188) | function | `test-nested-tags-implementation.js` | 188-216 | Verifies required Chinese translation keys and character presence. |
-| [`testConsistency`](../test-nested-tags-implementation.js#L266) | function | `test-nested-tags-implementation.js` | 266-299 | Cross-references nested tags implementation across settings, translations, and types. |
-| [`testEnglishTranslations`](../test-nested-tags-implementation.js#L164) | function | `test-nested-tags-implementation.js` | 164-185 | Verifies required English translation keys for nested tags feature. |
-| [`testFailed`](../test-nested-tags-implementation.js#L40) | function | `test-nested-tags-implementation.js` | 40-45 | Records failed test with error and logs failure message. |
-| [`testPassed`](../test-nested-tags-implementation.js#L34) | function | `test-nested-tags-implementation.js` | 34-38 | Records passed test and logs success message. |
-| [`testPromptEnhancements`](../test-nested-tags-implementation.js#L90) | function | `test-nested-tags-implementation.js` | 90-125 | Checks for nested tag instructions in tag generation prompts. |
-| [`testSettingsSchema`](../test-nested-tags-implementation.js#L55) | function | `test-nested-tags-implementation.js` | 55-87 | Validates nested tags settings schema fields and defaults. |
-| [`testTranslationTypes`](../test-nested-tags-implementation.js#L219) | function | `test-nested-tags-implementation.js` | 219-240 | Checks type definitions for all nested tags translation keys. |
-| [`testUISettings`](../test-nested-tags-implementation.js#L128) | function | `test-nested-tags-implementation.js` | 128-161 | Verifies nested tags UI controls exist in settings panel. |
-| [`testWarning`](../test-nested-tags-implementation.js#L47) | function | `test-nested-tags-implementation.js` | 47-52 | Records test warning and logs warning message. |
-| [`makeResult`](../tests/academicUtils.test.ts#L21) | function | `tests/academicUtils.test.ts` | 21-30 | Creates a test academic search result with customizable overrides. |
-| [`makePlugin`](../tests/apiKeyHelpersAudioNarration.test.ts#L14) | function | `tests/apiKeyHelpersAudioNarration.test.ts` | 14-35 | Creates a test plugin configuration with audio narration and API key settings. |
-| [`makeEmbeddingService`](../tests/attachmentIndexService.test.ts#L13) | function | `tests/attachmentIndexService.test.ts` | 13-32 | Creates a mock embedding service that generates deterministic vector embeddings for testing. |
-| [`makeMockFile`](../tests/audioNarrationService.test.ts#L86) | function | `tests/audioNarrationService.test.ts` | 86-92 | Creates a mock Markdown file object with specified path and basename. |
-| [`makeMockPlugin`](../tests/audioNarrationService.test.ts#L102) | function | `tests/audioNarrationService.test.ts` | 102-129 | Creates a mock plugin instance with vault operations, settings, and narration job tracking. |
-| [`makeMp3File`](../tests/audioNarrationService.test.ts#L94) | function | `tests/audioNarrationService.test.ts` | 94-100 | Creates a mock MP3 narration file object with standard naming convention. |
-| [`makeFile`](../tests/audioPlayerModal.test.ts#L87) | function | `tests/audioPlayerModal.test.ts` | 87-93 | Creates a mock MP3 file object for audio player testing. |
-| [`createMockPlugin`](../tests/busyIndicator.test.ts#L3) | function | `tests/busyIndicator.test.ts` | 3-12 | Creates a minimal mock plugin with busy status bar and localization. |
-| [`overlaps`](../tests/canvasLayouts.test.ts#L14) | function | `tests/canvasLayouts.test.ts` | 14-16 | Checks if two rectangular bounding boxes overlap in 2D space. |
-| [`createMockApp`](../tests/canvasUtils.test.ts#L5) | function | `tests/canvasUtils.test.ts` | 5-24 | Creates a mock Obsidian app with vault file operations and workspace linking. |
-| [`MockWebSocket`](../tests/cdpClient.test.ts#L12) | class | `tests/cdpClient.test.ts` | 12-52 | Simulates a WebSocket connection for testing Chrome DevTools Protocol client communication. |
-| [`msg`](../tests/chatExport.test.ts#L16) | function | `tests/chatExport.test.ts` | 16-18 | Creates a chat message object with role, content, and timestamp. |
-| [`makeState`](../tests/chatPersistenceUtils.test.ts#L11) | function | `tests/chatPersistenceUtils.test.ts` | 11-24 | Creates a mock chat session state with messages and metadata. |
-| [`makeMockEl`](../tests/chatResumePicker.test.ts#L54) | function | `tests/chatResumePicker.test.ts` | 54-83 | Creates a mock DOM element with event listeners and child element creation. |
-| [`makeProject`](../tests/chatResumePicker.test.ts#L85) | function | `tests/chatResumePicker.test.ts` | 85-98 | Creates a test project object with folder structure and metadata. |
-| [`makeRecentConversation`](../tests/chatResumePicker.test.ts#L100) | function | `tests/chatResumePicker.test.ts` | 100-109 | Creates a test recent conversation metadata object. |
-| [`makeState`](../tests/chatResumePicker.test.ts#L111) | function | `tests/chatResumePicker.test.ts` | 111-124 | Creates a mock chat state for conversation picker testing. |
-| [`createMockApp`](../tests/chatSearchService.test.ts#L129) | function | `tests/chatSearchService.test.ts` | 129-138 | Creates a mock Obsidian app with vault file reading capabilities. |
-| [`createMockSettings`](../tests/chatSearchService.test.ts#L140) | function | `tests/chatSearchService.test.ts` | 140-147 | Creates mock plugin settings with folder paths. |
-| [`makeMockFile`](../tests/chatSearchService.test.ts#L118) | function | `tests/chatSearchService.test.ts` | 118-127 | Creates a mock TFile object representing a markdown file with metadata. |
-| [`baseAssessment`](../tests/chunkingOrchestrator.test.ts#L37) | function | `tests/chunkingOrchestrator.test.ts` | 37-44 | Creates a base assessment object defining chunking strategy metrics. |
-| [`baseOptions`](../tests/chunkingOrchestrator.test.ts#L24) | function | `tests/chunkingOrchestrator.test.ts` | 24-35 | Creates base options for text chunking and orchestration with prompt builders. |
-| [`makeLLM`](../tests/chunkingOrchestrator.test.ts#L12) | function | `tests/chunkingOrchestrator.test.ts` | 12-22 | Creates a mock LLM service that tracks summarization calls. |
-| [`buildMockResponse`](../tests/claudeWebSearchAdapter.test.ts#L23) | function | `tests/claudeWebSearchAdapter.test.ts` | 23-81 | <no body> |
-| [`buildApiResponse`](../tests/claudeWebSearchIntegration.test.ts#L85) | function | `tests/claudeWebSearchIntegration.test.ts` | 85-120 | Builds a mock Claude API response with web search results, citations, and token usage. |
-| [`buildPausedResponse`](../tests/claudeWebSearchIntegration.test.ts#L122) | function | `tests/claudeWebSearchIntegration.test.ts` | 122-124 | Builds a paused Claude API response for multi-turn search interactions. |
-| [`makePlugin`](../tests/claudeWebSearchIntegration.test.ts#L56) | function | `tests/claudeWebSearchIntegration.test.ts` | 56-68 | Creates a mock plugin with Claude cloud service and research quality settings. |
-| [`makeSearchService`](../tests/claudeWebSearchIntegration.test.ts#L70) | function | `tests/claudeWebSearchIntegration.test.ts` | 70-75 | Creates a mock web search service with provider adapter. |
-| [`makeUsageService`](../tests/claudeWebSearchIntegration.test.ts#L77) | function | `tests/claudeWebSearchIntegration.test.ts` | 77-82 | Creates a mock usage tracking service with budget checking. |
-| [`buildTypicalSSEStream`](../tests/claudeWebSearchStreaming.test.ts#L87) | function | `tests/claudeWebSearchStreaming.test.ts` | 87-145 | <no body> |
-| [`makeAdapter`](../tests/claudeWebSearchStreaming.test.ts#L161) | function | `tests/claudeWebSearchStreaming.test.ts` | 161-165 | Creates a Claude web search adapter instance with configuration. |
-| [`makePlugin`](../tests/claudeWebSearchStreaming.test.ts#L167) | function | `tests/claudeWebSearchStreaming.test.ts` | 167-180 | Creates a mock plugin with Claude streaming and research quality settings. |
-| [`makeSearchService`](../tests/claudeWebSearchStreaming.test.ts#L182) | function | `tests/claudeWebSearchStreaming.test.ts` | 182-187 | Creates a mock web search service for streaming tests. |
-| [`makeUsageService`](../tests/claudeWebSearchStreaming.test.ts#L189) | function | `tests/claudeWebSearchStreaming.test.ts` | 189-194 | Creates a mock usage service for streaming response budget tracking. |
-| [`mockFetchResponse`](../tests/claudeWebSearchStreaming.test.ts#L148) | function | `tests/claudeWebSearchStreaming.test.ts` | 148-157 | Creates a mock fetch response with server-sent events stream. |
-| [`sse`](../tests/claudeWebSearchStreaming.test.ts#L54) | function | `tests/claudeWebSearchStreaming.test.ts` | 54-56 | Formats JSON data as a server-sent event string. |
-| [`sseBlockDelta`](../tests/claudeWebSearchStreaming.test.ts#L66) | function | `tests/claudeWebSearchStreaming.test.ts` | 66-68 | Creates an SSE content_block_delta event with partial content updates. |
-| [`sseBlockStart`](../tests/claudeWebSearchStreaming.test.ts#L62) | function | `tests/claudeWebSearchStreaming.test.ts` | 62-64 | Creates an SSE content_block_start event for a specific block type. |
-| [`sseBlockStop`](../tests/claudeWebSearchStreaming.test.ts#L70) | function | `tests/claudeWebSearchStreaming.test.ts` | 70-72 | Creates an SSE content_block_stop event marking block completion. |
-| [`sseMessageDelta`](../tests/claudeWebSearchStreaming.test.ts#L74) | function | `tests/claudeWebSearchStreaming.test.ts` | 74-80 | Creates an SSE message_delta event with stop reason and token usage. |
-| [`sseMessageStart`](../tests/claudeWebSearchStreaming.test.ts#L58) | function | `tests/claudeWebSearchStreaming.test.ts` | 58-60 | Creates an SSE message_start event with input token usage. |
-| [`sseMessageStop`](../tests/claudeWebSearchStreaming.test.ts#L82) | function | `tests/claudeWebSearchStreaming.test.ts` | 82-84 | Creates an SSE message_stop event signaling response completion. |
-| [`createClaudeService`](../tests/cloudService.defaults.test.ts#L168) | function | `tests/cloudService.defaults.test.ts` | 168-177 | Creates a Claude cloud LLM service instance for testing. |
-| [`createGeminiService`](../tests/cloudService.defaults.test.ts#L179) | function | `tests/cloudService.defaults.test.ts` | 179-187 | Creates a Gemini cloud LLM service instance for testing. |
-| [`createOpenAIService`](../tests/cloudService.defaults.test.ts#L189) | function | `tests/cloudService.defaults.test.ts` | 189-197 | Creates an OpenAI cloud LLM service instance for testing. |
-| [`createFile`](../tests/clusterBoard.test.ts#L4) | function | `tests/clusterBoard.test.ts` | 4-10 | Creates a mock TFile object with path, basename, and folder information. |
-| [`createMockApp`](../tests/clusterBoard.test.ts#L12) | function | `tests/clusterBoard.test.ts` | 12-21 | Creates a mock Obsidian app with metadata cache for file tag retrieval. |
-| [`collectLeafCommands`](../tests/commandPicker.test.ts#L20) | function | `tests/commandPicker.test.ts` | 20-27 | Recursively flattens a command tree into a flat array of leaf commands. |
-| [`countLeafCommands`](../tests/commandPicker.test.ts#L11) | function | `tests/commandPicker.test.ts` | 11-18 | Recursively counts the total number of leaf commands in a command tree. |
-| [`makeCategories`](../tests/commandPickerViewModel.test.ts#L5) | function | `tests/commandPickerViewModel.test.ts` | 5-27 | Constructs a test fixture with two categories containing groups and leaves for testing the command picker. |
-| [`simpleMatcher`](../tests/commandPickerViewModel.test.ts#L29) | function | `tests/commandPickerViewModel.test.ts` | 29-35 | Creates a simple fuzzy matcher function that scores based on substring position within text. |
-| [`createMockFile`](../tests/companionUtils.test.ts#L76) | function | `tests/companionUtils.test.ts` | 76-82 | Creates a mock file object with path, basename, and optional parent folder reference. |
-| [`createMockPlugin`](../tests/companionUtils.test.ts#L49) | function | `tests/companionUtils.test.ts` | 49-73 | Creates a mock plugin with vault file creation tracking and configurable failure modes for testing. |
-| [`makeCtx`](../tests/conversationCompaction.test.ts#L32) | function | `tests/conversationCompaction.test.ts` | 32-38 | Creates a mock context object with OpenAI provider settings and optional summarization function. |
-| [`makeLongConversation`](../tests/conversationCompaction.test.ts#L21) | function | `tests/conversationCompaction.test.ts` | 21-30 | Creates a long conversation with 20 message pairs of 15k characters each plus a final user message. |
-| [`makeLongMessage`](../tests/conversationCompaction.test.ts#L16) | function | `tests/conversationCompaction.test.ts` | 16-18 | Creates a message with a role and specified character count of repeated 'x' characters. |
-| [`msg`](../tests/conversationCompaction.test.ts#L12) | function | `tests/conversationCompaction.test.ts` | 12-14 | Creates a message object with role, content, and current timestamp. |
-| [`buildMockApp`](../tests/conversationPersistence.test.ts#L61) | function | `tests/conversationPersistence.test.ts` | 61-104 | Builds a mock app with in-memory vault implementation supporting file creation, modification, reading, and lookup operations. |
-| [`buildSettings`](../tests/conversationPersistence.test.ts#L106) | function | `tests/conversationPersistence.test.ts` | 106-111 | Returns minimal settings object with chat and output folder paths. |
-| [`makeEmptyState`](../tests/conversationPersistence.test.ts#L49) | function | `tests/conversationPersistence.test.ts` | 49-59 | Creates an empty conversation state object with no messages, mergeable with overrides. |
-| [`makeState`](../tests/conversationPersistence.test.ts#L34) | function | `tests/conversationPersistence.test.ts` | 34-47 | Creates a conversation state object with default messages and timestamps, mergeable with overrides. |
-| [`buildApp`](../tests/creationSourceController.test.ts#L20) | function | `tests/creationSourceController.test.ts` | 20-36 | Builds a mock app with customizable file/folder maps and mocked workspace/vault methods. |
-| [`buildController`](../tests/creationSourceController.test.ts#L38) | function | `tests/creationSourceController.test.ts` | 38-43 | Creates a presentation source controller with mocked app and service dependencies. |
-| [`createTestDict`](../tests/dictionaryController.test.ts#L53) | function | `tests/dictionaryController.test.ts` | 53-55 | Returns a deep copy of a test dictionary object. |
-| [`createTestDict2`](../tests/dictionaryController.test.ts#L57) | function | `tests/dictionaryController.test.ts` | 57-59 | Returns a deep copy of a second test dictionary object. |
-| [`makeMockApp`](../tests/digitiseUtils.test.ts#L20) | function | `tests/digitiseUtils.test.ts` | 20-29 | Creates a mock app with mocked metadata cache and vault link resolution methods. |
-| [`makeMockTFile`](../tests/digitiseUtils.test.ts#L16) | function | `tests/digitiseUtils.test.ts` | 16-18 | Creates a mock TFile object with the specified path. |
-| [`makeMockVisionService`](../tests/digitiseUtils.test.ts#L31) | function | `tests/digitiseUtils.test.ts` | 31-35 | Creates a mock vision service with a mocked digitise method returning specified result. |
-| [`createTestFile`](../tests/documentExtractionService.test.ts#L14) | function | `tests/documentExtractionService.test.ts` | 14-23 | Creates a TFile object with path, name, basename, extension, and stat properties populated. |
-| [`makeOpts`](../tests/editAccessories.test.ts#L67) | function | `tests/editAccessories.test.ts` | 67-79 | Returns editor options object with null selection, content edit mode, and mocked callback functions. |
-| [`createMockEditor`](../tests/editorUtils.test.ts#L7) | function | `tests/editorUtils.test.ts` | 7-18 | Creates a mock editor with cursor position, content, and range replacement capabilities. |
-| [`createResolver`](../tests/embeddedContentDetector.test.ts#L8) | function | `tests/embeddedContentDetector.test.ts` | 8-10 | Sets up file link resolution in app metadata cache from a file map. |
-| [`makePlugin`](../tests/escalation.test.ts#L78) | function | `tests/escalation.test.ts` | 78-94 | Creates a mock plugin with vault operations and secret storage for escalation testing. |
-| [`makeResult`](../tests/escalation.test.ts#L100) | function | `tests/escalation.test.ts` | 100-109 | Creates a mock search result object with title, URL, snippet, and domain fields. |
-| [`makeSearchService`](../tests/escalation.test.ts#L96) | function | `tests/escalation.test.ts` | 96-98 | Creates a mock search service with a mocked search method. |
-| [`setupReadability`](../tests/escalation.test.ts#L111) | function | `tests/escalation.test.ts` | 111-115 | Mocks the Readability parser to return text content and title or null. |
-| [`createMockPlugin`](../tests/flashcardCommands.test.ts#L12) | function | `tests/flashcardCommands.test.ts` | 12-48 | Creates a mock plugin with vault file reading and flashcard-related settings and services. |
-| [`makeContext`](../tests/freeChatModeHandler.test.ts#L62) | function | `tests/freeChatModeHandler.test.ts` | 62-69 | Creates a mock context object wrapping a plugin instance for free chat mode testing. |
-| [`makePlugin`](../tests/freeChatModeHandler.test.ts#L33) | function | `tests/freeChatModeHandler.test.ts` | 33-60 | Creates a mock plugin with vault, file manager, cloud service settings, and translation stubs. |
-| [`makeEl`](../tests/globalMemoryModal.test.ts#L11) | function | `tests/globalMemoryModal.test.ts` | 11-65 | <no body> |
-| [`makeServiceMock`](../tests/globalMemoryModal.test.ts#L85) | function | `tests/globalMemoryModal.test.ts` | 85-92 | Creates a mock global memory service with mocked load, save, add, and remove operations. |
-| [`makeTranslations`](../tests/globalMemoryModal.test.ts#L69) | function | `tests/globalMemoryModal.test.ts` | 69-81 | Returns translation strings for global memory modal UI elements. |
-| [`ModalLogicHarness`](../tests/globalMemoryModal.test.ts#L98) | class | `tests/globalMemoryModal.test.ts` | 98-140 | Class that mirrors GlobalMemoryModal logic for testing memory item management, addition, removal, and persistence. |
-| [`makeApp`](../tests/globalMemoryService.test.ts#L15) | function | `tests/globalMemoryService.test.ts` | 15-32 | Creates a mock app with in-memory file system supporting read, create, modify, and folder operations. |
-| [`makeSettings`](../tests/globalMemoryService.test.ts#L11) | function | `tests/globalMemoryService.test.ts` | 11-13 | Returns settings object with chat root folder and plugin folder paths. |
-| [`memoryPath`](../tests/globalMemoryService.test.ts#L35) | function | `tests/globalMemoryService.test.ts` | 35-37 | Returns the full path for the global memory file in the chat root folder. |
-| [`wrapDeck`](../tests/htmlToRichSlideParser.test.ts#L7) | function | `tests/htmlToRichSlideParser.test.ts` | 7-9 | Wraps slide HTML strings in a complete HTML document with a deck container. |
-| [`createMockApp`](../tests/imageProcessorService.test.ts#L14) | function | `tests/imageProcessorService.test.ts` | 14-18 | Creates a mock app with vault readBinary method returning an ArrayBuffer. |
-| [`createMockFile`](../tests/imageProcessorService.test.ts#L21) | function | `tests/imageProcessorService.test.ts` | 21-26 | Creates a mock file object with specified extension, size, path, and name. |
-| [`mockCanvas`](../tests/imageProcessorService.test.ts#L29) | function | `tests/imageProcessorService.test.ts` | 29-46 | Creates a mock canvas object with toDataURL, toBlob, getContext methods and dimension properties. |
-| [`mockImage`](../tests/imageProcessorService.test.ts#L49) | function | `tests/imageProcessorService.test.ts` | 49-64 | Creates a mock image object with dimensions and simulated async onload callback. |
-| [`collectText`](../tests/indexingChoiceModal.test.ts#L46) | function | `tests/indexingChoiceModal.test.ts` | 46-53 | Recursively collects all text content from an element and its children into a flat array. |
-| [`makeModal`](../tests/indexingChoiceModal.test.ts#L28) | function | `tests/indexingChoiceModal.test.ts` | 28-43 | Creates an IndexingChoiceModal instance with default test parameters and translations. |
-| [`makeT`](../tests/indexingChoiceModal.test.ts#L9) | function | `tests/indexingChoiceModal.test.ts` | 9-26 | Returns translation strings for indexing choice modal UI elements and progress indicators. |
-| [`makeMockLLM`](../tests/integrationAuditor.test.ts#L14) | function | `tests/integrationAuditor.test.ts` | 14-21 | Creates a mock LLM service that resolves to a summarized JSON response. |
-| [`makeMockLLMFailing`](../tests/integrationAuditor.test.ts#L32) | function | `tests/integrationAuditor.test.ts` | 32-36 | Creates a mock LLM service that rejects with a network timeout error. |
-| [`makeMockLLMRaw`](../tests/integrationAuditor.test.ts#L23) | function | `tests/integrationAuditor.test.ts` | 23-30 | Creates a mock LLM service that resolves to raw text content without parsing. |
-| [`makeMockLLMUnsuccessful`](../tests/integrationAuditor.test.ts#L38) | function | `tests/integrationAuditor.test.ts` | 38-46 | Creates a mock LLM service that resolves with a failed status and rate limit error. |
-| [`buildExtractionResult`](../tests/integrationResolve.test.ts#L66) | function | `tests/integrationResolve.test.ts` | 66-73 | Creates an extraction result object partitioning items by success status and content type (text vs binary). |
-| [`createPlugin`](../tests/integrationResolve.test.ts#L50) | function | `tests/integrationResolve.test.ts` | 50-64 | Creates a mock plugin with app, translations, cloud service settings, and PDF/document services. |
-| [`opts`](../tests/integrationValidator.test.ts#L10) | function | `tests/integrationValidator.test.ts` | 10-18 | Creates a default test configuration object for content integration with override support. |
-| [`makeMockPlugin`](../tests/kindleAuthService.test.ts#L29) | function | `tests/kindleAuthService.test.ts` | 29-42 | Creates a mock plugin with fake Kindle settings and secret storage for authentication testing. |
-| [`makeBook`](../tests/kindleNoteBuilder.test.ts#L32) | function | `tests/kindleNoteBuilder.test.ts` | 32-40 | Creates a test book object containing highlights for Kindle note builder testing. |
-| [`makeHighlight`](../tests/kindleNoteBuilder.test.ts#L22) | function | `tests/kindleNoteBuilder.test.ts` | 22-30 | Creates a test highlight object with standard Kindle metadata fields. |
-| [`makeBook`](../tests/kindlePrompts.test.ts#L21) | function | `tests/kindlePrompts.test.ts` | 21-33 | Creates a test book with three predefined highlights for prompt testing. |
-| [`makeHighlight`](../tests/kindlePrompts.test.ts#L11) | function | `tests/kindlePrompts.test.ts` | 11-19 | Creates a test highlight object for Kindle prompt generation testing. |
-| [`loadFixture`](../tests/kindleScraperService.test.ts#L33) | function | `tests/kindleScraperService.test.ts` | 33-35 | Reads and returns fixture file content from the test fixtures directory. |
-| [`makeBook`](../tests/kindleSyncService.test.ts#L59) | function | `tests/kindleSyncService.test.ts` | 59-67 | Creates a test book object for Kindle sync service testing. |
-| [`makeHighlight`](../tests/kindleSyncService.test.ts#L49) | function | `tests/kindleSyncService.test.ts` | 49-57 | Creates a test highlight object for Kindle sync service testing. |
-| [`makeMockPlugin`](../tests/kindleSyncService.test.ts#L76) | function | `tests/kindleSyncService.test.ts` | 76-89 | Creates a mock plugin with Kindle sync settings and configuration for testing. |
-| [`makeState`](../tests/kindleSyncService.test.ts#L69) | function | `tests/kindleSyncService.test.ts` | 69-74 | Creates a minimal sync state object with imported highlights tracking. |
-| [`createMockPlugin`](../tests/llmFacade.test.ts#L3) | function | `tests/llmFacade.test.ts` | 3-16 | Creates a mock plugin with LLM service and cloud configuration for facade testing. |
-| [`makeContext`](../tests/llmFacadeStream.test.ts#L13) | function | `tests/llmFacadeStream.test.ts` | 13-18 | Creates a context object pairing an LLM service with cloud settings for streaming tests. |
-| [`transform`](../tests/markdownToProseTransformer.test.ts#L10) | function | `tests/markdownToProseTransformer.test.ts` | 10-12 | Transforms Markdown to spoken prose format for output testing. |
-| [`makeFile`](../tests/mermaidContextService.test.ts#L48) | function | `tests/mermaidContextService.test.ts` | 48-53 | Creates a mock TFile object with path and basename properties. |
-| [`makeMockApp`](../tests/mermaidContextService.test.ts#L80) | function | `tests/mermaidContextService.test.ts` | 80-95 | Creates a mock Obsidian app with vault and metadata cache for file resolution. |
-| [`makeMockPlugin`](../tests/mermaidContextService.test.ts#L61) | function | `tests/mermaidContextService.test.ts` | 61-77 | Creates a mock plugin with LLM and Mermaid chat settings for context service testing. |
-| [`mdWithMermaid`](../tests/mermaidContextService.test.ts#L56) | function | `tests/mermaidContextService.test.ts` | 56-58 | Wraps Mermaid code blocks in markdown fences with separator text. |
-| [`makeApp`](../tests/mermaidExportService.test.ts#L49) | function | `tests/mermaidExportService.test.ts` | 49-62 | Creates a mock Obsidian app with mocked vault and workspace methods for export testing. |
-| [`makePlugin`](../tests/mermaidExportService.test.ts#L29) | function | `tests/mermaidExportService.test.ts` | 29-47 | Creates a mock plugin with export folder paths and translation strings for Mermaid export. |
-| [`createMockPlugin`](../tests/mermaidTemplateService.test.ts#L15) | function | `tests/mermaidTemplateService.test.ts` | 15-28 | Creates a mock plugin with config service for Mermaid template resolution. |
-| [`createService`](../tests/mermaidTemplateService.test.ts#L30) | function | `tests/mermaidTemplateService.test.ts` | 30-35 | Creates a service instance with mocked app and plugin for template testing. |
-| [`makeFile`](../tests/metadataPostOp.test.ts#L31) | function | `tests/metadataPostOp.test.ts` | 31-35 | Creates a mock TFile object with path, name, and extension properties. |
-| [`makePlugin`](../tests/metadataPostOp.test.ts#L37) | function | `tests/metadataPostOp.test.ts` | 37-65 | Creates a mock plugin with frontmatter processor and vault read functionality for metadata operations. |
-| [`makeMinimalMinutesJSON`](../tests/minutesAuditor.test.ts#L15) | function | `tests/minutesAuditor.test.ts` | 15-41 | Creates a minimal meeting minutes JSON structure with metadata, participants, and agenda items. |
-| [`makeMockLLM`](../tests/minutesAuditor.test.ts#L43) | function | `tests/minutesAuditor.test.ts` | 43-50 | Creates a mock LLM returning a successful summarization response as JSON. |
-| [`makeMockLLMFailing`](../tests/minutesAuditor.test.ts#L61) | function | `tests/minutesAuditor.test.ts` | 61-65 | Creates a mock LLM that rejects with a timeout error. |
-| [`makeMockLLMRaw`](../tests/minutesAuditor.test.ts#L52) | function | `tests/minutesAuditor.test.ts` | 52-59 | Creates a mock LLM returning raw successful summarization content without parsing. |
-| [`makeMockLLMUnsuccessful`](../tests/minutesAuditor.test.ts#L67) | function | `tests/minutesAuditor.test.ts` | 67-75 | Creates a mock LLM returning an unsuccessful response with rate limit error. |
-| [`createModal`](../tests/minutesAutoFill.test.ts#L41) | function | `tests/minutesAutoFill.test.ts` | 41-46 | Creates a minutes creation modal with app and plugin for testing. |
-| [`createPlugin`](../tests/minutesAutoFill.test.ts#L13) | function | `tests/minutesAutoFill.test.ts` | 13-39 | Creates a plugin with minutes settings, audio config, and translation strings for modal testing. |
-| [`makeAgendaGroupedJson`](../tests/minutesDocxGenerator.test.ts#L303) | function | `tests/minutesDocxGenerator.test.ts` | 303-347 | Creates a board meeting minutes JSON with decisions and actions linked to agenda items. |
-| [`makeMinutesJson`](../tests/minutesDocxGenerator.test.ts#L10) | function | `tests/minutesDocxGenerator.test.ts` | 10-52 | Creates a comprehensive minutes JSON structure with all meeting components and metadata. |
-| [`makeMinimalJson`](../tests/minutesGTDRendering.test.ts#L9) | function | `tests/minutesGTDRendering.test.ts` | 9-35 | Creates a minimal meeting minutes JSON for GTD rendering test setup. |
-| [`makeMinimalJson`](../tests/minutesRendering.test.ts#L17) | function | `tests/minutesRendering.test.ts` | 17-46 | Creates a minimal meeting minutes JSON with participants and metadata for rendering tests. |
-| [`issuesForField`](../tests/minutesValidator.test.ts#L41) | function | `tests/minutesValidator.test.ts` | 41-43 | Filters validation issues by field name for targeted assertion checking. |
-| [`makeMinimalJson`](../tests/minutesValidator.test.ts#L12) | function | `tests/minutesValidator.test.ts` | 12-38 | Creates a minimal meeting minutes JSON with all required fields for validation testing. |
-| [`MockSecretStorage`](../tests/mocks/mockSecretStorage.ts#L6) | class | `tests/mocks/mockSecretStorage.ts` | 6-65 | Provides a mock implementation of Obsidian's SecretStorage API with in-memory store. |
-| [`App`](../tests/mocks/obsidian.ts#L85) | class | `tests/mocks/obsidian.ts` | 85-123 | Represents a mock Obsidian application with vault, metadata cache, and workspace APIs. |
-| [`clearMockNotices`](../tests/mocks/obsidian.ts#L81) | function | `tests/mocks/obsidian.ts` | 81-83 | Clears the array of mock notice messages for test isolation. |
-| [`createTFile`](../tests/mocks/obsidian.ts#L20) | function | `tests/mocks/obsidian.ts` | 20-28 | Creates a mock TFile with realistic path, name, basename, and extension properties. |
-| [`createTFolder`](../tests/mocks/obsidian.ts#L43) | function | `tests/mocks/obsidian.ts` | 43-48 | Creates a mock TFolder with path and name properties. |
-| [`FuzzySuggestModal`](../tests/mocks/obsidian.ts#L268) | class | `tests/mocks/obsidian.ts` | 268-279 | Mock class for Obsidian's fuzzy search modal with selectable items. |
-| [`ItemView`](../tests/mocks/obsidian.ts#L253) | class | `tests/mocks/obsidian.ts` | 253-266 | Mock class for Obsidian's ItemView that displays content in a workspace leaf. |
-| [`MockButton`](../tests/mocks/obsidian.ts#L397) | class | `tests/mocks/obsidian.ts` | 397-413 | Mock button control that stores text and executes click callbacks. |
-| [`MockDropdown`](../tests/mocks/obsidian.ts#L372) | class | `tests/mocks/obsidian.ts` | 372-395 | Mock dropdown selector that manages options and tracks selected value. |
-| [`MockHTMLElement`](../tests/mocks/obsidian.ts#L126) | class | `tests/mocks/obsidian.ts` | 126-210 | Represents a mock DOM element with class list, children, styles, and element creation methods. |
-| [`MockTextAreaComponent`](../tests/mocks/obsidian.ts#L368) | class | `tests/mocks/obsidian.ts` | 368-370 | Mock textarea component extending text input with customizable row height. |
-| [`MockTextComponent`](../tests/mocks/obsidian.ts#L349) | class | `tests/mocks/obsidian.ts` | 349-366 | Mock text input component that stores string values with onChange support. |
-| [`MockToggle`](../tests/mocks/obsidian.ts#L326) | class | `tests/mocks/obsidian.ts` | 326-347 | Mock toggle control that stores a boolean value and triggers change callbacks. |
-| [`Modal`](../tests/mocks/obsidian.ts#L212) | class | `tests/mocks/obsidian.ts` | 212-237 | Represents a mock modal dialog with open/closed state tracking. |
-| [`normalizePath`](../tests/mocks/obsidian.ts#L415) | function | `tests/mocks/obsidian.ts` | 415-417 | Normalizes file paths by converting backslashes to forward slashes and removing duplicates. |
-| [`Notice`](../tests/mocks/obsidian.ts#L52) | class | `tests/mocks/obsidian.ts` | 52-78 | Represents a mock notification toast with message, elements, and visibility control. |
-| [`Plugin`](../tests/mocks/obsidian.ts#L430) | class | `tests/mocks/obsidian.ts` | 430-444 | Mock plugin base class with app reference, manifest, and data persistence methods. |
-| [`PluginSettingTab`](../tests/mocks/obsidian.ts#L446) | class | `tests/mocks/obsidian.ts` | 446-456 | Mock settings tab base class for organizing plugin configuration UI. |
-| [`setIcon`](../tests/mocks/obsidian.ts#L419) | function | `tests/mocks/obsidian.ts` | 419-421 | <no body> |
-| [`Setting`](../tests/mocks/obsidian.ts#L281) | class | `tests/mocks/obsidian.ts` | 281-324 | Builder for creating configurable settings UI with various input types. |
-| [`TFile`](../tests/mocks/obsidian.ts#L9) | class | `tests/mocks/obsidian.ts` | 9-17 | Represents a mock file object with path, basename, extension, and stat metadata. |
-| [`TFolder`](../tests/mocks/obsidian.ts#L30) | class | `tests/mocks/obsidian.ts` | 30-40 | Represents a mock folder object with path, name, children, and root detection. |
-| [`WorkspaceLeaf`](../tests/mocks/obsidian.ts#L239) | class | `tests/mocks/obsidian.ts` | 239-251 | Represents a mock workspace leaf that can hold views and manage view state. |
-| [`concat`](../tests/mp3Writer.test.ts#L21) | function | `tests/mp3Writer.test.ts` | 21-31 | Concatenates multiple Int16Array buffers into a single combined array. |
-| [`makeSine`](../tests/mp3Writer.test.ts#L13) | function | `tests/mp3Writer.test.ts` | 13-19 | Generates a sine wave as a 16-bit audio sample array at specified frequency. |
-| [`getMessages`](../tests/multimodal.test.ts#L18) | function | `tests/multimodal.test.ts` | 18-20 | Extracts the messages array from an API request object with multimodal content. |
-| [`makeMockApp`](../tests/narrationEmbedManager.test.ts#L14) | function | `tests/narrationEmbedManager.test.ts` | 14-25 | Creates a mock Obsidian vault with file read/modify operations for testing. |
-| [`paragraph`](../tests/newsletterAudioChunking.test.ts#L15) | function | `tests/newsletterAudioChunking.test.ts` | 15-17 | Generates a paragraph of repeated words ending with a period. |
-| [`createMockPlugin`](../tests/newsletterServiceIntegration.test.ts#L105) | function | `tests/newsletterServiceIntegration.test.ts` | 105-129 | Creates a mock plugin instance with settings, app, and data persistence methods. |
-| [`createMockVault`](../tests/newsletterServiceIntegration.test.ts#L74) | function | `tests/newsletterServiceIntegration.test.ts` | 74-103 | Creates a mock Obsidian vault with file management and caching capabilities. |
-| [`makeRaw`](../tests/newsletterServiceIntegration.test.ts#L61) | function | `tests/newsletterServiceIntegration.test.ts` | 61-71 | Creates a mock email object with headers, HTML body, and plain text content. |
-| [`mockFetchResponse`](../tests/newsletterServiceIntegration.test.ts#L132) | function | `tests/newsletterServiceIntegration.test.ts` | 132-140 | Mocks HTTP requests to return email data or confirmation responses. |
-| [`makeConfig`](../tests/notebooklmIncrementalExport.test.ts#L11) | function | `tests/notebooklmIncrementalExport.test.ts` | 11-29 | Creates a configuration object for NotebookLM export with PDF formatting options. |
-| [`makeApp`](../tests/notebooklmWriter.test.ts#L9) | function | `tests/notebooklmWriter.test.ts` | 9-27 | Creates a mock Obsidian app with vault file/folder management operations. |
-| [`makeManifest`](../tests/notebooklmWriter.test.ts#L29) | function | `tests/notebooklmWriter.test.ts` | 29-75 | Creates a manifest describing exported notes with metadata and configuration details. |
-| [`makePlugin`](../tests/noticeUtils.test.ts#L30) | function | `tests/noticeUtils.test.ts` | 30-44 | Creates a mock plugin with settings API and translation strings for testing. |
-| [`cloneSettings`](../tests/pathUtils.test.ts#L17) | function | `tests/pathUtils.test.ts` | 17-19 | Clones default settings with optional override properties. |
-| [`createArrayBuffer`](../tests/pdfService.test.ts#L42) | function | `tests/pdfService.test.ts` | 42-44 | Creates an empty ArrayBuffer of specified byte size. |
-| [`createMockApp`](../tests/pdfService.test.ts#L32) | function | `tests/pdfService.test.ts` | 32-40 | Creates a mock Obsidian app with vault configuration and file system methods. |
-| [`TWO_SLIDE_DECK`](../tests/presentationDiff.test.ts#L13) | function | `tests/presentationDiff.test.ts` | 13-14 | Wraps HTML slide content in a container div with deck styling. |
-| [`buildCtx`](../tests/presentationDispatch.test.ts#L60) | function | `tests/presentationDispatch.test.ts` | 60-89 | Builds a context object with plugin, app, settings, and translation data for presentations. |
-| [`makeHandler`](../tests/presentationDispatch.test.ts#L51) | function | `tests/presentationDispatch.test.ts` | 51-58 | Creates a PresentationModeHandler instance with stub HTML for testing. |
-| [`makeFinding`](../tests/presentationQualityService.test.ts#L28) | function | `tests/presentationQualityService.test.ts` | 28-35 | Creates a finding object describing a presentation quality issue with severity level. |
-| [`makeSlideHtml`](../tests/presentationQualityService.test.ts#L38) | function | `tests/presentationQualityService.test.ts` | 38-43 | Generates HTML with multiple slides containing headings and paragraph content. |
-| [`mockLLMResponse`](../tests/presentationQualityService.test.ts#L45) | function | `tests/presentationQualityService.test.ts` | 45-50 | Mocks the summarizeText function to return findings as JSON-stringified data. |
-| [`note`](../tests/presentationSourceBudget.test.ts#L16) | function | `tests/presentationSourceBudget.test.ts` | 16-21 | Creates a note-type prompt source with content length and optional folder. |
-| [`web`](../tests/presentationSourceBudget.test.ts#L22) | function | `tests/presentationSourceBudget.test.ts` | 22-26 | Creates a web-search-type prompt source with content length. |
-| [`buildApp`](../tests/presentationSourceService.test.ts#L16) | function | `tests/presentationSourceService.test.ts` | 16-30 | Creates a mock Obsidian app with vault file/folder lookup and read operations. |
-| [`makeSlides`](../tests/presentationTypes.test.ts#L13) | function | `tests/presentationTypes.test.ts` | 13-23 | Creates an array of SlideInfo objects describing presentation slides. |
-| [`baseOptions`](../tests/progressReporter.test.ts#L134) | function | `tests/progressReporter.test.ts` | 134-141 | Creates default options for a progress reporter with plugin, phase resolution, and overrides. |
-| [`makeEl`](../tests/progressReporter.test.ts#L74) | function | `tests/progressReporter.test.ts` | 74-132 | Creates a mock DOM element with children, event listeners, and CSS/attribute management. |
-| [`makeHost`](../tests/progressReporter.test.ts#L57) | function | `tests/progressReporter.test.ts` | 57-72 | Creates a mock host object for progress UI with container and detach callbacks. |
-| [`makePlugin`](../tests/progressReporter.test.ts#L34) | function | `tests/progressReporter.test.ts` | 34-55 | Creates a mock plugin with status bar element and translated progress messages. |
-| [`makeApp`](../tests/projectServicePersistence.test.ts#L12) | function | `tests/projectServicePersistence.test.ts` | 12-41 | Creates a mock app with vault operations for file and folder management. |
-| [`makeSettings`](../tests/projectServicePersistence.test.ts#L8) | function | `tests/projectServicePersistence.test.ts` | 8-10 | Creates settings with chat root folder and plugin folder paths. |
-| [`makeApp`](../tests/projectTree.test.ts#L13) | function | `tests/projectTree.test.ts` | 13-98 | Creates a mock app with hierarchical folder/file structure and lookup methods. |
-| [`makeSettings`](../tests/projectTree.test.ts#L8) | function | `tests/projectTree.test.ts` | 8-10 | Creates settings with chat root folder and plugin folder paths. |
-| [`projectMd`](../tests/projectTree.test.ts#L100) | function | `tests/projectTree.test.ts` | 100-122 | Generates markdown frontmatter and structure for a project file. |
-| [`makeExtractResult`](../tests/quickPeekService.test.ts#L87) | function | `tests/quickPeekService.test.ts` | 87-91 | Creates an extraction result object with success/content/error states. |
-| [`makeItem`](../tests/quickPeekService.test.ts#L75) | function | `tests/quickPeekService.test.ts` | 75-85 | Creates a detected content item representing a URL for Quick Peek analysis. |
-| [`makePlugin`](../tests/quickPeekService.test.ts#L56) | function | `tests/quickPeekService.test.ts` | 56-73 | Creates a mock plugin with QuickPeek settings and provider fallback message. |
-| [`createMockFile`](../tests/ragService.test.ts#L366) | function | `tests/ragService.test.ts` | 366-369 | Creates a mock file object with path and basename properties. |
-| [`createMockSettings`](../tests/ragService.test.ts#L354) | function | `tests/ragService.test.ts` | 354-361 | Creates mock RAG service settings with context chunk count and metadata options. |
-| [`MockEmbeddingService`](../tests/ragService.test.ts#L22) | class | `tests/ragService.test.ts` | 22-64 | Generates deterministic test embeddings based on text length and provides mock embedding service methods. |
-| [`TestVectorStore`](../tests/ragService.test.ts#L70) | class | `tests/ragService.test.ts` | 70-349 | In-memory vector store implementation that stores documents and embeddings for testing RAG functionality. |
-| [`buildLLMResponse`](../tests/refineHtmlScoped.test.ts#L54) | function | `tests/refineHtmlScoped.test.ts` | 54-56 | Wraps HTML content with start and end markers for deck parsing. |
-| [`makeMockProvider`](../tests/refineHtmlScoped.test.ts#L45) | function | `tests/refineHtmlScoped.test.ts` | 45-52 | Creates a mock provider with stubbed web research, reference, and folder reading methods. |
-| [`makePlugin`](../tests/researchOrchestrator.test.ts#L68) | function | `tests/researchOrchestrator.test.ts` | 68-87 | Creates a mock plugin with vault operations, file management, and secret storage for testing. |
-| [`makeResult`](../tests/researchOrchestrator.test.ts#L95) | function | `tests/researchOrchestrator.test.ts` | 95-104 | Builds a test search result object with customizable fields. |
-| [`makeSearchService`](../tests/researchOrchestrator.test.ts#L89) | function | `tests/researchOrchestrator.test.ts` | 89-93 | Creates a mock search service with a mocked search method. |
-| [`makeSessionState`](../tests/researchOrchestrator.test.ts#L106) | function | `tests/researchOrchestrator.test.ts` | 106-118 | Creates a test research session state with default question, results, and metadata. |
-| [`makeMockPlugin`](../tests/researchSearchService.test.ts#L36) | function | `tests/researchSearchService.test.ts` | 36-43 | Creates a mock plugin with research provider settings and secret storage. |
-| [`makeMockProvider`](../tests/researchSearchService.test.ts#L27) | function | `tests/researchSearchService.test.ts` | 27-34 | Creates a mock search provider with tavily type and configurable search behavior. |
-| [`makeResult`](../tests/researchSearchService.test.ts#L16) | function | `tests/researchSearchService.test.ts` | 16-25 | Builds a test search result with title, URL, snippet, and domain. |
-| [`createMockApp`](../tests/researchUsageService.test.ts#L13) | function | `tests/researchUsageService.test.ts` | 13-26 | Creates a mock Obsidian app with vault and file operations. |
-| [`createMockSettings`](../tests/researchUsageService.test.ts#L29) | function | `tests/researchUsageService.test.ts` | 29-39 | Creates mock AI Organiser settings with budget and guardrail configuration. |
-| [`makePlugin`](../tests/reviewEditsHelper.test.ts#L63) | function | `tests/reviewEditsHelper.test.ts` | 63-72 | Creates a mock plugin with review edits settings and translation strings. |
-| [`makeDiff`](../tests/reviewEditsModal.test.ts#L44) | function | `tests/reviewEditsModal.test.ts` | 44-54 | Builds a test diff object with added, removed, and unchanged line changes. |
-| [`mockEmbeddingService`](../tests/semanticSearchPlan.test.ts#L21) | function | `tests/semanticSearchPlan.test.ts` | 21-31 | Creates a mock embedding service with stubbed methods for dimension and model info. |
-| [`makeOptions`](../tests/slideDiffModal.test.ts#L37) | function | `tests/slideDiffModal.test.ts` | 37-53 | Creates test options for slide diff modal with scope and integrity configuration. |
-| [`makeResult`](../tests/sourceQualityService.test.ts#L19) | function | `tests/sourceQualityService.test.ts` | 19-28 | Builds a test search result for quality assessment testing. |
-| [`buildCsv`](../tests/spreadsheetService.test.ts#L28) | function | `tests/spreadsheetService.test.ts` | 28-31 | Converts CSV text into a binary ArrayBuffer for testing CSV export. |
-| [`buildXlsx`](../tests/spreadsheetService.test.ts#L14) | function | `tests/spreadsheetService.test.ts` | 14-26 | Converts sheet data into an XLSX binary ArrayBuffer for testing spreadsheet export. |
-| [`createAssembler`](../tests/streamingHtmlAssembler.test.ts#L22) | function | `tests/streamingHtmlAssembler.test.ts` | 22-31 | Instantiates a StreamingHtmlAssembler with CSS theme and checkpoint callback. |
-| [`wrapDeck`](../tests/streamingHtmlAssembler.test.ts#L39) | function | `tests/streamingHtmlAssembler.test.ts` | 39-41 | Wraps slide HTML with deck markers for streaming assembly testing. |
-| [`adapterConfig`](../tests/streamingSynthesis.test.ts#L75) | function | `tests/streamingSynthesis.test.ts` | 75-79 | Returns adapter configuration with endpoint, API key, and model name. |
-| [`makePlugin`](../tests/streamingSynthesis.test.ts#L81) | function | `tests/streamingSynthesis.test.ts` | 81-95 | Creates a mock plugin with cloud LLM settings and vault operations. |
-| [`makeSearchService`](../tests/streamingSynthesis.test.ts#L97) | function | `tests/streamingSynthesis.test.ts` | 97-99 | Creates a mock search service for streaming synthesis testing. |
-| [`makeLLMService`](../tests/taxonomyGuardrailService.test.ts#L26) | function | `tests/taxonomyGuardrailService.test.ts` | 26-30 | Creates a mock LLM service that returns successful text summaries. |
-| [`makeLLMServiceFailing`](../tests/taxonomyGuardrailService.test.ts#L32) | function | `tests/taxonomyGuardrailService.test.ts` | 32-36 | Creates a mock LLM service that rejects with an unavailable error. |
-| [`makeTaxonomy`](../tests/taxonomyGuardrailService.test.ts#L16) | function | `tests/taxonomyGuardrailService.test.ts` | 16-24 | Creates a mock taxonomy with themes and disciplines containing metadata. |
-| [`makePlugin`](../tests/translateTitleSafely.test.ts#L28) | function | `tests/translateTitleSafely.test.ts` | 28-30 | Creates a minimal mock plugin for safe title translation testing. |
-| [`createMockContext`](../tests/unifiedChat.test.ts#L84) | function | `tests/unifiedChat.test.ts` | 84-104 | Creates a mock context with app, plugin, and chat configuration for modal testing. |
-| [`createMockTranslations`](../tests/unifiedChat.test.ts#L18) | function | `tests/unifiedChat.test.ts` | 18-82 | Creates comprehensive mock translation strings for unified chat modal interface. |
-| [`createStubHandler`](../tests/unifiedChat.test.ts#L106) | function | `tests/unifiedChat.test.ts` | 106-118 | Creates a stub chat mode handler with all required methods for handler testing. |
-| [`makeArticle`](../tests/webContentService.test.ts#L57) | function | `tests/webContentService.test.ts` | 57-66 | Creates a mock article object with parsed content metadata. |
-| [`makeHtmlResponse`](../tests/webContentService.test.ts#L49) | function | `tests/webContentService.test.ts` | 49-54 | Builds a mock HTTP response with HTML content and headers. |
-| [`makeFetchFailure`](../tests/webReaderService.test.ts#L91) | function | `tests/webReaderService.test.ts` | 91-97 | Creates a failed web content fetch result with error message. |
-| [`makeFetchSuccess`](../tests/webReaderService.test.ts#L77) | function | `tests/webReaderService.test.ts` | 77-89 | Creates a successful web content fetch result with article metadata. |
-| [`makePlugin`](../tests/webReaderService.test.ts#L55) | function | `tests/webReaderService.test.ts` | 55-75 | Creates a mock plugin with web reader settings and LLM service. |
-| [`makePlugin`](../tests/withProgress.test.ts#L32) | function | `tests/withProgress.test.ts` | 32-48 | Creates a mock plugin with progress UI elements and localization strings. |
-| [`opts`](../tests/withProgress.test.ts#L50) | function | `tests/withProgress.test.ts` | 50-56 | Creates options for progress tracking with plugin and phase configuration. |
-| [`makeSource`](../tests/zoteroBridgeService.test.ts#L23) | function | `tests/zoteroBridgeService.test.ts` | 23-33 | Builds a mock web source with URL, title, domain, and extraction metadata. |
-| [`markdownTextPlugin`](../vitest.config.ts#L9) | function | `vitest.config.ts` | 9-18 | Vite plugin that transforms markdown imports into exported string constants. |
+
+---
+
+## validators
+
+```mermaid
+flowchart TB
+subgraph dom_validators ["validators"]
+  file_src_services_validators_integrationAudit["src/services/validators/integrationAuditor.ts"]:::component
+  sym_src_services_validators_integrationAudit["auditIntegrationWithLLM"]:::symbol
+  file_src_services_validators_integrationAudit --> sym_src_services_validators_integrationAudit
+  sym_src_services_validators_integrationAudit["resolveAuditService"]:::symbol
+  file_src_services_validators_integrationAudit --> sym_src_services_validators_integrationAudit
+  file_src_services_validators_integrationValid["src/services/validators/integrationValidator.ts"]:::component
+  sym_src_services_validators_integrationValid["checkContentPreservation"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  sym_src_services_validators_integrationValid["checkEmbedPreservation"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  sym_src_services_validators_integrationValid["checkFormatCompliance"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  sym_src_services_validators_integrationValid["checkLengthSanity"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  sym_src_services_validators_integrationValid["stripPreamble"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  sym_src_services_validators_integrationValid["validateIntegrationOutput"]:::symbol
+  file_src_services_validators_integrationValid --> sym_src_services_validators_integrationValid
+  file_src_services_validators_minutesAuditor_t["src/services/validators/minutesAuditor.ts"]:::component
+  sym_src_services_validators_minutesAuditor_t["auditMinutesWithLLM"]:::symbol
+  file_src_services_validators_minutesAuditor_t --> sym_src_services_validators_minutesAuditor_t
+  sym_src_services_validators_minutesAuditor_t["makeSkipResult"]:::symbol
+  file_src_services_validators_minutesAuditor_t --> sym_src_services_validators_minutesAuditor_t
+  sym_src_services_validators_minutesAuditor_t["resolveAuditService"]:::symbol
+  file_src_services_validators_minutesAuditor_t --> sym_src_services_validators_minutesAuditor_t
+  file_src_services_validators_minutesValidator["src/services/validators/minutesValidator.ts"]:::component
+  sym_src_services_validators_minutesValidator["auditConfidence"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["crossRefOwners"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["isParseableDate"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateActions"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateDecisions"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateDeferredItems"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateGTD"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateMetadata"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateMinutesJSON"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateNotablePoints"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateOpenQuestions"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateParticipants"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+  sym_src_services_validators_minutesValidator["validateRisks"]:::symbol
+  file_src_services_validators_minutesValidator --> sym_src_services_validators_minutesValidator
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`auditIntegrationWithLLM`](../src/services/validators/integrationAuditor.ts#L39) | function | `src/services/validators/integrationAuditor.ts` | 39-82 | Audits LLM integration output against original content using an LLM to flag quality issues. |
+| [`resolveAuditService`](../src/services/validators/integrationAuditor.ts#L90) | function | `src/services/validators/integrationAuditor.ts` | 90-104 | Resolves which LLM service to use for auditing—a dedicated cloud provider or the main service. |
+| [`checkContentPreservation`](../src/services/validators/integrationValidator.ts#L74) | function | `src/services/validators/integrationValidator.ts` | 74-98 | Checks that headings and embedded content from the original are preserved in the output. |
+| [`checkEmbedPreservation`](../src/services/validators/integrationValidator.ts#L100) | function | `src/services/validators/integrationValidator.ts` | 100-113 | Verifies that embedded content (images, links) count has not dropped below a threshold. |
+| [`checkFormatCompliance`](../src/services/validators/integrationValidator.ts#L117) | function | `src/services/validators/integrationValidator.ts` | 117-148 | Validates that output matches the requested format (tasks with checkboxes, table, bullets, or prose). |
+| [`checkLengthSanity`](../src/services/validators/integrationValidator.ts#L152) | function | `src/services/validators/integrationValidator.ts` | 152-178 | Checks that output length is within reasonable bounds relative to input length to detect data loss or hallucination. |
+| [`stripPreamble`](../src/services/validators/integrationValidator.ts#L58) | function | `src/services/validators/integrationValidator.ts` | 58-70 | Strips LLM preambles (e.g. "Here's the summary:") from output and records the removal. |
+| [`validateIntegrationOutput`](../src/services/validators/integrationValidator.ts#L26) | function | `src/services/validators/integrationValidator.ts` | 26-54 | Validates LLM-generated integration output by checking for instruction leakage, content preservation, format compliance, and length sanity. |
+| [`auditMinutesWithLLM`](../src/services/validators/minutesAuditor.ts#L38) | function | `src/services/validators/minutesAuditor.ts` | 38-98 | Audits generated minutes JSON against transcript and validation issues using an LLM to optimize or flag problems. |
+| [`makeSkipResult`](../src/services/validators/minutesAuditor.ts#L122) | function | `src/services/validators/minutesAuditor.ts` | 122-132 | Returns a pass result indicating the LLM audit was skipped. |
+| [`resolveAuditService`](../src/services/validators/minutesAuditor.ts#L106) | function | `src/services/validators/minutesAuditor.ts` | 106-120 | Resolves which LLM service to use for auditing—a dedicated cloud provider or the main service. |
+| [`auditConfidence`](../src/services/validators/minutesValidator.ts#L326) | function | `src/services/validators/minutesValidator.ts` | 326-346 | Audits confidence levels across all item types and warns if low-confidence items exceed a threshold. |
+| [`crossRefOwners`](../src/services/validators/minutesValidator.ts#L258) | function | `src/services/validators/minutesValidator.ts` | 258-286 | Cross-references action owners and GTD waiting_on persons against participant names to warn of mismatches. |
+| [`isParseableDate`](../src/services/validators/minutesValidator.ts#L350) | function | `src/services/validators/minutesValidator.ts` | 350-355 | Checks whether a date string can be parsed into a valid Date object. |
+| [`validateActions`](../src/services/validators/minutesValidator.ts#L112) | function | `src/services/validators/minutesValidator.ts` | 112-162 | <no body> |
+| [`validateDecisions`](../src/services/validators/minutesValidator.ts#L166) | function | `src/services/validators/minutesValidator.ts` | 166-194 | Validates decisions by auto-generating IDs and detecting duplicate IDs and missing text. |
+| [`validateDeferredItems`](../src/services/validators/minutesValidator.ts#L243) | function | `src/services/validators/minutesValidator.ts` | 243-254 | Ensures deferred_items array exists and generates missing IDs with P-prefixed labels. |
+| [`validateGTD`](../src/services/validators/minutesValidator.ts#L290) | function | `src/services/validators/minutesValidator.ts` | 290-322 | Validates GTD next_actions contexts against allowed values and checks waiting_for items for empty waiting_on fields. |
+| [`validateMetadata`](../src/services/validators/minutesValidator.ts#L75) | function | `src/services/validators/minutesValidator.ts` | 75-94 | Validates meeting metadata fields including title, date, and time for completeness and parseability. |
+| [`validateMinutesJSON`](../src/services/validators/minutesValidator.ts#L22) | function | `src/services/validators/minutesValidator.ts` | 22-71 | Validates a minutes JSON structure by checking metadata, participants, actions, decisions, risks, and cross-references. |
+| [`validateNotablePoints`](../src/services/validators/minutesValidator.ts#L213) | function | `src/services/validators/minutesValidator.ts` | 213-224 | Ensures notable_points array exists and generates missing IDs with N-prefixed labels. |
+| [`validateOpenQuestions`](../src/services/validators/minutesValidator.ts#L228) | function | `src/services/validators/minutesValidator.ts` | 228-239 | Ensures open_questions array exists and generates missing IDs with Q-prefixed labels. |
+| [`validateParticipants`](../src/services/validators/minutesValidator.ts#L98) | function | `src/services/validators/minutesValidator.ts` | 98-108 | Validates that participants array exists and contains entries with non-empty names. |
+| [`validateRisks`](../src/services/validators/minutesValidator.ts#L198) | function | `src/services/validators/minutesValidator.ts` | 198-209 | Validates risks by auto-generating IDs for any missing ones. |
+
+---
+
+## vector-store
+
+```mermaid
+flowchart TB
+subgraph dom_vector_store ["vector-store"]
+  file_src_services_vector_hashUtils_ts["src/services/vector/hashUtils.ts"]:::component
+  sym_src_services_vector_hashUtils_ts_createC["createContentHash"]:::symbol
+  file_src_services_vector_hashUtils_ts --> sym_src_services_vector_hashUtils_ts_createC
+  file_src_services_vector_simpleVectorStore_ts["src/services/vector/simpleVectorStore.ts"]:::component
+  sym_src_services_vector_simpleVectorStore_ts["SimpleFileChangeTracker"]:::symbol
+  file_src_services_vector_simpleVectorStore_ts --> sym_src_services_vector_simpleVectorStore_ts
+  sym_src_services_vector_simpleVectorStore_ts["SimpleVectorStore"]:::symbol
+  file_src_services_vector_simpleVectorStore_ts --> sym_src_services_vector_simpleVectorStore_ts
+  file_src_services_vector_vectorMath_ts["src/services/vector/vectorMath.ts"]:::component
+  sym_src_services_vector_vectorMath_ts_cosine["cosineSimilarity"]:::symbol
+  file_src_services_vector_vectorMath_ts --> sym_src_services_vector_vectorMath_ts_cosine
+  file_src_services_vector_vectorStoreService_t["src/services/vector/vectorStoreService.ts"]:::component
+  sym_src_services_vector_vectorStoreService_t["SearchCache"]:::symbol
+  file_src_services_vector_vectorStoreService_t --> sym_src_services_vector_vectorStoreService_t
+  sym_src_services_vector_vectorStoreService_t["VectorStoreService"]:::symbol
+  file_src_services_vector_vectorStoreService_t --> sym_src_services_vector_vectorStoreService_t
+  file_src_services_vector_voyVectorStore_ts["src/services/vector/voyVectorStore.ts"]:::component
+  sym_src_services_vector_voyVectorStore_ts_en["ensureVoyWasmReady"]:::symbol
+  file_src_services_vector_voyVectorStore_ts --> sym_src_services_vector_voyVectorStore_ts_en
+  sym_src_services_vector_voyVectorStore_ts_Si["SimpleFileChangeTracker"]:::symbol
+  file_src_services_vector_voyVectorStore_ts --> sym_src_services_vector_voyVectorStore_ts_Si
+  sym_src_services_vector_voyVectorStore_ts_Vo["VoyVectorStore"]:::symbol
+  file_src_services_vector_voyVectorStore_ts --> sym_src_services_vector_voyVectorStore_ts_Vo
+end
+classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
+classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
+classDef symbol fill:#fff,stroke:#999,color:#444
+classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
+classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
+```
+
+### Symbols in this domain
+
+| Symbol | Kind | Path | Lines | Purpose |
+|---|---|---|---|---|
+| [`createContentHash`](../src/services/vector/hashUtils.ts#L10) | function | `src/services/vector/hashUtils.ts` | 10-19 | Computes SHA-256 hash of content as a hex string. |
+| [`SimpleFileChangeTracker`](../src/services/vector/simpleVectorStore.ts#L14) | class | `src/services/vector/simpleVectorStore.ts` | 14-37 | In-memory tracker that stores and compares file content hashes to detect changes. |
+| [`SimpleVectorStore`](../src/services/vector/simpleVectorStore.ts#L43) | class | `src/services/vector/simpleVectorStore.ts` | 43-211 | <no body> |
+| [`cosineSimilarity`](../src/services/vector/vectorMath.ts#L6) | function | `src/services/vector/vectorMath.ts` | 6-24 | Calculates cosine similarity between two numeric vectors. |
+| [`SearchCache`](../src/services/vector/vectorStoreService.ts#L29) | class | `src/services/vector/vectorStoreService.ts` | 29-108 | LRU cache with TTL for storing and retrieving search query results. |
+| [`VectorStoreService`](../src/services/vector/vectorStoreService.ts#L113) | class | `src/services/vector/vectorStoreService.ts` | 113-739 | <no body> |
+| [`ensureVoyWasmReady`](../src/services/vector/voyVectorStore.ts#L24) | function | `src/services/vector/voyVectorStore.ts` | 24-44 | Ensures Voy WASM module is initialized and ready before use. |
+| [`SimpleFileChangeTracker`](../src/services/vector/voyVectorStore.ts#L49) | class | `src/services/vector/voyVectorStore.ts` | 49-72 | In-memory tracker that stores and compares file content hashes to detect changes. |
+| [`VoyVectorStore`](../src/services/vector/voyVectorStore.ts#L78) | class | `src/services/vector/voyVectorStore.ts` | 78-441 | <no body> |
 
 ---
 
