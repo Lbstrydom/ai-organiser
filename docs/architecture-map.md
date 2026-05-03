@@ -1,12 +1,12 @@
 <!-- audit-loop:architectural-map -->
 # Architecture Map — Lbstrydom/ai-organiser
 
-- Generated: 2026-05-02T12:30:35.531Z   commit: 37a86be10478   refresh_id: d048db29-7f0b-45f3-8dd5-7cdadc5c385e
+- Generated: 2026-05-03T08:53:09.918Z   commit: 3a1315c9d5eb   refresh_id: 925a6c29-baca-45b0-8a91-58029205c5a0
 - Drift score: 0 / threshold 20   status: `INSUFFICIENT_DATA`
-- Domains: 1   Symbols: 2391   Layering violations: 0
+- Domains: 1   Symbols: 2394   Layering violations: 0
 
 ## Contents
-- [_other](#-other) — 2391 symbols
+- [_other](#-other) — 2394 symbols
 
 ---
 
@@ -56,7 +56,7 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 2391 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+_Domain has 2394 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
 
 ### Symbols in this domain
 
@@ -882,33 +882,33 @@ _Domain has 2391 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`registerWebReaderCommands`](../src/commands/webReaderCommands.ts#L15) | function | `src/commands/webReaderCommands.ts` | 15-54 | Registers web-reader command that detects URLs in current note and opens a modal to fetch and translate them. |
 | [`err`](../src/core/result.ts#L6) | function | `src/core/result.ts` | 6-6 | Wraps an error in a failure result object. |
 | [`ok`](../src/core/result.ts#L5) | function | `src/core/result.ts` | 5-5 | Wraps a value in a success result object. |
-| [`collapseDuplicatePrefix`](../src/core/settings.ts#L627) | function | `src/core/settings.ts` | 627-637 | Eliminates duplicate plugin folder prefixes from a full path. |
-| [`getAudioNarrationFullPath`](../src/core/settings.ts#L718) | function | `src/core/settings.ts` | 718-720 | Returns the full path to the audio narration output folder. |
-| [`getCanvasOutputFullPath`](../src/core/settings.ts#L726) | function | `src/core/settings.ts` | 726-728 | Returns the full path to the canvas output folder. |
-| [`getChatExportFullPath`](../src/core/settings.ts#L722) | function | `src/core/settings.ts` | 722-724 | Returns the full path to the chat export folder. |
-| [`getChatRootFullPath`](../src/core/settings.ts#L788) | function | `src/core/settings.ts` | 788-792 | Returns the full path to the chat root folder, resolving it relative to the output root. |
-| [`getConfigFolderFullPath`](../src/core/settings.ts#L694) | function | `src/core/settings.ts` | 694-696 | Returns the full path to the plugin's config folder. |
-| [`getDefaultTimezone`](../src/core/settings.ts#L348) | function | `src/core/settings.ts` | 348-354 | Returns the system's default timezone, falling back to UTC on error. |
-| [`getDictionariesFolderFullPath`](../src/core/settings.ts#L702) | function | `src/core/settings.ts` | 702-704 | Returns the full path to the dictionaries folder within config. |
-| [`getEffectiveOutputRoot`](../src/core/settings.ts#L656) | function | `src/core/settings.ts` | 656-662 | Returns the effective output root folder, defaulting to the plugin folder if not configured. |
-| [`getExportOutputFullPath`](../src/core/settings.ts#L710) | function | `src/core/settings.ts` | 710-712 | Returns the full path to the general export output folder. |
-| [`getFlashcardFullPath`](../src/core/settings.ts#L714) | function | `src/core/settings.ts` | 714-716 | Returns the full path to the flashcard output folder. |
-| [`getKindleOutputFullPath`](../src/core/settings.ts#L734) | function | `src/core/settings.ts` | 734-736 | Returns the full path to the Kindle output folder. |
-| [`getMinutesOutputFullPath`](../src/core/settings.ts#L706) | function | `src/core/settings.ts` | 706-708 | Returns the full path to the meeting minutes output folder. |
-| [`getNewsletterOutputFullPath`](../src/core/settings.ts#L738) | function | `src/core/settings.ts` | 738-740 | Returns the full path to the newsletter inbox output folder. |
-| [`getNotebookLMExportFullPath`](../src/core/settings.ts#L698) | function | `src/core/settings.ts` | 698-700 | Returns the full path to the NotebookLM export folder. |
-| [`getOutputSubfolderPath`](../src/core/settings.ts#L690) | function | `src/core/settings.ts` | 690-692 | Returns the full path to an output subfolder under the effective output root. |
-| [`getPluginManagedFolders`](../src/core/settings.ts#L759) | function | `src/core/settings.ts` | 759-785 | Lists all plugin-managed folders to exclude from file suggestions, handling both unified and split output root configurations. |
-| [`getPluginSubfolderPath`](../src/core/settings.ts#L614) | function | `src/core/settings.ts` | 614-616 | Returns the full path of a plugin subfolder within the configured plugin folder. |
-| [`getResearchOutputFullPath`](../src/core/settings.ts#L750) | function | `src/core/settings.ts` | 750-752 | Returns the full path to the research output folder. |
-| [`getSketchOutputFullPath`](../src/core/settings.ts#L746) | function | `src/core/settings.ts` | 746-748 | Returns the full path to the sketch output folder. |
-| [`getTranscriptFullPath`](../src/core/settings.ts#L742) | function | `src/core/settings.ts` | 742-744 | Returns the full path to the transcript output folder. |
-| [`getWebReaderOutputFullPath`](../src/core/settings.ts#L730) | function | `src/core/settings.ts` | 730-732 | Returns the full path to the web reader output folder. |
-| [`migrateDeprecatedGeminiIds`](../src/core/settings.ts#L893) | function | `src/core/settings.ts` | 893-908 | Remaps deprecated Gemini model IDs to their latest equivalents. |
-| [`migrateOldSettings`](../src/core/settings.ts#L799) | function | `src/core/settings.ts` | 799-869 | Migrates deprecated settings from old plugin versions to current format (Ollama → local, persona names, summary lengths, folder paths, Gemini model IDs). |
-| [`normalizeFolderSegment`](../src/core/settings.ts#L618) | function | `src/core/settings.ts` | 618-625 | Normalizes a folder path segment by trimming, converting backslashes, and removing leading/trailing slashes. |
-| [`resolveOutputPath`](../src/core/settings.ts#L668) | function | `src/core/settings.ts` | 668-685 | Resolves a relative subfolder path to its full output path, handling legacy prefixes. |
-| [`resolvePluginPath`](../src/core/settings.ts#L639) | function | `src/core/settings.ts` | 639-650 | Resolves a relative subfolder path to its full plugin path, handling legacy full paths. |
+| [`collapseDuplicatePrefix`](../src/core/settings.ts#L633) | function | `src/core/settings.ts` | 633-643 | Removes duplicate plugin folder prefixes from a full path. |
+| [`getAudioNarrationFullPath`](../src/core/settings.ts#L724) | function | `src/core/settings.ts` | 724-726 | Returns the full path to the audio narration output folder. |
+| [`getCanvasOutputFullPath`](../src/core/settings.ts#L732) | function | `src/core/settings.ts` | 732-734 | Returns the full path to the canvas output folder. |
+| [`getChatExportFullPath`](../src/core/settings.ts#L728) | function | `src/core/settings.ts` | 728-730 | Returns the full path to the chat export output folder. |
+| [`getChatRootFullPath`](../src/core/settings.ts#L794) | function | `src/core/settings.ts` | 794-798 | Returns the full path to the AI chat root folder. |
+| [`getConfigFolderFullPath`](../src/core/settings.ts#L700) | function | `src/core/settings.ts` | 700-702 | Returns the full path to the configuration folder. |
+| [`getDefaultTimezone`](../src/core/settings.ts#L352) | function | `src/core/settings.ts` | 352-358 | Returns the system's current timezone or 'UTC' as a fallback. |
+| [`getDictionariesFolderFullPath`](../src/core/settings.ts#L708) | function | `src/core/settings.ts` | 708-710 | Returns the full path to the dictionaries subfolder within the config folder. |
+| [`getEffectiveOutputRoot`](../src/core/settings.ts#L662) | function | `src/core/settings.ts` | 662-668 | Returns the effective output root folder, defaulting to the plugin folder if not set. |
+| [`getExportOutputFullPath`](../src/core/settings.ts#L716) | function | `src/core/settings.ts` | 716-718 | Returns the full path to the general exports output folder. |
+| [`getFlashcardFullPath`](../src/core/settings.ts#L720) | function | `src/core/settings.ts` | 720-722 | Returns the full path to the flashcards output folder. |
+| [`getKindleOutputFullPath`](../src/core/settings.ts#L740) | function | `src/core/settings.ts` | 740-742 | Returns the full path to the Kindle output folder. |
+| [`getMinutesOutputFullPath`](../src/core/settings.ts#L712) | function | `src/core/settings.ts` | 712-714 | Returns the full path to the meeting minutes output folder. |
+| [`getNewsletterOutputFullPath`](../src/core/settings.ts#L744) | function | `src/core/settings.ts` | 744-746 | Returns the full path to the newsletter inbox output folder. |
+| [`getNotebookLMExportFullPath`](../src/core/settings.ts#L704) | function | `src/core/settings.ts` | 704-706 | Returns the full path to the NotebookLM export folder. |
+| [`getOutputSubfolderPath`](../src/core/settings.ts#L696) | function | `src/core/settings.ts` | 696-698 | Constructs an output subfolder's full path using the effective output root. |
+| [`getPluginManagedFolders`](../src/core/settings.ts#L765) | function | `src/core/settings.ts` | 765-791 | Lists all plugin-managed folder paths to exclude from vault backups and sync operations. |
+| [`getPluginSubfolderPath`](../src/core/settings.ts#L620) | function | `src/core/settings.ts` | 620-622 | Combines plugin folder and subfolder paths with a forward slash. |
+| [`getResearchOutputFullPath`](../src/core/settings.ts#L756) | function | `src/core/settings.ts` | 756-758 | Returns the full path to the research output folder. |
+| [`getSketchOutputFullPath`](../src/core/settings.ts#L752) | function | `src/core/settings.ts` | 752-754 | Returns the full path to the sketches output folder. |
+| [`getTranscriptFullPath`](../src/core/settings.ts#L748) | function | `src/core/settings.ts` | 748-750 | Returns the full path to the transcripts output folder. |
+| [`getWebReaderOutputFullPath`](../src/core/settings.ts#L736) | function | `src/core/settings.ts` | 736-738 | Returns the full path to the web reader output folder. |
+| [`migrateDeprecatedGeminiIds`](../src/core/settings.ts#L899) | function | `src/core/settings.ts` | 899-914 | Remaps deprecated Gemini model identifiers to their current aliases. |
+| [`migrateOldSettings`](../src/core/settings.ts#L805) | function | `src/core/settings.ts` | 805-875 | <no body> |
+| [`normalizeFolderSegment`](../src/core/settings.ts#L624) | function | `src/core/settings.ts` | 624-631 | Normalizes a folder name by trimming whitespace, converting backslashes, and removing leading/trailing slashes. |
+| [`resolveOutputPath`](../src/core/settings.ts#L674) | function | `src/core/settings.ts` | 674-691 | Resolves a subfolder value to a full output path, handling legacy prefix migrations. |
+| [`resolvePluginPath`](../src/core/settings.ts#L645) | function | `src/core/settings.ts` | 645-656 | Resolves a subfolder value to a full plugin path, handling legacy full-path inputs. |
 | [`getLanguageOptions`](../src/i18n/index.ts#L38) | function | `src/i18n/index.ts` | 38-43 | Returns a map of all supported language codes to their display names. |
 | [`getTranslations`](../src/i18n/index.ts#L30) | function | `src/i18n/index.ts` | 30-32 | Returns the translation object for a given language code, defaulting to English. |
 | [`isSupportedLanguage`](../src/i18n/index.ts#L50) | function | `src/i18n/index.ts` | 50-52 | Checks whether a language code is supported by the plugin's translation system. |
@@ -1827,17 +1827,20 @@ _Domain has 2391 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`ChatResumePickerModal`](../src/ui/modals/ChatResumePickerModal.ts#L24) | class | `src/ui/modals/ChatResumePickerModal.ts` | 24-307 | Modal presenting recent projects and conversations for resuming or starting a new chat session. |
 | [`ChatSearchModal`](../src/ui/modals/ChatSearchModal.ts#L41) | class | `src/ui/modals/ChatSearchModal.ts` | 41-339 | Modal for searching through chat conversations with filters, keyboard navigation, and result selection. |
 | [`ClearTagsScopeModal`](../src/ui/modals/ClearTagsScopeModal.ts#L13) | class | `src/ui/modals/ClearTagsScopeModal.ts` | 13-108 | Modal for selecting the scope (note, folder, or vault) where tags should be cleared. |
-| [`buildCommandCategories`](../src/ui/modals/CommandPickerModal.ts#L595) | function | `src/ui/modals/CommandPickerModal.ts` | 595-854 | Builds a hierarchical command catalog with aliases, legacy taxonomy terms, and cross-listed commands. |
-| [`CommandPickerModal`](../src/ui/modals/CommandPickerModal.ts#L53) | class | `src/ui/modals/CommandPickerModal.ts` | 53-554 | Modal for browsing and searching plugin commands with category navigation and keyboard shortcuts. |
-| [`findLeafByIdInCategories`](../src/ui/modals/CommandPickerModal.ts#L579) | function | `src/ui/modals/CommandPickerModal.ts` | 579-593 | Recursively searches command categories and subcategories to find and return a command by ID. |
-| [`buildBrowseTree`](../src/ui/modals/commandPickerViewModel.ts#L98) | function | `src/ui/modals/commandPickerViewModel.ts` | 98-151 | Generates a hierarchical list of visible items by iterating categories and expanding selected command groups. |
-| [`buildSearchResults`](../src/ui/modals/commandPickerViewModel.ts#L164) | function | `src/ui/modals/commandPickerViewModel.ts` | 164-189 | Executes fuzzy search across all commands and returns deduplicated results sorted by match score. |
-| [`buildSearchText`](../src/ui/modals/commandPickerViewModel.ts#L62) | function | `src/ui/modals/commandPickerViewModel.ts` | 62-73 | Concatenates command name, aliases, description, and category names into a searchable text blob. |
-| [`buildVisibleItems`](../src/ui/modals/commandPickerViewModel.ts#L84) | function | `src/ui/modals/commandPickerViewModel.ts` | 84-93 | Toggles between browse-tree and search-result views based on whether a fuzzy matcher is active. |
-| [`collectMatches`](../src/ui/modals/commandPickerViewModel.ts#L192) | function | `src/ui/modals/commandPickerViewModel.ts` | 192-205 | Recursively collects fuzzy-matching results for group commands and their subcommands. |
-| [`flattenSingleChildGroups`](../src/ui/modals/commandPickerViewModel.ts#L38) | function | `src/ui/modals/commandPickerViewModel.ts` | 38-56 | Flattens command categories by promoting single-child subcommands to the parent level and merging their aliases. |
-| [`reducePlacements`](../src/ui/modals/commandPickerViewModel.ts#L242) | function | `src/ui/modals/commandPickerViewModel.ts` | 242-257 | Selects the best-scoring placement of a cross-listed command and updates category metadata to canonical. |
-| [`tryMatchLeaf`](../src/ui/modals/commandPickerViewModel.ts#L207) | function | `src/ui/modals/commandPickerViewModel.ts` | 207-236 | Tests a command leaf against a fuzzy matcher and adds matching placements to the results map. |
+| [`buildCommandCategories`](../src/ui/modals/CommandPickerModal.ts#L671) | function | `src/ui/modals/CommandPickerModal.ts` | 671-966 | <no body> |
+| [`CommandPickerModal`](../src/ui/modals/CommandPickerModal.ts#L53) | class | `src/ui/modals/CommandPickerModal.ts` | 53-630 | Modal interface for browsing and searching plugin commands with expandable categories and fuzzy matching. |
+| [`findLeafByIdInCategories`](../src/ui/modals/CommandPickerModal.ts#L655) | function | `src/ui/modals/CommandPickerModal.ts` | 655-669 | Searches for a command by ID across all categories and their subcommands. |
+| [`buildBrowseTree`](../src/ui/modals/commandPickerViewModel.ts#L110) | function | `src/ui/modals/commandPickerViewModel.ts` | 110-130 | Builds a hierarchical list of visible items for browse mode with optional category headers. |
+| [`buildCategoryHeader`](../src/ui/modals/commandPickerViewModel.ts#L132) | function | `src/ui/modals/commandPickerViewModel.ts` | 132-147 | Creates a synthetic category header row with expansion state and leaf count. |
+| [`buildSearchResults`](../src/ui/modals/commandPickerViewModel.ts#L199) | function | `src/ui/modals/commandPickerViewModel.ts` | 199-224 | Builds a ranked list of search results by matching commands against a fuzzy matcher and deduplicating cross-listed commands. |
+| [`buildSearchText`](../src/ui/modals/commandPickerViewModel.ts#L66) | function | `src/ui/modals/commandPickerViewModel.ts` | 66-77 | Combines command name, aliases, description, and category names into a searchable text string. |
+| [`buildVisibleItems`](../src/ui/modals/commandPickerViewModel.ts#L88) | function | `src/ui/modals/commandPickerViewModel.ts` | 88-98 | Returns either fuzzy search results or a browse tree depending on whether a query is active. |
+| [`collectMatches`](../src/ui/modals/commandPickerViewModel.ts#L227) | function | `src/ui/modals/commandPickerViewModel.ts` | 227-240 | Recursively collects matching subcommands and parent groups for a given command. |
+| [`countCategoryLeaves`](../src/ui/modals/commandPickerViewModel.ts#L179) | function | `src/ui/modals/commandPickerViewModel.ts` | 179-186 | Counts the total number of leaf commands within a category, expanding groups. |
+| [`flattenSingleChildGroups`](../src/ui/modals/commandPickerViewModel.ts#L42) | function | `src/ui/modals/commandPickerViewModel.ts` | 42-60 | Flattens single-child command groups by promoting their child and merging aliases. |
+| [`pushCategoryEntry`](../src/ui/modals/commandPickerViewModel.ts#L149) | function | `src/ui/modals/commandPickerViewModel.ts` | 149-177 | Adds a command entry (leaf or group) to the visible items list, expanding subcommands if the group is open. |
+| [`reducePlacements`](../src/ui/modals/commandPickerViewModel.ts#L277) | function | `src/ui/modals/commandPickerViewModel.ts` | 277-292 | Deduplicates multiple placements of the same command by selecting the highest-scoring placement and applying canonical category metadata. |
+| [`tryMatchLeaf`](../src/ui/modals/commandPickerViewModel.ts#L242) | function | `src/ui/modals/commandPickerViewModel.ts` | 242-271 | Tests a single leaf command against the fuzzy matcher and adds it to results if matched. |
 | [`CompressionConfirmModal`](../src/ui/modals/CompressionConfirmModal.ts#L14) | class | `src/ui/modals/CompressionConfirmModal.ts` | 14-116 | Modal confirming whether to replace an audio file with a compressed version or apply a format change. |
 | [`ConfirmationModal`](../src/ui/modals/ConfirmationModal.ts#L4) | class | `src/ui/modals/ConfirmationModal.ts` | 4-43 | Simple confirmation dialog with title, message, and cancel/confirm buttons. |
 | [`ContentSizeModal`](../src/ui/modals/ContentSizeModal.ts#L11) | class | `src/ui/modals/ContentSizeModal.ts` | 11-95 | Modal warning the user that content exceeds the maximum length and offering truncation or abort. |
@@ -2259,10 +2262,10 @@ _Domain has 2391 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`createOpenAIService`](../tests/cloudService.defaults.test.ts#L189) | function | `tests/cloudService.defaults.test.ts` | 189-197 | Creates an OpenAI cloud LLM service instance for testing. |
 | [`createFile`](../tests/clusterBoard.test.ts#L4) | function | `tests/clusterBoard.test.ts` | 4-10 | Creates a mock TFile object with path, basename, and folder information. |
 | [`createMockApp`](../tests/clusterBoard.test.ts#L12) | function | `tests/clusterBoard.test.ts` | 12-21 | Creates a mock Obsidian app with metadata cache for file tag retrieval. |
-| [`collectLeafCommands`](../tests/commandPicker.test.ts#L20) | function | `tests/commandPicker.test.ts` | 20-27 | Recursively collects all leaf commands from a command tree into a flat array. |
-| [`countLeafCommands`](../tests/commandPicker.test.ts#L11) | function | `tests/commandPicker.test.ts` | 11-18 | Recursively counts all leaf (non-group) commands in a command tree. |
-| [`makeCategories`](../tests/commandPickerViewModel.test.ts#L5) | function | `tests/commandPickerViewModel.test.ts` | 5-27 | Creates test command categories with nested groups and subcommands for picker testing. |
-| [`simpleMatcher`](../tests/commandPickerViewModel.test.ts#L29) | function | `tests/commandPickerViewModel.test.ts` | 29-35 | Returns a function that matches text against a query with positional scoring (exact prefix match scores higher). |
+| [`collectLeafCommands`](../tests/commandPicker.test.ts#L20) | function | `tests/commandPicker.test.ts` | 20-27 | Recursively flattens a command tree into a flat array of leaf commands. |
+| [`countLeafCommands`](../tests/commandPicker.test.ts#L11) | function | `tests/commandPicker.test.ts` | 11-18 | Recursively counts the total number of leaf commands in a command tree. |
+| [`makeCategories`](../tests/commandPickerViewModel.test.ts#L5) | function | `tests/commandPickerViewModel.test.ts` | 5-27 | Constructs a test fixture with two categories containing groups and leaves for testing the command picker. |
+| [`simpleMatcher`](../tests/commandPickerViewModel.test.ts#L29) | function | `tests/commandPickerViewModel.test.ts` | 29-35 | Creates a simple fuzzy matcher function that scores based on substring position within text. |
 | [`createMockFile`](../tests/companionUtils.test.ts#L76) | function | `tests/companionUtils.test.ts` | 76-82 | Creates a mock file object with path, basename, and optional parent folder reference. |
 | [`createMockPlugin`](../tests/companionUtils.test.ts#L49) | function | `tests/companionUtils.test.ts` | 49-73 | Creates a mock plugin with vault file creation tracking and configurable failure modes for testing. |
 | [`makeCtx`](../tests/conversationCompaction.test.ts#L32) | function | `tests/conversationCompaction.test.ts` | 32-38 | Creates a mock context object with OpenAI provider settings and optional summarization function. |
