@@ -3,7 +3,8 @@ data.json
 *.map
 .DS_Store
 node_modules
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 dist/
 build/
 Library/

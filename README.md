@@ -6,6 +6,14 @@
 
 <!-- TODO: Add hero GIF/screenshot showing command picker or chat -->
 
+<!-- arch-map-discoverability:start -->
+## Architecture
+
+See [`docs/architecture-map.md`](docs/architecture-map.md) — a generated
+index of every symbol in this repo, grouped by domain, with Mermaid
+diagrams. Regenerated on `/ship` or via `npm run arch:render`.
+<!-- arch-map-discoverability:end -->
+
 ---
 
 ## What does it actually do?

@@ -4,6 +4,13 @@ This file provides guidance to AI coding agents when working with code in this r
 
 > **Note:** This is the canonical reference for all AI coding agents. Keep in sync with `CLAUDE.md`.
 
+<!-- arch-map-discoverability:start -->
+> **Architecture map**: [`docs/architecture-map.md`](docs/architecture-map.md)
+> is the live, generated index of every symbol in this repo. Start there
+> when you need to find an existing function, class, or component before
+> writing a new one.
+<!-- arch-map-discoverability:end -->
+
 ## Build Commands
 
 ```bash
