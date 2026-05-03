@@ -26,6 +26,7 @@
     "arch:refresh:full": "node scripts/symbol-index/refresh.mjs --full",
     "arch:render": "node scripts/symbol-index/render-mermaid.mjs",
     "arch:drift": "node scripts/symbol-index/drift.mjs",
+    "arch:duplicates": "node scripts/symbol-index/duplicates.mjs",
     "arch:prune": "node scripts/symbol-index/prune.mjs",
     "arch:spike": "node scripts/symbol-index/spike-extract.mjs"
   },
