@@ -12,10 +12,10 @@ Manage AGENTS.md / CLAUDE.md alignment; generate Copilot prompt shims.
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/check-context-drift.mjs
+node scripts/check-context-drift.mjs
 ```
 
-Underlying script: `.audit-loop/scripts/check-context-drift.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/check-context-drift.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

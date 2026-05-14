@@ -12,10 +12,10 @@ Explain WHY code is structured this way — synthesises arch-memory, git history
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/explain.mjs ${input:target}
+node scripts/explain.mjs ${input:target}
 ```
 
-Underlying script: `.audit-loop/scripts/explain.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/explain.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

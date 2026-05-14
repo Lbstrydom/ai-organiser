@@ -12,10 +12,10 @@ Concept-level multi-LLM brainstorming — calls OpenAI (and optionally Gemini) f
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/brainstorm-round.mjs --topic-stdin ${input:flags}
+node scripts/brainstorm-round.mjs --topic-stdin ${input:flags}
 ```
 
-Underlying script: `.audit-loop/scripts/brainstorm-round.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/brainstorm-round.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

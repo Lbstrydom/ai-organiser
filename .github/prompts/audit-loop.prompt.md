@@ -12,10 +12,10 @@ DEPRECATED — use /cycle for chained workflow, /audit-plan or /audit-code for a
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/openai-audit.mjs code ${input:plan_path}
+node scripts/openai-audit.mjs code ${input:plan_path}
 ```
 
-Underlying script: `.audit-loop/scripts/openai-audit.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/openai-audit.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

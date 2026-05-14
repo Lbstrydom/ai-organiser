@@ -12,10 +12,10 @@ End-to-end feature cycle: plan → audit-plan → impl gate → audit-code → p
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/cycle.mjs ${input:task_or_plan}
+node scripts/cycle.mjs ${input:task_or_plan}
 ```
 
-Underlying script: `.audit-loop/scripts/cycle.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/cycle.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

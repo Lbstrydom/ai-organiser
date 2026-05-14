@@ -12,10 +12,10 @@ Commit, push, and gate against UX P0 warnings from persona-test.
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/ship.mjs ${input:args}
+node scripts/ship.mjs ${input:args}
 ```
 
-Underlying script: `.audit-loop/scripts/ship.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/ship.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

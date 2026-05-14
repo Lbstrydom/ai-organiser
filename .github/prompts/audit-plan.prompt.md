@@ -12,10 +12,10 @@ Iteratively audit a plan file with GPT + Gemini final gate (max 3 rounds).
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/openai-audit.mjs plan ${input:plan_path} --mode plan
+node scripts/openai-audit.mjs plan ${input:plan_path} --mode plan
 ```
 
-Underlying script: `.audit-loop/scripts/openai-audit.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/openai-audit.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

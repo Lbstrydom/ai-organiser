@@ -12,10 +12,10 @@ Generate Playwright e2e specs that lock fixed behaviour or grade a plan.
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/ux-lock.mjs ${input:mode_and_args}
+node scripts/ux-lock.mjs ${input:mode_and_args}
 ```
 
-Underlying script: `.audit-loop/scripts/ux-lock.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/ux-lock.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

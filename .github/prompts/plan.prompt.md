@@ -12,10 +12,10 @@ Unified planner — auto-detects backend/frontend/full-stack scope; one consolid
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/plan.mjs ${input:task}
+node scripts/plan.mjs ${input:task}
 ```
 
-Underlying script: `.audit-loop/scripts/plan.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/plan.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 

@@ -12,10 +12,10 @@ Drive a browser as a persona against a live URL; report UX findings.
 Invoke the engineering skills CLI:
 
 ```bash
-node .audit-loop/scripts/persona-test.mjs ${input:persona} ${input:url}
+node scripts/persona-test.mjs ${input:persona} ${input:url}
 ```
 
-Underlying script: `.audit-loop/scripts/persona-test.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
+Underlying script: `scripts/persona-test.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
 
 ## Notes for Copilot users
 
