@@ -26,7 +26,7 @@ import {
     TTS_CHUNK_CHAR_TARGET,
     TTS_CHUNK_CHAR_MAX,
 } from '../tts/ttsChunker';
-import { downsamplePcm16 } from '../tts/pcmUtils';
+import { downsamplePcm16, dynamicNormalize } from '../tts/pcmUtils';
 import { Mp3Writer } from '../tts/mp3Writer';
 import { sha256Hex } from '../tts/fingerprint';
 import { GeminiTtsEngine } from '../tts/ttsEngine';
@@ -115,7 +115,10 @@ export async function generateAudioPodcast(
                 ),
             );
             const downsampled = downsamplePcm16(samples, GEMINI_SOURCE_RATE, MP3_SAMPLE_RATE);
-            writer.push(downsampled);
+            // Compensate Gemini's intra-chunk volume fade and inter-chunk level
+            // drift before encoding (~30 ms / 90 s chunk on typical CPU).
+            const normalized = dynamicNormalize(downsampled, MP3_SAMPLE_RATE);
+            writer.push(normalized);
         }
     } catch (err) {
         return { success: false, error: describeError(err) };

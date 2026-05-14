@@ -17,7 +17,7 @@ import { getAudioNarrationFullPath } from '../../core/settings';
 import { ensurePrivacyConsent } from '../privacyNotice';
 
 import { Mp3Writer } from '../tts/mp3Writer';
-import { downsamplePcm16 } from '../tts/pcmUtils';
+import { downsamplePcm16, dynamicNormalize } from '../tts/pcmUtils';
 import { splitForTts } from '../tts/ttsChunker';
 import { sha256Hex, CryptoUnavailableError } from '../tts/fingerprint';
 import { retryWithBackoff } from '../tts/ttsRetry';
@@ -232,7 +232,10 @@ export async function executeNarration(
             );
 
             const downsampled = downsamplePcm16(samples, SOURCE_RATE, TARGET_RATE);
-            writer.push(downsampled);
+            // Compensate Gemini's intra-chunk volume fade and inter-chunk level
+            // drift before encoding. ~30 ms / 90 s chunk on typical CPU.
+            const normalized = dynamicNormalize(downsampled, TARGET_RATE);
+            writer.push(normalized);
         }
     } catch (e) {
         if (isAbort(e)) {
