@@ -20,6 +20,7 @@ node scripts/requirements.mjs extract --files <a,b,...>   # → candidates.json 
 # (optionally edit .requirements/overrides.json to accept/reject/edit)
 node scripts/requirements.mjs reconcile                   # → ledger.json
 node scripts/requirements.mjs index                       # print the active index
+node scripts/requirements.mjs render                      # → docs/requirements-map.md (human-readable)
 ```
 
 Requirements are surfaced to `/audit-code` as an invariant rubric via
