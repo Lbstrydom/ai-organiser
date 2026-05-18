@@ -115,3 +115,9 @@ skills.manifest.json
 
 # Architectural-memory cache (intent embeddings, regenerated on demand).
 .audit-loop/cache/
+
+# Requirements layer — extraction intermediates are regenerable; the
+# reconciled ledger is committed (shared /audit-code rubric).
+.requirements/candidates.json
+.requirements/gaps.json
+.requirements/.lock
