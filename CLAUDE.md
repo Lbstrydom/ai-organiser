@@ -2274,6 +2274,85 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 
 **Plan**: [docs/completed/newsletter-digest-plan.md](docs/completed/newsletter-digest-plan.md)
 
+## Speaker-Aware Transcription UX
+
+**Status**: ✅ Implemented (May 2026) — v1 closes Pat persona-test P0s + P1
+
+### Overview
+
+Audio-attach trio in Minutes modal, dedicated Transcribe-audio command, SpeakerReviewPanel with audio preview + rename + Same-as merge, deterministic action-attribution post-pass. Closes the three P0 findings + the P1 from persona-test session `pat-transcription-speakers`: Transcribe-as-a-verb is discoverable, attaching audio from any context works (including mobile webview file input), and action owners derive from "who actually said it" instead of LLM inference alone.
+
+### Core Components
+
+**Canonical transcript contract** (`src/services/transcriptTypes.ts`):
+- `TimedTranscript` — Whisper `verbose_json` output with real timestamps + BCP-47 `languageCode`. Producer: `audioTranscriptionService.transcribeAudio*()`. Consumer: `labelSpeakersTimed()`.
+- `LabelledTimedTranscript` — segments with `speaker?: string` per segment + `speakers[]` in first-appearance order.
+- `timestampSource: 'whisper-verbose-json' | 'none'` — drives preview suppression. When `'none'`, downstream components hide audio preview entirely (R1 H2 contract).
+
+**Speaker labelling** (`src/services/speakerLabellingService.ts`):
+- `labelSpeakersTimed(plugin, timed, participants, meetingContext?)` — wraps the existing string-based LLM labeller in a TimedTranscript pipeline. Word-stream positional walker (`mapLabelledTextToSegments`) maps LLM-emitted `Name: text` lines back to Whisper segments.
+- `transcriptionResultToTimedTranscript(result, fallbackLanguageCode)` — adapter from existing `TranscriptionResult` to the canonical contract. Prefers `result.language` (Whisper's `detected_language`) when present.
+
+**Audio attach pipeline** (presentational + orchestration split per R1 M3):
+- `src/ui/utils/AudioSourcePicker.ts` — three platform-aware adapters: `pickAudioFromDesktop()` (Electron `@electron/remote`), `pickAudioFromMobileWebview()` (programmatic `<input type="file" accept="audio/*">`), `pickAudioFromVault()` (FuzzySuggestModal filtered to audio). Returns unified `AudioSource` discriminated union (`vault | desktop-path | webview-blob | recorder`).
+- `src/ui/coordinators/AudioAttachCoordinator.ts` — single orchestration owner: picker dispatch, `importToVault()` delegation, `attachPreview()` lifecycle. `dispose()` in `Modal.onClose()` revokes all object URLs.
+- `src/ui/coordinators/AudioPreviewSource.ts` — `resolvePreview(source, app)` returns `AudioPreviewHandle { url, dispose }`. Vault → `app.vault.getResourcePath()`; desktop-path → `file://` URL; blob → `URL.createObjectURL` + idempotent `revokeObjectURL` on dispose.
+- `src/services/audio/audioImportService.ts` — `importAudioToVault(app, source, opts)` writes non-vault audio sources to the vault (MIME whitelist, collision-safe suffix, AbortSignal → trash partial writes via `fileManager.trashFile`).
+- `src/ui/components/AudioAttachHelper.ts` — strict presentational component. Renders trio + per-item rows per `AudioAttachViewState` discriminated union. All intents emit via callbacks.
+- `src/ui/components/speakerReviewState.ts` — discriminated unions (`AudioAttachViewState`, `SpeakerReviewState`, `AudioAttachItem`, `DetectedSpeaker`) + pure derivations (`canGenerateMinutes`, `deriveSpeakerDetectionStatus`, `areSpeakersVerified`).
+
+**Speaker review surface** (`src/ui/components/SpeakerReviewPanel.ts`):
+- Renders one row per `DetectedSpeaker` with audio preview (5-second time-fragment URI from real Whisper `startMs`), rename input + participant datalist, Same-as merge dropdown.
+- Preview suppressed when `timestampsAvailable === false` OR preview handle is null — explanatory subtext shown instead of misleading clips.
+- Confirm validates every row has a name before firing `onConfirm(mapping)`; Skip fires immediately.
+- Banners for `failed` / `detection-failed` / `detection-unavailable` states; user-skip is silent.
+
+**TranscribeOnlyModal** (`src/ui/modals/TranscribeOnlyModal.ts`):
+- Slim purpose-built modal: attach → transcribe → confirm speakers → save `.md` note with `type: transcript` frontmatter. Distinct from `MinutesCreationModal` because the user might want JUST a labelled transcript (no meeting metadata, no minutes generation).
+- Composes (not duplicates) `AudioAttachCoordinator` + `AudioAttachHelper` + `labelSpeakersTimed` + `SpeakerReviewPanel` + `writeTranscriptNote`.
+- Save gated on labelled transcript + terminal speaker-review state.
+
+**Transcript-note format** (`src/services/transcriptNoteService.ts`):
+- Zod-validated `TranscriptNoteFrontmatterSchema` (type / audio / language / duration_seconds / speakers / speakers_verified / speaker_detection_status / timestamp_source / created_at).
+- Body: `## Transcript` heading + HTML-comment-fenced `enc=base64[+gzip]` payload + human-readable markdown rendering below.
+- **Always base64-encoded** (Gemini-r1 G5 injection guard) so transcripts containing literal `-->` can't break the comment fence. Payloads >32KB use base64+gzip via `CompressionStream`.
+- **Async** (Gemini-r2 G1) because browser-native gzip is stream-based async.
+
+**Deterministic action attribution** (`src/services/speakerAttribution/`):
+- `applyDeterministicAttribution(input, languageCode): Result<AttributionResult>` runs as a post-pass in `minutesService.generateMinutes` AFTER `parseMinutesResponse` returns.
+- Phase 1: `provenanceBackfill.attemptBackfill(action, labelled)` — for actions missing `source_timecodes`, runs token-set Jaccard similarity over a sliding 3-segment window. Match ≥0.35 fills timecodes; below threshold drops confidence to 'low' + emits `missing-provenance` flag.
+- Phase 2: `getStrategyForLanguage(code)` dispatches to per-language strategy. English (`'en'` / `'en-*'`) → three rules in priority order:
+  1. Provenance + first-person → owner = `speakerMapping[segmentSpeaker]`
+  2. Third-person → owner = captured proper noun (case-normalised to canonical participant spelling)
+  3. LLM owner not in participants → rewritten to "TBC" + `non-participant-owner` flag
+- All other languages route to `NoOpAttributionStrategy` which emits a single `unsupported-language` flag (visible warning, not silent skip).
+- Adding a new language: implement `SpeakerAttributionStrategy` in a sibling file + add a case to `registry.ts`. No orchestrator changes.
+
+### Wiring
+
+- `MinutesCreationModal` instantiates `AudioAttachCoordinator` in `onOpen()` (target folder `AI-Organiser/Imports/`), disposes in `onClose()`. Renders helper + speaker review slot at top. After successful transcription: `transcriptionResultToTimedTranscript(result, result.language || setting || 'und')` → `runSpeakerLabelling()` → transitions `speakerReview` state. Submit button class `.ai-organiser-minutes-submit` gated via `canGenerateMinutes()` pure derivation.
+- `MinutesGenerationInput` extended with optional `labelledTranscript`, `transcriptLanguageCode`, `speakerMapping`, `speakersVerified`, `speakerDetectionStatus`. `MinutesJSON.metadata` extended with `speakers_verified?` + `speaker_detection_status?` for renderer passthrough (Gemini G4).
+- `TranscribeOnlyModal` registered via `src/commands/transcribeCommands.ts` → `ai-organiser:transcribe-audio` command + picker leaf in `create-write` sub-group (after `create-meeting-minutes`). Aliases on both leaves: `['transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes']` so users typing the natural verb find either.
+- `transcriptOutputFolder` setting (default `'Transcripts'`) + `getTranscriptOutputFullPath()` helper mirror the existing minutes-folder pattern.
+
+### Key Patterns
+
+- **Discriminated unions over boolean soup** (R1 M1): `AudioAttachViewState` + `SpeakerReviewState` replace `speakerMapping | speakersVerified | speakersTouched | lastTranscribedAudioUrl`. CTA enablement is a pure derivation, not a stored flag.
+- **Presentational vs orchestration split** (R1 M3): `AudioAttachHelper` + `SpeakerReviewPanel` have NO service imports. Hosts wire callbacks. `AudioAttachCoordinator` owns picker dispatch + preview lifecycle.
+- **Single-source rule for speaker metadata** (R3 M3): transcript-note frontmatter is canonical. Minutes inherit via `MinutesGenerationInput` → `MinutesJSON.metadata` → rendered frontmatter without mutation.
+- **Real timestamps or no preview** (R1 H2): when `timestampSource === 'none'`, `SpeakerReviewPanel` suppresses audio preview controls entirely. No estimate fallback.
+- **Graceful degradation everywhere**: missing `labelledTranscript` → attribution emits a warning, doesn't throw. Missing `source_timecodes` → backfill or `confidence='low'` flag, never aborts. Unsupported language → NoOp + flag, action owners preserved.
+
+### Tests (155 added across F0-F5)
+
+- `tests/audioImportService.test.ts` (11), `tests/audioAttachCoordinator.test.ts` (13), `tests/audioAttachHelper.test.ts` (16), `tests/audioSourcePicker.test.ts` (21), `tests/audioPreviewSource.test.ts` (12), `tests/filePickers.test.ts` (13), `tests/transcriptTypes.test.ts` (10), `tests/transcriptNoteService.test.ts` (9), `tests/speakerLabellingTimed.test.ts` (14), `tests/speakerReviewPanel.test.ts` (21), `tests/speakerAttributionProvenanceBackfill.test.ts` (6), `tests/speakerAttributionEnglishStrategy.test.ts` (12), `tests/speakerAttributionRegistry.test.ts` (12), `tests/documentControllerAddDocuments.test.ts` (4), `tests/documentMultiPickerModal.test.ts` (5), `tests/commandPicker.test.ts` extended
+
+### Live verification
+
+Persona-test session `pat-transcription-speakers-v3` against `AI-Organiser/Recordings/hamina-board-first-20min.mp3` (20-min Finnish board meeting). Full flow: picker → trio → vault pick → transcribe → SpeakerReviewPanel with 2 detected speakers + real Whisper-timestamp previews → Skip → save → transcript note opened in workspace with valid `TranscriptNoteFrontmatterSchema` frontmatter + base64+gzip body. Screenshots in `scripts/persona-harness/sessions/pat-transcription-speakers-v3/`.
+
+**Plan**: [docs/plans/speaker-aware-transcription-ux.md](docs/plans/speaker-aware-transcription-ux.md) — 5 audit rounds (3 GPT + 2 Gemini), 32 findings accepted + fixed, severity decreased each round.
+
 ## Reviewed Edits Modal
 
 **Status**: ✅ Implemented (March 2026)

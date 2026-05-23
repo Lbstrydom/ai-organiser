@@ -4,13 +4,6 @@ This file provides guidance to AI coding agents when working with code in this r
 
 > **Note:** This is the canonical reference for all AI coding agents. Keep in sync with `CLAUDE.md`.
 
-<!-- arch-map-discoverability:start -->
-> **Architecture map**: [`docs/architecture-map.md`](docs/architecture-map.md)
-> is the live, generated index of every symbol in this repo. Start there
-> when you need to find an existing function, class, or component before
-> writing a new one.
-<!-- arch-map-discoverability:end -->
-
 ## Build Commands
 
 ```bash
@@ -255,15 +248,32 @@ Commands registered in `src/commands/`:
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 
-**Command Picker Categories** (`CommandPickerModal.ts`):
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored, two-layer (locked 2026-05-02):
 ```
-Active Note  ← Commands on the open file (maps, refine, pending, export)
-Capture      ← Bring external content in (smart summarize, meeting minutes, record audio)
-Vault        ← Explore the knowledge base (ask & search, visualize)
-Tools        ← Specialized/bulk operations (NotebookLM, vault hygiene)
+Essentials   ← User-configurable favourites (max 5; default = Chat / Search / Quick peek)
+Create       ← Outputs (verb-anchored sub-groups + 3 direct leaves):
+               • Write       (summarize, minutes, translate, export note, export minutes)
+               • Visualise   (presentation, diagram, sketch, 3 canvas variants)
+               • Audio narration / Flashcards / Tags (direct leaves)
+Refine       ← Mutations on existing notes (improve, integrate, digitise, etc.)
+Find         ← Search (chat + semantic-search at top via cross-listing) +
+               • Discover    (web reader, research, find related, insert related)
+               • Audit vault (find embeds, tag network, collect tags)
+Manage       ← Recurring + admin: Kindle, Newsletter, recording, dashboards,
+               metadata migration, NotebookLM export
 ```
 
-**Command Picker Architecture**: Custom `Modal` (not FuzzySuggestModal) with inline tree expansion. Pure view-model logic in `commandPickerViewModel.ts` (`buildVisibleItems`, `flattenSingleChildGroups`). Browse mode = expandable tree; search mode = flat results via `prepareFuzzySearch()`. All ~34 commands have i18n descriptions shown on highlight.
+**User-configurable Essentials** (added 2026-05-02): `settings.pickerEssentialsCommandIds` (max 5). Empty = static defaults. UI in *Settings → Language → Quick commands* — pick from any leaf via FuzzySuggestModal. Selected leaves keep cross-listing identity (same `PickerCommand` object reference), so search dedup still works.
+
+**Sub-grouping**: only Create + Find. Refine and Manage stay flat (≤ 8 leaves each). Sub-group labels are action-verbs (`Write`, `Visualise`, `Discover`, `Audit vault`) — sub-groups collapse by default; user expands via chevron click.
+
+**Cross-listing**: Chat / Vault search / Quick peek live in Essentials AND in Find / Refine. Browse mode renders both placements; search mode dedupes by `command.id` and shows the canonical (Essentials) chip via `canonicalCategoryId`.
+
+**Requirement gating**: Each leaf declares `requires?: RequirementKind` (`'none' | 'active-note' | 'selection' | 'vault' | 'semantic-search'`). The picker renders an orange chip + dims the row + intercepts clicks with a Notice when the precondition isn't met. Built into `pickerRequirements.ts` with a minimal `RequirementContext` (no Obsidian `App` dependency — fully unit-testable). Context is rebuilt per render AND per click — no cache leak across the boundary.
+
+**Backward-compat search**: Each leaf optionally declares `legacyHomes: string[]` (e.g. `'active-note-export'`); the helper auto-derives legacy aliases (`'active note'`, `'export'`) so users who learned the old taxonomy still find moved commands.
+
+**Command Picker Architecture**: Custom `Modal` (not FuzzySuggestModal) with inline tree expansion. Pure view-model logic in `commandPickerViewModel.ts` (`buildVisibleItems`, `flattenSingleChildGroups`, `buildSearchResults` with explicit canonical-placement reduce). Browse mode = expandable tree; search mode = flat deduplicated results via `prepareFuzzySearch()`. 38 unique commands surfaced (41 picker rows including 3 cross-listings). All commands have i18n descriptions shown on highlight.
 
 ## AI Chat + Presentation Builder
 
@@ -481,11 +491,12 @@ npm run build && cp main.js manifest.json styles.css "<vault>/.obsidian/plugins/
 ```
 
 ### Mobile Deploy Staging
-After every build, also copy to `docs/mobile/` so the latest artifacts are ready for manual transfer to mobile devices (Obsidian Sync does not sync plugin files):
+After every build, also copy to `docs/mobile/` and the OneDrive Basket so the latest artifacts are easily accessible for manual transfer to mobile devices (Obsidian Sync does not sync plugin files):
 ```bash
 cp main.js manifest.json styles.css docs/mobile/
+cp main.js manifest.json styles.css "C:/Users/User/OneDrive/Across Devices/Basket/"
 ```
-The `docs/mobile/` folder is gitignored. Copy these 3 files to `<vault>/.obsidian/plugins/ai-organiser/` on each mobile device.
+The `docs/mobile/` folder is gitignored. The OneDrive Basket (`C:\Users\User\OneDrive\Across Devices\Basket\`) syncs automatically — files appear on phone/tablet via the OneDrive app. Copy these 3 files to `<vault>/.obsidian/plugins/ai-organiser/` on each mobile device.
 
 ## Code Organization Principles
 
@@ -549,6 +560,23 @@ Version is stored in three places (must stay in sync):
 
 Use `npm run version` to bump all three automatically via `version-bump.mjs`.
 
+## ESLint (Obsidian Review Bot Compliance)
+
+**Config**: `eslint.config.mjs` using `eslint-plugin-obsidianmd` with `recommendedWithLocalesEn` — matches the exact config the Obsidian review bot runs on PR submissions.
+
+**Full bot rules reference**: [docs/obsidian-review-bot.md](docs/obsidian-review-bot.md)
+
+Run `npm run lint` before submitting PRs. Key rules:
+- `sentence-case` + `sentence-case-locale-module` — ALL UI strings and i18n values must be sentence case
+- `no-static-styles-assignment` — use CSS classes, not `element.style.*`
+- `no-tfile-tfolder-cast` — use `instanceof TFile` checks, not `as TFile`
+- `prefer-file-manager-trash-file` — use `fileManager.trashFile()`, not `vault.delete()`
+- `no-explicit-any` — use `unknown` + type guards (bot rejects eslint-disable for this rule)
+- `no-misused-promises` / `no-floating-promises` — all promises awaited, caught, or voided
+- `import/no-nodejs-modules` — use `desktopRequire()` helper (bot rejects eslint-disable)
+
+The precommit script runs lint + full test suite: `npm run precommit`.
+
 ## Obsidian API Quirks
 
 Subtle Obsidian-API behaviours that the review bot and TypeScript do NOT catch. Follow these conventions to avoid regressions.
@@ -582,6 +610,104 @@ btn.buttonEl.prepend(iconEl);
 ```
 
 Caught via persona round 5: Kindle Sync modal rendered two empty-label buttons ("" + "" instead of "Import file" + "Sync from amazon"). Six buttons across four files were affected (KindleSyncModal, KindleLoginModal, SemanticSearchSettingsSection, BasesSettingsSection).
+
+## Large-Content Ingestion — Quality-Aware Chunking
+
+**Status**: ✅ Implemented (April 2026)
+
+**Plan**: [docs/completed/large-content-ingestion.md](docs/completed/large-content-ingestion.md)
+
+Replaces scattered `isContentTooLarge` checks + flat map-reduce summarization with a quality-aware chunking pipeline. Fixes the "2-hour meeting crashes" user report by bumping `CHUNK_TOKEN_LIMIT` from 6000 → 12000 (halves call count for long meetings) and introducing hierarchical map-reduce for non-minutes content.
+
+### Key components
+
+| File | Purpose |
+|---|---|
+| [src/services/contentSizePolicy.ts](src/services/contentSizePolicy.ts) | Single source of truth for quality thresholds (40K/48K/192K chars per content type) + fast-model capability check + `estimateCharsPerToken()` heuristic (Latin/CJK/code) |
+| [src/services/chunkingOrchestrator.ts](src/services/chunkingOrchestrator.ts) | Generalised hierarchical map-reduce with rolling `continuationContext` between chunks + per-chunk error isolation (no `[Error summarizing section N]` markers in output) |
+| [src/core/constants.ts:64](src/core/constants.ts#L64) | `CHUNK_TOKEN_LIMIT = 12_000` (bumped from 6000) |
+| [src/services/minutesService.ts:111-125](src/services/minutesService.ts) | `EXTRACTION_OPTIONS.maxTokens = 8192` (up from 4096); `MERGE_OPTIONS.maxTokens = 12288` (up from 4096); `overlapChars = 1000` (up from 500) |
+| [src/commands/summarizeCommands.ts:1615,1676,2094](src/commands/summarizeCommands.ts) | Quality-threshold auto-chunking: URL / text / audio transcripts above ~40K chars auto-route to `summarizeInChunks` instead of one-shot |
+
+### Chunking strategy by content type
+
+| ContentType | Auto-chunk above | Hierarchical reduce above |
+|-------------|-----------------|--------------------------|
+| `summarization` | 40 000 chars | 120 000 chars (4+ chunks) |
+| `minutes` | 48 000 chars | 192 000 chars (4+ chunks) |
+| `document` | 40 000 chars | 120 000 chars |
+
+### Fast-model routing
+
+When `useHaikuForFastTasks = true` AND provider is `claude`, map-phase calls use `latest-haiku` (cheap + fast); reduce-phase uses the main model. Non-Claude providers fall back to main model for both phases (graceful degradation).
+
+### Tests
+
+- `tests/contentSizePolicy.test.ts` — 21 tests (assessment, threshold resolution, fast-model gating, char-per-token heuristics)
+- `tests/chunkingOrchestrator.test.ts` — 10 tests (map/reduce flow, continuation context, per-chunk error isolation, hierarchical batching, single-chunk short-circuit)
+
+## ProgressReporter — Universal Progress Indicator
+
+**Status**: ✅ Infrastructure + hot-list migration delivered (April 2026)
+
+**Plan**: [docs/completed/progress-reporter.md](docs/completed/progress-reporter.md)
+
+Unifies progress UX across LLM-calling code paths via one typed, phase-aware helper. Replaces the prior mix of `busyIndicator` (status bar only), `executeWithNotice` (one-shot toasts), and ad-hoc `new Notice(msg, 0) + setMessage()` copy-pasted across 8+ files.
+
+### API
+
+```typescript
+import { withProgress, withProgressResult, ProgressReporter } from 'src/services/progress';
+
+// Canonical call-site pattern
+const r = await withProgress(
+    { plugin, initialPhase: { key: 'working' }, resolvePhase: (p) => plugin.t.progress.foo[p.key] },
+    async (reporter) => {
+        reporter.setPhase({ key: 'fetching', params: { current: 1, total: 5 } });
+        return await doWork();
+    },
+);
+if (!r.ok) return; // reporter fired the toast — caller does NOT
+use(r.value);
+```
+
+- **Three surfaces**: status-bar broker ticket (ambient) + persistent Notice (primary) + optional host-inline modal label
+- **Terminal states**: `succeed() | fail(err) | cancel() | timedOut(ms)` — reporter owns all notifications
+- **Typed phases**: `TKey` union narrowed to per-flow vocabulary; i18n-gated via `plugin.t.progress.{flow}.{phase}`
+- **Cancellation**: optional `AbortController` → Cancel button in Notice; `reporter.signal` propagated to downstream work
+- **Cancel sentinel**: `{ ok: false, error: 'cancelled' }` routes to neutral "Cancelled" toast, not red "Failed"
+- **Stable DOM**: build once, mutate `.textContent` + CSS var; no focus loss, no listener leaks
+- **Heartbeat watchdog**: 30s passive ping keeps status bar alive across long single-phase work; 3min leak protection
+
+### Migrated flows (PR 2)
+
+| Flow | Location | Pattern |
+|---|---|---|
+| Smart note — diagram + improve | [smartNoteCommands.ts:230](src/commands/smartNoteCommands.ts) | `withProgress<Phase>` with phase transitions |
+| Newsletter — fetch + audio regen | [newsletterCommands.ts:43](src/commands/newsletterCommands.ts) | `withProgress` with per-item `triaging` phase |
+| Multi-source summarize | [summarizeCommands.ts:449](src/commands/summarizeCommands.ts) | Persistent Notice + `setMessage` + `hideProgress()` on all exits |
+| Multi-source translate | [translateCommands.ts:322](src/commands/translateCommands.ts) | Same pattern |
+| Integration — resolve + merge | [integrationCommands.ts:148](src/commands/integrationCommands.ts) | Persistent Notice + `setMessage` + finally-hide |
+| YouTube summarize (pre-existing) | [summarizeCommands.ts:2277](src/commands/summarizeCommands.ts) | Ad-hoc persistent Notice (fixed April 2026) |
+
+### Intentionally deferred (plan §11 Out of Scope)
+
+- Kindle sync — already has modal-internal progress callback
+- Presentation builder — already uses `GenerationProgressController` with phases
+- Flashcards / canvas / generate / digitisation — already using correct ad-hoc pattern; cosmetic consolidation deferred to avoid regression risk
+- `ChatModeHandler`/`FreeChatModeHandler` — modal-internal progress already good
+- `embedScanCommands` custom progress-bar DOM — battle-tested
+- Per-flow `ProgressPhase` unions — defined inline at each call site
+
+### Tests
+
+- `tests/progressReporter.test.ts` — 21 tests (state machine, surfaces, terminals, normalizeError)
+- `tests/withProgress.test.ts` — 17 tests (Result contract, cancel sentinel, toast ownership)
+- `tests/transcriptSanitizer.test.ts` — 8 tests (paste sanitizer for Minutes)
+
+### Transcript paste sanitizer (April 2026 hotfix)
+
+User pasted Office 365 HTML into Minutes transcript field → hundreds of `file:///…/msohtmlclip1/…/clip_imageXXX.gif` references survived to LLM output note → Obsidian CSP blocked each one → UI freeze. Fix: [src/utils/transcriptSanitizer.ts](src/utils/transcriptSanitizer.ts) strips file:// refs + markdown image syntax + bare clip_imageNNN tokens on paste (input) AND in `renderMinutesFromJson` output (belt-and-braces).
 
 ## Known Constraints
 
@@ -666,12 +792,13 @@ Organize by **user mental model**, not technical implementation:
 
 **Sub-collapsible sections:** Umbrella groups (Capture & Input, Vault Intelligence, Integrations, Preferences) use `createSubCollapsibleSection(container, id, title, icon)` to wrap each child section class in its own nested `<details>`. The same `expandedSections` Set tracks state. CSS class `ai-organiser-settings-sub-section*` styles the nested headers; inner `h2.ai-organiser-settings-header` is hidden via CSS (sub-collapsible summary is the visual header).
 
-**Command Picker Categories** (`CommandPickerModal.ts`):
+**Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored, two-layer:
 ```
-Active Note  ← Commands on the open file (maps, refine, pending, export)
-Capture      ← Bring external content in (smart summarize, meeting minutes, record audio)
-Vault        ← Explore the knowledge base (ask & search, visualize)
-Tools        ← Specialized/bulk operations (NotebookLM, vault hygiene)
+Essentials   ← User-configurable favourites (max 5; default = chat / search / quick peek)
+Create       ← Write + Visualise sub-groups + 3 direct leaves
+Refine       ← Mutations on existing notes (flat)
+Find         ← Search at top + Discover / Audit-vault sub-groups
+Manage       ← Recurring + admin (flat)
 ```
 
 **Modal Sections:** Inputs first → Options → Actions last
@@ -2147,6 +2274,85 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 
 **Plan**: [docs/completed/newsletter-digest-plan.md](docs/completed/newsletter-digest-plan.md)
 
+## Speaker-Aware Transcription UX
+
+**Status**: ✅ Implemented (May 2026) — v1 closes Pat persona-test P0s + P1
+
+### Overview
+
+Audio-attach trio in Minutes modal, dedicated Transcribe-audio command, SpeakerReviewPanel with audio preview + rename + Same-as merge, deterministic action-attribution post-pass. Closes the three P0 findings + the P1 from persona-test session `pat-transcription-speakers`: Transcribe-as-a-verb is discoverable, attaching audio from any context works (including mobile webview file input), and action owners derive from "who actually said it" instead of LLM inference alone.
+
+### Core Components
+
+**Canonical transcript contract** (`src/services/transcriptTypes.ts`):
+- `TimedTranscript` — Whisper `verbose_json` output with real timestamps + BCP-47 `languageCode`. Producer: `audioTranscriptionService.transcribeAudio*()`. Consumer: `labelSpeakersTimed()`.
+- `LabelledTimedTranscript` — segments with `speaker?: string` per segment + `speakers[]` in first-appearance order.
+- `timestampSource: 'whisper-verbose-json' | 'none'` — drives preview suppression. When `'none'`, downstream components hide audio preview entirely (R1 H2 contract).
+
+**Speaker labelling** (`src/services/speakerLabellingService.ts`):
+- `labelSpeakersTimed(plugin, timed, participants, meetingContext?)` — wraps the existing string-based LLM labeller in a TimedTranscript pipeline. Word-stream positional walker (`mapLabelledTextToSegments`) maps LLM-emitted `Name: text` lines back to Whisper segments.
+- `transcriptionResultToTimedTranscript(result, fallbackLanguageCode)` — adapter from existing `TranscriptionResult` to the canonical contract. Prefers `result.language` (Whisper's `detected_language`) when present.
+
+**Audio attach pipeline** (presentational + orchestration split per R1 M3):
+- `src/ui/utils/AudioSourcePicker.ts` — three platform-aware adapters: `pickAudioFromDesktop()` (Electron `@electron/remote`), `pickAudioFromMobileWebview()` (programmatic `<input type="file" accept="audio/*">`), `pickAudioFromVault()` (FuzzySuggestModal filtered to audio). Returns unified `AudioSource` discriminated union (`vault | desktop-path | webview-blob | recorder`).
+- `src/ui/coordinators/AudioAttachCoordinator.ts` — single orchestration owner: picker dispatch, `importToVault()` delegation, `attachPreview()` lifecycle. `dispose()` in `Modal.onClose()` revokes all object URLs.
+- `src/ui/coordinators/AudioPreviewSource.ts` — `resolvePreview(source, app)` returns `AudioPreviewHandle { url, dispose }`. Vault → `app.vault.getResourcePath()`; desktop-path → `file://` URL; blob → `URL.createObjectURL` + idempotent `revokeObjectURL` on dispose.
+- `src/services/audio/audioImportService.ts` — `importAudioToVault(app, source, opts)` writes non-vault audio sources to the vault (MIME whitelist, collision-safe suffix, AbortSignal → trash partial writes via `fileManager.trashFile`).
+- `src/ui/components/AudioAttachHelper.ts` — strict presentational component. Renders trio + per-item rows per `AudioAttachViewState` discriminated union. All intents emit via callbacks.
+- `src/ui/components/speakerReviewState.ts` — discriminated unions (`AudioAttachViewState`, `SpeakerReviewState`, `AudioAttachItem`, `DetectedSpeaker`) + pure derivations (`canGenerateMinutes`, `deriveSpeakerDetectionStatus`, `areSpeakersVerified`).
+
+**Speaker review surface** (`src/ui/components/SpeakerReviewPanel.ts`):
+- Renders one row per `DetectedSpeaker` with audio preview (5-second time-fragment URI from real Whisper `startMs`), rename input + participant datalist, Same-as merge dropdown.
+- Preview suppressed when `timestampsAvailable === false` OR preview handle is null — explanatory subtext shown instead of misleading clips.
+- Confirm validates every row has a name before firing `onConfirm(mapping)`; Skip fires immediately.
+- Banners for `failed` / `detection-failed` / `detection-unavailable` states; user-skip is silent.
+
+**TranscribeOnlyModal** (`src/ui/modals/TranscribeOnlyModal.ts`):
+- Slim purpose-built modal: attach → transcribe → confirm speakers → save `.md` note with `type: transcript` frontmatter. Distinct from `MinutesCreationModal` because the user might want JUST a labelled transcript (no meeting metadata, no minutes generation).
+- Composes (not duplicates) `AudioAttachCoordinator` + `AudioAttachHelper` + `labelSpeakersTimed` + `SpeakerReviewPanel` + `writeTranscriptNote`.
+- Save gated on labelled transcript + terminal speaker-review state.
+
+**Transcript-note format** (`src/services/transcriptNoteService.ts`):
+- Zod-validated `TranscriptNoteFrontmatterSchema` (type / audio / language / duration_seconds / speakers / speakers_verified / speaker_detection_status / timestamp_source / created_at).
+- Body: `## Transcript` heading + HTML-comment-fenced `enc=base64[+gzip]` payload + human-readable markdown rendering below.
+- **Always base64-encoded** (Gemini-r1 G5 injection guard) so transcripts containing literal `-->` can't break the comment fence. Payloads >32KB use base64+gzip via `CompressionStream`.
+- **Async** (Gemini-r2 G1) because browser-native gzip is stream-based async.
+
+**Deterministic action attribution** (`src/services/speakerAttribution/`):
+- `applyDeterministicAttribution(input, languageCode): Result<AttributionResult>` runs as a post-pass in `minutesService.generateMinutes` AFTER `parseMinutesResponse` returns.
+- Phase 1: `provenanceBackfill.attemptBackfill(action, labelled)` — for actions missing `source_timecodes`, runs token-set Jaccard similarity over a sliding 3-segment window. Match ≥0.35 fills timecodes; below threshold drops confidence to 'low' + emits `missing-provenance` flag.
+- Phase 2: `getStrategyForLanguage(code)` dispatches to per-language strategy. English (`'en'` / `'en-*'`) → three rules in priority order:
+  1. Provenance + first-person → owner = `speakerMapping[segmentSpeaker]`
+  2. Third-person → owner = captured proper noun (case-normalised to canonical participant spelling)
+  3. LLM owner not in participants → rewritten to "TBC" + `non-participant-owner` flag
+- All other languages route to `NoOpAttributionStrategy` which emits a single `unsupported-language` flag (visible warning, not silent skip).
+- Adding a new language: implement `SpeakerAttributionStrategy` in a sibling file + add a case to `registry.ts`. No orchestrator changes.
+
+### Wiring
+
+- `MinutesCreationModal` instantiates `AudioAttachCoordinator` in `onOpen()` (target folder `AI-Organiser/Imports/`), disposes in `onClose()`. Renders helper + speaker review slot at top. After successful transcription: `transcriptionResultToTimedTranscript(result, result.language || setting || 'und')` → `runSpeakerLabelling()` → transitions `speakerReview` state. Submit button class `.ai-organiser-minutes-submit` gated via `canGenerateMinutes()` pure derivation.
+- `MinutesGenerationInput` extended with optional `labelledTranscript`, `transcriptLanguageCode`, `speakerMapping`, `speakersVerified`, `speakerDetectionStatus`. `MinutesJSON.metadata` extended with `speakers_verified?` + `speaker_detection_status?` for renderer passthrough (Gemini G4).
+- `TranscribeOnlyModal` registered via `src/commands/transcribeCommands.ts` → `ai-organiser:transcribe-audio` command + picker leaf in `create-write` sub-group (after `create-meeting-minutes`). Aliases on both leaves: `['transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes']` so users typing the natural verb find either.
+- `transcriptOutputFolder` setting (default `'Transcripts'`) + `getTranscriptOutputFullPath()` helper mirror the existing minutes-folder pattern.
+
+### Key Patterns
+
+- **Discriminated unions over boolean soup** (R1 M1): `AudioAttachViewState` + `SpeakerReviewState` replace `speakerMapping | speakersVerified | speakersTouched | lastTranscribedAudioUrl`. CTA enablement is a pure derivation, not a stored flag.
+- **Presentational vs orchestration split** (R1 M3): `AudioAttachHelper` + `SpeakerReviewPanel` have NO service imports. Hosts wire callbacks. `AudioAttachCoordinator` owns picker dispatch + preview lifecycle.
+- **Single-source rule for speaker metadata** (R3 M3): transcript-note frontmatter is canonical. Minutes inherit via `MinutesGenerationInput` → `MinutesJSON.metadata` → rendered frontmatter without mutation.
+- **Real timestamps or no preview** (R1 H2): when `timestampSource === 'none'`, `SpeakerReviewPanel` suppresses audio preview controls entirely. No estimate fallback.
+- **Graceful degradation everywhere**: missing `labelledTranscript` → attribution emits a warning, doesn't throw. Missing `source_timecodes` → backfill or `confidence='low'` flag, never aborts. Unsupported language → NoOp + flag, action owners preserved.
+
+### Tests (155 added across F0-F5)
+
+- `tests/audioImportService.test.ts` (11), `tests/audioAttachCoordinator.test.ts` (13), `tests/audioAttachHelper.test.ts` (16), `tests/audioSourcePicker.test.ts` (21), `tests/audioPreviewSource.test.ts` (12), `tests/filePickers.test.ts` (13), `tests/transcriptTypes.test.ts` (10), `tests/transcriptNoteService.test.ts` (9), `tests/speakerLabellingTimed.test.ts` (14), `tests/speakerReviewPanel.test.ts` (21), `tests/speakerAttributionProvenanceBackfill.test.ts` (6), `tests/speakerAttributionEnglishStrategy.test.ts` (12), `tests/speakerAttributionRegistry.test.ts` (12), `tests/documentControllerAddDocuments.test.ts` (4), `tests/documentMultiPickerModal.test.ts` (5), `tests/commandPicker.test.ts` extended
+
+### Live verification
+
+Persona-test session `pat-transcription-speakers-v3` against `AI-Organiser/Recordings/hamina-board-first-20min.mp3` (20-min Finnish board meeting). Full flow: picker → trio → vault pick → transcribe → SpeakerReviewPanel with 2 detected speakers + real Whisper-timestamp previews → Skip → save → transcript note opened in workspace with valid `TranscriptNoteFrontmatterSchema` frontmatter + base64+gzip body. Screenshots in `scripts/persona-harness/sessions/pat-transcription-speakers-v3/`.
+
+**Plan**: [docs/plans/speaker-aware-transcription-ux.md](docs/plans/speaker-aware-transcription-ux.md) — 5 audit rounds (3 GPT + 2 Gemini), 32 findings accepted + fixed, severity decreased each round.
+
 ## Reviewed Edits Modal
 
 **Status**: ✅ Implemented (March 2026)
@@ -2197,43 +2403,3 @@ See `docs/` folder for additional documentation:
 - [docs/plans/command-picker-ux.md](docs/plans/command-picker-ux.md): Command Picker UX overhaul plan (implemented)
 - [docs/cde-plan.md](docs/cde-plan.md): Chunking, Decomposition & Extraction quality plan (6 phases)
 - [docs/det-plan.md](docs/det-plan.md): Deterministic Validation & LLM Audit plan (6 phases)
-
-## Architectural Memory — Pre-fix Consultation (MANDATORY)
-
-The architectural-memory feature indexes every symbol in this repo into
-Supabase with embeddings, so we can find near-duplicates BEFORE writing
-new code. The `/plan-*` skills consult it automatically. Ad-hoc fixes
-in Claude Code or Copilot bypass `/plan-*` entirely — that's where most
-architectural drift creeps in.
-
-**Rule** — if you (the AI agent reading this) are about to write a new
-function, class, hook, component, route, method, or constant as part of
-a fix or feature request, you MUST first run:
-
-```bash
-node scripts/cross-skill.mjs get-neighbourhood --json '{
-  "targetPaths": ["<files you intend to touch>"],
-  "intentDescription": "<one-line summary of what you are about to write>",
-  "k": 8
-}'
-```
-
-Then act on the recommendation column:
-
-- **`reuse`** (cosine ≥ 0.90) — reuse the existing symbol unless the user explicitly wants a sibling. Note it in your reply.
-- **`extend`** (0.85–0.90) — strongly prefer extending the existing symbol; document why if you create a new one.
-- **`justify-divergence`** (0.75–0.85) — write the new code, but explicitly mention in your reply why divergence is the right call.
-- **`review`** (<0.75) or empty records — proceed greenfield.
-
-**Skip the consultation when**: pure body-only bug fixes, typos, doc-only,
-test-only changes, or when cloud is offline (`{"cloud": false}`).
-
-**Auto-fired via hook**: `.claude/hooks/arch-memory-check.sh` runs on
-`UserPromptSubmit` when the prompt contains intent verbs (`fix`, `add`,
-`implement`, `create`, `build`, `write`, `refactor`, `make`, `wire`,
-`hook`, `introduce`, `replace`, `extend`). If the hook fired you'll see
-a `> **Architectural-memory consultation**` callout — treat it as
-authoritative. Disable per-session with `ARCH_MEMORY_HOOK_DISABLE=1`.
-
-**Cost**: ~$0.0003/consultation (Gemini embed) + ~50–200ms RPC. Cached
-24h on disk by `(intent, model, dim)`.
