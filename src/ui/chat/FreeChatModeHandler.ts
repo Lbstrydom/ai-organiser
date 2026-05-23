@@ -1,5 +1,6 @@
-import { App, FuzzySuggestModal, Notice, TFile } from 'obsidian';
-import { desktopRequire, getFs } from '../../utils/desktopRequire';
+import { App, Notice, TFile } from 'obsidian';
+import { getFs } from '../../utils/desktopRequire';
+import { tryNativeFilePicker, openVaultFilePicker } from '../utils/filePickers';
 import type { ChatMode, ChatModeHandler, ModalContext, SendResult, ActionDescriptor, ActionCallbacks, FreeChatCallbacks } from './ChatModeHandler';
 import type { Translations } from '../../i18n/types';
 import type { ProjectConfig, ProjectService } from '../../services/chat/projectService';
@@ -384,23 +385,11 @@ export class FreeChatModeHandler implements ChatModeHandler {
         this.openVaultFilePicker(ctx, callbacks);
     }
 
-    private async tryNativeFilePicker(): Promise<string[] | null> {
-        try {
-            type ElectronRemote = { dialog: { showOpenDialog: (opts: { properties: string[]; filters: Array<{ name: string; extensions: string[] }> }) => Promise<{ canceled: boolean; filePaths: string[] }> } };
-            const remote = desktopRequire<ElectronRemote>('@electron/remote');
-            if (!remote) return null; // Electron unavailable (mobile)
-            const result = await remote.dialog.showOpenDialog({
-                properties: ['openFile', 'multiSelections'],
-                filters: [
-                    { name: 'Documents', extensions: ['docx', 'xlsx', 'pptx', 'pdf', 'txt', 'rtf', 'md'] },
-                    { name: 'All Files', extensions: ['*'] },
-                ],
-            });
-            if (result.canceled) return [];
-            return result.filePaths;
-        } catch {
-            return null; // Electron unavailable (mobile)
-        }
+    private tryNativeFilePicker(): Promise<string[] | null> {
+        return tryNativeFilePicker([
+            { name: 'Documents', extensions: ['docx', 'xlsx', 'pptx', 'pdf', 'txt', 'rtf', 'md'] },
+            { name: 'All Files', extensions: ['*'] },
+        ]);
     }
 
     private async addExternalAttachment(filePath: string, ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
@@ -457,56 +446,47 @@ export class FreeChatModeHandler implements ChatModeHandler {
     }
 
     private openVaultFilePicker(ctx: ModalContext, callbacks: ActionCallbacks): void {
-        const vaultApp = this.app;
-        class VaultFilePicker extends FuzzySuggestModal<TFile> {
-            constructor(pickerApp: App, private readonly onSelect: (file: TFile) => void) {
-                super(pickerApp);
-                this.setPlaceholder(ctx.plugin.t.modals.unifiedChat.freeAttachPickerPlaceholder);
+        openVaultFilePicker(this.app, {
+            placeholder: ctx.plugin.t.modals.unifiedChat.freeAttachPickerPlaceholder,
+            onChoose: (file: TFile) => {
+                void (async () => {
+                    if (this.attachments.some(a => a.path === file.path)) return;
+
+                    if (!this.documentService) {
+                        this.documentService = new DocumentExtractionService(this.app);
+                    }
+
+                    try {
+                        let text: string;
+                        if (file.extension === 'md') {
+                            text = await this.app.vault.read(file);
+                        } else {
+                            const result = await this.documentService.extractText(file);
+                            text = result.success ? result.text ?? '' : '';
+                        }
+
+                        if (!text.trim()) {
+                            callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExtractFailed.replace('{name}', file.name));
+                            return;
+                        }
+
+                        const maxChars = this.getMaxAttachmentChars(ctx);
+                        if (text.length > maxChars) {
+                            await this.handleLargeAttachment(file.name, file.path, text, file.stat.mtime, ctx, callbacks);
+                        } else {
+                            this.attachments.push({
+                                path: file.path, name: file.name,
+                                extractedText: text, mtime: file.stat.mtime,
+                                included: true, charCount: text.length, truncated: false,
+                            });
+                            this.rerenderContext(ctx);
+                        }
+                    } catch {
+                        callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExtractFailed.replace('{name}', file.name));
+                    }
+                })();
             }
-            getItems(): TFile[] {
-                return vaultApp.vault.getMarkdownFiles().concat(vaultApp.vault.getFiles().filter((f: TFile) => !f.path.endsWith('.md')));
-            }
-            getItemText(item: TFile): string { return item.path; }
-            onChooseItem(item: TFile): void { this.onSelect(item); }
-        }
-
-        const picker = new VaultFilePicker(this.app, (file: TFile) => { void (async () => {
-            if (this.attachments.some(a => a.path === file.path)) return;
-
-            if (!this.documentService) {
-                this.documentService = new DocumentExtractionService(this.app);
-            }
-
-            try {
-                let text: string;
-                if (file.extension === 'md') {
-                    text = await this.app.vault.read(file);
-                } else {
-                    const result = await this.documentService.extractText(file);
-                    text = result.success ? result.text ?? '' : '';
-                }
-
-                if (!text.trim()) {
-                    callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExtractFailed.replace('{name}', file.name));
-                    return;
-                }
-
-                const maxChars = this.getMaxAttachmentChars(ctx);
-                if (text.length > maxChars) {
-                    await this.handleLargeAttachment(file.name, file.path, text, file.stat.mtime, ctx, callbacks);
-                } else {
-                    this.attachments.push({
-                        path: file.path, name: file.name,
-                        extractedText: text, mtime: file.stat.mtime,
-                        included: true, charCount: text.length, truncated: false,
-                    });
-                    this.rerenderContext(ctx);
-                }
-            } catch {
-                callbacks.notify(ctx.plugin.t.modals.unifiedChat.freeAttachExtractFailed.replace('{name}', file.name));
-            }
-        })(); });
-        picker.open();
+        });
     }
 
     /** Try to silently bootstrap local ONNX embeddings when no service is configured. */
