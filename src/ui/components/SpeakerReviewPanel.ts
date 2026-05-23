@@ -200,7 +200,11 @@ function renderRow(
     const tMin = options.t.minutes;
     const row = container.createDiv({ cls: 'ai-organiser-speaker-review-row' });
     row.setAttribute('role', 'group');
-    row.setAttribute('aria-label', `Speaker ${speaker.label}`);
+    // Skip the "Speaker " prefix when the label already starts with it
+    // (labelling LLM often emits "Speaker A" / "Unknown Speaker" verbatim —
+    // doubling produced "Speaker Unknown Speaker" tooltips in the v3 persona test).
+    const ariaLabel = /^Speaker\b/i.test(speaker.label) ? speaker.label : `Speaker ${speaker.label}`;
+    row.setAttribute('aria-label', ariaLabel);
     row.setAttribute('data-testid', 'speaker-row');
 
     // Label badge + occurrence count

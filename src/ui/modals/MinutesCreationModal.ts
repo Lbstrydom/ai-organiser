@@ -1904,9 +1904,12 @@ export class MinutesCreationModal extends Modal {
             // speakerReview into 'pending' (or 'skipped'/'failed' on degraded
             // paths) and re-renders the panel. Awaited so users see the panel
             // before they reach for Generate Minutes.
+            // Whisper's detected language wins (most accurate); fall back to
+            // the user's transcription-language setting, then 'und' if neither
+            // is present. Drives F5 attribution-strategy dispatch.
             const timed = transcriptionResultToTimedTranscript(
                 result,
-                this.getTranscriptionLanguageCode() || 'und'
+                result.language || this.getTranscriptionLanguageCode() || 'und'
             );
             await this.runSpeakerLabelling(timed);
             this.refreshSubmitButtonGate();

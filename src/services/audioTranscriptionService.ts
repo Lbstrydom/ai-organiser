@@ -51,6 +51,14 @@ export interface TranscriptionResult {
     originalSizeBytes?: number;
     /** Quality warnings from chunk validation (e.g., skipped chunks, low word rate) */
     warnings?: string[];
+    /**
+     * BCP-47 language detected by Whisper (from `verbose_json.language`).
+     * Used by F2c/F5 to route speaker attribution to the right language
+     * strategy. Falls back to 'und' when not present. Hamina persona test
+     * showed `language: und` in saved frontmatter because we'd hardcoded
+     * the fallback instead of using Whisper's detection.
+     */
+    language?: string;
 }
 
 export interface TranscriptionOptions {
@@ -201,6 +209,7 @@ export async function transcribeAudio(
             transcript: result.text,
             duration: result.duration,
             segments: parseWhisperSegments(result.segments),
+            language: typeof result.language === 'string' ? result.language : undefined,
         };
 
     } catch (error) {
@@ -284,6 +293,7 @@ export async function transcribeAudioFromData(
             transcript: result.text,
             duration: result.duration,
             segments: parseWhisperSegments(result.segments),
+            language: typeof result.language === 'string' ? result.language : undefined,
         };
 
     } catch (error) {
@@ -501,6 +511,7 @@ export async function transcribeExternalAudio(
             transcript: result.text,
             duration: result.duration,
             segments: parseWhisperSegments(result.segments),
+            language: typeof result.language === 'string' ? result.language : undefined,
         };
 
     } catch (error) {

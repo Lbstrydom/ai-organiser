@@ -245,7 +245,9 @@ export class TranscribeOnlyModal extends Modal {
                 throw new Error(result.error || 'Transcription failed');
             }
 
-            const timed = transcriptionResultToTimedTranscript(result, 'und');
+            // Prefer Whisper's detected language; fall back to 'und' so the
+            // attribution registry routes to NoOp when undetected.
+            const timed = transcriptionResultToTimedTranscript(result, result.language || 'und');
             this.labelled = await labelSpeakersTimed(this.plugin, timed, []);
             this.transitionSpeakerReview();
             this.refreshSaveButtonGate();
