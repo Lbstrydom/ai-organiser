@@ -2703,6 +2703,24 @@ export interface Translations {
         audioItemTranscribing: string;
         audioItemPending: string;
         audioItemError: string;
+        // Speaker review panel (plan F2 — confirm/rename speakers before minutes)
+        speakerReviewHeading: string;
+        speakerReviewDescription: string;
+        speakerReviewSinglePersonHint: string;
+        speakerNameDropdownLabel: string;
+        speakerNameUnconfirmed: string;
+        speakerNameTypeFallback: string;
+        speakerSameAsLabel: string;
+        speakerPlayPreview: string;
+        speakerPreviewUnavailable: string;
+        speakerOccurrenceCountLabel: string;
+        speakerConfirmButton: string;
+        speakerSkipButton: string;
+        speakerEditAfterConfirm: string;
+        speakerDetectionFailedBanner: string;
+        speakerDetectionUnavailableBanner: string;
+        speakerLabellingThrewBanner: string;
+        confirmSpeakersFirst: string;
         // Context documents
         contextDocumentsSection: string;
         contextDocumentsDesc: string;

@@ -11,7 +11,14 @@ import { DictionaryService, Dictionary } from '../../services/dictionaryService'
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import { AudioAttachCoordinator } from '../coordinators/AudioAttachCoordinator';
 import { renderAudioAttach, type AudioAttachHandle, type DetectedAudioPrompt } from '../components/AudioAttachHelper';
-import type { AudioAttachItem, AudioAttachViewState } from '../components/speakerReviewState';
+import type { AudioAttachItem, AudioAttachViewState, DetectedSpeaker, SpeakerMapping, SpeakerReviewState } from '../components/speakerReviewState';
+import { canGenerateMinutes } from '../components/speakerReviewState';
+import { renderSpeakerReview, type SpeakerReviewHandle } from '../components/SpeakerReviewPanel';
+import {
+    labelSpeakersTimed,
+    transcriptionResultToTimedTranscript,
+} from '../../services/speakerLabellingService';
+import type { LabelledTimedTranscript } from '../../services/transcriptTypes';
 import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath, resolveOutputPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
@@ -75,6 +82,10 @@ interface MinutesModalState {
     isTranscribing: boolean;
     transcriptionProgress: string;
     transcriptionLanguage: string;
+    /** F2c — speaker review state machine. Drives the panel + Generate Minutes CTA gate. */
+    speakerReview: SpeakerReviewState;
+    /** F2c — labelled transcript produced by labelSpeakersTimed() after transcription completes */
+    labelledTranscript: LabelledTimedTranscript | null;
     /** Path where transcript was saved to disk (persistent link) */
     savedTranscriptPath: string;
     // Document context (managed by controller)
@@ -139,6 +150,10 @@ export class MinutesCreationModal extends Modal {
     private audioCoordinator: AudioAttachCoordinator | null = null;
     /** Live handle to the rendered AudioAttachHelper — used for rerender on state changes. */
     private audioAttachHandle: AudioAttachHandle | null = null;
+    /** Live handle to the SpeakerReviewPanel (F2c). */
+    private speakerReviewHandle: SpeakerReviewHandle | null = null;
+    /** Container for the SpeakerReviewPanel — kept across renders for in-place re-render */
+    private speakerReviewContainerEl: HTMLElement | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
         super(app);
@@ -177,6 +192,11 @@ export class MinutesCreationModal extends Modal {
             // auto-detected-from-note holding area used for the prompt + cache lookup).
             audioAttachItems: [],
             detectedAudioFromNoteDismissed: false,
+            // F2c — speaker review starts as 'not-required'. Transitions to
+            // 'pending' (or 'skipped' / 'failed' on degraded paths) after
+            // labelSpeakersTimed() completes post-transcription.
+            speakerReview: { kind: 'not-required' },
+            labelledTranscript: null,
             isTranscribing: false,
             transcriptionProgress: '',
             transcriptionLanguage: 'auto',
@@ -254,6 +274,15 @@ export class MinutesCreationModal extends Modal {
         //   "I see the banner → I see the audio → I click Transcribe"
         // instead of scrolling past the empty transcript field first.
         this.renderAudioTranscriptionSection(contentEl);
+        // F2c — SpeakerReviewPanel slot. Lives directly below the audio
+        // section so the user reviews speakers immediately after transcription
+        // and before any minutes-generation work happens. Container persists
+        // across renders so async transcription completions can update the
+        // panel in-place without rebuilding the whole modal.
+        this.speakerReviewContainerEl = contentEl.createDiv({
+            cls: 'ai-organiser-speaker-review-slot',
+        });
+        this.renderSpeakerReviewSection();
         if (!Platform.isMobile) {
             this.renderContextDocumentsSection(contentEl);
         }
@@ -698,9 +727,11 @@ export class MinutesCreationModal extends Modal {
 
         const submitBtn = footer.createEl('button', {
             text: t?.submitButton || 'Create Minutes',
-            cls: 'mod-cta'
+            cls: 'mod-cta ai-organiser-minutes-submit'
         });
         this.cleanups.push(listen(submitBtn, 'click', () => void this.handleSubmit()));
+        // F2c — initial gate check; refreshed by speaker-review state changes.
+        this.refreshSubmitButtonGate();
     }
 
     private async handleSubmit(): Promise<void> {
@@ -1474,6 +1505,205 @@ export class MinutesCreationModal extends Modal {
         void this.onOpen();
     }
 
+    // ============================================================================
+    // F2c — SpeakerReviewPanel integration
+    // ============================================================================
+
+    /**
+     * Render (or re-render) the SpeakerReviewPanel into its persistent slot.
+     * Called once during initial modal render and again after async events
+     * that change `state.speakerReview` (transcription complete, labelling
+     * complete, user confirm/skip).
+     */
+    private renderSpeakerReviewSection(): void {
+        const slot = this.speakerReviewContainerEl;
+        if (!slot) return;
+
+        // Destroy any previous panel first (idempotent; clears listeners).
+        this.speakerReviewHandle?.destroy();
+        slot.empty();
+
+        // `not-required` short-circuits to render nothing — saves a wrapper
+        // div + listeners we'd never use.
+        if (this.state.speakerReview.kind === 'not-required') {
+            this.speakerReviewHandle = null;
+            return;
+        }
+
+        // Preview handle: resolved from the first audio item's source via the
+        // coordinator. When no items exist (e.g. transcript was pasted), pass
+        // null so the panel suppresses preview controls (R1 H2 contract).
+        const previewHandle = this.resolveSpeakerPreviewHandle();
+
+        // Whether audio preview is offered at all — gated on timestampSource.
+        const timestampsAvailable =
+            (this.state.labelledTranscript?.timestampSource ?? 'none') === 'whisper-verbose-json';
+
+        this.speakerReviewHandle = renderSpeakerReview(slot, {
+            state: this.state.speakerReview,
+            participants: this.parseParticipantsForReview(),
+            preview: previewHandle,
+            timestampsAvailable,
+            t: this.plugin.t,
+            onConfirm: (mapping) => this.handleSpeakerConfirm(mapping),
+            onSkip: () => this.handleSpeakerSkip('user-skip'),
+            onEditAfterConfirm: () => this.handleSpeakerEdit(),
+        });
+    }
+
+    /**
+     * Run the speaker-labelling LLM pre-pass against a fresh transcription
+     * result and transition `speakerReview` into the appropriate state. Three
+     * outcomes:
+     *   - `pending` — ≥2 distinct speakers detected → show panel for user
+     *     to confirm/rename
+     *   - `not-required` — <2 distinct speakers → no review needed, CTA
+     *     immediately re-enabled
+     *   - `failed` / `skipped` — labelling threw or detection unavailable;
+     *     CTA gated open with explanatory banner
+     */
+    private async runSpeakerLabelling(timed: ReturnType<typeof transcriptionResultToTimedTranscript>): Promise<void> {
+        // Persist the underlying TimedTranscript so the panel can decide
+        // whether to offer audio preview (timestampSource flag) and so
+        // downstream MinutesService consumers can read the same structure.
+        try {
+            const participants = this.parseParticipantsForReview();
+            const labelled = await labelSpeakersTimed(this.plugin, timed, participants);
+            this.state.labelledTranscript = labelled;
+
+            // Build DetectedSpeaker[] for the panel.
+            const detected = this.buildDetectedSpeakersFromLabelled(labelled);
+            if (detected.length < 2) {
+                // One speaker (or zero) → review is trivially not needed.
+                this.state.speakerReview = detected.length === 0
+                    ? { kind: 'skipped', detected: [], reason: 'detection-failed' }
+                    : { kind: 'not-required' };
+            } else {
+                this.state.speakerReview = { kind: 'pending', detected };
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.state.labelledTranscript = null;
+            this.state.speakerReview = { kind: 'failed', detected: [], error: message };
+            logger.warn('Minutes', `labelSpeakersTimed threw: ${message}`);
+        }
+        this.renderSpeakerReviewSection();
+    }
+
+    /**
+     * Build a `DetectedSpeaker[]` from a `LabelledTimedTranscript` — one entry
+     * per unique speaker, with first-utterance offset (real Whisper timestamp
+     * when available) and a 120-char snippet for the preview row.
+     */
+    private buildDetectedSpeakersFromLabelled(labelled: LabelledTimedTranscript): DetectedSpeaker[] {
+        const out: DetectedSpeaker[] = [];
+        const seen = new Set<string>();
+        const counts = new Map<string, number>();
+
+        // First pass — count occurrences and capture first-utterance offset+text.
+        for (const seg of labelled.segments) {
+            if (!seg.speaker) continue;
+            counts.set(seg.speaker, (counts.get(seg.speaker) ?? 0) + 1);
+            if (!seen.has(seg.speaker)) {
+                seen.add(seg.speaker);
+                out.push({
+                    label: seg.speaker,
+                    firstUtteranceStartMs:
+                        labelled.timestampSource === 'whisper-verbose-json' ? seg.startMs : undefined,
+                    firstUtteranceText: seg.text,
+                    occurrenceCount: 0, // populated after the loop
+                });
+            }
+        }
+        for (const s of out) {
+            s.occurrenceCount = counts.get(s.label) ?? 0;
+        }
+        return out;
+    }
+
+    /**
+     * Best-effort preview handle for the first audio item. Stays null when no
+     * items are attached — the panel handles null gracefully (suppresses
+     * preview controls).
+     */
+    private resolveSpeakerPreviewHandle(): ReturnType<AudioAttachCoordinator['attachPreview']> | null {
+        if (!this.audioCoordinator) return null;
+        const item = this.state.audioAttachItems[0];
+        if (!item) {
+            // Fall back to the first auto-detected file if any (so a user who
+            // skipped the "Use it" prompt still gets preview).
+            const detected = this.state.detectedAudioFiles[0];
+            if (!detected?.resolvedFile) return null;
+            return this.audioCoordinator.attachPreview({ kind: 'vault', file: detected.resolvedFile });
+        }
+        return this.audioCoordinator.attachPreview(item.source);
+    }
+
+    /** Parse the participants free-text field into an ordered list of names. */
+    private parseParticipantsForReview(): string[] {
+        return this.state.participants
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            // Strip everything after a colon (e.g. "Sarah Lee: Finance" → "Sarah Lee").
+            .map((line) => line.split(':')[0].trim())
+            .filter((name) => name.length > 0);
+    }
+
+    private handleSpeakerConfirm(mapping: SpeakerMapping): void {
+        if (this.state.speakerReview.kind !== 'pending') return;
+        this.state.speakerReview = {
+            kind: 'confirmed',
+            detected: this.state.speakerReview.detected,
+            mapping,
+        };
+        this.renderSpeakerReviewSection();
+        // CTA gating uses `canGenerateMinutes(state)` — re-render any visible
+        // submit button if the modal has one cached.
+        this.refreshSubmitButtonGate();
+    }
+
+    private handleSpeakerSkip(reason: 'user-skip' | 'detection-failed' | 'detection-unavailable'): void {
+        const detected = this.state.speakerReview.kind === 'pending'
+            ? this.state.speakerReview.detected
+            : [];
+        this.state.speakerReview = { kind: 'skipped', detected, reason };
+        this.renderSpeakerReviewSection();
+        this.refreshSubmitButtonGate();
+    }
+
+    private handleSpeakerEdit(): void {
+        if (this.state.speakerReview.kind !== 'confirmed') return;
+        this.state.speakerReview = {
+            kind: 'pending',
+            detected: this.state.speakerReview.detected,
+        };
+        this.renderSpeakerReviewSection();
+        this.refreshSubmitButtonGate();
+    }
+
+    /**
+     * Toggle the Submit button's disabled state based on the pure
+     * canGenerateMinutes derivation. The button itself is created in
+     * renderBottomSection; this re-reads its DOM node by class.
+     */
+    private refreshSubmitButtonGate(): void {
+        const btn = this.contentEl.querySelector<HTMLButtonElement>(
+            '.ai-organiser-minutes-submit'
+        );
+        if (!btn) return;
+        const canSubmit = canGenerateMinutes({
+            transcript: this.state.transcript,
+            speakerReview: this.state.speakerReview,
+        });
+        btn.disabled = !canSubmit;
+        if (!canSubmit && this.state.speakerReview.kind === 'pending') {
+            setTooltip(btn, this.plugin.t.minutes.confirmSpeakersFirst || 'Confirm speakers first');
+        } else {
+            setTooltip(btn, '');
+        }
+    }
+
     private renderAudioTranscriptionSection(containerEl: HTMLElement): void {
         const t = this.plugin.t.minutes;
 
@@ -1635,6 +1865,18 @@ export class MinutesCreationModal extends Modal {
             if (this.transcriptTextArea) {
                 this.transcriptTextArea.value = transcript;
             }
+
+            // F2c — run the speaker-labelling pre-pass against the verbose_json
+            // segments (real Whisper timestamps preserved). Transitions
+            // speakerReview into 'pending' (or 'skipped'/'failed' on degraded
+            // paths) and re-renders the panel. Awaited so users see the panel
+            // before they reach for Generate Minutes.
+            const timed = transcriptionResultToTimedTranscript(
+                result,
+                this.getTranscriptionLanguageCode() || 'und'
+            );
+            await this.runSpeakerLabelling(timed);
+            this.refreshSubmitButtonGate();
 
             // Save transcript to disk with audio_source frontmatter for cache lookup
             const savedPath = await this.saveTranscriptToDisk(transcript, file);
@@ -3141,8 +3383,12 @@ export class MinutesCreationModal extends Modal {
     }
 
     onClose(): void {
-        // F1b — release any audio-preview object URLs the coordinator created.
-        // Idempotent; safe to call even if the audio section was never rendered.
+        // F1b/F2c — release any audio-preview object URLs the coordinator
+        // created and the SpeakerReviewPanel's DOM listeners. Idempotent;
+        // safe to call even if neither was rendered.
+        this.speakerReviewHandle?.destroy();
+        this.speakerReviewHandle = null;
+        this.speakerReviewContainerEl = null;
         this.audioAttachHandle?.destroy();
         this.audioAttachHandle = null;
         this.audioCoordinator?.dispose();

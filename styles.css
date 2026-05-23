@@ -7881,6 +7881,200 @@
     left: -9999px;
 }
 
+/* ============================================================================
+ * Speaker review panel (plan F2)
+ * Renders inline below the audio section after labelSpeakers() returns;
+ * gates the Generate Minutes CTA until user confirms or skips.
+ * ============================================================================ */
+.ai-organiser-speaker-review-panel {
+    margin-top: 12px;
+    padding: 12px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-speaker-review-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.ai-organiser-speaker-review-icon {
+    display: inline-flex;
+    align-items: center;
+}
+
+.ai-organiser-speaker-review-title {
+    font-weight: 600;
+    font-size: 1em;
+}
+
+.ai-organiser-speaker-review-description {
+    font-size: 0.85em;
+    margin-bottom: 12px;
+}
+
+.ai-organiser-speaker-review-banner {
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-top: 6px;
+}
+
+.ai-organiser-speaker-review-banner.is-failed {
+    background-color: color-mix(in srgb, var(--color-orange) 12%, transparent);
+    border-left: 3px solid var(--color-orange);
+}
+
+.ai-organiser-speaker-review-banner.is-skipped {
+    background-color: var(--background-modifier-border);
+    border-left: 3px solid var(--text-muted);
+}
+
+.ai-organiser-speaker-review-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ai-organiser-speaker-review-row {
+    padding: 10px;
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ai-organiser-speaker-review-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ai-organiser-speaker-review-label-text {
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.ai-organiser-speaker-review-occurrence {
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.ai-organiser-speaker-review-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-organiser-speaker-review-play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background-color: var(--interactive-normal);
+    cursor: pointer;
+}
+
+.ai-organiser-speaker-review-play:hover {
+    background-color: var(--interactive-hover);
+}
+
+.ai-organiser-speaker-review-snippet {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    font-style: italic;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-organiser-speaker-review-no-preview {
+    font-size: 0.8em;
+    font-style: italic;
+}
+
+.ai-organiser-speaker-review-audio {
+    /* The <audio> element is invisible — the play button drives playback. */
+    display: none;
+}
+
+.ai-organiser-speaker-review-rename {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ai-organiser-speaker-review-rename-label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.ai-organiser-speaker-review-rename-input {
+    flex: 1;
+    min-width: 140px;
+    padding: 4px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+}
+
+.ai-organiser-speaker-review-same-as {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-speaker-review-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.ai-organiser-speaker-review-skip,
+.ai-organiser-speaker-review-edit {
+    padding: 6px 12px;
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ai-organiser-speaker-review-confirm {
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ai-organiser-speaker-review-confirm.is-invalid {
+    background-color: color-mix(in srgb, var(--color-red) 25%, transparent);
+}
+
+/* Mobile: stack rename row vertically */
+@media (max-width: 600px) {
+    .ai-organiser-speaker-review-rename {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ai-organiser-speaker-review-rename-input,
+    .ai-organiser-speaker-review-same-as {
+        width: 100%;
+    }
+}
+
 /* Shown via display:block (overrides parent hide) */
 .ai-organiser-block {
     display: block !important;

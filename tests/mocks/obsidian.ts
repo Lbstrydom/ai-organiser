@@ -420,6 +420,10 @@ export function setIcon(el: any, iconName: string) {
     // No-op for tests
 }
 
+export function setTooltip(el: any, tooltip: string) {
+    // No-op for tests
+}
+
 export const Platform = {
     isMobile: false,
     isDesktop: true,
