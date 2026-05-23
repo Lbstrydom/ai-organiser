@@ -7869,6 +7869,18 @@
     display: none !important;
 }
 
+/*
+ * Off-screen but still interactive — used for programmatic file-input pickers
+ * on mobile webview (display:none breaks .click() in some webviews). Stays
+ * focusable and clickable but invisible to the user.
+ */
+.ai-organiser-offscreen-input {
+    position: fixed;
+    opacity: 0;
+    pointer-events: none;
+    left: -9999px;
+}
+
 /* Shown via display:block (overrides parent hide) */
 .ai-organiser-block {
     display: block !important;
