@@ -2684,6 +2684,25 @@ export interface Translations {
         transcriptionFailed: string;
         noTranscriptionProvider: string;
         errorAudioNotFound: string;
+        // Audio attach helper (plan F1 — unconditional attach UI)
+        audioSectionHeading: string;
+        audioSectionDescription: string;
+        audioAttachFile: string;
+        audioPickVault: string;
+        audioRecordNow: string;
+        audioPickerOpening: string;
+        audioReplace: string;
+        audioRetranscribe: string;
+        audioRetry: string;
+        audioAbort: string;
+        audioDetectedPromptOne: string;
+        audioDetectedPromptMany: string;
+        audioDetectedUseIt: string;
+        audioDetectedIgnore: string;
+        audioItemTranscribed: string;
+        audioItemTranscribing: string;
+        audioItemPending: string;
+        audioItemError: string;
         // Context documents
         contextDocumentsSection: string;
         contextDocumentsDesc: string;
