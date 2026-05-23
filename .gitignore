@@ -17,6 +17,7 @@ Library/
 .roo/
 .claude/
 .brainstorm/
+.skills-fit-check.json
 .env
 .env.local
 CLAUDE.local.md
