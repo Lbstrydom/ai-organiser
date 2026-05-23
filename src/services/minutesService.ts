@@ -27,6 +27,8 @@ import {
 } from './prompts/minutesPrompts';
 import { chunkPlainTextAsync, chunkSegmentsAsync } from '../utils/textChunker';
 import { CHUNK_TOKEN_LIMIT, MinutesStyle } from '../core/constants';
+// F5 — speaker attribution post-pass
+import { applyDeterministicAttribution } from './speakerAttribution';
 import { preprocessTranscript } from './transcriptPreprocessor';
 import {
     buildMinutesFrontmatter,
@@ -58,6 +60,31 @@ export interface MinutesGenerationInput {
     outputFolder: string;
     customInstructions?: string;
     languageOverride?: string;
+    /**
+     * F2c/F5 — Labelled timed transcript produced by speakerLabellingService.
+     * Required for deterministic action attribution; when absent the
+     * post-pass is a no-op + emits a `missing-labelled-transcript` warning.
+     */
+    labelledTranscript?: import('./transcriptTypes').LabelledTimedTranscript;
+    /**
+     * F2c/F5 — BCP-47 language code for attribution strategy dispatch.
+     * Falls back to 'und' (→ NoOp strategy + once-per-run unsupported flag).
+     */
+    transcriptLanguageCode?: string;
+    /**
+     * F2c — Speaker label → resolved name mapping confirmed by the user via
+     * SpeakerReviewPanel. Empty/missing → attribution can't rewrite first-
+     * person owners (lexical rules still apply to third-person).
+     */
+    speakerMapping?: import('../ui/components/speakerReviewState').SpeakerMapping;
+    /**
+     * F2c — User confirmed speaker labels OR explicitly skipped. Propagated
+     * to MinutesJSON.metadata.speakers_verified (single-source rule per
+     * R3 M3 — transcript-note is canonical, minutes inherit).
+     */
+    speakersVerified?: boolean;
+    /** F2c — machine-readable detection status; mirrors transcript note frontmatter */
+    speakerDetectionStatus?: 'detected' | 'failed' | 'skipped' | 'unavailable' | 'not-required';
     /** Optional context from attached documents (agendas, presentations, etc.) */
     contextDocuments?: string;
     /** Optional terminology dictionary content for transcription accuracy */
@@ -318,6 +345,25 @@ export class MinutesService {
         const warnings = validation.issues.filter(i => i.severity === 'warning');
         if (warnings.length > 0) {
             new Notice(this.plugin.t.messages.minutesValidationWarnings.replace('{count}', String(warnings.length)), 5000);
+        }
+
+        // F2c/F5 — Deterministic speaker-based attribution post-pass.
+        // Rewrites action owners using language-specific rules + provenance
+        // when both `labelledTranscript` and `speakerMapping` are available.
+        // Without them, the post-pass is a structured no-op + warning rather
+        // than a silent skip (R1 H3).
+        const attributionWarnings = this.applySpeakerAttribution(parsed.json, input);
+        // Propagate the confirmation status into MinutesJSON.metadata so the
+        // renderer can surface speakers_verified + speaker_detection_status
+        // in the output frontmatter (Gemini G4; R3 M3 single-source rule).
+        if (input.speakersVerified !== undefined) {
+            parsed.json.metadata.speakers_verified = input.speakersVerified;
+        }
+        if (input.speakerDetectionStatus !== undefined) {
+            parsed.json.metadata.speaker_detection_status = input.speakerDetectionStatus;
+        }
+        for (const w of attributionWarnings) {
+            warnings.push({ severity: 'warning', field: 'speaker-attribution', message: w });
         }
 
         // Phase 5: Optional LLM audit (DD-5: fail-open, never blocking)
@@ -848,6 +894,73 @@ export class MinutesService {
             batches.push(extracts.slice(i, i + size));
         }
         return batches;
+    }
+
+    /**
+     * F2c/F5 — Run the deterministic speaker-attribution post-pass against
+     * the parsed minutes JSON. Rewrites `action.owner` in-place using
+     * provenance + language-specific rules.
+     *
+     * Graceful degradation:
+     *   - No `labelledTranscript` → returns ['missing-labelled-transcript'] warning
+     *   - Empty `actions` array → no-op, returns []
+     *   - Strategy error → caught, returns ['attribution-error: ...'] warning;
+     *     actions remain as the LLM produced them
+     *
+     * Returns a list of human-readable warning strings that the caller
+     * pushes into the minutes warnings channel.
+     */
+    private applySpeakerAttribution(
+        json: import('./prompts/minutesPrompts').MinutesJSON,
+        input: MinutesGenerationInput
+    ): string[] {
+        const warnings: string[] = [];
+        if (!json.actions || json.actions.length === 0) return warnings;
+
+        if (!input.labelledTranscript) {
+            // No labelled transcript → can't do provenance-based attribution.
+            // We still keep the LLM's actions verbatim (graceful degradation
+            // per R1 H4 layer-2). One warning is enough — actions already
+            // carry the LLM's owner.
+            warnings.push(
+                'Speaker-based attribution skipped: no labelled transcript available — action owners reflect LLM inference only'
+            );
+            return warnings;
+        }
+
+        const languageCode = input.transcriptLanguageCode || input.labelledTranscript.languageCode || 'und';
+        const participants = this.parseParticipants(input.participantsRaw).map((p) => p.name);
+
+        try {
+            const result = applyDeterministicAttribution(
+                {
+                    actions: json.actions,
+                    labelledTranscript: input.labelledTranscript,
+                    speakerMapping: input.speakerMapping ?? {},
+                    participants,
+                },
+                languageCode
+            );
+            if (!result.ok) {
+                warnings.push(`Speaker attribution failed: ${result.error}`);
+                return warnings;
+            }
+            // Rewrite actions in-place on the json object.
+            json.actions = result.value.actions;
+            // Map flags → human-readable warnings.
+            for (const flag of result.value.flags) {
+                if (flag.detail) {
+                    warnings.push(flag.detail);
+                } else {
+                    warnings.push(`${flag.kind}${flag.actionId ? ` (action ${flag.actionId})` : ''}`);
+                }
+            }
+        } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            warnings.push(`Speaker attribution threw: ${message}`);
+        }
+
+        return warnings;
     }
 
     private parseParticipants(raw: string): import('./prompts/minutesPrompts').Participant[] {

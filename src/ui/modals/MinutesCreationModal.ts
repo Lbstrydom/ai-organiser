@@ -803,6 +803,21 @@ export class MinutesCreationModal extends Modal {
         const progressEl = overlay.querySelector<HTMLElement>('.ai-organiser-minutes-generating-progress');
 
         try {
+            // F2c/F5 — derive the speaker-attribution inputs from the modal's
+            // SpeakerReviewState. The fields are all optional on MinutesService
+            // input: without them, the post-pass becomes a structured no-op
+            // that emits a single warning instead of silently skipping.
+            const speakerReviewKind = this.state.speakerReview.kind;
+            const speakerMapping = speakerReviewKind === 'confirmed' ? this.state.speakerReview.mapping : undefined;
+            const speakersVerified = speakerReviewKind === 'confirmed';
+            const speakerDetectionStatus =
+                speakerReviewKind === 'confirmed' ? 'detected' :
+                speakerReviewKind === 'failed' ? 'failed' :
+                speakerReviewKind === 'skipped' && this.state.speakerReview.reason === 'detection-failed' ? 'failed' :
+                speakerReviewKind === 'skipped' && this.state.speakerReview.reason === 'detection-unavailable' ? 'unavailable' :
+                speakerReviewKind === 'skipped' ? 'skipped' :
+                'not-required';
+
             const result = await this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
@@ -816,6 +831,12 @@ export class MinutesCreationModal extends Modal {
                 dictionaryContent: dictionaryContent || undefined,
                 styleReference: this.state.styleReference || undefined,
                 useGTD: this.state.useGTD,
+                // F2c/F5 — speaker-attribution inputs.
+                labelledTranscript: this.state.labelledTranscript ?? undefined,
+                transcriptLanguageCode: this.state.labelledTranscript?.languageCode,
+                speakerMapping,
+                speakersVerified,
+                speakerDetectionStatus,
                 // Phase 4: wire progress + cancel into the chunked loop.
                 abortSignal: abortController.signal,
                 onProgress: (current, total, elapsedMs) => {

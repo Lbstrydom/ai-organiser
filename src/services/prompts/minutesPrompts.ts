@@ -125,6 +125,14 @@ export interface MinutesJSON {
         quorum_present: boolean | null;
         /** Minutes style used to generate this output (Phase 3 TRA) */
         style?: MinutesStyle;
+        /**
+         * F2c — Did the user confirm speaker labels via SpeakerReviewPanel?
+         * Single-source rule (R3 M3): transcript-note is canonical, minutes
+         * inherit this flag. Renderer surfaces it in the output frontmatter.
+         */
+        speakers_verified?: boolean;
+        /** F2c — Machine-readable detection status; mirrors transcript frontmatter */
+        speaker_detection_status?: 'detected' | 'failed' | 'skipped' | 'unavailable' | 'not-required';
     };
     participants: Participant[];
     agenda: string[];
