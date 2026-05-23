@@ -8198,6 +8198,56 @@
     cursor: pointer;
 }
 
+/* ============================================================================
+ * TranscribeOnlyModal (plan F3)
+ * ============================================================================ */
+.ai-organiser-transcribe-only-modal {
+    min-width: 480px;
+}
+
+.ai-organiser-transcribe-only-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.ai-organiser-transcribe-only-header h2 {
+    margin: 0;
+}
+
+.ai-organiser-transcribe-only-desc {
+    margin-bottom: 12px;
+}
+
+.ai-organiser-transcribe-only-attach {
+    margin-bottom: 12px;
+}
+
+.ai-organiser-transcribe-only-speaker-slot {
+    margin-bottom: 12px;
+}
+
+.ai-organiser-transcribe-only-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-transcribe-only-status {
+    flex: 1;
+    font-size: 0.85em;
+}
+
+.ai-organiser-transcribe-only-actions {
+    display: flex;
+    gap: 8px;
+}
+
 /* Shown via display:block (overrides parent hide) */
 .ai-organiser-block {
     display: block !important;

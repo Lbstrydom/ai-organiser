@@ -888,6 +888,8 @@ export interface Translations {
         groupNotesByTag: string;
         visualizeTagGraph: string;
         createMeetingMinutes: string;
+        /** Plan F3 — new top-level "Transcribe audio" command */
+        transcribeAudio: string;
         addToPendingIntegration: string;
         integratePendingContent: string;
         resolvePendingEmbeds: string;
@@ -2305,6 +2307,8 @@ export interface Translations {
                 playNarration: string;
                 smartSummarize: string;
                 createMeetingMinutes: string;
+                /** Plan F3 — new top-level "Transcribe audio" command */
+                transcribeAudio: string;
                 recordAudio: string;
                 webReader: string;
                 researchWeb: string;
@@ -2732,6 +2736,16 @@ export interface Translations {
         docMultiPickerSearchPlaceholder: string;
         docMultiPickerConfirmButton: string;
         docMultiPickerEmpty: string;
+        // TranscribeOnlyModal (plan F3)
+        transcribeOnlyTitle: string;
+        transcribeOnlyDescription: string;
+        transcribeOnlyOutputFolderLabel: string;
+        transcribeOnlySaveButton: string;
+        transcribeOnlyCancelButton: string;
+        transcribeOnlySavedNotice: string;
+        transcribeOnlyFollowUpHint: string;
+        transcribeOnlyAttachFirst: string;
+        transcribeOnlyTranscribeFirst: string;
         // Context documents
         contextDocumentsSection: string;
         contextDocumentsDesc: string;

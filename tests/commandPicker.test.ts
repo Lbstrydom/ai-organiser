@@ -139,9 +139,34 @@ describe('Command Picker — output-anchored taxonomy', () => {
             const create = cats.find(c => c.id === 'create')!;
             const write = create.commands.find(c => c.id === 'create-write')!;
             expect(write.subCommands?.map(c => c.id)).toEqual([
-                'smart-summarize', 'create-meeting-minutes', 'smart-translate',
-                'export-note', 'export-minutes-docx',
+                // Plan F3 — transcribe-audio added between create-meeting-minutes
+                // and smart-translate so users typing the natural transcription
+                // verb find a direct leaf (Pat persona-test P0).
+                'smart-summarize', 'create-meeting-minutes', 'transcribe-audio',
+                'smart-translate', 'export-note', 'export-minutes-docx',
             ]);
+        });
+
+        it('Plan F3 — transcribe-audio leaf has the right aliases for fuzzy search', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const write = cats.find(c => c.id === 'create')!
+                .commands.find(c => c.id === 'create-write')!;
+            const transcribe = write.subCommands?.find(c => c.id === 'transcribe-audio')!;
+            expect(transcribe).toBeDefined();
+            // All natural search verbs should land here.
+            expect(transcribe.aliases).toEqual(expect.arrayContaining([
+                'transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes',
+            ]));
+        });
+
+        it('Plan F3 — Minutes leaf carries the transcribe aliases so it ALSO surfaces on "transcribe"', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const write = cats.find(c => c.id === 'create')!
+                .commands.find(c => c.id === 'create-write')!;
+            const minutes = write.subCommands?.find(c => c.id === 'create-meeting-minutes')!;
+            expect(minutes.aliases).toEqual(expect.arrayContaining([
+                'minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text',
+            ]));
         });
         it('Visualise sub-group contains the 6 visual-output commands', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
@@ -292,19 +317,20 @@ describe('Command Picker — output-anchored taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 41 (38 unique + 3 cross-listings)', () => {
+        it('total picker rows = 42 (39 unique + 3 cross-listings)', () => {
+            // Plan F3 — added `transcribe-audio` leaf (was 41/38; now 42/39).
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(41);
+            expect(leafCount).toBe(42);
         });
-        it('unique command IDs = 38', () => {
+        it('unique command IDs = 39', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(38);
+            expect(uniqueIds.size).toBe(39);
         });
 
-        it('alphabetised ai-organiser:* callbacks (38 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (39 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -353,11 +379,13 @@ describe('Command Picker — output-anchored taxonomy', () => {
                 'ai-organiser:smart-summarize',
                 'ai-organiser:smart-tag',
                 'ai-organiser:smart-translate',
+                // Plan F3 — new transcribe verb.
+                'ai-organiser:transcribe-audio',
                 'ai-organiser:upgrade-folder-metadata',
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
             ]);
-            expect(unique.size).toBe(38);
+            expect(unique.size).toBe(39);
         });
     });
 });

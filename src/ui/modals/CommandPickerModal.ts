@@ -741,7 +741,13 @@ export function buildCommandCategories(
 							[...summarizeAliases, 'create', 'summary'], ['capture']),
 						cmd('create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
 							desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
-							['minutes', 'meeting', 'transcript'], ['capture']),
+							// Plan F3 — added 'transcribe', 'audio', 'speech-to-text' aliases so
+							// users who type the natural transcription verb still find Minutes.
+							['minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text'], ['capture']),
+						// Plan F3 — new top-level Transcribe verb. Pat persona P0 closed.
+						cmd('transcribe-audio', t.commands.transcribeAudio, 'mic', 'none',
+							desc.transcribeAudio || 'Transcribe an audio file to a speaker-labelled note',
+							['transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes'], ['capture']),
 						cmd('smart-translate', t.commands.translate, 'languages', 'active-note',
 							desc.smartTranslate || 'Translate the active note into another language',
 							['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],

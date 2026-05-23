@@ -85,6 +85,8 @@ export interface AIOrganiserSettings {
     multiSourceOversizedBehavior: 'truncate' | 'full' | 'ask'; // Default: 'full'
     // Meeting Minutes Settings
     minutesOutputFolder: string;         // Folder for meeting minutes notes
+    /** Folder for transcript-only notes produced by the Transcribe Audio command (plan F3, R3 H4) */
+    transcriptOutputFolder: string;
     minutesDefaultTimezone: string;      // Default timezone for meetings
     minutesStyle: MinutesStyle;          // Minutes output style (Phase 2 TRA)
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
@@ -387,6 +389,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     multiSourceMaxDocumentChars: DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS,
     multiSourceOversizedBehavior: 'full' as OversizedBehavior,
     minutesOutputFolder: 'Meetings',
+    // F3 (R3 H4): folder under plugin root for Transcribe-audio output notes.
+    transcriptOutputFolder: 'Transcripts',
     minutesDefaultTimezone: getDefaultTimezone(),
     minutesStyle: DEFAULT_MINUTES_STYLE,
     minutesObsidianTasksFormat: false,
@@ -711,6 +715,15 @@ export function getDictionariesFolderFullPath(settings: AIOrganiserSettings): st
 
 export function getMinutesOutputFullPath(settings: AIOrganiserSettings): string {
     return resolveOutputPath(settings, settings.minutesOutputFolder, 'Meetings');
+}
+
+/**
+ * Path resolver for the Transcribe-audio command's output (plan F3, R3 H4).
+ * Mirrors `getMinutesOutputFullPath` — composes the plugin's data folder
+ * with the user-configured subfolder.
+ */
+export function getTranscriptOutputFullPath(settings: AIOrganiserSettings): string {
+    return resolveOutputPath(settings, settings.transcriptOutputFolder, 'Transcripts');
 }
 
 export function getExportOutputFullPath(settings: AIOrganiserSettings): string {
