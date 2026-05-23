@@ -38,6 +38,9 @@ esbuild.build({
   target: "es2022",
   logLevel: "info",
   sourcemap: prod ? false : "inline",
+  // Minify production builds — roughly halves main.js. Dev builds stay
+  // readable for debugging with inline sourcemaps.
+  minify: prod,
   treeShaking: true,
   outfile: "main.js",
   loader: {
