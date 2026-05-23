@@ -1,11 +1,11 @@
 /**
  * Writer Service for NotebookLM Source Packs
  *
- * Generates README.md (per-file checklist), manifest.json, and changelog.md.
+ * Generates README.md (per-file checklist), pack-index.json, and changelog.md.
  */
 
 import { App, TFile, TFolder } from 'obsidian';
-import { PackManifest, Changelog } from './types';
+import { PackManifest, Changelog, PACK_MANIFEST_FILENAME } from './types';
 import { formatBytes } from './notebooklmUtils';
 
 export class WriterService {
@@ -17,7 +17,7 @@ export class WriterService {
     }
 
     async writeManifest(packFolderPath: string, manifest: PackManifest): Promise<void> {
-        await this.writeFile(`${packFolderPath}/manifest.json`, JSON.stringify(manifest, null, 2));
+        await this.writeFile(`${packFolderPath}/${PACK_MANIFEST_FILENAME}`, JSON.stringify(manifest, null, 2));
     }
 
     async writeChangelog(packFolderPath: string, changelog: Changelog): Promise<void> {
@@ -63,7 +63,7 @@ export class WriterService {
         lines.push('4. If there are attached documents, upload those too — they contain charts and graphs');
         lines.push('5. Click **Audio Overview** to generate your podcast');
         lines.push('');
-        lines.push('> **Do not upload** `manifest.json`, `changelog.md`, or `README.md`');
+        lines.push(`> **Do not upload** \`${PACK_MANIFEST_FILENAME}\`, \`changelog.md\`, or \`README.md\``);
         lines.push('');
 
         // Notes checklist

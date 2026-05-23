@@ -170,11 +170,11 @@ describe('WriterService.writeManifest', () => {
         service = new WriterService(app);
     });
 
-    it('writes valid JSON to manifest.json', async () => {
+    it('writes valid JSON to pack-index.json', async () => {
         const manifest = makeManifest();
         await service.writeManifest('packs/my-pack', manifest);
         const call = (app.vault.create as ReturnType<typeof vi.fn>).mock.calls[0];
-        expect(call[0]).toBe('packs/my-pack/manifest.json');
+        expect(call[0]).toBe('packs/my-pack/pack-index.json');
         const parsed = JSON.parse(call[1] as string);
         expect(parsed.packId).toBe('test-pack-id');
         expect(parsed.entries).toHaveLength(2);

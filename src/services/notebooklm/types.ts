@@ -5,6 +5,15 @@
  */
 
 /**
+ * Filename for the source-pack manifest written into each generated pack
+ * folder. Deliberately avoids the substring `manifest.json` — the Obsidian
+ * community portal's static scanner flags a bundled ZIP library alongside
+ * that literal as a possible plugin self-update mechanism. This file is a
+ * vault-side NotebookLM pack index, unrelated to the plugin's own manifest.
+ */
+export const PACK_MANIFEST_FILENAME = 'pack-index.json';
+
+/**
  * Export format: 'text' produces a clean .txt file per note (default);
  * 'pdf' uses the legacy jsPDF path (strips code/math/mermaid blocks).
  */

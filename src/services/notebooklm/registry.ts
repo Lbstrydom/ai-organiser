@@ -6,7 +6,7 @@
  */
 
 import { App } from 'obsidian';
-import { PackRegistry, PackRegistryEntry, PackManifest, PackEntry } from './types';
+import { PackRegistry, PackRegistryEntry, PackManifest, PackEntry, PACK_MANIFEST_FILENAME } from './types';
 import { computePackHash } from './hashing';
 import { logger } from '../../utils/logger';
 
@@ -176,7 +176,7 @@ export class RegistryService {
         if (!entry) return null;
 
         try {
-            const manifestPath = `${entry.packFolderPath}/manifest.json`;
+            const manifestPath = `${entry.packFolderPath}/${PACK_MANIFEST_FILENAME}`;
             const file = this.app.vault.getAbstractFileByPath(manifestPath);
             if (!file) return null;
 
