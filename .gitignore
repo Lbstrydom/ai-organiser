@@ -16,6 +16,7 @@ Library/
 
 .roo/
 .claude/
+.brainstorm/
 .env
 .env.local
 CLAUDE.local.md
