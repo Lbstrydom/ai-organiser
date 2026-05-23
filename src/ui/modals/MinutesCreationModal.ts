@@ -9,6 +9,9 @@ import { isRecordingSupported } from '../../services/audioRecordingService';
 import { AudioRecorderModal } from './AudioRecorderModal';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
+import { AudioAttachCoordinator } from '../coordinators/AudioAttachCoordinator';
+import { renderAudioAttach, type AudioAttachHandle, type DetectedAudioPrompt } from '../components/AudioAttachHelper';
+import type { AudioAttachItem, AudioAttachViewState } from '../components/speakerReviewState';
 import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath, resolveOutputPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
@@ -63,7 +66,12 @@ interface MinutesModalState {
     /** Filename loaded via Transcript > Load from vault (visual indicator) */
     transcriptLoadedFilename: string;
     // Audio transcription
+    /** Auto-detected from active note — read-only after onOpen; drives the "Use it/Ignore" prompt and cache lookup */
     detectedAudioFiles: DetectedContent[];
+    /** F1b — items the user has actively attached (trio buttons or "Use it" accept) */
+    audioAttachItems: AudioAttachItem[];
+    /** F1b — user clicked "Ignore" on the auto-detect prompt; suppresses re-prompt for this modal session */
+    detectedAudioFromNoteDismissed: boolean;
     isTranscribing: boolean;
     transcriptionProgress: string;
     transcriptionLanguage: string;
@@ -127,6 +135,11 @@ export class MinutesCreationModal extends Modal {
     private meetingContextDropdown: DropdownComponent | null = null;
     private cleanups: (() => void)[] = [];
 
+    /** Audio attach orchestration (plan F1b). Owns picker dispatch + preview lifecycle. */
+    private audioCoordinator: AudioAttachCoordinator | null = null;
+    /** Live handle to the rendered AudioAttachHelper — used for rerender on state changes. */
+    private audioAttachHandle: AudioAttachHandle | null = null;
+
     constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
         super(app);
         this.plugin = plugin;
@@ -158,6 +171,12 @@ export class MinutesCreationModal extends Modal {
             transcriptLoadedFilename: '',
             // Audio transcription
             detectedAudioFiles: [],
+            // F1b — items the user has actively attached (via trio buttons OR via
+            // "Use it" on the auto-detect prompt). Drives the AudioAttachHelper
+            // render; distinct from detectedAudioFiles (which remains the
+            // auto-detected-from-note holding area used for the prompt + cache lookup).
+            audioAttachItems: [],
+            detectedAudioFromNoteDismissed: false,
             isTranscribing: false,
             transcriptionProgress: '',
             transcriptionLanguage: 'auto',
@@ -193,6 +212,15 @@ export class MinutesCreationModal extends Modal {
         );
         this.audioController = new AudioController(this.app);
         this.dictController = new DictionaryController(this.dictionaryService);
+
+        // Audio attach coordinator — owns picker dispatch, vault-import wiring,
+        // and preview-URL lifecycle for this modal session. Disposed in onClose.
+        // Imports go under AI-Organiser/Imports/ to keep them separate from
+        // in-app recordings (AI-Organiser/Recordings/) — conceptually they're
+        // different (device imports vs generated audio).
+        this.audioCoordinator = new AudioAttachCoordinator(this.app, {
+            importTargetFolder: 'AI-Organiser/Imports',
+        });
 
         contentEl.createEl('h2', {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
@@ -1290,15 +1318,186 @@ export class MinutesCreationModal extends Modal {
         }).open();
     }
 
+    // ============================================================================
+    // F1b — Audio attach helper integration (Pat persona-test P0 fix)
+    // ============================================================================
+
+    /**
+     * Render the AudioAttachHelper trio (Attach file / Pick from vault / Record)
+     * + optional "Detected N audio files in this note" prompt chip. Always
+     * rendered at the top of the audio section so users have an entry path
+     * regardless of the active note's contents.
+     */
+    private renderAudioAttachHelper(container: HTMLElement): void {
+        // Destroy any previous handle before re-rendering (idempotent).
+        this.audioAttachHandle?.destroy();
+        this.audioAttachHandle = renderAudioAttach(container, {
+            state: this.deriveAudioAttachViewState(),
+            detectedPrompt: this.deriveDetectedPrompt(),
+            allowRecord: isRecordingSupported(),
+            t: this.plugin.t,
+            onAttachIntent: () => void this.handleAttachIntent(),
+            onPickVaultIntent: () => void this.handlePickVaultIntent(),
+            onRecordIntent: () => this.openRecorder(),
+            onDetectedAccept: () => this.handleDetectedAccept(),
+            onDetectedDismiss: () => this.handleDetectedDismiss(),
+            // F1b unused — handled by the legacy per-item list below. Will be
+            // wired through the helper itself in F2 when state-machine adoption
+            // covers all states.
+            onReplaceIntent: () => { /* deferred to F2 */ },
+            onTranscribeIntent: () => { /* deferred to F2 */ },
+            onAbortIntent: () => { /* deferred to F2 */ },
+            onRetryIntent: () => { /* deferred to F2 */ },
+        });
+    }
+
+    /**
+     * Derive the helper's view-state from current modal state. For F1b the
+     * helper is only used for the trio + detected prompt, so we stay in the
+     * `empty` kind — the existing per-file list handles the rest. The full
+     * state machine adoption (`attached` / `transcribing` / `transcribed`)
+     * lands in F2 when SpeakerReviewPanel needs the labelled transcript
+     * threaded through.
+     */
+    private deriveAudioAttachViewState(): AudioAttachViewState {
+        return { kind: 'empty' };
+    }
+
+    /**
+     * Build the detected-audio prompt only when:
+     *   1. There are auto-detected audio files from the active note,
+     *   2. The user hasn't explicitly dismissed the prompt this session, and
+     *   3. The user hasn't already taken any audio action.
+     */
+    private deriveDetectedPrompt(): DetectedAudioPrompt | undefined {
+        if (this.state.detectedAudioFromNoteDismissed) return undefined;
+        const detected = this.state.detectedAudioFiles;
+        if (detected.length === 0) return undefined;
+        return {
+            count: detected.length,
+            displayName: detected[0]?.displayName ?? '',
+        };
+    }
+
+    /**
+     * Picker → import → push as DetectedContent. Funnelling new attachments
+     * through the existing `detectedAudioFiles` array keeps the per-item
+     * Transcribe rendering working unchanged.
+     */
+    private async handleAttachIntent(): Promise<void> {
+        if (!this.audioCoordinator) return;
+        const outcome = await this.audioCoordinator.requestAttachFromDevice();
+        if (outcome.kind === 'cancelled') return;
+        if (outcome.kind === 'failed') {
+            new Notice(this.plugin.t.minutes?.transcriptionFailed || 'Picker failed');
+            return;
+        }
+        for (const source of outcome.sources) {
+            const imported = await this.audioCoordinator.importToVault(source);
+            if (!imported.ok) {
+                new Notice(`${this.plugin.t.minutes?.transcriptionFailed || 'Failed'}: ${imported.error}`);
+                continue;
+            }
+            this.injectVaultFileAsDetected(imported.value.file);
+        }
+        // Re-render the modal so the new files appear in the legacy list AND
+        // re-render the helper so the prompt clears once items exist.
+        this.rerenderModal();
+    }
+
+    private async handlePickVaultIntent(): Promise<void> {
+        if (!this.audioCoordinator) return;
+        const outcome = await this.audioCoordinator.requestVaultPick();
+        if (outcome.kind === 'cancelled') return;
+        if (outcome.kind === 'failed') {
+            new Notice(this.plugin.t.minutes?.transcriptionFailed || 'Picker failed');
+            return;
+        }
+        for (const source of outcome.sources) {
+            // Vault picks need no import — coordinator.importToVault returns the
+            // existing file unchanged, but we still go through it for the
+            // uniform ImportedAudio return so downstream wiring is consistent.
+            const imported = await this.audioCoordinator.importToVault(source);
+            if (imported.ok) this.injectVaultFileAsDetected(imported.value.file);
+        }
+        this.rerenderModal();
+    }
+
+    private handleDetectedAccept(): void {
+        // "Use it" — files are already in detectedAudioFiles and rendered in
+        // the list below; just dismiss the prompt so the chip disappears.
+        this.state.detectedAudioFromNoteDismissed = true;
+        this.audioAttachHandle?.rerender(
+            this.deriveAudioAttachViewState(),
+            this.deriveDetectedPrompt()
+        );
+    }
+
+    private handleDetectedDismiss(): void {
+        // "Ignore" — clear the auto-detected files entirely so they no longer
+        // appear in the list below. User has explicitly said these aren't
+        // wanted for this meeting.
+        this.state.detectedAudioFiles = [];
+        this.state.detectedAudioFromNoteDismissed = true;
+        this.rerenderModal();
+    }
+
+    /**
+     * Convert a vault TFile into the existing DetectedContent shape so it can
+     * be appended to `detectedAudioFiles` and rendered by the legacy per-item
+     * list. Idempotent — files already in the list are not added twice.
+     */
+    private injectVaultFileAsDetected(file: TFile): void {
+        if (this.state.detectedAudioFiles.some((d) => d.resolvedFile?.path === file.path)) {
+            return;
+        }
+        this.state.detectedAudioFiles.push({
+            type: 'audio',
+            originalText: `![[${file.path}]]`,
+            url: file.path,
+            displayName: file.name,
+            isEmbedded: true,
+            isExternal: false,
+            resolvedFile: file,
+            lineNumber: -1,
+        });
+    }
+
+    /**
+     * Re-render the modal contents. Cheaper than reopening — preserves field
+     * focus where the editor allows it. Used after async picker/import flows
+     * mutate state.
+     */
+    private rerenderModal(): void {
+        // Re-run the body render. onOpen is the canonical builder; calling it
+        // again rebuilds the DOM with the current state.
+        void this.onOpen();
+    }
+
     private renderAudioTranscriptionSection(containerEl: HTMLElement): void {
         const t = this.plugin.t.minutes;
 
-        // Only show if audio files detected and transcript is empty
+        // F1b — Pat persona-test P0 fix (2026-05-23): the section renders
+        // UNCONDITIONALLY now. Previously this was gated behind
+        // `detectedAudioFiles.length === 0` so a user opening Minutes from a
+        // note with no embedded audio had no path to attach audio at all.
+        // The new AudioAttachHelper (trio: Attach file / Pick from vault /
+        // Record) lives at the top of the section; existing per-item rendering
+        // continues below for any auto-detected or user-attached files.
+        this.audioSectionEl = containerEl.createDiv({ cls: 'ai-organiser-minutes-audio-section' });
+
+        // Render the attach trio first — entry path for any user.
+        const helperContainer = this.audioSectionEl.createDiv({
+            cls: 'ai-organiser-minutes-audio-attach-container'
+        });
+        this.renderAudioAttachHelper(helperContainer);
+
+        // If no items exist (neither auto-detected nor user-attached), stop
+        // here — the helper alone gives the user what they need.
         if (this.state.detectedAudioFiles.length === 0) {
             return;
         }
 
-        this.audioSectionEl = containerEl.createDiv({ cls: 'ai-organiser-minutes-audio-section' });
 
         const header = this.audioSectionEl.createDiv({ cls: 'ai-organiser-minutes-section-header' });
         const iconEl = header.createSpan({ cls: 'ai-organiser-minutes-section-icon' });
@@ -2942,6 +3141,13 @@ export class MinutesCreationModal extends Modal {
     }
 
     onClose(): void {
+        // F1b — release any audio-preview object URLs the coordinator created.
+        // Idempotent; safe to call even if the audio section was never rendered.
+        this.audioAttachHandle?.destroy();
+        this.audioAttachHandle = null;
+        this.audioCoordinator?.dispose();
+        this.audioCoordinator = null;
+
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
         this.contentEl.empty();
