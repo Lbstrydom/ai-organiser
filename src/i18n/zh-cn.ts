@@ -2691,6 +2691,17 @@ export const zhCN: Translations = {
         speakerDetectionUnavailableBanner: "音频时间戳不可用 — 已禁用发言者预览；会议纪要将在未确认发言者的情况下继续",
         speakerLabellingThrewBanner: "发言者标记无法运行 — 在没有发言者标签的情况下继续",
         confirmSpeakersFirst: "请先确认发言者姓名，然后再生成会议纪要",
+        // Document auto-inject opt-in (plan F4)
+        docDetectedPromptOne: "在此笔记中检测到 1 个文档",
+        docDetectedPromptMany: "在此笔记中检测到 {count} 个文档",
+        docAttachAll: "全部附加",
+        docPickWhich: "选择附加…",
+        docIgnore: "忽略",
+        docMultiPickerTitle: "选择要附加的文档",
+        docMultiPickerDescription: "选择要作为会议上下文附加的文档。",
+        docMultiPickerSearchPlaceholder: "筛选文档…",
+        docMultiPickerConfirmButton: "附加所选项",
+        docMultiPickerEmpty: "没有文档匹配您的搜索。",
         // Context documents
         contextDocumentsSection: "上下文文档",
         contextDocumentsDesc: "附加议程、演示文稿或电子表格以提高准确性",

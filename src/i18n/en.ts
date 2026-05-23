@@ -2694,6 +2694,17 @@ export const en: Translations = {
         speakerDetectionUnavailableBanner: "Audio timestamps unavailable — speaker preview disabled; minutes will proceed without speaker confirmation",
         speakerLabellingThrewBanner: "Speaker labelling could not run — proceeding without speaker labels",
         confirmSpeakersFirst: "Confirm speaker names before generating minutes",
+        // Document auto-inject opt-in (plan F4)
+        docDetectedPromptOne: "Detected 1 document in this note",
+        docDetectedPromptMany: "Detected {count} documents in this note",
+        docAttachAll: "Attach all",
+        docPickWhich: "Pick which…",
+        docIgnore: "Ignore",
+        docMultiPickerTitle: "Pick documents to attach",
+        docMultiPickerDescription: "Select the documents you want to attach as meeting context.",
+        docMultiPickerSearchPlaceholder: "Filter documents…",
+        docMultiPickerConfirmButton: "Attach selected",
+        docMultiPickerEmpty: "No documents match your search.",
         // Context documents
         contextDocumentsSection: "Context documents",
         contextDocumentsDesc: "Attach agendas, presentations, or spreadsheets to improve accuracy",

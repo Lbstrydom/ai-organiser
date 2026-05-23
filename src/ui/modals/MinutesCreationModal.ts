@@ -28,6 +28,7 @@ import {
 } from '../../core/constants';
 import type { MeetingContext as MeetingContextType } from '../../services/prompts/minutesPrompts';
 import { DocumentHandlingController, DocumentItem } from '../controllers/DocumentHandlingController';
+import { DocumentMultiPickerModal } from './DocumentMultiPickerModal';
 import { AudioController } from '../controllers/AudioController';
 import { DictionaryController } from '../controllers/DictionaryController';
 import { getTruncationOptions } from '../utils/truncation';
@@ -86,6 +87,14 @@ interface MinutesModalState {
     speakerReview: SpeakerReviewState;
     /** F2c — labelled transcript produced by labelSpeakersTimed() after transcription completes */
     labelledTranscript: LabelledTimedTranscript | null;
+    /**
+     * F4 — Documents detected in the active note, NOT yet attached. Drives
+     * the chip prompt in the documents section. Cleared when user clicks
+     * Attach all / Pick which / Ignore.
+     */
+    detectedDocumentsPreview: DocumentItem[];
+    /** F4 — User clicked Ignore on the document chip; suppresses re-prompt this session */
+    detectedDocumentsDismissed: boolean;
     /** Path where transcript was saved to disk (persistent link) */
     savedTranscriptPath: string;
     // Document context (managed by controller)
@@ -197,6 +206,10 @@ export class MinutesCreationModal extends Modal {
             // labelSpeakersTimed() completes post-transcription.
             speakerReview: { kind: 'not-required' },
             labelledTranscript: null,
+            // F4 — populated by detectEmbeddedDocumentsForPreview() in onOpen.
+            // Cleared on user Attach all / Pick which / Ignore.
+            detectedDocumentsPreview: [],
+            detectedDocumentsDismissed: false,
             isTranscribing: false,
             transcriptionProgress: '',
             transcriptionLanguage: 'auto',
@@ -254,8 +267,12 @@ export class MinutesCreationModal extends Modal {
 
         // Document + dictionary detection is desktop-only.
         if (!Platform.isMobile) {
-            await this.detectEmbeddedDocuments();
-            await this.autoExtractDetectedDocuments();
+            // F4 — detect embedded documents from the active note BUT do NOT
+            // silently extract them. The user sees a chip prompt in the
+            // documents section and explicitly picks "Attach all", "Pick
+            // which…", or "Ignore". This was Pat persona P1 — GTD knowledge
+            // PDFs silently injected into a Q3 budget meeting destroyed trust.
+            await this.detectEmbeddedDocumentsForPreview();
             await this.loadAvailableDictionaries();
             await this.loadAvailableParticipantLists();
         }
@@ -1286,27 +1303,22 @@ export class MinutesCreationModal extends Modal {
      * extraction pipeline uses officeparser / fs deps that aren't available
      * on mobile.
      */
-    private async detectEmbeddedDocuments(): Promise<void> {
+    /**
+     * F4 — Detect embedded documents from the active note WITHOUT adding
+     * them to the controller. Stored as a preview list that the docs
+     * section renders as a chip prompt ("Detected N documents — Attach all
+     * / Pick which… / Ignore"). User decides; nothing extracted silently.
+     */
+    private async detectEmbeddedDocumentsForPreview(): Promise<void> {
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile || activeFile.extension !== 'md') return;
 
         try {
             const content = await this.app.vault.read(activeFile);
-            this.docController.addDetectedFromContent(content);
+            this.state.detectedDocumentsPreview = this.docController.detectFromContent(content);
         } catch {
-            // Ignore detection errors
+            // Ignore detection errors — chip prompt just doesn't appear.
         }
-    }
-
-    /**
-     * Silently extract all detected documents so auto-fill can read their text.
-     * Runs before rendering so documents appear already extracted in the UI.
-     */
-    private async autoExtractDetectedDocuments(): Promise<void> {
-        const documents = this.docController.getDocuments();
-        if (documents.length === 0) return;
-
-        await this.docController.extractAll();
     }
 
     private renderRecordButton(containerEl: HTMLElement): void {
@@ -2025,6 +2037,117 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
+    // ============================================================================
+    // F4 — Opt-in chip prompt for auto-detected documents
+    // ============================================================================
+
+    /**
+     * Render the "Detected N documents in this note — [Attach all] [Pick which…]
+     * [Ignore]" chip. Only shown when:
+     *   1. We previewed ≥1 detected doc from the active note,
+     *   2. None of those docs are already in the controller (user hasn't
+     *      attached them yet via this prompt OR via the Add Document button), and
+     *   3. The user hasn't dismissed the prompt this session.
+     *
+     * This replaces the v0 silent `autoExtractDetectedDocuments()` flow.
+     */
+    private renderDetectedDocumentsPrompt(): void {
+        if (!this.documentsSectionEl) return;
+        const preview = this.state.detectedDocumentsPreview;
+        if (preview.length === 0) return;
+        if (this.state.detectedDocumentsDismissed) return;
+
+        // If the user has already attached at least one of the detected docs
+        // (via Attach all, Pick which…, or Add Document), the chip is stale.
+        const attachedIds = new Set(this.docController.getDocuments().map((d) => d.id));
+        const stillPending = preview.filter((d) => !attachedIds.has(d.id));
+        if (stillPending.length === 0) return;
+
+        const t = this.plugin.t.minutes;
+        const chip = this.documentsSectionEl.createDiv({
+            cls: 'ai-organiser-minutes-detected-docs-chip',
+            attr: { 'data-testid': 'detected-docs-chip' },
+        });
+
+        const iconEl = chip.createSpan({ cls: 'ai-organiser-minutes-detected-docs-icon' });
+        setIcon(iconEl, 'sparkles');
+
+        const text = stillPending.length === 1
+            ? t.docDetectedPromptOne || 'Detected 1 document in this note'
+            : (t.docDetectedPromptMany || 'Detected {count} documents in this note').replace(
+                  '{count}',
+                  String(stillPending.length)
+              );
+        chip.createSpan({ cls: 'ai-organiser-minutes-detected-docs-text', text });
+
+        // Attach all
+        const attachAllBtn = chip.createEl('button', {
+            cls: 'ai-organiser-minutes-detected-docs-attach mod-cta',
+            text: t.docAttachAll || 'Attach all',
+            attr: { 'data-testid': 'detected-docs-attach-all' },
+        });
+        this.cleanups.push(listen(attachAllBtn, 'click', () => void this.handleAttachAllDetectedDocs()));
+
+        // Pick which…
+        const pickBtn = chip.createEl('button', {
+            cls: 'ai-organiser-minutes-detected-docs-pick',
+            text: t.docPickWhich || 'Pick which…',
+            attr: { 'data-testid': 'detected-docs-pick' },
+        });
+        this.cleanups.push(listen(pickBtn, 'click', () => this.handlePickDetectedDocs()));
+
+        // Ignore
+        const ignoreBtn = chip.createEl('button', {
+            cls: 'ai-organiser-minutes-detected-docs-ignore',
+            text: t.docIgnore || 'Ignore',
+            attr: { 'data-testid': 'detected-docs-ignore' },
+        });
+        this.cleanups.push(listen(ignoreBtn, 'click', () => this.handleIgnoreDetectedDocs()));
+    }
+
+    private async handleAttachAllDetectedDocs(): Promise<void> {
+        const attached = this.attachDocsFromPreview(this.state.detectedDocumentsPreview);
+        // Kick off extraction in the background — user consented to attach,
+        // so reading file contents now is no longer silent injection.
+        if (attached > 0) {
+            await this.docController.extractAll();
+        }
+        this.state.detectedDocumentsDismissed = true;
+        this.rerenderModal();
+    }
+
+    private handlePickDetectedDocs(): void {
+        const t = this.plugin.t;
+        new DocumentMultiPickerModal(this.app, {
+            items: this.state.detectedDocumentsPreview,
+            t,
+            onConfirm: (selected: DocumentItem[]) => {
+                void (async () => {
+                    const attached = this.attachDocsFromPreview(selected);
+                    if (attached > 0) {
+                        await this.docController.extractAll();
+                    }
+                    this.state.detectedDocumentsDismissed = true;
+                    this.rerenderModal();
+                })();
+            },
+        }).open();
+    }
+
+    private handleIgnoreDetectedDocs(): void {
+        this.state.detectedDocumentsDismissed = true;
+        this.rerenderModal();
+    }
+
+    /**
+     * Attach a batch of preview items into the controller. Returns the count
+     * actually added (excludes duplicates already in the controller's list).
+     */
+    private attachDocsFromPreview(items: DocumentItem[]): number {
+        const results = this.docController.addDocuments(items);
+        return results.filter((r) => r.added).length;
+    }
+
     private renderContextDocumentsSection(containerEl: HTMLElement): void {
         const t = this.plugin.t.minutes;
 
@@ -2037,6 +2160,10 @@ export class MinutesCreationModal extends Modal {
 
         const desc = this.documentsSectionEl.createDiv({ cls: 'ai-organiser-minutes-section-desc' });
         desc.setText(t?.contextDocumentsDesc || 'Attach agendas, presentations, or spreadsheets to improve accuracy');
+
+        // F4 — Opt-in chip prompt for documents detected in the active note.
+        // Replaces the v0 silent auto-extract (Pat persona P1).
+        this.renderDetectedDocumentsPrompt();
 
         // Bulk truncation control (rendered only when applicable)
         this.bulkTruncationEl = this.documentsSectionEl.createDiv({ cls: 'ai-organiser-minutes-bulk-truncation' });

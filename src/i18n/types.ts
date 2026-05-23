@@ -2721,6 +2721,17 @@ export interface Translations {
         speakerDetectionUnavailableBanner: string;
         speakerLabellingThrewBanner: string;
         confirmSpeakersFirst: string;
+        // Document auto-inject opt-in (plan F4)
+        docDetectedPromptOne: string;
+        docDetectedPromptMany: string;
+        docAttachAll: string;
+        docPickWhich: string;
+        docIgnore: string;
+        docMultiPickerTitle: string;
+        docMultiPickerDescription: string;
+        docMultiPickerSearchPlaceholder: string;
+        docMultiPickerConfirmButton: string;
+        docMultiPickerEmpty: string;
         // Context documents
         contextDocumentsSection: string;
         contextDocumentsDesc: string;

@@ -258,6 +258,29 @@ export class DocumentHandlingController {
     }
 
     /**
+     * Atomically add an already-detected batch of documents (plan F4).
+     * Distinct from `addDetectedFromContent` because the caller has already
+     * resolved DocumentItem objects (e.g. via `detectFromContent` preview)
+     * and wants to commit them in one shot — typically from the "Attach all"
+     * chip prompt or the DocumentMultiPickerModal's confirm.
+     *
+     * Deduplicates against existing documents by id. Returns one AddResult
+     * per input item so the caller can report per-item outcomes.
+     */
+    addDocuments(items: DocumentItem[]): AddResult[] {
+        const results: AddResult[] = [];
+        for (const doc of items) {
+            if (this.documents.some((d) => d.id === doc.id)) {
+                results.push({ added: false, duplicate: true, error: 'Document already added' });
+                continue;
+            }
+            this.documents.push(doc);
+            results.push({ added: true });
+        }
+        return results;
+    }
+
+    /**
      * Set truncation choice for a specific document
      * Returns success/error result
      */
