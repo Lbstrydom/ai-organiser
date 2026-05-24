@@ -330,6 +330,12 @@ export interface AIOrganiserSettings {
     audioNarrationCodeBlockMode: 'placeholder' | 'omit' | 'read-inline'; // Transformer behaviour for fenced code
     audioNarrationTableMode: 'row-prose' | 'header-summary' | 'omit';    // Transformer behaviour for tables
     audioNarrationImageMode: 'alt-text' | 'omit';                        // Transformer behaviour for images
+    // LLM enhancement pre-pass (off by default — zero behaviour change)
+    audioNarrationLlmEnhancement: 'off' | 'on';                          // Master toggle for LLM markdown enhancement before TTS
+    audioNarrationLlmProvider: 'gemini' | 'haiku';                       // Which LLM provider performs the enhancement
+    llmEnhancerGeminiApiKey?: string;                                    // Transient — migrated to SecretStorage on save
+    llmEnhancerAnthropicApiKey?: string;                                 // Transient — migrated to SecretStorage on save
+    llmEnhancerReuseYoutubeKey: boolean;                                 // Fall back to YouTube Gemini key if no dedicated key configured
 
     // === COMMAND PICKER ===
     /** User-configurable Essentials list — up to 5 favourite command IDs
@@ -609,6 +615,11 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     audioNarrationCodeBlockMode: 'placeholder',
     audioNarrationTableMode: 'row-prose',
     audioNarrationImageMode: 'alt-text',
+    audioNarrationLlmEnhancement: 'off',
+    audioNarrationLlmProvider: 'gemini',
+    llmEnhancerGeminiApiKey: '',
+    llmEnhancerAnthropicApiKey: '',
+    llmEnhancerReuseYoutubeKey: false,
 
     // Command picker — Essentials defaults to empty array (picker falls
     // back to static chat / search / quick-peek defaults).

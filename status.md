@@ -1,5 +1,54 @@
 # Project Status Log
 
+## 2026-05-24 — "Read this note" LLM enhancement (audioNarration extension)
+
+### Changes
+- Delivered the full `docs/plans/read-this-note-llm-enhancement.md` plan in one cycle: 3 new service files + 13 modified, +35 tests (15 enhancer + 12 provider + 6 prompts + 2 fixtures), all 4689 vitest tests passing, `npm run build:quick` green, `npm run lint` exit 0 (13 sentence-case warnings on proper-noun strings only).
+- Plan went through **3 GPT-5.4 audit rounds + 2 Gemini final-review rounds = 27 findings, all fixed** before implementation. Plus one **/audit-code** post-implementation round with 33 findings — 7 in-scope real defects fixed, rest were project-wide pre-existing concerns or false-positive path/import claims.
+- **L0** — `narrationTypes.ts`: added `NarrationWarning`/`NarrationWarningCode` typed warning surface, `LlmEnhancementIntent`, `fingerprintMtime` field on `PreparedNarration`, `llmEnhancementUsd?` field on `CostEstimate`, new `STALE_PREPARED` error code.
+- **L1** — `settings.ts`: 5 new fields (`audioNarrationLlmEnhancement: 'off'|'on'`, `audioNarrationLlmProvider: 'gemini'|'haiku'`, `llmEnhancerGeminiApiKey?`, `llmEnhancerAnthropicApiKey?`, `llmEnhancerReuseYoutubeKey`) + defaults; default behaviour byte-identical to v1 (mode='off').
+- **D0** — `secretIds.ts`: `LLM_ENHANCER_GEMINI` + `LLM_ENHANCER_ANTHROPIC` dedicated secret IDs; `secretStorageService.ts` migration blocks for both (persist-then-clear plaintext pattern matching existing YouTube/PDF/Audio/Deepgram).
+- **L2** — `llmEnhancerPrompts.ts`: XML-structured prompt per project convention (`<task>`, `<requirements>`, `<output_format>`); `LLM_ENHANCEMENT_PROMPT_VERSION` salts the on-mode fingerprint; `neutraliseEnvelopeMarkers` (audit-code M8) prevents user notes from breaking the prompt envelope via `</note_section>` injection.
+- **D2** — `apiKeyHelpers.ts`: `hasLlmEnhancementKey(plugin, providerId): boolean` (no key exposure) + `resolveLlmEnhancementApiKey(plugin, providerId): string|null` (returns primitives only — no audioNarration types imported per Gemini G2-M2 layering rule). Both pass `useMainKeyFallback: false` (Deepgram v2 lesson).
+- **L3** — `llmEnhancerProvider.ts` (~290 LOC): `LlmEnhancementProvider` interface + Gemini Flash + Claude Haiku impls. All HTTP via `abortableRequestUrl` (audit-code H8/H12). Discriminated `EnhancerCallOutcome` (NOT generic `Result<T>`) so concurrent calls don't race on instance metadata (Gemini G2-H1). Per-account Haiku model cache (audit-code M15). Gemini API key in `x-goog-api-key` header, NOT URL query (audit-code H10).
+- **L4** — `llmMarkdownEnhancer.ts` (~190 LOC): fence-aware `splitByH2` (skips `## ` inside code/mermaid/frontmatter/callouts per R1 M2); `enhanceMarkdown` orchestrates 4-parallel chunks with `retryWithBackoff` (R1 M4); per-chunk graceful degrade (failed chunk → original markdown passes through, others enhanced); abort pre-check + per-worker abort check (audit-code H7); `onChunkComplete` throw guard (audit-code M16).
+- **L5** — `audioNarrationService.ts`: `prepareNarration` adds estimate-only LLM stage (NO LLM call, NO key in `PreparedNarration` per R2 M1 — only `llmIntent: { providerId, modelSentinel }`); mode-branched fingerprint (off-mode = byte-identical v1 hash → caches survive; on-mode = distinct `'llm-on'` domain per Gemini G-M1). `executeNarration` adds TOCTOU mtime check (R3 H3 → `STALE_PREPARED`), settings-race intent validation (R3 H2), LLM call AFTER consent (R1 H2), hard cap on enhanced length vs raw markdown (R3 H4 + Gemini G-H1 — `1.2× rawNote.length` with 4 KB floor; prevents prompt-injection cost blowout).
+- **Cost estimator** — `estimateLlmEnhancementCostUsd(noteChars, provider)` deterministic char-based math; no LLM call required for the cost modal.
+- **L6** — `AudioNarrationSettingsSection.ts`: conditional render of provider picker + 2 password inputs + YouTube-reuse toggle; runtime-computed cost-example hint (no pinned price strings per R1 L1).
+- **L7** — `CostConfirmModal.ts`: three conditional rows (AI cost + variance hint + privacy hint) only when `llmIntent` set; literal-mode modal unchanged.
+- **Commands** — `audioNarrationCommands.ts`: typed `NarrationWarning[]` rendered as Notices via i18n map (caller owns notifications per project rule, not service).
+- **D-i18n** — new `audioNarration.enhancement` namespace under `t.settings.audioNarration` with full warning-code coverage; EN + ZH-CN parity.
+
+### Files Affected
+- **New (3 src + 4 test/fixture)**: `src/services/audioNarration/llmEnhancerPrompts.ts`, `src/services/audioNarration/llmEnhancerProvider.ts`, `src/services/audioNarration/llmMarkdownEnhancer.ts`, `tests/audioNarration/llmMarkdownEnhancer.test.ts`, `tests/audioNarration/llmEnhancerProvider.test.ts`, `tests/audioNarration/llmEnhancerPrompts.test.ts`, `tests/fixtures/llmEnhancer/input-mermaid-heavy.md`.
+- **Modified**: `src/core/secretIds.ts`, `src/core/settings.ts`, `src/i18n/en.ts`, `src/i18n/types.ts`, `src/i18n/zh-cn.ts`, `src/services/apiKeyHelpers.ts`, `src/services/audioNarration/audioNarrationService.ts`, `src/services/audioNarration/narrationCostEstimator.ts`, `src/services/audioNarration/narrationTypes.ts`, `src/services/secretStorageService.ts`, `src/ui/modals/CostConfirmModal.ts`, `src/ui/settings/AudioNarrationSettingsSection.ts`, `src/commands/audioNarrationCommands.ts`.
+
+### Decisions Made
+- **Default off** — zero behaviour change for existing users. `mode='off'` produces byte-identical fingerprints to v1 so existing cached MP3s survive the upgrade unchanged. Flipping `on` → `off` reverts to the v1 fingerprint and hits the original cached file again.
+- **Two-stage flow, not one** (R1 H2) — `prepareNarration` ESTIMATES the LLM cost from a deterministic char-based heuristic (no LLM call); the cost-confirmation modal shows the estimate to the user; `executeNarration` runs the LLM AFTER consent. A user who declines the modal is never billed.
+- **`llmIntent` carries provider identity only — never the apiKey** (R2 M1) — key resolution happens INSIDE `executeNarration` via `resolveLlmEnhancementApiKey`, never crosses the prepare/execute boundary, never enters cost-modal state.
+- **Hard cap on enhanced output length** (R3 H4 + Gemini G-H1) — `enhanced.length > rawNote.length * 1.2` (4 KB floor) rejects the enhancement and falls back to literal mode with a warning. Prevents prompt-injection or model-drift from blowing through the user's confirmed budget.
+- **Per-provider concurrency cap of 4 + retry on 429/503 via shared `retryWithBackoff`** — Gemini Flash (1000 RPM tier-1) and Anthropic Haiku (50 RPM tier-1) handle 4-parallel cleanly. Free-tier 429s trigger 2 retries with 1s/4s jitter + `Retry-After` honour; exhausted retries → chunk falls back to original markdown.
+- **Gemini default, Haiku optional** — spike measured Gemini Flash quality tied with Haiku but 15-18× cheaper. Default = Gemini; Haiku exposed for users who want the more polished tone and don't mind the cost.
+- **Key in `x-goog-api-key` header, not URL query** (audit-code H10) — header-based secrets don't leak to URL logs, error telemetry, proxies.
+- **Prompt-injection escape via zero-width-space** (audit-code M8) — user notes containing `</note_section>` (or other envelope-section tag look-alikes) get zero-width-space-separated to prevent them from closing our prompt envelope early.
+
+### Live verification
+55 audioNarration tests cover the full surface end-to-end with mocked HTTP:
+- 15 orchestrator (fence-aware split, concurrency, partial/total failure, abort handling, retry, M16 throw-guard, M8 envelope escape)
+- 12 Gemini provider (URL pinned to `gemini-flash-latest`, x-goog-api-key header, 200/429/503/401/malformed/missing-field, code-fence-wrapped JSON parse, cost from usage metadata)
+- 6 prompt builder (XML envelope, version constant, M8 injection scenarios, escapeXml)
+- 20 existing audioNarrationService tests still passing (no regression)
+- 1 fixture (`tests/fixtures/llmEnhancer/input-mermaid-heavy.md`) covers mermaid + table + frontmatter + callout
+
+Live persona spot-check deferred until next session (requires Obsidian closed for the Playwright harness); the in-process spike script (`scripts/spikes/read-this-note-preprocessor-chunked.mjs`) was already validated on real notes including the 48 KB Wealth_plan + 28 KB mermaid-heavy lecture before implementation began — same prompt + provider + chunking strategy now lives in the plugin.
+
+### Next Steps
+- Optional v2 candidates from plan §6.2: streaming TTS (Aura adapter + player UI), per-note-type prompts (`meeting | reference | plan | auto`), token-aware secondary chunking for huge single-section notes, caching enhanced markdown separately by `[path, modelSentinel, PREPROCESSOR_VERSION]`, per-section opt-in, AI voice control, cost-cap setting.
+- Mobile-side narration with LLM enhancement: works today (uses `abortableRequestUrl`); no mobile-specific gating needed (unlike Deepgram diarization which is desktop-only for v2).
+
+---
+
 ## 2026-05-24 — Deepgram Nova-3 acoustic diarization v2 (opt-in, live-verified)
 
 ### Changes

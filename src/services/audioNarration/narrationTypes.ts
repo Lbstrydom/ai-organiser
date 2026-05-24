@@ -22,7 +22,8 @@ export type NarrationErrorCode =
     | 'ENCODE_FAILED'
     | 'WRITE_FAILED'
     | 'EMBED_FAILED'
-    | 'UNSUPPORTED_PLATFORM';
+    | 'UNSUPPORTED_PLATFORM'
+    | 'STALE_PREPARED';
 
 export interface NarrationError {
     readonly code: NarrationErrorCode;
@@ -52,7 +53,7 @@ export function decodeError(s: string): NarrationError {
 const ALL_CODES: ReadonlySet<NarrationErrorCode> = new Set<NarrationErrorCode>([
     'EMPTY_CONTENT', 'NO_API_KEY', 'CONSENT_DECLINED', 'IN_FLIGHT', 'ABORTED',
     'TRANSFORM_FAILED', 'ESTIMATE_FAILED', 'TTS_FAILED', 'ENCODE_FAILED',
-    'WRITE_FAILED', 'EMBED_FAILED', 'UNSUPPORTED_PLATFORM',
+    'WRITE_FAILED', 'EMBED_FAILED', 'UNSUPPORTED_PLATFORM', 'STALE_PREPARED',
 ]);
 
 function isNarrationErrorCode(s: string): s is NarrationErrorCode {
@@ -112,6 +113,10 @@ export interface CostEstimate {
     estEur: number;
     providerId: NarrationProviderId;
     voice: string;
+    /** Estimated USD cost of the LLM enhancement pre-pass, when mode='on' AND key resolves.
+     *  Undefined / 0 in literal-mode flows. Computed deterministically in prepareNarration
+     *  (no LLM call) so the cost-confirmation modal displays it before billing. */
+    llmEnhancementUsd?: number;
 }
 
 // ── Two-stage service contract ──────────────────────────────────────────────
@@ -127,6 +132,17 @@ export interface PreparedNarration {
     readonly provider: NarrationProviderConfig;
     readonly voice: string;
     readonly embedInNote: boolean;
+    /** LLM enhancement intent — provider identity only, NEVER the apiKey.
+     *  Null when mode='off' OR mode='on' but no key resolved (graceful fallback). */
+    readonly llmIntent: LlmEnhancementIntent | null;
+    /** `file.stat.mtime` at prepare-time. Execute re-reads and asserts equality;
+     *  mismatch → STALE_PREPARED error so the user re-narrates against current content. */
+    readonly fingerprintMtime: number;
+}
+
+export interface LlmEnhancementIntent {
+    readonly providerId: 'gemini' | 'haiku';
+    readonly modelSentinel: string;
 }
 
 export interface NarrateOutcome {
@@ -135,4 +151,24 @@ export interface NarrateOutcome {
     readonly durationSec: number;
     readonly skippedExisting: boolean;
     readonly embedUpdated: boolean;
+    /** Typed warning surface — caller maps code → i18n + Notice.
+     *  Empty array means everything succeeded cleanly. */
+    readonly warnings: NarrationWarning[];
+}
+
+// ── LLM enhancement warning surface ─────────────────────────────────────────
+
+export type NarrationWarningCode =
+    | 'llm-enhancement-disabled-no-key'
+    | 'llm-enhancement-partial'
+    | 'llm-enhancement-failed'
+    | 'llm-enhancement-rate-limited'
+    | 'llm-enhancement-aborted';
+
+export interface NarrationWarning {
+    code: NarrationWarningCode;
+    /** Per-chunk titles when code === 'llm-enhancement-partial' */
+    failedChunkTitles?: string[];
+    /** Underlying error string when code === 'llm-enhancement-failed' (debug only; not shown to user) */
+    detail?: string;
 }

@@ -600,6 +600,33 @@ export interface Translations {
                 encodeFailed: string;
                 unsupportedPlatform: string;
             };
+            // LLM enhancement opt-in (audioNarration.enhancement namespace per plan §7)
+            enhancement: {
+                label: string;
+                description: string;
+                off: string;
+                on: string;
+                providerLabel: string;
+                providerGemini: string;
+                providerHaiku: string;
+                costExampleHint: string;        // template: "Typical cost on a 20-page note: about {cost}"
+                varianceHint: string;
+                privacyHint: string;            // template: "Your note will be sent to {provider} for AI enhancement before narration"
+                costLineLabel: string;          // cost-confirmation modal row label
+                geminiKeyLabel: string;
+                geminiKeyPlaceholder: string;
+                reuseYoutubeKeyLabel: string;
+                anthropicKeyLabel: string;
+                anthropicKeyPlaceholder: string;
+                anthropicKeyReuseHint: string;
+                warnings: {
+                    'llm-enhancement-disabled-no-key': string;
+                    'llm-enhancement-partial': string;     // template: includes {count}
+                    'llm-enhancement-failed': string;
+                    'llm-enhancement-rate-limited': string;
+                    'llm-enhancement-aborted': string;
+                };
+            };
         };
         notebookLM: {
             title: string;

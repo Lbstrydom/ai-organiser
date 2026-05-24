@@ -24,15 +24,21 @@ import { retryWithBackoff } from '../tts/ttsRetry';
 import { getProvider, type NarrationProviderId } from '../tts/ttsProviderRegistry';
 
 import { transformToSpokenProse } from './markdownToProseTransformer';
-import { estimateNarrationCost } from './narrationCostEstimator';
+import { estimateNarrationCost, estimateLlmEnhancementCostUsd } from './narrationCostEstimator';
 import { syncEmbed } from './narrationEmbedManager';
+import { enhanceMarkdown } from './llmMarkdownEnhancer';
+import { LLM_ENHANCEMENT_PROVIDERS } from './llmEnhancerProvider';
+import { LLM_ENHANCEMENT_PROMPT_VERSION } from './llmEnhancerPrompts';
+import { hasLlmEnhancementKey, resolveLlmEnhancementApiKey } from '../apiKeyHelpers';
 import type { ProgressReporter } from '../progress/progressReporter';
 import {
     encodeError,
     errFrom,
     makeError,
+    type LlmEnhancementIntent,
     type NarrateOutcome,
     type NarrationPhase,
+    type NarrationWarning,
     type PreparedNarration,
 } from './narrationTypes';
 
@@ -147,7 +153,7 @@ export async function prepareNarration(
         return errFrom<PreparedNarration>(makeError('NO_API_KEY', `No API key configured for ${provider.displayName}.`));
     }
 
-    // Estimate cost
+    // Estimate cost (TTS only at this point)
     let cost;
     try {
         cost = estimateNarrationCost(spokenText, providerId, voice);
@@ -155,10 +161,43 @@ export async function prepareNarration(
         return errFrom<PreparedNarration>(makeError('ESTIMATE_FAILED', `Cost estimation failed: ${describeError(e)}`, e));
     }
 
-    // Fingerprint (depends on content + voice + model — voice change → new file)
+    // LLM enhancement intent + cost estimate (plan §1.5).
+    // No LLM call here — just identity + char-based cost math. Key
+    // availability checked via hasLlmEnhancementKey (boolean, doesn't
+    // expose the key value). If mode='on' but no key resolves, llmIntent
+    // stays null → the cost modal won't show an AI line, and execute
+    // will fall back to literal mode with a warning.
+    let llmIntent: LlmEnhancementIntent | null = null;
+    if (plugin.settings.audioNarrationLlmEnhancement === 'on') {
+        const llmProviderId = plugin.settings.audioNarrationLlmProvider;
+        const llmProviderConfig = LLM_ENHANCEMENT_PROVIDERS[llmProviderId];
+        const keyAvailable = await hasLlmEnhancementKey(plugin, llmProviderId);
+        if (keyAvailable) {
+            cost.llmEnhancementUsd = estimateLlmEnhancementCostUsd(raw.length, llmProviderConfig);
+            llmIntent = { providerId: llmProviderConfig.id, modelSentinel: llmProviderConfig.modelSentinel };
+        }
+    }
+
+    // Fingerprint — branches on resolved llmIntent (Gemini G-M1):
+    //   off-mode (or on-mode without key) → BYTE-IDENTICAL v1 tuple
+    //   on-mode with key → distinct domain via 'llm-on' separator + mtime
+    const fingerprintMtime = file.stat?.mtime ?? 0;
     let fingerprint: string;
     try {
-        fingerprint = await sha256Hex([file.path, spokenText, voice, provider.modelId]);
+        if (!llmIntent) {
+            fingerprint = await sha256Hex([file.path, spokenText, voice, provider.modelId]);
+        } else {
+            fingerprint = await sha256Hex([
+                file.path,
+                String(fingerprintMtime),
+                voice,
+                provider.modelId,
+                llmIntent.providerId,
+                llmIntent.modelSentinel,
+                String(LLM_ENHANCEMENT_PROMPT_VERSION),
+                'llm-on',
+            ]);
+        }
     } catch (e) {
         if (e instanceof CryptoUnavailableError) {
             return errFrom<PreparedNarration>(makeError('UNSUPPORTED_PLATFORM', e.message, e));
@@ -185,6 +224,8 @@ export async function prepareNarration(
         provider,
         voice,
         embedInNote,
+        llmIntent,
+        fingerprintMtime,
     });
 }
 
@@ -201,6 +242,16 @@ export async function executeNarration(
     opts: ExecuteOptions = {},
 ): Promise<Result<NarrateOutcome>> {
     const { signal, reporter } = opts;
+    const warnings: NarrationWarning[] = [];
+
+    // TOCTOU mtime re-check (R3 H3) — if the note changed between prepare
+    // and now (modal open, user edited the source), the prepared
+    // fingerprint/outputPath/spokenText are stale. Fail safe and let the
+    // user re-narrate against current content.
+    if (prepared.file.stat?.mtime !== prepared.fingerprintMtime) {
+        return errFrom<NarrateOutcome>(makeError('STALE_PREPARED',
+            'Note changed between cost confirmation and narration; please run again.'));
+    }
 
     // Build engine (factory already validated key in prepareNarration, but key
     // could have been invalidated since — handle nullish defensively)
@@ -209,9 +260,69 @@ export async function executeNarration(
         return errFrom<NarrateOutcome>(makeError('NO_API_KEY', `Lost API key for ${prepared.provider.displayName}.`));
     }
 
+    // ── LLM enhancement (post-consent) ──────────────────────────────────────
+    // The prepared.spokenText was derived from raw markdown for the cost
+    // estimate. If LLM enhancement is intended AND the user's settings still
+    // match the snapshotted intent, run the LLM and re-transform.
+    let spokenText = prepared.spokenText;
+    if (prepared.llmIntent) {
+        const intentStillValid =
+            plugin.settings.audioNarrationLlmEnhancement === 'on'
+            && plugin.settings.audioNarrationLlmProvider === prepared.llmIntent.providerId;
+        if (!intentStillValid) {
+            warnings.push({ code: 'llm-enhancement-disabled-no-key', detail: 'settings-changed-during-narration' });
+        } else {
+            const apiKey = await resolveLlmEnhancementApiKey(plugin, prepared.llmIntent.providerId);
+            if (!apiKey) {
+                warnings.push({ code: 'llm-enhancement-disabled-no-key' });
+            } else {
+                let rawForLlm: string;
+                try {
+                    rawForLlm = await plugin.app.vault.read(prepared.file);
+                } catch (e) {
+                    warnings.push({ code: 'llm-enhancement-failed', detail: describeError(e) });
+                    rawForLlm = '';
+                }
+                if (rawForLlm) {
+                    const provider = LLM_ENHANCEMENT_PROVIDERS[prepared.llmIntent.providerId];
+                    const enhanced = await enhanceMarkdown(
+                        plugin.app, rawForLlm, provider, apiKey,
+                        {}, signal,
+                    );
+                    if (enhanced.ok) {
+                        const enhancedSpokenText = transformToSpokenProse(enhanced.value.enhancedMarkdown).spokenText;
+                        // Hard cap (R3 H4 + Gemini G-H1) — compare to RAW
+                        // markdown length, not stripped spokenText. Spike
+                        // showed 84-114% ratio; 1.2× headroom + 4 KB floor.
+                        const cap = Math.max(rawForLlm.length * 1.2, 4096);
+                        if (enhancedSpokenText.length > cap) {
+                            warnings.push({
+                                code: 'llm-enhancement-failed',
+                                detail: `output-too-large:${enhancedSpokenText.length}>${Math.round(cap)}`,
+                            });
+                            // Fall through with original spokenText
+                        } else {
+                            spokenText = enhancedSpokenText;
+                            if (enhanced.value.failedChunkTitles.length > 0) {
+                                warnings.push({
+                                    code: 'llm-enhancement-partial',
+                                    failedChunkTitles: enhanced.value.failedChunkTitles,
+                                });
+                            }
+                        }
+                    } else if (enhanced.error === 'aborted') {
+                        return err<NarrateOutcome>(encodeError(makeError('ABORTED', 'cancelled')));
+                    } else {
+                        warnings.push({ code: 'llm-enhancement-failed', detail: enhanced.error });
+                    }
+                }
+            }
+        }
+    }
+
     // ── Phase: narrating (cancellable) ──────────────────────────────────────
     const writer = new Mp3Writer({ sampleRate: TARGET_RATE, channels: 1, bitrateKbps: MP3_BITRATE_KBPS });
-    const chunks = splitForTts(prepared.spokenText);
+    const chunks = splitForTts(spokenText);
     const total = chunks.length;
 
     try {
@@ -300,6 +411,7 @@ export async function executeNarration(
         durationSec: prepared.cost.estDurationSec,
         skippedExisting,
         embedUpdated,
+        warnings,
     });
 }
 

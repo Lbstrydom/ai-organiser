@@ -13,6 +13,7 @@
 import { Modal, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { PreparedNarration } from '../../services/audioNarration/narrationTypes';
+import { LLM_ENHANCEMENT_PROVIDERS } from '../../services/audioNarration/llmEnhancerProvider';
 
 export type CostAction = 'cancel' | 'settings' | 'generate';
 
@@ -63,6 +64,23 @@ export class CostConfirmModal extends Modal {
         addRow(t.statChunks, String(this.prepared.cost.chunkCount));
         addRow(t.statVoice, this.prepared.voice);
         addRow(t.statEstCost, this.formatCost(this.prepared.cost.estUsd, this.prepared.cost.estEur));
+
+        // AI enhancement rows — shown only when the LLM pre-pass will actually run.
+        // Driven by llmIntent (the RESOLVED behaviour, not the raw setting), so
+        // mode='on' without a key won't promise enhancement we can't deliver.
+        if (this.prepared.llmIntent && this.prepared.cost.llmEnhancementUsd) {
+            const tEnh = this.plugin.t.settings.audioNarration.enhancement;
+            const providerCfg = LLM_ENHANCEMENT_PROVIDERS[this.prepared.llmIntent.providerId];
+            addRow(tEnh.costLineLabel, `~$${this.prepared.cost.llmEnhancementUsd.toFixed(3)}`);
+            contentEl.createDiv({
+                cls: 'ai-organiser-cost-enhancement-hint',
+                text: tEnh.varianceHint,
+            });
+            contentEl.createDiv({
+                cls: 'ai-organiser-cost-enhancement-privacy',
+                text: tEnh.privacyHint.replace('{provider}', providerCfg.displayName),
+            });
+        }
 
         contentEl.createDiv({
             cls: 'ai-organiser-cost-output',

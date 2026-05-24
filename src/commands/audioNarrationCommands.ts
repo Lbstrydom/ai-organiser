@@ -27,6 +27,7 @@ import {
     type NarrationError,
     type NarrationPhase,
     type NarrateOutcome,
+    type NarrationWarning,
 } from '../services/audioNarration/narrationTypes';
 import { JobInFlightError } from '../services/audioNarration/narrationJobRegistry';
 
@@ -66,6 +67,8 @@ function mapErrorToNotice(error: NarrationError, plugin: AIOrganiserPlugin): Not
             return { message: t.embedSkipped, durationMs: 5000 };
         case 'UNSUPPORTED_PLATFORM':
             return { message: t.unsupportedPlatform, durationMs: 8000 };
+        case 'STALE_PREPARED':
+            return { message: t.failed.replace('{error}', error.message), durationMs: 6000 };
     }
     const exhaustive: never = error.code;
     return { message: String(exhaustive), durationMs: 5000 };
@@ -94,6 +97,20 @@ function formatDurationDisplay(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/** Render LLM-enhancement warnings as Notices. Service emits codes only;
+ *  caller resolves i18n (per project rule "callers, not services, own notifications"). */
+function showEnhancementWarnings(plugin: AIOrganiserPlugin, warnings: NarrationWarning[]): void {
+    if (warnings.length === 0) return;
+    const tWarnings = plugin.t.settings.audioNarration.enhancement.warnings;
+    for (const w of warnings) {
+        let message = tWarnings[w.code] ?? w.code;
+        if (w.code === 'llm-enhancement-partial' && w.failedChunkTitles) {
+            message = message.replace('{count}', String(w.failedChunkTitles.length));
+        }
+        new Notice(message, 5000);
+    }
 }
 
 function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome): void {
@@ -250,6 +267,7 @@ export async function handleNarrateActiveNote(
                 }
                 return;
             }
+            showEnhancementWarnings(plugin, r.value.warnings);
             showSuccessNotice(plugin, r.value);
         });
     } catch (e) {

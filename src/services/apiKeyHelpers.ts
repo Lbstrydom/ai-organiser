@@ -197,6 +197,74 @@ export async function getDeepgramApiKey(plugin: AIOrganiserPlugin): Promise<stri
 }
 
 /**
+ * LLM enhancer key resolution (audioNarration LLM pre-pass).
+ *
+ * Returns PRIMITIVES only — no audioNarration types imported, so this
+ * helper stays a pure utility and doesn't create an upward layering
+ * violation. Callers in audioNarration combine the returned apiKey
+ * with the `LLM_ENHANCEMENT_PROVIDERS` registry entry locally.
+ *
+ * Per Deepgram v2 lesson: `useMainKeyFallback: false` for both providers.
+ */
+export async function resolveLlmEnhancementApiKey(
+    plugin: AIOrganiserPlugin,
+    providerId: 'gemini' | 'haiku',
+): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    if (providerId === 'gemini') {
+        let resolved: string | null = null;
+        if (secretStorage.isAvailable()) {
+            resolved = await secretStorage.resolveApiKey({
+                primaryId: PLUGIN_SECRET_IDS.LLM_ENHANCER_GEMINI,
+                providerFallback: 'gemini',
+                useMainKeyFallback: false,
+                plainTextFallback: {
+                    primaryKey: plugin.settings.llmEnhancerGeminiApiKey,
+                    providerKey: plugin.settings.providerSettings?.gemini?.apiKey,
+                },
+            });
+        } else {
+            resolved = plugin.settings.llmEnhancerGeminiApiKey
+                || plugin.settings.providerSettings?.gemini?.apiKey
+                || null;
+        }
+        // Opt-in YouTube key reuse — uses the FULL getYouTubeGeminiApiKey
+        // chain (plaintext + provider key + main cloud when Gemini), so we
+        // don't bypass any of the user's existing fallback paths.
+        if (!resolved && plugin.settings.llmEnhancerReuseYoutubeKey) {
+            return await getYouTubeGeminiApiKey(plugin);
+        }
+        return resolved;
+    }
+    // Haiku — Anthropic key
+    if (secretStorage.isAvailable()) {
+        return await secretStorage.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.LLM_ENHANCER_ANTHROPIC,
+            providerFallback: 'claude',
+            useMainKeyFallback: false,
+            plainTextFallback: {
+                primaryKey: plugin.settings.llmEnhancerAnthropicApiKey,
+                providerKey: plugin.settings.providerSettings?.claude?.apiKey,
+            },
+        });
+    }
+    return plugin.settings.llmEnhancerAnthropicApiKey
+        || plugin.settings.providerSettings?.claude?.apiKey
+        || null;
+}
+
+/** Cheap availability check — does NOT expose the key value.
+ *  Used by prepareNarration to decide whether to set llmIntent
+ *  (per R3 M2 — modal shouldn't promise enhancement we can't deliver). */
+export async function hasLlmEnhancementKey(
+    plugin: AIOrganiserPlugin,
+    providerId: 'gemini' | 'haiku',
+): Promise<boolean> {
+    const key = await resolveLlmEnhancementApiKey(plugin, providerId);
+    return key !== null && key.length > 0;
+}
+
+/**
  * Get API key for audio transcription (Whisper).
  * Tries selected provider first, then falls back to the other (openai↔groq).
  */

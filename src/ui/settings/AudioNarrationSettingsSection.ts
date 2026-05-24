@@ -6,6 +6,8 @@
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
 import { NARRATION_PROVIDERS } from '../../services/tts/ttsProviderRegistry';
+import { LLM_ENHANCEMENT_PROVIDERS } from '../../services/audioNarration/llmEnhancerProvider';
+import { estimateLlmEnhancementCostUsd } from '../../services/audioNarration/narrationCostEstimator';
 
 export class AudioNarrationSettingsSection extends BaseSettingSection {
     display(): void {
@@ -58,5 +60,89 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
         // Info box
         const info = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
         info.createEl('p', { text: t.infoBox });
+
+        // ── AI enhancement (opt-in) ────────────────────────────────────────
+        const enhancementContainer = this.containerEl.createDiv();
+        this.renderEnhancementSection(enhancementContainer);
+    }
+
+    private renderEnhancementSection(container: HTMLElement): void {
+        container.empty();
+        const tEnh = this.plugin.t.settings.audioNarration.enhancement;
+
+        new Setting(container)
+            .setName(tEnh.label)
+            .setDesc(tEnh.description)
+            .addDropdown(dropdown => dropdown
+                .addOption('off', tEnh.off)
+                .addOption('on', tEnh.on)
+                .setValue(this.plugin.settings.audioNarrationLlmEnhancement)
+                .onChange(async (value) => {
+                    this.plugin.settings.audioNarrationLlmEnhancement = value as 'off' | 'on';
+                    await this.plugin.saveSettings();
+                    this.renderEnhancementSection(container);
+                }));
+
+        if (this.plugin.settings.audioNarrationLlmEnhancement !== 'on') return;
+
+        // Provider picker (only when toggle is on)
+        new Setting(container)
+            .setName(tEnh.providerLabel)
+            .addDropdown(dropdown => dropdown
+                .addOption('gemini', tEnh.providerGemini)
+                .addOption('haiku', tEnh.providerHaiku)
+                .setValue(this.plugin.settings.audioNarrationLlmProvider)
+                .onChange(async (value) => {
+                    this.plugin.settings.audioNarrationLlmProvider = value as 'gemini' | 'haiku';
+                    await this.plugin.saveSettings();
+                    this.renderEnhancementSection(container);
+                }));
+
+        // Provider-specific key inputs
+        const selected = this.plugin.settings.audioNarrationLlmProvider;
+        if (selected === 'gemini') {
+            new Setting(container)
+                .setName(tEnh.geminiKeyLabel)
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder(tEnh.geminiKeyPlaceholder);
+                    text.setValue(this.plugin.settings.llmEnhancerGeminiApiKey ?? '');
+                    text.onChange(async (value) => {
+                        this.plugin.settings.llmEnhancerGeminiApiKey = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+            new Setting(container)
+                .setName(tEnh.reuseYoutubeKeyLabel)
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.llmEnhancerReuseYoutubeKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.llmEnhancerReuseYoutubeKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+        } else {
+            new Setting(container)
+                .setName(tEnh.anthropicKeyLabel)
+                .setDesc(tEnh.anthropicKeyReuseHint)
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder(tEnh.anthropicKeyPlaceholder);
+                    text.setValue(this.plugin.settings.llmEnhancerAnthropicApiKey ?? '');
+                    text.onChange(async (value) => {
+                        this.plugin.settings.llmEnhancerAnthropicApiKey = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+        }
+
+        // Cost example — runtime-computed for a representative 20-page note
+        // (~40,000 chars). Uses the current registry rates so the displayed
+        // value tracks any pricing change in one place.
+        const providerConfig = LLM_ENHANCEMENT_PROVIDERS[selected];
+        const exampleCost = estimateLlmEnhancementCostUsd(40_000, providerConfig);
+        const costInfo = container.createDiv({ cls: 'ai-organiser-settings-info' });
+        costInfo.createEl('p', {
+            text: tEnh.costExampleHint.replace('{cost}', `$${exampleCost.toFixed(2)}`),
+        });
     }
 }

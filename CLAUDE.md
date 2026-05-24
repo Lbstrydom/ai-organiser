@@ -2440,6 +2440,91 @@ No new commands — opt-in via the existing `ai-organiser:create-meeting-minutes
 
 **Plan**: [docs/plans/deepgram-diarization-v2.md](docs/plans/deepgram-diarization-v2.md) — 4 GPT-5.4 audit rounds + 3 Gemini final-review rounds, 43 findings, all fixed before implementation. Two additional bugs caught + fixed during live persona testing (rerender state-wipe + useMainKeyFallback default).
 
+## Read-this-note LLM Enhancement (audioNarration extension)
+
+**Status**: ✅ Implemented (May 2026) — opt-in pre-stage of `prepareNarration` that summarises mermaid diagrams + large tables + expands acronyms before TTS. Default off; zero behaviour change for existing users.
+
+### Architecture
+
+Strictly additive to the existing `src/services/audioNarration/` module. The LLM pre-stage feeds CLEANED MARKDOWN into the existing deterministic `transformToSpokenProse` transformer — does NOT replace it. The transformer is still the single source of truth for sentence/section boundaries and TTS chunking.
+
+Two-stage flow (R1 H2 fix — no billing before consent):
+```
+narrate-note command
+  → prepareNarration(plugin, file)          [pure; NO LLM call, NO key in PreparedNarration]
+      → vault.read(file) → rawMarkdown
+      → transformToSpokenProse(raw) → spokenText for TTS-cost estimate
+      → if mode='on' AND hasLlmEnhancementKey(): set llmIntent + estimateLlmEnhancementCostUsd
+      → fingerprint MODE-BRANCHED:
+          off-mode → sha256([file.path, spokenText, voice, modelId, PREPROCESSOR_VERSION=1])  ← BYTE-IDENTICAL v1
+          on-mode  → sha256([file.path, mtime, voice, modelId, llmIntent.providerId, ..., 'llm-on'])
+  → CostConfirmModal — extra rows shown only when llmIntent set:
+      • AI cost line ($ amount)
+      • Variance hint ("Final TTS cost may vary ±15%")
+      • Privacy hint ("Your note will be sent to <provider>")
+  → user confirms → executeNarration(plugin, prepared, { signal, onProgress })
+      → TOCTOU mtime re-check → STALE_PREPARED if file changed during modal
+      → if prepared.llmIntent AND settings still match (R3 H2):
+          resolveLlmEnhancementApiKey(plugin, providerId) → apiKey
+          enhanceMarkdown(rawNote, provider, apiKey, {onChunkComplete}, signal)
+            → splitByH2 (fence-aware: skips ## inside code/mermaid/frontmatter/callouts)
+            → 4-parallel via mapWithConcurrency(signal-aware)
+            → per-chunk retryWithBackoff on 429/503 (1s/4s ±25% jitter + Retry-After honour)
+            → graceful: failed chunk → original markdown pass-through + warning
+            → total failure → Result.err → caller falls back to literal
+          → hard cap: enhancedSpokenText.length > rawNote.length * 1.2 → reject, warn
+          → spokenText = transformToSpokenProse(enhancedMarkdown)
+      → TTS synth + MP3 write + syncEmbed (unchanged from v1)
+      → return NarrateOutcome { ..., warnings: NarrationWarning[] }
+  → command renders one Notice per warning code via t.audioNarration.enhancement.warnings[code]
+```
+
+### Core Components
+
+- `src/services/audioNarration/llmEnhancerPrompts.ts`: XML-structured prompt (`<task>`, `<requirements>`, `<output_format>`); `LLM_ENHANCEMENT_PROMPT_VERSION` salts on-mode fingerprint; `neutraliseEnvelopeMarkers` (audit-code M8) zero-width-spaces user-supplied envelope tags to prevent prompt injection.
+- `src/services/audioNarration/llmEnhancerProvider.ts`: `LlmEnhancementProvider` interface + Gemini Flash + Claude Haiku impls. All HTTP via `abortableRequestUrl`. Discriminated `EnhancerCallOutcome` (not `Result<T>`) carries per-call metadata — safe for concurrent invocation (Gemini G2-H1 race fix). Gemini uses `gemini-flash-latest` URL alias + `x-goog-api-key` HEADER (audit-code H10 — not URL query). Haiku resolves newest via `/v1/models` query, cached per-account (audit-code M15).
+- `src/services/audioNarration/llmMarkdownEnhancer.ts`: `splitByH2` fence-aware splitter (skips `## ` inside code/mermaid/frontmatter/callouts). `enhanceMarkdown` orchestrates 4-parallel chunks with signal-aware worker pool (audit-code H7 — drops queued chunks on abort), `retryWithBackoff` shared from `tts/ttsRetry`, `onChunkComplete` throw-guard (audit-code M16), graceful per-chunk fallback.
+- `src/services/audioNarration/audioNarrationService.ts`: `prepareNarration` extended to estimate LLM cost without calling the LLM and snapshot `llmIntent` (provider + sentinel, NOT key). `executeNarration` runs the LLM AFTER cost confirmation with TOCTOU mtime check, settings-race intent validation, hard cap on enhanced length.
+- `src/services/apiKeyHelpers.ts`: `hasLlmEnhancementKey` (boolean, no key exposure) + `resolveLlmEnhancementApiKey` (primitive `string | null`, no audioNarration types imported — avoids upward layering violation per Gemini G2-M2). Both pass `useMainKeyFallback: false` (Deepgram v2 lesson). Optional `llmEnhancerReuseYoutubeKey` toggle reuses the full `getYouTubeGeminiApiKey` chain (Gemini G2-M1).
+- `src/services/audioNarration/narrationCostEstimator.ts`: `estimateLlmEnhancementCostUsd(noteChars, provider)` — deterministic char-based math; no LLM call.
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `audioNarrationLlmEnhancement` | `'off'` | Master toggle. Off = zero behaviour change. |
+| `audioNarrationLlmProvider` | `'gemini'` | `'gemini'` (Gemini Flash, ~$0.01/long-note) or `'haiku'` (~$0.10). |
+| `llmEnhancerGeminiApiKey` | `''` | Transient; migrated to SecretStorage on save. |
+| `llmEnhancerAnthropicApiKey` | `''` | Transient; migrated to SecretStorage on save. |
+| `llmEnhancerReuseYoutubeKey` | `false` | Opt-in fallback to YouTube Gemini key when no dedicated key set. |
+
+### Fingerprint discipline
+
+`PREPROCESSOR_VERSION` stays at 1 (never bumped in this plan) — preserves all existing literal-mode caches. `LLM_ENHANCEMENT_PROMPT_VERSION` lives separately and salts only the on-mode fingerprint. Mode-branched inputs guarantee off-mode users get byte-identical hashes to v1.
+
+### Tests
+
+- `tests/audioNarration/llmMarkdownEnhancer.test.ts` (17 tests): fence-aware split, concurrency cap, partial/total failure, abort pre-check + mid-run abort, onChunkComplete throw-guard.
+- `tests/audioNarration/llmEnhancerProvider.test.ts` (12 tests): Gemini (URL alias + x-goog-api-key header + cost from usage), Haiku (`/v1/models` discovery + cache + cost).
+- `tests/audioNarration/llmEnhancerPrompts.test.ts` (6 tests): XML envelope, prompt-injection escape variants, escapeXml.
+- `tests/fixtures/llmEnhancer/input-mermaid-heavy.md`: real-shape fixture with H1 + 2 H2s + mermaid + table + frontmatter + callout.
+
+### Key Patterns
+
+- **Default off; explicit opt-in**: zero behaviour change for existing users. Per Whisper-stays-forever rule.
+- **LLM call AFTER consent, NEVER in prepare** (R1 H2): cost-confirmation modal shows the estimate; LLM runs only if the user clicks Generate.
+- **Provider identity in `PreparedNarration`, key in `executeNarration` only** (R2 M1): `llmIntent` carries `{ providerId, modelSentinel }` only; key resolution happens at execute time.
+- **Mode-branched fingerprint** (R2 H2 + Gemini G-M1): off-mode tuple is byte-identical to v1; on-mode uses distinct `'llm-on'` domain.
+- **Hard cap on enhanced output** (R3 H4 + Gemini G-H1): `enhanced.length > rawNote.length * 1.2` (4 KB floor) — prevents prompt-injection cost blowout. Compare to RAW markdown length, NOT stripped spokenText (which collapses diagrams to "[diagram omitted]" — would yield false-positive rejection).
+- **`useMainKeyFallback: false` always** (Deepgram v2 lesson): Gemini/Haiku enhancer keys never silently use the user's main LLM key.
+- **`abortableRequestUrl` for ALL outbound HTTP** (audit-code H8/H12): cancellable, consistent.
+- **`x-goog-api-key` header for Gemini** (audit-code H10): never in URL query (leaks to logs).
+- **Per-account Haiku model cache** (audit-code M15): keyed by `apiKey.slice(0, 16)` so multi-account users don't cross-contaminate.
+- **Prompt-injection escape** (audit-code M8): user notes containing `</note_section>` or other envelope tags get zero-width-space-separated to prevent them closing the prompt envelope early.
+- **Signal-aware worker pool** (audit-code H7): workers re-check `signal.aborted` before picking up each chunk; queued work drops on abort.
+
+**Plan**: [docs/plans/read-this-note-llm-enhancement.md](docs/plans/read-this-note-llm-enhancement.md) — 3 GPT-5.4 audit rounds + 2 Gemini final-review rounds (27 plan findings) + 1 audit-code round (7 in-scope post-impl fixes), all addressed.
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

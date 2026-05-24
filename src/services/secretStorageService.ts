@@ -351,6 +351,44 @@ export class SecretStorageService implements ISecretStorageService {
                 }
             }
 
+            // Migrate LLM enhancer Gemini API key (audioNarration LLM pre-pass)
+            if (settings.llmEnhancerGeminiApiKey) {
+                try {
+                    await this.setSecret(PLUGIN_SECRET_IDS.LLM_ENHANCER_GEMINI, settings.llmEnhancerGeminiApiKey);
+                    settings.llmEnhancerGeminiApiKey = '';
+                    entries.push({
+                        field: 'llmEnhancerGeminiApiKey',
+                        secretId: PLUGIN_SECRET_IDS.LLM_ENHANCER_GEMINI,
+                        success: true,
+                    });
+                } catch {
+                    entries.push({
+                        field: 'llmEnhancerGeminiApiKey',
+                        secretId: PLUGIN_SECRET_IDS.LLM_ENHANCER_GEMINI,
+                        success: false,
+                    });
+                }
+            }
+
+            // Migrate LLM enhancer Anthropic API key (audioNarration LLM pre-pass)
+            if (settings.llmEnhancerAnthropicApiKey) {
+                try {
+                    await this.setSecret(PLUGIN_SECRET_IDS.LLM_ENHANCER_ANTHROPIC, settings.llmEnhancerAnthropicApiKey);
+                    settings.llmEnhancerAnthropicApiKey = '';
+                    entries.push({
+                        field: 'llmEnhancerAnthropicApiKey',
+                        secretId: PLUGIN_SECRET_IDS.LLM_ENHANCER_ANTHROPIC,
+                        success: true,
+                    });
+                } catch {
+                    entries.push({
+                        field: 'llmEnhancerAnthropicApiKey',
+                        secretId: PLUGIN_SECRET_IDS.LLM_ENHANCER_ANTHROPIC,
+                        success: false,
+                    });
+                }
+            }
+
             // Mark migration as complete
             settings.secretStorageMigrated = true;
             await this.plugin.saveSettings();
