@@ -45,6 +45,7 @@ export const PLUGIN_SECRET_IDS = {
     BRIGHT_DATA_SERP_KEY: 'ai-organiser-bright-data-serp-key',
     BRIGHT_DATA_WEB_UNLOCKER_KEY: 'ai-organiser-bright-data-web-unlocker-key',
     RESEARCH_CLAUDE_WEB_SEARCH_KEY: 'ai-organiser-research-claude-ws-key',
+    DEEPGRAM: 'ai-organiser-deepgram-key',
 } as const;
 
 /**

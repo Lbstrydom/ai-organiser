@@ -2984,6 +2984,22 @@ export interface Translations {
         closeButton: string;
     };
     progress: ProgressStrings;
+    diarization: {
+        checkboxLabel: string;
+        costPreview: string;          // template: "Deepgram - {cost} for this file"
+        costUnknown: string;
+        disabledTooltip: string;
+        multiFileDisabledTooltip: string;
+        fileTooLarge: string;         // template: "{sizeMB} / {limitMB}"
+        largeFileSyncWarning: string; // template: "{sizeMB}"
+        privacyTitle: string;
+        privacyDescription: string;
+        privacyAccept: string;
+        privacyReject: string;
+        failedNotice: string;         // template: "{error}"
+        apiKeyLabel: string;
+        apiKeyDescription: string;
+    };
 }
 
 /**

@@ -116,19 +116,69 @@ export class MinutesSettingsSection extends BaseSettingSection {
                     await this.plugin.saveSettings();
                 }));
 
-        // Phase 4 TRA: Diarisation provider placeholder
-        new Setting(this.containerEl)
+        // Diarisation — provider dropdown + (conditional) key input.
+        // Plan §7 R4 M2: 'assemblyai' stays in the enum but is not selectable
+        // at runtime (revert + Notice on attempt). Whisper path is the
+        // universal fallback and never changes.
+        const diarisationContainer = this.containerEl.createDiv();
+        this.renderDiarisationSection(diarisationContainer);
+    }
+
+    private renderDiarisationSection(container: HTMLElement): void {
+        container.empty();
+        const t = this.plugin.t;
+        const tDia = t.diarization;
+
+        let previousProvider = this.plugin.settings.audioDiarisationProvider;
+
+        new Setting(container)
             .setName(t.settings.minutes?.diarisationProvider || 'Diarisation provider')
-            .setDesc(t.settings.minutes?.diarisationProviderDesc || 'External speaker diarisation service (coming soon)')
+            .setDesc(
+                t.settings.minutes?.diarisationProviderDesc
+                || "Use Whisper alone (default) or add Deepgram for acoustic speaker identification. Whisper-only stays available regardless.",
+            )
             .addDropdown(dropdown => dropdown
-                .addOption('none', t.settings.minutes?.diarisationNone || 'None')
-                .addOption('assemblyai', t.settings.minutes?.diarisationAssemblyAI || 'AssemblyAI')
+                .addOption('none', t.settings.minutes?.diarisationNone || 'None (Whisper only)')
+                .addOption(
+                    'assemblyai',
+                    `${t.settings.minutes?.diarisationAssemblyAI || 'AssemblyAI'} (coming soon — not available)`,
+                )
                 .addOption('deepgram', t.settings.minutes?.diarisationDeepgram || 'Deepgram')
                 .setValue(this.plugin.settings.audioDiarisationProvider)
-                .setDisabled(true)
                 .onChange(async (value) => {
-                    this.plugin.settings.audioDiarisationProvider = value as 'none' | 'assemblyai' | 'deepgram';
+                    const next = value as 'none' | 'assemblyai' | 'deepgram';
+                    if (next === 'assemblyai') {
+                        // R4 M2 — revert with explanatory Notice; never persist
+                        // an unsupported provider.
+                        const { Notice } = await import('obsidian');
+                        new Notice(
+                            `AssemblyAI is not yet available — staying on ${previousProvider}.`,
+                            4000,
+                        );
+                        dropdown.setValue(previousProvider);
+                        return;
+                    }
+                    this.plugin.settings.audioDiarisationProvider = next;
+                    previousProvider = next;
                     await this.plugin.saveSettings();
+                    // Re-render so the key input slot appears/hides for Deepgram.
+                    this.renderDiarisationSection(container);
                 }));
+
+        // Conditional Deepgram key input — only when provider === 'deepgram'.
+        if (this.plugin.settings.audioDiarisationProvider === 'deepgram') {
+            new Setting(container)
+                .setName(tDia.apiKeyLabel)
+                .setDesc(tDia.apiKeyDescription)
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder('Token …');
+                    text.setValue(this.plugin.settings.deepgramApiKey ?? '');
+                    text.onChange(async (value) => {
+                        this.plugin.settings.deepgramApiKey = value;
+                        await this.plugin.saveSettings();
+                    });
+                });
+        }
     }
 }

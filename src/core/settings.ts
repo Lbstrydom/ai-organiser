@@ -92,7 +92,8 @@ export interface AIOrganiserSettings {
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
     minutesGTDOverlay: boolean;              // GTD-style action classification overlay
     enableSpeakerLabelling: boolean;          // LLM speaker-labelling pre-pass (Phase 4 TRA)
-    audioDiarisationProvider: 'none' | 'assemblyai' | 'deepgram'; // Diarisation provider placeholder (Phase 4c TRA)
+    audioDiarisationProvider: 'none' | 'assemblyai' | 'deepgram'; // Diarisation provider (v2: 'deepgram' enabled; 'assemblyai' reserved)
+    deepgramApiKey?: string;             // Deepgram key — transient; migrated to SecretStorage on save
     maxDocumentChars: number;            // Minutes: max document size before truncation
     oversizedDocumentBehavior: 'truncate' | 'full' | 'ask'; // Minutes: oversized behavior
     // Export Settings (DOCX/PPTX)
@@ -397,6 +398,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     minutesGTDOverlay: false,
     enableSpeakerLabelling: false,
     audioDiarisationProvider: 'none',
+    deepgramApiKey: '',
     maxDocumentChars: DEFAULT_MAX_DOCUMENT_CHARS,
     oversizedDocumentBehavior: 'ask' as OversizedBehavior,
     exportOutputFolder: 'Exports',

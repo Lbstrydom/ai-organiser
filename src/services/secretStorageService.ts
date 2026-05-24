@@ -332,6 +332,25 @@ export class SecretStorageService implements ISecretStorageService {
                 }
             }
 
+            // Migrate Deepgram API key (v2 diarization)
+            if (settings.deepgramApiKey) {
+                try {
+                    await this.setSecret(PLUGIN_SECRET_IDS.DEEPGRAM, settings.deepgramApiKey);
+                    settings.deepgramApiKey = '';
+                    entries.push({
+                        field: 'deepgramApiKey',
+                        secretId: PLUGIN_SECRET_IDS.DEEPGRAM,
+                        success: true,
+                    });
+                } catch {
+                    entries.push({
+                        field: 'deepgramApiKey',
+                        secretId: PLUGIN_SECRET_IDS.DEEPGRAM,
+                        success: false,
+                    });
+                }
+            }
+
             // Mark migration as complete
             settings.secretStorageMigrated = true;
             await this.plugin.saveSettings();

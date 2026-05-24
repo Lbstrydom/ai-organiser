@@ -120,9 +120,10 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Get MIME type for audio file
+ * Get MIME type for audio file. Exported for reuse by the Deepgram
+ * adapter (plan §1.5 G4 — single MIME table for Whisper + Deepgram).
  */
-function getAudioMimeType(extension: string): string {
+export function getAudioMimeType(extension: string): string {
     const mimeTypes: Record<string, string> = {
         'mp3': 'audio/mpeg',
         'mp4': 'audio/mp4',

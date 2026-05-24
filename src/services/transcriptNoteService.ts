@@ -63,6 +63,12 @@ export const TranscriptNoteFrontmatterSchema = z.object({
     timestamp_source: z.enum(['whisper-verbose-json', 'none']),
     /** ISO 8601 timestamp — produced by `new Date().toISOString()` */
     created_at: z.iso.datetime(),
+    /** Diarization provider when v2 acoustic-diarization path was used (plan §7 R2 H4) */
+    diarization_provider: z.literal('deepgram').optional(),
+    /** Authoritative cost in USD from provider — computed from durationSec */
+    diarization_cost_usd: z.number().nonnegative().optional(),
+    /** Language reported by the diarization provider (parallel to `language`) */
+    diarization_language: z.string().optional(),
 });
 
 export type TranscriptNoteFrontmatter = z.infer<typeof TranscriptNoteFrontmatterSchema>;

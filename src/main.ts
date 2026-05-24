@@ -79,6 +79,10 @@ export default class AIOrganiserPlugin extends Plugin {
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
+    /** First-time-per-session Deepgram diarization disclosure shown? Reset on plugin reload. */
+    public diarizationDisclosureShownThisSession = false;
+    /** Once-per-session "large file → Sync impact" advisory shown? Reset on plugin reload. */
+    public diarizationLargeFileWarningShownThisSession = false;
     private lastNewsletterConfig = { enabled: false, autoFetch: false, intervalMins: 60 };
     private readonly mermaidNoticeRateLimit = new Map<string, number>();
     private readonly taxonomyGuardrailService: TaxonomyGuardrailService;

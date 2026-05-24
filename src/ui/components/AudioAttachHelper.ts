@@ -43,14 +43,31 @@ export interface DetectedAudioPrompt {
     count: number;
 }
 
+export interface DiarizationToggleOptions {
+    /** When false, the checkbox is not rendered at all (default-off path). */
+    visible: boolean;
+    checked: boolean;
+    /**
+     * Greys the checkbox + suppresses clicks while transcription is in flight
+     * (R1 H8). Set by host when `state.kind === 'transcribing'`.
+     */
+    disabled: boolean;
+    /** Pre-formatted cost-preview text or null to hide that span. */
+    costPreviewText: string | null;
+    /** Modal-session callback — single boolean, no item id. */
+    onChange: (checked: boolean) => void;
+}
+
 export interface AudioAttachOptions {
     state: AudioAttachViewState;
     /** When set, renders a "Detected N audio files…" chip above the trio */
     detectedPrompt?: DetectedAudioPrompt;
     /** Hide the Record button (e.g. mobile environments without MediaRecorder) */
     allowRecord: boolean;
-    /** Translations bundle — keys consumed live in `t.minutes` */
+    /** Translations bundle — keys consumed live in `t.minutes` + `t.diarization` */
     t: Translations;
+    /** Optional diarization opt-in checkbox (plan §1.5 R1 H3 + R2 H1 + R3 H1) */
+    diarizationToggle?: DiarizationToggleOptions;
 
     // ============================ Intent callbacks ============================
     // Source acquisition
@@ -152,6 +169,11 @@ function renderInto(
         );
     }
 
+    // ---- Diarization opt-in checkbox (plan §1.5) ----
+    if (options.diarizationToggle?.visible) {
+        renderDiarizationToggle(root, options.diarizationToggle, options.t, cleanups);
+    }
+
     // ---- Detected-prompt chip (only when in `empty` state) ----
     if (options.state.kind === 'empty' && options.detectedPrompt) {
         renderDetectedPrompt(root, options, cleanups);
@@ -188,6 +210,49 @@ function renderInto(
         });
         cleanups.push(listen(retry, 'click', options.onRetryIntent));
     }
+}
+
+let nextToggleId = 0;
+
+function renderDiarizationToggle(
+    root: HTMLElement,
+    toggle: DiarizationToggleOptions,
+    t: Translations,
+    cleanups: Array<() => void>,
+): void {
+    const tDia = t.diarization;
+    const row = root.createDiv({ cls: 'ai-organiser-audio-attach-diarization-toggle' });
+    const id = `ai-organiser-diarization-toggle-${++nextToggleId}`;
+    const input = row.createEl('input', {
+        type: 'checkbox',
+        attr: { id },
+    });
+    input.checked = toggle.checked;
+    input.disabled = toggle.disabled;
+    if (toggle.disabled) {
+        row.dataset.disabled = 'true';
+        setTooltip(row, tDia.disabledTooltip || 'Cannot change during transcription');
+    } else {
+        row.dataset.disabled = 'false';
+    }
+    cleanups.push(
+        listen(input, 'change', () => {
+            toggle.onChange(input.checked);
+        }),
+    );
+    const label = row.createEl('label', {
+        cls: 'ai-organiser-audio-attach-diarization-label',
+        attr: { for: id },
+        text: tDia.checkboxLabel || 'Identify speakers',
+    });
+    if (toggle.costPreviewText) {
+        row.createSpan({
+            cls: 'ai-organiser-audio-attach-diarization-cost',
+            text: toggle.costPreviewText,
+        });
+    }
+    // Keep label width minimal — supply both nodes
+    void label;
 }
 
 function renderTrioButton(

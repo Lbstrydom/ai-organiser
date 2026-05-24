@@ -173,6 +173,30 @@ export async function getYouTubeGeminiApiKey(plugin: AIOrganiserPlugin): Promise
 }
 
 /**
+ * Get the Deepgram API key (v2 diarization).
+ *
+ * Deepgram has no main-LLM equivalent, so there is no provider-fallback or
+ * main-cloud-key fallback. 2-level chain: (1) SecretStorage dedicated id,
+ * (2) plain-text in settings (transient — migrated on next save).
+ */
+export async function getDeepgramApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    if (secretStorage.isAvailable()) {
+        return await secretStorage.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.DEEPGRAM,
+            // CRITICAL: disable main-key fallback. Deepgram has no main-LLM
+            // equivalent — without this flag, resolveApiKey would hand the
+            // user's Claude/OpenAI key to Deepgram and trigger http-401.
+            useMainKeyFallback: false,
+            plainTextFallback: {
+                primaryKey: plugin.settings.deepgramApiKey,
+            },
+        });
+    }
+    return plugin.settings.deepgramApiKey || null;
+}
+
+/**
  * Get API key for audio transcription (Whisper).
  * Tries selected provider first, then falls back to the other (openai↔groq).
  */

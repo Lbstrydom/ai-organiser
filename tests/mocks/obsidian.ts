@@ -164,6 +164,11 @@ class MockHTMLElement {
         return this;
     }
 
+    focus() { /* no-op for tests */ }
+    blur() { /* no-op for tests */ }
+    /** HTMLOrSVGElement.dataset — minimal Record proxy for tests. */
+    dataset: Record<string, string> = {};
+
     empty() {
         this.children = [];
         this.innerHTML = '';
@@ -213,6 +218,7 @@ export class Modal {
     app: App;
     contentEl: MockHTMLElement;
     modalEl: MockHTMLElement;
+    titleEl: MockHTMLElement;
     private _isOpen: boolean = false;
     private _isClosed: boolean = false;
 
@@ -220,6 +226,7 @@ export class Modal {
         this.app = app;
         this.contentEl = new MockHTMLElement();
         this.modalEl = new MockHTMLElement();
+        this.titleEl = new MockHTMLElement();
     }
 
     open() {

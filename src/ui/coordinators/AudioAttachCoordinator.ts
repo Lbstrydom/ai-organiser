@@ -36,8 +36,15 @@ import {
     type ImportedAudio,
     type ImportOptions,
 } from '../../services/audio/audioImportService';
-import type { Result } from '../../core/result';
+import { err, type Result } from '../../core/result';
 import { logger } from '../../utils/logger';
+import {
+    DEEPGRAM_COST_PER_MIN_USD,
+    DEEPGRAM_MAX_FILE_BYTES,
+    type DiarizationProvider,
+    type DiarizationResult,
+} from '../../services/diarization/types';
+import { deepgramAdapter } from '../../services/diarization/deepgramAdapter';
 
 /**
  * Outcome of a picker request. `'cancelled'` is distinct from `'failed'`:
@@ -61,11 +68,19 @@ export interface CoordinatorOptions {
 export class AudioAttachCoordinator {
     private readonly previewHandles: AudioPreviewHandle[] = [];
     private disposed = false;
+    /** Per-modal-session opt-in; modal-instance lifetime. */
+    private diarizationOptedIn = false;
+    /** How many items the host has currently attached — set via {@link setItemCount}. */
+    private itemCount = 0;
+    private readonly provider: DiarizationProvider;
 
     constructor(
         private readonly app: App,
-        private readonly options: CoordinatorOptions
-    ) {}
+        private readonly options: CoordinatorOptions,
+        provider?: DiarizationProvider,
+    ) {
+        this.provider = provider ?? deepgramAdapter;
+    }
 
     // ============================================================================
     // Source acquisition — one method per user intent
@@ -191,6 +206,115 @@ export class AudioAttachCoordinator {
         if (this.disposed) {
             throw new Error('AudioAttachCoordinator: instance has been disposed');
         }
+    }
+
+    // ============================================================================
+    // Diarization opt-in (plan §1.5 R1 H3 + Gemini G3 wiring)
+    // ============================================================================
+
+    /** Set the modal-session diarization opt-in. */
+    setDiarizationOptIn(value: boolean): void {
+        this.diarizationOptedIn = value;
+    }
+
+    shouldUseDiarization(): boolean {
+        return this.diarizationOptedIn;
+    }
+
+    /**
+     * Notify the coordinator how many items the host has attached. Used by
+     * {@link canTranscribeNow} to enforce the single-file constraint when
+     * diarization is enabled (R3 H1).
+     */
+    setItemCount(n: number): void {
+        this.itemCount = n;
+    }
+
+    /**
+     * Orchestration-level invariant for whether the host can call transcribe
+     * right now (R4 H2). Hosts use this to drive button state + tooltip.
+     */
+    canTranscribeNow(): { allowed: true } | { allowed: false; reason: 'multi-file-diarization' | 'no-items' } {
+        if (this.itemCount === 0) return { allowed: false, reason: 'no-items' };
+        if (this.diarizationOptedIn && this.itemCount > 1) {
+            return { allowed: false, reason: 'multi-file-diarization' };
+        }
+        return { allowed: true };
+    }
+
+    /**
+     * Cheaply-available size hint for a source. Returns null when the size
+     * isn't knowable without doing an import (webview-blob occasionally lacks
+     * `Blob.size` in older Electron versions — null routes the host to the
+     * `costUnknown` i18n path per G2-H1).
+     */
+    getUpfrontSourceSize(source: AudioSource): number | null {
+        switch (source.kind) {
+            case 'vault':
+                return source.file.stat?.size ?? null;
+            case 'webview-blob':
+            case 'recorder':
+                return typeof source.blob.size === 'number' ? source.blob.size : null;
+            case 'desktop-path':
+                // Electron File from showOpenDialog doesn't carry size; we
+                // discover it on import. Conservative: return null.
+                return null;
+        }
+    }
+
+    /** Pure cost estimate (dollars) from file size at 128kbps baseline. */
+    estimateAudioCostUsd(
+        fileSizeBytes: number,
+        costPerMin = DEEPGRAM_COST_PER_MIN_USD,
+    ): number {
+        const estimatedMins = (fileSizeBytes * 8) / 128_000 / 60;
+        return estimatedMins * costPerMin;
+    }
+
+    /**
+     * Format a cost number as a UI string. Always 2 decimals; `~$0.01` floor
+     * so users don't see `~$0.00` and assume "free" (R3 M2 + G6).
+     */
+    formatCostPreview(costUsd: number): string {
+        if (!Number.isFinite(costUsd) || costUsd <= 0) return '~$0.01';
+        if (costUsd < 0.01) return '~$0.01';
+        return `~$${costUsd.toFixed(2)}`;
+    }
+
+    /**
+     * Run the full diarized path: import source → size guard → read bytes →
+     * provider call. Single entry point used by both Minutes and TranscribeOnly
+     * modals; mirrors the Whisper-side `transcribeAudioWithFullWorkflow`
+     * contract but yields a `DiarizationResult` instead of a raw transcript.
+     */
+    async transcribeDiarized(
+        item: AudioAttachItem,
+        apiKey: string,
+        signal?: AbortSignal,
+    ): Promise<Result<DiarizationResult>> {
+        this.assertNotDisposed();
+
+        // Pre-import size guard (R4 H1) — fail fast when size is known
+        const upfront = this.getUpfrontSourceSize(item.source);
+        if (upfront !== null && upfront > DEEPGRAM_MAX_FILE_BYTES) {
+            return err(`file-too-large:${upfront}:${DEEPGRAM_MAX_FILE_BYTES}`);
+        }
+
+        const imported = await this.importToVault(item.source, signal);
+        if (!imported.ok) return err(`import-failed:${imported.error}`);
+
+        // Post-import size guard (R3 H2 second-line) — webview-blob case
+        const fileSize = imported.value.file.stat?.size ?? 0;
+        if (fileSize > DEEPGRAM_MAX_FILE_BYTES) {
+            return err(`file-too-large:${fileSize}:${DEEPGRAM_MAX_FILE_BYTES}`);
+        }
+
+        const bytes = await this.app.vault.readBinary(imported.value.file);
+
+        return this.provider.transcribeWithDiarization(this.app, bytes, apiKey, {
+            signal,
+            filename: imported.value.file.name,
+        });
     }
 }
 

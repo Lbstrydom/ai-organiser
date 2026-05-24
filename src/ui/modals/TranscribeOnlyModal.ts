@@ -45,7 +45,10 @@ import { getTranscriptOutputFullPath } from '../../core/settings';
 import { ensureFolderExists, getAvailableFilePath, sanitizeFileName } from '../../utils/minutesUtils';
 import { isRecordingSupported } from '../../services/audioRecordingService';
 import { transcribeAudioWithFullWorkflow } from '../../services/audioTranscriptionService';
-import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
+import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
+import { DEEPGRAM_LARGE_FILE_WARN_BYTES } from '../../services/diarization/types';
+import type { DiarizationResult } from '../../services/diarization/types';
 
 export class TranscribeOnlyModal extends Modal {
     private readonly plugin: AIOrganiserPlugin;
@@ -62,6 +65,16 @@ export class TranscribeOnlyModal extends Modal {
     private labelled: LabelledTimedTranscript | null = null;
     private speakerReview: SpeakerReviewState = { kind: 'not-required' };
     private outputFolder: string;
+    /** Async-resolved Deepgram API key (null = not configured / not yet checked) */
+    private deepgramKey: string | null = null;
+    /** Used when async key resolution races against onClose() */
+    private isOpenFlag = false;
+    /** Whether transcription is currently in flight (drives toggle.disabled). */
+    private transcribing = false;
+    /** DiarizationResult from the diarized path — used to write provider/cost frontmatter. */
+    private diarizationResult: DiarizationResult | null = null;
+    /** Modal-scoped opt-in mirror — survives coordinator recreation (parity with Minutes modal fix). */
+    private diarizationOptedIn = false;
 
     constructor(app: App, plugin: AIOrganiserPlugin) {
         super(app);
@@ -120,9 +133,15 @@ export class TranscribeOnlyModal extends Modal {
         });
         this.cleanups.push(listen(this.saveBtnEl, 'click', () => void this.handleSave()));
         this.refreshSaveButtonGate();
+
+        this.isOpenFlag = true;
+        // Async-resolve Deepgram key; re-render the helper region once known
+        // so the checkbox shows up (or stays hidden) without flicker.
+        void this.resolveDeepgramKeyAndRefresh();
     }
 
     onClose(): void {
+        this.isOpenFlag = false;
         this.speakerHandle?.destroy();
         this.speakerHandle = null;
         this.audioHandle?.destroy();
@@ -140,10 +159,13 @@ export class TranscribeOnlyModal extends Modal {
 
     private renderAttach(container: HTMLElement): void {
         this.audioHandle?.destroy();
+        // Sync coordinator's item-count for the multi-file constraint check (R3 H1)
+        if (this.coordinator) this.coordinator.setItemCount(this.audioFile ? 1 : 0);
         this.audioHandle = renderAudioAttach(container, {
             state: this.deriveAttachViewState(),
             allowRecord: isRecordingSupported(),
             t: this.plugin.t,
+            diarizationToggle: this.buildDiarizationToggleOptions(),
             onAttachIntent: () => void this.handleAttachIntent(),
             onPickVaultIntent: () => void this.handlePickVaultIntent(),
             onRecordIntent: () => {
@@ -222,12 +244,25 @@ export class TranscribeOnlyModal extends Modal {
             new Notice(this.plugin.t.minutes.transcribeOnlyAttachFirst || 'Attach an audio file first');
             return;
         }
+
+        // Branch: diarized path (Deepgram) vs default Whisper path.
+        if (this.coordinator?.shouldUseDiarization()) {
+            await this.handleTranscribeDiarized();
+            return;
+        }
+
+        await this.handleTranscribeWhisper();
+    }
+
+    private async handleTranscribeWhisper(): Promise<void> {
+        if (!this.audioFile) return;
         const apiKeyResult = await getAudioTranscriptionApiKey(this.plugin);
         if (!apiKeyResult) {
             new Notice(this.plugin.t.minutes.noTranscriptionProvider ||
                 'Configure OpenAI or Groq API key for transcription');
             return;
         }
+        this.setTranscribing(true);
         this.setStatus(this.plugin.t.minutes.transcribing || 'Transcribing…');
 
         try {
@@ -244,11 +279,9 @@ export class TranscribeOnlyModal extends Modal {
             if (!result.success || !result.transcript) {
                 throw new Error(result.error || 'Transcription failed');
             }
-
-            // Prefer Whisper's detected language; fall back to 'und' so the
-            // attribution registry routes to NoOp when undetected.
             const timed = transcriptionResultToTimedTranscript(result, result.language || 'und');
             this.labelled = await labelSpeakersTimed(this.plugin, timed, []);
+            this.diarizationResult = null;
             this.transitionSpeakerReview();
             this.refreshSaveButtonGate();
             this.setStatus(this.plugin.t.minutes.transcriptionComplete || 'Transcription complete');
@@ -257,7 +290,46 @@ export class TranscribeOnlyModal extends Modal {
             logger.warn('TranscribeOnly', `transcription threw: ${message}`);
             new Notice(`${this.plugin.t.minutes.transcriptionFailed || 'Transcription failed'}: ${message}`);
             this.setStatus(this.plugin.t.minutes.transcriptionFailed || 'Transcription failed');
+        } finally {
+            this.setTranscribing(false);
         }
+    }
+
+    private async handleTranscribeDiarized(): Promise<void> {
+        if (!this.audioFile || !this.coordinator) return;
+        if (!this.deepgramKey) {
+            new Notice(this.plugin.t.diarization.failedNotice.replace('{error}', 'no-api-key'));
+            return;
+        }
+        this.setTranscribing(true);
+        this.setStatus(this.plugin.t.minutes.transcribing || 'Transcribing…');
+
+        const item = {
+            source: { kind: 'vault' as const, file: this.audioFile },
+            displayName: this.audioDisplayName,
+            itemState: 'pending' as const,
+        };
+        const result = await this.coordinator.transcribeDiarized(item, this.deepgramKey);
+
+        if (!result.ok) {
+            const msg = this.plugin.t.diarization.failedNotice.replace('{error}', result.error);
+            new Notice(msg, 6000);
+            this.setStatus(this.plugin.t.minutes.transcriptionFailed || 'Transcription failed');
+            this.setTranscribing(false);
+            return;
+        }
+
+        this.diarizationResult = result.value;
+        this.labelled = result.value.labelled;
+        this.transitionSpeakerReview();
+        this.refreshSaveButtonGate();
+        this.setStatus(this.plugin.t.minutes.transcriptionComplete || 'Transcription complete');
+        this.setTranscribing(false);
+    }
+
+    private setTranscribing(value: boolean): void {
+        this.transcribing = value;
+        this.rerenderAttach();
     }
 
     private setStatus(message: string): void {
@@ -389,6 +461,7 @@ export class TranscribeOnlyModal extends Modal {
             this.speakerReview.kind === 'skipped' ? 'skipped' :
             this.speakerReview.kind === 'failed' ? 'failed' :
             'not-required';
+        const dia = this.diarizationResult;
         return {
             frontmatter: {
                 type: 'transcript',
@@ -400,6 +473,15 @@ export class TranscribeOnlyModal extends Modal {
                 speaker_detection_status: status,
                 timestamp_source: labelled.timestampSource,
                 created_at: new Date().toISOString(),
+                ...(dia
+                    ? {
+                          diarization_provider: dia.provider,
+                          ...(dia.actualCostUsd !== null
+                              ? { diarization_cost_usd: dia.actualCostUsd }
+                              : {}),
+                          diarization_language: dia.detectedLanguage,
+                      }
+                    : {}),
             },
             body: labelled,
         };
@@ -414,6 +496,106 @@ export class TranscribeOnlyModal extends Modal {
         const audioName = this.audioFile?.basename || 'audio';
         const date = new Date().toISOString().slice(0, 10);
         return `${audioName} transcript ${date}`;
+    }
+
+    // ============================================================================
+    // Diarization opt-in (plan §1.5 + Gemini G3)
+    // ============================================================================
+
+    /**
+     * Async key resolve on modal open. Re-renders the attach region once the
+     * key is known so the checkbox shows up without flicker. Guarded against
+     * onClose racing the resolution.
+     */
+    private async resolveDeepgramKeyAndRefresh(): Promise<void> {
+        try {
+            this.deepgramKey = await getDeepgramApiKey(this.plugin);
+        } catch {
+            this.deepgramKey = null;
+        }
+        if (!this.isOpenFlag) return;
+        // Re-render the attach region so the diarizationToggle slot reflects the resolved key.
+        const attachSlot = this.contentEl.querySelector<HTMLElement>('.ai-organiser-transcribe-only-attach');
+        if (attachSlot) this.renderAttach(attachSlot);
+    }
+
+    /**
+     * Build the diarizationToggle options for the helper. Returns undefined
+     * (no checkbox at all) on mobile, when provider !== 'deepgram', or when
+     * no key is configured.
+     */
+    private buildDiarizationToggleOptions() {
+        if (Platform.isMobile) return undefined;
+        if (this.plugin.settings.audioDiarisationProvider !== 'deepgram') return undefined;
+        if (!this.deepgramKey) return undefined;
+        if (!this.coordinator) return undefined;
+
+        const checked = this.coordinator.shouldUseDiarization();
+        const costPreviewText = this.computeCostPreviewText();
+
+        return {
+            visible: true,
+            checked,
+            disabled: this.transcribing,
+            costPreviewText,
+            onChange: (next: boolean) => this.handleDiarizationToggleChange(next),
+        };
+    }
+
+    private computeCostPreviewText(): string | null {
+        if (!this.coordinator || !this.audioFile) return null;
+        const upfront = this.coordinator.getUpfrontSourceSize({ kind: 'vault', file: this.audioFile });
+        const tDia = this.plugin.t.diarization;
+        if (upfront === null || upfront <= 0) return tDia.costUnknown;
+        const usd = this.coordinator.estimateAudioCostUsd(upfront);
+        const formatted = this.coordinator.formatCostPreview(usd);
+        return tDia.costPreview.replace('{cost}', formatted);
+    }
+
+    private handleDiarizationToggleChange(next: boolean): void {
+        if (!this.coordinator) return;
+
+        if (
+            next === true
+            && !this.plugin.diarizationDisclosureShownThisSession
+        ) {
+            // Disclosure modal — only on transition unchecked → checked.
+            DiarizationPrivacyModal.openOnce(this.app, this.plugin.t, (accepted) => {
+                if (accepted) {
+                    this.plugin.diarizationDisclosureShownThisSession = true;
+                    this.diarizationOptedIn = true;
+                    this.coordinator!.setDiarizationOptIn(true);
+                    this.maybeWarnLargeFileSync();
+                } else {
+                    // Rejection leaves disclosureShown=false so user can retrigger.
+                    this.diarizationOptedIn = false;
+                    this.coordinator!.setDiarizationOptIn(false);
+                }
+                this.rerenderAttach();
+            });
+            return;
+        }
+
+        this.diarizationOptedIn = next;
+        this.coordinator.setDiarizationOptIn(next);
+        if (next) this.maybeWarnLargeFileSync();
+        this.rerenderAttach();
+    }
+
+    private maybeWarnLargeFileSync(): void {
+        if (this.plugin.diarizationLargeFileWarningShownThisSession) return;
+        if (!this.audioFile || !this.coordinator) return;
+        const size = this.audioFile.stat?.size ?? 0;
+        if (size < DEEPGRAM_LARGE_FILE_WARN_BYTES) return;
+        this.plugin.diarizationLargeFileWarningShownThisSession = true;
+        const sizeMB = Math.round(size / (1024 * 1024));
+        const msg = this.plugin.t.diarization.largeFileSyncWarning.replace('{sizeMB}', String(sizeMB));
+        new Notice(msg, 8000);
+    }
+
+    private rerenderAttach(): void {
+        const attachSlot = this.contentEl.querySelector<HTMLElement>('.ai-organiser-transcribe-only-attach');
+        if (attachSlot) this.renderAttach(attachSlot);
     }
 }
 

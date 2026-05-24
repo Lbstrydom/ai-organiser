@@ -2385,6 +2385,61 @@ Inline diff review shown before any write command (Improve Note, Translate, Inte
 
 **Plan**: [docs/completed/reviewed-edits-plan.md](docs/completed/reviewed-edits-plan.md)
 
+## Deepgram Nova-3 Acoustic Diarization (v2)
+
+**Status**: ✅ Implemented (May 2026) — opt-in extension of v1 speaker-aware transcription. Whisper remains the universal default and the only mobile path.
+
+### Overview
+
+Opt-in acoustic speaker diarization via Deepgram Nova-3, gated twice (settings provider + per-session checkbox) and isolated behind a `DiarizationProvider` interface so v3 can swap in Speechmatics/AssemblyAI without touching modal code.
+
+When the user attaches audio with "Identify speakers" checked, the coordinator bypasses Whisper + `labelSpeakersTimed()` entirely and POSTs the bytes to Deepgram's `/v1/listen?model=nova-3&diarize=true&utterances=true&detect_language=true&smart_format=true&punctuate=true&mip_opt_out=true`. Per-utterance speaker labels land directly in `LabelledTimedTranscript` and feed the existing `SpeakerReviewPanel` unchanged.
+
+### Core Components
+
+- `src/services/diarization/types.ts`: `DiarizationProvider` interface, `DiarizationOptions { signal?, languageHint?, timeoutMs?, filename?, mimeType? }`, `DiarizationResult { labelled, transcriptText, durationSec, detectedLanguage, provider, actualCostUsd }`, `DEEPGRAM_COST_PER_MIN_USD = 0.0043`, `DEEPGRAM_MAX_FILE_BYTES = 200 MB`, `DEEPGRAM_LARGE_FILE_WARN_BYTES = 100 MB`.
+- `src/services/diarization/deepgramAdapter.ts`: `DeepgramAdapter implements DiarizationProvider`. Uses Obsidian `requestUrl` via the shared `abortableRequestUrl` wrapper. Cost computed deterministically from `metadata.duration` (Deepgram's response has no cost field). Seconds→ms conversion (`startMs = Math.round(utt.start * 1000)`). 1-indexed `Speaker N` labels for UX parity with Whisper+LLM path. Retry-on-429 with injectable `_sleeper?` and `_jitter?` test hooks (3 attempts max, base backoffs 1s/4s). Transport-rejection classification (`network-dns` / `network-tls` / `network-csp` / `network-offline` / `network-other:<msg>`). 5xx payload sanitization (truncated 200 chars, headers redacted).
+- `src/ui/coordinators/AudioAttachCoordinator.ts`: extended with `setDiarizationOptIn(value)` / `shouldUseDiarization()` / `canTranscribeNow()` (single-file constraint when opt-in active — Deepgram speaker IDs are per-request) / `getUpfrontSourceSize(source)` (returns size hint from `File.size` / `Blob.size` / `TFile.stat.size`, null for webview-blob) / `estimateAudioCostUsd()` / `formatCostPreview()` / `transcribeDiarized(item, apiKey, signal?)`. Constructor accepts optional `provider?: DiarizationProvider` for DIP — production uses singleton `deepgramAdapter`, tests inject mocks.
+- `src/ui/components/AudioAttachHelper.ts`: extended `AudioAttachOptions` with `diarizationToggle?: { visible, checked, disabled, costPreviewText, onChange }`. Pure presentational addition — host owns state.
+- `src/ui/modals/DiarizationPrivacyModal.ts`: first-time-per-session disclosure with 3-state outcome (accept / reject / ESC-as-reject). On reject, leaves `plugin.diarizationDisclosureShownThisSession = false` so user can re-trigger by re-checking. Modal does NOT re-fire during the same toggle gesture (only on `unchecked → checked` transition).
+- `src/services/transcriptNoteService.ts`: schema extended with optional `diarization_provider: 'deepgram'`, `diarization_cost_usd: number`, `diarization_language: string`. All absent → byte-identical to v1 Whisper notes.
+- `src/services/apiKeyHelpers.ts`: `getDeepgramApiKey(plugin)` follows the SecretStorage 3-level pattern but **MUST pass `useMainKeyFallback: false`** — Deepgram has no main-LLM equivalent; without this flag `resolveApiKey` returns the user's Claude key and triggers `http-401`.
+
+### Key Patterns
+
+- **Whisper-stays-forever (user-facing promise)**: default `audioDiarisationProvider='none'` runs the unchanged v1 path. Checkbox hidden on `Platform.isMobile`. Per-session checkbox starts unchecked even when Deepgram configured. Multi-file attach disables Transcribe when opt-in active (single-file constraint via `canTranscribeNow()`). Mobile users keep Whisper indefinitely.
+- **Diarization opt-in lives on the modal, not the coordinator**: `rerenderModal()` recreates the coordinator on every audio attach. Storing `diarizationOptedIn` only on the coordinator would silently wipe the user's choice. The modal keeps `private diarizationOptedIn = false` and re-applies it via `setDiarizationOptIn()` after every coordinator construction in `onOpen()`.
+- **`useMainKeyFallback: false` is critical** for any specialist provider without a main-LLM analogue. Without it, `resolveApiKey` falls through to the user's main LLM key. Discovered during live persona testing.
+- **Single-file constraint**: Deepgram's speaker IDs (0, 1, 2...) are scoped to a single API request. Multi-file batching would silently corrupt speaker identity across chunks. v2 enforces single-file at coordinator level; Whisper path unchanged.
+- **Cost is computed, not provider-reported**: `actualCostUsd = (durationSec / 60) * DEEPGRAM_COST_PER_MIN_USD`. Null fallback only when `metadata.duration` missing; transcript-note frontmatter omits the field when null.
+- **Sanitized fixture (no PII)**: `tests/fixtures/diarization/deepgram-sanitized-20min.json` preserves SHAPE only — utterance text replaced with `<utterance-N>` placeholders, speaker IDs / timings / confidence / languages preserved verbatim. Generated once via `scripts/spikes/sanitize-diarization-fixture.mjs`.
+- **Honest abort semantics**: `abortableRequestUrl` stops the adapter from awaiting locally, but does NOT cancel the in-flight upload — Deepgram MAY still bill. Surfaces honestly via `'aborted'` / `'timeout'` error codes.
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `audioDiarisationProvider` | `'none'` | `'none'` (Whisper only) / `'deepgram'`. `'assemblyai'` stays in the enum but reverts via Notice (R4 M2). |
+| `deepgramApiKey` | `''` | Transient plaintext field — migrated to SecretStorage on save via `persistApiKeysToSecretStorage()`. |
+| `diarizationDisclosureShownThisSession` | `false` (plugin-instance field, not in settings) | Resets on plugin reload. Drives whether the privacy modal fires on opt-in. |
+| `diarizationLargeFileWarningShownThisSession` | `false` (plugin-instance field) | Notice fires once per session above `DEEPGRAM_LARGE_FILE_WARN_BYTES` (100 MB). |
+
+### i18n
+
+New top-level namespace `t.diarization` with 13 keys (EN + ZH-CN parity verified by `npm run test:auto`). Cost-preview template uses `{cost}` substitution with pre-formatted formatter output — `~$X.XX` always 2 decimals with `~$0.01` floor.
+
+### Commands
+
+No new commands — opt-in via the existing `ai-organiser:create-meeting-minutes` (and `ai-organiser:transcribe-audio` from v1) modals.
+
+### Tests
+
+- `tests/diarization/deepgramAdapter.test.ts` (23 tests): happy path against sanitized fixture, all error codes (401/429/500/malformed/no-utterances/empty/aborted), retry policy with mocked sleeper (proves base backoffs `[1000, 4000]`), transport rejection classification, MIME override, JSON-path parsing.
+- `tests/diarizationPrivacyModal.test.ts` (6 tests): accept/reject/ESC dispatch, double-fire guard, body mentions `mip_opt_out` literally.
+- Live persona harness: `scripts/persona-harness/pat-diarization-v2-rerun.mjs` drives the end-to-end opt-in flow against `AI-Organiser/Recordings/hamina-board-first-20min.mp3` — verifies checkbox renders + privacy modal fires + opt-in survives `rerenderModal()` + Deepgram path routes + transcript-note frontmatter contains `diarization_provider: deepgram`, `diarization_cost_usd: 0.086`, `diarization_language: en`.
+
+**Plan**: [docs/plans/deepgram-diarization-v2.md](docs/plans/deepgram-diarization-v2.md) — 4 GPT-5.4 audit rounds + 3 Gemini final-review rounds, 43 findings, all fixed before implementation. Two additional bugs caught + fixed during live persona testing (rerender state-wipe + useMainKeyFallback default).
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

@@ -37,7 +37,12 @@ import {
     createBulkTruncationControls
 } from '../components/TruncationControls';
 import { withBusyIndicator } from '../../utils/busyIndicator';
-import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
+import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
+import {
+    DEEPGRAM_LARGE_FILE_WARN_BYTES,
+    type DiarizationResult,
+} from '../../services/diarization/types';
 import { ParticipantListService, ParticipantList } from '../../services/participantListService';
 import { FolderScopePickerModal } from './FolderScopePickerModal';
 import { enableAutoExpand } from '../../utils/uiUtils';
@@ -159,6 +164,19 @@ export class MinutesCreationModal extends Modal {
     private audioCoordinator: AudioAttachCoordinator | null = null;
     /** Live handle to the rendered AudioAttachHelper — used for rerender on state changes. */
     private audioAttachHandle: AudioAttachHandle | null = null;
+    /** Deepgram key resolved async on open (null when not configured / pre-resolution). */
+    private deepgramKey: string | null = null;
+    /** Modal-open flag — guards async resolution against onClose() race. */
+    private modalIsOpen = false;
+    /** DiarizationResult populated when the last transcribe used the diarized path. */
+    private lastDiarizationResult: DiarizationResult | null = null;
+    /**
+     * Modal-scoped diarization opt-in. Lives on the modal (not the coordinator)
+     * because `rerenderModal()` re-instantiates the coordinator and would otherwise
+     * wipe the user's choice. After every coordinator creation, sync this value
+     * to the coordinator so `shouldUseDiarization()` stays correct.
+     */
+    private diarizationOptedIn = false;
     /** Live handle to the SpeakerReviewPanel (F2c). */
     private speakerReviewHandle: SpeakerReviewHandle | null = null;
     /** Container for the SpeakerReviewPanel — kept across renders for in-place re-render */
@@ -254,6 +272,15 @@ export class MinutesCreationModal extends Modal {
         this.audioCoordinator = new AudioAttachCoordinator(this.app, {
             importTargetFolder: 'AI-Organiser/Imports',
         });
+        // Restore modal-scoped opt-in after coordinator (re)creation — without
+        // this line, `rerenderModal()` would wipe the user's "Identify speakers"
+        // choice every time they attach a file.
+        this.audioCoordinator.setDiarizationOptIn(this.diarizationOptedIn);
+
+        // Diarization opt-in flag — async key resolution kicks off here, then
+        // re-renders the audio section once known (or stays unchecked if no key).
+        this.modalIsOpen = true;
+        void this.resolveDeepgramKeyAndRefresh();
 
         contentEl.createEl('h2', {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
@@ -1395,11 +1422,17 @@ export class MinutesCreationModal extends Modal {
     private renderAudioAttachHelper(container: HTMLElement): void {
         // Destroy any previous handle before re-rendering (idempotent).
         this.audioAttachHandle?.destroy();
+        // Keep coordinator in sync with item count so canTranscribeNow() reflects
+        // the multi-file constraint when diarization is opted in (R3 H1 / R4 H2).
+        if (this.audioCoordinator) {
+            this.audioCoordinator.setItemCount(this.state.detectedAudioFiles?.length ?? 0);
+        }
         this.audioAttachHandle = renderAudioAttach(container, {
             state: this.deriveAudioAttachViewState(),
             detectedPrompt: this.deriveDetectedPrompt(),
             allowRecord: isRecordingSupported(),
             t: this.plugin.t,
+            diarizationToggle: this.buildDiarizationToggleOptions(),
             onAttachIntent: () => void this.handleAttachIntent(),
             onPickVaultIntent: () => void this.handlePickVaultIntent(),
             onRecordIntent: () => this.openRecorder(),
@@ -1850,6 +1883,20 @@ export class MinutesCreationModal extends Modal {
             return;
         }
 
+        // Branch: diarized (Deepgram) vs default Whisper. The diarized path
+        // bypasses Whisper + labelSpeakersTimed and uses Deepgram's per-utterance
+        // labels directly. Multi-file constraint is enforced at the coordinator
+        // (see canTranscribeNow()) but we re-check here for safety.
+        if (this.audioCoordinator?.shouldUseDiarization()) {
+            const gate = this.audioCoordinator.canTranscribeNow();
+            if (!gate.allowed && gate.reason === 'multi-file-diarization') {
+                new Notice(this.plugin.t.diarization.multiFileDisabledTooltip, 6000);
+                return;
+            }
+            await this.handleTranscribeAudioDiarized(audioItem);
+            return;
+        }
+
         // Check for transcription provider
         const provider = await this.getTranscriptionProvider();
         if (!provider) {
@@ -1939,6 +1986,68 @@ export class MinutesCreationModal extends Modal {
     }
 
     /**
+     * Diarized transcription path (Deepgram). Skips Whisper + LLM speaker
+     * labelling — Deepgram's per-utterance speaker IDs land directly in
+     * `state.labelledTranscript` and the speaker review panel renders from there.
+     */
+    private async handleTranscribeAudioDiarized(audioItem: DetectedContent): Promise<void> {
+        if (!audioItem.resolvedFile || !this.audioCoordinator) return;
+        if (!this.deepgramKey) {
+            new Notice(this.plugin.t.diarization.failedNotice.replace('{error}', 'no-api-key'), 6000);
+            return;
+        }
+
+        this.state.isTranscribing = true;
+        this.state.transcriptionProgress = this.plugin.t.minutes?.transcribing || 'Transcribing…';
+        this.updateAudioSectionUI();
+
+        const item: AudioAttachItem = {
+            source: { kind: 'vault', file: audioItem.resolvedFile },
+            displayName: audioItem.displayName,
+            itemState: 'pending',
+        };
+
+        try {
+            const result = await this.audioCoordinator.transcribeDiarized(item, this.deepgramKey);
+            if (!result.ok) {
+                const msg = this.plugin.t.diarization.failedNotice.replace('{error}', result.error);
+                new Notice(msg, 6000);
+                return;
+            }
+            this.lastDiarizationResult = result.value;
+            this.state.transcript = result.value.transcriptText;
+            if (this.transcriptTextArea) {
+                this.transcriptTextArea.value = result.value.transcriptText;
+            }
+            this.state.labelledTranscript = result.value.labelled;
+
+            // Build DetectedSpeaker[] from the labelled transcript (same path as Whisper flow)
+            const detected = this.buildDetectedSpeakersFromLabelled(result.value.labelled);
+            this.state.speakerReview = detected.length < 2
+                ? { kind: 'not-required' }
+                : { kind: 'pending', detected };
+            this.renderSpeakerReviewSection();
+            this.refreshSubmitButtonGate();
+
+            // Save transcript to disk (same path as Whisper)
+            const savedPath = await this.saveTranscriptToDisk(
+                result.value.transcriptText,
+                audioItem.resolvedFile,
+            );
+            if (savedPath) this.state.savedTranscriptPath = savedPath;
+
+            new Notice(this.plugin.t.minutes?.transcriptionComplete || 'Transcription complete');
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            new Notice(`${this.plugin.t.minutes?.transcriptionFailed || 'Transcription failed'}: ${message}`);
+        } finally {
+            this.state.isTranscribing = false;
+            this.state.transcriptionProgress = '';
+            this.updateAudioSectionUI();
+        }
+    }
+
+    /**
      * Save transcript to disk immediately after transcription so it's never lost.
      * Creates the meeting subfolder and saves the transcript file.
      * When audioFile is provided, adds audio_source frontmatter for reliable
@@ -1953,10 +2062,24 @@ export class MinutesCreationModal extends Modal {
             const outputFolder = resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings');
             const meetingFolder = `${outputFolder}/${datePart} ${safeTitle}`;
 
-            // Build content with frontmatter linking to audio source for cache lookup
+            // Build content with frontmatter linking to audio source for cache lookup.
+            // When the diarized path was used, also stamp provider/cost/language
+            // into the transcript-note frontmatter (plan §7 transcriptNoteService).
             let content = transcript;
             if (audioFile) {
-                content = `---\naudio_source: "[[${audioFile.path}]]"\ntranscribed_at: "${new Date().toISOString()}"\n---\n\n${transcript}`;
+                const fmLines = [
+                    `audio_source: "[[${audioFile.path}]]"`,
+                    `transcribed_at: "${new Date().toISOString()}"`,
+                ];
+                const dia = this.lastDiarizationResult;
+                if (dia) {
+                    fmLines.push(`diarization_provider: ${dia.provider}`);
+                    if (dia.actualCostUsd !== null) {
+                        fmLines.push(`diarization_cost_usd: ${dia.actualCostUsd}`);
+                    }
+                    fmLines.push(`diarization_language: ${dia.detectedLanguage}`);
+                }
+                content = `---\n${fmLines.join('\n')}\n---\n\n${transcript}`;
             }
 
             await ensureFolderExists(this.app.vault, meetingFolder);
@@ -3537,6 +3660,7 @@ export class MinutesCreationModal extends Modal {
         // F1b/F2c — release any audio-preview object URLs the coordinator
         // created and the SpeakerReviewPanel's DOM listeners. Idempotent;
         // safe to call even if neither was rendered.
+        this.modalIsOpen = false;
         this.speakerReviewHandle?.destroy();
         this.speakerReviewHandle = null;
         this.speakerReviewContainerEl = null;
@@ -3548,6 +3672,111 @@ export class MinutesCreationModal extends Modal {
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
         this.contentEl.empty();
+    }
+
+    // ============================================================================
+    // Diarization opt-in (plan §1.5 + Gemini G3)
+    // ============================================================================
+
+    private async resolveDeepgramKeyAndRefresh(): Promise<void> {
+        try {
+            this.deepgramKey = await getDeepgramApiKey(this.plugin);
+        } catch {
+            this.deepgramKey = null;
+        }
+        if (!this.modalIsOpen) return;
+        // Re-render the audio helper so the toggle slot reflects key availability
+        const helperContainer = this.contentEl.querySelector<HTMLElement>(
+            '.ai-organiser-minutes-audio-attach-container',
+        );
+        if (helperContainer) this.renderAudioAttachHelper(helperContainer);
+    }
+
+    /**
+     * Build the diarizationToggle options for the helper. Returns undefined
+     * (no checkbox) on mobile, when provider !== 'deepgram', or when the key
+     * is not yet configured / resolved.
+     */
+    private buildDiarizationToggleOptions() {
+        if (Platform.isMobile) return undefined;
+        if (this.plugin.settings.audioDiarisationProvider !== 'deepgram') return undefined;
+        if (!this.deepgramKey) return undefined;
+        if (!this.audioCoordinator) return undefined;
+
+        const checked = this.audioCoordinator.shouldUseDiarization();
+        const costPreviewText = this.computeDiarizationCostPreviewText();
+
+        return {
+            visible: true,
+            checked,
+            disabled: !!this.state.isTranscribing,
+            costPreviewText,
+            onChange: (next: boolean) => this.handleDiarizationToggleChange(next),
+        };
+    }
+
+    private computeDiarizationCostPreviewText(): string | null {
+        if (!this.audioCoordinator) return null;
+        // Use the first detected/attached audio item's size as the basis for the
+        // cost preview. If no items yet, we still show the per-minute rate cue
+        // by returning the costUnknown line so users see something.
+        const tDia = this.plugin.t.diarization;
+        const firstAudio = this.state.detectedAudioFiles?.[0]?.resolvedFile;
+        if (!firstAudio) return tDia.costUnknown;
+        const upfront = this.audioCoordinator.getUpfrontSourceSize({
+            kind: 'vault',
+            file: firstAudio,
+        });
+        if (upfront === null || upfront <= 0) return tDia.costUnknown;
+        const usd = this.audioCoordinator.estimateAudioCostUsd(upfront);
+        const formatted = this.audioCoordinator.formatCostPreview(usd);
+        return tDia.costPreview.replace('{cost}', formatted);
+    }
+
+    private handleDiarizationToggleChange(next: boolean): void {
+        if (!this.audioCoordinator) return;
+
+        if (next && !this.plugin.diarizationDisclosureShownThisSession) {
+            DiarizationPrivacyModal.openOnce(this.app, this.plugin.t, (accepted) => {
+                if (accepted) {
+                    this.plugin.diarizationDisclosureShownThisSession = true;
+                    this.diarizationOptedIn = true;
+                    this.audioCoordinator!.setDiarizationOptIn(true);
+                    this.maybeWarnLargeFileSync();
+                } else {
+                    this.diarizationOptedIn = false;
+                    this.audioCoordinator!.setDiarizationOptIn(false);
+                }
+                this.rerenderAudioHelper();
+            });
+            return;
+        }
+
+        this.diarizationOptedIn = next;
+        this.audioCoordinator.setDiarizationOptIn(next);
+        if (next) this.maybeWarnLargeFileSync();
+        this.rerenderAudioHelper();
+    }
+
+    private maybeWarnLargeFileSync(): void {
+        if (this.plugin.diarizationLargeFileWarningShownThisSession) return;
+        const firstAudio = this.state.detectedAudioFiles?.[0]?.resolvedFile;
+        if (!firstAudio) return;
+        const size = firstAudio.stat?.size ?? 0;
+        if (size < DEEPGRAM_LARGE_FILE_WARN_BYTES) return;
+        this.plugin.diarizationLargeFileWarningShownThisSession = true;
+        const sizeMB = Math.round(size / (1024 * 1024));
+        new Notice(
+            this.plugin.t.diarization.largeFileSyncWarning.replace('{sizeMB}', String(sizeMB)),
+            8000,
+        );
+    }
+
+    private rerenderAudioHelper(): void {
+        const helperContainer = this.contentEl.querySelector<HTMLElement>(
+            '.ai-organiser-minutes-audio-attach-container',
+        );
+        if (helperContainer) this.renderAudioAttachHelper(helperContainer);
     }
 }
 

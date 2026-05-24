@@ -3059,5 +3059,21 @@ export const zhCN: Translations = {
             fetching: "获取页面…",
             summarizing: "总结页面…"
         }
+    },
+    diarization: {
+        checkboxLabel: "识别说话人",
+        costPreview: "Deepgram - 此文件预计 {cost}",
+        costUnknown: "Deepgram - 费用取决于时长",
+        disabledTooltip: "转录期间无法更改",
+        multiFileDisabledTooltip: "说话人识别当前一次仅支持一个音频文件。取消勾选'识别说话人'以转录多个文件,或合并后再附加单个文件。",
+        fileTooLarge: "音频文件过大,无法进行说话人识别({sizeMB} MB)。上限为 {limitMB} MB。请使用更短的音频或取消勾选'识别说话人'。",
+        largeFileSyncWarning: "此 {sizeMB} MB 文件较大,可能影响 Obsidian Sync。转录前会复制到您的库中。如果您使用同步功能,请在转录后考虑删除已导入的音频。",
+        privacyTitle: "使用 Deepgram 进行说话人识别?",
+        privacyDescription: "启用后,此音频文件将发送到 Deepgram 以获取带说话人标签的转录。启用免训练选项(mip_opt_out=true)后,您的音频和转录不会用于训练 Deepgram 的模型。Deepgram 默认 API 层也不会长期保留音频(根据其公开政策),不过这是与免训练标志不同的另一项保证。费用:每分钟约 $0.0043。",
+        privacyAccept: "本会话使用 Deepgram",
+        privacyReject: "不使用 Deepgram",
+        failedNotice: "Deepgram 转录失败:{error}",
+        apiKeyLabel: "Deepgram API 密钥",
+        apiKeyDescription: "当'说话人识别提供商'设置为 Deepgram 时必填。请在 console.deepgram.com 获取密钥。"
     }
 };

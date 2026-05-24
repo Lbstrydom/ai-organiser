@@ -9043,3 +9043,39 @@
     margin-top: 0.75em;
     justify-content: flex-end;
 }
+
+/* Diarization opt-in checkbox (plan §4 + R3 M3) */
+.ai-organiser-audio-attach-diarization-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+    flex-wrap: wrap;
+    margin: var(--size-4-2) 0;
+}
+.ai-organiser-audio-attach-diarization-toggle[data-disabled='true'] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.ai-organiser-audio-attach-diarization-label {
+    cursor: pointer;
+    font-size: var(--font-ui-medium);
+}
+.ai-organiser-audio-attach-diarization-cost {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+/* Diarization privacy disclosure modal */
+.ai-organiser-diarization-privacy-modal {
+    max-width: 32em;
+}
+.ai-organiser-diarization-privacy-body p {
+    margin: 0 0 var(--size-4-3) 0;
+    line-height: 1.5;
+}
+.ai-organiser-diarization-privacy-buttons {
+    display: flex;
+    gap: var(--size-4-2);
+    justify-content: flex-end;
+    margin-top: var(--size-4-4);
+}

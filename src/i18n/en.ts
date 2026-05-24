@@ -3069,5 +3069,21 @@ export const en: Translations = {
             fetching: "Fetching page…",
             summarizing: "Summarizing page…"
         }
+    },
+    diarization: {
+        checkboxLabel: "Identify speakers",
+        costPreview: "Deepgram - {cost} for this file",
+        costUnknown: "Deepgram - cost depends on duration",
+        disabledTooltip: "Cannot change during transcription",
+        multiFileDisabledTooltip: "Diarization currently supports one audio file at a time. Uncheck 'Identify speakers' to transcribe multiple files, or attach a single combined file.",
+        fileTooLarge: "Audio file is too large for diarization ({sizeMB} MB). Maximum is {limitMB} MB. Use a shorter audio file or uncheck 'Identify speakers'.",
+        largeFileSyncWarning: "This {sizeMB} MB file is large enough to affect Obsidian Sync. It will be copied to your vault before transcription. Consider deleting the imported audio after transcription if you sync your vault.",
+        privacyTitle: "Use Deepgram for speaker identification?",
+        privacyDescription: "When enabled, this audio file will be sent to Deepgram for transcription with speaker labels. With the no-training opt-out enabled (mip_opt_out=true), your audio and transcripts will NOT be used to train Deepgram's models. Deepgram's default API tier also does not retain audio long-term (per their published policy), though that is a separate guarantee from the no-training flag. Cost: ~$0.0043 per minute.",
+        privacyAccept: "Use Deepgram for this session",
+        privacyReject: "Don't use Deepgram",
+        failedNotice: "Deepgram transcription failed: {error}",
+        apiKeyLabel: "Deepgram API key",
+        apiKeyDescription: "Required when 'Diarization provider' is set to Deepgram. Get a key at console.deepgram.com."
     }
 };
