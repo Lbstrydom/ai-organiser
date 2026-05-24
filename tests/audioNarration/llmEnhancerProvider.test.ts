@@ -214,4 +214,62 @@ describe('HaikuEnhancementProvider', () => {
         expect(o.code).toBe('http-429');
         expect(o.metadata.retryAfterMs).toBe(3000);
     });
+
+    /**
+     * Live-spot-check regression 2026-05-24: first-run-per-account /v1/models
+     * discovery hung forever, blocking all 4 parallel enhance chunks.
+     *
+     * Mock the GET as a never-resolving promise. With the new
+     * DISCOVERY_TIMEOUT_MS race, the discovery aborts at 10s, falls through to
+     * the sentinel, and the /v1/messages POST still fires using 'latest-haiku'.
+     * Anthropic will return 404 for the sentinel (which the test simulates) —
+     * surfaced as a visible http-404 warning instead of a silent hang.
+     */
+    it('regression: /v1/models hang is bounded by DISCOVERY_TIMEOUT_MS, falls through to sentinel + visible http-4xx', async () => {
+        vi.useFakeTimers();
+        try {
+            // Discovery never resolves (simulates network/Electron net.request hang)
+            mockRequestUrl
+                .mockReturnValueOnce(new Promise(() => { /* never resolves */ }))
+                .mockResolvedValueOnce({
+                    status: 404,
+                    text: '{"error":{"type":"not_found_error","message":"model: latest-haiku"}}',
+                    headers: {},
+                });
+            const pending = provider.enhance(makeApp(), 'md', 'sk-ant-test', CTX);
+            // Advance past the 10s discovery timeout
+            await vi.advanceTimersByTimeAsync(10_001);
+            const o = await pending;
+
+            // POST to /v1/messages DID fire after the discovery timed out
+            expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+            const messagesBody = JSON.parse((mockRequestUrl.mock.calls[1][0] as { body: string }).body);
+            expect(messagesBody.model).toBe('latest-haiku');  // sentinel fallback
+
+            // Surfaces as http-404 — visible warning to user, not silent hang
+            expect(o.ok).toBe(false);
+            if (!o.ok) {
+                expect(o.code).toBe('http-404');
+                expect(o.metadata.httpStatus).toBe(404);
+                expect(o.metadata.retryable).toBe(false);
+            }
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('regression: /v1/models thrown error also falls through to sentinel', async () => {
+        // Network-layer rejection (e.g. DNS, TLS, offline) — should NOT hang
+        mockRequestUrl
+            .mockRejectedValueOnce(new Error('ENOTFOUND api.anthropic.com'))
+            .mockResolvedValueOnce({
+                status: 404, text: '{}', headers: {},
+            });
+        const o = await provider.enhance(makeApp(), 'md', 'sk-ant-test', CTX);
+        expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+        const messagesBody = JSON.parse((mockRequestUrl.mock.calls[1][0] as { body: string }).body);
+        expect(messagesBody.model).toBe('latest-haiku');
+        expect(o.ok).toBe(false);
+        if (!o.ok) expect(o.code).toBe('http-404');
+    });
 });

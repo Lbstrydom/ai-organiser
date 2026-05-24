@@ -113,7 +113,11 @@ function showEnhancementWarnings(plugin: AIOrganiserPlugin, warnings: NarrationW
     }
 }
 
-function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome): void {
+/** Cap on how long the success notice stays visible even if the user never
+ *  switches notes or clicks a button. Without this it lingers forever. */
+const SUCCESS_NOTICE_MAX_MS = 60_000;
+
+function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome, sourceFile: TFile): void {
     const t = plugin.t.settings.audioNarration.notices;
     const sizeStr = formatBytes(outcome.bytes);
     const durStr = formatDurationDisplay(outcome.durationSec);
@@ -121,9 +125,31 @@ function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome): 
         .replace('{size}', sizeStr)
         .replace('{duration}', durStr);
 
-    const notice = new Notice(text, 0);  // sticky until dismissed
+    const notice = new Notice(text, 0);  // sticky — auto-dismissed below
     const noticeEl = notice.messageEl?.parentElement ?? notice.messageEl;
     if (!noticeEl) return;
+
+    // Auto-dismiss on note switch + safety timeout. Without this the notice
+    // follows the user around the whole vault (reported 2026-05-24).
+    // Snapshot the source path BEFORE async work — TFile.path mutates on rename.
+    const sourcePath = sourceFile.path;
+    let dismissed = false;
+    let leafChangeRef: ReturnType<typeof plugin.app.workspace.on> | null = null;
+    const dismiss = (): void => {
+        if (dismissed) return;
+        dismissed = true;
+        if (leafChangeRef) plugin.app.workspace.offref(leafChangeRef);
+        clearTimeout(safetyTimer);
+        notice.hide();
+    };
+    leafChangeRef = plugin.app.workspace.on('active-leaf-change', () => {
+        const active = plugin.app.workspace.getActiveFile();
+        // Hide whenever the user navigates AWAY from the source note. Staying
+        // on it (e.g., focus-shuffle between split panes) leaves the notice up.
+        if (!active || active.path !== sourcePath) dismiss();
+    });
+    const safetyTimer = setTimeout(dismiss, SUCCESS_NOTICE_MAX_MS);
+
     const actionsEl = noticeEl.createDiv({ cls: 'ai-organiser-notice-actions' });
 
     const playBtn = actionsEl.createEl('button', { text: t.playWithControls, cls: 'mod-cta' });
@@ -134,17 +160,17 @@ function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome): 
         } else {
             void plugin.app.workspace.openLinkText(outcome.filePath, '', false);
         }
-        notice.hide();
+        dismiss();
     });
 
     const openBtn = actionsEl.createEl('button', { text: t.open });
     openBtn.addEventListener('click', () => {
         void plugin.app.workspace.openLinkText(outcome.filePath, '', false);
-        notice.hide();
+        dismiss();
     });
 
     const dismissBtn = actionsEl.createEl('button', { text: t.dismiss });
-    dismissBtn.addEventListener('click', () => notice.hide());
+    dismissBtn.addEventListener('click', dismiss);
 
     if (!outcome.embedUpdated && plugin.settings.audioNarrationEmbedInNote) {
         new Notice(t.embedSkipped, 6000);
@@ -268,7 +294,7 @@ export async function handleNarrateActiveNote(
                 return;
             }
             showEnhancementWarnings(plugin, r.value.warnings);
-            showSuccessNotice(plugin, r.value);
+            showSuccessNotice(plugin, r.value, targetFile);
         });
     } catch (e) {
         if (e instanceof JobInFlightError) {

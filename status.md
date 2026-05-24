@@ -1,5 +1,33 @@
 # Project Status Log
 
+## 2026-05-24 — audioNarration LLM-enhancement post-ship fixes (live spot-check)
+
+### Changes
+- Drove Pat persona through narrate-note + LLM enhancement on real notes (`Wealth_plan_2026_2029.md` + `01_introduction.md`) via Playwright/CDP harness. **Three bugs surfaced live; all three fixed; re-test produced a 11.0 MB / 32:48 MP3 written to `0 Inbox/Narrations/01_introduction.c2fbc6fa.mp3` with the deterministic fingerprint matching the cost modal's predicted path.**
+- **Fix 1 — `resolveLatestHaiku` infinite-hang** ([llmEnhancerProvider.ts:190-261](src/services/audioNarration/llmEnhancerProvider.ts#L190-L261)): added `DISCOVERY_TIMEOUT_MS = 10_000` and a composed `AbortController` race against `abortableRequestUrl`. On timeout or thrown error, falls through to the `'latest-haiku'` sentinel + `logger.warn`. The sentinel POST then surfaces as visible `http-4xx` from `/v1/messages` instead of a silent forever-hang. Root cause was first-run-per-account `/v1/models` discovery blocking inside Electron's `net.request`; without a bounded race all 4 parallel enhance chunks awaited indefinitely (observed >15 min in live spot-check).
+- **Fix 2 — caller-signal propagation** (same file): if the caller's signal aborted DURING discovery, re-raise the AbortError instead of swallowing into the sentinel fallback — preserves user-cancel semantics.
+- **Fix 3 — misleading status bar during LLM phase** ([narrationTypes.ts:72](src/services/audioNarration/narrationTypes.ts#L72), [audioNarrationService.ts:269-275](src/services/audioNarration/audioNarrationService.ts#L269-L275), [en.ts](src/i18n/en.ts) + [zh-cn.ts](src/i18n/zh-cn.ts) + [types.ts](src/i18n/types.ts)): added `'enhancing'` phase to `NarrationPhase` + `t.progress.audioNarration.enhancing` i18n string. `executeNarration` calls `reporter?.setPhase({ key: 'enhancing' })` BEFORE `enhanceMarkdown` so the status bar shows "Enhancing with AI…" during the LLM call instead of the misleading "Narrating chunk 0/N…" (the initial phase set by the caller). Verified live: status bar transitioned through `Enhancing with AI…` → `Narrating chunk 1/29…` → ... → `Narration saved (11.0 MB · 32:48)`.
+- **Fix 4 — success notice followed user across notes** ([audioNarrationCommands.ts:116-181](src/commands/audioNarrationCommands.ts#L116-L181)): the sticky "Narration saved (Play / Open / Dismiss)" notice was `new Notice(text, 0)` — persisted forever, followed the user to every other note they opened. Added `active-leaf-change` workspace listener that dismisses on note-switch (`active.path !== sourcePath`), plus a 60s `SUCCESS_NOTICE_MAX_MS` safety cap. Unified `dismiss()` helper clears both the listener and the timer; all 4 close paths (play / open / dismiss / auto) route through it.
+- **Regression tests** ([tests/audioNarration/llmEnhancerProvider.test.ts:204-260](tests/audioNarration/llmEnhancerProvider.test.ts#L204-L260)): added 2 tests using `vi.useFakeTimers()` — (a) never-resolving `/v1/models` is bounded by `DISCOVERY_TIMEOUT_MS`, sentinel POST fires, surfaces as `http-404`; (b) thrown `ENOTFOUND` from `/v1/models` also falls through to sentinel. Test count: 12 → 14 for HaikuEnhancementProvider; full suite **4691/4691 pass**.
+
+### Files Affected
+- **Source**: `src/services/audioNarration/llmEnhancerProvider.ts` (discovery timeout + classification), `src/services/audioNarration/audioNarrationService.ts` (set enhancing phase), `src/services/audioNarration/narrationTypes.ts` (added 'enhancing'), `src/commands/audioNarrationCommands.ts` (success notice auto-dismiss).
+- **i18n**: `src/i18n/en.ts`, `src/i18n/zh-cn.ts`, `src/i18n/types.ts` — added `enhancing: "Enhancing with AI…"` (+ ZH-CN parity `"AI 优化中…"`).
+- **Tests**: `tests/audioNarration/llmEnhancerProvider.test.ts` — 2 regression tests.
+- **Harness scripts**: `scripts/persona-harness/pat-narration-llm-spotcheck.mjs` (drives narrate-note with in-memory LLM enhancement enable + key injection, REAL spend ~$0.45 per run), plus 4 sibling diagnostic scripts (`recover`, `click-and-wait`, `diagnose`, `diagnose-fetch`) that root-caused the bugs.
+
+### Decisions Made
+- **Discovery timeout = 10s** — short enough that a hang surfaces fast in the user-facing flow; long enough that legitimately slow DNS/TLS handshakes complete. The sentinel fallback (`'latest-haiku'`) then surfaces as `http-4xx` (visible warning) rather than another silent state.
+- **`'enhancing'` is a distinct phase, not piggy-backed on `'narrating'`** — the LLM call is conceptually separate from TTS. Separate phase = accurate user feedback ("Enhancing with AI…" vs "Narrating chunk N/M…") and a debuggable timeline (live spot-check log clearly shows `Enhancing` for ~40s then transition to `Narrating chunk 1/29`).
+- **Auto-dismiss on note-switch + 60s safety cap** — the user shouldn't have to manually dismiss a stale notice when they've already moved on. 60s cap covers the "user reads the notice carefully then walks away" case without being annoyingly short.
+- **Snapshot `sourceFile.path` BEFORE the listener registration** — `TFile.path` mutates on rename (project pattern from G3 audit in earlier work). Closing over `sourcePath: string` instead of the live `TFile` reference prevents false-negative dismissals if the source note gets renamed mid-narration.
+- **Live spot-check is now a regression artefact** — `scripts/persona-harness/pat-narration-llm-spotcheck.mjs` can be re-run anytime to verify the full end-to-end narrate-note path (cost modal → consent → LLM → TTS → MP3 → embed) on real notes with real spend (~$0.45 per run on the smaller note).
+
+### Files NOT Changed (Reviewed, No Edit Needed)
+- **CLAUDE.md / AGENTS.md** — the "Read this note" section already describes the high-level pipeline; the new `'enhancing'` phase + discovery timeout are implementation details that don't change the architecture or public contracts. AGENTS.md already in sync.
+
+---
+
 ## 2026-05-24 — "Read this note" LLM enhancement (audioNarration extension)
 
 ### Changes

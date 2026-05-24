@@ -266,6 +266,11 @@ export async function executeNarration(
     // match the snapshotted intent, run the LLM and re-transform.
     let spokenText = prepared.spokenText;
     if (prepared.llmIntent) {
+        // Surface the LLM phase BEFORE the call so the user sees
+        // "Enhancing with AI…" instead of the misleading "Narrating chunk 0/N"
+        // (the initial phase set by handleNarrateActiveNote). Live-spot-check
+        // 2026-05-24 showed the status bar appeared frozen during this stage.
+        reporter?.setPhase({ key: 'enhancing' });
         const intentStillValid =
             plugin.settings.audioNarrationLlmEnhancement === 'on'
             && plugin.settings.audioNarrationLlmProvider === prepared.llmIntent.providerId;

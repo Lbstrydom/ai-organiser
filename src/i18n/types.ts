@@ -3081,6 +3081,7 @@ export interface ProgressStrings {
     };
     audioNarration: {
         preparing: string;            // status-bar — "Preparing narration…"
+        enhancing: string;            // "Enhancing with AI…" (during LLM pre-pass)
         narrating: string;            // "Narrating chunk {current}/{total}…"
         encoding: string;             // "Encoding MP3…"
         writing: string;              // "Saving narration…"

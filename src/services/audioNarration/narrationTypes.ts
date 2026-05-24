@@ -69,7 +69,7 @@ export { ok };
 
 // ── Phase enum ──────────────────────────────────────────────────────────────
 
-export type NarrationPhase = 'narrating' | 'encoding' | 'writing';
+export type NarrationPhase = 'enhancing' | 'narrating' | 'encoding' | 'writing';
 
 // ── Transformer options + result ────────────────────────────────────────────
 

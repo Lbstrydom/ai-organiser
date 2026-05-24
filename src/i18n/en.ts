@@ -3021,6 +3021,7 @@ export const en: Translations = {
         },
         audioNarration: {
             preparing: "Preparing narration…",
+            enhancing: "Enhancing with AI…",
             narrating: "Narrating chunk {current}/{total}…",
             encoding: "Encoding mp3…",
             writing: "Saving narration…"

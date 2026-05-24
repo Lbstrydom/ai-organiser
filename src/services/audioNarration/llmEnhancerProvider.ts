@@ -22,6 +22,12 @@ import { buildEnhancerPrompt, type EnhancementContext } from './llmEnhancerPromp
 
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
+/** Hard cap on Anthropic /v1/models discovery — first-run-per-account would
+ *  otherwise hang the entire 4-parallel enhance pipeline indefinitely (live
+ *  persona spot-check 2026-05-24). On timeout we fall through to the sentinel,
+ *  which then surfaces as a visible http-4xx via /v1/messages instead of a
+ *  silent forever-hang. */
+const DISCOVERY_TIMEOUT_MS = 10_000;
 
 // ── Per-call result envelope ────────────────────────────────────────────────
 
@@ -193,18 +199,47 @@ async function resolveLatestHaiku(apiKey: string, signal?: AbortSignal): Promise
     if (cached) return cached;
     // Audit-code H8/H12: outbound HTTP must go through abortableRequestUrl
     // (cancellable, consistent with the per-call enhance() path).
-    const resp = await abortableRequestUrl(
-        {
-            url: 'https://api.anthropic.com/v1/models',
-            method: 'GET',
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
+    // Live-spot-check 2026-05-24: discovery must time out — without a bounded
+    // race the GET can hang indefinitely (observed >10 min on first-run), which
+    // blocks all 4 parallel enhance chunks awaiting this resolver. Compose the
+    // caller's signal with a discovery-scoped timeout; on either abort, fall
+    // through to the sentinel + log a warning. The sentinel then surfaces as
+    // http-4xx via /v1/messages (visible warning) instead of a silent hang.
+    const discoveryAbort = new AbortController();
+    const timeoutHandle = setTimeout(() => discoveryAbort.abort(), DISCOVERY_TIMEOUT_MS);
+    if (signal) {
+        if (signal.aborted) {
+            clearTimeout(timeoutHandle);
+            throw new DOMException('cancelled', 'AbortError');
+        }
+        signal.addEventListener('abort', () => discoveryAbort.abort(), { once: true });
+    }
+    let resp;
+    try {
+        resp = await abortableRequestUrl(
+            {
+                url: 'https://api.anthropic.com/v1/models',
+                method: 'GET',
+                headers: {
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                throw: false,
             },
-            throw: false,
-        },
-        { signal },
-    );
+            { signal: discoveryAbort.signal },
+        );
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (signal?.aborted) throw e;  // caller cancelled — propagate
+        if (/cancelled|aborted|AbortError/i.test(msg)) {
+            logger.warn('LlmEnhancer', `Anthropic /v1/models discovery timed out after ${DISCOVERY_TIMEOUT_MS / 1000}s — using sentinel`);
+        } else {
+            logger.warn('LlmEnhancer', `Anthropic /v1/models discovery failed (${msg}); using sentinel`);
+        }
+        return 'latest-haiku';
+    } finally {
+        clearTimeout(timeoutHandle);
+    }
     if (resp.status !== 200) {
         // Fallback: pass through the sentinel; the messages endpoint may resolve it,
         // and the upstream registry resolver covers a more robust strategy in v2.

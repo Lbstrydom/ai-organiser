@@ -3011,6 +3011,7 @@ export const zhCN: Translations = {
         },
         audioNarration: {
             preparing: "准备朗读…",
+            enhancing: "AI 优化中…",
             narrating: "正在朗读第 {current}/{total} 段…",
             encoding: "编码 MP3…",
             writing: "保存朗读音频…"
