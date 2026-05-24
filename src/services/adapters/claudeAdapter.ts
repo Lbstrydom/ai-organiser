@@ -18,7 +18,9 @@ export class ClaudeAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || endpoints.claude,
-            modelName: config.modelName || 'claude-sonnet-4-6'
+            // `latest-sonnet` sentinel — `CloudLLMService` resolves to the
+            // newest Sonnet at call time. Never hardcode a version here.
+            modelName: config.modelName || 'latest-sonnet'
         });
         this.provider = {
             name: 'claude',

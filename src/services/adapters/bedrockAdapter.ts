@@ -12,7 +12,14 @@ export class BedrockAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || endpoints.bedrock,
-            modelName: config.modelName || 'anthropic.claude-3-haiku-20240307-v1:0'
+            // Bedrock model IDs use vendor-prefixed format (e.g.
+            // `anthropic.claude-sonnet-4-6`) which the generic `latest-*`
+            // sentinel resolver doesn't parse (modelCapabilities.ts only
+            // handles plain `claude-*` / `gemini-*` / `gpt-*` IDs). Until
+            // bedrock-aware resolution lands, match `PROVIDER_DEFAULT_MODEL`
+            // for bedrock — never re-introduce the ancient `claude-3-haiku`
+            // default that was 18 months stale.
+            modelName: config.modelName || 'anthropic.claude-sonnet-4-6'
         });
         this.provider = {
             name: 'bedrock',

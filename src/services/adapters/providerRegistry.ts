@@ -24,6 +24,13 @@ export const ALL_ADAPTERS: AdapterType[] = [
 // infrastructure (resolver + tiered-picker in modelCapabilities). Others
 // stay on a specific id until we add tier support for them. Sentinels are
 // resolved to concrete ids inside CloudLLMService at adapter-build time.
+//
+// ⚠ AUDIT-ON-RELEASE — providers without `latest-*` sentinel support below
+// (deepseek, groq, openrouter, bedrock, requesty, cohere, grok, mistral)
+// must be reviewed manually each time the vendor ships a new generation.
+// Long-term fix: extend `resolveLatestModel` in modelCapabilities.ts to
+// parse those vendor-specific ID formats. See memory entry
+// `feedback-always-use-latest-model-sentinels`.
 export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   openai: 'latest-gpt',
   // Main-provider Gemini defaults to Pro (top quality). The YouTube

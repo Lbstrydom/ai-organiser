@@ -31,6 +31,16 @@ export interface NarrationProviderConfig {
     readonly factory: (plugin: AIOrganiserPlugin) => Promise<TtsEngine | null>;
 }
 
+// ⚠ AUDIT-ON-RELEASE — pinned to a concrete version because Gemini's TTS
+// product line is preview-only and has no public `*-tts-latest` alias yet.
+// Our generic `latest-flash` sentinel (modelCapabilities.ts:pickNewestGemini)
+// intentionally excludes TTS variants — `isTts: true` is filtered out so
+// users asking for `latest-flash` don't silently get a TTS model.
+//
+// Bump this string every time Google ships a new Gemini TTS preview.
+// Future work: extend `resolveLatestModel` with a `latest-flash-tts` /
+// `latest-pro-tts` tier and add a `pickNewestGeminiTts` helper. See
+// memory entry `feedback-always-use-latest-model-sentinels`.
 const GEMINI_MODEL_ID = 'gemini-3.1-flash-tts-preview';
 
 export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, NarrationProviderConfig>> = {

@@ -32,7 +32,11 @@ export class ResearchSearchService {
             ['claude-web-search', new ClaudeWebSearchAdapter(
                 () => this.resolveClaudeWebSearchKey(),
                 {
-                    model: plugin.settings.cloudServiceType === 'claude' ? plugin.settings.cloudModel : 'claude-sonnet-4-6',
+                    // When the user's main provider is Claude, reuse their cloudModel
+                    // (which itself defaults to `latest-sonnet`). Otherwise resolve a
+                    // dedicated Sonnet for web search via the same sentinel — never
+                    // pin a concrete version here.
+                    model: plugin.settings.cloudServiceType === 'claude' ? plugin.settings.cloudModel : 'latest-sonnet',
                     maxSearches: plugin.settings.researchClaudeMaxSearches ?? 5,
                     useDynamicFiltering: plugin.settings.researchClaudeUseDynamicFiltering ?? true,
                 },

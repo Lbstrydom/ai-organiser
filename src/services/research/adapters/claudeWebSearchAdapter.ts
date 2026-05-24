@@ -375,7 +375,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const apiKey = await this.getApiKey();
         if (!apiKey) throw new Error('Claude API key not configured for web search');
 
-        const model = this.options.model || 'claude-sonnet-4-6';
+        const model = this.options.model || 'latest-sonnet';
         const useDynamic = this.options.useDynamicFiltering !== false
             && claudeSupportsDynamicWebSearch(model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;

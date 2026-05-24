@@ -366,7 +366,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     localModel: 'mistral',
     cloudEndpoint: 'https://api.anthropic.com/v1/messages',
     cloudApiKey: '',
-    cloudModel: 'claude-sonnet-4-6',
+    cloudModel: 'latest-sonnet',
     cloudServiceType: 'claude',
     providerSettings: {},
     excludedFolders: [],
@@ -417,7 +417,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // Chat Export Defaults
     chatExportFolder: 'Chats',
-    aichatDefaultModel: 'claude-sonnet-4-6',
+    aichatDefaultModel: 'latest-sonnet',
     aichatRefinementPasses: 1,
     aichatBrandToggleDefault: false,
     presentationOutputFolder: 'Presentations',
@@ -471,7 +471,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     
     mobileProviderMode: 'auto',
     mobileFallbackProvider: 'claude',
-    mobileFallbackModel: 'claude-haiku-4-5-20251001',
+    mobileFallbackModel: 'latest-haiku',
     mobileCustomEndpoint: '',
     mobileIndexingMode: 'read-only',
     mobileIndexSizeLimit: 50,
