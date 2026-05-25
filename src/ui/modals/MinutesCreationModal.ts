@@ -141,6 +141,7 @@ export class MinutesCreationModal extends Modal {
     private docController!: DocumentHandlingController;
     private audioController!: AudioController;
     private dictController!: DictionaryController;
+    private controllersInitialized = false;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private agendaTextArea: HTMLTextAreaElement | null = null;
@@ -255,14 +256,21 @@ export class MinutesCreationModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-organiser-minutes-modal');
 
-        // Instantiate controllers per modal open to avoid stale state
-        this.docController = new DocumentHandlingController(
-            this.app,
-            this.plugin,
-            this.documentService
-        );
-        this.audioController = new AudioController(this.app);
-        this.dictController = new DictionaryController(this.dictionaryService);
+        // Init controllers once per modal session. onOpen() also runs for
+        // rerenderModal() — recreating controllers there would wipe any
+        // documents/audio/dictionary state the user just added (root cause of
+        // the "Pick which → Attach selected → nothing appears" silent fail).
+        // onClose() resets the flag so the next real open re-initializes.
+        if (!this.controllersInitialized) {
+            this.docController = new DocumentHandlingController(
+                this.app,
+                this.plugin,
+                this.documentService
+            );
+            this.audioController = new AudioController(this.app);
+            this.dictController = new DictionaryController(this.dictionaryService);
+            this.controllersInitialized = true;
+        }
 
         // Audio attach coordinator — owns picker dispatch, vault-import wiring,
         // and preview-URL lifecycle for this modal session. Disposed in onClose.
@@ -1255,12 +1263,25 @@ export class MinutesCreationModal extends Modal {
      */
     private async loadTranscriptFromFile(file: TFile): Promise<boolean> {
         try {
-            let content = await this.app.vault.read(file);
+            let content: string;
 
-            // Strip frontmatter (e.g., audio_source metadata) — user only needs transcript text
-            const fmMatch = content.match(/^---\n[\s\S]*?\n---\n\n?/);
-            if (fmMatch) {
-                content = content.slice(fmMatch[0].length);
+            if (file.extension.toLowerCase() === 'md') {
+                content = await this.app.vault.read(file);
+
+                // Strip frontmatter (e.g., audio_source metadata) — user only needs transcript text
+                const fmMatch = content.match(/^---\n[\s\S]*?\n---\n\n?/);
+                if (fmMatch) {
+                    content = content.slice(fmMatch[0].length);
+                }
+            } else {
+                // Route Word/Office/text documents through the extraction service —
+                // vault.read() returns binary garbage for .docx/.xlsx/.pptx.
+                const result = await this.documentService.extractText(file);
+                if (!result.success || !result.text) {
+                    new Notice(result.error || `Failed to extract text from ${file.name}`);
+                    return false;
+                }
+                content = result.text;
             }
 
             this.state.transcript = content;
@@ -2394,14 +2415,18 @@ export class MinutesCreationModal extends Modal {
 
             // Create picker modal using static import
             const picker = new DocumentPickerModal(this.app, files, (file) => {
-                // Add via controller
-                const result = this.docController.addFromVault(file);
-                if (!result.added) {
-                    new Notice(result.error || 'Failed to add document');
-                    return;
+                try {
+                    const result = this.docController.addFromVault(file);
+                    if (!result.added) {
+                        new Notice(result.error || 'Failed to add document');
+                        return;
+                    }
+                    new Notice(`Attached ${file.name}`);
+                    this.refreshDocumentsSection();
+                } catch (err) {
+                    logger.error('Minutes', 'Document attach failed:', err);
+                    new Notice(`Attach failed: ${err instanceof Error ? err.message : String(err)}`);
                 }
-
-                this.refreshDocumentsSection();
             });
             picker.open();
         } catch (error) {
@@ -2440,8 +2465,13 @@ export class MinutesCreationModal extends Modal {
             );
         };
 
+        // Allow markdown plus all supported document types (pdf, docx, xlsx,
+        // pptx, txt, rtf, csv, xls) so users can load a Word or PDF transcript
+        // directly. Non-md files route through DocumentExtractionService in
+        // loadTranscriptFromFile.
+        const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const all = this.app.vault.getFiles()
-            .filter(f => f.extension.toLowerCase() === 'md');
+            .filter(f => allowedExtensions.has(f.extension.toLowerCase()));
         const preferred = all
             .filter(isTranscriptLike)
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
@@ -2726,7 +2756,7 @@ export class MinutesCreationModal extends Modal {
 
         this.renderBulkTruncationControl();
 
-        const listEl = this.documentsSectionEl.querySelector('.minutes-document-list');
+        const listEl = this.documentsSectionEl.querySelector('.ai-organiser-minutes-document-list');
         if (listEl) {
             this.renderDocumentList(listEl as HTMLElement);
         }
@@ -3668,6 +3698,9 @@ export class MinutesCreationModal extends Modal {
         this.audioAttachHandle = null;
         this.audioCoordinator?.dispose();
         this.audioCoordinator = null;
+        // Reset init flag so the next real open re-creates controllers with
+        // fresh state. Pairs with the lazy-init guard in onOpen().
+        this.controllersInitialized = false;
 
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
