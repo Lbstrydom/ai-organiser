@@ -93,7 +93,10 @@ function polyfill(el: HTMLElement): HTMLElement {
     return el;
 }
 
-function makeModal(items: DocumentItem[], onConfirm: (sel: DocumentItem[]) => void): DocumentMultiPickerModal {
+function makeModal(
+    items: DocumentItem[],
+    onConfirm: (sel: Array<{ item: DocumentItem; sectionId: string }>) => void,
+): DocumentMultiPickerModal {
     // Construct the modal but bypass the real `super(app)` constructor by
     // injecting a polyfilled contentEl directly. The mock Modal in tests/mocks/
     // gives us a no-op base class that we can extend.
@@ -164,8 +167,10 @@ describe('DocumentMultiPickerModal', () => {
         getButton(modal, 'Attach selected')!.click();
 
         expect(onConfirm).toHaveBeenCalledOnce();
-        const selected = onConfirm.mock.calls[0][0] as DocumentItem[];
-        expect(selected.map((d) => d.id)).toEqual(['a', 'c']);
+        const selected = onConfirm.mock.calls[0][0] as Array<{ item: DocumentItem; sectionId: string }>;
+        expect(selected.map((s) => s.item.id)).toEqual(['a', 'c']);
+        // Default section is 'general' when no registry is supplied.
+        expect(selected.every((s) => s.sectionId === 'general')).toBe(true);
     });
 
     it('Cancel does NOT fire onConfirm', () => {

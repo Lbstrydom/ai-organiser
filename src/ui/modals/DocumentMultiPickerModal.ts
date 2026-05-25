@@ -13,22 +13,46 @@
  *  - Cancel / Escape closes without calling onConfirm.
  */
 
-import { App, Modal, prepareFuzzySearch, setIcon, type SearchResult } from 'obsidian';
+import { App, Modal, prepareFuzzySearch, setIcon, TFile, type SearchResult } from 'obsidian';
 import { listen } from '../utils/domUtils';
 import type { DocumentItem } from '../controllers/DocumentHandlingController';
 import type { Translations } from '../../i18n/types';
+import { SectionRegistryController } from '../../services/minutes/sectionRegistryController';
+import { renderSectionAssignmentSelect } from '../components/SectionAssignmentSelect';
+import { renderScopedFilePickerHeader } from '../components/ScopedFilePickerHeader';
+import { getScopedFiles, pickDefaultScope, type VaultFileScope } from '../utils/vaultFileScope';
 
 export interface DocumentMultiPickerOptions {
     items: DocumentItem[];
     /** Pre-selected items — typically empty for the "Pick which…" flow. */
     initialSelection?: ReadonlySet<string>;
     t: Translations;
-    onConfirm: (selected: DocumentItem[]) => void;
+    /**
+     * Optional — when provided, every row shows a SectionAssignmentSelect
+     * with topic-creation entry (D2/D3/D11). When absent, behaves as today.
+     */
+    sectionRegistry?: SectionRegistryController;
+    /**
+     * Optional — when provided alongside `app`, renders ScopedFilePickerHeader
+     * defaulting to "Files in this note" (D9). When absent, picker shows
+     * the full `items` list.
+     */
+    sourceFile?: TFile;
+    app?: App;
+    onConfirm: (selected: Array<{ item: DocumentItem; sectionId: string }>) => void;
 }
 
 export class DocumentMultiPickerModal extends Modal {
     private readonly options: DocumentMultiPickerOptions;
     private readonly selected: Set<string>;
+    /** Per-row section assignments (item.id → sectionId). Default: 'general' */
+    private readonly rowSection = new Map<string, string>();
+    /** Current scope filter for the scoped-files header (D9). */
+    private currentScope: VaultFileScope = 'all-vault';
+    /** Files in the active note matching role (computed once at open). */
+    private inNoteFilePaths = new Set<string>();
+    private inNoteCount = 0;
+    private vaultCount = 0;
     private searchQuery = '';
     private listContainerEl: HTMLElement | null = null;
     private cleanups: Array<() => void> = [];
@@ -38,6 +62,9 @@ export class DocumentMultiPickerModal extends Modal {
         super(app);
         this.options = options;
         this.selected = new Set(options.initialSelection ?? []);
+        for (const item of options.items) {
+            this.rowSection.set(item.id, SectionRegistryController.GENERAL_ID);
+        }
     }
 
     onOpen(): void {
@@ -75,6 +102,38 @@ export class DocumentMultiPickerModal extends Modal {
             })
         );
 
+        // Scoped picker header (D9) — only when sourceFile + app provided
+        if (this.options.sourceFile && this.options.app) {
+            // Compute in-note count by checking which `items` are referenced by sourceFile
+            const scoped = getScopedFiles(
+                this.options.app,
+                this.options.sourceFile,
+                'active-note',
+                () => true,
+            );
+            this.inNoteFilePaths = new Set(scoped.files.map((f) => f.path));
+            // Intersect with picker's available items (some detected items may be external)
+            this.inNoteCount = this.options.items.filter((it) =>
+                it.path ? this.inNoteFilePaths.has(it.path) : false,
+            ).length;
+            this.vaultCount = this.options.items.length;
+            this.currentScope = pickDefaultScope(this.inNoteCount);
+            const headerEl = contentEl.createDiv();
+            renderScopedFilePickerHeader({
+                container: headerEl,
+                initialScope: this.currentScope,
+                activeNoteCount: this.inNoteCount,
+                vaultCount: this.vaultCount,
+                inNoteLabel: 'Files in this note',
+                allVaultLabel: 'All vault files',
+                onScopeChange: (scope) => {
+                    this.currentScope = scope;
+                    this.renderList();
+                },
+                cleanups: this.cleanups,
+            });
+        }
+
         // List container
         this.listContainerEl = contentEl.createDiv({
             cls: 'ai-organiser-doc-multi-picker-list',
@@ -98,8 +157,13 @@ export class DocumentMultiPickerModal extends Modal {
         this.cleanups.push(
             listen(confirmBtn, 'click', () => {
                 this.confirmed = true;
-                const selectedItems = this.options.items.filter((it) => this.selected.has(it.id));
-                this.options.onConfirm(selectedItems);
+                const selectedPayload = this.options.items
+                    .filter((it) => this.selected.has(it.id))
+                    .map((it) => ({
+                        item: it,
+                        sectionId: this.rowSection.get(it.id) ?? SectionRegistryController.GENERAL_ID,
+                    }));
+                this.options.onConfirm(selectedPayload);
                 this.close();
             })
         );
@@ -118,13 +182,15 @@ export class DocumentMultiPickerModal extends Modal {
         }
     }
 
-    /** Render the checkbox list, applying the current search filter. */
+    /** Render the checkbox list, applying scope + search filters. */
     private renderList(): void {
         if (!this.listContainerEl) return;
         const container = this.listContainerEl;
         container.empty();
 
-        const filtered = this.applyFilter(this.options.items, this.searchQuery);
+        // Apply scope filter first (D9), then search.
+        const scopeFiltered = this.applyScopeFilter(this.options.items);
+        const filtered = this.applyFilter(scopeFiltered, this.searchQuery);
         if (filtered.length === 0) {
             const empty = container.createDiv({
                 cls: 'ai-organiser-doc-multi-picker-empty',
@@ -165,7 +231,40 @@ export class DocumentMultiPickerModal extends Modal {
                     text: ` — ${item.path}`,
                 });
             }
+
+            // D3 — per-row section assignment when registry provided
+            if (this.options.sectionRegistry) {
+                const selectHost = row.createDiv({ cls: 'ai-organiser-doc-multi-picker-section-select-host' });
+                renderSectionAssignmentSelect({
+                    host: selectHost,
+                    sectionRegistry: this.options.sectionRegistry,
+                    currentSectionId: this.rowSection.get(item.id) ?? SectionRegistryController.GENERAL_ID,
+                    ariaLabel: `Section assignment for ${item.name}`,
+                    labels: {
+                        generalOption: 'General',
+                        newTopicOption: '+ New topic…',
+                        topicNamePrompt: 'Topic name',
+                        topicNameTooLong: `Topic name must be ${SectionRegistryController.MAX_NAME_LENGTH} characters or fewer`,
+                        topicCreated: 'Created topic',
+                        topicPrefix: 'Topic: ',
+                    },
+                    onChange: (sectionId) => {
+                        this.rowSection.set(item.id, sectionId);
+                    },
+                    onTopicCreated: () => {
+                        // Re-render so other rows pick up the new topic
+                        this.renderList();
+                    },
+                    cleanups: this.cleanups,
+                });
+            }
         }
+    }
+
+    /** D9 — filter by current scope. When no sourceFile, all items pass. */
+    private applyScopeFilter(items: DocumentItem[]): DocumentItem[] {
+        if (!this.options.sourceFile || this.currentScope === 'all-vault') return items;
+        return items.filter((it) => (it.path ? this.inNoteFilePaths.has(it.path) : false));
     }
 
     /**

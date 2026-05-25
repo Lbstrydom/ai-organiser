@@ -9,6 +9,7 @@ import { isRecordingSupported } from '../../services/audioRecordingService';
 import { AudioRecorderModal } from './AudioRecorderModal';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
+import { getScopedFiles } from '../utils/vaultFileScope';
 import { AudioAttachCoordinator } from '../coordinators/AudioAttachCoordinator';
 import { renderAudioAttach, type AudioAttachHandle, type DetectedAudioPrompt } from '../components/AudioAttachHelper';
 import type { AudioAttachItem, AudioAttachViewState, DetectedSpeaker, SpeakerMapping, SpeakerReviewState } from '../components/speakerReviewState';
@@ -973,7 +974,7 @@ export class MinutesCreationModal extends Modal {
         return new Promise<boolean>((resolve) => {
             const modal = new Modal(this.app);
             // i18n keys for these strings will be added in Phase 2 of TRA plan
-            const t = this.plugin.t.minutes as Record<string, string> | undefined;
+            const t = this.plugin.t.minutes as unknown as Record<string, string> | undefined;
             modal.titleEl.setText(t?.['transcriptIncompleteBlock'] || 'Low transcript coverage');
             modal.contentEl.createEl('p', { text: message });
             modal.contentEl.createEl('p', {
@@ -2265,12 +2266,19 @@ export class MinutesCreationModal extends Modal {
 
     private handlePickDetectedDocs(): void {
         const t = this.plugin.t;
+        const sourceFile = this.app.workspace.getActiveFile() ?? undefined;
         new DocumentMultiPickerModal(this.app, {
             items: this.state.detectedDocumentsPreview,
             t,
-            onConfirm: (selected: DocumentItem[]) => {
+            app: this.app,
+            sourceFile,
+            onConfirm: (selected) => {
                 void (async () => {
-                    const attached = this.attachDocsFromPreview(selected);
+                    // selected: Array<{ item, sectionId }> — sectionId carried through
+                    // for the multi-segment path; current MVP attaches all to docController
+                    // and ignores sectionId until the modal-wide topic registry is wired up.
+                    const items = selected.map((s) => s.item);
+                    const attached = this.attachDocsFromPreview(items);
                     if (attached > 0) {
                         await this.docController.extractAll();
                     }
@@ -2400,13 +2408,16 @@ export class MinutesCreationModal extends Modal {
 
     private openDocumentPicker(): void {
         try {
-            // Get all documents in vault
-            const files = this.app.vault.getFiles()
-                .filter(f => {
-                    const ext = f.extension.toLowerCase();
-                    return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
-                })
-                .sort((a, b) => b.stat.mtime - a.stat.mtime);
+            // D9 — prioritise files embedded in the active meeting note before
+            // showing the full vault. Drastically cuts noise for users with
+            // large vaults (their "99 File Storage" complaint).
+            const roleFilter = (f: TFile): boolean => {
+                const ext = f.extension.toLowerCase();
+                return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
+            };
+            const sourceFile = this.app.workspace.getActiveFile();
+            const scoped = getScopedFiles(this.app, sourceFile, 'active-note', roleFilter);
+            const files = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
 
             if (files.length === 0) {
                 new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');

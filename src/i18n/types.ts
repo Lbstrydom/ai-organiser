@@ -2853,6 +2853,23 @@ export interface Translations {
         transcriptIncompleteAgenda: string;
         cancelLabel: string;
         proceedAnyway: string;
+        // Multi-segment minutes (plan: docs/plans/multi-segment-minutes.md)
+        sections?: {
+            general: string;
+            addTopicButton: string;
+            topicNamePlaceholder: string;
+            topicCreated: string;
+            topicNameTooLong: string;
+            topicDuplicateRenamed: string;
+            sectionAssignmentLabel: string;
+            topicsSoFar: string;
+            sectionChipLabel: string;
+            scopeFilesInNote: string;
+            scopeAllVault: string;
+            segmentExtractionFailed: string;
+            segmentCancelled: string;
+            consolidationTruncated: string;
+        };
     };
     // Phase 5 — Smart Tag batch progress copy. Lives top-level so commands
     // + status-bar component + notices can all reach it.

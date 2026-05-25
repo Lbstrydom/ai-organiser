@@ -1010,7 +1010,7 @@ function extractJsonByBraceMatching(text: string): string {
     throw new Error('Unbalanced braces in JSON');
 }
 
-function parseJsonWithRepair(jsonStr: string): MinutesJSON {
+export function parseJsonWithRepair(jsonStr: string): MinutesJSON {
     try {
         return JSON.parse(jsonStr);
     } catch {

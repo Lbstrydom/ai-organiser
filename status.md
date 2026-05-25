@@ -1,5 +1,46 @@
 # Project Status Log
 
+## 2026-05-25 — Multi-segment minutes plan + first vertical slice (D9 + orchestrator foundation)
+
+### Changes
+- Designed and wrote [docs/plans/multi-segment-minutes.md](docs/plans/multi-segment-minutes.md) — multi-segment meeting minutes feature so a single meeting can have a general transcript + N topic segments (e.g. main meeting → VAT breakout → reconvene). Each segment gets its own scoped documents/audio/transcript via per-row dropdown in the existing pickers (no new modal). Plan went through full /cycle: 3 GPT-5.4 audit rounds (R1 H:6 M:5 → R2 H:4 M:6 → R3 H:4 M:6) + 2 Gemini final-review rounds. 24 findings addressed, Gemini-r2 plan-spec gaps documented as deferred MVP scope.
+- **Delivered (first vertical slice — ~1450 LOC)**:
+  - **Foundation modules**: `src/services/minutes/minutesTypes.ts` (canonical types — `SegmentInput`, `MultiSegmentInput`, `SegmentResult`, `SegmentSection` discriminated union, `TranscriptItem`, `SpeakerKey`, `SpeakerMappingV2`, `shouldUseLegacyPath` predicate); `src/services/minutes/sectionRegistryController.ts` (topic CRUD with 40-char cap + duplicate disambiguation + `resolveSection` fallback); `src/services/minutes/multiSegmentMinutes.ts` (`runMultiSegmentExtraction` orchestrator with per-segment chunked extraction + intermediate merge + cross-segment consolidation, section-provenance preserving hierarchical reduce per Gemini-G1, cancellation short-circuit per Gemini-r2-G1, contextDocuments preamble per Gemini-r2-G1); `src/services/prompts/segmentConsolidationPrompts.ts` (XML-structured prompt per R3-M4); `src/utils/redactionUtils.ts` (PII redaction with phone-vs-date heuristic).
+  - **UI components** (presentational, use `listen()` helper): `src/ui/utils/vaultFileScope.ts` (D9 — `getScopedFiles` resolves embeds/wiki-links/markdown links from a captured sourceFile per R2-M6); `src/ui/components/ScopedFilePickerHeader.ts` (radio for "Files in this note (N) / All vault files (M)"); `src/ui/components/SectionAssignmentSelect.ts` (per-row `<select>` with inline `+ New topic…` creation flow).
+  - **Wiring**: `DocumentMultiPickerModal` extended — optional `sectionRegistry` prop renders per-row dropdowns; optional `sourceFile + app` props render `ScopedFilePickerHeader` defaulting to active-note scope; `onConfirm` payload now `Array<{item, sectionId}>`. `MinutesCreationModal.openDocumentPicker` defaults to active-note scope (addresses user's "99 File Storage shows lots of files" complaint).
+  - **i18n contract**: added `Translations.minutes.sections` optional namespace per R2-M4 (Gemini-r2-G2).
+- **Deferred to follow-up** (documented as MVP-scope gaps in plan): SectionRegistryController instantiation on the modal + always-visible "+ Add topic" header button; `MinutesService.generateMultiSegmentMinutes` wrapper; `MinutesJSON.sections[]` rendering; minutesValidator/minutesAuditor per-section iteration; audio per-section `sectionId`; speakerAttribution multi-segment bundle support; EN/ZH-CN string implementations; 14 unit test files. None user-visible — no production code path wires multi-segment dispatch yet.
+
+### Files Affected
+- **New (9)**: `src/services/minutes/{minutesTypes,sectionRegistryController,multiSegmentMinutes}.ts`, `src/services/prompts/segmentConsolidationPrompts.ts`, `src/utils/redactionUtils.ts`, `src/ui/utils/vaultFileScope.ts`, `src/ui/components/{ScopedFilePickerHeader,SectionAssignmentSelect}.ts`.
+- **Modified (5)**: `src/services/prompts/minutesPrompts.ts` (export `parseJsonWithRepair`), `src/ui/modals/DocumentMultiPickerModal.ts`, `src/ui/modals/MinutesCreationModal.ts`, `src/i18n/types.ts`, `tests/documentMultiPickerModal.test.ts`.
+- **Plan**: `docs/plans/multi-segment-minutes.md` (~3500 lines).
+
+### Decisions Made
+- **Two-entry-point topic creation**: per-row `+ New topic…` in pickers AND header `+ Add topic` on modal — picker dropdowns always render (D11), main-modal attached-row dropdowns render only when `registry.hasTopics()`. Eliminates the H1 dead-end audio-only-meeting scenario.
+- **Section provenance preserved end-to-end** (Gemini-G1 fix): hierarchical reduce uses `buildSegmentConsolidationPrompt` per batch returning `MinutesJSON` (with `sections[]`), not flat `SegmentExtract`. Final `mergeConsolidatedBatches` is deterministic pure function — no LLM call, no flattening.
+- **Vault picker scope captured at modal open** (R2-M6): `sourceFile: TFile` snapshot at picker construction; never re-queries workspace state during the modal session.
+- **Scope-narrowing deviation on return contract**: plan called for unified `Promise<Result<T>>` on `generateMinutes()` — would have required migrating 30+ test sites. Pragmatic alternative: separate `generateMultiSegmentMinutes()` entry method (not yet implemented) returns `Result<T>`; legacy stays untouched.
+- **MVP vertical slice over full implementation**: shipped foundation + most-impactful UX win (D9 scoped picker) rather than partial-everything.
+
+### Audit-code outcomes
+- **Round 1 (GPT-5.4)**: 0 HIGH, 6 MEDIUM, 2 LOW — all out-of-scope (sustainability concerns about pre-existing modal size + previously-resolved plan-level critiques; every finding has `files: []`).
+- **Gemini final-review R1**: G1 HIGH (cancel-shortcircuit) + G2 MEDIUM (i18n types missing) — both fixed.
+- **Gemini final-review R2**: G1 HIGH (contextDocuments preamble dropped) fixed; G2-G4 (validator/auditor/renderer per-section iteration) documented as deferred MVP gaps.
+- **Quality threshold met for delivered scope**: 0 HIGH, all remaining MEDIUM are pre-existing or deferred. Tests 221/221 pass; lint 0 errors.
+
+### Next Steps
+1. Wire `SectionRegistryController` onto `MinutesCreationModal` + render "+ Add topic" header button.
+2. Pass the registry into `DocumentMultiPickerModal` constructor so per-row dropdowns become visible in production.
+3. Implement `MinutesService.generateMultiSegmentMinutes` wrapper that invokes `runMultiSegmentExtraction`.
+4. Extend `renderMinutesFromJson` to walk `MinutesJSON.sections[]` discriminated union.
+5. Audio per-section `sectionId` + multi-section `LabelledTranscriptBundle` flow.
+6. Per-section iteration in `minutesValidator.ts` + `minutesAuditor.ts`.
+7. EN + ZH-CN implementations for `minutes.sections` namespace.
+8. 14 unit test files per plan §7.
+
+---
+
 ## 2026-05-24 — audioNarration LLM-enhancement post-ship fixes (live spot-check)
 
 ### Changes
