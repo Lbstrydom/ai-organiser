@@ -104,15 +104,19 @@ export class DocumentMultiPickerModal extends Modal {
 
         // Scoped picker header (D9) — only when sourceFile + app provided
         if (this.options.sourceFile && this.options.app) {
-            // Compute in-note count by checking which `items` are referenced by sourceFile
+            // H9 fix: getScopedFiles falls back to all-vault when the active
+            // note has zero matching files. We MUST capture only files
+            // actually referenced by the source note — request scope and
+            // verify the result is 'active-note', else use an empty set.
             const scoped = getScopedFiles(
                 this.options.app,
                 this.options.sourceFile,
                 'active-note',
                 () => true,
             );
-            this.inNoteFilePaths = new Set(scoped.files.map((f) => f.path));
-            // Intersect with picker's available items (some detected items may be external)
+            this.inNoteFilePaths = scoped.scope === 'active-note'
+                ? new Set(scoped.files.map((f) => f.path))
+                : new Set();
             this.inNoteCount = this.options.items.filter((it) =>
                 it.path ? this.inNoteFilePaths.has(it.path) : false,
             ).length;

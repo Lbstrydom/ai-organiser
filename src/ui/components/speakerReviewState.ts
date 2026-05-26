@@ -51,6 +51,8 @@ export interface AudioAttachItem {
     transcript?: TimedTranscript;
     /** Populated when itemState === 'error' */
     errorMessage?: string;
+    /** Section assignment for multi-segment minutes. Defaults to 'general'. */
+    sectionId?: string;
 }
 
 /**

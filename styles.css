@@ -9079,3 +9079,76 @@
     justify-content: flex-end;
     margin-top: var(--size-4-4);
 }
+/* Multi-segment minutes — D2 / D11 (plan: docs/plans/multi-segment-minutes.md) */
+.ai-organiser-minutes-title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+    margin-bottom: var(--size-4-3);
+}
+.ai-organiser-minutes-title-row h2 {
+    margin: 0;
+    flex: 0 0 auto;
+}
+.ai-organiser-minutes-add-topic-btn {
+    margin-left: auto;
+    font-size: var(--font-ui-small);
+    padding: var(--size-4-1) var(--size-4-2);
+}
+.ai-organiser-minutes-topic-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-1);
+    flex-basis: 100%;
+}
+.ai-organiser-minutes-topic-chip {
+    background-color: color-mix(in srgb, var(--text-accent) 12%, transparent);
+    border-radius: var(--radius-s);
+    padding: 2px var(--size-4-2);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-normal);
+}
+.ai-organiser-minutes-topic-prompt-overlay {
+    position: relative;
+    margin-top: var(--size-4-2);
+    padding: var(--size-4-2);
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-1);
+    flex-basis: 100%;
+}
+.ai-organiser-minutes-topic-prompt-buttons {
+    display: flex;
+    gap: var(--size-4-1);
+    justify-content: flex-end;
+}
+.ai-organiser-minutes-topic-prompt-error {
+    color: var(--text-error);
+    font-size: var(--font-ui-smaller);
+}
+.ai-organiser-minutes-section-select {
+    margin-left: var(--size-4-2);
+    font-size: var(--font-ui-small);
+}
+.ai-organiser-minutes-document-section-select {
+    margin-top: var(--size-4-1);
+}
+.ai-organiser-scoped-file-picker-header {
+    display: flex;
+    gap: var(--size-4-3);
+    padding: var(--size-4-1) 0;
+    margin-bottom: var(--size-4-2);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+.ai-organiser-scoped-picker-radio-row {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-1);
+}
+.ai-organiser-doc-multi-picker-section-select-host {
+    margin-left: auto;
+}

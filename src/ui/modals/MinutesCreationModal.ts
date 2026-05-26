@@ -10,6 +10,10 @@ import { AudioRecorderModal } from './AudioRecorderModal';
 import { DictionaryService, Dictionary } from '../../services/dictionaryService';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import { getScopedFiles } from '../utils/vaultFileScope';
+import { SectionRegistryController } from '../../services/minutes/sectionRegistryController';
+import type { MultiSegmentInput, SegmentInput } from '../../services/minutes/minutesTypes';
+import { shouldUseLegacyPath } from '../../services/minutes/minutesTypes';
+import { renderSectionAssignmentSelect } from '../components/SectionAssignmentSelect';
 import { AudioAttachCoordinator } from '../coordinators/AudioAttachCoordinator';
 import { renderAudioAttach, type AudioAttachHandle, type DetectedAudioPrompt } from '../components/AudioAttachHelper';
 import type { AudioAttachItem, AudioAttachViewState, DetectedSpeaker, SpeakerMapping, SpeakerReviewState } from '../components/speakerReviewState';
@@ -142,7 +146,10 @@ export class MinutesCreationModal extends Modal {
     private docController!: DocumentHandlingController;
     private audioController!: AudioController;
     private dictController!: DictionaryController;
+    private sectionRegistry!: SectionRegistryController;
     private controllersInitialized = false;
+    /** Captured at modal open for scoped pickers (R2-M6 — never re-query workspace mid-session). */
+    private sourceFileAtOpen: TFile | null = null;
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private agendaTextArea: HTMLTextAreaElement | null = null;
@@ -270,6 +277,8 @@ export class MinutesCreationModal extends Modal {
             );
             this.audioController = new AudioController(this.app);
             this.dictController = new DictionaryController(this.dictionaryService);
+            this.sectionRegistry = new SectionRegistryController();
+            this.sourceFileAtOpen = this.app.workspace.getActiveFile();
             this.controllersInitialized = true;
         }
 
@@ -291,9 +300,21 @@ export class MinutesCreationModal extends Modal {
         this.modalIsOpen = true;
         void this.resolveDeepgramKeyAndRefresh();
 
-        contentEl.createEl('h2', {
+        const titleRow = contentEl.createDiv({ cls: 'ai-organiser-minutes-title-row' });
+        titleRow.createEl('h2', {
             text: this.plugin.t.minutes?.modalTitle || 'Meeting Minutes'
         });
+        // "+ Add topic" header button (D2 — always-visible topic creation entry
+        // point so audio-only meetings still have a path to create topics).
+        const addTopicBtn = titleRow.createEl('button', {
+            cls: 'ai-organiser-minutes-add-topic-btn',
+            text: this.plugin.t.minutes?.sections?.addTopicButton || '+ Add topic',
+            attr: { 'data-testid': 'minutes-add-topic' },
+        });
+        this.cleanups.push(listen(addTopicBtn, 'click', () => this.openAddTopicPrompt()));
+        if (this.sectionRegistry.hasTopics()) {
+            this.renderTopicChips(titleRow);
+        }
 
         // Audio detection is a pure vault-read + regex match — works on mobile
         // too. Split out from doc/dictionary detection (which uses officeparser
@@ -870,6 +891,60 @@ export class MinutesCreationModal extends Modal {
                 speakerReviewKind === 'skipped' && this.state.speakerReview.reason === 'detection-unavailable' ? 'unavailable' :
                 speakerReviewKind === 'skipped' ? 'skipped' :
                 'not-required';
+
+            // Multi-segment dispatch (D7) — prune empty topics + check effective
+            // segmentation before deciding which path. When the user has actively
+            // populated ≥1 topic, run the multi-segment orchestrator.
+            this.sectionRegistry.pruneEmptyTopics((topicId) =>
+                this.docController.getDocuments().filter((d) => (d.sectionId || 'general') === topicId).length,
+            );
+            const docs = this.docController.getDocuments();
+            const effectiveSections = new Set<string>(docs.map((d) => d.sectionId || 'general'));
+            if (this.state.transcript.trim()) effectiveSections.add('general');
+            const useLegacy = shouldUseLegacyPath({
+                populatedTopicCount: this.sectionRegistry.listTopics().length,
+                effectiveSectionIds: effectiveSections,
+            });
+
+            if (!useLegacy) {
+                const outputFolderPath = resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings');
+                const segments = this.buildSegmentsFromState();
+                const multiInput: MultiSegmentInput & { outputFolder: string } = {
+                    metadata,
+                    participantsRaw: this.state.participants,
+                    segments,
+                    dictionaryContent: dictionaryContent || undefined,
+                    styleReference: this.state.styleReference || undefined,
+                    customInstructions: this.state.customInstructions,
+                    languageOverride: this.state.languageOverride,
+                    transcriptLanguageCode: this.state.labelledTranscript?.languageCode,
+                    useGTD: this.state.useGTD,
+                    outputFolder: outputFolderPath,
+                };
+                const msResult = await this.minutesService.generateMultiSegmentMinutes(multiInput, {
+                    signal: abortController.signal,
+                    onProgress: (current, total, name) => {
+                        if (!progressEl) return;
+                        progressEl.textContent =
+                            (this.plugin.t.minutes?.progressChunkOf || 'Chunk {current} of {total} · {elapsed}')
+                                .replace('{current}', String(current))
+                                .replace('{total}', String(total))
+                                .replace('{elapsed}', name);
+                    },
+                });
+                if (!msResult.ok) {
+                    overlay.remove();
+                    if (msResult.error === 'cancelled') {
+                        new Notice(this.plugin.t.minutes?.cancelled || 'Minutes generation cancelled.', 3000);
+                    } else {
+                        new Notice(`${this.plugin.t.minutes?.errorParsing || 'Failed to generate minutes'}: ${msResult.error}`, 5000);
+                    }
+                    return;
+                }
+                this.close();
+                new Notice(`${this.plugin.t.minutes?.saved || 'Minutes saved'}: ${msResult.value.filePath}`, 4000);
+                return;
+            }
 
             const result = await this.minutesService.generateMinutes({
                 metadata,
@@ -2266,19 +2341,22 @@ export class MinutesCreationModal extends Modal {
 
     private handlePickDetectedDocs(): void {
         const t = this.plugin.t;
-        const sourceFile = this.app.workspace.getActiveFile() ?? undefined;
+        const sourceFile = this.sourceFileAtOpen ?? undefined;
         new DocumentMultiPickerModal(this.app, {
             items: this.state.detectedDocumentsPreview,
             t,
             app: this.app,
             sourceFile,
+            sectionRegistry: this.sectionRegistry,
             onConfirm: (selected) => {
                 void (async () => {
-                    // selected: Array<{ item, sectionId }> — sectionId carried through
-                    // for the multi-segment path; current MVP attaches all to docController
-                    // and ignores sectionId until the modal-wide topic registry is wired up.
+                    // Attach docs AND propagate sectionId per item to the controller.
                     const items = selected.map((s) => s.item);
                     const attached = this.attachDocsFromPreview(items);
+                    // Apply per-row section assignments
+                    for (const { item, sectionId } of selected) {
+                        this.docController.setSectionId(item.id, sectionId);
+                    }
                     if (attached > 0) {
                         await this.docController.extractAll();
                     }
@@ -2301,6 +2379,104 @@ export class MinutesCreationModal extends Modal {
     private attachDocsFromPreview(items: DocumentItem[]): number {
         const results = this.docController.addDocuments(items);
         return results.filter((r) => r.added).length;
+    }
+
+    /**
+     * Build `SegmentInput[]` from modal state for the multi-segment service.
+     * Order: General first, then topics in registry order. Each segment's
+     * `contextDocuments` is concatenated from docs whose `sectionId` matches.
+     * General's transcript is the pasted textarea; topic transcripts are
+     * empty in this MVP slice (deferred to follow-up — per-section transcript
+     * picker).
+     */
+    private buildSegmentsFromState(): SegmentInput[] {
+        const docs = this.docController.getDocuments();
+        const buildContext = (sectionId: string): string =>
+            docs
+                .filter((d) => (d.sectionId || 'general') === sectionId && d.extractedText && d.truncationChoice !== 'skip')
+                .map((d) => `### ${d.name}\n\n${d.extractedText}`)
+                .join('\n\n---\n\n');
+
+        const segments: SegmentInput[] = [];
+        segments.push({
+            sectionId: 'general',
+            sectionName: 'General discussion',
+            transcript: this.state.transcript || '',
+            contextDocuments: buildContext('general'),
+        });
+        for (const topic of this.sectionRegistry.listTopics()) {
+            segments.push({
+                sectionId: topic.id,
+                sectionName: topic.name,
+                transcript: '',
+                contextDocuments: buildContext(topic.id),
+            });
+        }
+        return segments;
+    }
+
+    /**
+     * D2 — Prompt-and-create a new topic via the always-visible header button.
+     * Lightweight inline overlay (matches the picker's `+ New topic…` flow).
+     */
+    private openAddTopicPrompt(): void {
+        const t = this.plugin.t.minutes?.sections;
+        const headerEl = this.contentEl.querySelector<HTMLElement>('.ai-organiser-minutes-title-row');
+        if (!headerEl) return;
+        // Strip any existing prompt before opening a new one.
+        headerEl.querySelector('.ai-organiser-minutes-topic-prompt-overlay')?.remove();
+
+        const overlay = headerEl.createDiv({ cls: 'ai-organiser-minutes-topic-prompt-overlay' });
+        overlay.setAttribute('role', 'dialog');
+        const input = overlay.createEl('input', {
+            attr: {
+                type: 'text',
+                placeholder: t?.topicNamePlaceholder || 'Topic name',
+                maxLength: String(SectionRegistryController.MAX_NAME_LENGTH),
+                'data-testid': 'modal-topic-name-input',
+            },
+        });
+        const btnRow = overlay.createDiv({ cls: 'ai-organiser-minutes-topic-prompt-buttons' });
+        const okBtn = btnRow.createEl('button', { text: 'OK', cls: 'mod-cta' });
+        const cancelBtn = btnRow.createEl('button', { text: 'Cancel' });
+        const errorEl = overlay.createDiv({
+            cls: 'ai-organiser-minutes-topic-prompt-error ai-organiser-hidden',
+        });
+
+        const cleanup = (): void => overlay.remove();
+        const commit = (): void => {
+            const result = this.sectionRegistry.addTopic(input.value);
+            if (!result.ok) {
+                errorEl.setText(result.error);
+                errorEl.removeClass('ai-organiser-hidden');
+                return;
+            }
+            cleanup();
+            new Notice((t?.topicCreated || 'Created topic: {name}').replace('{name}', result.value.name));
+            this.rerenderModal();
+        };
+        okBtn.addEventListener('click', commit);
+        cancelBtn.addEventListener('click', cleanup);
+        input.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter') { evt.preventDefault(); commit(); }
+            else if (evt.key === 'Escape') { evt.preventDefault(); cleanup(); }
+        });
+        input.focus();
+    }
+
+    /**
+     * Render topic chips next to the modal title summarising the active topics.
+     * Pure presentational; updated on rerender.
+     */
+    private renderTopicChips(containerEl: HTMLElement): void {
+        const chipsEl = containerEl.createDiv({ cls: 'ai-organiser-minutes-topic-chips' });
+        for (const topic of this.sectionRegistry.listTopics()) {
+            const chip = chipsEl.createDiv({
+                cls: 'ai-organiser-minutes-topic-chip',
+                attr: { 'data-topic-id': topic.id, 'data-testid': 'minutes-topic-chip' },
+            });
+            chip.setText(SectionRegistryController.displayLabel(topic.name));
+        }
     }
 
     private renderContextDocumentsSection(containerEl: HTMLElement): void {
@@ -2388,7 +2564,40 @@ export class MinutesCreationModal extends Modal {
             setIcon(removeBtn, 'x');
             removeBtn.setAttribute('aria-label', t?.removeDocument || 'Remove');
             this.cleanups.push(listen(removeBtn, 'click', () => this.removeDocumentFromUI(doc)));
+
+            // D11 — main-modal attached-row dropdown only rendered when topics exist.
+            if (this.sectionRegistry.hasTopics()) {
+                const selectHost = itemEl.createDiv({ cls: 'ai-organiser-minutes-document-section-select' });
+                renderSectionAssignmentSelect({
+                    host: selectHost,
+                    sectionRegistry: this.sectionRegistry,
+                    currentSectionId: doc.sectionId || 'general',
+                    ariaLabel: `Section assignment for ${doc.name}`,
+                    labels: this.sectionAssignmentLabels(),
+                    onChange: (sectionId) => {
+                        this.docController.setSectionId(doc.id, sectionId);
+                    },
+                    onTopicCreated: () => this.rerenderModal(),
+                    cleanups: this.cleanups,
+                });
+            }
         }
+    }
+
+    /** Shared i18n labels for SectionAssignmentSelect. */
+    private sectionAssignmentLabels(): {
+        generalOption: string; newTopicOption: string; topicNamePrompt: string;
+        topicNameTooLong: string; topicCreated: string; topicPrefix: string;
+    } {
+        const t = this.plugin.t.minutes?.sections;
+        return {
+            generalOption: t?.general || 'General',
+            newTopicOption: '+ ' + (t?.addTopicButton || 'New topic…'),
+            topicNamePrompt: t?.topicNamePlaceholder || 'Topic name',
+            topicNameTooLong: t?.topicNameTooLong || `Topic name must be ${SectionRegistryController.MAX_NAME_LENGTH} characters or fewer`,
+            topicCreated: t?.topicCreated || 'Created topic',
+            topicPrefix: 'Topic: ',
+        };
     }
 
     private getDocumentIcon(extension: string): string {
@@ -2415,8 +2624,7 @@ export class MinutesCreationModal extends Modal {
                 const ext = f.extension.toLowerCase();
                 return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
             };
-            const sourceFile = this.app.workspace.getActiveFile();
-            const scoped = getScopedFiles(this.app, sourceFile, 'active-note', roleFilter);
+            const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
             const files = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
 
             if (files.length === 0) {

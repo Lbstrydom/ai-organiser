@@ -117,6 +117,10 @@ skills.manifest.json
 
 # Architectural-memory cache (intent embeddings, regenerated on demand).
 .audit-loop/cache/
+# Audit-loop infrastructure migrations (synced from claude-engineering-skills).
+# These target a separate audit-loop Supabase project, NEVER this app's DB.
+# Read by scripts/setup-postgres.mjs --migrate. Synced; never commit.
+.audit-loop/migrations/
 
 # Requirements layer — extraction intermediates are regenerable; the
 # reconciled ledger is committed (shared /audit-code rubric).

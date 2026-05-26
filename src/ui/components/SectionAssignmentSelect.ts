@@ -57,22 +57,29 @@ export function renderSectionAssignmentSelect(opts: SectionAssignmentSelectOptio
 
     populateOptions(select, sectionRegistry, currentSectionId, labels);
 
+    // H8 fix: track the LAST COMMITTED choice so a cancelled "+ New topic…"
+    // prompt restores the most recent valid selection instead of the stale
+    // initial render-time `currentSectionId`. Mutated on every successful
+    // section change or topic creation.
+    let lastCommittedSectionId = currentSectionId;
+
     cleanups.push(
         listen(select, 'change', () => {
             const val = select.value;
             if (val === NEW_TOPIC_SENTINEL) {
                 openInlineTopicPrompt(host, sectionRegistry, labels, (newId) => {
                     if (newId) {
-                        // Repopulate options with new topic selected
                         populateOptions(select, sectionRegistry, newId, labels);
+                        lastCommittedSectionId = newId;
                         onChange(newId);
                         onTopicCreated?.(newId);
                     } else {
-                        // Cancelled — revert to currentSectionId
-                        select.value = currentSectionId;
+                        // Cancelled — revert to the last committed selection.
+                        select.value = lastCommittedSectionId;
                     }
                 });
             } else {
+                lastCommittedSectionId = val;
                 onChange(val);
             }
         }),

@@ -2,6 +2,9 @@ import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
 import { getLanguageNameForPrompt } from './languages';
+import { err, ok, type Result } from '../core/result';
+import type { MultiSegmentInput } from './minutes/minutesTypes';
+import { runMultiSegmentExtraction } from './minutes/multiSegmentMinutes';
 import {
     Action,
     Decision,
@@ -1075,5 +1078,58 @@ export class MinutesService {
             if (depth === 0) return false;
         }
         return true;
+    }
+
+    /**
+     * Multi-segment minutes entry point (Plan D5 / R3-H4).
+     *
+     * Distinct from `generateMinutes()` so we don't have to migrate the 30+
+     * legacy call sites to `Result<T>`. Returns `Result<MinutesGenerationResult>`:
+     *   - ok({...})            → success or partial-success (failed segments rendered as callouts)
+     *   - err('cancelled')     → user aborted; no note written
+     *   - err('no-segments')   → input.segments was empty
+     *   - err('all-segments-failed') → every segment errored; no note written
+     */
+    async generateMultiSegmentMinutes(
+        input: MultiSegmentInput & { outputFolder: string },
+        opts: { signal?: AbortSignal; onProgress?: (current: number, total: number, name: string) => void } = {},
+    ): Promise<Result<MinutesGenerationResult>> {
+        const extraction = await runMultiSegmentExtraction(this.plugin, input, opts);
+        if (!extraction.ok) return err(extraction.error);
+        if (extraction.value.cancelled) return err('cancelled');
+
+        const { segments, consolidated } = extraction.value;
+        const allFailed = segments.length > 0 && segments.every((s) => s.kind === 'failed');
+        if (allFailed) return err('all-segments-failed');
+
+        const minutesStyle: MinutesStyle = consolidated.metadata?.style ?? 'standard';
+        const renderedMarkdown = renderMinutesFromJson(
+            consolidated,
+            minutesStyle,
+            input.metadata.obsidianTasksFormat,
+        );
+        const fullMarkdown = buildMinutesMarkdown(renderedMarkdown, null, {
+            includeTasks: input.metadata.obsidianTasksFormat,
+            actions: consolidated.actions || [],
+        });
+
+        const datePart = input.metadata.date || new Date().toISOString().slice(0, 10);
+        const safeTitle = sanitizeFileName(input.metadata.title || 'Meeting Minutes');
+        const meetingFolder = `${input.outputFolder}/${datePart} ${safeTitle}`;
+        await ensureFolderExists(this.plugin.app.vault, meetingFolder);
+
+        const frontmatter = buildMinutesFrontmatter({
+            json: consolidated,
+            fallbackTitle: input.metadata.title,
+            fallbackDate: input.metadata.date,
+        });
+        const jsonComment = buildMinutesJsonComment(consolidated);
+        const fullContent = `---\n${frontmatter}---\n\n${fullMarkdown}\n\n${jsonComment}`;
+
+        const minutesFileName = `${datePart} ${safeTitle} — Minutes.md`;
+        const targetPath = await getAvailableFilePath(this.plugin.app.vault, meetingFolder, minutesFileName);
+        await this.plugin.app.vault.create(targetPath, fullContent);
+
+        return ok({ filePath: targetPath, markdown: fullMarkdown, json: consolidated });
     }
 }

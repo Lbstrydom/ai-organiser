@@ -133,15 +133,12 @@ async function extractSegment(
     }
 
     try {
-        // Gemini-r2-G1 fix: prepend the section's scoped context documents so
-        // the chunk-extraction LLM has the docs visible. Without this, only the
-        // raw transcript flows in and segment-specific context (slides, sheets,
-        // briefs attached to THIS topic) is silently dropped.
-        const contextPreamble = segment.contextDocuments
-            ? `<context_documents>\n${segment.contextDocuments}\n</context_documents>\n\n`
-            : '';
-        const fullTranscriptInput = contextPreamble + transcript;
-        const chunks = await chunkPlainTextAsync(fullTranscriptInput, { maxTokens: CHUNK_TOKEN_LIMIT });
+        // H2 fix: Chunk ONLY the transcript body. Context documents are passed
+        // as a separate `contextSummary` prompt field per chunk so the LLM
+        // distinguishes "spoken meeting material" from "pre-read background".
+        // Previously the context-docs were prepended to the transcript stream
+        // and split across chunks as if they were spoken text.
+        const chunks = await chunkPlainTextAsync(transcript, { maxTokens: CHUNK_TOKEN_LIMIT });
         const chunkExtracts: Array<{
             actions: Action[];
             decisions: Decision[];
@@ -157,6 +154,9 @@ async function extractSegment(
                 participantsRaw: input.participantsRaw,
                 outputLanguage: input.languageOverride,
                 dictionaryContent: input.dictionaryContent,
+                // H2 fix: docs flow via the prompt's typed `contextSummary`
+                // field so the LLM sees them as background, not transcript.
+                contextSummary: segment.contextDocuments || undefined,
             });
             const fullPrompt = prompt + '\n\n' + chunks[idx];
             const result = await plugin.llmService.summarizeText(fullPrompt, EXTRACTION_OPTIONS);
@@ -174,7 +174,10 @@ async function extractSegment(
             });
         }
 
-        // Per-segment merge if >1 chunk
+        // Per-segment merge if >1 chunk. H1/H11 fix: on merge-LLM failure or
+        // empty output, fall back to DETERMINISTIC concatenation of all chunk
+        // extracts (instead of silently keeping only chunk 0 and discarding
+        // every later chunk's content).
         let merged = chunkExtracts[0] ?? {
             actions: [], decisions: [], risks: [], notable_points: [], open_questions: [], deferred_items: [],
         };
@@ -186,8 +189,18 @@ async function extractSegment(
             });
             const fullMerge = mergePrompt + '\n\n' + JSON.stringify(chunkExtracts, null, 2);
             const mergeResult = await plugin.llmService.summarizeText(fullMerge, MERGE_OPTIONS);
+            // H6/H10 fix: parseJsonWithRepair throws on unbalanced/malformed
+            // JSON. Wrap in try/catch so the deterministic-concat fallback
+            // actually runs on parse failure (not only on null content).
+            let parsedMerge: ReturnType<typeof parseJsonWithRepair> | null = null;
             if (mergeResult.success && mergeResult.content) {
-                const parsedMerge = parseJsonWithRepair(mergeResult.content);
+                try {
+                    parsedMerge = parseJsonWithRepair(mergeResult.content);
+                } catch (e) {
+                    logger.warn('Minutes', `Per-segment merge JSON parse failed for "${segment.sectionName}":`, e instanceof Error ? e.message : e);
+                }
+            }
+            if (parsedMerge && Array.isArray(parsedMerge.actions)) {
                 merged = {
                     actions: parsedMerge.actions ?? merged.actions,
                     decisions: parsedMerge.decisions ?? merged.decisions,
@@ -195,6 +208,16 @@ async function extractSegment(
                     notable_points: parsedMerge.notable_points ?? merged.notable_points,
                     open_questions: parsedMerge.open_questions ?? merged.open_questions,
                     deferred_items: parsedMerge.deferred_items ?? merged.deferred_items,
+                };
+            } else {
+                logger.warn('Minutes', `Per-segment merge LLM failed for "${segment.sectionName}" — falling back to deterministic concatenation across ${chunkExtracts.length} chunks`);
+                merged = {
+                    actions: chunkExtracts.flatMap((c) => c.actions),
+                    decisions: chunkExtracts.flatMap((c) => c.decisions),
+                    risks: chunkExtracts.flatMap((c) => c.risks),
+                    notable_points: chunkExtracts.flatMap((c) => c.notable_points),
+                    open_questions: chunkExtracts.flatMap((c) => c.open_questions),
+                    deferred_items: chunkExtracts.flatMap((c) => c.deferred_items),
                 };
             }
         }
@@ -304,12 +327,14 @@ async function singleConsolidation(
     extracts: SegmentExtract[],
 ): Promise<Result<MinutesJSON>> {
     const prompt = buildSegmentConsolidationPrompt(extracts, {
-        minutesStyle: input.metadata.outputAudience === 'external' ? 'standard' : 'standard',
+        minutesStyle: 'standard',
         outputLanguage: input.languageOverride || 'English',
         meetingMetadata: input.metadata,
         participantsRaw: input.participantsRaw,
         useGTD: input.useGTD,
         dictionaryContent: input.dictionaryContent,
+        customInstructions: input.customInstructions,
+        styleReference: input.styleReference,
     });
     const result = await plugin.llmService.summarizeText(prompt, CONSOLIDATION_OPTIONS);
     if (!result.success || !result.content) {

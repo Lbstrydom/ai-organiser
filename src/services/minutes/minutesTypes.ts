@@ -78,13 +78,30 @@ export interface LabelledTranscriptBundle {
  * Backwards-compat adapter — collapses a bundle with only `general` entry
  * back to a flat Map<string, string> for callers that still expect the
  * single-audio shape.
+ *
+ * H6 fix: when ≥2 audio items emit the same provider speaker label (common
+ * with "Speaker 0" / "Speaker 1" defaults), distinct audio files would
+ * collapse to the same key with later entries silently overwriting earlier
+ * ones. We now detect collisions and prefix with the audioItemId so the
+ * caller can distinguish them (`"audio-2|Speaker 0"`).
  */
 export function toLegacySpeakerMapping(mapping: SpeakerMappingV2): Map<string, string> {
+    const seenLabels = new Map<string, string>(); // providerSpeakerId → first key that owned it
     const out = new Map<string, string>();
     for (const [key, name] of mapping.entries) {
-        // Legacy key format was just providerSpeakerId; strip the `${audioItemId}|` prefix
-        const providerSpeakerId = key.includes('|') ? key.split('|', 2)[1] : key;
-        out.set(providerSpeakerId, name);
+        const parts = key.includes('|') ? key.split('|', 2) : ['', key];
+        const audioItemId = parts[0];
+        const providerSpeakerId = parts[1];
+        const claimedBy = seenLabels.get(providerSpeakerId);
+        if (claimedBy === undefined) {
+            seenLabels.set(providerSpeakerId, key);
+            out.set(providerSpeakerId, name);
+        } else {
+            // Collision — keep the original entry under the bare provider id,
+            // emit the new one under its composite id so it isn't lost.
+            const compositeKey = audioItemId ? `${audioItemId}|${providerSpeakerId}` : key;
+            out.set(compositeKey, name);
+        }
     }
     return out;
 }

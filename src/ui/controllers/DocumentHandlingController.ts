@@ -17,6 +17,8 @@ export interface DocumentItem {
     extractedText?: string;
     isProcessing: boolean;
     error?: string;
+    /** Section assignment for multi-segment minutes. Defaults to 'general'. */
+    sectionId?: string;
 }
 
 export interface AddResult {
@@ -113,6 +115,18 @@ export class DocumentHandlingController {
     }
 
     /**
+     * Set the section assignment for a document. Used by the multi-segment
+     * minutes flow — caller passes the sectionId emitted by the picker's
+     * SectionAssignmentSelect dropdown.
+     */
+    setSectionId(docId: string, sectionId: string): { success: boolean; error?: string } {
+        const doc = this.getDocumentById(docId);
+        if (!doc) return { success: false, error: 'Document not found' };
+        doc.sectionId = sectionId;
+        return { success: true };
+    }
+
+    /**
      * Add document from vault file
      * Deduplicates by path
      * Returns result object indicating success, duplicate, or error
@@ -147,7 +161,8 @@ export class DocumentHandlingController {
             file,
             truncationChoice: defaultChoice,
             charCount: 0,
-            isProcessing: false
+            isProcessing: false,
+            sectionId: 'general',
         };
 
         this.documents.push(newDoc);
@@ -198,7 +213,8 @@ export class DocumentHandlingController {
             url,
             truncationChoice: defaultChoice,
             charCount: 0,
-            isProcessing: false
+            isProcessing: false,
+            sectionId: 'general',
         };
 
         this.documents.push(newDoc);
@@ -227,7 +243,8 @@ export class DocumentHandlingController {
                     file,
                     truncationChoice: defaultChoice,
                     charCount: 0,
-                    isProcessing: false
+                    isProcessing: false,
+                    sectionId: 'general',
                 };
             });
     }

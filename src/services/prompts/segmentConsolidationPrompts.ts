@@ -14,6 +14,29 @@ import type {
 } from '../minutes/minutesTypes';
 import type { MinutesStyle } from '../../core/constants';
 
+/**
+ * H4/H15 fix: transform MeetingMetadata (camelCase service shape) into the
+ * snake_case shape expected by MinutesJSON.metadata. Prevents the LLM from
+ * echoing camelCase field names that the parser/frontmatter writer can't
+ * interpret.
+ */
+function toSnakeCaseMetadata(m: MeetingMetadata): Record<string, unknown> {
+    return {
+        title: m.title,
+        date: m.date,
+        start_time: m.startTime,
+        end_time: m.endTime,
+        timezone: m.timezone,
+        meeting_context: m.meetingContext,
+        output_audience: m.outputAudience,
+        confidentiality_level: m.confidentialityLevel,
+        chair: m.chair,
+        minute_taker: m.minuteTaker,
+        location: m.location,
+        quorum_present: null,
+    };
+}
+
 export interface ConsolidationPromptOptions {
     minutesStyle: MinutesStyle;
     outputLanguage: string;
@@ -21,6 +44,10 @@ export interface ConsolidationPromptOptions {
     participantsRaw: string;
     useGTD?: boolean;
     dictionaryContent?: string;
+    /** H5 fix: user-defined customisation flows through to consolidation. */
+    customInstructions?: string;
+    /** H5 fix: style-reference document flows through to consolidation. */
+    styleReference?: string;
 }
 
 /**
@@ -38,6 +65,12 @@ export function buildSegmentConsolidationPrompt(
         : `Do NOT emit a "gtd_processing" object.`;
     const dictNote = opts.dictionaryContent
         ? `\n  <dictionary>\n${opts.dictionaryContent}\n  </dictionary>`
+        : '';
+    const customInstr = opts.customInstructions?.trim()
+        ? `\n  <custom_instructions>\n${opts.customInstructions.trim()}\n  </custom_instructions>`
+        : '';
+    const styleRef = opts.styleReference?.trim()
+        ? `\n  <style_reference>\n${opts.styleReference.trim()}\n  </style_reference>`
         : '';
 
     const sectionsJson = JSON.stringify(
@@ -74,7 +107,7 @@ open_questions, deferred_items) across all sections, with each item carrying its
 - Do NOT invent items. Only consolidate what is provided.
 - ${gtdNote}
 - Cap risks at 8 globally (keep highest-impact).
-- Cap notable_points at 30 globally.${dictNote}
+- Cap notable_points at 30 globally.${dictNote}${customInstr}${styleRef}
 </requirements>
 
 <output_format>
@@ -107,8 +140,8 @@ Return valid JSON only, no other text. Schema:
   "gtd_processing": { "next_actions": [...], "waiting_for": [...], "projects": [...], "someday_maybe": [...] }` : ''}
 }
 
-Meeting metadata:
-${JSON.stringify(opts.meetingMetadata, null, 2)}
+Meeting metadata (use these exact snake_case keys in your output's "metadata" object — do NOT translate to camelCase):
+${JSON.stringify(toSnakeCaseMetadata(opts.meetingMetadata), null, 2)}
 
 Participants: ${opts.participantsRaw}
 

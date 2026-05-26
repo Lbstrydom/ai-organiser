@@ -2821,7 +2821,23 @@ export const zhCN: Translations = {
         transcriptIncompleteConfirm: "\u662F\u5426\u4ECD\u8981\u7EE7\u7EED\uFF1F\u751F\u6210\u7684\u4F1A\u8BAE\u7EAA\u8981\u53EF\u80FD\u4E0D\u5B8C\u6574\u3002",
         transcriptIncompleteAgenda: "**[\u8BB0\u5F55\u4E0D\u5B8C\u6574]** \u6B64\u8BAE\u7A0B\u9879\u76EE\u672A\u5728\u53EF\u7528\u8BB0\u5F55\u4E2D\u6355\u83B7\u3002\u8BF7\u4ECE\u4E0E\u4F1A\u4EBA\u5458\u7684\u7B14\u8BB0\u4E2D\u624B\u52A8\u8865\u5145\u3002",
         cancelLabel: "\u53D6\u6D88",
-        proceedAnyway: "\u4ECD\u7136\u7EE7\u7EED"
+        proceedAnyway: "\u4ECD\u7136\u7EE7\u7EED",
+        sections: {
+            general: "\u603B\u8BBA",
+            addTopicButton: "+ \u6DFB\u52A0\u4E3B\u9898",
+            topicNamePlaceholder: "\u4E3B\u9898\u540D\u79F0",
+            topicCreated: "\u5DF2\u521B\u5EFA\u4E3B\u9898\uFF1A{name}",
+            topicNameTooLong: "\u4E3B\u9898\u540D\u79F0\u4E0D\u80FD\u8D85\u8FC7 40 \u4E2A\u5B57\u7B26",
+            topicDuplicateRenamed: "\u4E3B\u9898\u5DF2\u91CD\u547D\u540D\u4EE5\u907F\u514D\u91CD\u590D\uFF1A{name}",
+            sectionAssignmentLabel: "\u5206\u533A",
+            topicsSoFar: "\u5F53\u524D\u4E3B\u9898\uFF1A{names}",
+            sectionChipLabel: "{name} \u00B7 {count}",
+            scopeFilesInNote: "\u672C\u7B14\u8BB0\u4E2D\u7684\u6587\u4EF6",
+            scopeAllVault: "\u6240\u6709\u5E93\u6587\u4EF6",
+            segmentExtractionFailed: "\u5206\u533A \"{name}\" \u5904\u7406\u5931\u8D25",
+            segmentCancelled: "\u5206\u533A \"{name}\" \u672A\u5904\u7406\uFF08\u5DF2\u53D6\u6D88\uFF09",
+            consolidationTruncated: "\u5408\u5E76\u8F93\u51FA\u5DF2\u622A\u65AD\u4EE5\u7B26\u5408\u9884\u7B97"
+        }
     },
     smartTag: {
         progressStarting: "正在标记…",

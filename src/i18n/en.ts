@@ -2824,7 +2824,23 @@ export const en: Translations = {
         transcriptIncompleteConfirm: "Do you want to proceed anyway? The generated minutes may be incomplete.",
         transcriptIncompleteAgenda: "**[transcript incomplete]** this agenda item was not captured in the available transcript. Content to be completed manually from attendees' notes.",
         cancelLabel: "Cancel",
-        proceedAnyway: "Proceed anyway"
+        proceedAnyway: "Proceed anyway",
+        sections: {
+            general: "General",
+            addTopicButton: "+ Add topic",
+            topicNamePlaceholder: "Topic name",
+            topicCreated: "Created topic: {name}",
+            topicNameTooLong: "Topic name must be 40 characters or fewer",
+            topicDuplicateRenamed: "Topic renamed to avoid duplicate: {name}",
+            sectionAssignmentLabel: "Section",
+            topicsSoFar: "Topics so far: {names}",
+            sectionChipLabel: "{name} · {count}",
+            scopeFilesInNote: "Files in this note",
+            scopeAllVault: "All vault files",
+            segmentExtractionFailed: "Section \"{name}\" could not be processed",
+            segmentCancelled: "Section \"{name}\" was not processed (cancelled)",
+            consolidationTruncated: "Consolidation output truncated to fit budget"
+        }
     },
     smartTag: {
         progressStarting: "Tagging…",

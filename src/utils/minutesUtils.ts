@@ -252,6 +252,13 @@ export function renderMinutesFromJson(
             content = renderStandard(json, obsidianTasksFormat);
     }
 
+    // D5 / Plan §6 — when multi-segment sections present, insert a per-section
+    // block AFTER the header block and BEFORE the global rollups. Legacy mode
+    // (no sections field, or length === 0) renders identically to today.
+    if (json.sections && json.sections.length > 0) {
+        content = injectSegmentSections(content, json.sections);
+    }
+
     // Append GTD if present (shared across all styles)
     if (json.gtd_processing) {
         content += '\n\n' + renderGTDSection(json.gtd_processing, obsidianTasksFormat);
@@ -262,6 +269,65 @@ export function renderMinutesFromJson(
     //   pasted Word clipboard content (user report 2026-04-23 — Obsidian's
     //   CSP blocks these producing hundreds of console errors).
     return stripLocalFileImageRefs(stripConfidenceAnnotations(content));
+}
+
+/**
+ * Inject per-section blocks (`## <name>`) into rendered content (Plan D5).
+ * Inserts AFTER the title/metadata header block and BEFORE any flat rollup
+ * sections (`## Decisions`, `## Actions`, etc.) so the structure reads as:
+ *   # Title + metadata
+ *   ## General discussion / ## Topic: <name> blocks
+ *   ## Decisions / ## Actions / ## Risks / etc.   ← global rollups (unchanged)
+ *
+ * Each `SegmentSection` discriminated-union kind renders distinctly:
+ *   - 'content' → `## <name>` + summary + per-section items
+ *   - 'failed' → `> ⚠ Section "<name>" could not be processed. Error: …`
+ *   - 'skipped' (cancelled) → `> ℹ Section "<name>" was not processed (cancelled).`
+ *   - 'skipped' (empty) → silently omitted
+ */
+function injectSegmentSections(
+    content: string,
+    sections: Array<{
+        kind: 'content' | 'failed' | 'skipped';
+        sectionId: string;
+        name: string;
+        summary?: string;
+        sanitizedError?: string;
+        redactedExcerpt?: string;
+        reason?: 'empty' | 'cancelled';
+    }>
+): string {
+    const blocks: string[] = [];
+    for (const sec of sections) {
+        if (sec.kind === 'skipped' && sec.reason === 'empty') continue;
+        if (sec.kind === 'failed') {
+            const err = sec.sanitizedError || 'extraction failed';
+            const excerpt = sec.redactedExcerpt
+                ? `\n> Excerpt: ${sec.redactedExcerpt}`
+                : '';
+            blocks.push(
+                `> [!warning] Section "${sec.name}" could not be processed.\n> Error: ${err}${excerpt}`
+            );
+            continue;
+        }
+        if (sec.kind === 'skipped' && sec.reason === 'cancelled') {
+            blocks.push(`> [!info] Section "${sec.name}" was not processed (cancelled).`);
+            continue;
+        }
+        // kind === 'content'
+        const summary = sec.summary ? `${sec.summary.trim()}\n` : '';
+        blocks.push(`## ${sec.name}\n\n${summary}`);
+    }
+    if (blocks.length === 0) return content;
+
+    // Find the first global rollup header (## Decisions / ## Actions / etc.)
+    // and insert before it. If none present, append at the end.
+    const rollupMatch = content.match(/^## (Decisions|Actions|Risks|Notable points|Open questions|Deferred items|Discussion|Agenda items)/m);
+    const insertion = '\n\n' + blocks.join('\n\n') + '\n\n';
+    if (rollupMatch && rollupMatch.index !== undefined) {
+        return content.slice(0, rollupMatch.index) + insertion + content.slice(rollupMatch.index);
+    }
+    return content.trimEnd() + insertion;
 }
 
 /** Remove markdown image refs + raw file:/// URLs + bare clip_imageNNN
