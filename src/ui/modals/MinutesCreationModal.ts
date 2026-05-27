@@ -11,7 +11,7 @@ import { DictionaryService, Dictionary } from '../../services/dictionaryService'
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import { getScopedFiles } from '../utils/vaultFileScope';
 import { SectionRegistryController } from '../../services/minutes/sectionRegistryController';
-import type { MultiSegmentInput, SegmentInput } from '../../services/minutes/minutesTypes';
+import type { MultiSegmentInput, SegmentInput, TranscriptItem } from '../../services/minutes/minutesTypes';
 import { shouldUseLegacyPath } from '../../services/minutes/minutesTypes';
 import { renderSectionAssignmentSelect } from '../components/SectionAssignmentSelect';
 import { AudioAttachCoordinator } from '../coordinators/AudioAttachCoordinator';
@@ -150,6 +150,18 @@ export class MinutesCreationModal extends Modal {
     private controllersInitialized = false;
     /** Captured at modal open for scoped pickers (R2-M6 — never re-query workspace mid-session). */
     private sourceFileAtOpen: TFile | null = null;
+    /**
+     * Per-audio section assignment, keyed by `audioItem.resolvedFile?.path ?? audioItem.displayName`.
+     * Default for any audio file is 'general'. Drives the per-row SectionAssignmentSelect
+     * + routing of transcript output to the correct segment bucket.
+     */
+    private audioSectionAssignments = new Map<string, string>();
+    /**
+     * Loaded + transcribed transcripts grouped by section. Each entry's
+     * `sectionId` matches a topic registry id (or 'general'). General is also
+     * concatenated with the textarea content at build time.
+     */
+    private transcriptItems: TranscriptItem[] = [];
     private state: MinutesModalState;
     private transcriptTextArea: HTMLTextAreaElement | null = null;
     private agendaTextArea: HTMLTextAreaElement | null = null;
@@ -577,6 +589,16 @@ export class MinutesCreationModal extends Modal {
             });
         });
 
+        // Per-section transcript loader — visible only when topics exist.
+        // Opens the multi-picker with section assignment; each loaded file
+        // becomes a TranscriptItem and feeds the matching segment.
+        if (this.sectionRegistry.hasTopics()) {
+            transcriptSetting.addButton(btn => {
+                btn.setButtonText('Load topic transcripts…');
+                btn.onClick(() => this.openTopicTranscriptPicker());
+            });
+        }
+
         transcriptSetting.addTextArea(text => {
                 text.inputEl.rows = 8;
                 text.inputEl.spellcheck = true;
@@ -604,6 +626,28 @@ export class MinutesCreationModal extends Modal {
                 });
                 this.transcriptTextArea = text.inputEl;
             });
+
+        // Per-section transcript chips — shows N=count per section when topic
+        // transcripts have been loaded or transcribed. Renders below textarea.
+        if (this.sectionRegistry.hasTopics() && this.transcriptItems.length > 0) {
+            const chipsRow = topSection.createDiv({ cls: 'ai-organiser-minutes-transcript-chips' });
+            const generalCount = this.transcriptItems.filter((i) => i.sectionId === 'general').length
+                + (this.state.transcript.trim() ? 1 : 0);
+            if (generalCount > 0) {
+                chipsRow.createSpan({
+                    cls: 'ai-organiser-minutes-transcript-chip',
+                    text: `General · ${generalCount}`,
+                });
+            }
+            for (const topic of this.sectionRegistry.listTopics()) {
+                const count = this.transcriptItems.filter((i) => i.sectionId === topic.id).length;
+                if (count === 0) continue;
+                chipsRow.createSpan({
+                    cls: 'ai-organiser-minutes-transcript-chip ai-organiser-minutes-transcript-chip-topic',
+                    text: `${SectionRegistryController.displayLabel(topic.name)} · ${count}`,
+                });
+            }
+        }
 
         new Setting(topSection)
             .setName(t?.fieldDualOutput || 'Generate external version')
@@ -1932,6 +1976,24 @@ export class MinutesCreationModal extends Modal {
                 cls: 'ai-organiser-minutes-transcribe-btn'
             });
             this.cleanups.push(listen(transcribeBtn, 'click', () => void this.handleTranscribeAudio(audioItem)));
+
+            // Per-section assignment dropdown (D11 — only when topics exist).
+            if (this.sectionRegistry.hasTopics()) {
+                const key = this.audioKey(audioItem);
+                const selectHost = itemEl.createDiv({ cls: 'ai-organiser-minutes-audio-section-select' });
+                renderSectionAssignmentSelect({
+                    host: selectHost,
+                    sectionRegistry: this.sectionRegistry,
+                    currentSectionId: this.audioSectionAssignments.get(key) || 'general',
+                    ariaLabel: `Section assignment for ${audioItem.displayName}`,
+                    labels: this.sectionAssignmentLabels(),
+                    onChange: (sectionId) => {
+                        this.audioSectionAssignments.set(key, sectionId);
+                    },
+                    onTopicCreated: () => this.rerenderModal(),
+                    cleanups: this.cleanups,
+                });
+            }
         }
 
         // Dedicated progress panel rendered inline below the audio list — prominent
@@ -2037,10 +2099,27 @@ export class MinutesCreationModal extends Modal {
                 }
             }
 
-            // Update state and UI
-            this.state.transcript = transcript;
-            if (this.transcriptTextArea) {
-                this.transcriptTextArea.value = transcript;
+            // Update state and UI — per-section routing: when this audio is
+            // assigned to a topic, push as a TranscriptItem instead of
+            // overwriting the general textarea, so multi-segment generation
+            // sees the breakout transcript distinct from the main meeting.
+            const audioSectionId = this.audioSectionAssignments.get(this.audioKey(audioItem)) || 'general';
+            if (audioSectionId === 'general' || !this.sectionRegistry.hasTopics()) {
+                this.state.transcript = transcript;
+                if (this.transcriptTextArea) {
+                    this.transcriptTextArea.value = transcript;
+                }
+            } else {
+                this.transcriptItems.push({
+                    id: `audio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    sourceType: 'transcribed-audio',
+                    filePath: audioItem.resolvedFile?.path,
+                    displayName: audioItem.displayName,
+                    content: transcript,
+                    sectionId: audioSectionId,
+                    orderIndex: this.transcriptItems.length,
+                });
+                new Notice(`Transcript added to "${this.sectionRegistry.resolveSection(audioSectionId).name}" section`, 3000);
             }
 
             // F2c — run the speaker-labelling pre-pass against the verbose_json
@@ -2397,18 +2476,29 @@ export class MinutesCreationModal extends Modal {
                 .map((d) => `### ${d.name}\n\n${d.extractedText}`)
                 .join('\n\n---\n\n');
 
+        const buildTranscript = (sectionId: string, includePasted: boolean): string => {
+            const items = this.transcriptItems
+                .filter((t) => t.sectionId === sectionId)
+                .sort((a, b) => a.orderIndex - b.orderIndex)
+                .map((t) => t.content);
+            if (includePasted && this.state.transcript.trim()) {
+                items.unshift(this.state.transcript);
+            }
+            return items.join('\n\n---\n\n');
+        };
+
         const segments: SegmentInput[] = [];
         segments.push({
             sectionId: 'general',
             sectionName: 'General discussion',
-            transcript: this.state.transcript || '',
+            transcript: buildTranscript('general', true),
             contextDocuments: buildContext('general'),
         });
         for (const topic of this.sectionRegistry.listTopics()) {
             segments.push({
                 sectionId: topic.id,
                 sectionName: topic.name,
-                transcript: '',
+                transcript: buildTranscript(topic.id, false),
                 contextDocuments: buildContext(topic.id),
             });
         }
@@ -2584,6 +2674,82 @@ export class MinutesCreationModal extends Modal {
         }
     }
 
+    /** Stable key for per-audio section assignment lookup. */
+    private audioKey(audioItem: DetectedContent): string {
+        return audioItem.resolvedFile?.path || audioItem.displayName;
+    }
+
+    /**
+     * Open the per-section transcript picker. Reuses DocumentMultiPickerModal
+     * with the section registry + scoped header. Loaded files are extracted
+     * via the document service and added to `transcriptItems[]` with their
+     * assigned sectionId, so each segment's transcript reads from its own
+     * dedicated source instead of the shared general textarea.
+     */
+    private openTopicTranscriptPicker(): void {
+        const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
+        const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
+        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const candidates = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
+        if (candidates.length === 0) {
+            new Notice('No transcript files found in this note', 3000);
+            return;
+        }
+        const items: DocumentItem[] = candidates.map((f) => ({
+            id: f.path,
+            name: f.name,
+            path: f.path,
+            isExternal: false,
+            file: f,
+            truncationChoice: 'full' as const,
+            charCount: 0,
+            isProcessing: false,
+            sectionId: 'general',
+        }));
+        new DocumentMultiPickerModal(this.app, {
+            items,
+            t: this.plugin.t,
+            app: this.app,
+            sourceFile: this.sourceFileAtOpen || undefined,
+            sectionRegistry: this.sectionRegistry,
+            onConfirm: (selected) => {
+                void (async () => {
+                    let added = 0;
+                    for (const { item, sectionId } of selected) {
+                        if (!item.file) continue;
+                        let content: string;
+                        if (item.file.extension.toLowerCase() === 'md') {
+                            content = await this.app.vault.read(item.file);
+                            const fmMatch = content.match(/^---\n[\s\S]*?\n---\n\n?/);
+                            if (fmMatch) content = content.slice(fmMatch[0].length);
+                        } else {
+                            const result = await this.documentService.extractText(item.file);
+                            if (!result.success || !result.text) {
+                                new Notice(`Skipped ${item.name}: ${result.error || 'extraction failed'}`);
+                                continue;
+                            }
+                            content = result.text;
+                        }
+                        this.transcriptItems.push({
+                            id: `tx-${Date.now()}-${added}`,
+                            sourceType: 'vault-file',
+                            filePath: item.file.path,
+                            displayName: item.name,
+                            content,
+                            sectionId,
+                            orderIndex: this.transcriptItems.length,
+                        });
+                        added++;
+                    }
+                    if (added > 0) {
+                        new Notice(`Loaded ${added} transcript${added === 1 ? '' : 's'} into topic sections`, 3000);
+                        this.rerenderModal();
+                    }
+                })();
+            },
+        }).open();
+    }
+
     /** Shared i18n labels for SectionAssignmentSelect. */
     private sectionAssignmentLabels(): {
         generalOption: string; newTopicOption: string; topicNamePrompt: string;
@@ -2661,9 +2827,11 @@ export class MinutesCreationModal extends Modal {
      */
     private pickStyleReferenceFile(): Promise<TFile | null> {
         const allowedExtensions = new Set(['md', ...ALL_DOCUMENT_EXTENSIONS]);
-        const files = this.app.vault.getFiles()
-            .filter(f => allowedExtensions.has(f.extension.toLowerCase()))
-            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+        const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
+        // D9 — default to active-note scope (gracefully falls back to all-vault
+        // when the source note has no matching embeds/links).
+        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const files = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
         return this.openFilePicker(files);
     }
 
@@ -2689,12 +2857,13 @@ export class MinutesCreationModal extends Modal {
         // directly. Non-md files route through DocumentExtractionService in
         // loadTranscriptFromFile.
         const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
-        const all = this.app.vault.getFiles()
-            .filter(f => allowedExtensions.has(f.extension.toLowerCase()));
-        const preferred = all
+        const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
+        // D9 — default to active-note scope (graceful fallback to all-vault).
+        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const preferred = scoped.files
             .filter(isTranscriptLike)
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        const rest = all
+        const rest = scoped.files
             .filter(f => !isTranscriptLike(f))
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
         return this.openFilePicker([...preferred, ...rest]);
@@ -3920,6 +4089,9 @@ export class MinutesCreationModal extends Modal {
         // Reset init flag so the next real open re-creates controllers with
         // fresh state. Pairs with the lazy-init guard in onOpen().
         this.controllersInitialized = false;
+        // Reset per-section state so the next modal open starts clean.
+        this.audioSectionAssignments.clear();
+        this.transcriptItems = [];
 
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];

@@ -9152,3 +9152,31 @@
 .ai-organiser-doc-multi-picker-section-select-host {
     margin-left: auto;
 }
+
+/* Per-section transcript chips */
+.ai-organiser-minutes-transcript-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-1);
+    margin-top: var(--size-4-1);
+}
+.ai-organiser-minutes-transcript-chip {
+    background-color: var(--background-secondary);
+    border-radius: var(--radius-s);
+    padding: 2px var(--size-4-2);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+}
+.ai-organiser-minutes-transcript-chip-topic {
+    background-color: color-mix(in srgb, var(--text-accent) 12%, transparent);
+    color: var(--text-normal);
+}
+.ai-organiser-minutes-audio-section-select {
+    margin-left: var(--size-4-2);
+}
+.ai-organiser-doc-multi-picker-bulk {
+    padding: var(--size-4-1) 0;
+}
+.ai-organiser-doc-multi-picker-bulk-btn {
+    font-size: var(--font-ui-small);
+}

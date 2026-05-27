@@ -55,6 +55,7 @@ export class DocumentMultiPickerModal extends Modal {
     private vaultCount = 0;
     private searchQuery = '';
     private listContainerEl: HTMLElement | null = null;
+    private bulkToggleBtn: HTMLButtonElement | null = null;
     private cleanups: Array<() => void> = [];
     private confirmed = false;
 
@@ -138,6 +139,17 @@ export class DocumentMultiPickerModal extends Modal {
             });
         }
 
+        // Select-all / deselect-all toggle (toggles based on currently-visible
+        // filtered+scoped subset, so "select all" + "deselect 3" remains the
+        // intended workflow).
+        const bulkRow = contentEl.createDiv({ cls: 'ai-organiser-doc-multi-picker-bulk' });
+        this.bulkToggleBtn = bulkRow.createEl('button', {
+            cls: 'ai-organiser-doc-multi-picker-bulk-btn',
+            text: 'Select all',
+            attr: { 'data-testid': 'doc-multi-picker-bulk-toggle' },
+        });
+        this.cleanups.push(listen(this.bulkToggleBtn, 'click', () => this.toggleBulkSelection()));
+
         // List container
         this.listContainerEl = contentEl.createDiv({
             cls: 'ai-organiser-doc-multi-picker-list',
@@ -195,6 +207,7 @@ export class DocumentMultiPickerModal extends Modal {
         // Apply scope filter first (D9), then search.
         const scopeFiltered = this.applyScopeFilter(this.options.items);
         const filtered = this.applyFilter(scopeFiltered, this.searchQuery);
+        this.refreshBulkToggleLabel(filtered);
         if (filtered.length === 0) {
             const empty = container.createDiv({
                 cls: 'ai-organiser-doc-multi-picker-empty',
@@ -269,6 +282,33 @@ export class DocumentMultiPickerModal extends Modal {
     private applyScopeFilter(items: DocumentItem[]): DocumentItem[] {
         if (!this.options.sourceFile || this.currentScope === 'all-vault') return items;
         return items.filter((it) => (it.path ? this.inNoteFilePaths.has(it.path) : false));
+    }
+
+    /**
+     * Toggle selection across all CURRENTLY VISIBLE rows (scope + search
+     * filtered). If every visible row is selected, deselects them; otherwise
+     * selects every visible row. Re-renders so checkboxes reflect the new
+     * state and the bulk-toggle label flips between "Select all" /
+     * "Deselect all".
+     */
+    private toggleBulkSelection(): void {
+        const scopeFiltered = this.applyScopeFilter(this.options.items);
+        const visible = this.applyFilter(scopeFiltered, this.searchQuery);
+        if (visible.length === 0) return;
+        const allSelected = visible.every((it) => this.selected.has(it.id));
+        if (allSelected) {
+            for (const it of visible) this.selected.delete(it.id);
+        } else {
+            for (const it of visible) this.selected.add(it.id);
+        }
+        this.renderList();
+    }
+
+    /** Flip the bulk-toggle button label based on the visible-row selection state. */
+    private refreshBulkToggleLabel(visible: DocumentItem[]): void {
+        if (!this.bulkToggleBtn) return;
+        const allSelected = visible.length > 0 && visible.every((it) => this.selected.has(it.id));
+        this.bulkToggleBtn.textContent = allSelected ? 'Deselect all' : 'Select all';
     }
 
     /**
