@@ -170,12 +170,13 @@ export async function pickAudioFromMobileWebview(options?: {
  * promise is left pending; callers that need certain "cancelled" semantics
  * should layer their own timeout.
  */
-export function pickAudioFromVault(app: App): Promise<AudioSource | null> {
+export function pickAudioFromVault(app: App, sourceFile?: TFile | null): Promise<AudioSource | null> {
     return new Promise<AudioSource | null>((resolve) => {
         let chosen = false;
         openVaultFilePicker(app, {
             predicate: (f: TFile) => isAudioFile(f),
             placeholder: 'Pick an audio file from your vault…',
+            prioritiseInNoteFor: sourceFile ?? null,
             onChoose: (file: TFile) => {
                 chosen = true;
                 resolve({ kind: 'vault', file });

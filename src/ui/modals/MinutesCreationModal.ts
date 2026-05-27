@@ -1645,7 +1645,7 @@ export class MinutesCreationModal extends Modal {
 
     private async handlePickVaultIntent(): Promise<void> {
         if (!this.audioCoordinator) return;
-        const outcome = await this.audioCoordinator.requestVaultPick();
+        const outcome = await this.audioCoordinator.requestVaultPick(this.sourceFileAtOpen);
         if (outcome.kind === 'cancelled') return;
         if (outcome.kind === 'failed') {
             new Notice(this.plugin.t.minutes?.transcriptionFailed || 'Picker failed');
@@ -2689,8 +2689,16 @@ export class MinutesCreationModal extends Modal {
     private openTopicTranscriptPicker(): void {
         const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
-        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-        const candidates = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
+        // In-note files first, full vault still searchable. The picker's
+        // ScopedFilePickerHeader gives the user an explicit toggle too.
+        const all = this.app.vault.getFiles()
+            .filter(roleFilter)
+            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+        const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
+        const preferred = all.filter((f) => inNotePaths.has(f.path));
+        const rest = all.filter((f) => !inNotePaths.has(f.path));
+        const candidates = [...preferred, ...rest];
         if (candidates.length === 0) {
             new Notice('No transcript files found in this note', 3000);
             return;
@@ -2783,15 +2791,19 @@ export class MinutesCreationModal extends Modal {
 
     private openDocumentPicker(): void {
         try {
-            // D9 — prioritise files embedded in the active meeting note before
-            // showing the full vault. Drastically cuts noise for users with
-            // large vaults (their "99 File Storage" complaint).
+            // In-note files first, full vault still searchable below.
             const roleFilter = (f: TFile): boolean => {
                 const ext = f.extension.toLowerCase();
                 return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
             };
-            const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-            const files = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
+            const all = this.app.vault.getFiles()
+                .filter(roleFilter)
+                .sort((a, b) => b.stat.mtime - a.stat.mtime);
+            const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+            const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
+            const preferred = all.filter((f) => inNotePaths.has(f.path));
+            const rest = all.filter((f) => !inNotePaths.has(f.path));
+            const files = [...preferred, ...rest];
 
             if (files.length === 0) {
                 new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');
@@ -2828,11 +2840,17 @@ export class MinutesCreationModal extends Modal {
     private pickStyleReferenceFile(): Promise<TFile | null> {
         const allowedExtensions = new Set(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
-        // D9 — default to active-note scope (gracefully falls back to all-vault
-        // when the source note has no matching embeds/links).
-        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-        const files = scoped.files.sort((a, b) => b.stat.mtime - a.stat.mtime);
-        return this.openFilePicker(files);
+        // In-note files first (per user request — "first choice gives the
+        // files in the note, only if user wants more can they search for it").
+        // Full vault remains searchable via fuzzy filter.
+        const all = this.app.vault.getFiles()
+            .filter(roleFilter)
+            .sort((a, b) => b.stat.mtime - a.stat.mtime);
+        const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
+        const preferred = all.filter((f) => inNotePaths.has(f.path));
+        const rest = all.filter((f) => !inNotePaths.has(f.path));
+        return this.openFilePicker([...preferred, ...rest]);
     }
 
     /**
@@ -2858,15 +2876,22 @@ export class MinutesCreationModal extends Modal {
         // loadTranscriptFromFile.
         const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
-        // D9 — default to active-note scope (graceful fallback to all-vault).
-        const scoped = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-        const preferred = scoped.files
-            .filter(isTranscriptLike)
+        // Sort order (per user request — in-note files first, full vault
+        // searchable below):
+        //   1. In-note + transcript-like (prefix `Recordings/` etc.) — highest priority
+        //   2. In-note other types
+        //   3. Vault transcript-like
+        //   4. Everything else
+        const all = this.app.vault.getFiles()
+            .filter(roleFilter)
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        const rest = scoped.files
-            .filter(f => !isTranscriptLike(f))
-            .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        return this.openFilePicker([...preferred, ...rest]);
+        const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
+        const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
+        const tier1 = all.filter((f) => inNotePaths.has(f.path) && isTranscriptLike(f));
+        const tier2 = all.filter((f) => inNotePaths.has(f.path) && !isTranscriptLike(f));
+        const tier3 = all.filter((f) => !inNotePaths.has(f.path) && isTranscriptLike(f));
+        const tier4 = all.filter((f) => !inNotePaths.has(f.path) && !isTranscriptLike(f));
+        return this.openFilePicker([...tier1, ...tier2, ...tier3, ...tier4]);
     }
 
     /** Shared file picker helper — opens DocumentPickerModal with settle/close safety */

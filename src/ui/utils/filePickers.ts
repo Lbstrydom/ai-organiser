@@ -69,10 +69,36 @@ export function openVaultFilePicker(
         predicate?: (file: TFile) => boolean;
         placeholder?: string;
         onChoose: (file: TFile) => void;
+        /**
+         * Optional source note — when provided, files referenced from this
+         * note (embeds + wiki-links + markdown links) sort to the TOP of the
+         * picker. The full vault remains searchable via fuzzy filter — the
+         * user sees in-note files first as the default view, but can type to
+         * reach any vault file.
+         */
+        prioritiseInNoteFor?: TFile | null;
     }
 ): void {
-    const { predicate, placeholder, onChoose } = options;
+    const { predicate, placeholder, onChoose, prioritiseInNoteFor } = options;
     const vaultApp = app;
+
+    // Compute the in-note set ONCE at open. Skips work when no sourceFile.
+    const inNotePaths: Set<string> = (() => {
+        if (!prioritiseInNoteFor) return new Set();
+        const cache = vaultApp.metadataCache.getFileCache(prioritiseInNoteFor);
+        if (!cache) return new Set();
+        const links: string[] = [];
+        if (cache.embeds) for (const e of cache.embeds) links.push(e.link);
+        if (cache.links) for (const l of cache.links) links.push(l.link);
+        const paths = new Set<string>();
+        for (const link of links) {
+            const clean = link.split('#')[0].split('^')[0];
+            if (!clean) continue;
+            const resolved = vaultApp.metadataCache.getFirstLinkpathDest(clean, prioritiseInNoteFor.path);
+            if (resolved) paths.add(resolved.path);
+        }
+        return paths;
+    })();
 
     class VaultFilePicker extends FuzzySuggestModal<TFile> {
         constructor(pickerApp: App) {
@@ -86,11 +112,19 @@ export function openVaultFilePicker(
             const nonMd = vaultApp.vault
                 .getFiles()
                 .filter((f: TFile) => !f.path.endsWith('.md') && filter(f));
-            return md.concat(nonMd);
+            const all = md.concat(nonMd);
+            if (inNotePaths.size === 0) return all;
+            // In-note files first, then everything else. User can still type
+            // to fuzzy-find any vault file.
+            const preferred = all.filter((f) => inNotePaths.has(f.path));
+            const rest = all.filter((f) => !inNotePaths.has(f.path));
+            return preferred.concat(rest);
         }
 
         getItemText(item: TFile): string {
-            return item.path;
+            // Tag in-note files visually so the user knows the picker's default
+            // priority order — fuzzy search still hits everything.
+            return inNotePaths.has(item.path) ? `📎 ${item.path}` : item.path;
         }
 
         onChooseItem(item: TFile): void {

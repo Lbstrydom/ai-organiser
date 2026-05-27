@@ -110,10 +110,10 @@ export class AudioAttachCoordinator {
      * Open the vault file picker filtered to audio extensions.
      * Returns at most one source — vault picker is single-select by nature.
      */
-    async requestVaultPick(): Promise<PickerOutcome> {
+    async requestVaultPick(sourceFile?: import('obsidian').TFile | null): Promise<PickerOutcome> {
         this.assertNotDisposed();
         try {
-            const source = await pickAudioFromVault(this.app);
+            const source = await pickAudioFromVault(this.app, sourceFile);
             if (source === null) return { kind: 'cancelled' };
             return { kind: 'sources', sources: [source] };
         } catch (e) {
