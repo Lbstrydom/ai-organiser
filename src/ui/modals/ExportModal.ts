@@ -1,9 +1,10 @@
-import { App, FuzzySuggestModal, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, FuzzySuggestModal, Modal, Notice, Setting, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { ExportService } from '../../services/export/exportService';
 import type { ExportFormat } from '../../services/export/exportService';
 import { getExportOutputFullPath } from '../../core/settings';
 import { resolveTheme } from '../../services/export/markdownPptxGenerator';
+import { FolderScopePickerModal } from './FolderScopePickerModal';
 
 export class ExportModal extends Modal {
     private plugin: AIOrganiserPlugin;
@@ -17,7 +18,15 @@ export class ExportModal extends Modal {
         super(app);
         this.plugin = plugin;
         this.notes = initialNotes;
-        this.outputFolder = getExportOutputFullPath(plugin.settings);
+        // Default to the source note's parent folder so a meeting note in
+        // `0 Inbox/Meetings/2026-05-22 Board Meeting/` exports alongside the
+        // transcripts + minutes that already live there (user workflow:
+        // one folder per meeting). Falls back to the global export folder
+        // when the note is at vault root or no notes are selected yet.
+        const sourceFolder = initialNotes[0]?.parent?.path;
+        this.outputFolder = (sourceFolder && sourceFolder !== '/')
+            ? sourceFolder
+            : getExportOutputFullPath(plugin.settings);
     }
 
     onOpen(): void {
@@ -58,15 +67,37 @@ export class ExportModal extends Modal {
                     this.openNotePicker();
                 }));
 
-        // Output folder
-        new Setting(contentEl)
-            .setName(t.modals.exportNote?.outputFolder || 'Output folder')
-            .addText(text => text
-                .setPlaceholder('Exports')
-                .setValue(this.outputFolder)
-                .onChange((value) => {
-                    this.outputFolder = value.trim() || 'Exports';
-                }));
+        // Output folder — picker button (Gestalt proximity + matches the
+        // minutes modal's UX). Replaced the free-text field that let users
+        // type a half-typed prefix like "0 Inbox/0 Inbox" with no feedback.
+        const outputFolderSetting = new Setting(contentEl)
+            .setName(t.modals.exportNote?.outputFolder || 'Output folder');
+        const folderDisplayEl = outputFolderSetting.controlEl.createSpan({
+            text: this.outputFolder || '—',
+            cls: 'ai-organiser-folder-display ai-organiser-mr-8 ai-organiser-text-muted',
+        });
+        outputFolderSetting.addButton(btn => btn
+            .setButtonText(t.modals?.folderScopePicker?.selectButton || 'Select')
+            .onClick(() => {
+                new FolderScopePickerModal(
+                    this.app,
+                    this.plugin,
+                    {
+                        title: t.modals.exportNote?.outputFolder || 'Output folder',
+                        allowSkip: false,
+                        allowNewFolder: true,
+                        defaultFolder: this.outputFolder,
+                        // Show the user exactly the folder they pick — no
+                        // hidden re-rooting under the plugin output root.
+                        onSelect: (folder) => {
+                            if (folder) {
+                                this.outputFolder = normalizePath(folder);
+                                folderDisplayEl.textContent = this.outputFolder;
+                            }
+                        },
+                    },
+                ).open();
+            }));
 
         // Format-specific options container
         contentEl.createDiv({ cls: 'ai-organiser-export-options' });

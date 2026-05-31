@@ -19,7 +19,7 @@
  * indirection.
  */
 
-import type { App } from 'obsidian';
+import type { App, TFile } from 'obsidian';
 import { Platform } from 'obsidian';
 import type {
     AudioSource,
@@ -29,7 +29,11 @@ import {
     pickAudioFromDesktop,
     pickAudioFromMobileWebview,
     pickAudioFromVault,
+    isAudioFile,
 } from '../utils/AudioSourcePicker';
+import { DocumentMultiPickerModal } from '../modals/DocumentMultiPickerModal';
+import type { DocumentItem } from '../controllers/DocumentHandlingController';
+import type { Translations } from '../../i18n/types';
 import { resolvePreview, type AudioPreviewHandle } from './AudioPreviewSource';
 import {
     importAudioToVault,
@@ -59,6 +63,15 @@ export type PickerOutcome =
 export interface CoordinatorOptions {
     /** Vault folder where imported (non-vault) audio is persisted. */
     importTargetFolder: string;
+    /**
+     * When provided, the vault picker renders via DocumentMultiPickerModal in
+     * single-select mode, giving users the "Files in this note (N) · All vault
+     * files (M)" radio toggle that documents/agenda/transcript pickers use.
+     * When absent, falls back to the legacy FuzzySuggestModal vault picker
+     * (in-note files first, 📎 prefix) — kept for backward-compat with hosts
+     * that don't have translations on hand.
+     */
+    translations?: Translations;
 }
 
 /**
@@ -109,17 +122,79 @@ export class AudioAttachCoordinator {
     /**
      * Open the vault file picker filtered to audio extensions.
      * Returns at most one source — vault picker is single-select by nature.
+     * When `options.translations` is set, routes through the scoped
+     * DocumentMultiPickerModal so users see the same "Files in this note ·
+     * All vault files" radio toggle as the documents/transcript pickers.
      */
-    async requestVaultPick(sourceFile?: import('obsidian').TFile | null): Promise<PickerOutcome> {
+    async requestVaultPick(sourceFile?: TFile | null): Promise<PickerOutcome> {
         this.assertNotDisposed();
         try {
-            const source = await pickAudioFromVault(this.app, sourceFile);
+            const source = this.options.translations
+                ? await this.pickAudioFromVaultScoped(sourceFile, this.options.translations)
+                : await pickAudioFromVault(this.app, sourceFile);
             if (source === null) return { kind: 'cancelled' };
             return { kind: 'sources', sources: [source] };
         } catch (e) {
             logger.warn('AudioAttachCoordinator', `vault picker threw: ${String(e)}`);
             return { kind: 'failed', reason: 'picker-threw' };
         }
+    }
+
+    /**
+     * Scoped vault picker for audio. Uses DocumentMultiPickerModal in
+     * single-select mode with audio extension filter, so users get the
+     * same UX as the documents/transcript pickers.
+     */
+    private pickAudioFromVaultScoped(
+        sourceFile: TFile | null | undefined,
+        t: Translations,
+    ): Promise<AudioSource | null> {
+        return new Promise<AudioSource | null>((resolve) => {
+            const audioFiles = this.app.vault.getFiles()
+                .filter(isAudioFile)
+                .sort((a, b) => b.stat.mtime - a.stat.mtime);
+            if (audioFiles.length === 0) {
+                resolve(null);
+                return;
+            }
+            const items: DocumentItem[] = audioFiles.map((f) => ({
+                id: f.path,
+                name: f.name,
+                path: f.path,
+                isExternal: false,
+                file: f,
+                truncationChoice: 'full' as const,
+                charCount: 0,
+                isProcessing: false,
+                sectionId: 'general',
+            }));
+            let settled = false;
+            const settle = (v: AudioSource | null): void => {
+                if (settled) return;
+                settled = true;
+                resolve(v);
+            };
+            const picker = new DocumentMultiPickerModal(this.app, {
+                items,
+                t,
+                app: this.app,
+                sourceFile: sourceFile ?? undefined,
+                singleSelect: true,
+                title: 'Pick an audio file',
+                description: 'Audio files in this note are shown first; switch to "All vault files" to browse the rest.',
+                confirmLabel: 'Attach',
+                onConfirm: (selected) => {
+                    const file = selected[0]?.item.file ?? null;
+                    settle(file ? { kind: 'vault', file } : null);
+                },
+            });
+            const origClose = picker.onClose.bind(picker);
+            picker.onClose = (): void => {
+                origClose();
+                setTimeout(() => settle(null), 50);
+            };
+            picker.open();
+        });
     }
 
     // ============================================================================

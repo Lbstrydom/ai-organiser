@@ -39,6 +39,20 @@ export interface DocumentMultiPickerOptions {
      */
     sourceFile?: TFile;
     app?: App;
+    /**
+     * When true, the picker behaves as single-select: rows render as radio
+     * inputs, the "Select all" button is hidden, and picking one row clears
+     * the others. Used by agenda / style-reference flows that previously
+     * routed through the flat DocumentPickerModal but still want the scoped
+     * header. Default: false (multi-select).
+     */
+    singleSelect?: boolean;
+    /** Optional title override (defaults to docMultiPickerTitle). */
+    title?: string;
+    /** Optional description override. */
+    description?: string;
+    /** Optional confirm-button label override. */
+    confirmLabel?: string;
     onConfirm: (selected: Array<{ item: DocumentItem; sectionId: string }>) => void;
 }
 
@@ -76,13 +90,15 @@ export class DocumentMultiPickerModal extends Modal {
 
         // Header
         const header = contentEl.createEl('h2', {
-            text: tMin.docMultiPickerTitle || 'Pick documents to attach',
+            text: this.options.title || tMin.docMultiPickerTitle || 'Pick documents to attach',
         });
         header.addClass('ai-organiser-doc-multi-picker-title');
 
         // Description
         const desc = contentEl.createEl('p', {
-            text: tMin.docMultiPickerDescription || 'Select the documents you want to attach as meeting context.',
+            text: this.options.description
+                || tMin.docMultiPickerDescription
+                || 'Select the documents you want to attach as meeting context.',
             cls: 'ai-organiser-doc-multi-picker-desc',
         });
         desc.addClass('ai-organiser-text-muted');
@@ -140,15 +156,17 @@ export class DocumentMultiPickerModal extends Modal {
         }
 
         // Select-all / deselect-all toggle (toggles based on currently-visible
-        // filtered+scoped subset, so "select all" + "deselect 3" remains the
-        // intended workflow).
-        const bulkRow = contentEl.createDiv({ cls: 'ai-organiser-doc-multi-picker-bulk' });
-        this.bulkToggleBtn = bulkRow.createEl('button', {
-            cls: 'ai-organiser-doc-multi-picker-bulk-btn',
-            text: 'Select all',
-            attr: { 'data-testid': 'doc-multi-picker-bulk-toggle' },
-        });
-        this.cleanups.push(listen(this.bulkToggleBtn, 'click', () => this.toggleBulkSelection()));
+        // filtered+scoped subset). Hidden in single-select mode since picking
+        // multiple is not allowed.
+        if (!this.options.singleSelect) {
+            const bulkRow = contentEl.createDiv({ cls: 'ai-organiser-doc-multi-picker-bulk' });
+            this.bulkToggleBtn = bulkRow.createEl('button', {
+                cls: 'ai-organiser-doc-multi-picker-bulk-btn',
+                text: 'Select all',
+                attr: { 'data-testid': 'doc-multi-picker-bulk-toggle' },
+            });
+            this.cleanups.push(listen(this.bulkToggleBtn, 'click', () => this.toggleBulkSelection()));
+        }
 
         // List container
         this.listContainerEl = contentEl.createDiv({
@@ -166,7 +184,9 @@ export class DocumentMultiPickerModal extends Modal {
         this.cleanups.push(listen(cancelBtn, 'click', () => this.close()));
 
         const confirmBtn = actions.createEl('button', {
-            text: tMin.docMultiPickerConfirmButton || 'Attach selected',
+            text: this.options.confirmLabel
+                || tMin.docMultiPickerConfirmButton
+                || 'Attach selected',
             cls: 'ai-organiser-doc-multi-picker-confirm mod-cta',
             attr: { 'data-testid': 'doc-multi-picker-confirm' },
         });
@@ -223,15 +243,28 @@ export class DocumentMultiPickerModal extends Modal {
                 attr: { 'data-testid': 'doc-multi-picker-row', 'data-doc-id': item.id },
             });
 
+            const inputType = this.options.singleSelect ? 'radio' : 'checkbox';
             const checkbox = row.createEl('input', {
                 cls: 'ai-organiser-doc-multi-picker-checkbox',
-                attr: { type: 'checkbox', id: `doc-pick-${this.slugifyId(item.id)}` },
+                attr: {
+                    type: inputType,
+                    id: `doc-pick-${this.slugifyId(item.id)}`,
+                    ...(this.options.singleSelect ? { name: 'doc-multi-picker-single' } : {}),
+                },
             });
             checkbox.checked = this.selected.has(item.id);
             this.cleanups.push(
                 listen(checkbox, 'change', () => {
-                    if (checkbox.checked) this.selected.add(item.id);
-                    else this.selected.delete(item.id);
+                    if (this.options.singleSelect) {
+                        // Radio behavior: clear all others, set this one.
+                        if (checkbox.checked) {
+                            this.selected.clear();
+                            this.selected.add(item.id);
+                        }
+                    } else {
+                        if (checkbox.checked) this.selected.add(item.id);
+                        else this.selected.delete(item.id);
+                    }
                 })
             );
 

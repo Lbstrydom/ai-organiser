@@ -1,4 +1,4 @@
-import { App, DropdownComponent, FuzzySuggestModal, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile, normalizePath } from 'obsidian';
+import { App, DropdownComponent, Modal, Notice, Platform, Setting, setIcon, setTooltip, TFile, normalizePath } from 'obsidian';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
 import { MinutesService } from '../../services/minutesService';
@@ -24,7 +24,7 @@ import {
     transcriptionResultToTimedTranscript,
 } from '../../services/speakerLabellingService';
 import type { LabelledTimedTranscript } from '../../services/transcriptTypes';
-import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath, resolveOutputPath } from '../../core/settings';
+import { getConfigFolderFullPath, getMinutesOutputFullPath, getTranscriptFullPath } from '../../core/settings';
 import {
     ALL_DOCUMENT_EXTENSIONS,
     DEFAULT_MAX_DOCUMENT_CHARS,
@@ -42,6 +42,8 @@ import {
     createBulkTruncationControls
 } from '../components/TruncationControls';
 import { withBusyIndicator } from '../../utils/busyIndicator';
+import { resolveSlideTierModel } from '../../services/specialistModelResolver';
+import type { SummarizeOptions } from '../../services/types';
 import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
 import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
 import {
@@ -81,8 +83,6 @@ interface MinutesModalState {
     agendaLoadedFilename: string;
     /** Filename loaded via Style reference > Load from vault (visual indicator) */
     styleReferenceLoadedFilename: string;
-    /** Filename loaded via Transcript > Load from vault (visual indicator) */
-    transcriptLoadedFilename: string;
     // Audio transcription
     /** Auto-detected from active note — read-only after onOpen; drives the "Use it/Ignore" prompt and cache lookup */
     detectedAudioFiles: DetectedContent[];
@@ -231,7 +231,6 @@ export class MinutesCreationModal extends Modal {
             styleReference: '',
             agendaLoadedFilename: '',
             styleReferenceLoadedFilename: '',
-            transcriptLoadedFilename: '',
             // Audio transcription
             detectedAudioFiles: [],
             // F1b — items the user has actively attached (via trio buttons OR via
@@ -301,6 +300,7 @@ export class MinutesCreationModal extends Modal {
         // different (device imports vs generated audio).
         this.audioCoordinator = new AudioAttachCoordinator(this.app, {
             importTargetFolder: 'AI-Organiser/Imports',
+            translations: this.plugin.t,
         });
         // Restore modal-scoped opt-in after coordinator (re)creation — without
         // this line, `rerenderModal()` would wipe the user's "Identify speakers"
@@ -409,7 +409,12 @@ export class MinutesCreationModal extends Modal {
                         allowSkip: false,
                         allowNewFolder: true,
                         defaultFolder: this.state.outputFolder,
-                        resolvePreview: (path) => resolveOutputPath(this.plugin.settings, path, 'Meetings'),
+                        // No `resolvePreview` — the picker shows the user
+                        // exactly the folder they're about to pick (matches
+                        // where the minutes file will actually land). The
+                        // previous resolver prepended the plugin output root,
+                        // misleading users into thinking their pick was
+                        // honored when it was silently re-rooted.
                         onSelect: (folder) => {
                             if (folder) {
                                 this.state.outputFolder = folder;
@@ -563,41 +568,31 @@ export class MinutesCreationModal extends Modal {
         // Standalone status banner — inserted AFTER the setting element, not inside it
         const transcriptStatusBanner = this.createStatusBanner();
         transcriptSetting.settingEl.insertAdjacentElement('afterend', transcriptStatusBanner);
-        if (this.state.transcriptLoadedFilename) {
-            this.showStatusBanner(transcriptStatusBanner, this.state.transcriptLoadedFilename);
+        const loadedTranscriptNames = this.transcriptItems
+            .filter((i) => i.sourceType === 'vault-file')
+            .map((i) => i.displayName);
+        if (loadedTranscriptNames.length === 1) {
+            this.showStatusBanner(transcriptStatusBanner, loadedTranscriptNames[0]);
+        } else if (loadedTranscriptNames.length > 1) {
+            this.showStatusBannerText(
+                transcriptStatusBanner,
+                `${loadedTranscriptNames.length} transcripts loaded`,
+            );
         }
 
         transcriptSetting.addButton(btn => {
-            const transcriptBtnEl = btn.buttonEl;
-            // "Load transcript text" (not "Load from vault") so users don't
-            // mistakenly expect to load an MP3 here — persona round 3 P2 #18
-            // (2026-04-21). The audio picker lives in a separate section.
-            this.configureLoadButton(btn.buttonEl, t?.fieldTranscriptLoadText || t?.fieldTranscriptLoad || 'Load transcript text');
-            if (this.state.transcriptLoadedFilename) {
-                this.markButtonLoaded(btn.buttonEl, this.state.transcriptLoadedFilename);
+            // Single button → multi-picker with in-note-first scoped header
+            // (commit 33c89e1 "uniform 'in-note first, vault searchable' across
+            // ALL pickers"). Accumulates into `transcriptItems[]`; the rerender
+            // refreshes the banner + chips below the textarea.
+            this.configureLoadButton(btn.buttonEl, t?.fieldTranscriptLoadText || t?.fieldTranscriptLoad || 'Load transcripts');
+            if (loadedTranscriptNames.length === 1) {
+                this.markButtonLoaded(btn.buttonEl, loadedTranscriptNames[0]);
+            } else if (loadedTranscriptNames.length > 1) {
+                this.markButtonLoaded(btn.buttonEl, `${loadedTranscriptNames.length} transcripts`);
             }
-            btn.onClick(async () => {
-                const file = await this.pickTranscriptFile();
-                if (file) {
-                    const loaded = await this.loadTranscriptFromFile(file);
-                    if (loaded) {
-                        this.state.transcriptLoadedFilename = file.name;
-                        this.markButtonLoaded(transcriptBtnEl, file.name);
-                        this.showStatusBanner(transcriptStatusBanner, file.name);
-                    }
-                }
-            });
+            btn.onClick(() => this.openTranscriptMultiPicker());
         });
-
-        // Per-section transcript loader — visible only when topics exist.
-        // Opens the multi-picker with section assignment; each loaded file
-        // becomes a TranscriptItem and feeds the matching segment.
-        if (this.sectionRegistry.hasTopics()) {
-            transcriptSetting.addButton(btn => {
-                btn.setButtonText('Load topic transcripts…');
-                btn.onClick(() => this.openTopicTranscriptPicker());
-            });
-        }
 
         transcriptSetting.addTextArea(text => {
                 text.inputEl.rows = 8;
@@ -627,9 +622,10 @@ export class MinutesCreationModal extends Modal {
                 this.transcriptTextArea = text.inputEl;
             });
 
-        // Per-section transcript chips — shows N=count per section when topic
-        // transcripts have been loaded or transcribed. Renders below textarea.
-        if (this.sectionRegistry.hasTopics() && this.transcriptItems.length > 0) {
+        // Transcript chips — shows count of loaded transcripts. Renders below
+        // textarea whenever items exist (with or without topics) so the user
+        // can see what they've loaded after multi-picker selections.
+        if (this.transcriptItems.length > 0) {
             const chipsRow = topSection.createDiv({ cls: 'ai-organiser-minutes-transcript-chips' });
             const generalCount = this.transcriptItems.filter((i) => i.sectionId === 'general').length
                 + (this.state.transcript.trim() ? 1 : 0);
@@ -857,11 +853,18 @@ export class MinutesCreationModal extends Modal {
             return;
         }
 
+        // Compute the effective general-section transcript once — joins
+        // pasted textarea content with any picker-loaded transcripts in
+        // 'general'. This is what both the completeness check and the
+        // legacy generation path consume; the multi-segment path also
+        // uses the same helper internally via buildSegmentsFromState.
+        const effectiveGeneralTranscript = this.buildEffectiveTranscript('general');
+
         // Transcript completeness check: warn or block if coverage is low
-        if (this.state.startTime && this.state.endTime && this.state.transcript.trim()) {
+        if (this.state.startTime && this.state.endTime && effectiveGeneralTranscript.trim()) {
             const durationMinutes = this.estimateMeetingDurationMinutes();
             if (durationMinutes > 0) {
-                const wordCount = this.state.transcript.split(/\s+/).filter(w => w.length > 0).length;
+                const wordCount = effectiveGeneralTranscript.split(/\s+/).filter(w => w.length > 0).length;
                 const completeness = validateTranscriptCompleteness(wordCount, durationMinutes);
 
                 if (completeness.severity === 'block') {
@@ -944,14 +947,18 @@ export class MinutesCreationModal extends Modal {
             );
             const docs = this.docController.getDocuments();
             const effectiveSections = new Set<string>(docs.map((d) => d.sectionId || 'general'));
-            if (this.state.transcript.trim()) effectiveSections.add('general');
+            // Either paste or picker-loaded transcripts populate 'general'.
+            if (effectiveGeneralTranscript.trim()) effectiveSections.add('general');
+            for (const item of this.transcriptItems) {
+                effectiveSections.add(item.sectionId || 'general');
+            }
             const useLegacy = shouldUseLegacyPath({
                 populatedTopicCount: this.sectionRegistry.listTopics().length,
                 effectiveSectionIds: effectiveSections,
             });
 
             if (!useLegacy) {
-                const outputFolderPath = resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings');
+                const outputFolderPath = this.getOutputFolder();
                 const segments = this.buildSegmentsFromState();
                 const multiInput: MultiSegmentInput & { outputFolder: string } = {
                     metadata,
@@ -993,9 +1000,9 @@ export class MinutesCreationModal extends Modal {
             const result = await this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
-                transcript: this.state.transcript,
+                transcript: effectiveGeneralTranscript,
                 minutesStyle: this.state.minutesStyle,
-                outputFolder: resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings'),
+                outputFolder: this.getOutputFolder(),
                 savedTranscriptPath: this.state.savedTranscriptPath || undefined,
                 customInstructions: this.state.customInstructions,
                 languageOverride: this.state.languageOverride,
@@ -1053,7 +1060,12 @@ export class MinutesCreationModal extends Modal {
         const t = this.plugin.t.minutes;
 
         if (!this.state.title.trim()) missing.push(t?.fieldTitle || 'Title');
-        if (!this.state.transcript.trim()) missing.push(t?.fieldTranscript || 'Transcript');
+        // Transcript content can come from either the paste textarea OR
+        // files loaded via the multi-picker (transcriptItems[]). Either
+        // alone is sufficient — buildSegmentsFromState joins them.
+        const hasTranscript = this.state.transcript.trim().length > 0
+            || this.transcriptItems.length > 0;
+        if (!hasTranscript) missing.push(t?.fieldTranscript || 'Transcript');
 
         if (missing.length > 0) {
             new Notice(
@@ -1216,7 +1228,7 @@ export class MinutesCreationModal extends Modal {
 
         // Strategy 1: Active file IS a transcript file (legacy transcripts folder or meetings folder)
         const transcriptFolder = getTranscriptFullPath(this.plugin.settings);
-        const meetingsFolder = resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings');
+        const meetingsFolder = this.getOutputFolder();
         const isInTranscriptFolder = activeFile.path.startsWith(transcriptFolder);
         const isTranscriptInMeetings = activeFile.path.startsWith(meetingsFolder) &&
             activeFile.basename.includes('— Transcript');
@@ -1284,7 +1296,7 @@ export class MinutesCreationModal extends Modal {
         if (this.state.detectedAudioFiles.length === 0) return;
 
         // Search TWO locations: the meetings output folder (primary) and the legacy transcript folder
-        const meetingsFolder = normalizePath(resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings'));
+        const meetingsFolder = this.getOutputFolder();
         const legacyFolder = normalizePath(getTranscriptFullPath(this.plugin.settings));
 
         const allFiles = this.app.vault.getFiles().filter(f =>
@@ -1901,6 +1913,7 @@ export class MinutesCreationModal extends Modal {
         if (!btn) return;
         const canSubmit = canGenerateMinutes({
             transcript: this.state.transcript,
+            loadedTranscriptCount: this.transcriptItems.length,
             speakerReview: this.state.speakerReview,
         });
         btn.disabled = !canSubmit;
@@ -2235,7 +2248,7 @@ export class MinutesCreationModal extends Modal {
             const { ensureFolderExists, getAvailableFilePath, sanitizeFileName } = await import('../../utils/minutesUtils');
             const datePart = this.state.date || new Date().toISOString().slice(0, 10);
             const safeTitle = sanitizeFileName(this.state.title || 'Meeting');
-            const outputFolder = resolveOutputPath(this.plugin.settings, this.state.outputFolder, 'Meetings');
+            const outputFolder = this.getOutputFolder();
             const meetingFolder = `${outputFolder}/${datePart} ${safeTitle}`;
 
             // Build content with frontmatter linking to audio source for cache lookup.
@@ -2476,33 +2489,58 @@ export class MinutesCreationModal extends Modal {
                 .map((d) => `### ${d.name}\n\n${d.extractedText}`)
                 .join('\n\n---\n\n');
 
-        const buildTranscript = (sectionId: string, includePasted: boolean): string => {
-            const items = this.transcriptItems
-                .filter((t) => t.sectionId === sectionId)
-                .sort((a, b) => a.orderIndex - b.orderIndex)
-                .map((t) => t.content);
-            if (includePasted && this.state.transcript.trim()) {
-                items.unshift(this.state.transcript);
-            }
-            return items.join('\n\n---\n\n');
-        };
-
         const segments: SegmentInput[] = [];
         segments.push({
             sectionId: 'general',
             sectionName: 'General discussion',
-            transcript: buildTranscript('general', true),
+            transcript: this.buildEffectiveTranscript('general'),
             contextDocuments: buildContext('general'),
         });
         for (const topic of this.sectionRegistry.listTopics()) {
             segments.push({
                 sectionId: topic.id,
                 sectionName: topic.name,
-                transcript: buildTranscript(topic.id, false),
+                transcript: this.buildEffectiveTranscript(topic.id),
                 contextDocuments: buildContext(topic.id),
             });
         }
         return segments;
+    }
+
+    /**
+     * Resolve the output folder for this minutes session. Returns the user's
+     * pick verbatim when set (vault-absolute path from FolderScopePickerModal),
+     * or the configured default from settings. NEVER re-routes through
+     * `resolveOutputPath`, which would prepend the plugin's output root and
+     * silently divert files away from the folder the user explicitly chose
+     * (user report 2026-05-29: picked folder ignored, files landed in default).
+     */
+    private getOutputFolder(): string {
+        const picked = (this.state.outputFolder || '').trim();
+        const resolved = picked || getMinutesOutputFullPath(this.plugin.settings);
+        return normalizePath(resolved);
+    }
+
+    /**
+     * Build the effective transcript for a section by joining the paste
+     * textarea (general only) with any file-loaded transcript items
+     * assigned to that section. Used by both the legacy single-segment path
+     * (general only) and the multi-segment path (per section). Items are
+     * ordered by `orderIndex` so multi-file loads stay deterministic.
+     *
+     * The paste textarea is only included for the 'general' section because
+     * topic sections receive their content exclusively from picker-loaded
+     * files (the textarea is treated as a single "general" source).
+     */
+    private buildEffectiveTranscript(sectionId: string): string {
+        const items = this.transcriptItems
+            .filter((t) => t.sectionId === sectionId)
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .map((t) => t.content);
+        if (sectionId === 'general' && this.state.transcript.trim()) {
+            items.unshift(this.state.transcript);
+        }
+        return items.join('\n\n---\n\n');
     }
 
     /**
@@ -2680,13 +2718,14 @@ export class MinutesCreationModal extends Modal {
     }
 
     /**
-     * Open the per-section transcript picker. Reuses DocumentMultiPickerModal
-     * with the section registry + scoped header. Loaded files are extracted
-     * via the document service and added to `transcriptItems[]` with their
-     * assigned sectionId, so each segment's transcript reads from its own
-     * dedicated source instead of the shared general textarea.
+     * Open the transcript multi-picker. Uses DocumentMultiPickerModal with
+     * the scoped file picker header ("Files in this note" first, "All vault
+     * files" toggle for the rest). Selected files are extracted via the
+     * document service and added to `transcriptItems[]`. When topics exist,
+     * each file can be assigned to a specific section; otherwise everything
+     * defaults to 'general' and joins the pasted-text segment.
      */
-    private openTopicTranscriptPicker(): void {
+    private openTranscriptMultiPicker(): void {
         const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
         // In-note files first, full vault still searchable. The picker's
@@ -2791,41 +2830,47 @@ export class MinutesCreationModal extends Modal {
 
     private openDocumentPicker(): void {
         try {
-            // In-note files first, full vault still searchable below.
             const roleFilter = (f: TFile): boolean => {
                 const ext = f.extension.toLowerCase();
                 return ALL_DOCUMENT_EXTENSIONS.includes(ext as typeof ALL_DOCUMENT_EXTENSIONS[number]);
             };
-            const all = this.app.vault.getFiles()
-                .filter(roleFilter)
-                .sort((a, b) => b.stat.mtime - a.stat.mtime);
-            const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-            const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
-            const preferred = all.filter((f) => inNotePaths.has(f.path));
-            const rest = all.filter((f) => !inNotePaths.has(f.path));
-            const files = [...preferred, ...rest];
-
-            if (files.length === 0) {
+            const items = this.buildVaultPickerItems(roleFilter);
+            if (items.length === 0) {
                 new Notice(this.plugin.t.minutes?.noDocumentsFound || 'No documents found in vault');
                 return;
             }
-
-            // Create picker modal using static import
-            const picker = new DocumentPickerModal(this.app, files, (file) => {
-                try {
-                    const result = this.docController.addFromVault(file);
-                    if (!result.added) {
-                        new Notice(result.error || 'Failed to add document');
-                        return;
+            new DocumentMultiPickerModal(this.app, {
+                items,
+                t: this.plugin.t,
+                app: this.app,
+                sourceFile: this.sourceFileAtOpen || undefined,
+                sectionRegistry: this.sectionRegistry,
+                title: 'Add documents',
+                description: 'Files in this note are shown first; switch to "All vault files" to browse the rest.',
+                confirmLabel: 'Attach selected',
+                onConfirm: (selected) => {
+                    let attached = 0;
+                    for (const { item, sectionId } of selected) {
+                        if (!item.file) continue;
+                        try {
+                            const result = this.docController.addFromVault(item.file);
+                            if (!result.added) {
+                                new Notice(result.error || `Failed to add ${item.name}`);
+                                continue;
+                            }
+                            this.docController.setSectionId(item.id, sectionId);
+                            attached++;
+                        } catch (err) {
+                            logger.error('Minutes', 'Document attach failed:', err);
+                            new Notice(`Attach failed: ${err instanceof Error ? err.message : String(err)}`);
+                        }
                     }
-                    new Notice(`Attached ${file.name}`);
-                    this.refreshDocumentsSection();
-                } catch (err) {
-                    logger.error('Minutes', 'Document attach failed:', err);
-                    new Notice(`Attach failed: ${err instanceof Error ? err.message : String(err)}`);
-                }
-            });
-            picker.open();
+                    if (attached > 0) {
+                        new Notice(`Attached ${attached} document${attached === 1 ? '' : 's'}`);
+                        this.refreshDocumentsSection();
+                    }
+                },
+            }).open();
         } catch (error) {
             logger.error('Minutes', 'Failed to open document picker:', error);
             new Notice('Failed to open document picker');
@@ -2833,89 +2878,72 @@ export class MinutesCreationModal extends Modal {
     }
 
     /**
-     * Opens a vault file picker for style reference documents.
-     * Accepts markdown, Office documents (docx, xlsx, pptx, txt, rtf), and PDFs.
-     * Returns the selected TFile or null if cancelled.
+     * Build DocumentItem[] from vault files matching roleFilter. Used by every
+     * scoped vault picker (Add Document, agenda, style reference) so the
+     * DocumentMultiPickerModal's ScopedFilePickerHeader can render the
+     * "Files in this note (N) · All vault files (M)" radio toggle. Sorts
+     * by most-recent-modified so the freshest files surface first within
+     * each scope.
      */
-    private pickStyleReferenceFile(): Promise<TFile | null> {
-        const allowedExtensions = new Set(['md', ...ALL_DOCUMENT_EXTENSIONS]);
-        const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
-        // In-note files first (per user request — "first choice gives the
-        // files in the note, only if user wants more can they search for it").
-        // Full vault remains searchable via fuzzy filter.
+    private buildVaultPickerItems(roleFilter: (f: TFile) => boolean): DocumentItem[] {
         const all = this.app.vault.getFiles()
             .filter(roleFilter)
             .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-        const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
-        const preferred = all.filter((f) => inNotePaths.has(f.path));
-        const rest = all.filter((f) => !inNotePaths.has(f.path));
-        return this.openFilePicker([...preferred, ...rest]);
+        return all.map((f) => ({
+            id: f.path,
+            name: f.name,
+            path: f.path,
+            isExternal: false,
+            file: f,
+            truncationChoice: 'full' as const,
+            charCount: 0,
+            isProcessing: false,
+            sectionId: 'general',
+        }));
     }
 
     /**
-     * Opens a vault file picker for transcript files (markdown only).
-     * Sorted by most recently modified. Returns the selected TFile or null if cancelled.
+     * Opens a vault file picker for style reference documents.
+     * Accepts markdown, Office documents (docx, xlsx, pptx, txt, rtf), and PDFs.
+     * Returns the selected TFile or null if cancelled.
+     *
+     * Routes through DocumentMultiPickerModal in single-select mode so users
+     * get the "Files in this note (N) · All vault files (M)" radio toggle
+     * instead of a flat fuzzy list mixed across the entire vault.
      */
-    private pickTranscriptFile(): Promise<TFile | null> {
-        // Prefer transcript-like files at the top: path under Recordings/Transcripts,
-        // or name/folder containing "transcript"/"recording"/"meeting". Full path
-        // shown via FuzzySuggestModal.getItemText() so users can distinguish.
-        const isTranscriptLike = (f: TFile): boolean => {
-            const haystack = f.path.toLowerCase();
-            return (
-                haystack.includes('transcript') ||
-                haystack.includes('recording') ||
-                haystack.includes('meeting')
-            );
-        };
-
-        // Allow markdown plus all supported document types (pdf, docx, xlsx,
-        // pptx, txt, rtf, csv, xls) so users can load a Word or PDF transcript
-        // directly. Non-md files route through DocumentExtractionService in
-        // loadTranscriptFromFile.
-        const allowedExtensions = new Set<string>(['md', ...ALL_DOCUMENT_EXTENSIONS]);
+    private pickStyleReferenceFile(opts?: { title?: string; description?: string; confirmLabel?: string }): Promise<TFile | null> {
+        const allowedExtensions = new Set(['md', ...ALL_DOCUMENT_EXTENSIONS]);
         const roleFilter = (f: TFile): boolean => allowedExtensions.has(f.extension.toLowerCase());
-        // Sort order (per user request — in-note files first, full vault
-        // searchable below):
-        //   1. In-note + transcript-like (prefix `Recordings/` etc.) — highest priority
-        //   2. In-note other types
-        //   3. Vault transcript-like
-        //   4. Everything else
-        const all = this.app.vault.getFiles()
-            .filter(roleFilter)
-            .sort((a, b) => b.stat.mtime - a.stat.mtime);
-        const inNote = getScopedFiles(this.app, this.sourceFileAtOpen, 'active-note', roleFilter);
-        const inNotePaths = inNote.scope === 'active-note' ? new Set(inNote.files.map((f) => f.path)) : new Set<string>();
-        const tier1 = all.filter((f) => inNotePaths.has(f.path) && isTranscriptLike(f));
-        const tier2 = all.filter((f) => inNotePaths.has(f.path) && !isTranscriptLike(f));
-        const tier3 = all.filter((f) => !inNotePaths.has(f.path) && isTranscriptLike(f));
-        const tier4 = all.filter((f) => !inNotePaths.has(f.path) && !isTranscriptLike(f));
-        return this.openFilePicker([...tier1, ...tier2, ...tier3, ...tier4]);
-    }
-
-    /** Shared file picker helper — opens DocumentPickerModal with settle/close safety */
-    private openFilePicker(files: TFile[]): Promise<TFile | null> {
-        return new Promise((resolve) => {
-            if (files.length === 0) {
-                new Notice(this.plugin.t.messages?.noMdFiles || 'No files found');
-                resolve(null);
-                return;
-            }
+        const items = this.buildVaultPickerItems(roleFilter);
+        if (items.length === 0) {
+            new Notice(this.plugin.t.messages?.noMdFiles || 'No files found');
+            return Promise.resolve(null);
+        }
+        return new Promise<TFile | null>((resolve) => {
             let settled = false;
-            const settle = (file: TFile | null): void => {
+            const settle = (v: TFile | null): void => {
                 if (settled) return;
                 settled = true;
-                resolve(file);
+                resolve(v);
             };
-            const picker = new DocumentPickerModal(this.app, files, (file) => {
-                settle(file);
+            const picker = new DocumentMultiPickerModal(this.app, {
+                items,
+                t: this.plugin.t,
+                app: this.app,
+                sourceFile: this.sourceFileAtOpen || undefined,
+                singleSelect: true,
+                title: opts?.title || 'Pick a file from the vault',
+                description: opts?.description
+                    || 'Files in this note are shown first; switch to "All vault files" to browse the rest.',
+                confirmLabel: opts?.confirmLabel || 'Use this file',
+                onConfirm: (selected) => {
+                    const file = selected[0]?.item.file ?? null;
+                    settle(file);
+                },
             });
             const origClose = picker.onClose.bind(picker);
-            picker.onClose = () => {
+            picker.onClose = (): void => {
                 origClose();
-                // Defer: Obsidian's SuggestModal calls close() BEFORE onChooseItem(),
-                // so we must wait a tick to let onSelect resolve first.
                 setTimeout(() => settle(null), 50);
             };
             picker.open();
@@ -3108,6 +3136,15 @@ export class MinutesCreationModal extends Modal {
         banner.addClass('ai-organiser-block');
         banner.textContent = `\u2705 File loaded: ${display}`;
         logger.debug('Minutes', 'Status banner updated:', `${display} parentNode: ${banner.parentNode?.nodeName}`);
+    }
+
+    /**
+     * Renders a banner with arbitrary status text (no "File loaded:" prefix).
+     * Used for multi-file summaries like "3 transcripts loaded".
+     */
+    private showStatusBannerText(banner: HTMLElement, text: string): void {
+        banner.addClass('ai-organiser-block');
+        banner.textContent = `\u2705 ${text}`;
     }
 
     private truncateFilename(filename: string, maxLength: number): string {
@@ -3970,25 +4007,65 @@ export class MinutesCreationModal extends Modal {
                 : combinedContent;
             const fullPrompt = this.dictionaryService.buildExtractionPrompt(truncatedContent);
 
-            // Call LLM
-            const response = await withBusyIndicator(this.plugin, () => this.plugin.llmService.summarizeText(fullPrompt));
-            if (!response.success || !response.content) {
-                throw new Error(response.error || 'Extraction failed');
+            // Dictionary extraction is a Haiku-level structured-output task —
+            // shallow proper-noun / acronym pull with strict JSON output. Route
+            // to the provider's fast tier (Haiku for Claude, Flash for Gemini,
+            // gpt-mini for OpenAI) when available; fall back to the main model
+            // on parse failure ("escalate to Sonnet if things are unclear",
+            // per user request 2026-05-29). Local LLM has no fast tier — just
+            // uses its configured model.
+            const settings = this.plugin.settings;
+            const useFastTier = settings.serviceType === 'cloud';
+            const mainModel = settings.cloudModel || '';
+            const fastModel = useFastTier
+                ? resolveSlideTierModel(settings.cloudServiceType, 'fast', mainModel)
+                : undefined;
+            const baseOpts: SummarizeOptions = {
+                disableThinking: true,
+                maxTokens: 4096,
+                timeoutMs: 120_000,
+            };
+
+            const callLLM = async (modelOverride?: string): Promise<{ success: boolean; content?: string; error?: string }> => {
+                const opts: SummarizeOptions = modelOverride
+                    ? { ...baseOpts, modelOverride }
+                    : baseOpts;
+                return this.plugin.llmService.summarizeText(fullPrompt, opts);
+            };
+
+            // Attempt 1 — fast tier (or main if no fast tier available)
+            const firstModelLabel = fastModel && fastModel !== mainModel ? 'fast model' : 'main model';
+            logger.debug('Minutes', `Dictionary extraction attempt 1 via ${firstModelLabel}: ${fastModel || mainModel || 'default'}`);
+            let response = await withBusyIndicator(this.plugin, () => callLLM(fastModel));
+            let parseResult = response.success && response.content
+                ? this.dictionaryService.parseExtractionResponse(response.content)
+                : { success: false, error: response.error || 'No response from model' } as ReturnType<typeof this.dictionaryService.parseExtractionResponse>;
+            logger.debug('Minutes', `Dictionary parse (attempt 1) success=${parseResult.success} entries=${parseResult.entries?.length ?? 0} err=${parseResult.error || ''}`);
+
+            // Attempt 2 — escalate to main model when fast tier failed to
+            // produce parseable JSON OR returned an empty array. The user
+            // explicitly asked for "Haiku-level but escalate to Sonnet if
+            // things are unclear, and certainly should not fail silently."
+            const fastFailed = !parseResult.success
+                || !parseResult.entries
+                || parseResult.entries.length === 0;
+            if (fastFailed && fastModel && fastModel !== mainModel) {
+                this.state.dictionaryExtractionProgress = (t?.dictionaryExtracting || 'Extracting terms...') + ' (retrying with main model)';
+                this.refreshDictionarySection();
+                logger.debug('Minutes', `Dictionary extraction attempt 2 escalating to main model: ${mainModel || 'default'}`);
+                response = await withBusyIndicator(this.plugin, () => callLLM(undefined));
+                parseResult = response.success && response.content
+                    ? this.dictionaryService.parseExtractionResponse(response.content)
+                    : { success: false, error: response.error || 'No response from model' } as ReturnType<typeof this.dictionaryService.parseExtractionResponse>;
+                logger.debug('Minutes', `Dictionary parse (attempt 2) success=${parseResult.success} entries=${parseResult.entries?.length ?? 0} err=${parseResult.error || ''}`);
             }
-
-            logger.debug('Minutes', `Dictionary extraction - input chars: ${truncatedContent.length} response length: ${response.content.length}`);
-            logger.debug('Minutes', 'Dictionary extraction response preview:', response.content.substring(0, 1000));
-
-            // Parse response
-            const parseResult = this.dictionaryService.parseExtractionResponse(response.content);
-            logger.debug('Minutes', `Dictionary parse result: ${parseResult.success} entries: ${parseResult.entries?.length} error: ${parseResult.error}`);
 
             if (!parseResult.success || !parseResult.entries) {
                 throw new Error(parseResult.error || 'Failed to parse extracted terms');
             }
 
             if (parseResult.entries.length === 0) {
-                new Notice('No terms found in the documents. Check the developer console for details.', 5000);
+                new Notice('No terms found in the documents — model returned an empty list. Try with different documents or check the developer console.', 6000);
                 return;
             }
 
@@ -4229,31 +4306,3 @@ export class MinutesCreationModal extends Modal {
     }
 }
 
-/**
- * Document picker modal for selecting vault documents
- */
-class DocumentPickerModal extends FuzzySuggestModal<TFile> {
-    private readonly files: TFile[];
-    private readonly onSelect: (file: TFile) => void;
-
-    constructor(app: App, files: TFile[], onSelect: (file: TFile) => void) {
-        super(app);
-        this.files = files;
-        this.onSelect = onSelect;
-    }
-
-    getItems(): TFile[] {
-        return this.files;
-    }
-
-    getItemText(file: TFile): string {
-        return file.path;
-    }
-
-    onChooseItem(file: TFile): void {
-        this.onSelect(file);
-        // Do NOT call this.close() here — Obsidian's SuggestModal already
-        // closes the modal after onChooseItem(). Calling close() again would
-        // trigger onClose BEFORE onSelect has resolved, racing the Promise.
-    }
-}

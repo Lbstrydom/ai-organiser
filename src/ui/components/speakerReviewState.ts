@@ -141,12 +141,21 @@ export type SpeakerReviewState =
  * derived state — no flags read or written. The CTA blocks only while
  * speaker review is `pending` or `failed`; every other state means the user
  * has either confirmed, explicitly skipped, or doesn't need to review.
+ *
+ * Transcript content can come from either source:
+ *  - `transcript`  — pasted/typed text in the textarea
+ *  - `loadedTranscriptCount` — files loaded via the multi-picker into
+ *    `transcriptItems[]` (assigned to General or topic sections)
+ * Either alone is sufficient; the modal joins them at generation time.
  */
 export function canGenerateMinutes(args: {
     transcript: string;
+    loadedTranscriptCount?: number;
     speakerReview: SpeakerReviewState;
 }): boolean {
-    if (!args.transcript.trim()) return false;
+    const hasPasted = args.transcript.trim().length > 0;
+    const hasLoaded = (args.loadedTranscriptCount ?? 0) > 0;
+    if (!hasPasted && !hasLoaded) return false;
     const k = args.speakerReview.kind;
     return k === 'confirmed' || k === 'skipped' || k === 'not-required';
 }

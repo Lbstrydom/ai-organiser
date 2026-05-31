@@ -106,6 +106,7 @@ export class TranscribeOnlyModal extends Modal {
         // AI-Organiser/Imports/ to stay consistent with the Minutes flow.
         this.coordinator = new AudioAttachCoordinator(this.app, {
             importTargetFolder: 'AI-Organiser/Imports',
+            translations: this.plugin.t,
         });
 
         // Audio attach trio.
