@@ -148,10 +148,26 @@ export class DocumentExtractionService {
     private async loadOfficeParser(): Promise<{ parseOffice: (input: ArrayBuffer | string) => Promise<{ toText: () => string }> } | null> {
         try {
             const officeParser = await import('officeparser');
+            // Defensive: if the dynamic-import returned a half-initialised
+            // module (esbuild __commonJS caches exports after a thrown
+            // factory), `parseOffice` will be undefined and the next caller
+            // would crash with "n.parseOffice is not a function". Surface
+            // that as a clean null instead.
+            const candidate = officeParser as { parseOffice?: unknown };
+            if (typeof candidate.parseOffice !== 'function') {
+                logger.warn('Core', 'officeparser loaded but parseOffice is not a function', {
+                    exportKeys: Object.keys(officeParser ?? {}),
+                });
+                return null;
+            }
             return officeParser;
-        } catch {
-            // Library not installed or not available
-            logger.warn('Core', 'officeparser not available');
+        } catch (err) {
+            // Library not installed or not available — log the underlying
+            // reason so we can tell whether it's a missing dep, a bundling
+            // failure, or a runtime throw inside the lib's top-level code.
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            const stack = err instanceof Error ? err.stack : undefined;
+            logger.warn('Core', `officeparser not available: ${errorMessage}`, { stack });
             return null;
         }
     }

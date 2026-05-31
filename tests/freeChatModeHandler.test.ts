@@ -129,3 +129,84 @@ describe('attachment budget — getMaxContentCharsForModel', () => {
         }
     });
 });
+
+// ── buildPrompt: stable/volatile split (prompt caching) ───────────────────────
+
+describe('FreeChatModeHandler.buildPrompt — stable/volatile split', () => {
+    it('returns prompt only when no stable context exists (no project, no memory)', async () => {
+        const handler = new FreeChatModeHandler(makePlugin());
+        const result = await handler.buildPrompt('what is up?', '', makeContext());
+        expect(result.prompt).toContain('<question>');
+        expect(result.prompt).toContain('what is up?');
+        expect(result.stablePrefix).toBeUndefined();
+    });
+
+    it('emits stablePrefix when global memory is present, with volatile-only prompt', async () => {
+        const handler = new FreeChatModeHandler(makePlugin());
+        (handler as unknown as { globalMemory: string[] }).globalMemory = [
+            'User prefers concise answers',
+            'User works in TypeScript',
+        ];
+
+        const result = await handler.buildPrompt('hello', '', makeContext());
+
+        expect(result.stablePrefix).toBeDefined();
+        expect(result.stablePrefix).toContain('<auto_memory_instruction>');
+        expect(result.stablePrefix).toContain('<global_memory>');
+        expect(result.stablePrefix).toContain('User prefers concise answers');
+        // Stable bits must NOT leak into the volatile prompt
+        expect(result.prompt).not.toContain('<auto_memory_instruction>');
+        expect(result.prompt).not.toContain('<global_memory>');
+        // Volatile portion still contains the question
+        expect(result.prompt).toContain('<question>');
+        expect(result.prompt).toContain('hello');
+    });
+
+    it('history goes into volatile prompt, NOT stable prefix', async () => {
+        const handler = new FreeChatModeHandler(makePlugin());
+        (handler as unknown as { globalMemory: string[] }).globalMemory = ['fact one'];
+
+        const result = await handler.buildPrompt(
+            'follow-up question',
+            'user: previous turn\nassistant: previous response',
+            makeContext(),
+        );
+
+        expect(result.stablePrefix).toBeDefined();
+        expect(result.stablePrefix).not.toContain('<conversation_history>');
+        expect(result.prompt).toContain('<conversation_history>');
+        expect(result.prompt).toContain('previous turn');
+    });
+
+    it('two turns with same stable context produce byte-identical stablePrefix (cache key)', async () => {
+        const handler = new FreeChatModeHandler(makePlugin());
+        (handler as unknown as { globalMemory: string[] }).globalMemory = [
+            'Stable fact A',
+            'Stable fact B',
+        ];
+
+        const turn1 = await handler.buildPrompt('first question', '', makeContext());
+        const turn2 = await handler.buildPrompt(
+            'second question',
+            'user: first question\nassistant: first answer',
+            makeContext(),
+        );
+
+        // This is the entire point of the split: the prefix must be IDENTICAL
+        // across turns so the Anthropic cache hashes match. Different
+        // questions and different conversation histories live in `prompt`.
+        expect(turn1.stablePrefix).toEqual(turn2.stablePrefix);
+        expect(turn1.prompt).not.toEqual(turn2.prompt);
+    });
+
+    it('adding a memory between turns busts the prefix (expected cache invalidation)', async () => {
+        const handler = new FreeChatModeHandler(makePlugin());
+        (handler as unknown as { globalMemory: string[] }).globalMemory = ['fact one'];
+
+        const turn1 = await handler.buildPrompt('q1', '', makeContext());
+        (handler as unknown as { globalMemory: string[] }).globalMemory.push('fact two');
+        const turn2 = await handler.buildPrompt('q2', '', makeContext());
+
+        expect(turn1.stablePrefix).not.toEqual(turn2.stablePrefix);
+    });
+});

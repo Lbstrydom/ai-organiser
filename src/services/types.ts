@@ -105,6 +105,22 @@ export interface SummarizeOptions {
     modelOverride?: string;
     /** AbortSignal for cooperative cancellation. */
     signal?: AbortSignal;
+    /**
+     * Optional stable prefix prepended to the prompt. When provided and large
+     * enough to clear Anthropic's minimum cacheable size, the Claude adapter
+     * emits this as a separate `system` content block with
+     * `cache_control: { type: 'ephemeral' }` so repeated calls with the same
+     * prefix read at 0.1x instead of writing 1x. Non-Claude providers (and
+     * Claude calls below the cache threshold) silently concatenate it onto
+     * the prompt — callers don't need to branch.
+     *
+     * Use this for any flow that fires many calls within ~5 minutes sharing
+     * an identical leading instruction block (chunked summarization, minutes
+     * chunk extraction, batch tagging, multi-turn chat system + project
+     * context). The caller MUST pass volatile content via `prompt` and stable
+     * content via `stablePrefix` — never embed the prefix inside `prompt`.
+     */
+    stablePrefix?: string;
 }
 
 export interface SummarizableLLMService extends LLMService {

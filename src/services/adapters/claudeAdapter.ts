@@ -3,6 +3,7 @@ import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import * as endpoints from './cloudEndpoints.json';
 import { SYSTEM_PROMPT } from '../../utils/constants';
 import { claudeSupportsAdaptiveThinking } from './modelCapabilities';
+import { logger } from '../../utils/logger';
 
 /** Thin export so existing call sites don't change — capability logic lives in
  *  modelCapabilities.ts, pattern-matched on family+version so new releases
@@ -144,12 +145,37 @@ export class ClaudeAdapter extends BaseAdapter {
     }
 
     /**
+     * Logs Claude usage including cache fields. No-op outside debug mode.
+     * Phase-1 instrumentation for prompt-caching rollout — emits per-call
+     * token counts so we can see prefix sizes, retry patterns, and (once
+     * cache_control markers are added) actual hit rates without a metrics
+     * pipeline.
+     */
+    private logCacheUsage(usage: unknown, source: 'response' | 'stream-start'): void {
+        const u = usage as {
+            input_tokens?: number;
+            cache_creation_input_tokens?: number;
+            cache_read_input_tokens?: number;
+            output_tokens?: number;
+        } | null | undefined;
+        if (!u) return;
+        logger.debug(
+            'Cache',
+            `claude ${source} model=${this.config.modelName ?? '?'} in=${u.input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0} out=${u.output_tokens ?? 0}`,
+        );
+    }
+
+    /**
      * Extracts the main text content from a Claude API response.
      * Handles both standard responses (content[0].text) and adaptive thinking
      * responses where content array contains thinking blocks followed by text blocks.
      */
     public parseResponseContent(response: unknown): string {
-        const responseObj = response as { content?: Array<{ type?: string; text?: string }> };
+        const responseObj = response as {
+            content?: Array<{ type?: string; text?: string }>;
+            usage?: unknown;
+        };
+        this.logCacheUsage(responseObj?.usage, 'response');
         if (!responseObj?.content || !Array.isArray(responseObj.content)) {
             return '';
         }
@@ -185,12 +211,18 @@ export class ClaudeAdapter extends BaseAdapter {
     /**
      * Claude SSE uses event types: content_block_delta with text_delta.
      * With adaptive thinking, also receives thinking_delta events — skip those.
+     * Also intercepts `message_start` to log cache usage (Anthropic emits
+     * cache_read / cache_creation token counts only on this event for streams).
      */
     parseStreamingChunk(line: string): string | null {
         if (!line.startsWith('data: ')) return null;
         const data = line.slice(6).trim();
         try {
             const parsed = JSON.parse(data);
+            if (parsed.type === 'message_start') {
+                this.logCacheUsage(parsed.message?.usage, 'stream-start');
+                return null;
+            }
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
                 return parsed.delta.text ?? null;
             }

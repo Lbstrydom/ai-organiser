@@ -868,7 +868,11 @@ export class UnifiedChatModal extends Modal {
                 });
             }
 
-            const response = await summarizeText(pluginContext(this.plugin), result.prompt);
+            const response = await summarizeText(
+                pluginContext(this.plugin),
+                result.prompt,
+                result.stablePrefix ? { stablePrefix: result.stablePrefix } : undefined,
+            );
 
             if (isStaleGeneration(gen, this.requestGeneration)) return;
 

@@ -169,13 +169,25 @@ This was a kickoff meeting.
     });
 
     describe('Non-chunked path', () => {
+        // After the prompt-caching split (Phase 2c, 2026-05-31), the stable
+        // header (style/language/dictionary/context instructions) is passed via
+        // `options.stablePrefix` so the Claude adapter can emit a cache_control
+        // marker; the volatile transcript JSON stays in the prompt arg.
+        // Tests that previously inspected only `prompt` now look at the union
+        // of `prompt + (options.stablePrefix ?? '')`.
+        const getCallContent = (callIndex = 0): string => {
+            const call = mockLLMService.summarizeText.mock.calls[callIndex];
+            const prompt = call[0] as string;
+            const stablePrefix = (call[1] as { stablePrefix?: string } | undefined)?.stablePrefix ?? '';
+            return `${stablePrefix}\n\n${prompt}`;
+        };
+
         describe('Language fallback (3-level)', () => {
             it('uses valid override language when provided', async () => {
                 const input = { ...baseInput, languageOverride: 'zh' };
                 await service.generateMinutes(input);
 
-                const prompt = mockLLMService.summarizeText.mock.calls[0][0];
-                expect(prompt).toContain('Chinese (Simplified)');
+                expect(getCallContent()).toContain('Chinese (Simplified)');
             });
 
             it('falls back to settings.summaryLanguage when override is invalid', async () => {
@@ -183,8 +195,7 @@ This was a kickoff meeting.
                 const input = { ...baseInput, languageOverride: '' }; // Empty override
                 await service.generateMinutes(input);
 
-                const prompt = mockLLMService.summarizeText.mock.calls[0][0];
-                expect(prompt).toContain('French');
+                expect(getCallContent()).toContain('French');
             });
 
             it('defaults to American English when both override and settings are invalid', async () => {
@@ -192,8 +203,7 @@ This was a kickoff meeting.
                 const input = { ...baseInput, languageOverride: '' };
                 await service.generateMinutes(input);
 
-                const prompt = mockLLMService.summarizeText.mock.calls[0][0];
-                expect(prompt).toContain('American English');
+                expect(getCallContent()).toContain('American English');
             });
         });
 
@@ -204,9 +214,9 @@ This was a kickoff meeting.
             };
             await service.generateMinutes(input);
 
-            const prompt = mockLLMService.summarizeText.mock.calls[0][0];
-            expect(prompt).toContain('USER INSTRUCTIONS');
-            expect(prompt).toContain('Use bullet points only.');
+            const content = getCallContent();
+            expect(content).toContain('USER INSTRUCTIONS');
+            expect(content).toContain('Use bullet points only.');
         });
 
         it('writes file to vault with expected path and content structure', async () => {
@@ -678,10 +688,14 @@ This was a kickoff meeting.
                 const input = { ...baseInput, transcript: 'A'.repeat(CHUNK_TOKEN_LIMIT * 4 + 1000) };
                 await service.generateMinutes(input);
 
-                // Call index 5 is the intermediate merge (after 5 extractions)
-                const intermediateCall = mockLLMService.summarizeText.mock.calls[5][0];
-                expect(intermediateCall).toContain('merging meeting extract batches');
-                expect(intermediateCall).toContain('Extracts to merge');
+                // Call index 5 is the intermediate merge (after 5 extractions).
+                // Phase 2c split: merge header (stable) → options.stablePrefix;
+                // batch JSON (volatile) → prompt arg. Combine for assertion.
+                const mergeCall = mockLLMService.summarizeText.mock.calls[5];
+                const mergePrompt = mergeCall[0] as string;
+                const mergeStable = (mergeCall[1] as { stablePrefix?: string } | undefined)?.stablePrefix ?? '';
+                expect(`${mergeStable}\n\n${mergePrompt}`).toContain('merging meeting extract batches');
+                expect(mergePrompt).toContain('Extracts to merge');
             });
 
             it('LLM failure in intermediate merge propagates error', async () => {

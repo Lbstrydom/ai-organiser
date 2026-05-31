@@ -204,20 +204,28 @@ export class FreeChatModeHandler implements ChatModeHandler {
         const { provider, model } = this.resolveProviderAndModel(ctx);
         const totalBudget = getMaxContentCharsForModel(provider, model);
 
-        const parts: string[] = [];
+        // Stable parts: identical across turns within a session (instructions,
+        // memory, project context, attached files). Eligible for prompt
+        // caching — repeat turns read at 0.1x instead of writing 1x.
+        const stableParts: string[] = [];
+        // Volatile parts: change per turn (conversation history grows,
+        // RAG retrieval depends on query, user question). MUST sit after
+        // the cacheable prefix or they would bust the cache hash.
+        const volatileParts: string[] = [];
         let remaining = totalBudget;
 
+        // ─── STABLE ──────────────────────────────────────────────────────
         // 1. Auto-memory instruction (emitted whenever memory can be stored)
         if (this.globalMemory.length > 0 || this.projectConfig) {
             const memInstruction = `<auto_memory_instruction>\nWhen you learn an important fact, preference, or decision during this conversation, output a [MEMORY: <fact>] marker on its own line.\n</auto_memory_instruction>`;
-            parts.push(memInstruction);
+            stableParts.push(memInstruction);
             remaining -= memInstruction.length;
         }
 
         // Global memory
         if (this.globalMemory.length > 0) {
             const block = `<global_memory>\n${this.globalMemory.map(m => `- ${m}`).join('\n')}\n</global_memory>`;
-            parts.push(block);
+            stableParts.push(block);
             remaining -= block.length;
         }
 
@@ -227,7 +235,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
                 const instrBudget = Math.floor(totalBudget * BUDGET_FRACTION_PROJECT_INSTRUCTIONS);
                 const truncated = this.projectConfig.instructions.slice(0, instrBudget);
                 const block = `<project_instructions>\n${truncated}\n</project_instructions>`;
-                parts.push(block);
+                stableParts.push(block);
                 remaining -= block.length;
             }
 
@@ -236,7 +244,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
                 let memText = this.projectConfig.memory.map(m => `- ${m}`).join('\n');
                 memText = memText.slice(0, memBudget);
                 const block = `<project_memory>\n${memText}\n</project_memory>`;
-                parts.push(block);
+                stableParts.push(block);
                 remaining -= block.length;
             }
 
@@ -245,21 +253,45 @@ export class FreeChatModeHandler implements ChatModeHandler {
                 const pinnedContent = await this.projectService?.readPinnedFiles(this.projectConfig, pinnedBudget) ?? '';
                 if (pinnedContent) {
                     const block = `<project_files>\n${pinnedContent}\n</project_files>`;
-                    parts.push(block);
+                    stableParts.push(block);
                     remaining -= block.length;
                 }
             }
         }
 
-        // 3. Conversation history
+        // 3. Flat attachments (non-indexed, included) — re-extract if text is missing (resumed session).
+        // Moved ahead of conversation_history so the stable prefix stays contiguous.
+        const flatAttsAll = this.attachments.filter(
+            a => !(a as IndexedAttachmentEntry).indexService && a.included
+        );
+        for (const att of flatAttsAll) {
+            if (!att.extractedText) {
+                await this.tryReextractAttachment(att);
+            }
+        }
+        const flatAtts = flatAttsAll.filter(a => a.extractedText);
+        if (flatAtts.length > 0 && remaining > 0) {
+            const flatBudget = Math.floor(totalBudget * BUDGET_FRACTION_FLAT_ATT);
+            const perDocBudget = Math.floor(flatBudget / flatAtts.length);
+            const attBlocks = flatAtts.map(a => {
+                const text = a.extractedText.slice(0, perDocBudget);
+                return `--- ${a.name} ---\n${text}`;
+            });
+            const block = `<attachments>\n${attBlocks.join('\n\n')}\n</attachments>`;
+            stableParts.push(block);
+            remaining -= block.length;
+        }
+
+        // ─── VOLATILE ────────────────────────────────────────────────────
+        // 4. Conversation history
         const historyBudget = Math.floor(totalBudget * BUDGET_FRACTION_HISTORY);
         if (history) {
             const truncatedHistory = history.slice(0, historyBudget);
-            parts.push(`<conversation_history>\n${truncatedHistory}\n</conversation_history>`);
+            volatileParts.push(`<conversation_history>\n${truncatedHistory}\n</conversation_history>`);
             remaining -= truncatedHistory.length;
         }
 
-        // 4. Indexed attachment RAG
+        // 5. Indexed attachment RAG — retrieval depends on the query
         const indexedAtts = this.attachments.filter(
             a => (a as IndexedAttachmentEntry).indexState === 'indexed' && a.included
         ) as IndexedAttachmentEntry[];
@@ -278,38 +310,26 @@ export class FreeChatModeHandler implements ChatModeHandler {
             }
             if (contexts.length > 0) {
                 const block = `<attachment_context>\n${contexts.join('\n\n')}\n</attachment_context>`;
-                parts.push(block);
+                volatileParts.push(block);
                 remaining -= block.length;
             }
         }
 
-        // 5. Flat attachments (non-indexed, included) — re-extract if text is missing (resumed session)
-        const flatAttsAll = this.attachments.filter(
-            a => !(a as IndexedAttachmentEntry).indexService && a.included
-        );
-        for (const att of flatAttsAll) {
-            if (!att.extractedText) {
-                await this.tryReextractAttachment(att);
-            }
-        }
-        const flatAtts = flatAttsAll.filter(a => a.extractedText);
-        if (flatAtts.length > 0 && remaining > 0) {
-            const flatBudget = Math.floor(totalBudget * BUDGET_FRACTION_FLAT_ATT);
-            const perDocBudget = Math.floor(flatBudget / flatAtts.length);
-            const attBlocks = flatAtts.map(a => {
-                const text = a.extractedText.slice(0, perDocBudget);
-                return `--- ${a.name} ---\n${text}`;
-            });
-            const block = `<attachments>\n${attBlocks.join('\n\n')}\n</attachments>`;
-            parts.push(block);
-            remaining -= block.length;
-        }
-
         // 6. The query
-        parts.push(`<question>\n${query}\n</question>`);
+        volatileParts.push(`<question>\n${query}\n</question>`);
 
-        const prompt = parts.join('\n\n');
-        return { prompt };
+        const stable = stableParts.join('\n\n');
+        const volatile = volatileParts.join('\n\n');
+
+        // Split stable from volatile so the cloud service can apply
+        // cache_control to the stable block (Claude only — others
+        // concatenate transparently). Cloud service also falls back to
+        // concatenation when the stable prefix is below Anthropic's
+        // per-model minimum, so emitting it unconditionally is safe.
+        if (stable.length > 0) {
+            return { prompt: volatile, stablePrefix: stable };
+        }
+        return { prompt: volatile };
     }
 
     getActionDescriptors(_t: Translations): ActionDescriptor[] {

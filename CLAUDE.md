@@ -2525,6 +2525,98 @@ narrate-note command
 
 **Plan**: [docs/plans/read-this-note-llm-enhancement.md](docs/plans/read-this-note-llm-enhancement.md) — 3 GPT-5.4 audit rounds + 2 Gemini final-review rounds (27 plan findings) + 1 audit-code round (7 in-scope post-impl fixes), all addressed.
 
+## Anthropic Prompt Caching (Phases 1/2/2c/3)
+
+**Status**: ✅ Implemented (May 2026) — Claude-only, opt-in per call
+
+### Overview
+
+The Claude adapter emits `cache_control: {type: 'ephemeral'}` markers on stable prompt prefixes so repeat calls within the 5-minute TTL read prefix tokens at 0.1× the input cost instead of 1× (Anthropic's 90% cache-read discount). Cache writes cost 1.25× — we only emit the marker when the prefix clears the per-model minimum (4096 chars for Sonnet/Opus, 8192 for Haiku) so we never pay the write penalty for a prefix Anthropic would silently refuse to cache.
+
+### Architecture
+
+**Provider-neutral API** ([src/services/types.ts:96-127](src/services/types.ts)):
+- `SummarizeOptions.stablePrefix?: string` — optional cacheable prefix
+- Callers pass volatile content via `prompt`, stable content via `stablePrefix`
+- Non-Claude providers (Gemini, OpenAI) silently concatenate via `effectivePrompt` in [src/services/cloudService.ts:518-595](src/services/cloudService.ts) — no caller-side branching needed
+
+**Claude-specific shaping** ([src/services/cloudService.ts:632-720](src/services/cloudService.ts)):
+- `buildClaudeSystemAndUser(systemPrompt, prompt, modelName, stablePrefix)` helper returns `{ systemField, userContent }`
+- Above threshold: `systemField = [{type:text, boilerplate}, {type:text, stablePrefix, cache_control:{type:'ephemeral'}}]`, `userContent = prompt`
+- Below threshold OR no stablePrefix: `systemField = string boilerplate`, `userContent = stablePrefix ? `${stablePrefix}\n\n${prompt}` : prompt`
+- Composes with adaptive thinking — both can be present in the same body
+
+**Cache usage instrumentation** ([src/services/adapters/claudeAdapter.ts:151-167, 206-225](src/services/adapters/claudeAdapter.ts)):
+- `logCacheUsage(usage, source)` called from `parseResponseContent` (non-streaming) and `parseStreamingChunk` on `message_start`
+- Format: `[Cache] claude {response|stream-start} model=X in=N cache_write=N cache_read=N out=N`
+- Routes through `logger.debug` — silent in production, visible when `debugMode` is on
+- Foundation for measuring hit rates without external metrics pipeline
+
+### Wired call sites
+
+| Site | File | Stable header | Volatile payload |
+|---|---|---|---|
+| Minutes chunked extraction (Phase 2) | [minutesService.ts:587-606](src/services/minutesService.ts) | `buildChunkExtractionPrompt({dictionary, agenda, participants, contextSummary, ...})` | per-chunk transcript |
+| Minutes single-call (Phase 2c) | [minutesService.ts:302-336](src/services/minutesService.ts) | `getStyleSystemPrompt({...})` | `buildMinutesUserPrompt({...meta, transcript, ...})` JSON |
+| Minutes consolidation (Phase 2c) | [minutesService.ts:672-700](src/services/minutesService.ts) | `buildStyleConsolidationPrompt({...})` | `JSON.stringify(consolidationPayload)` |
+| Minutes intermediate-merge (Phase 2c) | [minutesService.ts:909-919](src/services/minutesService.ts) | `buildIntermediateMergePrompt(mergeContext)` | `Extracts to merge:\n${JSON.stringify(batch)}` |
+| Free Chat (Phase 3) | [FreeChatModeHandler.ts:203-333](src/ui/chat/FreeChatModeHandler.ts) | auto-memory instruction + global memory + project instructions/memory/files + flat attachments | conversation history + RAG retrieval + question |
+
+### Where caching pays off
+
+- **Chunked minutes** (90-min meeting → 12+ sequential calls): 1 write + 11 reads = ~80% prefix-token cost reduction
+- **Truncation retries** (`retryIfTruncated` re-fires with same prefix + larger maxTokens): write on attempt 1, read on attempts 2-3
+- **Regeneration** (user re-runs minutes for same meeting after tweaking persona / re-running on Low-coverage warning): cache_read across runs within TTL
+- **Multi-turn chat** (project mode with substantial instructions + attached files): write on turn 1, read on turns 2-N. TTL refreshes on every hit
+- **Hierarchical merge** (multiple batches within one reduction pass): same merge header reused across batches
+
+### Phase 3 — chat stable/volatile split discipline
+
+Free Chat reorganised `buildPrompt` ([FreeChatModeHandler.ts:203-333](src/ui/chat/FreeChatModeHandler.ts)) so stable parts collect into one contiguous prefix, volatile parts into a separate suffix:
+
+```
+STABLE (eligible for cache_control):
+  1. auto_memory_instruction          ← only when memory exists
+  2. global_memory
+  3. project_instructions
+  4. project_memory
+  5. project_files (pinned)
+  6. flat attachments                  ← moved AHEAD of history to stay contiguous
+
+VOLATILE (must come AFTER cache marker):
+  7. conversation_history              ← grows per turn
+  8. attachment_context (RAG retrieval) ← varies per query
+  9. question                          ← the new user input
+```
+
+`SendResult.stablePrefix?: string` ([ChatModeHandler.ts:110-133](src/ui/chat/ChatModeHandler.ts)) carries the split; `UnifiedChatModal.processChatRequest` forwards it to `summarizeText` options when present.
+
+### officeparser bundling fix (related)
+
+Phase 2 work surfaced that officeparser was silently broken in the production bundle (cascade: `util.inherits is not a function` → `file-type` chain throws → esbuild's `__commonJS` caches half-initialised exports → all subsequent calls return broken module with missing `parseOffice`). Root cause: the original `electronBuiltinShimPlugin` in [esbuild.config.mjs:42-60](esbuild.config.mjs) wrote literal `require('util')` inside the shim, which esbuild's static scanner rewrote to point at the shim itself — infinite cycle, esbuild returned `{}`. Fixed by resolving require indirectly via `window.require || globalThis.require || null` so esbuild can't see the call site. Also added [src/stubs/tesseractNoop.cjs](src/stubs/tesseractNoop.cjs) and aliased `'tesseract.js' → stub` so officeparser's eager `require('tesseract.js')` (for OCR support we never use) doesn't pull in Web Worker spawning code that fails to bundle for Electron renderer. Diagnostic logging in [documentExtractionService.ts:148-172](src/services/documentExtractionService.ts) surfaces the actual exception on future officeparser load failures + defensively returns null when `parseOffice` is missing.
+
+### Verifying caching is working
+
+1. Enable Debug mode (Settings → AI Organiser → AI provider)
+2. Open Dev Tools (Ctrl+Shift+I), filter Console by `Cache`
+3. Run any Claude-routed flow that has a long stable prefix (Minutes with a loaded dictionary, chat with a project + memory + attached doc)
+4. Look for `cache_write=N` on first call, `cache_read=N` on subsequent calls within 5 min
+5. If `cache_write` stays 0: prefix is below the threshold (4096 chars for Sonnet/Opus, 8192 for Haiku) — add more stable context
+6. If writes happen but `cache_read` stays 0 between calls: something dynamic is busting the prefix (timestamp? date? user-id?) — diff two consecutive prefixes
+
+### Tests (25 new + 5 modified)
+
+- [tests/claudeAdapterCacheUsage.test.ts](tests/claudeAdapterCacheUsage.test.ts) (10 tests): `logCacheUsage` fires correctly on both code paths, silent when `debugMode` off, graceful when `usage` field missing or response is null/undefined
+- [tests/claudePromptCaching.test.ts](tests/claudePromptCaching.test.ts) (10 tests): body shape transformation, per-model thresholds (Sonnet 4096 / Haiku 8192), idempotency (same prefix → byte-identical system field across calls), no marker for non-Claude providers, composes with adaptive thinking
+- `tests/freeChatModeHandler.test.ts` (5 new): stable/volatile split, prefix invariance across turns with same context, prefix-busting when memory is added between turns
+- `tests/minutesService.test.ts` (5 updated): assertions migrated from `prompt`-only to combined `prompt + options.stablePrefix` (style instructions moved out of user message into stablePrefix)
+
+### Key patterns
+- **Threshold gate**: cloud service falls back to silent concatenation when stablePrefix < per-model minimum. Avoids paying 1.25× write penalty for a prefix Anthropic won't cache. Below-threshold callers get no behaviour change.
+- **Fingerprint discipline**: same patterns from audio narration's `LLM_ENHANCEMENT_PROMPT_VERSION` salting apply here — any change before the cache marker busts the cache hash. Avoid embedding timestamps, dynamic IDs, or per-call counters in the stable prefix.
+- **Volatile-after-stable invariant** (chat handler): test `freeChatModeHandler.test.ts` asserts `stablePrefix` is byte-identical between turns 1 and 2 when context doesn't change. The reorder of "flat attachments above history" is what makes this true — pre-Phase-3, attachments sat AFTER history, so the prefix wasn't contiguous.
+- **Provider-neutral API**: `stablePrefix` on generic `SummarizeOptions` works for all providers. Claude uses it for `cache_control`; others silently concatenate. Adding Gemini context caching later doesn't require changing callers.
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

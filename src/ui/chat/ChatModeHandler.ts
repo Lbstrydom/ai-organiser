@@ -109,6 +109,19 @@ export interface StreamingResult {
 
 export interface SendResult {
     prompt: string;
+    /**
+     * Optional cacheable prefix. When a handler builds a long-lived
+     * instruction + context block that repeats verbatim across turns
+     * (system prompt, project instructions, project memory, pinned files,
+     * stable attachments), it should return that block here separately
+     * from `prompt`. The modal forwards it through `SummarizeOptions.
+     * stablePrefix` so the Claude adapter can emit a `cache_control:
+     * {type: 'ephemeral'}` marker — repeat turns read the prefix at 0.1x
+     * instead of writing it 1x. Non-Claude providers and below-threshold
+     * prefixes silently concatenate it, so handlers can populate this
+     * unconditionally.
+     */
+    stablePrefix?: string;
     sources?: string[];
     systemNotice?: string;
     directResponse?: string;

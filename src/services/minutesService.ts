@@ -302,30 +302,38 @@ export class MinutesService {
         if (this.needsChunking(input.transcript)) {
             parsed = await this.generateMinutesChunked(input, outputLanguage, minutesStyle, useGTD, styleGuide, contextSummary);
         } else {
-            const prompt = [
-                getStyleSystemPrompt({
-                    minutesStyle,
-                    outputLanguage,
-                    useGTD,
-                    styleReference: styleGuide,
-                    dualOutput: input.metadata.dualOutput,
-                    meetingContext: input.metadata.meetingContext,
-                    outputAudience: input.metadata.outputAudience,
-                    dictionaryContent: input.dictionaryContent,
-                    contextSummary,
-                    customInstructions: input.customInstructions,
-                }),
-                buildMinutesUserPrompt(
-                    input.metadata,
-                    this.parseParticipants(input.participantsRaw),
-                    input.participantsRaw,
-                    input.transcript,
-                    contextSummary,
-                    input.dictionaryContent
-                )
-            ].join('\n\n');
+            // Split into cacheable stable header (style/format/dictionary/context
+            // instructions — byte-identical for repeat generations of the same
+            // meeting) and volatile payload (transcript + metadata JSON).
+            // Caching pays off on truncation retries (retryIfTruncated re-fires
+            // with the same prefix + larger maxTokens) AND when the user
+            // regenerates minutes for the same meeting (e.g. tweaking persona,
+            // re-running after "Low transcript coverage" warning).
+            const stableMinutesHeader = getStyleSystemPrompt({
+                minutesStyle,
+                outputLanguage,
+                useGTD,
+                styleReference: styleGuide,
+                dualOutput: input.metadata.dualOutput,
+                meetingContext: input.metadata.meetingContext,
+                outputAudience: input.metadata.outputAudience,
+                dictionaryContent: input.dictionaryContent,
+                contextSummary,
+                customInstructions: input.customInstructions,
+            });
+            const volatileMinutesPayload = buildMinutesUserPrompt(
+                input.metadata,
+                this.parseParticipants(input.participantsRaw),
+                input.participantsRaw,
+                input.transcript,
+                contextSummary,
+                input.dictionaryContent
+            );
 
-            const responseText = await this.callLLM(prompt, SINGLE_CALL_OPTIONS);
+            const responseText = await this.callLLM(volatileMinutesPayload, {
+                ...SINGLE_CALL_OPTIONS,
+                stablePrefix: stableMinutesHeader,
+            });
             parsed = parseMinutesResponse(responseText);
         }
 
@@ -584,15 +592,26 @@ export class MinutesService {
                     ? (chunk).map(s => s.text).join('\n')
                     : typeof chunk === 'string' ? chunk : JSON.stringify(chunk);
 
-                const prompt = `${buildChunkExtractionPrompt({
+                // Split into cacheable stable prefix + per-chunk volatile tail.
+                // The extraction prompt — dictionary, agenda, participants,
+                // context summary, format schema — is byte-identical across
+                // every chunk in this meeting. With Claude prompt caching wired
+                // through `stablePrefix`, chunk 2+ reads the prefix at 0.1x
+                // instead of writing it 1x. A 90-minute meeting (12+ chunks)
+                // pays the write once and amortises across the rest.
+                const stableExtractionPrefix = buildChunkExtractionPrompt({
                     outputLanguage,
                     meetingContext: input.metadata.meetingContext,
                     agenda: input.metadata.agenda,
                     participantsRaw: input.participantsRaw,
                     dictionaryContent: input.dictionaryContent,
                     contextSummary,
-                })}\n\nTranscript chunk ${i + 1}/${chunks.length}:\n${chunkText}`;
-                const responseText = await this.callLLM(prompt, EXTRACTION_OPTIONS);
+                });
+                const volatileChunkPayload = `Transcript chunk ${i + 1}/${chunks.length}:\n${chunkText}`;
+                const responseText = await this.callLLM(volatileChunkPayload, {
+                    ...EXTRACTION_OPTIONS,
+                    stablePrefix: stableExtractionPrefix,
+                });
                 const parsedExtract = this.parseChunkExtract(responseText);
                 extracts.push({ chunkIndex: i, ...parsedExtract });
                 controller.recordProgress(i + 1);
@@ -660,28 +679,33 @@ export class MinutesService {
 
         new Notice(this.plugin.t.minutes?.consolidating || 'Consolidating minutes...', 2000);
 
-        const consolidationPrompt = [
-            buildStyleConsolidationPrompt({
-                minutesStyle,
-                outputLanguage,
-                useGTD,
-                styleReference: styleGuide,
-                dualOutput: input.metadata.dualOutput,
-                meetingContext: input.metadata.meetingContext,
-                outputAudience: input.metadata.outputAudience,
-                dictionaryContent: input.dictionaryContent,
-                contextSummary,
-                customInstructions: input.customInstructions,
-            }),
-            JSON.stringify(consolidationPayload)
-        ].join('\n\n');
+        // Split into cacheable stable header + volatile consolidation payload.
+        // Same caching benefit as single-call: truncation retries reuse the
+        // prefix, and regenerations of the same meeting (different persona,
+        // re-run) cache-hit the system block.
+        const stableConsolidationHeader = buildStyleConsolidationPrompt({
+            minutesStyle,
+            outputLanguage,
+            useGTD,
+            styleReference: styleGuide,
+            dualOutput: input.metadata.dualOutput,
+            meetingContext: input.metadata.meetingContext,
+            outputAudience: input.metadata.outputAudience,
+            dictionaryContent: input.dictionaryContent,
+            contextSummary,
+            customInstructions: input.customInstructions,
+        });
+        const volatileConsolidationPayload = JSON.stringify(consolidationPayload);
 
         // Scale token budget based on extract payload size.
         // Heuristic: output JSON is typically ~60-80% of the extract payload size.
         // Start with a budget that can accommodate the expected output to avoid retries.
         const scaledOptions = this.scaleConsolidationBudget(payloadStr.length, CONSOLIDATION_OPTIONS);
 
-        const responseText = await this.callLLM(consolidationPrompt, scaledOptions);
+        const responseText = await this.callLLM(volatileConsolidationPayload, {
+            ...scaledOptions,
+            stablePrefix: stableConsolidationHeader,
+        });
         return parseMinutesResponse(responseText);
     }
 
@@ -882,8 +906,16 @@ export class MinutesService {
                 2000
             );
 
-            const prompt = `${buildIntermediateMergePrompt(mergeContext)}\n\nExtracts to merge:\n${JSON.stringify(batch)}`;
-            const responseText = await this.callLLM(prompt, MERGE_OPTIONS);
+            // Same caching split as chunk extraction + single-call paths:
+            // merge prompt header is stable across all merge calls in one
+            // reduction pass (and across passes within the same meeting),
+            // only the batch JSON changes per call.
+            const stableMergeHeader = buildIntermediateMergePrompt(mergeContext);
+            const volatileBatchPayload = `Extracts to merge:\n${JSON.stringify(batch)}`;
+            const responseText = await this.callLLM(volatileBatchPayload, {
+                ...MERGE_OPTIONS,
+                stablePrefix: stableMergeHeader,
+            });
             const parsed = this.parseChunkExtract(responseText);
             reduced.push({ chunkIndex: -1, ...parsed });
         }

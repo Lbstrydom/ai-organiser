@@ -519,6 +519,14 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // Use a neutral, general-purpose system prompt
         const summarizeSystemPrompt = 'You are a helpful assistant that summarizes content accurately and thoroughly.';
 
+        // Non-Claude providers don't have Anthropic-style ephemeral prompt
+        // caching; concatenate `stablePrefix` onto the user prompt so callers
+        // can pass the split prompt uniformly. Claude path handles
+        // `stablePrefix` natively via `cache_control` blocks.
+        const effectivePrompt = options?.stablePrefix
+            ? `${options.stablePrefix}\n\n${prompt}`
+            : prompt;
+
         // Use the stored adapter type for reliable detection
         if (this.adapterType === 'claude') {
             return this.buildClaudeSummarizeBody(prompt, summarizeSystemPrompt, options);
@@ -536,7 +544,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 model: modelName,
                 messages: [
                     { role: 'system', content: summarizeSystemPrompt },
-                    { role: 'user', content: prompt }
+                    { role: 'user', content: effectivePrompt }
                 ],
                 max_tokens: options?.maxTokens || 8192
             };
@@ -574,7 +582,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 model: modelName,
                 messages: [
                     { role: 'system', content: summarizeSystemPrompt },
-                    { role: 'user', content: prompt }
+                    { role: 'user', content: effectivePrompt }
                 ],
             };
 
@@ -598,6 +606,12 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * - disableThinking: skip adaptive thinking entirely (for structured extraction)
      * - maxTokens: override the default token budget
      * - When thinking is active and no explicit maxTokens, uses 64K default
+     * - stablePrefix: when large enough to clear Anthropic's per-model minimum,
+     *   emitted as a second `system` content block with `cache_control:
+     *   {type: 'ephemeral'}` so repeated calls sharing the prefix read at
+     *   0.1x. Below the threshold, it falls back to plain concatenation
+     *   (no cache_control) to avoid paying the 1.25x write penalty for a
+     *   prefix Anthropic would silently refuse to cache.
      */
     private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): Record<string, unknown> {
         const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
@@ -618,11 +632,18 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             maxTokens = useThinking ? 64000 : 8192;
         }
 
+        const { systemField, userContent } = this.buildClaudeSystemAndUser(
+            systemPrompt,
+            prompt,
+            modelName,
+            options?.stablePrefix,
+        );
+
         const body: Record<string, unknown> = {
             model: modelName,
             max_tokens: maxTokens,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: prompt }]
+            system: systemField,
+            messages: [{ role: 'user', content: userContent }]
         };
 
         if (useThinking) {
@@ -630,6 +651,57 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         }
 
         return body;
+    }
+
+    /**
+     * Decide how to package the system prompt + optional cacheable stable
+     * prefix for the Claude Messages API. Returns the value to assign to
+     * `system` and the string to put in the user message.
+     *
+     * Three cases:
+     *  1. No stablePrefix → identity behaviour (string system, prompt as-is).
+     *  2. stablePrefix below threshold → concatenate prefix into user
+     *     content; no cache_control. Avoids the 1.25x write penalty on
+     *     prefixes Anthropic would silently refuse to cache.
+     *  3. stablePrefix above threshold → emit it as a second `system`
+     *     content block with `cache_control: { type: 'ephemeral' }`.
+     *     User message carries only volatile content.
+     */
+    private buildClaudeSystemAndUser(
+        systemPrompt: string,
+        prompt: string,
+        modelName: string,
+        stablePrefix: string | undefined,
+    ): { systemField: string | Array<Record<string, unknown>>; userContent: string } {
+        if (!stablePrefix) {
+            return { systemField: systemPrompt, userContent: prompt };
+        }
+
+        // Anthropic per-model minimums: Sonnet/Opus 1024 tokens, Haiku 2048.
+        // Use 4 chars/token as a conservative estimate. Below the threshold,
+        // the cache_control marker is silently ignored AND we still pay the
+        // 1.25x write surcharge — so fall back to concatenation.
+        const isHaiku = /haiku/i.test(modelName);
+        const minChars = isHaiku ? 8192 : 4096;
+
+        if (stablePrefix.length < minChars) {
+            return {
+                systemField: systemPrompt,
+                userContent: `${stablePrefix}\n\n${prompt}`,
+            };
+        }
+
+        return {
+            systemField: [
+                { type: 'text', text: systemPrompt },
+                {
+                    type: 'text',
+                    text: stablePrefix,
+                    cache_control: { type: 'ephemeral' },
+                },
+            ],
+            userContent: prompt,
+        };
     }
 
     /**

@@ -1,6 +1,74 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import { fileURLToPath } from "url";
+import path from "path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * esbuild plugin: redirect Node builtin imports (with or without `node:`
+ * prefix) to a tiny in-bundle shim that uses Electron's runtime `require()`.
+ *
+ * Why: pptxgenjs (and other libs) feature-detect Node via `process.versions
+ * .node` — TRUE in Electron's renderer — and then call `await import("fs")`.
+ * esbuild marks `fs` external for CJS but only converts STATIC `import` to
+ * `require()`; dynamic `import("fs")` survives the bundle as a native ES
+ * dynamic import, which the Obsidian renderer then tries to fetch as a URL
+ * and dies with a CORS error (user report 2026-05-29: Word/PPTX export
+ * silently failing while PDF works because PDF lib doesn't take the Node
+ * branch).
+ *
+ * Fix: a virtual shim module per builtin. The dynamic `import("fs")` now
+ * resolves to the shim (bundled), which does `require("fs")` at runtime —
+ * works on Electron, returns `{}` on mobile so calls degrade safely instead
+ * of throwing fetch errors.
+ */
+const shimmedBuiltins = [
+    'fs', 'https', 'path', 'os', 'crypto', 'stream', 'url',
+    'buffer', 'util', 'events', 'http', 'zlib', 'child_process',
+    'assert', 'querystring', 'tty', 'net',
+];
+const shimmedBuiltinSet = new Set([
+    ...shimmedBuiltins,
+    ...shimmedBuiltins.map(b => `node:${b}`),
+]);
+const builtinShimFilter = new RegExp(
+    `^(node:)?(${shimmedBuiltins.join('|')})$`,
+);
+const electronBuiltinShimPlugin = {
+    name: 'electron-builtin-shim',
+    setup(build) {
+        build.onResolve({ filter: builtinShimFilter }, (args) => ({
+            path: args.path.replace(/^node:/, ''),
+            namespace: 'electron-builtin-shim',
+        }));
+        build.onLoad({ filter: /.*/, namespace: 'electron-builtin-shim' }, (args) => ({
+            // CRITICAL: do NOT write the literal token `require(...)` in this
+            // shim. esbuild's static scanner rewrites any bare `require(name)`
+            // inside bundled code to point at the bundled module — and since
+            // `name` matches a shimmed builtin, it routes back to THIS shim,
+            // creating an infinite-recursion cycle that esbuild breaks by
+            // returning `{}`. That silently wipes out Node built-in exports
+            // (e.g. `util.inherits` undefined → officeparser cascade failure).
+            // We resolve `require` through window/globalThis so the scanner
+            // can't see the call site. Electron renderer with nodeIntegration
+            // exposes window.require → Node's real require; mobile leaves
+            // both window.require and globalThis.require undefined, so the
+            // shim degrades to `{}` cleanly.
+            contents: `
+"use strict";
+var __nodeRequire = (typeof window !== "undefined" && window.require)
+    || (typeof globalThis !== "undefined" && globalThis.require)
+    || null;
+var m = __nodeRequire ? __nodeRequire(${JSON.stringify(args.path)}) : {};
+module.exports = m;
+module.exports.default = m;
+`,
+            loader: 'js',
+        }));
+    },
+};
 
 const banner =
 `/*
@@ -32,8 +100,28 @@ esbuild.build({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
-    ...builtins,
+    // Exclude shimmed builtins from `external` so the plugin's onResolve
+    // gets a chance to intercept them. Esbuild checks `external` BEFORE
+    // running plugin resolvers — without this filter, `fs` is marked
+    // external by the builtins entry and the shim never fires, leaving the
+    // dynamic `import("fs")` as-is in the bundle for the renderer to choke
+    // on (root cause of the 12:24 deploy still silently failing on Word
+    // export).
+    ...builtins.filter(b => !shimmedBuiltinSet.has(b)),
   ],
+  // Replace tesseract.js (officeparser's eager OCR dependency) with a no-op
+  // stub. officeparser only invokes tesseract.js when `ocr: true` is passed
+  // — which we never do — but its top-level `require('tesseract.js')` chain
+  // throws in the Obsidian Electron renderer (worker_threads/web-worker
+  // mismatch). esbuild's `__commonJS` caches the half-initialised exports
+  // object after the first throw, so subsequent `await import('officeparser')`
+  // calls return a defined module where `parseOffice` is undefined — the
+  // user-visible "n.parseOffice is not a function" bug. Aliasing to a stub
+  // lets officeparser load cleanly. See src/stubs/tesseractNoop.cjs.
+  alias: {
+    "tesseract.js": path.join(__dirname, "src/stubs/tesseractNoop.cjs"),
+  },
+  plugins: [electronBuiltinShimPlugin],
   format: "cjs",
   target: "es2022",
   logLevel: "info",
