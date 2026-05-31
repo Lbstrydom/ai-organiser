@@ -9,6 +9,7 @@
 
 import { App, TFile } from 'obsidian';
 import { SelectionResult } from './types';
+import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
 
 /**
  * Service for selecting notes for NotebookLM export
@@ -202,13 +203,12 @@ export class SelectionService {
         // Try metadata cache first (fastest)
         const cache = this.app.metadataCache.getFileCache(file);
         if (cache?.frontmatter?.tags) {
-            const tags = cache.frontmatter.tags;
-            const tagArray = Array.isArray(tags) ? tags : [tags];
-
-            // Check for tag with or without # prefix
-            return tagArray.some((t: string) =>
-                t === tag || t === `#${tag}` || t.replace(/^#/, '') === tag
-            );
+            // normaliseFrontmatterTags handles user-authored YAML quirks
+            // (numeric `tags: 2026`, null entries, single-value-not-array)
+            // and returns each tag without `#` prefix. We compare against
+            // the bare tag — `tag` itself never carries `#` per its
+            // selection-tag origin (defaults to 'notebooklm').
+            return normaliseFrontmatterTags(cache.frontmatter.tags).some(s => s === tag);
         }
 
         // Fallback: parse frontmatter manually
@@ -241,12 +241,11 @@ export class SelectionService {
         let count = 0;
         for (const file of this.app.vault.getMarkdownFiles()) {
             const cache = this.app.metadataCache.getFileCache(file);
-            if (cache?.frontmatter?.tags) {
-                const tags = cache.frontmatter.tags;
-                const tagArray = Array.isArray(tags) ? tags : [tags];
-                if (tagArray.some((t: string) => t === tag || t === `#${tag}` || t.replace(/^#/, '') === tag)) {
-                    count++;
-                }
+            // normaliseFrontmatterTags returns [] for missing/empty tags,
+            // so the early-return + null-guard from the old inline shape
+            // is no longer needed. Same defensive coercion happens inside.
+            if (normaliseFrontmatterTags(cache?.frontmatter?.tags).includes(tag)) {
+                count++;
             }
         }
         return count;

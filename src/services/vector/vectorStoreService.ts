@@ -12,6 +12,7 @@ import { createContentHash } from './hashUtils';
 import type { IEmbeddingService } from '../embeddings/types';
 import { getTranslations } from '../../i18n';
 import { logger } from '../../utils/logger';
+import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
 
 export { INDEX_SCHEMA_VERSION } from './types';
 
@@ -723,12 +724,11 @@ export class VectorStoreService {
         if (!cache) return [];
 
         const tags: string[] = [];
-        if (cache.frontmatter?.tags) {
-            const fmTags = Array.isArray(cache.frontmatter.tags)
-                ? cache.frontmatter.tags
-                : [cache.frontmatter.tags];
-            tags.push(...fmTags.map((tag: string) => tag.replace(/^#/, '')));
-        }
+        // Defensive coercion: frontmatter is user-authored YAML, so values
+        // may be numbers (`tags: 2026`), null entries, or single non-array
+        // values. See src/utils/tagFrontmatter.ts for the failure modes
+        // this guards against.
+        tags.push(...normaliseFrontmatterTags(cache.frontmatter?.tags));
 
         if (cache.tags) {
             tags.push(...cache.tags.map(tag => tag.tag.replace(/^#/, '')));
