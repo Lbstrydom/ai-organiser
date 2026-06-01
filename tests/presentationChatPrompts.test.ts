@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    buildPresentationSystemPrompt,
     buildGenerationPrompt,
-    buildRefinementPrompt,
     buildBrandAuditPrompt,
     extractHtmlFromResponse,
     wrapInDocument,
@@ -11,83 +9,6 @@ import {
 } from '../src/services/prompts/presentationChatPrompts';
 
 const dummyCss = ':root { --brand-primary: #1A3A5C; }';
-
-// ── System Prompt ───────────────────────────────────────────────────────────
-
-describe('buildPresentationSystemPrompt', () => {
-    it('includes CSS template', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('css_template');
-        expect(prompt).toContain('--brand-primary');
-    });
-
-    it('includes output language when provided', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss, outputLanguage: 'German' });
-        expect(prompt).toContain('German');
-    });
-
-    it('includes brand rules when provided', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss, brandRules: 'No orange text' });
-        expect(prompt).toContain('brand_rules');
-        expect(prompt).toContain('No orange text');
-    });
-
-    it('mentions slide classes', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('slide-title');
-        expect(prompt).toContain('slide-content');
-        expect(prompt).toContain('slide-section');
-        expect(prompt).toContain('slide-closing');
-    });
-
-    it('mentions speaker notes', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('speaker-notes');
-    });
-
-    it('says not to use raw hex codes', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('do NOT write raw hex color');
-    });
-
-    it('includes design principles section', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('<design_principles>');
-        expect(prompt).toContain('</design_principles>');
-        expect(prompt).toContain('ONE idea per slide');
-        expect(prompt).toContain('White space');
-        expect(prompt).toContain('Visual hierarchy');
-    });
-
-    it('includes available icons section', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('<available_icons>');
-        expect(prompt).toContain('</available_icons>');
-        expect(prompt).toContain('bar-chart');
-        expect(prompt).toContain('trending-up');
-    });
-
-    it('mentions icon usage syntax in requirements', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        expect(prompt).toContain('icon icon-{name}');
-        expect(prompt).toContain('.icon-lg');
-        expect(prompt).toContain('.icon-accent');
-    });
-
-    it('design principles appear before requirements', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        const dpIndex = prompt.indexOf('<design_principles>');
-        const reqIndex = prompt.indexOf('<requirements>');
-        expect(dpIndex).toBeLessThan(reqIndex);
-    });
-
-    it('icons section appears before css_template', () => {
-        const prompt = buildPresentationSystemPrompt({ cssTheme: dummyCss });
-        const iconsIndex = prompt.indexOf('<available_icons>');
-        const cssIndex = prompt.indexOf('<css_template>');
-        expect(iconsIndex).toBeLessThan(cssIndex);
-    });
-});
 
 // ── Generation Prompt ───────────────────────────────────────────────────────
 
@@ -105,21 +26,6 @@ describe('buildGenerationPrompt', () => {
     it('excludes note content when not provided', () => {
         const prompt = buildGenerationPrompt({ userQuery: 'test' });
         expect(prompt).not.toContain('note_content');
-    });
-});
-
-// ── Refinement Prompt ───────────────────────────────────────────────────────
-
-describe('buildRefinementPrompt', () => {
-    it('includes current HTML', () => {
-        const prompt = buildRefinementPrompt({ currentHtml: '<div>slides</div>', userRequest: 'shorter' });
-        expect(prompt).toContain('current_html');
-        expect(prompt).toContain('<div>slides</div>');
-    });
-
-    it('includes edit request', () => {
-        const prompt = buildRefinementPrompt({ currentHtml: '<div>', userRequest: 'add stats' });
-        expect(prompt).toContain('add stats');
     });
 });
 

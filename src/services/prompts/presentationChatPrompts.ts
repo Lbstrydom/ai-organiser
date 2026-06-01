@@ -7,7 +7,6 @@
  */
 
 import type { BrandRule } from '../chat/brandThemeService';
-import { buildIconReference } from '../chat/brandThemeService';
 // M20 fix: import marker constants from SSOT (presentationConstants).
 // R3-M3 fix: MAX_HTML_PROMPT_CHARS now centralised in the same module.
 import { HTML_START_MARKER, HTML_END_MARKER, MAX_HTML_PROMPT_CHARS } from '../chat/presentationConstants';
@@ -82,63 +81,6 @@ function sanitizeTextForPrompt(text: string): string {
 
 // ── Generation ──────────────────────────────────────────────────────────────
 
-export function buildPresentationSystemPrompt(options: {
-    cssTheme: string;
-    outputLanguage?: string;
-    brandRules?: string;
-}): string {
-    const { cssTheme, outputLanguage, brandRules } = options;
-    const langLine = outputLanguage ? `\nGenerate all slide text in ${outputLanguage}.` : '';
-    // R2-H1 fix: sanitise brandRules even though they come from the plugin's
-    // own brand config — defense in depth against future config sources.
-    const brandSection = brandRules
-        ? `\n<brand_rules>\n${sanitizeTextForPrompt(brandRules)}\n</brand_rules>\nFollow these composition rules strictly.`
-        : '';
-
-    const iconRef = buildIconReference();
-
-    return `You are a professional presentation designer. You create visually rich HTML slide decks.${langLine}${brandSection}
-
-<design_principles>
-- ONE idea per slide — if a slide covers two points, split it into two slides
-- Visual hierarchy: heading > subheading > body > caption — never skip levels
-- White space: leave at least 30% of the slide area empty — resist filling all available space
-- Consistency: use the same layout pattern for the same content type across the deck
-- Contrast: white or light text on dark backgrounds; dark text on light backgrounds
-- Alignment: all elements on a slide share a visual edge — left-align body text, center titles
-- Bullet economy: max 6 bullets, max 10 words each — longer points become sub-slides
-- Data over decoration: prefer a table, stat card, or chart reference over a paragraph of numbers
-- Progressive disclosure: introduce a concept with a section slide before its detail slides
-- Strong close: end with a takeaway, call-to-action, or key message — not just "Thank you"
-</design_principles>
-
-<requirements>
-- Wrap your complete HTML output between ${HTML_START_MARKER} and ${HTML_END_MARKER} markers
-- Return ONLY the HTML content of a presentation (no markdown, no explanation)
-- Start with <div class="deck" data-title="Deck Title"> and end with </div>
-- Each slide is a <section class="slide [type]"> where type is one of: slide-title, slide-content, slide-section, slide-closing
-- Slides are 1920x1080px — the CSS handles this, just use the classes
-- Use the provided CSS classes and variables — do NOT write raw hex color codes
-- Use semantic HTML: h1/h2 for headings, ul/li for bullets, table for data, strong for emphasis
-- Layouts: .col-container > .col for two-column, .stats-grid > .stat-card for KPI metrics
-- Icons: use <span class="icon icon-{name}"></span> for visual accents — available icons listed below
-- Size variants: .icon-lg (1.5em), .icon-xl (2em), .icon-2xl (3em); colour: .icon-accent, .icon-primary
-- Include <aside class="speaker-notes">...</aside> inside each content slide for speaker notes
-- Add <span class="slide-num">N</span> at the end of each slide
-- Tables: use th for headers, support .badge .badge-green/.badge-yellow/.badge-red for status
-- Aim for 4-6 bullet points per content slide, concise and scannable
-- Include a title slide (first), logical section dividers, and a closing slide (last)
-</requirements>
-
-<available_icons>
-${iconRef}
-</available_icons>
-
-<css_template>
-${cssTheme}
-</css_template>`;
-}
-
 export function buildGenerationPrompt(options: {
     userQuery: string;
     noteContent?: string;
@@ -157,27 +99,6 @@ export function buildGenerationPrompt(options: {
     }
 
     prompt += `<user_request>\n${sanitizeTextForPrompt(userQuery)}\n</user_request>`;
-
-    return prompt;
-}
-
-// ── Refinement ──────────────────────────────────────────────────────────────
-
-export function buildRefinementPrompt(options: {
-    currentHtml: string;
-    userRequest: string;
-    conversationHistory?: string;
-}): string {
-    const { currentHtml, userRequest, conversationHistory } = options;
-
-    let prompt = '<task>Modify the presentation HTML according to the user\'s request. Return the complete updated HTML.</task>\n\n';
-
-    if (conversationHistory) {
-        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
-    }
-
-    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
-    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>`;
 
     return prompt;
 }
@@ -323,9 +244,9 @@ export function countSlides(html: string): number {
     return matches?.length ?? 0;
 }
 
-// ── Targeted Slide Editing — scoped prompts (slide-authoring-editing plan) ──
+// ── Audience-styled Creation ────────────────────────────────────────────────
 
-import type { SelectionScope, AudienceTier, PromptSource } from '../chat/presentationTypes';
+import type { AudienceTier, PromptSource } from '../chat/presentationTypes';
 
 /**
  * Audience design-language slot. Inserted into `<audience_instructions>`
@@ -352,123 +273,6 @@ export const AUDIENCE_DESIGN_LANGUAGE: Record<AudienceTier, string> = {
         'Close with a clear takeaway and next steps.',
     ].join('\n'),
 };
-
-/** Format a SelectionScope as a human-readable scope description for the prompt. */
-function describeScope(scope: SelectionScope): string {
-    if (scope.kind === 'range') {
-        const end = scope.slideEndIndex ?? scope.slideIndex;
-        return `Slides ${scope.slideIndex + 1} through ${end + 1} (1-based) — labels match slide order in the input.`;
-    }
-    if (scope.kind === 'slide') {
-        return `Slide ${scope.slideIndex + 1} (1-based).`;
-    }
-    const path = scope.elementPath ?? '(unspecified)';
-    const kind = scope.elementKind ?? 'element';
-    return `Element on slide ${scope.slideIndex + 1}: kind="${kind}", path="${path}".`;
-}
-
-/**
- * Build a scoped CONTENT-mode edit prompt. Tells the LLM to modify ONLY
- * the indicated region's text/data, preserving everything else byte-for-byte.
- *
- * Sender pre-renders `references` and `webResearch` blocks (via
- * SlideContextProvider) so this builder is a pure string-mash with no I/O.
- */
-export function buildScopedContentEditPrompt(options: {
-    /** FULL canonical deck HTML — the LLM needs to see all slides to
-     *  preserve out-of-scope content byte-for-byte. */
-    currentHtml: string;
-    /** The scoped subtree, called out separately so the LLM knows what
-     *  to actually modify. */
-    scopedFragment: string;
-    scope: SelectionScope;
-    userRequest: string;
-    references?: string;
-    webResearch?: string;
-    conversationHistory?: string;
-}): string {
-    const {
-        currentHtml, scopedFragment, scope, userRequest,
-        references, webResearch, conversationHistory,
-    } = options;
-
-    let prompt = '<task>\n';
-    prompt += 'Make a CONTENT edit to the indicated slide region. Rewrite only the text or data inside the scope. ';
-    prompt += 'Preserve every slide OUTSIDE the scope byte-for-byte (you can see them in <current_html>). ';
-    prompt += 'Return the COMPLETE updated deck HTML, starting with `<div class="deck">` and ending with `</div>`.\n';
-    prompt += '</task>\n\n';
-
-    prompt += `<scope>\n${describeScope(scope)}\n</scope>\n\n`;
-    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
-    prompt += `<scoped_fragment>\n${sanitizeHtmlForPrompt(scopedFragment)}\n</scoped_fragment>\n\n`;
-
-    if (references?.trim()) {
-        prompt += `<reference_notes>\n${sanitizeTextForPrompt(references)}\n</reference_notes>\n\n`;
-    }
-    if (webResearch?.trim()) {
-        prompt += `<web_research>\n${sanitizeTextForPrompt(webResearch)}\n</web_research>\n\n`;
-    }
-    if (conversationHistory) {
-        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
-    }
-
-    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>\n\n`;
-    prompt += '<output_format>\n'
-        + `Wrap the COMPLETE updated deck HTML between ${HTML_START_MARKER} and ${HTML_END_MARKER}. `
-        + 'Start with `<div class="deck">`, include EVERY original slide (only the scoped region modified, '
-        + 'all others unchanged byte-for-byte), and close with `</div>`. '
-        + 'Use the existing CSS classes — do NOT introduce new ones.\n'
-        + '</output_format>';
-
-    return prompt;
-}
-
-/**
- * Build a scoped DESIGN-mode edit prompt. Layout, hierarchy, visual emphasis,
- * structure changes — but text content stays.
- *
- * For decks under the design-mode fallback threshold, `deckContextSummary`
- * is the full deck design summary; for larger decks it's a compact token sheet.
- * The caller picks which to pass based on deck size.
- */
-export function buildScopedDesignEditPrompt(options: {
-    /** FULL canonical deck HTML — needed to preserve unscoped slides
-     *  byte-for-byte and to match deck design language. */
-    currentHtml: string;
-    /** The scoped subtree, called out separately so the LLM knows what to restyle. */
-    scopedFragment: string;
-    scope: SelectionScope;
-    userRequest: string;
-    conversationHistory?: string;
-}): string {
-    const { currentHtml, scopedFragment, scope, userRequest, conversationHistory } = options;
-
-    let prompt = '<task>\n';
-    prompt += 'Make a DESIGN edit to the indicated slide region. Change layout, hierarchy, structure, ';
-    prompt += 'visual emphasis, or component choice — but DO NOT change underlying text content or data values.\n';
-    prompt += 'Preserve every slide OUTSIDE the scope byte-for-byte (you can see them in <current_html>). ';
-    prompt += 'Return the COMPLETE updated deck HTML, starting with `<div class="deck">` and ending with `</div>`.\n';
-    prompt += '</task>\n\n';
-
-    prompt += `<scope>\n${describeScope(scope)}\n</scope>\n\n`;
-    prompt += `<current_html>\n${sanitizeHtmlForPrompt(currentHtml)}\n</current_html>\n\n`;
-    prompt += `<scoped_fragment>\n${sanitizeHtmlForPrompt(scopedFragment)}\n</scoped_fragment>\n\n`;
-
-    if (conversationHistory) {
-        prompt += `<conversation_history>\n${sanitizeTextForPrompt(conversationHistory)}\n</conversation_history>\n\n`;
-    }
-
-    prompt += `<edit_request>\n${sanitizeTextForPrompt(userRequest)}\n</edit_request>\n\n`;
-    prompt += '<output_format>\n'
-        + `Wrap the COMPLETE updated deck HTML between ${HTML_START_MARKER} and ${HTML_END_MARKER}. `
-        + 'Start with `<div class="deck">`, include EVERY original slide (only the scoped region restyled, '
-        + 'all others unchanged byte-for-byte), and close with `</div>`. '
-        + 'Use the existing CSS classes — do NOT introduce new ones. '
-        + 'Match the deck\'s visual rhythm and design language.\n'
-        + '</output_format>';
-
-    return prompt;
-}
 
 /**
  * Build a creation prompt augmented with audience tier, target length, and
