@@ -28,14 +28,12 @@ import {
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
-import { generateHtmlStream, refineHtml, runBrandAudit, refineHtmlScoped, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
+import { refineHtml, runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
 import type { ExportTheme } from '../../services/export/exportTheme';
 import { projectForEditor } from '../../services/chat/presentationDomDecorator';
-import { DefaultSlideContextProvider } from '../../services/chat/slideContextProvider';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
-import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { SlideDiffModal } from '../modals/SlideDiffModal';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
@@ -50,7 +48,6 @@ import type { CreationConfig, PromptSource } from '../../services/chat/presentat
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
 import { LongRunningOpController } from '../../services/longRunningOp/progressController';
-import { parseExpectedSlideCount } from '../../services/chat/generationProgressController';
 import {
     GENERATION_SOFT_BUDGET_MS, GENERATION_HARD_BUDGET_MS,
     REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS,
@@ -480,102 +477,19 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async runGenerate(r: RunContext): Promise<StreamingResult> {
         this.setPhase('generating');
-        const t = r.ctx.plugin.t.modals.unifiedChat;
-
-        // Structured-IR engine: generate a typed deck IR, render it to the
-        // preview HTML deterministically, and keep the IR for a faithful PPTX
-        // export. Falls back to legacy HTML streaming on any failure so the
-        // user always gets a deck (plan H2 generation-time fallback).
-        if (r.ctx.plugin.settings.presentationExportEngine === 'structured-ir') {
-            const irOutcome = await this.tryGenerateIr(r);
-            if (irOutcome) return irOutcome;
-            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
-            this.setPhase('generating');
-        }
-
-        const expected = parseExpectedSlideCount(r.effectiveQuery);
-        const controller = this.createProgressController(
-            r.abort, r.streamCb, t,
-            GENERATION_SOFT_BUDGET_MS, GENERATION_HARD_BUDGET_MS, expected,
-        );
-
-        // Initial label before first checkpoint
-        this.renderProgress(r.streamCb, t, 0, expected, 0);
-
-        // Visual elapsed-time ticker (aria-hidden) — updates every 1s. Live
-        // region stays silent until slide count actually changes (see
-        // updateProgressSplit contract in ChatModeHandler).
-        const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, expected);
-
-        try {
-            const result = await generateHtmlStream(r.llmCtx, {
-                userQuery: r.effectiveQuery,
-                noteContent: r.noteContent,
-                conversationHistory: r.history,
-                outputLanguage: r.ctx.plugin.settings.summaryLanguage,
-                theme: r.theme,
-                signal: r.abort.signal,
-                onCheckpoint: (checkpoint) => {
-                    if (r.abort.signal.aborted) return;
-                    if (this.preview) this.preview.setHtml(projectForEditor(checkpoint.html));
-                    controller.recordProgress(checkpoint.slideCount);
-                },
-                // Latency-feedback fix #1: flip the thinking-indicator from
-                // "Starting generation…" the moment the SSE stream starts
-                // delivering bytes — closes the silent-spinner gap when the
-                // LLM front-loads a long preamble before any `</section>`
-                // (Pat persona, FIX-01 re-test 2026-04-25).
-                onStreamStart: () => {
-                    if (r.abort.signal.aborted) return;
-                    this.activeThinkingUpdater?.(t.presentationStreamStarted);
-                },
-                // Latency-feedback fix #2: surface "Building slide N…" while
-                // the slide is still streaming (i.e. between `<section>`
-                // open and `</section>` close).
-                onSlideStart: (slideIndex) => {
-                    if (r.abort.signal.aborted) return;
-                    const msg = t.presentationBuildingSlide.replace('{n}', String(slideIndex));
-                    this.activeThinkingUpdater?.(msg);
-                },
-            });
-
-            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
-
-            if (!result.ok) {
-                this.setPhase('error');
-                this.lastError = result.error;
-                return { finalContent: t.slideGenerateFailed.replace('{error}', result.error) };
-            }
-
-            this.html = result.value;
-            this.activeSlideIndex = 0;
-            this.pushVersion(r.originalQuery);
-            this.updateReliability();
-
-            if (this.brandEnabled && r.theme.auditChecklist.length > 0) {
-                this.setPhase('auditing');
-                await this.runAudit(r.llmCtx, r.theme, r.abort.signal);
-            }
-
-            this.runQualityCheck();
-            this.setPhase('preview-ready');
-            void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
-
-            const title = extractDeckTitle(this.html);
-            const count = countSlides(this.html);
-            return { finalContent: `Created "${title}" with ${count} slides. Describe changes to refine, or export when ready.` };
-        } finally {
-            globalThis.clearInterval(elapsedTimer);
-            controller.dispose();
-        }
+        // Structured-IR is the only generation path: produce a typed deck IR,
+        // render it to preview HTML deterministically, and keep the IR for a
+        // faithful PPTX export. On failure we surface an explicit error (no
+        // silent HTML fallback) so a deck is always IR-backed.
+        return await this.generateIr(r);
     }
 
     /**
-     * Structured-IR generation path. Returns a `StreamingResult` on success
-     * (deck rendered + previewed), or `null` to signal the caller should fall
-     * back to legacy HTML streaming. Never throws.
+     * Structured-IR generation. Returns a `StreamingResult` — success (deck
+     * rendered + previewed) or an explicit error message. Never throws, never
+     * falls back to raw-HTML generation (the deck is always IR-backed).
      */
-    private async tryGenerateIr(r: RunContext): Promise<StreamingResult | null> {
+    private async generateIr(r: RunContext): Promise<StreamingResult> {
         const t = r.ctx.plugin.t.modals.unifiedChat;
         // Drive the same progress UI + teardown as the streaming path so the
         // long single IR call shows live elapsed feedback (not a static spinner)
@@ -616,16 +530,20 @@ export class PresentationModeHandler implements ChatModeHandler {
             });
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
             if (!irResult.ok) {
-                logger.warn('Presentation', `IR generation failed, falling back to HTML: ${irResult.error}`);
-                return null;
+                logger.error('Presentation', `[IR-gen] generation failed: ${irResult.error}`);
+                this.setPhase('error');
+                this.lastError = irResult.error;
+                return { finalContent: t.slideGenerateFailed.replace('{error}', irResult.error) };
             }
 
             const built = buildHtmlFromDeckIr(
                 irResult.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage,
             );
             if (!built.ok) {
-                logger.warn('Presentation', `IR→HTML render failed, falling back: ${built.error}`);
-                return null;
+                logger.error('Presentation', `[IR-gen] IR→HTML render failed: ${built.error}`);
+                this.setPhase('error');
+                this.lastError = built.error;
+                return { finalContent: t.slideGenerateFailed.replace('{error}', built.error) };
             }
 
             this.deckIr = irResult.value;
@@ -645,12 +563,16 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.setPhase('preview-ready');
             void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
 
-            const title = extractDeckTitle(this.html);
-            const count = countSlides(this.html);
+            const title = extractDeckTitle(built.value);
+            const count = countSlides(built.value);
             return { finalContent: `Created "${title}" with ${count} slides. Describe changes to refine, or export when ready.` };
         } catch (e) {
-            logger.warn('Presentation', `IR path threw, falling back to HTML: ${e instanceof Error ? e.message : String(e)}`);
-            return null;
+            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error('Presentation', `[IR-gen] threw: ${msg}`);
+            this.setPhase('error');
+            this.lastError = msg;
+            return { finalContent: t.slideGenerateFailed.replace('{error}', msg) };
         } finally {
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
@@ -707,13 +629,14 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /**
-     * IR refine path for subsequent rounds — edits the deck IR so it stays the
-     * canonical artifact (and export stays faithful). Returns null to fall back
-     * to the legacy HTML refine. Never throws.
+     * IR refine for subsequent rounds — edits the deck IR so it stays the
+     * canonical artifact (and export stays faithful). Returns a definitive
+     * `StreamingResult` (success or explicit error); never falls back to a
+     * raw-HTML refine. Never throws.
      */
-    private async tryRefineIr(r: RunContext): Promise<StreamingResult | null> {
-        if (!this.deckIr || this.deckIrStale) return null;
+    private async refineIr(r: RunContext): Promise<StreamingResult> {
         const t = r.ctx.plugin.t.modals.unifiedChat;
+        if (!this.deckIr) return { finalContent: t.slideRefineNoDeck };
         const controller = this.createProgressController(
             r.abort, r.streamCb, t, REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
         );
@@ -729,13 +652,17 @@ export class PresentationModeHandler implements ChatModeHandler {
             });
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
             if (!refined.ok) {
-                logger.warn('Presentation', `IR refine failed, falling back to HTML: ${refined.error}`);
-                return null;
+                logger.error('Presentation', `[IR-refine] failed: ${refined.error}`);
+                this.setPhase('error');
+                this.lastError = refined.error;
+                return { finalContent: t.slideRefineFailed.replace('{error}', refined.error) };
             }
             const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage);
             if (!built.ok) {
-                logger.warn('Presentation', `IR refine→HTML failed, falling back: ${built.error}`);
-                return null;
+                logger.error('Presentation', `[IR-refine] IR→HTML failed: ${built.error}`);
+                this.setPhase('error');
+                this.lastError = built.error;
+                return { finalContent: t.slideRefineFailed.replace('{error}', built.error) };
             }
             this.commitDeckMutation({
                 deckIr: refined.value,
@@ -747,8 +674,12 @@ export class PresentationModeHandler implements ChatModeHandler {
             const count = countSlides(built.value);
             return { finalContent: t.slideRefineApplied.replace('{n}', String(count)) };
         } catch (e) {
-            logger.warn('Presentation', `IR refine threw, falling back: ${e instanceof Error ? e.message : String(e)}`);
-            return null;
+            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error('Presentation', `[IR-refine] threw: ${msg}`);
+            this.setPhase('error');
+            this.lastError = msg;
+            return { finalContent: t.slideRefineFailed.replace('{error}', msg) };
         } finally {
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
@@ -758,56 +689,11 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runRefine(r: RunContext): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html) return { finalContent: t.slideRefineNoDeck };
-
-        // Prefer the IR refine path so the deck stays IR-backed (and exportable
-        // to a faithful PPTX). Falls back to the legacy HTML refine on failure.
-        if (r.ctx.plugin.settings.presentationExportEngine === 'structured-ir' && this.deckIr && !this.deckIrStale) {
-            const irOutcome = await this.tryRefineIr(r);
-            if (irOutcome) return irOutcome;
-            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
-            this.setPhase('refining');
-        }
-
-        const controller = this.createProgressController(
-            r.abort, r.streamCb, t,
-            REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
-        );
-
-        try {
-            const result = await refineHtml(r.llmCtx, {
-                currentHtml: this.html,
-                userRequest: r.effectiveQuery,
-                conversationHistory: r.history,
-                outputLanguage: r.ctx.plugin.settings.summaryLanguage,
-                theme: r.theme,
-                signal: r.abort.signal,
-            });
-
-            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
-
-            if (!result.ok) {
-                this.setPhase('error');
-                this.lastError = result.error;
-                return { finalContent: t.slideRefineFailed.replace('{error}', result.error) };
-            }
-
-            this.html = result.value;
-            this.invalidateDeckIr();
-            this.pushVersion(r.originalQuery);
-            this.runQualityCheck();
-            // Whole-deck mutation invalidates positional selection paths
-            // (slide-N.list-K.item-J may now resolve to a different element).
-            // Plan §"State transitions" mandates clearing on every html mutation.
-            this.clearSelection();
-            this.setPhase('preview-ready');
-            void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
-
-            const count = countSlides(this.html);
-            return { finalContent: t.slideRefineApplied.replace('{n}', String(count)) };
-        } finally {
-            controller.dispose();
-        }
+        if (!this.html || !this.deckIr) return { finalContent: t.slideRefineNoDeck };
+        // IR is the only refine path — edits the deck IR so it stays canonical
+        // and the PPTX export stays faithful. Explicit error on failure (no
+        // silent HTML-refine fallback).
+        return await this.refineIr(r);
     }
 
     /** Scoped (targeted) edit path — invoked when the user has clicked an
@@ -825,92 +711,75 @@ export class PresentationModeHandler implements ChatModeHandler {
         r: RunContext,
         scope: SelectionScope,
         mode: EditMode,
-        flags: EditFlags,
+        _flags: EditFlags,
     ): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html) return { finalContent: t.slideEditNoDeck };
+        if (!this.html || !this.deckIr) return { finalContent: t.slideEditNoDeck };
+
+        // Targeted edit is now an IR slice-refine on the selected slide(s) —
+        // IR-native (the deck stays canonical) and consistent with per-slide
+        // Polish. Element-level precision degrades to slide-level; undo via the
+        // version timeline. (Web-search-in-scoped-edit + DOM drift detection
+        // were HTML-path features dropped with the legacy engine.)
+        const start = scope.slideIndex;
+        const end = scope.kind === 'range' && scope.slideEndIndex !== undefined ? scope.slideEndIndex : start;
+        const indices: number[] = [];
+        for (let i = Math.min(start, end); i <= Math.max(start, end); i++) {
+            if (i >= 0 && i < this.deckIr.slides.length) indices.push(i);
+        }
+        if (indices.length === 0) return { finalContent: t.slideEditNoDeck };
+
+        const elementHint = scope.kind === 'element' && scope.elementKind
+            ? ` Focus the change on the ${scope.elementKind} element.` : '';
+        const modeHint = mode === 'design'
+            ? ' Change only the visual design / layout, not the wording.' : '';
+        const instruction = `${r.effectiveQuery}${elementHint}${modeHint}`.trim();
 
         const controller = this.createProgressController(
-            r.abort, r.streamCb, t,
-            REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
+            r.abort, r.streamCb, t, REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
         );
-
+        this.renderProgress(r.streamCb, t, 0, undefined, 0);
+        const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            // Build a context provider that bridges to the vault + research
-            // services. Privacy consent is gated lazily — only fired if web
-            // search is actually requested (matches the existing per-feature
-            // consent pattern; no consent burden when the user only wants
-            // text-only edits).
-            const contextProvider = new DefaultSlideContextProvider({
-                app: r.ctx.app,
-                researchService: new ResearchSearchService(r.ctx.fullPlugin),
-                // Mirror ResearchModeHandler.ensureConsent: gate web-search
-                // through the existing cloud-service-type consent path so we
-                // share the "consented this session" flag instead of double-
-                // prompting users who already approved cloud research.
-                privacyConsent: async () => ensurePrivacyConsent(
-                    { app: r.ctx.app, t: r.ctx.plugin.t },
-                    r.ctx.fullPlugin.settings.cloudServiceType,
-                ),
-            });
-
-            const result = await refineHtmlScoped(r.llmCtx, {
-                currentHtml: this.html,
-                scope,
-                mode,
-                userRequest: r.effectiveQuery,
-                flags,
-                contextProvider,
-                conversationHistory: r.history,
+            const refined = await refineDeckIrSelective(r.llmCtx, {
+                currentDeck: this.deckIr,
+                selections: indices.map(slideIndex => ({ slideIndex, instruction })),
                 outputLanguage: r.ctx.plugin.settings.summaryLanguage,
-                theme: r.theme,
                 signal: r.abort.signal,
             });
-
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
-
-            if (!result.ok) {
+            if (!refined.ok) {
+                logger.error('Presentation', `[IR-scoped-edit] failed: ${refined.error}`);
                 this.setPhase('error');
-                this.lastError = result.error;
-                return { finalContent: t.slideEditFailed.replace('{error}', result.error) };
+                this.lastError = refined.error;
+                return { finalContent: t.slideEditFailed.replace('{error}', refined.error) };
             }
-
-            // Gate the iframe update behind explicit user accept.
-            const accepted = await this.confirmScopedEdit(r.ctx.app, r.ctx.fullPlugin, result.value);
-            // If onClear / dispose ran during the modal wait, this.html is
-            // null and the deck has been discarded. Don't force phase back
-            // to 'preview-ready' over an empty deck — that would leave us
-            // in (html=null, phase='preview-ready') which is inconsistent.
-            // Audit R2 LOW finding fix.
-            if (!this.html) return { finalContent: t.generationCancelled };
-            if (!accepted) {
-                this.setPhase('preview-ready');
-                return { finalContent: t.slideEditRejected };
+            const exportTheme = await this.resolveExportTheme(r.ctx);
+            const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage);
+            if (!built.ok) {
+                this.setPhase('error');
+                this.lastError = built.error;
+                return { finalContent: t.slideEditFailed.replace('{error}', built.error) };
             }
-
-            // Apply
-            this.html = result.value.newHtml;
-            this.invalidateDeckIr();
-            this.pushVersion(r.originalQuery);
-            this.runQualityCheck();
-            this.clearSelection();
-            this.setPhase('preview-ready');
-
-            const count = countSlides(this.html);
-            const driftCount = result.value.outOfScopeDrift.length;
-            const driftPlural = driftCount === 1 ? '' : 's';
-            const driftSuffix = driftCount > 0
-                ? t.slideEditDriftSuffix
-                    .replace('{n}', String(driftCount))
-                    .replace('{s}', driftPlural)
-                : '';
-            return {
-                finalContent: t.slideEditApplied
-                    .replace('{n}', String(count))
-                    .replace('{drift}', driftSuffix),
-            };
+            this.commitDeckMutation({
+                deckIr: refined.value,
+                html: built.value,
+                versionLabel: r.originalQuery,
+                llmCtx: r.llmCtx,
+                signal: r.abort.signal,
+            });
+            const count = countSlides(built.value);
+            return { finalContent: t.slideEditApplied.replace('{n}', String(count)).replace('{drift}', '') };
+        } catch (e) {
+            if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error('Presentation', `[IR-scoped-edit] threw: ${msg}`);
+            this.setPhase('error');
+            this.lastError = msg;
+            return { finalContent: t.slideEditFailed.replace('{error}', msg) };
         } finally {
+            globalThis.clearInterval(elapsedTimer);
             controller.dispose();
         }
     }
@@ -1918,6 +1787,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             userPrompt,
             timestamp: Date.now(),
             activeSlideIndex: this.activeSlideIndex,
+            deckIr: this.deckIr ?? undefined,
         });
         if (this.versions.length > MAX_VERSIONS) this.versions.shift();
         this.versionIndex = this.versions.length - 1;
@@ -1927,7 +1797,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (index < 0 || index >= this.versions.length) return;
         const version = this.versions[index];
         this.html = version.html;
-        this.invalidateDeckIr();
+        // Restore the version's IR snapshot so the deck stays IR-backed (and
+        // editable/exportable). Versions captured post-IR always carry it.
+        this.deckIr = version.deckIr ?? null;
+        this.deckIrStale = false;
         this.activeSlideIndex = version.activeSlideIndex;
         this.versionIndex = index;
         // Restoring a version is a whole-deck swap. Selection paths that

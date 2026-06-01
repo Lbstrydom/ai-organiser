@@ -7,6 +7,7 @@
  */
 
 import { SLIDE_SELECTOR } from './presentationConstants';
+import type { SlideDeckIr } from '../presentationIr/slideIr';
 
 // ── Presentation Phase (State Machine) ──────────────────────────────────────
 
@@ -29,6 +30,9 @@ export interface PresentationVersion {
     userPrompt: string;
     timestamp: number;
     activeSlideIndex: number;
+    /** Deck IR snapshot for this version, so restoring keeps the deck IR-backed
+     *  (and editable/exportable). Absent only for legacy HTML-only versions. */
+    deckIr?: SlideDeckIr;
 }
 
 // ── Session Persistence ─────────────────────────────────────────────────────
