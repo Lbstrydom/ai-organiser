@@ -333,7 +333,7 @@ Targeted polish of individual slides in an IR-backed deck. `handlePolish` routes
 
 - `tests/refineDeckIrSelective.test.ts` (21), `tests/PolishSelectorModal.test.ts` (14), `tests/presentationModeHandler.polish.test.ts` (9).
 
-**Plan**: [docs/plans/per-slide-polish.md](docs/plans/per-slide-polish.md) · **Audit**: [docs/plans/per-slide-polish-audit-summary.md](docs/plans/per-slide-polish-audit-summary.md)
+**Plan**: [docs/completed/per-slide-polish.md](docs/completed/per-slide-polish.md) · **Audit**: [docs/completed/per-slide-polish-audit-summary.md](docs/completed/per-slide-polish-audit-summary.md)
 
 ## Smart Document Indexing (AI Chat)
 
@@ -2377,7 +2377,7 @@ Audio-attach trio in Minutes modal, dedicated Transcribe-audio command, SpeakerR
 
 Persona-test session `pat-transcription-speakers-v3` against `AI-Organiser/Recordings/hamina-board-first-20min.mp3` (20-min Finnish board meeting). Full flow: picker → trio → vault pick → transcribe → SpeakerReviewPanel with 2 detected speakers + real Whisper-timestamp previews → Skip → save → transcript note opened in workspace with valid `TranscriptNoteFrontmatterSchema` frontmatter + base64+gzip body. Screenshots in `scripts/persona-harness/sessions/pat-transcription-speakers-v3/`.
 
-**Plan**: [docs/plans/speaker-aware-transcription-ux.md](docs/plans/speaker-aware-transcription-ux.md) — 5 audit rounds (3 GPT + 2 Gemini), 32 findings accepted + fixed, severity decreased each round.
+**Plan**: [docs/completed/speaker-aware-transcription-ux.md](docs/completed/speaker-aware-transcription-ux.md) — 5 audit rounds (3 GPT + 2 Gemini), 32 findings accepted + fixed, severity decreased each round.
 
 ## Reviewed Edits Modal
 
@@ -2464,7 +2464,7 @@ No new commands — opt-in via the existing `ai-organiser:create-meeting-minutes
 - `tests/diarizationPrivacyModal.test.ts` (6 tests): accept/reject/ESC dispatch, double-fire guard, body mentions `mip_opt_out` literally.
 - Live persona harness: `scripts/persona-harness/pat-diarization-v2-rerun.mjs` drives the end-to-end opt-in flow against `AI-Organiser/Recordings/hamina-board-first-20min.mp3` — verifies checkbox renders + privacy modal fires + opt-in survives `rerenderModal()` + Deepgram path routes + transcript-note frontmatter contains `diarization_provider: deepgram`, `diarization_cost_usd: 0.086`, `diarization_language: en`.
 
-**Plan**: [docs/plans/deepgram-diarization-v2.md](docs/plans/deepgram-diarization-v2.md) — 4 GPT-5.4 audit rounds + 3 Gemini final-review rounds, 43 findings, all fixed before implementation. Two additional bugs caught + fixed during live persona testing (rerender state-wipe + useMainKeyFallback default).
+**Plan**: [docs/completed/deepgram-diarization-v2.md](docs/completed/deepgram-diarization-v2.md) — 4 GPT-5.4 audit rounds + 3 Gemini final-review rounds, 43 findings, all fixed before implementation. Two additional bugs caught + fixed during live persona testing (rerender state-wipe + useMainKeyFallback default).
 
 ## Read-this-note LLM Enhancement (audioNarration extension)
 
@@ -2549,7 +2549,7 @@ narrate-note command
 - **Prompt-injection escape** (audit-code M8): user notes containing `</note_section>` or other envelope tags get zero-width-space-separated to prevent them closing the prompt envelope early.
 - **Signal-aware worker pool** (audit-code H7): workers re-check `signal.aborted` before picking up each chunk; queued work drops on abort.
 
-**Plan**: [docs/plans/read-this-note-llm-enhancement.md](docs/plans/read-this-note-llm-enhancement.md) — 3 GPT-5.4 audit rounds + 2 Gemini final-review rounds (27 plan findings) + 1 audit-code round (7 in-scope post-impl fixes), all addressed.
+**Plan**: [docs/completed/read-this-note-llm-enhancement.md](docs/completed/read-this-note-llm-enhancement.md) — 3 GPT-5.4 audit rounds + 2 Gemini final-review rounds (27 plan findings) + 1 audit-code round (7 in-scope post-impl fixes), all addressed.
 
 ## Anthropic Prompt Caching (Phases 1/2/2c/3)
 
