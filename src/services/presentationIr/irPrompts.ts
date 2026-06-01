@@ -51,9 +51,10 @@ Return ONLY one JSON object (no prose, no markdown fences) of this shape:
 { "schemaVersion": ${IR_SCHEMA_VERSION}, "title": "Deck title", "slides": [ Slide, ... ] }
 
 Slide = { "id": "unique-string", "type": "title"|"section"|"content"|"closing",
-          "title"?: string, "subtitle"?: string, "blocks": Block[], "notes"?: string }
+          "title"?: string, "subtitle"?: string, "background"?: "RRGGBB", "blocks": Block[], "notes"?: string }
 - title / section / closing slides MUST have "blocks": [] (use title + subtitle only).
 - Only "content" slides carry blocks. Give every slide a UNIQUE id.
+- "background" is an OPTIONAL per-slide background colour (6-digit hex, no '#', e.g. "ffffff" for white). Set it only when the user asks to change a slide's background; text colour adapts automatically for contrast. Omit it to use the theme.
 
 Block (discriminated by "kind"):
 - { "kind": "heading", "text": string, "level": 1|2|3 }

@@ -1,5 +1,14 @@
 # Project Status Log
 
+## 2026-06-01 — Slides: fix preview collapse as chat grows + per-slide background override
+
+### Changes
+- **Preview shrank to a tiny slide as the chat grew**: the pres-mode chat transcript was `flex: 0 1 auto` (content-sized), so each new message claimed vertical space and squeezed the `flex:1` preview to nothing. Fixed in [styles.css](styles.css): the preview takes `flex: 2 1 0` with a `min-height: 300px` floor; the transcript is `flex: 1 1 0; min-height: 120px; overflow-y: auto` so it scrolls internally instead of pushing the preview. (Kept the double-rAF re-scale for the load-timing case.)
+- **Per-slide background override** (chat "change the title slide background to white" did nothing — backgrounds were 100% theme-driven, no IR field): added optional `background` (6-digit hex) to `SlideIr` ([slideIr.ts](src/services/presentationIr/slideIr.ts)) + a shared `contrastTextColor()` (perceptual luminance → readable text). Both renderers ([irToHtml](src/services/presentationIr/irToHtml.ts), [irToPptx](src/services/presentationIr/irToPptx.ts)) honour the override on title/section/closing + content title/subtitle, auto-picking dark/light text so "white background" never leaves white text invisible. The IR prompt now documents `background` and tells the LLM to set it only when the user asks. So chat "make the first/last slides white" now works.
+- **Tests**: +1 (background override + auto-contrast in irToHtml). Golden fixtures intact. Full tsc 0, lint 0, 4907 vitest pass.
+
+---
+
 ## 2026-06-01 — Presentation: consolidate preview/commit paths + fix blank render + auto-scale
 
 ### Changes

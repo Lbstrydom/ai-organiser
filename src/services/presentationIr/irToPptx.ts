@@ -23,6 +23,7 @@ import {
     splitColumns, gridColumns, estimateTextHeight, tableColumnWidths,
 } from './irLayout';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
+import { contrastTextColor } from './slideIr';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -146,17 +147,19 @@ async function renderSlide(pres: PptxLike, slide: SlideIr, index: number, st: Re
         // theme-boilerplate-only). Solid reads cleaner than a banded gradient
         // — and matches the original PowerPoint export anyway, since browsers
         // are the only place the CSS gradient was ever visible.
-        const bg = slide.type === 'section' ? theme.sectionBg : theme.primaryColor;
+        // Per-slide background override (auto-contrast text) wins over the theme.
+        const bg = slide.background ?? (slide.type === 'section' ? theme.sectionBg : theme.primaryColor);
+        const fg = slide.background ? contrastTextColor(slide.background) : 'FFFFFF';
         s.background = { color: hx(bg) };
         s.addText(slide.title ?? '', {
             x: MARGIN, y: CANVAS.h / 2 - 1, w: CONTENT_WIDTH, h: 1.4,
             fontFace: theme.fontFace, fontSize: slide.type === 'title' ? 40 : 34,
-            color: 'FFFFFF', bold: true, align: 'center', valign: 'middle',
+            color: fg, bold: true, align: 'center', valign: 'middle',
         });
         if (slide.subtitle) {
             s.addText(slide.subtitle, {
                 x: MARGIN, y: CANVAS.h / 2 + 0.5, w: CONTENT_WIDTH, h: 0.9,
-                fontFace: theme.fontFace, fontSize: 18, color: 'FFFFFF', align: 'center', valign: 'middle',
+                fontFace: theme.fontFace, fontSize: 18, color: fg, align: 'center', valign: 'middle',
             });
         }
         if (slide.notes) s.addNotes(slide.notes);

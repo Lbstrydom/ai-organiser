@@ -7481,14 +7481,14 @@
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
     overflow: hidden;
-    /* Flex-driven sizing (no hard-coded vh cap): the preview fills the space
-       the flex layout gives it and SHRINKS when the window is small, so the
-       action bar + input below always stay visible. The iframe is scaled to
+    /* Flex-driven sizing: the preview takes the lion's share of the vertical
+       space (flex 2) and never collapses below a usable floor, so it no longer
+       shrinks to nothing as the chat transcript grows. The iframe is scaled to
        the measured container size in updateScale(). */
-    flex: 1 1 0;
+    flex: 2 1 0;
+    min-height: 300px;
     display: flex;
     flex-direction: column;
-    min-height: 0;
 }
 
 /* When the context panel holds the slide preview, let it (and the panel) take
@@ -7503,10 +7503,13 @@
     gap: 8px;
     overflow: hidden;
 }
-/* In presentation mode the chat transcript is secondary — let it take only the
-   space its content needs (and shrink), so the preview claims the rest. */
+/* In presentation mode the chat transcript shares the space (flex 1 vs the
+   preview's flex 2) and SCROLLS internally past its floor, so a long
+   conversation never squeezes the preview down to nothing. */
 .ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-area {
-    flex: 0 1 auto;
+    flex: 1 1 0;
+    min-height: 120px;
+    overflow-y: auto;
 }
 /* Fixed bars always visible — never squashed off-screen by the preview. */
 .ai-organiser-chat-mode-bar,

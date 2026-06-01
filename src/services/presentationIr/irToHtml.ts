@@ -22,6 +22,7 @@ import { ok, err } from '../../core/result';
 import type { ExportTheme } from '../export/exportTheme';
 import { sanitizeSvgMarkup } from '../chat/presentationSanitizer';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
+import { contrastTextColor } from './slideIr';
 
 export interface HtmlRenderOutput {
     html: string;
@@ -80,22 +81,29 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
     const parts: string[] = [];
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
-        const bg = slide.type === 'section'
-            ? hx(theme.sectionBg)
-            : `linear-gradient(135deg, ${hx(theme.primaryColor)} 0%, ${hx(theme.sectionBg)} 100%)`;
+        // Per-slide background override (auto-contrast text) wins over the theme.
+        const bg = slide.background
+            ? hx(slide.background)
+            : slide.type === 'section'
+                ? hx(theme.sectionBg)
+                : `linear-gradient(135deg, ${hx(theme.primaryColor)} 0%, ${hx(theme.sectionBg)} 100%)`;
+        const fg = slide.background ? hx(contrastTextColor(slide.background)) : '#fff';
         parts.push(slideOpen(index,
-            `background:${bg};color:#fff;font-family:${font};display:flex;flex-direction:column;`
+            `background:${bg};color:${fg};font-family:${font};display:flex;flex-direction:column;`
             + `justify-content:center;align-items:flex-start;padding:120px 140px;`));
-        if (slide.title) parts.push(`<h1 style="font-size:84px;font-weight:800;color:#fff;line-height:1.1;margin:0;">${esc(slide.title)}</h1>`);
-        if (slide.subtitle) parts.push(`<p style="font-size:38px;color:#fff;opacity:0.85;margin:28px 0 0 0;font-weight:300;">${esc(slide.subtitle)}</p>`);
+        if (slide.title) parts.push(`<h1 style="font-size:84px;font-weight:800;color:${fg};line-height:1.1;margin:0;">${esc(slide.title)}</h1>`);
+        if (slide.subtitle) parts.push(`<p style="font-size:38px;color:${fg};opacity:0.85;margin:28px 0 0 0;font-weight:300;">${esc(slide.subtitle)}</p>`);
     } else {
+        const bg = slide.background ? hx(slide.background) : '#ffffff';
+        const titleColor = slide.background ? hx(contrastTextColor(slide.background)) : hx(theme.primaryColor);
+        const bodyColor = slide.background ? hx(contrastTextColor(slide.background)) : hx(theme.bodyColor);
         parts.push(slideOpen(index,
-            `background:#ffffff;color:${hx(theme.bodyColor)};font-family:${font};display:flex;flex-direction:column;padding:90px 110px;`));
+            `background:${bg};color:${bodyColor};font-family:${font};display:flex;flex-direction:column;padding:90px 110px;`));
         if (slide.title) {
-            parts.push(`<h1 style="font-size:54px;font-weight:800;color:${hx(theme.primaryColor)};line-height:1.15;margin:0;">${esc(slide.title)}</h1>`);
+            parts.push(`<h1 style="font-size:54px;font-weight:800;color:${titleColor};line-height:1.15;margin:0;">${esc(slide.title)}</h1>`);
             parts.push(`<div style="width:130px;height:8px;background:${hx(theme.accentColor)};border-radius:4px;margin:18px 0 0 0;"></div>`);
         }
-        if (slide.subtitle) parts.push(`<p style="font-size:32px;color:${hx(theme.bodyColor)};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
+        if (slide.subtitle) parts.push(`<p style="font-size:32px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
         parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:28px;min-height:0;">');
         for (const block of slide.blocks) parts.push(renderBlock(block, index, theme, notices));
         parts.push('</div>');

@@ -68,6 +68,26 @@ describe('renderDeckToHtml', () => {
         expect(r.value.html).toContain('🚚');
     });
 
+    it('applies a per-slide background override with auto-contrast text', () => {
+        const deck: SlideDeckIr = {
+            schemaVersion: IR_SCHEMA_VERSION,
+            title: 'Bg',
+            slides: [
+                { id: 't1', type: 'title', title: 'White title', subtitle: 'sub', background: 'ffffff', blocks: [] },
+                { id: 'c1', type: 'closing', title: 'Dark closing', background: '101020', blocks: [] },
+            ],
+        };
+        expect(validateDeckIr(deck).ok).toBe(true);
+        const r = renderDeckToHtml(deck, theme);
+        if (!r.ok) throw new Error('expected ok');
+        // White background present and the title text is dark (not white) for contrast.
+        expect(r.value.html).toContain('background:#ffffff');
+        expect(r.value.html).toContain('color:#1a1a2e');
+        // Dark background present with white text.
+        expect(r.value.html).toContain('background:#101020');
+        expect(r.value.html).toContain('color:#ffffff');
+    });
+
     it('renders two-column as a flex container with two columns', () => {
         const r = renderDeckToHtml(coffeeDeckIr, theme);
         if (!r.ok) throw new Error('expected ok');

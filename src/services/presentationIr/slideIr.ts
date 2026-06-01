@@ -167,6 +167,9 @@ export const SlideIrSchema = z.object({
     type: SlideTypeSchema,
     title: text.optional(),
     subtitle: text.optional(),
+    /** Optional per-slide background colour (6-digit hex). Overrides the theme
+     *  background for this slide; renderers auto-pick a readable text colour. */
+    background: z.string().regex(HEX_COLOR, 'background must be a 6-digit hex').optional(),
     blocks: z.array(BlockSchema).max(MAX_BLOCKS_PER_SLIDE),
     notes: z.string().max(8_192).optional(),
 }).strict();
@@ -229,6 +232,18 @@ export type Block = z.infer<typeof BlockSchema>;
 export type SlideType = z.infer<typeof SlideTypeSchema>;
 export type SlideIr = z.infer<typeof SlideIrSchema>;
 export type SlideDeckIr = z.infer<typeof SlideDeckIrSchema>;
+
+/** Pick a readable text colour (6-hex, no `#`) for a given background hex by
+ *  perceptual luminance — used by both renderers when a slide carries a custom
+ *  `background`, so "white background" never leaves white text invisible. */
+export function contrastTextColor(hex: string): string {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) || 0;
+    const g = parseInt(h.slice(2, 4), 16) || 0;
+    const b = parseInt(h.slice(4, 6), 16) || 0;
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.6 ? '1a1a2e' : 'ffffff';
+}
 
 /** A per-block downgrade surfaced by either renderer (plan H3/M2). */
 export interface FidelityNotice {
