@@ -857,6 +857,12 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         oldSettings.defaultSummaryPersona = 'brief';
     }
 
+    // Retire the legacy HTML presentation engine: structured-IR is now the only
+    // path, so coerce any stored 'html-legacy' choice (2026-06 retirement).
+    if (oldSettings.presentationExportEngine === 'html-legacy') {
+        oldSettings.presentationExportEngine = 'structured-ir';
+    }
+
     // Migrate summary length: brief|detailed|comprehensive → brief|standard|detailed
     // Check comprehensive FIRST to avoid double-migration (comprehensive→detailed→standard)
     if (oldSettings.summaryLength === 'comprehensive') {

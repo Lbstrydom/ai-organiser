@@ -114,17 +114,10 @@ export class AIChatSettingsSection extends BaseSettingSection {
                     void plugin.saveSettings();
                 }));
 
-        new Setting(containerEl)
-            .setName(t.exportEngineTitle)
-            .setDesc(t.exportEngineDesc)
-            .addDropdown(dd => dd
-                .addOption('structured-ir', t.exportEngineStructured)
-                .addOption('html-legacy', t.exportEngineLegacy)
-                .setValue(plugin.settings.presentationExportEngine)
-                .onChange(value => {
-                    plugin.settings.presentationExportEngine = value === 'html-legacy' ? 'html-legacy' : 'structured-ir';
-                    void plugin.saveSettings();
-                }));
+        // Export-engine toggle retired (2026-06): the structured-IR engine is
+        // now the only path (legacy HTML generation is being removed). Any
+        // stored 'html-legacy' value is coerced to 'structured-ir' on load by
+        // migrateOldSettings().
 
         new Setting(containerEl)
             .setName(t.refinementPassesTitle)
