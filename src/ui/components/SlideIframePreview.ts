@@ -120,7 +120,22 @@ export class SlideIframePreview {
     private nextBtn: HTMLButtonElement | null = null;
     private liveRegion: HTMLElement | null = null;
     private iframeWrapper: HTMLElement | null = null;
+    private iframeScaler: HTMLElement | null = null;
     private statusEl: HTMLElement | null = null;
+
+    // Zoom: user multiplier applied on top of the fit-to-box scale. 1 = fit.
+    // Lets the user enlarge a slide that the 16:9 letterbox would otherwise
+    // keep small in a wide/short panel, and travels across device sizes since
+    // it multiplies whatever the measured fit happens to be.
+    private zoomFactor = 1;
+    private fitScale = 1; // last measured fit-to-box scale (for the % readout)
+    private zoomLabel: HTMLElement | null = null;
+    private zoomInBtn: HTMLButtonElement | null = null;
+    private zoomOutBtn: HTMLButtonElement | null = null;
+    private zoomFitBtn: HTMLButtonElement | null = null;
+    private static readonly ZOOM_STEP = 1.25;
+    private static readonly ZOOM_MIN = 0.5; // relative to fit
+    private static readonly ZOOM_MAX = 8;   // relative to fit
 
     constructor(container: HTMLElement, options: PreviewOptions = {}) {
         this.container = container;
@@ -257,7 +272,12 @@ export class SlideIframePreview {
             this.nextBtn = null;
             this.liveRegion = null;
             this.iframeWrapper = null;
+            this.iframeScaler = null;
             this.statusEl = null;
+            this.zoomLabel = null;
+            this.zoomInBtn = null;
+            this.zoomOutBtn = null;
+            this.zoomFitBtn = null;
             this.keyHandlerTarget = null;
             this.nonce = '';
             // Audit R1 H11: render an explicit empty-state placeholder so
@@ -299,6 +319,9 @@ export class SlideIframePreview {
             if (e.key === 'ArrowRight') { this.goToSlide(this.currentSlideIndex + 1); e.preventDefault(); }
             if (e.key === 'Home') { this.goToSlide(0); e.preventDefault(); }
             if (e.key === 'End') { this.goToSlide(this.slideCount - 1); e.preventDefault(); }
+            if (e.key === '+' || e.key === '=') { this.zoomIn(); e.preventDefault(); }
+            if (e.key === '-' || e.key === '_') { this.zoomOut(); e.preventDefault(); }
+            if (e.key === '0') { this.zoomFit(); e.preventDefault(); }
         };
         wrapper.addEventListener('keydown', this.keyHandler);
 
@@ -313,6 +336,9 @@ export class SlideIframePreview {
 
         // Iframe container
         this.iframeWrapper = wrapper.createEl('div', { cls: 'ai-organiser-pres-iframe-wrapper' });
+        // Scaler reserves the scaled footprint so margin:auto centres the slide
+        // and the wrapper can scroll when the user zooms beyond the panel.
+        this.iframeScaler = this.iframeWrapper.createEl('div', { cls: 'ai-organiser-pres-iframe-scaler' });
 
         if (this.state === 'loading') {
             this.statusEl.textContent = 'Loading preview...';
@@ -327,7 +353,7 @@ export class SlideIframePreview {
         // attributes retained their literal single quotes as `'24'`, and
         // inline <style> content rendered as body text). The property
         // setter preserves the raw HTML string verbatim.
-        this.iframe = this.iframeWrapper.createEl('iframe', {
+        this.iframe = this.iframeScaler.createEl('iframe', {
             cls: 'ai-organiser-pres-iframe',
             attr: {
                 sandbox: 'allow-same-origin allow-scripts',
@@ -403,23 +429,67 @@ export class SlideIframePreview {
     }
 
     private updateScale(): void {
-        if (!this.iframeWrapper || !this.iframe) return;
+        if (!this.iframeWrapper || !this.iframe || !this.iframeScaler) return;
         // Scale the fixed 1920x1080 slide to fit the MEASURED container box
-        // (driven by the flex layout) — no hard-coded vh budget. The wrapper
-        // is flex-sized; the iframe is absolutely positioned + transform-scaled
-        // so it never expands the wrapper. ResizeObserver re-runs this on every
-        // layout change, so it adapts to any window/modal size.
+        // (driven by the flex layout) — no hard-coded vh budget. ResizeObserver
+        // re-runs this on every layout change, so it adapts to any window/modal
+        // size. The user's zoomFactor multiplies the fit so they can enlarge a
+        // slide the 16:9 letterbox would otherwise keep small in a wide panel.
         const containerWidth = this.iframeWrapper.clientWidth || 600;
         const containerHeight = this.iframeWrapper.clientHeight || 360;
         const scaleByWidth = containerWidth / SLIDE_WIDTH;
         const scaleByHeight = containerHeight / SLIDE_HEIGHT;
-        const scale = Math.max(0.05, Math.min(scaleByWidth, scaleByHeight));
+        this.fitScale = Math.max(0.05, Math.min(scaleByWidth, scaleByHeight));
+        const scale = Math.max(0.05, this.fitScale * this.zoomFactor);
+
+        // The iframe renders at the native 1920x1080 box and is transform-scaled;
+        // the scaler div reserves the SCALED footprint so margin:auto centres it
+        // and the wrapper scrolls when zoomed past the panel edges.
         this.iframe.addClass('ai-organiser-scaled-iframe');
         this.iframe.setCssProps({
             '--iframe-scale': String(scale),
             '--iframe-width': `${SLIDE_WIDTH}px`,
             '--iframe-height': `${SLIDE_HEIGHT}px`,
         });
+        this.iframeScaler.setCssProps({
+            '--scaler-width': `${Math.round(SLIDE_WIDTH * scale)}px`,
+            '--scaler-height': `${Math.round(SLIDE_HEIGHT * scale)}px`,
+        });
+        this.updateZoomReadout();
+    }
+
+    /** Adjust the zoom multiplier (relative to fit) and re-scale. */
+    private setZoom(next: number): void {
+        const clamped = Math.max(
+            SlideIframePreview.ZOOM_MIN,
+            Math.min(SlideIframePreview.ZOOM_MAX, next),
+        );
+        if (clamped === this.zoomFactor) return;
+        this.zoomFactor = clamped;
+        if (this.state === 'ready') this.updateScale();
+        else this.updateZoomReadout();
+    }
+
+    private zoomIn(): void { this.setZoom(this.zoomFactor * SlideIframePreview.ZOOM_STEP); }
+    private zoomOut(): void { this.setZoom(this.zoomFactor / SlideIframePreview.ZOOM_STEP); }
+    private zoomFit(): void {
+        // Reset to fit-to-box.
+        if (this.zoomFactor === 1) { this.updateZoomReadout(); return; }
+        this.zoomFactor = 1;
+        if (this.state === 'ready') this.updateScale();
+        else this.updateZoomReadout();
+    }
+
+    /** Render the on-screen zoom percentage (effective scale vs native size)
+     *  and keep the +/- buttons disabled at their limits. */
+    private updateZoomReadout(): void {
+        const effective = this.fitScale * this.zoomFactor;
+        if (this.zoomLabel) {
+            this.zoomLabel.textContent = `${Math.round(effective * 100)}%`;
+        }
+        if (this.zoomInBtn) this.zoomInBtn.disabled = this.zoomFactor >= SlideIframePreview.ZOOM_MAX;
+        if (this.zoomOutBtn) this.zoomOutBtn.disabled = this.zoomFactor <= SlideIframePreview.ZOOM_MIN;
+        if (this.zoomFitBtn) this.zoomFitBtn.disabled = this.zoomFactor === 1;
     }
 
     private showActiveSlide(): void {
@@ -517,6 +587,36 @@ export class SlideIframePreview {
             attr: { 'aria-label': 'Next slide' }, // H5
         });
         this.nextBtn.addEventListener('click', () => this.goToSlide(this.currentSlideIndex + 1));
+
+        // Zoom controls — let the user enlarge/shrink the slide independent of
+        // the fit-to-box scale. Works across device sizes since it multiplies fit.
+        const zoomGroup = this.navContainer.createEl('div', { cls: 'ai-organiser-pres-zoom' });
+        this.zoomOutBtn = zoomGroup.createEl('button', {
+            cls: 'ai-organiser-pres-nav-btn',
+            text: '−', // minus sign
+            attr: { 'aria-label': 'Zoom out' },
+        });
+        this.zoomOutBtn.addEventListener('click', () => this.zoomOut());
+
+        this.zoomLabel = zoomGroup.createEl('span', {
+            cls: 'ai-organiser-pres-zoom-label',
+            text: '100%',
+            attr: { 'aria-live': 'polite' },
+        });
+
+        this.zoomInBtn = zoomGroup.createEl('button', {
+            cls: 'ai-organiser-pres-nav-btn',
+            text: '+',
+            attr: { 'aria-label': 'Zoom in' },
+        });
+        this.zoomInBtn.addEventListener('click', () => this.zoomIn());
+
+        this.zoomFitBtn = zoomGroup.createEl('button', {
+            cls: 'ai-organiser-pres-nav-btn ai-organiser-pres-zoom-fit',
+            text: 'Fit',
+            attr: { 'aria-label': 'Fit slide to screen' },
+        });
+        this.zoomFitBtn.addEventListener('click', () => this.zoomFit());
     }
 
     private updateNav(): void {

@@ -7496,7 +7496,13 @@
    `:has()` scopes this to presentation mode only; other modes keep a compact
    context line. */
 .ai-organiser-chat-context:has(.ai-organiser-pres-preview-container) {
-    flex: 1 1 0;
+    /* Preview gets the dominant vertical share (flex 3 vs the chat
+       transcript's flex 1). The slide is fit-to-HEIGHT (16:9 in a wide box),
+       so a starved height — not width — is what shrinks the slide. Giving the
+       panel ~3/4 of the shared space lets the iframe wrapper grow tall enough
+       that the slide scales up to use the available width. The chat below
+       scrolls, so it stays usable on its smaller share. */
+    flex: 3 1 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -7504,12 +7510,17 @@
     overflow: hidden;
 }
 /* In presentation mode the chat transcript shares the space (flex 1 vs the
-   preview's flex 2) and SCROLLS internally past its floor, so a long
+   preview's flex 3) and SCROLLS internally past its floor, so a long
    conversation never squeezes the preview down to nothing. */
 .ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-area {
     flex: 1 1 0;
-    min-height: 120px;
+    min-height: 88px;
     overflow-y: auto;
+}
+/* Slides mode starts the composer compact so its height goes to the slide;
+   the user can still drag it taller (resize: vertical) or it grows with text. */
+.ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-input-row textarea {
+    min-height: 44px;
 }
 /* Fixed bars always visible — never squashed off-screen by the preview. */
 .ai-organiser-chat-mode-bar,
@@ -7518,20 +7529,32 @@
     flex-shrink: 0;
 }
 
-/* iframe wrapper — scales 1920x1080 slides to fit the measured container */
+/* iframe wrapper — scales 1920x1080 slides to fit the measured container.
+   display:flex + the scaler's margin:auto centres the slide on both axes when
+   it's smaller than the wrapper; overflow:auto lets the user scroll when they
+   zoom the slide beyond the panel edges. */
 .ai-organiser-pres-iframe-wrapper {
-    position: relative;
-    overflow: hidden;
     background: var(--background-secondary);
     flex: 1 1 0;
     min-height: 0;
+    overflow: auto;
+    display: flex;
+}
+/* Scaler reserves the SCALED footprint (set in updateScale) so margin:auto can
+   centre it and the wrapper's scrollbars track the visible slide size. */
+.ai-organiser-pres-iframe-scaler {
+    position: relative;
+    margin: auto;
+    flex: 0 0 auto;
+    width: var(--scaler-width, 100%);
+    height: var(--scaler-height, 100%);
 }
 .ai-organiser-pres-iframe {
     border: none;
     transform-origin: top left;
     display: block;
-    /* Absolutely positioned so the unscaled 1080px layout box doesn't expand
-       the flex-sized wrapper (transform scales visually, not layout). */
+    /* Absolutely positioned inside the scaler so the unscaled 1920x1080 layout
+       box doesn't expand it (transform scales visually, not layout). */
     position: absolute;
     top: 0;
     left: 0;
@@ -7560,6 +7583,25 @@
 .ai-organiser-pres-nav-counter {
     font-size: 12px;
     color: var(--text-muted);
+}
+
+/* Zoom controls */
+.ai-organiser-pres-zoom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 16px;
+    padding-left: 16px;
+    border-left: 1px solid var(--background-modifier-border);
+}
+.ai-organiser-pres-zoom-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 42px;
+    text-align: center;
+}
+.ai-organiser-pres-zoom-fit {
+    font-size: 12px;
 }
 
 /* Version Navigation */
@@ -8305,6 +8347,8 @@
 
 /* Scaled iframe preview */
 .ai-organiser-scaled-iframe {
+    /* scale shrinks/grows the native 1920x1080 render; the scaler div reserves
+       the resulting footprint and margin:auto handles centring. */
     transform: scale(var(--iframe-scale));
     width: var(--iframe-width);
     height: var(--iframe-height);

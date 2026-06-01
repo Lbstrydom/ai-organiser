@@ -417,6 +417,12 @@ export class UnifiedChatModal extends Modal {
         }
 
         for (const message of messages) {
+            // Slides mode demotes operational status (Saved / Exported / Polished)
+            // to transient toasts — so skip persisted `system` bubbles here. This
+            // also cleans up decks whose transcripts were saved before that change.
+            // Genuine Slides turns are `user` (instructions) and `assistant` (replies).
+            if (this.activeMode === 'presentation' && message.role === 'system') continue;
+
             const messageEl = this.chatContainer.createDiv({
                 cls: `ai-organiser-chat-msg ai-organiser-chat-msg-${message.role}`
             });
