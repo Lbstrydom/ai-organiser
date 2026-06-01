@@ -147,6 +147,8 @@ export class PresentationModeHandler implements ChatModeHandler {
     // re-renders / dispose clean it up instead of letting stale callbacks
     // fire on a torn-down preview.
     private navigateTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    /** Stable host for the version nav so restoreVersion can re-render it. */
+    private versionNavHost: HTMLElement | null = null;
 
     // Project context
     private projectInstructions: string | null = null;
@@ -269,6 +271,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Drop the accessory ref before container.empty() so refreshAccessory
         // can't fire against detached DOM during the transition window.
         this.accessoryContainer = null;
+        this.versionNavHost = null;
         // Tear down any prior CreatePanel subscription so resubscribing
         // below doesn't double-fire on controller events.
         if (this.createPanelDispose) {
@@ -324,24 +327,13 @@ export class PresentationModeHandler implements ChatModeHandler {
             // Project canonical HTML for the editor: adds data-element
             // attributes the iframe runtime walks on click. Canonical HTML
             // (no data-element) stays in this.html for prompts/exports.
-            this.preview.setHtml(projectForEditor(this.html));
-            if (this.activeSlideIndex > 0) {
-                // F5: track the navigate handle so rapid re-render / dispose
-                // can cancel the stale callback before it fires.
-                this.navigateTimeoutId = setTimeout(() => {
-                    this.navigateTimeoutId = null;
-                    this.preview?.navigateToSlide(this.activeSlideIndex);
-                }, 200);
-            }
-            if (this.qualityResult) {
-                this.preview.setQuality(this.qualityResult);
-            }
+            this.refreshPreview();
         }
 
-        // Version navigation
-        if (this.versions.length > 1) {
-            this.renderVersionNav(container);
-        }
+        // Version navigation — rendered into a stable host so restoreVersion
+        // can re-render the counter + button states in place.
+        this.versionNavHost = container.createEl('div', { cls: 'ai-organiser-pres-version-host' });
+        this.refreshVersionNav();
 
         // Phase status — F4: i18n-driven instead of hardcoded English literals.
         const phaseText = this.getPhaseStatusText(t);
@@ -373,6 +365,64 @@ export class PresentationModeHandler implements ChatModeHandler {
             clearTimeout(this.navigateTimeoutId);
             this.navigateTimeoutId = null;
         }
+    }
+
+    /**
+     * SINGLE, consistent preview refresh — called by EVERY deck mutation
+     * (generate / refine / polish / scoped edit / version restore). Clamps the
+     * active slide to the (possibly changed) deck size, projects the editor
+     * HTML, restores the active slide, and re-applies the quality overlay. No
+     * deck-mutation path should poke `this.preview.setHtml` directly — route
+     * through here so the preview can never be left stale or blank.
+     */
+    private refreshPreview(): void {
+        if (!this.preview || !this.html) return;
+        const count = countSlides(this.html);
+        if (this.activeSlideIndex < 0 || this.activeSlideIndex >= count) {
+            this.activeSlideIndex = 0;
+        }
+        this.preview.setHtml(projectForEditor(this.html));
+        if (this.activeSlideIndex > 0) {
+            // F5: track the navigate handle so rapid re-render / dispose can
+            // cancel the stale callback before it fires.
+            this.clearNavigateTimeout();
+            this.navigateTimeoutId = setTimeout(() => {
+                this.navigateTimeoutId = null;
+                this.preview?.navigateToSlide(this.activeSlideIndex);
+            }, 200);
+        }
+        if (this.qualityResult) {
+            this.preview.setQuality(this.qualityResult);
+        }
+    }
+
+    /**
+     * SINGLE, consistent post-mutation commit — every path that produces a new
+     * deck (refine / whole-deck polish / selective polish) routes through here
+     * so the preview, version timeline, reliability, quality state, and phase
+     * never drift between paths. (Generation interleaves a brand audit but runs
+     * the same steps inline.) Fixes the prior drift where polish skipped the
+     * reliability + background quality scan.
+     */
+    private commitDeckMutation(opts: {
+        deckIr: SlideDeckIr;
+        html: string;
+        versionLabel: string;
+        llmCtx: LLMFacadeContext;
+        signal: AbortSignal;
+        resetActiveSlide?: boolean;
+    }): void {
+        if (opts.resetActiveSlide) this.activeSlideIndex = 0;
+        this.deckIr = opts.deckIr;
+        this.deckIrStale = false;
+        this.html = opts.html;
+        this.refreshPreview();
+        this.pushVersion(opts.versionLabel);
+        this.updateReliability();
+        this.runQualityCheck();
+        this.clearSelection();
+        this.setPhase('preview-ready');
+        void this.runBackgroundQualityScan(opts.llmCtx, opts.signal);
     }
 
     buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
@@ -582,7 +632,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.deckIrStale = false;
             this.html = built.value;
             this.activeSlideIndex = 0;
-            if (this.preview) this.preview.setHtml(projectForEditor(this.html));
+            this.refreshPreview();
             this.pushVersion(r.originalQuery);
             this.updateReliability();
 
@@ -647,11 +697,13 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (abort.signal.aborted || !refined.ok) return;
         const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage);
         if (!built.ok) return;
-        this.deckIr = refined.value;
-        this.deckIrStale = false;
-        this.html = built.value;
-        if (this.preview) this.preview.setHtml(projectForEditor(this.html));
-        this.pushVersion('Polish');
+        this.commitDeckMutation({
+            deckIr: refined.value,
+            html: built.value,
+            versionLabel: 'Polish',
+            llmCtx,
+            signal: abort.signal,
+        });
     }
 
     /**
@@ -685,16 +737,14 @@ export class PresentationModeHandler implements ChatModeHandler {
                 logger.warn('Presentation', `IR refine→HTML failed, falling back: ${built.error}`);
                 return null;
             }
-            this.deckIr = refined.value;
-            this.deckIrStale = false;
-            this.html = built.value;
-            if (this.preview) this.preview.setHtml(projectForEditor(this.html));
-            this.pushVersion(r.originalQuery);
-            this.runQualityCheck();
-            this.clearSelection();
-            this.setPhase('preview-ready');
-            void this.runBackgroundQualityScan(r.llmCtx, r.abort.signal);
-            const count = countSlides(this.html);
+            this.commitDeckMutation({
+                deckIr: refined.value,
+                html: built.value,
+                versionLabel: r.originalQuery,
+                llmCtx: r.llmCtx,
+                signal: r.abort.signal,
+            });
+            const count = countSlides(built.value);
             return { finalContent: t.slideRefineApplied.replace('{n}', String(count)) };
         } catch (e) {
             logger.warn('Presentation', `IR refine threw, falling back: ${e instanceof Error ? e.message : String(e)}`);
@@ -1133,6 +1183,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.preview?.dispose();
         this.preview = null;
         this.accessoryContainer = null;
+        this.versionNavHost = null;
         this.accessoryT = null;
         this.selection = null;
         if (this.createPanelDispose) {
@@ -1834,31 +1885,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             return { ok: false, error: compute.error };
         }
 
-        // ── Commit (Result.ok only; ordering per plan §4.6.1) ───────────────
+        // ── Commit (Result.ok only) — routed through the SAME consolidated
+        // post-mutation path as refine/polish, so quality is re-scanned fresh
+        // (handles split-induced index shifts) rather than hand-filtered.
         const { refined, html } = compute.value;
-        const slideCountChanged = refined.slides.length !== (this.deckIr?.slides.length ?? refined.slides.length);
-        this.deckIr = refined;
-        this.deckIrStale = false;
-        this.html = html;
-        if (this.preview) this.preview.setHtml(projectForEditor(html));
-
-        // Invalidate stale findings + zero the now-stale scores (audit-r1 H4 +
-        // gemini-gate r2 F3). When a split changed the slide count, every
-        // per-slide index has shifted — drop ALL per-slide findings (keep
-        // deck-wide); otherwise drop just the polished slides'. Null if no scan.
-        if (this.qualityResult) {
-            const changed = new Set(draft.selections.map(s => s.slideIndex));
-            this.qualityResult = {
-                structureScore: 0,
-                auditScore: 0,
-                totalScore: 0,
-                findings: this.qualityResult.findings.filter(f =>
-                    f.slideIndex === undefined || (!slideCountChanged && !changed.has(f.slideIndex)),
-                ),
-            };
-            this.preview?.setQuality(this.qualityResult);
-        }
-
         // Version-history label with 1-based UI slide numbers (audit-r2 M2).
         const slideNumbers = [...draft.selections.map(s => s.slideIndex)]
             .sort((a, b) => a - b)
@@ -1868,7 +1898,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         const label = tSlice.versionLabel
             .replace('{slideNumbers}', slideNumbers)
             .replace('{preview}', preview);
-        this.pushVersion(label);
+        this.commitDeckMutation({ deckIr: refined, html, versionLabel: label, llmCtx, signal });
 
         return { ok: true };
     }
@@ -1905,6 +1935,18 @@ export class PresentationModeHandler implements ChatModeHandler {
         // resolve to different content) in the restored one. Clear it.
         this.clearSelection();
         this.phase = 'preview-ready';
+        // Consistency: a version swap is a deck mutation — refresh the preview
+        // and the nav (counter + button states) like every other path.
+        this.refreshPreview();
+        this.refreshVersionNav();
+    }
+
+    /** Re-render the version nav in its stable host (counter + button states).
+     *  Called on mount and after every restoreVersion so the UI tracks state. */
+    private refreshVersionNav(): void {
+        if (!this.versionNavHost) return;
+        this.versionNavHost.empty();
+        if (this.versions.length > 1) this.renderVersionNav(this.versionNavHost);
     }
 
     private renderVersionNav(container: HTMLElement): void {

@@ -391,6 +391,15 @@ export class SlideIframePreview {
         this.showActiveSlide();
         this.updateNav();
         this.renderQualityBadge();
+
+        // Defensive re-scale once layout is final. On a re-render the iframe
+        // `load` can fire before the flex layout allocates the wrapper's height,
+        // so the synchronous updateScale() above measures a too-small box and
+        // the ResizeObserver never corrects it (the element's real size never
+        // changed). A double rAF re-measures after the browser settles layout.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (this.state === 'ready') this.updateScale();
+        }));
     }
 
     private updateScale(): void {

@@ -1,5 +1,15 @@
 # Project Status Log
 
+## 2026-06-01 — Presentation: consolidate preview/commit paths + fix blank render + auto-scale
+
+### Changes
+- **Blank render after a deck change**: the preview was updated by 6 ad-hoc `setHtml` call sites with varying navigate/quality/clamp logic, and `restoreVersion` updated `this.html` but never refreshed the preview at all. Consolidated into ONE [`refreshPreview()`](src/ui/chat/PresentationModeHandler.ts) (clamps `activeSlideIndex` to the current slide count, projects editor HTML, restores the active slide, re-applies quality). Every deck-mutation path now routes through it, including `restoreVersion` (which now also re-renders the version nav counter in a stable host).
+- **Auto-scale too small after re-render**: on a re-render the iframe `load` fired before the flex layout allocated the wrapper height, so `updateScale` measured a tiny box and the ResizeObserver never corrected it (real size never changed). Added a double-rAF re-scale in [`onIframeLoad`](src/ui/components/SlideIframePreview.ts) so it re-measures once layout settles.
+- **Post-mutation drift** (the deeper inconsistency): the "commit a new deck" sequence was duplicated across generate/refine/whole-deck-polish/selective-polish with drift — **polish skipped `updateReliability` + `runQualityCheck` + the background quality scan**, so quality went stale after a polish. Consolidated into one [`commitDeckMutation()`](src/ui/chat/PresentationModeHandler.ts) (set deck/html → refreshPreview → pushVersion → updateReliability → runQualityCheck → clearSelection → setPhase → background scan). Routed refine, whole-deck polish, and selective polish through it; selective polish now re-scans quality instead of hand-filtering stale findings (also handles split-induced index shifts naturally).
+- **Tests**: handler "selective success" updated to assert the consolidated commit (deck/html replaced, quality re-scanned, version pushed). Full tsc 0, lint 0, 4906 vitest pass.
+
+---
+
 ## 2026-06-01 — Per-slide Polish: allow 1→N slide expansion (split overloaded slides)
 
 ### Changes

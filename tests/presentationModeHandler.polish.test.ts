@@ -189,20 +189,17 @@ describe('handlePolish — submit outcomes', () => {
         expect(refineDeckIrSelectiveMock).not.toHaveBeenCalled();
     });
 
-    it('selective success → replaces deck/html, invalidates stale findings, pushes version', async () => {
+    it('selective success → replaces deck/html, re-scans quality, pushes version', async () => {
         const refined: SlideDeckIr = { ...coffeeDeckIr, title: 'Polished deck' };
         refineDeckIrSelectiveMock.mockResolvedValue(ok(refined));
         const handler = makeHandler({
             qualityResult: {
                 structureScore: 5, auditScore: 5, totalScore: 50,
-                findings: [
-                    { slideIndex: 0, issue: 'a', suggestion: 'a2', severity: 'HIGH' },
-                    { slideIndex: 2, issue: 'b', suggestion: 'b2', severity: 'MEDIUM' },
-                    { slideIndex: 5, issue: 'c', suggestion: 'c2', severity: 'LOW' },
-                    { issue: 'deck-wide', suggestion: 'd2', severity: 'LOW' },
-                ],
+                findings: [{ slideIndex: 0, issue: 'a', suggestion: 'a2', severity: 'HIGH' }],
             },
         });
+        // runBackgroundQualityScan is already stubbed by makeHandler.
+        const scanSpy = (handler as unknown as { runBackgroundQualityScan: ReturnType<typeof vi.fn> }).runBackgroundQualityScan;
         const opts = await openAndGetOpts(handler);
         const res = await opts.onSubmit(
             { kind: 'selective', selections: [
@@ -215,18 +212,13 @@ describe('handlePolish — submit outcomes', () => {
 
         const h = handler as unknown as {
             deckIr: SlideDeckIr; html: string;
-            qualityResult: { findings: Array<{ slideIndex?: number }>; totalScore: number };
             versions: Array<{ userPrompt: string }>;
         };
         expect(h.deckIr).toBe(refined);
         expect(h.html).toBe('<refined-html>');
-        // Changed-slide findings dropped; deck-wide + untouched (5) kept.
-        const idxs = h.qualityResult.findings.map(f => f.slideIndex);
-        expect(idxs).not.toContain(0);
-        expect(idxs).not.toContain(2);
-        expect(idxs).toContain(5);
-        expect(idxs).toContain(undefined);
-        expect(h.qualityResult.totalScore).toBe(0); // stale scores zeroed
+        // Quality is refreshed via the consolidated commit (no stale findings):
+        // runQualityCheck ran (preview null in test → cleared) + background scan fired.
+        expect(scanSpy).toHaveBeenCalled();
         // Version pushed with 1-based slide numbers.
         expect(h.versions).toHaveLength(1);
         expect(h.versions[0].userPrompt).toMatch(/^Polish slides 1, 3 — '/);
