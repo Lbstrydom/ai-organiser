@@ -2279,6 +2279,7 @@ export interface Translations {
             cancel: string;
             progressLabel: string;
             analysingLabel: string;
+            versionLabelAll: string;
             versionLabel: string;
             errorByCode: Record<RefineErrorCode, string>;
         };

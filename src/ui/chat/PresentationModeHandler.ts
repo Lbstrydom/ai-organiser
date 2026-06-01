@@ -28,7 +28,7 @@ import {
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
-import { refineHtml, runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
+import { runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
 import type { ExportTheme } from '../../services/export/exportTheme';
@@ -92,13 +92,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     // State
     private phase: PresentationPhase = 'empty';
     private html: string | null = null;
-    // Structured-IR engine (Phase B). `deckIr` is the canonical artifact when
-    // the deck was generated via the IR path; `deckIrStale` flips true on any
-    // HTML-only mutation (refine / scoped edit / polish / version restore) so
-    // export falls back to the legacy HTML path rather than emitting a PPTX
-    // that disagrees with the edited preview (plan H2 divergence guard).
+    // `deckIr` is the canonical artifact — the deck is always IR-backed (legacy
+    // HTML generation was retired 2026-06). Every mutation path produces a new
+    // IR via commitDeckMutation, so it never disagrees with `this.html`.
     private deckIr: SlideDeckIr | null = null;
-    private deckIrStale = false;
     private versions: PresentationVersion[] = [];
     private versionIndex = -1;
     private activeSlideIndex = 0;
@@ -411,7 +408,6 @@ export class PresentationModeHandler implements ChatModeHandler {
     }): void {
         if (opts.resetActiveSlide) this.activeSlideIndex = 0;
         this.deckIr = opts.deckIr;
-        this.deckIrStale = false;
         this.html = opts.html;
         this.refreshPreview();
         this.pushVersion(opts.versionLabel);
@@ -547,7 +543,6 @@ export class PresentationModeHandler implements ChatModeHandler {
             }
 
             this.deckIr = irResult.value;
-            this.deckIrStale = false;
             this.html = built.value;
             this.activeSlideIndex = 0;
             this.refreshPreview();
@@ -580,18 +575,23 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /** Resolve the user's ExportTheme (shared by IR→HTML preview + IR→PPTX). */
+    /** Resolve the user's ExportTheme, memoised by a signature of the relevant
+     *  export settings so repeated mutations don't re-import + re-resolve every
+     *  call (Stage 3.1 cleanup). Recomputes when an export setting changes. */
+    private exportThemeCache: { sig: string; theme: ExportTheme } | null = null;
     private async resolveExportTheme(ctx: ModalContext): Promise<ExportTheme> {
-        const { resolveTheme: resolveExportTheme } = await import('../../services/export/exportTheme');
         const s = ctx.fullPlugin.settings;
-        return resolveExportTheme(
+        const sig = [
+            s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor,
+            s.exportFontFace, String(s.exportFontSize),
+        ].join('|');
+        if (this.exportThemeCache?.sig === sig) return this.exportThemeCache.theme;
+        const { resolveTheme: resolveExportTheme } = await import('../../services/export/exportTheme');
+        const theme = resolveExportTheme(
             s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor, s.exportFontFace, s.exportFontSize,
         );
-    }
-
-    /** Mark the cached deck IR stale after an HTML-only mutation so export
-     *  falls back to the legacy HTML path (plan H2 divergence guard). */
-    private invalidateDeckIr(): void {
-        if (this.deckIr) this.deckIrStale = true;
+        this.exportThemeCache = { sig, theme };
+        return theme;
     }
 
     /** Polish an IR-backed deck by refining the IR (keeps it canonical). */
@@ -622,7 +622,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.commitDeckMutation({
             deckIr: refined.value,
             html: built.value,
-            versionLabel: 'Polish',
+            versionLabel: ctx.plugin.t.modals.polishSelector.versionLabelAll,
             llmCtx,
             signal: abort.signal,
         });
@@ -1025,7 +1025,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.clearNavigateTimeout();  // F5
         this.html = null;
         this.deckIr = null;
-        this.deckIrStale = false;
         this.versions = [];
         this.versionIndex = -1;
         this.activeSlideIndex = 0;
@@ -1248,10 +1247,9 @@ export class PresentationModeHandler implements ChatModeHandler {
             versions: this.versions,
             conversation: [],
             brandEnabled: this.brandEnabled,
-            // Persist the deck IR (only when it still matches this.html — i.e.
-            // not stalened by an HTML-only edit) so a faithful native PPTX
-            // export survives a reload. Absent → export falls back to legacy.
-            deckIr: (this.deckIr && !this.deckIrStale) ? this.deckIr : undefined,
+            // Persist the deck IR so a faithful native PPTX export + further
+            // IR editing survive a reload.
+            deckIr: this.deckIr ?? undefined,
             createdAt: this.versions[0]?.timestamp
                 ? new Date(this.versions[0].timestamp).toISOString()
                 : new Date().toISOString(),
@@ -1270,7 +1268,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         const rawIr = (data as { deckIr?: unknown } | null)?.deckIr;
         const validated = rawIr != null ? validateDeckIr(rawIr) : null;
         this.deckIr = validated?.ok ? validated.value : null;
-        this.deckIrStale = false;
         this.versions = session.versions.slice(0, MAX_VERSIONS);
         this.versionIndex = this.versions.length - 1;
         this.brandEnabled = session.brandEnabled;
@@ -1350,26 +1347,19 @@ export class PresentationModeHandler implements ChatModeHandler {
      */
     private async tryRichPptxExport(
         ctx: ModalContext,
-        deckTitle: string,
+        _deckTitle: string,
     ): Promise<ArrayBuffer | null> {
-        if (!this.html) return null;
+        if (!this.html || !this.deckIr) return null;
         try {
-            const s = ctx.fullPlugin.settings;
             const exportTheme = await this.resolveExportTheme(ctx);
-
-            // PRIMARY: faithful native PPTX from the deck IR — when the deck was
-            // generated via the structured-IR engine and hasn't been edited
-            // (HTML-only mutations mark it stale → fall back to legacy).
-            if (this.deckIr && !this.deckIrStale && s.presentationExportEngine === 'structured-ir') {
-                const { renderDeckToPptx } = await import('../../services/presentationIr');
-                const result = await renderDeckToPptx(this.deckIr, exportTheme);
-                if (result.ok) return result.value.buffer;
-                logger.warn('Presentation', `IR PPTX render failed, falling back to HTML parser: ${result.error}`);
-            }
-
-            // FALLBACK: legacy HTML→rich-slide parser (edited / restored / legacy decks).
-            const { generatePptxFromHtml } = await import('../../services/export/markdownPptxGenerator');
-            return await generatePptxFromHtml(this.html, exportTheme, deckTitle);
+            // The deck is always IR-backed — render a faithful native PPTX from
+            // the IR. On render failure return null so the caller falls back to
+            // dom-to-pptx on the rendered HTML.
+            const { renderDeckToPptx } = await import('../../services/presentationIr');
+            const result = await renderDeckToPptx(this.deckIr, exportTheme);
+            if (result.ok) return result.value.buffer;
+            logger.warn('Presentation', `IR PPTX render failed: ${result.error}`);
+            return null;
         } catch (e) {
             logger.warn('Presentation', `Rich PPTX path failed, will fall back to dom-to-pptx: ${e instanceof Error ? e.message : String(e)}`);
             return null;
@@ -1493,18 +1483,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.activePolish) return;                       // single-flight: modal already open
         if (!this.html || this.mutationLock) return;
 
-        // Diagnostic: which path will Polish take? (Visible with Debug mode on.)
-        logger.debug('Presentation',
-            `Polish routing — engine=${ctx.plugin.settings.presentationExportEngine} `
-            + `irBacked=${this.deckIr !== null} stale=${this.deckIrStale} `
-            + `slides=${this.deckIr?.slides.length ?? 0}`);
-
-        // Per-slide polish: an IR-backed deck with >1 slide opens the selector
-        // modal so the user can target specific slides. Single-slide IR and
-        // legacy HTML decks keep the existing whole-deck behaviour.
-        if (ctx.plugin.settings.presentationExportEngine === 'structured-ir'
-            && this.deckIr !== null && !this.deckIrStale
-            && this.deckIr.slides.length > 1) {
+        // Per-slide polish: a deck with >1 slide opens the selector modal so the
+        // user can target specific slides; a single-slide deck polishes whole.
+        if (this.deckIr !== null && this.deckIr.slides.length > 1) {
             // Run the autodetect quality scan first so the per-slide polish
             // boxes prefill with detected issues — the per-slide findings come
             // from the LLM fast scan, which may not have finished after
@@ -1569,61 +1550,12 @@ export class PresentationModeHandler implements ChatModeHandler {
         try {
             const llmCtx = this.getLLMContext(ctx);
             const theme = await this.getTheme(ctx);
-            const maxPasses = ctx.plugin.settings.aichatRefinementPasses || 1;
 
-            // IR-backed decks polish via the IR (keeps export faithful). Legacy
-            // decks use the existing multi-pass HTML refine.
-            if (ctx.plugin.settings.presentationExportEngine === 'structured-ir' && this.deckIr && !this.deckIrStale) {
+            // The deck is always IR-backed — polish via the IR (keeps export
+            // faithful). polishDeckIr runs the autodetect scan + general/issue
+            // refine and routes through commitDeckMutation.
+            if (this.deckIr) {
                 await this.polishDeckIr(ctx, llmCtx, theme, abort);
-            } else {
-                for (let pass = 0; pass < maxPasses; pass++) {
-                    if (abort.signal.aborted) break;
-
-                    this.runQualityCheck();
-                    if (this.qualityResult && this.qualityResult.totalScore >= 80 && pass > 0) break;
-
-                    const findings = this.qualityResult?.findings || [];
-
-                    // Per-pass progress label (e.g. "Polish pass 2 of 3 — applying fixes…")
-                    this.activeThinkingUpdater?.(
-                        `Polish pass ${pass + 1} of ${maxPasses} — applying fixes…`
-                    );
-
-                    // With detected findings, fix them explicitly; with none,
-                    // still run a general polish so Polish never silently no-ops
-                    // (previously it broke out of the loop and did nothing).
-                    const userRequest = findings.length > 0
-                        ? `Polish the presentation. Fix these issues:\n${findings
-                            .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
-                            .join('\n')}`
-                        : 'Polish the presentation: tighten wording, sharpen the visual hierarchy, and ensure one idea per slide. Keep the facts and the slide count unchanged.';
-
-                    const result = await refineHtml(llmCtx, {
-                        currentHtml: this.html,
-                        userRequest,
-                        outputLanguage: ctx.plugin.settings.summaryLanguage,
-                        theme,
-                        signal: abort.signal,
-                    });
-
-                    // No findings → a single general pass is enough; don't loop.
-                    if (findings.length === 0) {
-                        if (result.ok) {
-                            this.html = result.value;
-                            this.invalidateDeckIr();
-                            this.pushVersion(`Polish pass ${pass + 1}`);
-                        }
-                        break;
-                    }
-
-                    if (abort.signal.aborted) break;
-
-                    if (result.ok) {
-                        this.html = result.value;
-                        this.invalidateDeckIr();
-                        this.pushVersion(`Polish pass ${pass + 1}`);
-                    }
-                }
             }
 
             if (this.brandEnabled && theme.auditChecklist.length > 0 && !abort.signal.aborted) {
@@ -1800,7 +1732,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Restore the version's IR snapshot so the deck stays IR-backed (and
         // editable/exportable). Versions captured post-IR always carry it.
         this.deckIr = version.deckIr ?? null;
-        this.deckIrStale = false;
         this.activeSlideIndex = version.activeSlideIndex;
         this.versionIndex = index;
         // Restoring a version is a whole-deck swap. Selection paths that

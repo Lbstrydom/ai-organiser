@@ -2252,6 +2252,7 @@ export const en: Translations = {
             cancel: "Cancel",
             progressLabel: "Polishing selected slides\u2026",
             analysingLabel: "Analysing slides\u2026",
+            versionLabelAll: "Polish all slides",
             versionLabel: "Polish slides {slideNumbers} \u2014 '{preview}\u2026'",
             errorByCode: {
                 'aborted': "Polish was cancelled.",
