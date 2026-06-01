@@ -13,6 +13,7 @@
 
 import { App, TFile, TFolder } from 'obsidian';
 import { truncateAtBoundary } from '../tokenLimits';
+import { logger } from '../../utils/logger';
 import type {
     SelectedSource,
     PromptSource,
@@ -195,12 +196,13 @@ export class PresentationSourceService {
         signal?: AbortSignal,
     ): Promise<void> {
         if (!this.research) {
-            failures.push({ selected: src, code: 'web-search-failed', debugMessage: 'no research service' });
+            failures.push({ selected: src, code: 'web-search-not-configured', debugMessage: 'no research service' });
             return;
         }
         try {
             const results = await this.research.search(src.ref, { signal });
             if (!results.trim()) {
+                logger.warn('PresentationSourceService', `web-search returned no results for "${src.ref}"`);
                 failures.push({ selected: src, code: 'web-search-no-results' });
                 return;
             }
@@ -210,10 +212,29 @@ export class PresentationSourceService {
                 content: truncateAtBoundary(results, WEB_SEARCH_RESULT_CAP),
             });
         } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            // Two distinct "not actionable as a retry" patterns get the
+            // dedicated config code — both point the user at Settings:
+            //  - ResearchSearchService: "No search provider configured" (no
+            //    active provider AND no fallback was found by auto-detect)
+            //  - ClaudeWebSearchAdapter: "Claude API key not configured for
+            //    web search" (active provider is claude-web-search, but key
+            //    resolution returned null — typically because cloudServiceType
+            //    isn't 'claude' so the main-key fallback didn't fire)
+            const isUnconfigured = /no search provider configured|api key not configured/i.test(msg);
+            // Logger surfaces the real failure to the console — silently
+            // swallowing into the UI made this class of bug invisible. Uses
+            // `error` so it logs regardless of debugMode (warn is gated). The
+            // UI state still drives the user-facing tooltip + block message
+            // via the failureCode.
+            logger.error(
+                'PresentationSourceService',
+                `web-search failed for "${src.ref}" → code=${isUnconfigured ? 'web-search-not-configured' : 'web-search-failed'}: ${msg}`,
+            );
             failures.push({
                 selected: src,
-                code: 'web-search-failed',
-                debugMessage: e instanceof Error ? e.message : String(e),
+                code: isUnconfigured ? 'web-search-not-configured' : 'web-search-failed',
+                debugMessage: msg,
             });
         }
     }

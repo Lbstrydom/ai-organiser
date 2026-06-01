@@ -336,6 +336,7 @@ export type SourceFailureCode =
     | 'folder-empty'
     | 'web-search-failed'
     | 'web-search-no-results'
+    | 'web-search-not-configured'
     | 'unsupported-kind';
 
 /** Layer 2: UI render state per source row. Held inside the controller +

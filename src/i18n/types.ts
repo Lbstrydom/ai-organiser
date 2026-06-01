@@ -1,3 +1,5 @@
+import type { RefineErrorCode } from '../services/chat/refineDeckIrSelectiveTypes';
+
 export interface Translations {
     // Settings sections
     settings: {
@@ -320,6 +322,10 @@ export interface Translations {
             refinementPassesDesc: string;
             brandToggleDefaultTitle: string;
             brandToggleDefaultDesc: string;
+            exportEngineTitle: string;
+            exportEngineDesc: string;
+            exportEngineStructured: string;
+            exportEngineLegacy: string;
         };
         semanticSearch: {
             title: string;
@@ -2164,6 +2170,7 @@ export interface Translations {
             slideCreateValidationZeroLength: string;
             slideCreateValidationLengthOutOfRange: string;
             slideCreateBlockNoUsableSources: string;
+            slideCreateBlockWebSearchNotConfigured: string;
             slideCreatePartialFailureNotice: string;
             slideCreateSourceFailureNoteNotFound: string;
             slideCreateSourceFailureNoteEmpty: string;
@@ -2172,6 +2179,7 @@ export interface Translations {
             slideCreateSourceFailureFolderEmpty: string;
             slideCreateSourceFailureWebSearchFailed: string;
             slideCreateSourceFailureWebSearchNoResults: string;
+            slideCreateSourceFailureWebSearchNotConfigured: string;
             // Assistant-message + advisory strings — moved out of hardcoded
             // English literals after persona walkthrough flagged i18n gap.
             slideEditFailed: string;                // "Failed to apply scoped edit: {error}"
@@ -2253,6 +2261,22 @@ export interface Translations {
             indexingPillPartial: string;
             indexingPillFailed: string;
             indexingPillMobileCapped: string;
+        };
+        polishSelector: {
+            title: string;
+            privacyNotice: string;
+            deckWideFindingsHeading: string;
+            allSlides: string;
+            allSlidesDescription: string;
+            rowInstructionLabel: string;
+            rowInstructionPlaceholder: string;
+            actionButton: string;
+            actionButtonAll: string;
+            actionButtonSubmitting: string;
+            cancel: string;
+            progressLabel: string;
+            versionLabel: string;
+            errorByCode: Record<RefineErrorCode, string>;
         };
         exportNote: {
             title: string;

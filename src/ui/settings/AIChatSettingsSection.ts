@@ -115,6 +115,18 @@ export class AIChatSettingsSection extends BaseSettingSection {
                 }));
 
         new Setting(containerEl)
+            .setName(t.exportEngineTitle)
+            .setDesc(t.exportEngineDesc)
+            .addDropdown(dd => dd
+                .addOption('structured-ir', t.exportEngineStructured)
+                .addOption('html-legacy', t.exportEngineLegacy)
+                .setValue(plugin.settings.presentationExportEngine)
+                .onChange(value => {
+                    plugin.settings.presentationExportEngine = value === 'html-legacy' ? 'html-legacy' : 'structured-ir';
+                    void plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName(t.refinementPassesTitle)
             .setDesc(t.refinementPassesDesc)
             .addDropdown(dd => dd

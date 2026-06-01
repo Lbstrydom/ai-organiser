@@ -16,6 +16,7 @@ vi.mock('obsidian', async () => {
 
 import { requestUrl } from 'obsidian';
 import { ClaudeWebSearchAdapter } from '../src/services/research/adapters/claudeWebSearchAdapter';
+import { claudeSupportsDynamicWebSearch } from '../src/services/adapters/modelCapabilities';
 
 const mockRequestUrl = requestUrl as unknown as ReturnType<typeof vi.fn>;
 
@@ -638,11 +639,11 @@ describe('ClaudeWebSearchAdapter', () => {
             expect(body.tools[0].type).toBe('web_search_20250305');
         });
 
-        it('defaults to the latest-sonnet sentinel when no model specified', async () => {
-            // Sends the `latest-sonnet` sentinel through to the adapter; the
-            // CloudLLMService caller is responsible for resolution. Test pins
-            // the sentinel (not a concrete version) so the assertion survives
-            // every Sonnet release. See memory entry
+        it('resolves the default latest-sonnet sentinel to a concrete Sonnet id', async () => {
+            // The adapter resolves the `latest-sonnet` sentinel to a concrete
+            // model id before dispatch (mirrors cloudService) so Anthropic's
+            // /v1/messages doesn't 404 on a raw sentinel. Assert that resolution
+            // happened — without pinning a concrete version, per memory entry
             // `feedback-always-use-latest-model-sentinels`.
             const defaultAdapter = new ClaudeWebSearchAdapter(mockGetApiKey);
             mockRequestUrl.mockResolvedValue({ status: 200, json: buildMockResponse() });
@@ -650,14 +651,15 @@ describe('ClaudeWebSearchAdapter', () => {
             await defaultAdapter.searchAndSynthesize('test');
 
             const body = JSON.parse(mockRequestUrl.mock.calls[0][0].body);
-            expect(body.model).toBe('latest-sonnet');
-            // Older models would route to the basic tool version, but
-            // `claudeSupportsDynamicWebSearch` matches on the resolved id —
-            // when the sentinel is unresolved (test runs without the
-            // resolver) the model name doesn't satisfy the dynamic check,
-            // so the tool falls back to the basic version. This is the
-            // expected behaviour for callers that hand raw sentinels in.
-            expect(body.tools[0].type).toBe('web_search_20250305');
+            const model = body.model as string;
+            expect(model).not.toBe('latest-sonnet');
+            expect(model).toMatch(/sonnet/i);
+            // Tool version is derived from the resolved id's dynamic-filter
+            // support — basic for older Sonnets, dynamic for 4.6+.
+            const expectedTool = claudeSupportsDynamicWebSearch(model)
+                ? 'web_search_20260209'
+                : 'web_search_20250305';
+            expect(body.tools[0].type).toBe(expectedTool);
         });
     });
 

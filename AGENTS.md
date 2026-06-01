@@ -309,6 +309,32 @@ AI free-form chat inside `UnifiedChatModal`.
 
 **Plan**: [docs/completed/pres-plan.md](docs/completed/pres-plan.md)
 
+## Per-Slide Polish (Presentation)
+
+**Status**: ✅ Implemented (June 2026)
+
+Targeted polish of individual slides in an IR-backed deck. `handlePolish` routes a multi-slide deck to `PolishSelectorModal`; single-slide IR and legacy HTML decks keep the existing whole-deck path.
+
+### Core Components
+
+- `src/services/chat/refineDeckIrSelective.ts`: Selective deck-IR refine — single LLM call, **all-or-nothing splice**. Layered validation (pre-LLM: empty/duplicate/out-of-range selections + provider-aware token guard on the full assembled prompt; post-LLM: `tryExtractJson` → shape/length → duplicate/index-set → per-slice `SlideIrSchema.safeParse` → deck-level `validateDeckIr`). Force-preserves original `slide.id`. Never throws — every failure is a typed `Result.err('<code>: <detail>')`. `parseRefineErrorCode` decodes the prefix.
+- `src/services/chat/refineDeckIrSelectiveTypes.ts`: `RefineErrorCode` + `REFINE_ERROR_CODES` both derived from one `CODES` const array (neutral module — i18n imports the union without depending on a service).
+- `src/ui/modals/PolishSelectorModal.ts`: Pure IoC modal — collects a `PolishSubmit` draft, hands it to `opts.onSubmit`, stays open through the call so the draft survives failure. Privacy notice (`role=note`), deck-wide findings, "All slides" escape hatch, per-row checkbox+textarea, error banner (`role=alert`). CSS prefix `ai-organiser-polish-*`.
+- `src/ui/chat/PresentationModeHandler.ts`: `openPolishSelector` + `runPolishSubmit` (selective wrapped in `withProgressResult`; state mutated only after `Result.ok`; stale findings invalidated; 1-based version label). Single-flight `activePolish` guard.
+
+### Key Patterns
+
+- **All-or-nothing**: any validation layer fails → no splice, no mutation, draft preserved for retry.
+- **Whole-deck context, disclosed**: the full deck IR is sent as read-only context; the permanent privacy notice states unselected slides aren't modified.
+- **Intentional divergence**: selective path has no 1-repair (whole-deck `refineDeckIr` keeps its). Shared engine deferred to v2.
+- **0-based internal `slideIndex`, 1-based UI numbers** — converted at the seam.
+
+### Tests
+
+- `tests/refineDeckIrSelective.test.ts` (21), `tests/PolishSelectorModal.test.ts` (14), `tests/presentationModeHandler.polish.test.ts` (9).
+
+**Plan**: [docs/plans/per-slide-polish.md](docs/plans/per-slide-polish.md) · **Audit**: [docs/plans/per-slide-polish-audit-summary.md](docs/plans/per-slide-polish-audit-summary.md)
+
 ## Smart Document Indexing (AI Chat)
 
 **Status**: ✅ Implemented (March 2026)

@@ -172,8 +172,8 @@ describe('writeTranscriptNote + readTranscriptNote round-trip', () => {
 
 describe('writeTranscriptNote — schema validation', () => {
     it('throws when frontmatter is missing the required type=transcript discriminator', async () => {
-        // @ts-expect-error — testing schema enforcement
         const bad: TranscriptNote = {
+            // @ts-expect-error — testing schema enforcement (type must be 'transcript')
             frontmatter: { ...makeFrontmatter(), type: 'wrong' },
             body: makeBody(),
         };

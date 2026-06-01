@@ -18,6 +18,7 @@ import type { BrandTheme } from './brandThemeService';
 import {
     buildPresentationSystemPrompt,
     buildGenerationPrompt,
+    buildCreationPromptWithStyle,
     buildRefinementPrompt,
     buildBrandAuditPrompt,
     buildScopedContentEditPrompt,
@@ -25,6 +26,7 @@ import {
     extractHtmlFromResponse,
     wrapInDocument,
 } from '../prompts/presentationChatPrompts';
+import type { PromptSource, AudienceTier } from './presentationTypes';
 import {
     extractScopedFragment, estimateScopedPromptChars, stripEditorAnnotations,
 } from './presentationDomDecorator';
@@ -41,6 +43,10 @@ import { StreamingHtmlAssembler } from './streamingHtmlAssembler';
 import type { StreamingCheckpoint } from './streamingHtmlAssembler';
 import { tryExtractJson } from '../../utils/responseParser';
 import { logger } from '../../utils/logger';
+import type { ExportTheme } from '../export/exportTheme';
+import type { SlideDeckIr } from '../presentationIr/slideIr';
+import { renderDeckToHtml } from '../presentationIr/irToHtml';
+import { buildIrSystemPrompt, buildIrRepairPrompt, buildIrRefinePrompt, parseIrFromResponse } from '../presentationIr/irPrompts';
 
 // ── Shared LLM Task Runner (L6 fix — DRY) ──────────────────────────────────
 
@@ -221,6 +227,156 @@ export async function generateHtmlStream(
         const msg = e instanceof Error ? e.message : 'Unknown error';
         logger.error('Presentation', `Streaming generation failed: ${msg}`);
         return err(`Generation: ${msg}`);
+    }
+}
+
+// ── Structured-IR Generation (Phase B) ────────────────────────────────────
+
+export interface GenerateIrOptions {
+    userQuery: string;
+    noteContent?: string;
+    conversationHistory?: string;
+    outputLanguage?: string;
+    /** Target slide count from the create-panel length picker (hard requirement). */
+    targetLength?: number;
+    /** Resolved sources (notes, web-search results, folders) — incl. web search. */
+    sources?: PromptSource[];
+    /** Audience tier for density/tone guidance. */
+    audience?: AudienceTier;
+    signal?: AbortSignal;
+}
+
+/**
+ * Generate a `SlideDeckIr` from the LLM (structured-IR engine). Owns the LLM
+ * call + a single Zod-validated repair retry (the pure parser lives in
+ * `irPrompts.parseIrFromResponse`). Returns `Result`; the caller falls back to
+ * legacy HTML generation on failure so `this.html` is always populated.
+ */
+export async function generateDeckIr(
+    context: LLMFacadeContext,
+    options: GenerateIrOptions,
+): Promise<Result<SlideDeckIr>> {
+    if (options.signal?.aborted) return err('Aborted');
+
+    const systemPrompt = buildIrSystemPrompt({ outputLanguage: options.outputLanguage, targetLength: options.targetLength });
+    // When the user attached sources (notes / web-search / folders), thread
+    // their resolved content + audience + length through the richer creation
+    // prompt; otherwise fall back to the basic note-content prompt.
+    const userPrompt = (options.sources && options.sources.length > 0)
+        ? buildCreationPromptWithStyle({
+            userQuery: options.userQuery,
+            sources: options.sources,
+            audience: options.audience ?? 'general',
+            length: options.targetLength ?? 8,
+            conversationHistory: options.conversationHistory,
+        })
+        : buildGenerationPrompt({
+            userQuery: options.userQuery,
+            noteContent: options.noteContent,
+            conversationHistory: options.conversationHistory,
+        });
+
+    try {
+        const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
+            timeoutMs: GENERATION_HARD_BUDGET_MS,
+            signal: options.signal,
+        });
+        if (options.signal?.aborted) return err('Aborted');
+        if (!first.success || !first.content) {
+            return err(first.error || 'IR generation: LLM returned empty response');
+        }
+
+        const parsed = parseIrFromResponse(first.content);
+        if (parsed.ok) return parsed;
+
+        // One repair retry with the validation error fed back.
+        if (options.signal?.aborted) return err('Aborted');
+        logger.warn('Presentation', `IR validation failed, repairing: ${parsed.error}`);
+        const repairPrompt = buildIrRepairPrompt(first.content, parsed.error);
+        const retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
+            timeoutMs: GENERATION_HARD_BUDGET_MS,
+            signal: options.signal,
+        });
+        if (options.signal?.aborted) return err('Aborted');
+        if (!retry.success || !retry.content) return err(parsed.error);
+        return parseIrFromResponse(retry.content);
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('Presentation', `IR generation failed: ${msg}`);
+        return err(`IR generation: ${msg}`);
+    }
+}
+
+/**
+ * Deterministically render a deck IR to the self-contained preview HTML, then
+ * run the SAME sanitize → wrap → CSP chain the HTML path uses (plan H1 — the
+ * service is the only thing that produces `this.html`, always sanitized).
+ */
+export function buildHtmlFromDeckIr(
+    deck: SlideDeckIr,
+    exportTheme: ExportTheme,
+    brandCss: string,
+    language?: string,
+): Result<string> {
+    const rendered = renderDeckToHtml(deck, exportTheme);
+    if (!rendered.ok) return rendered;
+
+    const sanitized = sanitizePresentation(rendered.value.html);
+    if (!sanitized.hasDeckRoot) return err('IR→HTML: missing .deck root element');
+    if (!sanitized.hasSlides) return err('IR→HTML: no .slide elements found');
+
+    const wrapped = wrapInDocument(sanitized.html, brandCss, language);
+    return ok(injectCSP(wrapped));
+}
+
+export interface RefineIrOptions {
+    currentDeck: SlideDeckIr;
+    userRequest: string;
+    outputLanguage?: string;
+    signal?: AbortSignal;
+}
+
+/**
+ * Refine an existing deck IR per a user request (subsequent rounds). Same
+ * LLM-call + validate + 1-repair shape as `generateDeckIr`; keeps the deck
+ * IR-backed so export stays faithful after edits.
+ */
+export async function refineDeckIr(
+    context: LLMFacadeContext,
+    options: RefineIrOptions,
+): Promise<Result<SlideDeckIr>> {
+    if (options.signal?.aborted) return err('Aborted');
+
+    const systemPrompt = buildIrSystemPrompt({ outputLanguage: options.outputLanguage });
+    const userPrompt = buildIrRefinePrompt(options.currentDeck, options.userRequest);
+
+    try {
+        const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
+            timeoutMs: REFINEMENT_HARD_BUDGET_MS,
+            signal: options.signal,
+        });
+        if (options.signal?.aborted) return err('Aborted');
+        if (!first.success || !first.content) {
+            return err(first.error || 'IR refine: LLM returned empty response');
+        }
+
+        const parsed = parseIrFromResponse(first.content);
+        if (parsed.ok) return parsed;
+
+        if (options.signal?.aborted) return err('Aborted');
+        logger.warn('Presentation', `IR refine validation failed, repairing: ${parsed.error}`);
+        const repairPrompt = buildIrRepairPrompt(first.content, parsed.error);
+        const retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
+            timeoutMs: REFINEMENT_HARD_BUDGET_MS,
+            signal: options.signal,
+        });
+        if (options.signal?.aborted) return err('Aborted');
+        if (!retry.success || !retry.content) return err(parsed.error);
+        return parseIrFromResponse(retry.content);
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('Presentation', `IR refine failed: ${msg}`);
+        return err(`IR refine: ${msg}`);
     }
 }
 

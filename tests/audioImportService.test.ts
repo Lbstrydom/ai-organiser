@@ -95,7 +95,7 @@ describe('importAudioToVault', () => {
         makeReadFileSpy.mockResolvedValue(Buffer.from(bytes));
         makeFsAvailable();
 
-        const createBinary = vi.fn((path: string) =>
+        const createBinary = vi.fn((path: string, _data: ArrayBuffer) =>
             Promise.resolve(makeTFile(path, 'm4a', 'standup.m4a'))
         );
         const app = makeApp({ createBinaryImpl: createBinary });
@@ -136,7 +136,7 @@ describe('importAudioToVault', () => {
         const bytes = Uint8Array.from([9, 8, 7]);
         const blob = new Blob([bytes], { type: 'audio/mp4' });
 
-        const createBinary = vi.fn((path: string) =>
+        const createBinary = vi.fn((path: string, _data: ArrayBuffer) =>
             Promise.resolve(makeTFile(path, 'm4a', 'mobile.m4a'))
         );
         const app = makeApp({ createBinaryImpl: createBinary });

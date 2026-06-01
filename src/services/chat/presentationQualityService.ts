@@ -184,6 +184,14 @@ async function runScan(
         const result = await summarizeText(context, prompt, {
             maxTokens: tokenBudget,
             signal, // M6/M24 fix: forward AbortSignal
+            // Both passes ask for structured JSON findings — no reasoning to do,
+            // just pattern recognition. With adaptive thinking enabled on the
+            // user's model, the request was exhausting `tokenBudget` inside
+            // <thinking> blocks and returning no visible text (stop_reason
+            // 'max_tokens', thinkingOnly: true). Disabling thinking returns
+            // the full budget to the JSON output. No-op for non-Claude models
+            // or when the user didn't have thinking enabled.
+            disableThinking: true,
         });
 
         if (signal?.aborted) return err('Aborted');

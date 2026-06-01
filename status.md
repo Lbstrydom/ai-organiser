@@ -1,5 +1,34 @@
 # Project Status Log
 
+## 2026-06-01 — Per-slide polish (PolishSelectorModal + selective deck-IR refine) + working-tree test alignment
+
+### Changes
+- **New service — `refineDeckIrSelective`** ([src/services/chat/refineDeckIrSelective.ts](src/services/chat/refineDeckIrSelective.ts)): selective per-slide deck-IR refine with an all-or-nothing splice contract. Single `summarizeText` call (no 1-repair, intentional divergence from whole-deck `refineDeckIr`). Layered validation — pre-LLM (empty/duplicate/out-of-range selections + provider-aware token-budget guard via `isContentTooLarge` on the **full assembled prompt**) then post-LLM (`tryExtractJson` → shape/length → duplicate-returned-index → exact index-set match → per-slice `SlideIrSchema.safeParse` → deck-level `validateDeckIr` on the spliced candidate). Force-preserves the original `slide.id` on every replacement. Any layer failure → typed `Result.err('<code>: <detail>')`; never throws. `parseRefineErrorCode` decodes the prefix back to a `RefineErrorCode`.
+- **New contract module** ([src/services/chat/refineDeckIrSelectiveTypes.ts](src/services/chat/refineDeckIrSelectiveTypes.ts)): `RefineErrorCode` union + `REFINE_ERROR_CODES` set both derived from one `CODES` const array. Neutral module so `i18n/types.ts` imports the union without depending on a service.
+- **New modal — `PolishSelectorModal`** ([src/ui/modals/PolishSelectorModal.ts](src/ui/modals/PolishSelectorModal.ts)): pure IoC UI component. Privacy notice (`role=note`), optional deck-wide findings block, "All slides" escape hatch, per-slide checkbox + textarea rows pre-filled from `QualityFinding`s, error banner (`role=alert`), Cancel + Action row. Stays open through the LLM call so the draft survives any failure. Lifecycle-clean via `listen()` + `cleanups`. CSS prefixed `ai-organiser-polish-*`.
+- **Handler wiring** ([src/ui/chat/PresentationModeHandler.ts](src/ui/chat/PresentationModeHandler.ts)): `handlePolish` routes IR-backed decks with >1 slide to `PolishSelectorModal` (single-slide IR + legacy HTML keep the existing whole-deck path, extracted to `runWholeDeckPolish`). New `openPolishSelector` + `runPolishSubmit`: selective path wrapped in `withProgressResult`; mutates deck/html/quality/version state only after `Result.ok`; invalidates stale findings for changed slides + zeroes stale scores; pushes a 1-based version label. Single-flight `activePolish` guard (closed in `cancelActiveOperation`).
+- **i18n**: `modals.polishSelector` slice added to `types.ts` (`errorByCode: Record<RefineErrorCode, string>`), `en.ts`, `zh-cn.ts`.
+- **Tests (3 new, 44 cases)**: `tests/refineDeckIrSelective.test.ts` (21), `tests/PolishSelectorModal.test.ts` (14), `tests/presentationModeHandler.polish.test.ts` (9).
+- **Code audit**: GPT-5.4 R1 (1H/11M/3L) → fixed 5 (token-guard fidelity, CSS prefix, `raw` type, derived codes, comment), dismissed 10 as settled/justified plan decisions; Gemini final gate → **APPROVE** (its 2 CONCERNS described the plan pseudocode, not the diff — challenged with evidence). Summary: [docs/plans/per-slide-polish-audit-summary.md](docs/plans/per-slide-polish-audit-summary.md).
+- **Working-tree test alignment (required to ship a green tree)**: aligned 6 pre-existing test files to current source contracts from the in-progress presentation-IR / audio / speaker / research work — `claudeWebSearchAdapter.test.ts` (adapter now resolves the `latest-sonnet` sentinel internally → assert resolution + derive tool version, no hardcoded version), `audioNarrationService.test.ts` (`PreparedNarration` now requires `llmIntent`/`fingerprintMtime`), `audioSourcePicker.test.ts` (`AudioSource` union narrowing), `speakerReviewStateCanGenerate.test.ts` (`SpeakerMapping` is now `Record<string,string>`), `transcriptNoteService.test.ts` (`@ts-expect-error` placement), `audioImportService.test.ts` (`createBinary` mock arity). Whole tree now green: full `tsc` 0 errors, 4896 vitest pass, 47 automated checks pass, lint 0 errors.
+
+### Files Affected
+- **New (6 + audit summary)**: `src/services/chat/refineDeckIrSelective.ts`, `src/services/chat/refineDeckIrSelectiveTypes.ts`, `src/ui/modals/PolishSelectorModal.ts`, `tests/refineDeckIrSelective.test.ts`, `tests/PolishSelectorModal.test.ts`, `tests/presentationModeHandler.polish.test.ts`, `docs/plans/per-slide-polish-audit-summary.md`.
+- **Modified (feature)**: `src/ui/chat/PresentationModeHandler.ts`, `src/i18n/{types,en,zh-cn}.ts`, `styles.css`.
+- **Modified (test alignment)**: `tests/{claudeWebSearchAdapter,audioNarrationService,audioSourcePicker,speakerReviewStateCanGenerate,transcriptNoteService,audioImportService}.test.ts`.
+- **Note**: this commit also carries a large pre-existing in-progress changeset (presentation structured-IR engine, research adapters) that per-slide-polish builds on — committed together at the user's request after verifying the whole tree is green.
+
+### Decisions Made
+- **Full deck sent as read-only LLM context (with a permanent privacy notice)**: extra context prevents drift; the `role=note` disclosure makes the data boundary explicit. Settled across the plan's 6 audit rounds.
+- **String-prefix error codes over a forked `Result<T,E>`**: keeps the canonical `Result<T>` intact; `parseRefineErrorCode` round-trips the code for i18n lookup.
+- **No 1-repair in the selective path (v1)**: smaller, fully-validated service; the modal keeps the draft for a manual retry on failure.
+- **Aligned stale tests to current source (not reverted source)**: the other features' source carries deliberate, commented changes; lagging tests updated to match — version-agnostic assertions where a sentinel resolves, per the always-use-latest-model-sentinels rule.
+
+### Next Steps
+- v2 candidates (per plan Out-of-Scope): shared LLM-call+repair+JSON engine; saved polish presets; vault-persisted version history; partial-application on single-slice failure.
+
+---
+
 ## 2026-05-31 — Anthropic prompt caching (Phases 1/2/2c/3) + officeparser util-shim cycle fix
 
 ### Changes

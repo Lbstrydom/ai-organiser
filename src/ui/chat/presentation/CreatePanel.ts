@@ -38,11 +38,13 @@ export type CreatePanelT = Pick<
     | 'slideCreateSourceRemove' | 'slideCreateRedetectActive'
     | 'slideCreateValidationZeroSources' | 'slideCreateValidationZeroLength'
     | 'slideCreateValidationLengthOutOfRange'
-    | 'slideCreateBlockNoUsableSources' | 'slideCreatePartialFailureNotice'
+    | 'slideCreateBlockNoUsableSources' | 'slideCreateBlockWebSearchNotConfigured'
+    | 'slideCreatePartialFailureNotice'
     | 'slideCreateSourceFailureNoteNotFound' | 'slideCreateSourceFailureNoteEmpty'
     | 'slideCreateSourceFailureNoteReadFailed'
     | 'slideCreateSourceFailureFolderNotFound' | 'slideCreateSourceFailureFolderEmpty'
     | 'slideCreateSourceFailureWebSearchFailed' | 'slideCreateSourceFailureWebSearchNoResults'
+    | 'slideCreateSourceFailureWebSearchNotConfigured'
 >;
 
 export interface CreatePanelOptions {
@@ -422,6 +424,7 @@ function describeFailure(
         case 'folder-empty':           return t.slideCreateSourceFailureFolderEmpty.replace('{ref}', ref);
         case 'web-search-failed':      return t.slideCreateSourceFailureWebSearchFailed.replace('{query}', ref);
         case 'web-search-no-results':  return t.slideCreateSourceFailureWebSearchNoResults.replace('{query}', ref);
+        case 'web-search-not-configured': return t.slideCreateSourceFailureWebSearchNotConfigured;
         case 'unsupported-kind':       return null;
     }
     return null;
@@ -479,7 +482,16 @@ function runValidation(opts: CreatePanelOptions, state: PanelState): void {
         if (failedCount > 0 && resolvedCount === 0) {
             // All known statuses are errors — block.
             const allErrored = snap.states.every(s => s.status === 'error');
-            if (allErrored) msg = opts.t.slideCreateBlockNoUsableSources;
+            if (allErrored) {
+                // When every failure is the same actionable kind (no provider
+                // configured), surface that-specific guidance — pointing the
+                // user at Settings instead of the generic "fix or remove"
+                // which has no signal about *why* every source failed.
+                const allNotConfigured = snap.states.every(s => s.failureCode === 'web-search-not-configured');
+                msg = allNotConfigured
+                    ? opts.t.slideCreateBlockWebSearchNotConfigured
+                    : opts.t.slideCreateBlockNoUsableSources;
+            }
         } else if (failedCount > 0 && resolvedCount > 0) {
             msg = opts.t.slideCreatePartialFailureNotice
                 .replace('{n}', String(failedCount))

@@ -138,9 +138,48 @@ describe('ResearchSearchService', () => {
             (service as any).providers = new Map([['tavily', mockProvider]]);
         });
 
-        it('throws when no provider is configured', async () => {
+        it('throws when no provider is configured AND none are reachable as fallback', async () => {
+            // Active setting is invalid AND every provider reports isConfigured=false.
+            // (Old behaviour threw on the invalid setting alone; new behaviour
+            // auto-falls-through to any configured provider, so we have to
+            // arrange the genuinely-unconfigured state to keep this assertion meaningful.)
             mockPlugin.settings.researchProvider = 'nonexistent';
+            for (const t of ['tavily', 'brightdata-serp', 'claude-web-search'] as const) {
+                const p = service.getProvider(t);
+                if (p) vi.spyOn(p, 'isConfigured').mockResolvedValue(false);
+            }
             await expect(service.search(['test query'])).rejects.toThrow('No search provider configured');
+        });
+
+        it('auto-falls-through to claude-web-search when researchProvider is unset but Claude is configured (UX fix)', async () => {
+            // Reproduces the "I use Claude as my main LLM, why doesn't web search just work?"
+            // path: no explicit `researchProvider` setting, but `getClaudeWebSearchKey` reuses
+            // the main Claude key, so the ClaudeWebSearchAdapter IS configured. Auto-detect
+            // should pick it without forcing the user into a separate setting.
+            mockPlugin.settings.researchProvider = undefined;
+            // Inject a clean providers map (same pattern as the `provider fallback`
+            // suite below) — Tavily unconfigured, Claude configured, so the only
+            // possible auto-detect target is Claude. This proves the preference
+            // order in `findFirstConfiguredProvider` picks Claude first.
+            const tavilyMock = makeMockProvider({ type: 'tavily', isConfigured: vi.fn().mockResolvedValue(false) });
+            const claudeMock = makeMockProvider({
+                type: 'claude-web-search',
+                isConfigured: vi.fn().mockResolvedValue(true),
+                search: vi.fn().mockResolvedValue([
+                    makeResult({ url: 'https://anthropic.com/post', title: 'via Claude' }),
+                ]),
+            });
+            (service as any).providers = new Map([
+                ['tavily', tavilyMock],
+                ['claude-web-search', claudeMock],
+            ]);
+
+            const results = await service.search(['test query']);
+
+            expect(results.length).toBeGreaterThan(0);
+            expect(results[0].title).toBe('via Claude');
+            expect(claudeMock.search).toHaveBeenCalled();
+            expect(tavilyMock.search).not.toHaveBeenCalled();
         });
 
         it('deduplicates results by normalized URL', async () => {

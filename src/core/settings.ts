@@ -120,6 +120,7 @@ export interface AIOrganiserSettings {
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
     presentationBrandGuidelinesPath: string; // Vault path to brand guidelines file
+    presentationExportEngine: 'structured-ir' | 'html-legacy'; // Generation/export engine (structured IR vs legacy HTML)
 
     // === CHAT PERSISTENCE & PROJECTS ===
     chatRootFolder: string;              // Root folder for conversations and projects (default: 'AI Chat')
@@ -428,6 +429,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aichatBrandToggleDefault: false,
     presentationOutputFolder: 'Presentations',
     presentationBrandGuidelinesPath: '',
+    // Default to the structured-IR engine (faithful PPTX). Falls back to legacy
+    // HTML generation if IR generation fails, and to legacy PPTX export for
+    // decks edited after generation (stale-IR guard) — so this is safe-by-default.
+    presentationExportEngine: 'structured-ir',
 
     // Chat Persistence & Projects Defaults
     chatRootFolder: 'AI Chat',

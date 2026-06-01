@@ -13,7 +13,9 @@ import { requestUrl } from 'obsidian';
 import type { SearchProvider, SearchResult, SearchOptions, ClaudeWebSearchResponse, ParsedCitation, ClaudeWebSearchStreamCallbacks } from '../researchTypes';
 import { classifyUrlSource, extractDomain } from '../../../utils/urlUtils';
 import { ACADEMIC_DOMAINS } from '../academicUtils';
-import { claudeSupportsDynamicWebSearch } from '../../adapters/modelCapabilities';
+import { claudeSupportsDynamicWebSearch, resolveLatestModel } from '../../adapters/modelCapabilities';
+import { PROVIDER_MODELS } from '../../adapters/modelRegistry';
+import { getCachedModels } from '../../adapters/dynamicModelService';
 
 /** Internal state tracked during SSE stream parsing. */
 interface StreamState {
@@ -51,6 +53,18 @@ const MAX_CONTINUATIONS = 3;
 
 /** Default max output tokens for Claude Web Search responses. */
 const CLAUDE_WS_DEFAULT_MAX_TOKENS = 16384;
+
+/** Resolve a `latest-*` Claude sentinel to a concrete model id Anthropic will
+ *  actually accept. Mirrors the resolver in CloudLLMService (cloudService.ts:34-45)
+ *  so the two paths can't drift. Passthrough for already-concrete ids. */
+function resolveLatestSonnetSentinel(requested: string): string {
+    if (!requested.startsWith('latest-')) return requested;
+    const live = getCachedModels('claude');
+    const staticIds = Object.keys(PROVIDER_MODELS.claude || {})
+        .filter(id => !id.startsWith('latest-'));
+    const availableIds = live && live.length > 0 ? live.map(m => m.id) : staticIds;
+    return resolveLatestModel('claude', requested, availableIds) ?? requested;
+}
 
 export class ClaudeWebSearchAdapter implements SearchProvider {
     readonly type = 'claude-web-search' as const;
@@ -375,7 +389,15 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const apiKey = await this.getApiKey();
         if (!apiKey) throw new Error('Claude API key not configured for web search');
 
-        const model = this.options.model || 'latest-sonnet';
+        // Sentinels like `latest-sonnet` are NOT valid model IDs for Anthropic's
+        // /v1/messages — sending them raw gets a 404 ("model not found"). The
+        // main cloud service resolves these at call time via `resolveLatestModel`
+        // (cloudService.ts:45); we mirror that here so the web-search adapter
+        // doesn't have its own resolver-blind path. Same pool-preference order:
+        // live-fetched catalog (if user has refreshed it this session) →
+        // hardcoded static registry as fallback.
+        const requested = this.options.model || 'latest-sonnet';
+        const model = resolveLatestSonnetSentinel(requested);
         const useDynamic = this.options.useDynamicFiltering !== false
             && claudeSupportsDynamicWebSearch(model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;

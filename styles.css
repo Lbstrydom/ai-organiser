@@ -7470,36 +7470,68 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Fill the preview-container so the flex chain reaches the iframe wrapper
+       (the iframe is position:absolute and contributes no content height, so
+       the wrapper must get its height from flex, not content). */
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 .ai-organiser-pres-preview-container {
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
     overflow: hidden;
-    /* Phase 1B F12: cap preview height so the chat message area + action
-       bar below remain visible. The 16:9 slide iframe scales down to fit
-       this budget; the chat area (flex:1) claims the rest of the modal's
-       vertical space. 60vh maximises slide size while still leaving ~32vh
-       for messages + input + actions. */
-    max-height: 60vh;
+    /* Flex-driven sizing (no hard-coded vh cap): the preview fills the space
+       the flex layout gives it and SHRINKS when the window is small, so the
+       action bar + input below always stay visible. The iframe is scaled to
+       the measured container size in updateScale(). */
+    flex: 1 1 0;
     display: flex;
     flex-direction: column;
-    flex-shrink: 1;
     min-height: 0;
 }
 
-/* iframe wrapper — scales 1920x1080 slides to fit container */
+/* When the context panel holds the slide preview, let it (and the panel) take
+   the available vertical space and shrink — driven by flex, not magic numbers.
+   `:has()` scopes this to presentation mode only; other modes keep a compact
+   context line. */
+.ai-organiser-chat-context:has(.ai-organiser-pres-preview-container) {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+}
+/* In presentation mode the chat transcript is secondary — let it take only the
+   space its content needs (and shrink), so the preview claims the rest. */
+.ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-area {
+    flex: 0 1 auto;
+}
+/* Fixed bars always visible — never squashed off-screen by the preview. */
+.ai-organiser-chat-mode-bar,
+.ai-organiser-chat-input-row,
+.ai-organiser-chat-actions {
+    flex-shrink: 0;
+}
+
+/* iframe wrapper — scales 1920x1080 slides to fit the measured container */
 .ai-organiser-pres-iframe-wrapper {
     position: relative;
     overflow: hidden;
     background: var(--background-secondary);
-    flex: 1;
+    flex: 1 1 0;
     min-height: 0;
 }
 .ai-organiser-pres-iframe {
     border: none;
     transform-origin: top left;
     display: block;
+    /* Absolutely positioned so the unscaled 1080px layout box doesn't expand
+       the flex-sized wrapper (transform scales visually, not layout). */
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 /* Navigation */
@@ -9179,4 +9211,108 @@
 }
 .ai-organiser-doc-multi-picker-bulk-btn {
     font-size: var(--font-ui-small);
+}
+
+/* ── Per-Slide Polish Selector (PolishSelectorModal) ─────────────────────── */
+.ai-organiser-polish-selector .ai-organiser-polish-privacy {
+    display: flex;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) var(--size-4-3);
+    margin-bottom: var(--size-4-3);
+    border-radius: var(--radius-m);
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-deckwide {
+    margin-bottom: var(--size-4-3);
+    padding: var(--size-4-2) var(--size-4-3);
+    border-left: 3px solid var(--color-orange);
+    background: var(--background-secondary);
+    border-radius: var(--radius-s);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-deckwide-heading {
+    margin: 0 0 var(--size-4-1) 0;
+    font-size: var(--font-ui-small);
+    color: var(--text-normal);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-deckwide-line {
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    margin: var(--size-2-1) 0;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-allslides {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+    margin-bottom: var(--size-4-2);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-allslides-label {
+    display: flex;
+    flex-direction: column;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-allslides-title {
+    font-weight: var(--font-semibold);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-allslides-desc {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-2);
+    max-height: 50vh;
+    overflow-y: auto;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--size-4-2);
+    align-items: start;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-row-label {
+    grid-column: 2;
+    grid-row: 1;
+    font-weight: var(--font-medium);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-row input[type="checkbox"] {
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 4px;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-row-input {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    min-height: 3.2em;
+    resize: vertical;
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-smaller);
+}
+/* "All slides" mode greys per-row affordances without any element.style writes. */
+.ai-organiser-polish-selector.is-all-mode .ai-organiser-polish-rows {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-error {
+    display: none;
+    margin: var(--size-4-3) 0;
+    padding: var(--size-4-2) var(--size-4-3);
+    border-radius: var(--radius-s);
+    background: color-mix(in srgb, var(--color-red) 12%, transparent);
+    color: var(--text-error);
+    font-size: var(--font-ui-small);
+}
+.ai-organiser-polish-selector .ai-organiser-polish-error.is-visible {
+    display: block;
+}
+.ai-organiser-polish-selector .ai-organiser-polish-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--size-4-2);
+    margin-top: var(--size-4-4);
 }

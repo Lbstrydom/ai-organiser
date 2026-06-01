@@ -200,7 +200,9 @@ describe('pickAudioFromMobileWebview', () => {
 
         const result = await pending;
         expect(result).toHaveLength(1);
-        expect(result![0].displayName).toBe('meeting.m4a');
+        const src = result![0];
+        expect(src.kind).toBe('webview-blob');
+        if (src.kind === 'webview-blob') expect(src.displayName).toBe('meeting.m4a');
     });
 
     it('respects multiSelections=false', async () => {

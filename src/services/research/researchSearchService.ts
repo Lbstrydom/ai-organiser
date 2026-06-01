@@ -73,9 +73,32 @@ export class ResearchSearchService {
     }
 
     private async searchWithActiveProvider(queries: string[], options?: SearchOptions): Promise<SearchResult[]> {
-        const provider = this.getActiveProvider();
+        let provider = this.getActiveProvider();
+        if (!provider) {
+            // No explicit `researchProvider` setting — auto-detect the first
+            // configured provider in the same preference order used by the
+            // fallback chain (Claude first). For Claude users this means web
+            // search just works without a separate research-provider setup:
+            // `getClaudeWebSearchKey` reuses their main Claude key, so the
+            // ClaudeWebSearchAdapter is configured by default.
+            const found = await this.findFirstConfiguredProvider();
+            provider = found?.provider ?? null;
+        }
         if (!provider) throw new Error('No search provider configured');
         return this.searchWithProvider(provider, queries, options);
+    }
+
+    /** First configured provider in preference order, optionally skipping one type.
+     *  Single source of truth for the "what should I use?" decision — consumed by
+     *  both the auto-detect path above and the fallback chain in `getFallbackProvider`. */
+    private async findFirstConfiguredProvider(skipType?: SearchProviderType): Promise<{ type: SearchProviderType; provider: SearchProvider } | null> {
+        const order: SearchProviderType[] = ['claude-web-search', 'tavily', 'brightdata-serp'];
+        for (const type of order) {
+            if (type === skipType) continue;
+            const provider = this.providers.get(type);
+            if (provider && await provider.isConfigured()) return { type, provider };
+        }
+        return null;
     }
 
     private async searchWithProvider(
@@ -155,15 +178,7 @@ export class ResearchSearchService {
 
     private async getFallbackProvider(): Promise<{ type: SearchProviderType; provider: SearchProvider } | null> {
         const activeType = this.plugin.settings.researchProvider as SearchProviderType;
-        const preferredFallbacks: SearchProviderType[] = ['claude-web-search', 'tavily', 'brightdata-serp'];
-        for (const type of preferredFallbacks) {
-            if (type === activeType) continue;
-            const provider = this.providers.get(type);
-            if (provider && await provider.isConfigured()) {
-                return { type, provider };
-            }
-        }
-        return null;
+        return this.findFirstConfiguredProvider(activeType);
     }
 
     getProvider(type: SearchProviderType): SearchProvider | null {

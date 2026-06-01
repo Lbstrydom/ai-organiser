@@ -296,12 +296,23 @@ function mapLanguageToHtmlLang(language?: string): string {
  */
 export function extractDeckTitle(html: string): string {
     const attrMatch = /data-title="([^"]+)"/i.exec(html);
-    if (attrMatch) return attrMatch[1];
+    if (attrMatch) return decodeHtmlEntities(attrMatch[1]);
 
     const h1Match = /<h1[^>]*>([^<]+)<\/h1>/i.exec(html);
-    if (h1Match) return h1Match[1].trim();
+    if (h1Match) return decodeHtmlEntities(h1Match[1].trim());
 
     return 'Presentation';
+}
+
+/** Decode the handful of HTML entities the renderers emit so the title (used
+ *  for the export filename + the PPTX title slide) reads as plain text. */
+function decodeHtmlEntities(s: string): string {
+    return s
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
 }
 
 /**

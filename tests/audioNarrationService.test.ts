@@ -287,7 +287,7 @@ describe('executeNarration', () => {
             factory: vi.fn().mockResolvedValue(mockEngine),
         };
         return {
-            file: { path: 'test.md', basename: 'test', extension: 'md' } as unknown as TFile,
+            file: { path: 'test.md', basename: 'test', extension: 'md', stat: { mtime: 0 } } as unknown as TFile,
             spokenText,
             stats: { charCount: spokenText.length, wordCount: spokenText.split(' ').length, estReadSeconds: 1, sectionCount: 0 },
             cost: { charCount: spokenText.length, chunkCount: 1, estDurationSec: 1, estUsd: 0.01, estEur: 0.009, providerId: 'gemini', voice: 'Charon' },
@@ -297,6 +297,11 @@ describe('executeNarration', () => {
             provider: providerOverride,
             voice: 'Charon',
             embedInNote,
+            // LLM enhancement off by default in these fixtures; fingerprintMtime
+            // matches the file stat above so executeNarration's staleness check
+            // passes (read-this-note LLM enhancement extension).
+            llmIntent: null,
+            fingerprintMtime: 0,
         };
     }
 

@@ -395,23 +395,22 @@ export class SlideIframePreview {
 
     private updateScale(): void {
         if (!this.iframeWrapper || !this.iframe) return;
+        // Scale the fixed 1920x1080 slide to fit the MEASURED container box
+        // (driven by the flex layout) — no hard-coded vh budget. The wrapper
+        // is flex-sized; the iframe is absolutely positioned + transform-scaled
+        // so it never expands the wrapper. ResizeObserver re-runs this on every
+        // layout change, so it adapts to any window/modal size.
         const containerWidth = this.iframeWrapper.clientWidth || 600;
-        // Phase 1B F12: bound the scale by available vertical space so the
-        // preview doesn't push chat + actions off-screen. 60vh matches the
-        // max-height cap in styles.css; subtract ~60px for nav bar + border.
-        const viewportHeight = globalThis.innerHeight || 800;
-        const maxPreviewHeight = viewportHeight * 0.6 - 60;
+        const containerHeight = this.iframeWrapper.clientHeight || 360;
         const scaleByWidth = containerWidth / SLIDE_WIDTH;
-        const scaleByHeight = maxPreviewHeight / SLIDE_HEIGHT;
-        const scale = Math.min(scaleByWidth, scaleByHeight);
+        const scaleByHeight = containerHeight / SLIDE_HEIGHT;
+        const scale = Math.max(0.05, Math.min(scaleByWidth, scaleByHeight));
         this.iframe.addClass('ai-organiser-scaled-iframe');
         this.iframe.setCssProps({
             '--iframe-scale': String(scale),
             '--iframe-width': `${SLIDE_WIDTH}px`,
-            '--iframe-height': `${SLIDE_HEIGHT}px`
+            '--iframe-height': `${SLIDE_HEIGHT}px`,
         });
-        this.iframeWrapper.addClass('ai-organiser-scaled-iframe-wrapper');
-        this.iframeWrapper.setCssProps({ '--iframe-wrapper-height': `${Math.ceil(SLIDE_HEIGHT * scale)}px` });
     }
 
     private showActiveSlide(): void {

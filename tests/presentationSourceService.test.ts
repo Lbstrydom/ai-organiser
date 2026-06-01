@@ -133,9 +133,37 @@ describe('PresentationSourceService.resolve — web-search kind', () => {
         expect(r.usable[0].content).toContain('web result');
     });
 
-    it('reports web-search-failed without dispatcher', async () => {
+    it('reports web-search-not-configured without dispatcher', async () => {
+        // No dispatcher wired → treated as a configuration issue, not a
+        // transient search failure. Lets the UI surface actionable guidance
+        // (open Settings, pick a research provider).
         const app = buildApp(new Map(), new Map());
         const svc = new PresentationSourceService(app, null);
+        const r = await svc.resolve([{ kind: 'web-search', ref: 'q' }]);
+        expect(r.usable).toHaveLength(0);
+        expect(r.failures[0].code).toBe('web-search-not-configured');
+    });
+
+    it('reports web-search-not-configured when dispatcher throws "no provider configured"', async () => {
+        // The active provider throws this literal when the user has no
+        // research provider set up. Must bucket as the actionable config
+        // failure, not the generic search failure.
+        const dispatcher: WebSearchDispatcher = {
+            search: async () => { throw new Error('No search provider configured'); },
+        };
+        const app = buildApp(new Map(), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        const r = await svc.resolve([{ kind: 'web-search', ref: 'q' }]);
+        expect(r.usable).toHaveLength(0);
+        expect(r.failures[0].code).toBe('web-search-not-configured');
+    });
+
+    it('reports web-search-failed for other dispatcher throws (genuine search error)', async () => {
+        const dispatcher: WebSearchDispatcher = {
+            search: async () => { throw new Error('HTTP 503'); },
+        };
+        const app = buildApp(new Map(), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
         const r = await svc.resolve([{ kind: 'web-search', ref: 'q' }]);
         expect(r.usable).toHaveLength(0);
         expect(r.failures[0].code).toBe('web-search-failed');

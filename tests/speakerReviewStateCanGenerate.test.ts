@@ -17,7 +17,7 @@ const PENDING: SpeakerReviewState = { kind: 'pending', detected: [] };
 const CONFIRMED: SpeakerReviewState = {
     kind: 'confirmed',
     detected: [],
-    mapping: { byOriginalLabel: {}, displayOrder: [] },
+    mapping: {},
 };
 const SKIPPED_USER: SpeakerReviewState = { kind: 'skipped', detected: [], reason: 'user-skip' };
 const SKIPPED_DETECTION_FAILED: SpeakerReviewState = { kind: 'skipped', detected: [], reason: 'detection-failed' };
