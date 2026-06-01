@@ -322,10 +322,6 @@ export interface Translations {
             refinementPassesDesc: string;
             brandToggleDefaultTitle: string;
             brandToggleDefaultDesc: string;
-            exportEngineTitle: string;
-            exportEngineDesc: string;
-            exportEngineStructured: string;
-            exportEngineLegacy: string;
         };
         semanticSearch: {
             title: string;

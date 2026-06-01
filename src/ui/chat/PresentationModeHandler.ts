@@ -24,7 +24,6 @@ import type { LLMFacadeContext } from '../../services/llmFacade';
 import {
     type PresentationPhase, type PresentationVersion, type QualityResult,
     type SelectionScope, type EditMode, type EditFlags,
-    type RefineScopedOutcome,
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession, classifyReliability,
 } from '../../services/chat/presentationTypes';
@@ -34,7 +33,6 @@ import { validateDeckIr } from '../../services/presentationIr/slideIr';
 import type { ExportTheme } from '../../services/export/exportTheme';
 import { projectForEditor } from '../../services/chat/presentationDomDecorator';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
-import { SlideDiffModal } from '../modals/SlideDiffModal';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
 import { withProgressResult } from '../../services/progress';
@@ -165,12 +163,6 @@ export class PresentationModeHandler implements ChatModeHandler {
     // + mode pills). Cleared in dispose() / onClear() and rebound in
     // renderChatInputAccessory().
     private accessoryContainer: HTMLElement | null = null;
-
-    // Active SlideDiffModal — tracked so cancelActiveOperation / onClear /
-    // dispose can force-close it. Otherwise the user could Discard the deck
-    // while the diff modal is awaiting their click, then Accept the modal
-    // and silently resurrect the discarded HTML. Audit R1 finding (HIGH-2).
-    private activeDiffModal: SlideDiffModal | null = null;
 
     // Translations stashed when renderContextPanel runs — refreshAccessory
     // reads from here. Stays alive between renders; nulled in dispose.
@@ -697,15 +689,11 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /** Scoped (targeted) edit path — invoked when the user has clicked an
-     *  element/slide in the iframe and submitted an edit instruction.
-     *
-     *  Differs from runRefine in three ways:
-     *  - Calls `refineHtmlScoped` (sends scope + scoped fragment + full deck)
-     *  - Web search / references resolved via `DefaultSlideContextProvider`
-     *  - Result is gated through `SlideDiffModal` — user explicitly accepts
-     *    before the iframe updates and a version is pushed.
-     *
-     *  Plan: docs/completed/slide-authoring-editing.md §"Submission contract"
+     *  element/slide in the iframe and submitted an edit instruction. Routes to
+     *  the IR slice-refine (`refineDeckIrSelective`) on the selected slide(s);
+     *  the deck stays IR-backed. (Legacy HTML scoped editing — refineHtmlScoped
+     *  + SlideDiffModal accept/reject + web-search context — was retired with
+     *  the HTML engine; undo is via the version timeline.)
      */
     private async runScopedEdit(
         r: RunContext,
@@ -784,50 +772,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    /** Open the SlideDiffModal and wait for the user to accept or reject.
-     *  Resolves to true on accept, false on reject / ESC / X-close. */
-    private confirmScopedEdit(
-        app: import('obsidian').App,
-        plugin: import('../../main').default,
-        outcome: RefineScopedOutcome,
-    ): Promise<boolean> {
-        return new Promise<boolean>((resolve) => {
-            // Single-flight resolution guard — a force-close from
-            // cancelActiveOperation / onClear / dispose calls modal.close(),
-            // which fires the Modal's onClose() → SlideDiffModal's reject
-            // fallback. Without this guard, both that path AND a later
-            // user-initiated Accept could resolve the same Promise.
-            let resolved = false;
-            const finish = (accepted: boolean) => {
-                if (resolved) return;
-                resolved = true;
-                this.activeDiffModal = null;
-                resolve(accepted);
-            };
-            const modal = new SlideDiffModal(app, plugin, {
-                scopeDiff: outcome.scopeDiff,
-                outOfScopeDrift: outcome.outOfScopeDrift,
-                structuralIntegrity: outcome.structuralIntegrity,
-                siblingDrift: outcome.siblingDrift,
-                textChangedLocations: outcome.textChangedLocations,
-                editMode: this.editMode,
-                onAction: (action) => finish(action === 'accept'),
-            });
-            this.activeDiffModal = modal;
-            modal.open();
-        });
-    }
-
-    /** Force-close the active diff modal (if any) so its Promise resolves
-     *  to false. Called from cancelActiveOperation / onClear / dispose so
-     *  the user can't accept a diff after they've already discarded the
-     *  underlying deck. Audit R1 HIGH-2 fix. */
-    private closeActiveDiffModal(): void {
-        if (!this.activeDiffModal) return;
-        const m = this.activeDiffModal;
-        this.activeDiffModal = null;
-        m.close(); // triggers Modal.onClose → SlideDiffModal.reject fallback
-    }
 
     /** Build a LongRunningOpController wired to the modal's streaming
      *  callbacks. Soft budget triggers the extend card; hard budget triggers
@@ -1817,11 +1761,6 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.activeAbort.abort();
             this.activeAbort = null;
         }
-        // Force-close any pending diff modal so its Promise resolves to
-        // false BEFORE the cancelling code path nulls handler state.
-        // Otherwise an Accept click on the lingering modal would mutate
-        // disposed state. Audit R1 HIGH-2 fix.
-        this.closeActiveDiffModal();
         // Same hazard for the per-slide polish modal — close it so its
         // in-flight LLM call aborts and onClose clears activePolish before
         // handler state is nulled (audit-r3 H4).

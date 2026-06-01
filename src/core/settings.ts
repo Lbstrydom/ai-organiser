@@ -120,7 +120,7 @@ export interface AIOrganiserSettings {
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
     presentationBrandGuidelinesPath: string; // Vault path to brand guidelines file
-    presentationExportEngine: 'structured-ir' | 'html-legacy'; // Generation/export engine (structured IR vs legacy HTML)
+    presentationExportEngine: 'structured-ir'; // Only the structured-IR engine remains (legacy HTML retired 2026-06; migrateOldSettings coerces stored 'html-legacy')
 
     // === CHAT PERSISTENCE & PROJECTS ===
     chatRootFolder: string;              // Root folder for conversations and projects (default: 'AI Chat')

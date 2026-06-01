@@ -190,10 +190,6 @@ export const zhCN: Translations = {
             refinementPassesDesc: '自动润色次数（1 = 快速，2 = 详尽）',
             brandToggleDefaultTitle: '品牌开关默认值',
             brandToggleDefaultDesc: '演示模式中"品牌一致"开关是否默认启用',
-            exportEngineTitle: '导出引擎',
-            exportEngineDesc: '结构化引擎根据类型化模型生成忠实的 PowerPoint 幻灯片（图表、数据卡、表格）；旧版则转换 HTML 预览',
-            exportEngineStructured: '结构化（推荐）',
-            exportEngineLegacy: '旧版 HTML',
         },
         semanticSearch: {
             title: "语义搜索和 RAG",

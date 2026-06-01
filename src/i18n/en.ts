@@ -333,10 +333,6 @@ export const en: Translations = {
             refinementPassesDesc: 'Number of auto-polish passes (1 = quick, 2 = thorough)',
             brandToggleDefaultTitle: "Brand toggle default",
             brandToggleDefaultDesc: "Whether the on-brand toggle starts enabled in presentation mode",
-            exportEngineTitle: "Export engine",
-            exportEngineDesc: "Structured builds faithful PowerPoint slides (charts, stat cards, tables) from a typed model; legacy converts the HTML preview",
-            exportEngineStructured: "Structured (recommended)",
-            exportEngineLegacy: "Legacy HTML",
         },
         semanticSearch: {
             title: "Semantic search",
