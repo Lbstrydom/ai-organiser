@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-01 — Slides: model-aware source budget, Polish autodetect+robustness, IR icons restored
+
+### Changes
+- **Model-aware source budget** ([presentationSourceBudget.ts](src/services/chat/presentationSourceBudget.ts)): replaced the flat 40K-char cap (+ per-kind 8K note / 4K web caps) with `computeSourceBudgetChars(provider, model)` — a slice of the actual context window (floor 24K, ceiling 600K). `allocateBudget(sources, totalBudgetChars)` now passes content through UNTRUNCATED when it fits, truncating only when over budget (folder→web→standalone priority). The resolver ([presentationSourceService.ts](src/services/chat/presentationSourceService.ts)) reads FULL content; the budget allocator is the single truncation point. Handler computes the budget from settings and threads it via `resolveForSubmit({ totalBudgetChars })`.
+- **Polish autodetect + robustness** ([PresentationModeHandler.ts](src/ui/chat/PresentationModeHandler.ts)): `handlePolish` now runs the autodetect quality scan (`ensureQualityFindings`) before opening the per-slide modal so the boxes prefill with detected issues ("Analysing slides…" shown). Fixed the legacy/HTML polish **no-op** (it broke out of the loop when there were no findings → did nothing; now runs a general polish pass). Hardened `openPolishSelector` so a modal-open failure clears the single-flight `activePolish` guard + shows a Notice (was a latent permanent-silent-no-op). Added a `Polish routing —` debug log.
+- **IR icons restored** ([slideIr.ts](src/services/presentationIr/slideIr.ts), [irToHtml.ts](src/services/presentationIr/irToHtml.ts), [irToPptx.ts](src/services/presentationIr/irToPptx.ts), [irPrompts.ts](src/services/presentationIr/irPrompts.ts)): the IR path had dropped icons entirely (unused schema field, no prompt instruction, no rendering). Added optional emoji `icon` to stat-grid cards (existed) + process-flow steps; the prompt now asks for one relevant emoji per card/step; both renderers draw them (HTML above value/title, PPTX inline). Emoji chosen for portability (renders in preview AND survives PPTX export).
+- **i18n**: `slideCreateSourceViewResults/HideResults/ResultsEmpty` (web-search preview, prior commit) + `polishSelector.analysingLabel`.
+- **Tests**: budget rewritten for pass-through + `computeSourceBudgetChars`; `getResolvedSources` (controller); irToHtml icon render; modal/handler updated for `analysingLabel` + pre-scan stub. Full tsc 0 errors, 4902 vitest pass, 47 automated checks, lint 0 errors.
+- **Decision**: legacy HTML presentation engine → staged retirement planned (own cycle) per user.
+
+---
+
 ## 2026-06-01 — Web-search source results preview (Slides create panel)
 
 ### Changes

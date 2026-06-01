@@ -219,7 +219,7 @@ export class CreationSourceController {
      * runs `allocateBudget()` and applies the H6 generation gate.
      */
     async resolveForSubmit(
-        opts: { folderCap?: number; signal?: AbortSignal } = {},
+        opts: { folderCap?: number; signal?: AbortSignal; totalBudgetChars?: number } = {},
     ): Promise<Result<{ usable: PromptSource[]; failures: SourceFailure[] }>> {
         if (this.selected.length === 0) {
             return err<{ usable: PromptSource[]; failures: SourceFailure[] }>('zero-selected');
@@ -280,7 +280,7 @@ export class CreationSourceController {
             this.notify('status');
         }
 
-        const allocated = allocateBudget(mergedSources);
+        const allocated = allocateBudget(mergedSources, opts.totalBudgetChars);
         if (allocated.length === 0) {
             return err<{ usable: PromptSource[]; failures: SourceFailure[] }>('no-usable-sources' satisfies GenerationBlockReason);
         }

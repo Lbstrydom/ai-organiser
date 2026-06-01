@@ -134,6 +134,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
         case 'stat-grid': {
             const cards = block.cards.map(c =>
                 `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:18px;padding:40px 28px;text-align:center;">`
+                + (c.icon ? `<div style="font-size:52px;line-height:1;margin-bottom:12px;">${esc(c.icon)}</div>` : '')
                 + `<div style="font-size:64px;font-weight:800;color:${primary};line-height:1.05;">${esc(c.value)}</div>`
                 + `<div style="font-size:26px;color:${body};opacity:0.85;margin-top:14px;line-height:1.3;">${esc(c.label)}</div></div>`,
             ).join('');
@@ -156,6 +157,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
         case 'process-flow': {
             const steps = block.steps.map((s, i) =>
                 `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:14px;padding:28px 18px;text-align:center;">`
+                + (s.icon ? `<div style="font-size:38px;line-height:1;margin-bottom:8px;">${esc(s.icon)}</div>` : '')
                 + `<div style="font-size:30px;font-weight:700;color:${primary};">${esc(s.title)}</div>`
                 + (s.sub ? `<div style="font-size:23px;color:${body};opacity:0.8;margin-top:8px;line-height:1.3;">${esc(s.sub)}</div>` : '')
                 + '</div>'

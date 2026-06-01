@@ -99,6 +99,7 @@ const processFlowBlock = z.object({
     steps: z.array(z.object({
         title: text,
         sub: text.optional(),
+        icon: z.string().max(16).optional(),   // single emoji accent (optional)
     }).strict()).min(2).max(8),
 }).strict();
 

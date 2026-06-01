@@ -24,6 +24,7 @@ function makeT(): Translations['modals']['polishSelector'] {
         actionButtonSubmitting: 'Polishing…',
         cancel: 'Cancel',
         progressLabel: 'Polishing selected slides…',
+        analysingLabel: 'Analysing slides…',
         versionLabel: "Polish slides {slideNumbers} — '{preview}…'",
         errorByCode: {
             'aborted': 'cancelled',

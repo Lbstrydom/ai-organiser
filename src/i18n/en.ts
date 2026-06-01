@@ -2251,6 +2251,7 @@ export const en: Translations = {
             actionButtonSubmitting: "Polishing\u2026",
             cancel: "Cancel",
             progressLabel: "Polishing selected slides\u2026",
+            analysingLabel: "Analysing slides\u2026",
             versionLabel: "Polish slides {slideNumbers} \u2014 '{preview}\u2026'",
             errorByCode: {
                 'aborted': "Polish was cancelled.",

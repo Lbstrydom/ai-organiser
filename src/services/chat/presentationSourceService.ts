@@ -12,7 +12,6 @@
  */
 
 import { App, TFile, TFolder } from 'obsidian';
-import { truncateAtBoundary } from '../tokenLimits';
 import { logger } from '../../utils/logger';
 import type {
     SelectedSource,
@@ -25,9 +24,10 @@ import type {
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 
-const NOTE_HARD_CAP = 8_000;        // Mirrors presentationSourceBudget
+// The resolver reads FULL source content; the single, model-aware truncation
+// point is `allocateBudget` (presentationSourceBudget.ts) at submit time, so
+// substantial sources aren't pre-chopped before the budget even sees them.
 const DEFAULT_FOLDER_CAP = 50;
-const WEB_SEARCH_RESULT_CAP = 4_000;
 
 export interface SourceFailure {
     selected: SelectedSource;
@@ -133,7 +133,7 @@ export class PresentationSourceService {
         usable.push({
             kind: 'note',
             ref: src.ref,
-            content: truncateAtBoundary(body, NOTE_HARD_CAP),
+            content: body,
         });
         mtimeByPath.set(src.ref, abs.stat.mtime);
     }
@@ -178,7 +178,7 @@ export class PresentationSourceService {
                 usable.push({
                     kind: 'note',
                     ref: file.path,
-                    content: truncateAtBoundary(body, NOTE_HARD_CAP),
+                    content: body,
                     fromFolder: src.ref,
                 });
                 mtimeByPath.set(file.path, file.stat.mtime);
@@ -209,7 +209,7 @@ export class PresentationSourceService {
             usable.push({
                 kind: 'web-search',
                 ref: src.ref,
-                content: truncateAtBoundary(results, WEB_SEARCH_RESULT_CAP),
+                content: results,
             });
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -266,8 +266,6 @@ export function validateCreationConfig(
     return ok({ config, sources });
 }
 
-// Re-export shared constants so callers can compose the same defaults.
-export { NOTE_HARD_CAP };
 export const DEFAULT_CREATION_CONFIG: CreationConfig = {
     audience: 'general' as AudienceTier,
     length: 8,

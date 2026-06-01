@@ -59,9 +59,9 @@ Block (discriminated by "kind"):
 - { "kind": "heading", "text": string, "level": 1|2|3 }
 - { "kind": "paragraph", "text": string, "emphasis"?: boolean }
 - { "kind": "bullets", "items": string[], "ordered"?: boolean }    // 1–12 items
-- { "kind": "stat-grid", "cards": [ { "value": string, "label": string } ] }   // 1–6 cards
+- { "kind": "stat-grid", "cards": [ { "value": string, "label": string, "icon"?: "📈" } ] }   // 1–6 cards; icon = ONE emoji
 - { "kind": "bar-chart", "bars": [ { "label": string, "pct": number, "color"?: "RRGGBB" } ], "caption"?: string }  // pct 0–100, 1–12 bars
-- { "kind": "process-flow", "steps": [ { "title": string, "sub"?: string } ] }  // 2–8 steps
+- { "kind": "process-flow", "steps": [ { "title": string, "sub"?: string, "icon"?: "🚀" } ] }  // 2–8 steps; icon = ONE emoji
 - { "kind": "two-column", "left": Block[], "right": Block[] }   // ONE level only — no nested two-column
 - { "kind": "table", "headers": string[], "rows": string[][] }  // every row length === headers length
 - { "kind": "callout", "text": string, "cite"?: string, "variant"?: "info"|"warn" }
@@ -70,6 +70,7 @@ Block (discriminated by "kind"):
 
 <requirements>
 - Use the RIGHT block for the data: numbers → stat-grid or bar-chart; steps/pipeline → process-flow; comparisons → table or two-column. Avoid walls of bullets.
+- Add a single relevant emoji as the "icon" on stat-grid cards and process-flow steps where it aids scanning (e.g. 📈 💰 🌍 ⚡ 🏭 🚀). One emoji only, no text. Use them tastefully — most cards/steps should have one.
 - ${options.targetLength ? `Produce EXACTLY ${options.targetLength} slides total (title + content + closing) — match this count precisely.` : '6–10 slides for a normal deck unless the user asks for a specific count.'} One idea per slide.
 - "color" must be a 6-digit hex WITHOUT '#'. No extra/unknown JSON keys (they are rejected).
 - Output MUST be valid JSON and nothing else.

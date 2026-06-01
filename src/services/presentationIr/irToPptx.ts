@@ -240,7 +240,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 const x = box.x + (col.x - MARGIN) * scale;
                 const w = col.w * scale;
                 s.addShape('roundRect', { x, y: box.y, w, h, rectRadius: 0.08, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
-                s.addText(card.value, { x, y: box.y + 0.15, w, h: 0.6, fontFace: theme.fontFace, fontSize: 22, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+                s.addText((card.icon ? `${card.icon}  ` : '') + card.value, { x, y: box.y + 0.15, w, h: 0.6, fontFace: theme.fontFace, fontSize: 22, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
                 s.addText(card.label, { x, y: box.y + 0.75, w, h: 0.45, fontFace: theme.fontFace, fontSize: 11, color: hx(theme.bodyColor), align: 'center', valign: 'top' });
             });
             return h;
@@ -257,7 +257,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             block.steps.forEach((step, i) => {
                 const x = box.x + i * (stepW + gap);
                 s.addShape('roundRect', { x, y: box.y, w: stepW, h, rectRadius: 0.06, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
-                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: box.y, w: stepW, h, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+                s.addText((step.icon ? `${step.icon}\n` : '') + step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: box.y, w: stepW, h, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
                 // Flow chevron in the gap, matching the HTML's yellow `▶` indicator.
                 // Vertically centred against the step cards, accent-coloured.
                 if (i < n - 1) {

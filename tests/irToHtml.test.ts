@@ -43,6 +43,31 @@ describe('renderDeckToHtml', () => {
         expect((r.value.html.match(/>37%</g) ?? []).length).toBe(1);
     });
 
+    it('renders emoji icons on stat-grid cards and process-flow steps', () => {
+        const deck: SlideDeckIr = {
+            schemaVersion: IR_SCHEMA_VERSION,
+            title: 'Icons',
+            slides: [{
+                id: 'i1',
+                type: 'content',
+                title: 'With icons',
+                blocks: [
+                    { kind: 'stat-grid', cards: [{ value: '$100B', label: 'Market', icon: '📈' }] },
+                    { kind: 'process-flow', steps: [
+                        { title: 'Grow', icon: '🌱' },
+                        { title: 'Ship', icon: '🚚' },
+                    ] },
+                ],
+            }],
+        };
+        expect(validateDeckIr(deck).ok).toBe(true);
+        const r = renderDeckToHtml(deck, theme);
+        if (!r.ok) throw new Error('expected ok');
+        expect(r.value.html).toContain('📈');
+        expect(r.value.html).toContain('🌱');
+        expect(r.value.html).toContain('🚚');
+    });
+
     it('renders two-column as a flex container with two columns', () => {
         const r = renderDeckToHtml(coffeeDeckIr, theme);
         if (!r.ok) throw new Error('expected ok');

@@ -45,6 +45,7 @@ import { renderEditAccessories } from './presentation/EditAccessories';
 import { renderCreatePanel } from './presentation/CreatePanel';
 import { PresentationSourceService, DEFAULT_CREATION_CONFIG } from '../../services/chat/presentationSourceService';
 import { CreationSourceController } from '../../services/chat/creationSourceController';
+import { computeSourceBudgetChars } from '../../services/chat/presentationSourceBudget';
 import type { CreationConfig, PromptSource } from '../../services/chat/presentationTypes';
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
@@ -541,7 +542,16 @@ export class PresentationModeHandler implements ChatModeHandler {
             // prompt so all create-panel inputs reach generation.
             let sources: PromptSource[] = [];
             if (this.sourceController) {
-                const resolved = await this.sourceController.resolveForSubmit({ signal: r.abort.signal });
+                // Model-aware budget so substantial sources (a full meeting note
+                // + a full web result) reach generation untruncated on cloud
+                // models, instead of the old flat 40K-char cap.
+                const s = r.ctx.fullPlugin.settings;
+                const provider = s.serviceType === 'local' ? 'local' : s.cloudServiceType;
+                const totalBudgetChars = computeSourceBudgetChars(provider, s.cloudModel);
+                const resolved = await this.sourceController.resolveForSubmit({
+                    signal: r.abort.signal,
+                    totalBudgetChars,
+                });
                 if (resolved.ok) sources = resolved.value.usable;
             }
             const irResult = await generateDeckIr(r.llmCtx, {
@@ -1563,17 +1573,60 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.activePolish) return;                       // single-flight: modal already open
         if (!this.html || this.mutationLock) return;
 
+        // Diagnostic: which path will Polish take? (Visible with Debug mode on.)
+        logger.debug('Presentation',
+            `Polish routing — engine=${ctx.plugin.settings.presentationExportEngine} `
+            + `irBacked=${this.deckIr !== null} stale=${this.deckIrStale} `
+            + `slides=${this.deckIr?.slides.length ?? 0}`);
+
         // Per-slide polish: an IR-backed deck with >1 slide opens the selector
         // modal so the user can target specific slides. Single-slide IR and
         // legacy HTML decks keep the existing whole-deck behaviour.
         if (ctx.plugin.settings.presentationExportEngine === 'structured-ir'
             && this.deckIr !== null && !this.deckIrStale
             && this.deckIr.slides.length > 1) {
+            // Run the autodetect quality scan first so the per-slide polish
+            // boxes prefill with detected issues — the per-slide findings come
+            // from the LLM fast scan, which may not have finished after
+            // generation. Skip if we already have per-slide findings.
+            if (!this.hasPerSlideFindings() && !this.mutationLock) {
+                this.mutationLock = true;
+                callbacks.showThinking(ctx.plugin.t.modals.polishSelector.analysingLabel);
+                callbacks.rerenderActions();
+                try {
+                    await this.ensureQualityFindings(ctx);
+                } finally {
+                    this.mutationLock = false;
+                    callbacks.hideThinking();
+                    callbacks.rerenderActions();
+                }
+            }
             this.openPolishSelector(ctx, callbacks);
             return;
         }
 
         await this.runWholeDeckPolish(ctx, callbacks);
+    }
+
+    /** True when at least one finding is scoped to a specific slide — i.e. the
+     *  LLM fast scan has produced the per-slide issues the polish boxes prefill
+     *  from. */
+    private hasPerSlideFindings(): boolean {
+        return (this.qualityResult?.findings ?? []).some(f => f.slideIndex !== undefined);
+    }
+
+    /** Run the autodetect quality scan (structural pass → LLM fast scan) so
+     *  `this.qualityResult.findings` carries per-slide issues before the polish
+     *  modal opens. Best-effort: the modal still opens if the scan fails. */
+    private async ensureQualityFindings(ctx: ModalContext): Promise<void> {
+        this.runQualityCheck();                       // structural — sets qualityResult
+        const llmCtx = this.getLLMContext(ctx);
+        const abort = new AbortController();
+        try {
+            await this.runBackgroundQualityScan(llmCtx, abort.signal);  // LLM fast scan → per-slide findings
+        } catch (e) {
+            logger.warn('Presentation', `Polish pre-scan failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
     }
 
     /** Whole-deck polish (single-slide IR or legacy HTML). Unchanged behaviour
@@ -1610,24 +1663,38 @@ export class PresentationModeHandler implements ChatModeHandler {
                     if (this.qualityResult && this.qualityResult.totalScore >= 80 && pass > 0) break;
 
                     const findings = this.qualityResult?.findings || [];
-                    if (findings.length === 0) break;
 
                     // Per-pass progress label (e.g. "Polish pass 2 of 3 — applying fixes…")
                     this.activeThinkingUpdater?.(
                         `Polish pass ${pass + 1} of ${maxPasses} — applying fixes…`
                     );
 
-                    const polishRequest = findings
-                        .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
-                        .join('\n');
+                    // With detected findings, fix them explicitly; with none,
+                    // still run a general polish so Polish never silently no-ops
+                    // (previously it broke out of the loop and did nothing).
+                    const userRequest = findings.length > 0
+                        ? `Polish the presentation. Fix these issues:\n${findings
+                            .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
+                            .join('\n')}`
+                        : 'Polish the presentation: tighten wording, sharpen the visual hierarchy, and ensure one idea per slide. Keep the facts and the slide count unchanged.';
 
                     const result = await refineHtml(llmCtx, {
                         currentHtml: this.html,
-                        userRequest: `Polish the presentation. Fix these issues:\n${polishRequest}`,
+                        userRequest,
                         outputLanguage: ctx.plugin.settings.summaryLanguage,
                         theme,
                         signal: abort.signal,
                     });
+
+                    // No findings → a single general pass is enough; don't loop.
+                    if (findings.length === 0) {
+                        if (result.ok) {
+                            this.html = result.value;
+                            this.invalidateDeckIr();
+                            this.pushVersion(`Polish pass ${pass + 1}`);
+                        }
+                        break;
+                    }
 
                     if (abort.signal.aborted) break;
 
@@ -1692,7 +1759,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             },
         );
         this.activePolish = { modal };
-        modal.open();
+        try {
+            modal.open();
+        } catch (e) {
+            // Never leave the single-flight guard stuck if open() throws —
+            // otherwise every later Polish click silently no-ops.
+            this.activePolish = null;
+            logger.error('Presentation', `Polish modal failed to open: ${e instanceof Error ? e.message : String(e)}`);
+            new Notice('Could not open the polish dialog — please try again.');
+        }
     }
 
     /** Run one polish submission from the selector modal. Returns a Result-like

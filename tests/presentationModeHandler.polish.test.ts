@@ -103,6 +103,9 @@ function makeHandler(state: Record<string, unknown> = {}): PresentationModeHandl
         brandEnabled: false,
         ...state,
     });
+    // The multi-slide Polish path runs an autodetect pre-scan before opening the
+    // modal; stub the LLM fast scan so routing tests stay deterministic.
+    vi.spyOn(h as any, 'runBackgroundQualityScan').mockResolvedValue(undefined);
     return h;
 }
 

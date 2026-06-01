@@ -2248,6 +2248,7 @@ export const zhCN: Translations = {
             actionButtonSubmitting: "正在润色…",
             cancel: "取消",
             progressLabel: "正在润色所选幻灯片…",
+            analysingLabel: "正在分析幻灯片…",
             versionLabel: "润色幻灯片 {slideNumbers} — '{preview}…'",
             errorByCode: {
                 'aborted': "润色已取消。",

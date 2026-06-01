@@ -2278,6 +2278,7 @@ export interface Translations {
             actionButtonSubmitting: string;
             cancel: string;
             progressLabel: string;
+            analysingLabel: string;
             versionLabel: string;
             errorByCode: Record<RefineErrorCode, string>;
         };
