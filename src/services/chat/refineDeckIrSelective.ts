@@ -1,18 +1,18 @@
 /**
  * Selective per-slide deck refine.
  *
- * This service replaces ONLY the user-selected slide indices with LLM output and keeps
- * every other slide byte-identical — an all-or-nothing splice contract:
- * if ANY validation layer fails, the deck is left untouched and the caller
- * gets `Result.err` (plan §2.2 invariant).
+ * Refines ONLY the user-selected slide indices and keeps every other slide
+ * byte-identical — an all-or-nothing splice contract: if ANY validation layer
+ * fails, the deck is left untouched and the caller gets `Result.err`.
  *
- * Single LLM call, NO 1-repair (plan §2.3) — on malformed output the service
- * returns `Result.err` and the modal keeps the user's draft for a manual
- * retry. The whole-deck path keeps its 1-repair shape; the divergence is
- * intentional (plan Risk #15 / §6 migration path).
+ * Each selected slide may come back as ONE slide (in-place polish) or SEVERAL
+ * (a controlled 1→N split when a slide is overloaded). The extra slides are
+ * inserted at the selected position, shifting later slides; the original
+ * slide.id is preserved on the first replacement and fresh unique ids are
+ * assigned to the rest. Unselected slides are never touched.
  *
- * Lives alongside `presentationHtmlService.ts` (the whole-deck `refineDeckIr`
- * owner) in `src/services/chat/` so the two refine paths sit side-by-side.
+ * One self-repair (mirrors whole-deck `refineDeckIr`) recovers a recoverable
+ * miscount/shape error before failing back to the modal.
  */
 
 import { ok, err, type Result } from '../../core/result';
@@ -31,6 +31,10 @@ import type { RefineErrorCode } from './refineDeckIrSelectiveTypes';
 import { REFINE_ERROR_CODES } from './refineDeckIrSelectiveTypes';
 
 export type { RefineErrorCode } from './refineDeckIrSelectiveTypes';
+
+/** Upper bound on slides a single selected slide may split into — keeps a
+ *  "split" controlled and the deck under the schema's 60-slide cap. */
+const MAX_SLIDES_PER_SPLIT = 4;
 
 export interface SelectiveRefineInput {
     currentDeck: SlideDeckIr;
@@ -152,12 +156,14 @@ export async function refineDeckIrSelective(
 
 /**
  * Shape-check the already-extracted JSON object (from `tryExtractJson`) into a
- * `{ slideIndex, slide }[]`. Per-slice `SlideIrSchema.parse` happens upstream
- * (Layer c) — this only verifies the envelope is structurally a slices array.
+ * `{ slideIndex, slides: unknown[] }[]`. Each entry's `slides` is the 1+
+ * replacement slides for that index (1 = in-place polish, >1 = split).
+ * Tolerant of the singular `slide` form too, in case the LLM emits it.
+ * Per-slide `SlideIrSchema` validation happens upstream in `validateAndSplice`.
  */
 function parseSliceReplacements(
     json: unknown,
-): Result<Array<{ slideIndex: number; slide: unknown }>> {
+): Result<Array<{ slideIndex: number; slides: unknown[] }>> {
     if (json === null || typeof json !== 'object') {
         return err('no JSON object found in response');
     }
@@ -165,21 +171,34 @@ function parseSliceReplacements(
     if (!Array.isArray(slices)) {
         return err('missing or non-array "slices" field');
     }
-    const out: Array<{ slideIndex: number; slide: unknown }> = [];
+    const out: Array<{ slideIndex: number; slides: unknown[] }> = [];
     for (const entry of slices) {
         if (!entry || typeof entry !== 'object') {
             return err('slice entry is not an object');
         }
-        const idx = (entry as { slideIndex?: unknown }).slideIndex;
+        const e = entry as { slideIndex?: unknown; slides?: unknown; slide?: unknown };
+        const idx = e.slideIndex;
         if (typeof idx !== 'number' || !Number.isInteger(idx)) {
             return err('slice entry missing integer "slideIndex"');
         }
-        if (!('slide' in entry)) {
-            return err(`slice entry for index ${idx} missing "slide"`);
-        }
-        out.push({ slideIndex: idx, slide: (entry as { slide: unknown }).slide });
+        let slides: unknown[];
+        if (Array.isArray(e.slides)) slides = e.slides;
+        else if ('slide' in e) slides = [e.slide];          // tolerate singular form
+        else return err(`slice entry for index ${idx} missing "slides"`);
+        if (slides.length === 0) return err(`slice entry for index ${idx} has empty "slides"`);
+        out.push({ slideIndex: idx, slides });
     }
     return ok(out);
+}
+
+/** Generate a unique slide id derived from `base`, not already in `used`. */
+function freshId(base: string, used: Set<string>): string {
+    const stem = base.length > 56 ? base.slice(0, 56) : base;
+    for (let n = 2; n < 1000; n++) {
+        const id = `${stem}-${n}`;
+        if (!used.has(id)) return id;
+    }
+    return `${stem}-${used.size}`;
 }
 
 /**
@@ -193,8 +212,9 @@ function validateAndSplice(
 ): Result<SlideDeckIr> {
     const parsed = parseSliceReplacements(tryExtractJson(content));
     if (!parsed.ok) return errCode('malformed-json', parsed.error);
+    // Exactly one ENTRY per requested slideIndex (each entry may carry 1+ slides).
     if (parsed.value.length !== options.selections.length) {
-        return errCode('shape-mismatch', `expected ${options.selections.length}, got ${parsed.value.length}`);
+        return errCode('shape-mismatch', `expected ${options.selections.length} slice entries, got ${parsed.value.length}`);
     }
     const retIndices = parsed.value.map(r => r.slideIndex);
     if (new Set(retIndices).size !== retIndices.length) {
@@ -205,22 +225,44 @@ function validateAndSplice(
     if (sortedReq.length !== sortedRet.length || sortedReq.some((x, i) => x !== sortedRet[i])) {
         return errCode('index-set-mismatch', `req=[${sortedReq.join(',')}], got=[${sortedRet.join(',')}]`);
     }
-    const replacementByIndex = new Map<number, SlideIr>();
-    for (const r of parsed.value) {
-        const sliceCheck = SlideIrSchema.safeParse(r.slide);
-        if (!sliceCheck.success) {
-            return errCode('invalid-slide-schema', `slideIndex=${r.slideIndex}: ${sliceCheck.error.issues[0]?.message ?? 'invalid'}`);
+
+    // Validate each replacement slide; collect index → validated slides[] (1+).
+    const replacementByIndex = new Map<number, SlideIr[]>();
+    for (const entry of parsed.value) {
+        if (entry.slides.length > MAX_SLIDES_PER_SPLIT) {
+            return errCode('shape-mismatch', `slideIndex=${entry.slideIndex} returned ${entry.slides.length} slides (max ${MAX_SLIDES_PER_SPLIT} per split)`);
         }
-        replacementByIndex.set(r.slideIndex, sliceCheck.data);
+        const validated: SlideIr[] = [];
+        for (const rawSlide of entry.slides) {
+            const check = SlideIrSchema.safeParse(rawSlide);
+            if (!check.success) {
+                return errCode('invalid-slide-schema', `slideIndex=${entry.slideIndex}: ${check.error.issues[0]?.message ?? 'invalid'}`);
+            }
+            validated.push(check.data);
+        }
+        replacementByIndex.set(entry.slideIndex, validated);
     }
-    // Splice — shallow-copy + structural sharing; force-preserve original ids.
-    const candidate: SlideDeckIr = {
-        ...options.currentDeck,
-        slides: options.currentDeck.slides.map((slide, i) => {
-            const replacement = replacementByIndex.get(i);
-            return replacement ? { ...replacement, id: slide.id } : slide;
-        }),
-    };
+
+    // Splice with expansion: at each selected index, insert the 1+ replacement
+    // slides (shifting later slides). The FIRST replacement keeps the original
+    // slide.id (stable editor/version refs); extras get fresh unique ids.
+    const usedIds = new Set(options.currentDeck.slides.map(s => s.id));
+    const newSlides: SlideIr[] = [];
+    options.currentDeck.slides.forEach((slide, i) => {
+        const repl = replacementByIndex.get(i);
+        if (!repl) { newSlides.push(slide); return; }
+        repl.forEach((rs, k) => {
+            if (k === 0) {
+                newSlides.push({ ...rs, id: slide.id });
+            } else {
+                const id = freshId(slide.id, usedIds);
+                usedIds.add(id);
+                newSlides.push({ ...rs, id });
+            }
+        });
+    });
+
+    const candidate: SlideDeckIr = { ...options.currentDeck, slides: newSlides };
     const deckCheck = validateDeckIr(candidate);
     if (!deckCheck.ok) return errCode('invalid-deck-after-splice', deckCheck.error);
     return ok(deckCheck.value);
@@ -255,7 +297,7 @@ function buildSelectiveRepairPrompt(
 ${snippet}
 </your_previous_output>
 
-Return ONE JSON object with a "slices" array containing EXACTLY ${reqIndices.length} entries — one per slideIndex in [${sortedReq.join(', ')}]: no more, no fewer, no duplicates. Do NOT split, merge, add, or remove slides; condense content if a slide is overloaded. No code fences, no prose.
+Return ONE JSON object with a "slices" array containing EXACTLY ${reqIndices.length} entries — one entry per slideIndex in [${sortedReq.join(', ')}]: no extra indices, no missing indices, no duplicates. Each entry is { "slideIndex": number, "slides": [ Slide, ... ] }; the "slides" array holds the 1+ replacement slides for that index (use more than one only to split a genuinely overloaded slide). Do NOT touch any other slide. No code fences, no prose.
 
 Original request, for reference:
 ${originalUserPrompt}`;
@@ -294,12 +336,12 @@ Polish specific slides in a presentation deck while preserving the rest of the d
 </task>
 
 <requirements>
-- Modify ONLY the slides listed in <selected_slides>. The slideIndex value shown there is the 0-based key you must use in the "slices" output array.
+- Modify ONLY the slides listed in <selected_slides>. The slideIndex value shown there is the 0-based key you must use in the "slices" output array. NEVER add, remove, or modify any slide that is not listed there.
 - Use the deck in <read_only_context> for tone, terminology, and structural consistency, but do NOT emit replacements for those slides.
-- Each replacement slide MUST conform to the SlideIr schema (same Slide shape described above).
-- Output a single JSON object with one top-level field "slices", an array of { "slideIndex": number, "slide": Slide }.
-- CRITICAL — THE SLIDE COUNT IS FIXED: return EXACTLY ${selections.length} replacement slide(s), exactly ONE per requested slideIndex. NEVER split one slide into several, NEVER merge, NEVER add or remove slides. One requested slideIndex → exactly one "slice".
-- If an instruction says a slide is overloaded or asks to "split" it, do NOT create extra slides. Instead CONDENSE that single slide: shorten text, drop the least-important points, tighten tables, or move detail into speaker notes — so it fits comfortably on ONE slide.
+- Output a single JSON object with one top-level field "slices", an array of { "slideIndex": number, "slides": [ Slide, ... ] }.
+- Return EXACTLY one entry per requested slideIndex (${selections.length} entries total) — no extra indices, no missing indices, no duplicates.
+- Each entry's "slides" array normally holds ONE replacement slide (an in-place polish). Return MORE than one ONLY when the slide is genuinely overloaded and the instruction asks to split it — then divide its content across 2-3 well-balanced slides (max ${MAX_SLIDES_PER_SPLIT}). Do not split unnecessarily; prefer condensing for minor overflow.
+- Every replacement slide MUST conform to the SlideIr schema (same Slide shape described above).
 - Do NOT wrap the output in code fences. Do NOT include explanatory prose before or after the JSON.
 ${deckWideNote}
 </requirements>
@@ -317,6 +359,6 @@ ${selectedBlocks}
 </selected_slides>
 
 <output_format>
-{ "slices": [ { "slideIndex": 0, "slide": { /* Slide */ } } ] }
+{ "slices": [ { "slideIndex": 0, "slides": [ { /* Slide */ } ] } ] }
 </output_format>`;
 }

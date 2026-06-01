@@ -1836,13 +1836,16 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // ── Commit (Result.ok only; ordering per plan §4.6.1) ───────────────
         const { refined, html } = compute.value;
+        const slideCountChanged = refined.slides.length !== (this.deckIr?.slides.length ?? refined.slides.length);
         this.deckIr = refined;
         this.deckIrStale = false;
         this.html = html;
         if (this.preview) this.preview.setHtml(projectForEditor(html));
 
-        // Invalidate stale findings for changed slides + zero the now-stale
-        // scores (audit-r1 H4 + gemini-gate r2 F3). Leave null if no scan ran.
+        // Invalidate stale findings + zero the now-stale scores (audit-r1 H4 +
+        // gemini-gate r2 F3). When a split changed the slide count, every
+        // per-slide index has shifted — drop ALL per-slide findings (keep
+        // deck-wide); otherwise drop just the polished slides'. Null if no scan.
         if (this.qualityResult) {
             const changed = new Set(draft.selections.map(s => s.slideIndex));
             this.qualityResult = {
@@ -1850,7 +1853,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 auditScore: 0,
                 totalScore: 0,
                 findings: this.qualityResult.findings.filter(f =>
-                    f.slideIndex === undefined || !changed.has(f.slideIndex),
+                    f.slideIndex === undefined || (!slideCountChanged && !changed.has(f.slideIndex)),
                 ),
             };
             this.preview?.setQuality(this.qualityResult);

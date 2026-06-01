@@ -1,5 +1,16 @@
 # Project Status Log
 
+## 2026-06-01 — Per-slide Polish: allow 1→N slide expansion (split overloaded slides)
+
+### Changes
+- **Reversed the "never split, condense instead" constraint** from the prior fix: a selected slide can now legitimately come back as MULTIPLE slides when overloaded.
+- **1→N expansion** ([refineDeckIrSelective.ts](src/services/chat/refineDeckIrSelective.ts)): output shape changed from `{slideIndex, slide}` to `{slideIndex, slides: Slide[]}` (1+ slides per selected index; tolerant of the singular `slide` form). `validateAndSplice` inserts the replacement slides at the selected position (shifting later slides), preserves the original `slide.id` on the first replacement, assigns fresh unique ids (`freshId`) to extras, caps a single split at `MAX_SLIDES_PER_SPLIT = 4`, and re-validates the whole deck (≤60 slides via `validateDeckIr`). Unselected slides untouched. Single self-repair retained.
+- **Handler** ([PresentationModeHandler.ts](src/ui/chat/PresentationModeHandler.ts)): when a split changes the slide count, all per-slide findings are dropped (indices shifted); otherwise just the polished slides'.
+- **Chat path unchanged**: the whole-deck refine already grows the deck — "add a slide about X" / "split slide 5" works via normal chat (only initial generation pins the count).
+- **Tests**: +2 (1→N split with unique ids + shifted neighbours; reject split beyond the cap). 25 service tests; full tsc 0, lint 0, 92 presentation tests pass.
+
+---
+
 ## 2026-06-01 — Per-slide Polish: fix shape-mismatch (split→condense + single repair)
 
 ### Changes

@@ -120,6 +120,44 @@ describe('refineDeckIrSelective — post-LLM validation + splice', () => {
         expect(res.value.slides).not.toBe(coffeeDeckIr.slides);
     });
 
+    it('expands a selected slide into multiple slides (1→N split, ids unique)', async () => {
+        const a = contentSlide(coffeeDeckIr.slides[1].id, 'Part one');
+        const b = contentSlide('llm-id-b', 'Part two');
+        const { ctx } = makeCtx(async () => ({
+            success: true,
+            content: JSON.stringify({ slices: [{ slideIndex: 1, slides: [a, b] }] }),
+        }));
+        const res = await refineDeckIrSelective(ctx, {
+            currentDeck: coffeeDeckIr,
+            selections: [{ slideIndex: 1, instruction: 'split this overloaded slide' }],
+        });
+        expect(res.ok).toBe(true);
+        if (!res.ok) return;
+        // One extra slide inserted at index 1; later slides shifted.
+        expect(res.value.slides.length).toBe(coffeeDeckIr.slides.length + 1);
+        expect(res.value.slides[1].title).toBe('Part one');
+        expect(res.value.slides[1].id).toBe(coffeeDeckIr.slides[1].id); // original id preserved
+        expect(res.value.slides[2].title).toBe('Part two');
+        expect(res.value.slides[2].id).not.toBe(coffeeDeckIr.slides[1].id); // fresh unique id
+        expect(res.value.slides[0]).toEqual(coffeeDeckIr.slides[0]);       // before — intact
+        expect(res.value.slides[3]).toEqual(coffeeDeckIr.slides[2]);       // after — shifted, intact
+        const ids = res.value.slides.map(s => s.id);
+        expect(new Set(ids).size).toBe(ids.length);                       // all ids unique
+    });
+
+    it('rejects a split beyond the per-slide cap (shape-mismatch)', async () => {
+        const many = Array.from({ length: 5 }, (_, k) => contentSlide(`x${k}`, `s${k}`));
+        const { ctx } = makeCtx(async () => ({
+            success: true,
+            content: JSON.stringify({ slices: [{ slideIndex: 1, slides: many }] }),
+        }));
+        const res = await refineDeckIrSelective(ctx, {
+            currentDeck: coffeeDeckIr,
+            selections: [{ slideIndex: 1, instruction: 'x' }],
+        });
+        expect(!res.ok && parseRefineErrorCode(res.error)).toBe('shape-mismatch');
+    });
+
     it('force-preserves the original slide.id even when the LLM changes it', async () => {
         const r1 = contentSlide('hallucinated-id', 'Polished');
         const { ctx } = makeCtx(async () => jsonResponse([{ slideIndex: 1, slide: r1 }]));
