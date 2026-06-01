@@ -1,5 +1,15 @@
 # Project Status Log
 
+## 2026-06-01 — Per-slide Polish: fix shape-mismatch (split→condense + single repair)
+
+### Changes
+- **Root cause**: auto-detected findings like "slide is overloaded → split into multiple slides" made the LLM return MORE slides than the selective contract allows (one replacement per selected index) → `shape-mismatch` ("AI returned an unexpected number of slides").
+- **Prompt** (`buildSelectivePrompt` in [refineDeckIrSelective.ts](src/services/chat/refineDeckIrSelective.ts)): hardened the fixed-count rule — exactly one replacement per requested slideIndex; never split/merge/add/remove; condense an overloaded slide instead of splitting it.
+- **Single self-repair**: the service re-asks ONCE on a recoverable post-LLM failure (shape/index/json/schema), echoing the validation error + exact required indices. Extracted `validateAndSplice` (pure parse+validate+splice) reused for both the first response and the repair; added `isRecoverableError` + `buildSelectiveRepairPrompt`. Revises the plan's deliberate no-repair v1 decision now that real usage shows the miscount is common.
+- **Tests**: +2 (repair recovers a shape-mismatch; never retries more than once). 23 service tests pass; tsc 0, lint 0.
+
+---
+
 ## 2026-06-01 — Slides: model-aware source budget, Polish autodetect+robustness, IR icons restored
 
 ### Changes

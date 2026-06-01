@@ -116,50 +116,33 @@ export async function refineDeckIrSelective(
         if (options.signal?.aborted) return errCode('aborted', 'signal aborted during LLM call');
         if (!raw.success || !raw.content) return errCode('llm-call-failed', raw.error ?? 'empty response');
 
-        // ── Post-LLM validation (layered, fail-fast) ────────────────────────
-        const parsed = parseSliceReplacements(tryExtractJson(raw.content));
-        if (!parsed.ok) return errCode('malformed-json', parsed.error);
-        if (parsed.value.length !== options.selections.length) {
-            return errCode('shape-mismatch', `expected ${options.selections.length}, got ${parsed.value.length}`);
-        }
-
-        const retIndices = parsed.value.map(r => r.slideIndex);
-        if (new Set(retIndices).size !== retIndices.length) {
-            return errCode('duplicate-returned-index', `[${retIndices.join(',')}]`);
-        }
-        const sortedReq = [...reqIndices].sort((a, b) => a - b);
-        const sortedRet = [...retIndices].sort((a, b) => a - b);
-        if (sortedReq.length !== sortedRet.length || sortedReq.some((x, i) => x !== sortedRet[i])) {
-            return errCode('index-set-mismatch', `req=[${sortedReq.join(',')}], got=[${sortedRet.join(',')}]`);
-        }
-
-        // Per-slice schema validation (Zod). On any failure → no splice.
-        const replacementByIndex = new Map<number, SlideIr>();
-        for (const r of parsed.value) {
-            const sliceCheck = SlideIrSchema.safeParse(r.slide);
-            if (!sliceCheck.success) {
-                return errCode('invalid-slide-schema', `slideIndex=${r.slideIndex}: ${sliceCheck.error.issues[0]?.message ?? 'invalid'}`);
+        // Validate + splice. The LLM commonly miscounts when a finding implies a
+        // split ("slide is overloaded → split into multiple slides"), so on a
+        // recoverable failure we re-ask ONCE, echoing the error + the exact
+        // required indices. One repair only (mirrors whole-deck refineDeckIr).
+        let result = validateAndSplice(raw.content, options, reqIndices);
+        if (!result.ok && isRecoverableError(result.error) && !options.signal?.aborted) {
+            const repairPrompt = buildSelectiveRepairPrompt(userPrompt, raw.content, result.error, reqIndices);
+            let retry: LLMCallResult;
+            try {
+                retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
+                    timeoutMs: REFINEMENT_HARD_BUDGET_MS,
+                    signal: options.signal,
+                    disableThinking: true,
+                });
+            } catch (e) {
+                if (options.signal?.aborted || (e instanceof Error && e.name === 'AbortError')) {
+                    return errCode('aborted', 'signal aborted during repair');
+                }
+                return result; // keep the original (more specific) error
             }
-            replacementByIndex.set(r.slideIndex, sliceCheck.data);
+            if (options.signal?.aborted) return errCode('aborted', 'signal aborted during repair');
+            if (retry.success && retry.content) {
+                const repaired = validateAndSplice(retry.content, options, reqIndices);
+                result = repaired.ok ? repaired : result; // keep first error if repair still bad
+            }
         }
-
-        // Splice — shallow-copy deck + slides array, structural-share unselected
-        // slides. Force-preserve the original slide.id on every replacement so
-        // editor refs / version-restore correlation survive (gemini-gate r3 F1).
-        const candidate: SlideDeckIr = {
-            ...options.currentDeck,
-            slides: options.currentDeck.slides.map((slide, i) => {
-                const replacement = replacementByIndex.get(i);
-                return replacement ? { ...replacement, id: slide.id } : slide;
-            }),
-        };
-
-        // Deck-level invariant check — returns the project Result<T> (not Zod).
-        const deckCheck = validateDeckIr(candidate);
-        if (!deckCheck.ok) {
-            return errCode('invalid-deck-after-splice', deckCheck.error);
-        }
-        return ok(deckCheck.value);
+        return result;
     } catch (e) {
         // Defence-in-depth: any unanticipated throw → typed Result.err.
         logger.warn('Presentation', `Selective refine threw: ${e instanceof Error ? e.message : String(e)}`);
@@ -199,6 +182,85 @@ function parseSliceReplacements(
     return ok(out);
 }
 
+/**
+ * Parse + layered-validate + splice one LLM response into a spliced deck.
+ * Pure (no LLM call) so it can run on both the first response and the repair.
+ */
+function validateAndSplice(
+    content: string,
+    options: SelectiveRefineInput,
+    reqIndices: number[],
+): Result<SlideDeckIr> {
+    const parsed = parseSliceReplacements(tryExtractJson(content));
+    if (!parsed.ok) return errCode('malformed-json', parsed.error);
+    if (parsed.value.length !== options.selections.length) {
+        return errCode('shape-mismatch', `expected ${options.selections.length}, got ${parsed.value.length}`);
+    }
+    const retIndices = parsed.value.map(r => r.slideIndex);
+    if (new Set(retIndices).size !== retIndices.length) {
+        return errCode('duplicate-returned-index', `[${retIndices.join(',')}]`);
+    }
+    const sortedReq = [...reqIndices].sort((a, b) => a - b);
+    const sortedRet = [...retIndices].sort((a, b) => a - b);
+    if (sortedReq.length !== sortedRet.length || sortedReq.some((x, i) => x !== sortedRet[i])) {
+        return errCode('index-set-mismatch', `req=[${sortedReq.join(',')}], got=[${sortedRet.join(',')}]`);
+    }
+    const replacementByIndex = new Map<number, SlideIr>();
+    for (const r of parsed.value) {
+        const sliceCheck = SlideIrSchema.safeParse(r.slide);
+        if (!sliceCheck.success) {
+            return errCode('invalid-slide-schema', `slideIndex=${r.slideIndex}: ${sliceCheck.error.issues[0]?.message ?? 'invalid'}`);
+        }
+        replacementByIndex.set(r.slideIndex, sliceCheck.data);
+    }
+    // Splice — shallow-copy + structural sharing; force-preserve original ids.
+    const candidate: SlideDeckIr = {
+        ...options.currentDeck,
+        slides: options.currentDeck.slides.map((slide, i) => {
+            const replacement = replacementByIndex.get(i);
+            return replacement ? { ...replacement, id: slide.id } : slide;
+        }),
+    };
+    const deckCheck = validateDeckIr(candidate);
+    if (!deckCheck.ok) return errCode('invalid-deck-after-splice', deckCheck.error);
+    return ok(deckCheck.value);
+}
+
+/** Post-LLM failures that a single corrective re-ask can plausibly fix (shape /
+ *  index / JSON / schema). Transport + pre-LLM codes are NOT retried here. */
+const RECOVERABLE_CODES: ReadonlySet<RefineErrorCode> = new Set([
+    'malformed-json', 'shape-mismatch', 'duplicate-returned-index',
+    'index-set-mismatch', 'invalid-slide-schema', 'invalid-deck-after-splice',
+]);
+function isRecoverableError(errStr: string): boolean {
+    const code = parseRefineErrorCode(errStr);
+    return code !== null && RECOVERABLE_CODES.has(code);
+}
+
+/** Corrective re-ask: echo the validation error + the exact required indices and
+ *  restate the fixed-count / no-split contract. */
+function buildSelectiveRepairPrompt(
+    originalUserPrompt: string,
+    badOutput: string,
+    errorStr: string,
+    reqIndices: number[],
+): string {
+    const snippet = badOutput.length > 6_000 ? `${badOutput.slice(0, 6_000)}\n…[truncated]` : badOutput;
+    const sortedReq = [...reqIndices].sort((a, b) => a - b);
+    return `Your previous response did not satisfy the selective-refine contract.
+
+<validation_error>${errorStr}</validation_error>
+
+<your_previous_output>
+${snippet}
+</your_previous_output>
+
+Return ONE JSON object with a "slices" array containing EXACTLY ${reqIndices.length} entries — one per slideIndex in [${sortedReq.join(', ')}]: no more, no fewer, no duplicates. Do NOT split, merge, add, or remove slides; condense content if a slide is overloaded. No code fences, no prose.
+
+Original request, for reference:
+${originalUserPrompt}`;
+}
+
 /** Format one finding as a single instruction line. */
 function formatFinding(f: QualityFinding): string {
     return `[${f.severity}] ${f.issue} → ${f.suggestion}`;
@@ -236,7 +298,8 @@ Polish specific slides in a presentation deck while preserving the rest of the d
 - Use the deck in <read_only_context> for tone, terminology, and structural consistency, but do NOT emit replacements for those slides.
 - Each replacement slide MUST conform to the SlideIr schema (same Slide shape described above).
 - Output a single JSON object with one top-level field "slices", an array of { "slideIndex": number, "slide": Slide }.
-- The "slices" array MUST contain exactly one entry per requested slideIndex, in any order.
+- CRITICAL — THE SLIDE COUNT IS FIXED: return EXACTLY ${selections.length} replacement slide(s), exactly ONE per requested slideIndex. NEVER split one slide into several, NEVER merge, NEVER add or remove slides. One requested slideIndex → exactly one "slice".
+- If an instruction says a slide is overloaded or asks to "split" it, do NOT create extra slides. Instead CONDENSE that single slide: shorten text, drop the least-important points, tighten tables, or move detail into speaker notes — so it fits comfortably on ONE slide.
 - Do NOT wrap the output in code fences. Do NOT include explanatory prose before or after the JSON.
 ${deckWideNote}
 </requirements>

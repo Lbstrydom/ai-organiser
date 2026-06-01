@@ -198,6 +198,42 @@ describe('refineDeckIrSelective — post-LLM validation + splice', () => {
         expect(!res.ok && parseRefineErrorCode(res.error)).toBe('llm-call-failed');
     });
 
+    it('recovers via a single repair when the first response miscounts (shape-mismatch → ok)', async () => {
+        // First call returns 3 slices for 2 requested (e.g. it "split" a slide);
+        // the repair returns the correct 2 → ok.
+        const bad = jsonResponse([
+            { slideIndex: 1, slide: contentSlide('s2', 'a') },
+            { slideIndex: 3, slide: contentSlide('s4', 'b') },
+            { slideIndex: 3, slide: contentSlide('extra', 'c') },
+        ]);
+        const good = jsonResponse([
+            { slideIndex: 1, slide: contentSlide(coffeeDeckIr.slides[1].id, 'Polished two') },
+            { slideIndex: 3, slide: contentSlide(coffeeDeckIr.slides[3].id, 'Polished four') },
+        ]);
+        const fn = vi.fn()
+            .mockResolvedValueOnce(bad)
+            .mockResolvedValueOnce(good);
+        const ctx: LLMFacadeContext = {
+            llmService: { summarizeText: fn } as never,
+            settings: { serviceType: 'cloud', cloudServiceType: 'claude' },
+        };
+        const res = await refineDeckIrSelective(ctx, { currentDeck: coffeeDeckIr, selections });
+        expect(res.ok).toBe(true);
+        expect(fn).toHaveBeenCalledTimes(2); // original + one repair
+    });
+
+    it('does NOT retry more than once (repair still bad → original error)', async () => {
+        const bad = jsonResponse([{ slideIndex: 1, slide: contentSlide('s2', 'a') }]); // 1 for 2 requested
+        const fn = vi.fn().mockResolvedValue(bad);
+        const ctx: LLMFacadeContext = {
+            llmService: { summarizeText: fn } as never,
+            settings: { serviceType: 'cloud', cloudServiceType: 'claude' },
+        };
+        const res = await refineDeckIrSelective(ctx, { currentDeck: coffeeDeckIr, selections });
+        expect(!res.ok && parseRefineErrorCode(res.error)).toBe('shape-mismatch');
+        expect(fn).toHaveBeenCalledTimes(2); // original + exactly one repair, no more
+    });
+
     it('aborted mid-LLM → err, no splice', async () => {
         let resolveStub: (v: LLMCallResult) => void = () => {};
         const { ctx } = makeCtx(() => new Promise<LLMCallResult>(r => { resolveStub = r; }));
