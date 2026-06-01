@@ -1,5 +1,20 @@
 # Project Status Log
 
+## 2026-06-01 — Slides: retire the legacy HTML presentation engine (Stages 0–4a)
+
+Implemented [docs/plans/retire-legacy-html-engine.md](docs/plans/retire-legacy-html-engine.md) — structured-IR is now the only presentation path. Commits `c2d4af0` (Stage 1) → `1cbb772` (Stage 2) → `36cffa7` (Stage 3+3.1) → `16ef0ad` (Stage 4a).
+
+### Changes
+- **Stage 1**: removed the export-engine dropdown; `migrateOldSettings` coerces stored `'html-legacy'` → `'structured-ir'`.
+- **Stage 2** ([PresentationModeHandler.ts](src/ui/chat/PresentationModeHandler.ts)): `runGenerate→generateIr` and `runRefine→refineIr` are IR-only with an explicit error on failure (no silent raw-HTML fallback). `runScopedEdit` ported to `refineDeckIrSelective` on the selected slide(s) — IR-native (element precision → slide-level; undo via versions). `PresentationVersion` now snapshots the deck IR; `restoreVersion` restores it. **Invariant: `html != null` ⇒ `deckIr != null` and not stale.**
+- **Stage 3 + 3.1**: deleted `deckIrStale` + `invalidateDeckIr` + every `!stale`/engine guard; dropped the legacy HTML polish loop (IR `polishDeckIr` only); PPTX export always renders from IR. Memoised `resolveExportTheme` by a settings signature; localised the whole-deck polish version label.
+- **Stage 4a**: narrowed `presentationExportEngine` to `'structured-ir'`; removed the now-dead `SlideDiffModal` machinery from the handler; removed unused `exportEngine*` i18n keys; updated stale "HTML is the source of truth" headers.
+- **Audits**: two GPT-5.4 `/audit-code` checkpoints (after Stage 2 + final). In-scope findings (IR-only PPTX, theme cache, localised labels, always-persist deckIr, enum narrowing, headers) all addressed. Legacy sessions without a persisted `deckIr` load view-only and degrade gracefully.
+- **Deferred — Stage 4b** (own follow-up PR): delete the orphaned `generateHtml`/`generateHtmlStream`/`refineHtml`/`refineHtmlScoped` services + `SlideDiffModal.ts` + `RefineScoped*` types + their tests. Fully decoupled (no live caller) but `presentationHtmlService.ts` shares prompt builders between the live IR functions and the dead HTML ones, so trimming needs per-symbol review — best after production validation of the IR-only paths.
+- Full tsc 0, lint 0, 4907 vitest pass.
+
+---
+
 ## 2026-06-01 — Slides: fix preview collapse as chat grows + per-slide background override
 
 ### Changes

@@ -1206,9 +1206,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!session) return false;
 
         this.html = session.html;
-        // Rehydrate the persisted deck IR (validated) so PPTX export uses the
-        // faithful native renderer after a reload. Absent/invalid → null, and
-        // export falls back to the legacy HTML path on the restored HTML.
+        // Rehydrate the persisted deck IR (validated). New sessions always carry
+        // it; a legacy session saved before structured editing loads view-only
+        // (deckIr null → IR refine/polish guard out gracefully, and PPTX export
+        // falls through to the dom-to-pptx path on the restored HTML).
         const rawIr = (data as { deckIr?: unknown } | null)?.deckIr;
         const validated = rawIr != null ? validateDeckIr(rawIr) : null;
         this.deckIr = validated?.ok ? validated.value : null;
@@ -1226,15 +1227,15 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Phase 1B F8: replace silent returns with user-visible notices so
         // broken-state clicks don't look like the button is dead.
         if (!this.html) {
-            callbacks.addSystemNotice('Can\'t export — no presentation generated yet.');
+            callbacks.notify('Can\'t export — no presentation generated yet.');
             return;
         }
         if (this.mutationLock) {
-            callbacks.addSystemNotice('Can\'t export right now — generation / refinement in progress.');
+            callbacks.notify('Can\'t export right now — generation / refinement in progress.');
             return;
         }
         if (!this.preview) {
-            callbacks.addSystemNotice('Preview not ready — click into the slide panel once, then retry export.');
+            callbacks.notify('Preview not ready — click into the slide panel once, then retry export.');
             return;
         }
         this.mutationLock = true;
@@ -1269,11 +1270,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             // Restore single-slide view
             this.preview.navigateToSlide(this.activeSlideIndex);
 
-            callbacks.addSystemNotice('PPTX exported — check your downloads folder.');
-            new Notice('Pptx exported');
+            callbacks.notify('Exported to PPTX — check your downloads folder.');
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Export failed';
-            callbacks.addSystemNotice(`PPTX export failed: ${msg}`);
+            callbacks.notify(`PPTX export failed: ${msg}`);
             logger.error('Presentation', `PPTX export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
@@ -1329,11 +1329,11 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async exportHtmlFile(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         // Phase 1B F8: same treatment as exportPptx — user-visible notices.
         if (!this.html) {
-            callbacks.addSystemNotice('Can\'t save — no presentation generated yet.');
+            callbacks.notify('Can\'t save — no presentation generated yet.');
             return;
         }
         if (this.mutationLock) {
-            callbacks.addSystemNotice('Can\'t save right now — generation / refinement in progress.');
+            callbacks.notify('Can\'t save right now — generation / refinement in progress.');
             return;
         }
         this.mutationLock = true;
@@ -1347,11 +1347,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             const path = await getAvailablePath(ctx, folder, fileName);
 
             await ctx.app.vault.create(path, this.html);
-            callbacks.addSystemNotice(`Saved to ${path}`);
-            new Notice(`Saved: ${path}`);
+            callbacks.notify(`Saved to ${path}`);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Export failed';
-            callbacks.addSystemNotice(`HTML export failed: ${msg}`);
+            callbacks.notify(`HTML export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
             this.mutationLock = false;
@@ -1386,11 +1385,11 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             if (result.ok && result.value.violations.length > 0) {
                 this.preview?.applyDomFixes(result.value.violations);
-                callbacks.addSystemNotice(
+                callbacks.notify(
                     `Brand audit: ${result.value.violations.length} fix(es) applied.`
                 );
             } else if (result.ok) {
-                callbacks.addSystemNotice('Brand audit: all checks passed.');
+                callbacks.notify('Brand audit: all checks passed.');
             }
 
             this.runQualityCheck(result.ok ? result.value.violations.length : 0);
@@ -1512,14 +1511,14 @@ export class PresentationModeHandler implements ChatModeHandler {
             // Plan §"State transitions" mandates clearing on every html mutation.
             this.clearSelection();
             this.setPhase('preview-ready');
-            callbacks.addSystemNotice(
+            callbacks.notify(
                 `Polish complete. Quality: ${this.qualityResult?.totalScore ?? '?'}/100`
             );
         } catch (e) {
             if (!abort.signal.aborted) {
                 this.setPhase('error');
                 this.lastError = e instanceof Error ? e.message : 'Polish failed';
-                callbacks.addSystemNotice(`Polish failed: ${this.lastError}`);
+                callbacks.notify(`Polish failed: ${this.lastError}`);
             }
         } finally {
             this.mutationLock = false;
@@ -1650,7 +1649,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private handleDiscard(callbacks: ActionCallbacks): void {
         this.onClear();
-        callbacks.addSystemNotice('Presentation discarded.');
+        callbacks.notify('Presentation discarded.');
         callbacks.rerenderActions();
     }
 
