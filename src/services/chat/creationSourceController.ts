@@ -103,6 +103,16 @@ export class CreationSourceController {
         };
     }
 
+    /**
+     * Resolved prompt-sources for a row, for preview UI (e.g. letting the user
+     * see what a web-search source actually retrieved before generating).
+     * Returns the cached content if the row is resolved, else an empty array.
+     */
+    getResolvedSources(index: number): ReadonlyArray<PromptSource> {
+        if (index < 0 || index >= this.idsBySelected.length) return [];
+        return this.resolvedById.get(this.idsBySelected[index])?.sources ?? [];
+    }
+
     // ── Mutators ────────────────────────────────────────────────────────────
 
     addSource(source: SelectedSource): void {

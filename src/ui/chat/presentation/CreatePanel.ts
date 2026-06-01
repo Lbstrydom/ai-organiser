@@ -36,6 +36,8 @@ export type CreatePanelT = Pick<
     | 'slideCreateSourcesAddNote' | 'slideCreateSourcesAddWeb' | 'slideCreateSourcesAddFolder'
     | 'slideCreateSourcesAutoDetected' | 'slideCreateSourcesEmpty'
     | 'slideCreateSourceRemove' | 'slideCreateRedetectActive'
+    | 'slideCreateSourceViewResults' | 'slideCreateSourceHideResults'
+    | 'slideCreateSourceResultsEmpty'
     | 'slideCreateValidationZeroSources' | 'slideCreateValidationZeroLength'
     | 'slideCreateValidationLengthOutOfRange'
     | 'slideCreateBlockNoUsableSources' | 'slideCreateBlockWebSearchNotConfigured'
@@ -368,7 +370,47 @@ function renderSourceRow(
         opts.controller.removeSource(index);
     });
 
+    // Web-search results are otherwise invisible — the content is retrieved and
+    // cached but never shown. Expose it in a collapsed (expandable) preview so
+    // the user can verify what the search found without crowding the panel.
+    if (s.selected.kind === 'web-search' && s.status === 'resolved') {
+        renderWebSearchPreview(row, opts, index);
+    }
+
     return row;
+}
+
+/** Collapsed-by-default preview of a resolved web-search source's retrieved
+ *  content. Native `<details>` keeps it expandable without bespoke state. */
+function renderWebSearchPreview(
+    row: HTMLElement,
+    opts: CreatePanelOptions,
+    index: number,
+): void {
+    const content = opts.controller
+        .getResolvedSources(index)
+        .map(src => src.content)
+        .join('\n\n')
+        .trim();
+
+    const details = row.createEl('details', {
+        cls: 'ai-organiser-pres-create-source-preview',
+    });
+    const summary = details.createEl('summary', {
+        cls: 'ai-organiser-pres-create-source-preview-toggle',
+        text: opts.t.slideCreateSourceViewResults,
+    });
+    const body = details.createEl('div', {
+        cls: 'ai-organiser-pres-create-source-preview-body',
+    });
+    body.textContent = content || opts.t.slideCreateSourceResultsEmpty;
+
+    // Reflect open/closed in the summary label (the triangle alone is subtle).
+    details.addEventListener('toggle', () => {
+        summary.textContent = details.open
+            ? opts.t.slideCreateSourceHideResults
+            : opts.t.slideCreateSourceViewResults;
+    });
 }
 
 function kindIconChar(kind: SelectedSource['kind']): string {

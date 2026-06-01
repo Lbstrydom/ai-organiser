@@ -2165,6 +2165,9 @@ export interface Translations {
             slideCreateSourcesAutoDetected: string;
             slideCreateSourcesEmpty: string;
             slideCreateSourceRemove: string;
+            slideCreateSourceViewResults: string;
+            slideCreateSourceHideResults: string;
+            slideCreateSourceResultsEmpty: string;
             slideCreateRedetectActive: string;
             slideCreateValidationZeroSources: string;
             slideCreateValidationZeroLength: string;

@@ -8962,11 +8962,38 @@
 .ai-organiser-pres-create-source-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5em;
     padding: 0.3em 0.5em;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 4px;
+}
+/* Collapsed-by-default web-search results preview (full-width line below the
+   row, so it never crowds the source list until the user expands it). */
+.ai-organiser-pres-create-source-preview {
+    flex: 0 0 100%;
+    font-size: 0.8em;
+}
+.ai-organiser-pres-create-source-preview-toggle {
+    cursor: pointer;
+    color: var(--text-accent);
+    list-style-position: inside;
+    user-select: none;
+}
+.ai-organiser-pres-create-source-preview-toggle:hover {
+    text-decoration: underline;
+}
+.ai-organiser-pres-create-source-preview-body {
+    margin-top: 0.4em;
+    max-height: 14em;
+    overflow-y: auto;
+    padding: 0.5em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    color: var(--text-muted);
 }
 .ai-organiser-pres-create-source-row[data-status="error"] {
     border-color: var(--text-error);

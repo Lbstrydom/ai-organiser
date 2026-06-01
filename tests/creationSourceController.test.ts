@@ -147,6 +147,29 @@ describe('CreationSourceController.preloadAsync', () => {
     });
 });
 
+describe('CreationSourceController.getResolvedSources', () => {
+    it('returns the retrieved web-search content after preload', async () => {
+        const dispatcher: WebSearchDispatcher = { search: async () => 'LNG market findings…' };
+        const { controller } = buildController(
+            { files: new Map(), folders: new Map(), mtimes: new Map() },
+            dispatcher,
+        );
+        controller.addSource({ kind: 'web-search', ref: 'LNG forecast' });
+        await controller.preloadAsync(0);
+        const resolved = controller.getResolvedSources(0);
+        expect(resolved).toHaveLength(1);
+        expect(resolved[0].kind).toBe('web-search');
+        expect(resolved[0].content).toContain('LNG market findings');
+    });
+
+    it('returns an empty array for an unresolved or out-of-range row', () => {
+        const { controller } = buildController({ files: new Map(), folders: new Map(), mtimes: new Map() });
+        controller.addSource({ kind: 'web-search', ref: 'q' });
+        expect(controller.getResolvedSources(0)).toEqual([]); // not yet preloaded
+        expect(controller.getResolvedSources(99)).toEqual([]); // out of range
+    });
+});
+
 describe('CreationSourceController.resolveForSubmit', () => {
     it('returns err for zero-selected', async () => {
         const { controller } = buildController({

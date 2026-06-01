@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-01 — Web-search source results preview (Slides create panel)
+
+### Changes
+- **Problem**: in the Slides create panel, adding a web-search source runs the search eagerly (`preloadAsync`) and caches the retrieved content, but the content was never surfaced — the user only saw a green ✓ with no way to see what the search found.
+- **Fix**: resolved web-search rows now render a collapsed-by-default, expandable `<details>` preview of the retrieved content ([src/ui/chat/presentation/CreatePanel.ts](src/ui/chat/presentation/CreatePanel.ts) `renderWebSearchPreview`). Collapsed so it never crowds the source list until expanded; summary toggles "View results" ↔ "Hide results".
+- **Controller**: new `getResolvedSources(index)` on [creationSourceController.ts](src/services/chat/creationSourceController.ts) exposes the cached `PromptSource[]` for preview UI.
+- **i18n**: `slideCreateSourceViewResults` / `slideCreateSourceHideResults` / `slideCreateSourceResultsEmpty` (en + zh + types + CreatePanelT Pick).
+- **CSS**: `.ai-organiser-pres-create-source-preview*` (full-width line below the row via `flex-wrap`; scrollable `pre-wrap` body capped at 14em).
+- **Tests**: 2 new `creationSourceController.getResolvedSources` cases (retrieved content after preload; empty for unresolved/out-of-range). Full `tsc` 0 errors, i18n parity green.
+
+---
+
 ## 2026-06-01 — Per-slide polish (PolishSelectorModal + selective deck-IR refine) + working-tree test alignment
 
 ### Changes
