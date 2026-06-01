@@ -43,7 +43,7 @@ describe('renderDeckToHtml', () => {
         expect((r.value.html.match(/>37%</g) ?? []).length).toBe(1);
     });
 
-    it('renders emoji icons on stat-grid cards and process-flow steps', () => {
+    it('renders VECTOR icons (names + curated legacy emoji), never raw emoji', () => {
         const deck: SlideDeckIr = {
             schemaVersion: IR_SCHEMA_VERSION,
             title: 'Icons',
@@ -52,10 +52,11 @@ describe('renderDeckToHtml', () => {
                 type: 'content',
                 title: 'With icons',
                 blocks: [
+                    // 📈 is a curated legacy emoji → maps to the trending-up vector.
                     { kind: 'stat-grid', cards: [{ value: '$100B', label: 'Market', icon: '📈' }] },
                     { kind: 'process-flow', steps: [
-                        { title: 'Grow', icon: '🌱' },
-                        { title: 'Ship', icon: '🚚' },
+                        { title: 'Grow', icon: 'rocket' },     // name → vector
+                        { title: 'Ship', icon: '🦄' },         // uncurated emoji → omitted (symmetric)
                     ] },
                 ],
             }],
@@ -63,9 +64,11 @@ describe('renderDeckToHtml', () => {
         expect(validateDeckIr(deck).ok).toBe(true);
         const r = renderDeckToHtml(deck, theme);
         if (!r.ok) throw new Error('expected ok');
-        expect(r.value.html).toContain('📈');
-        expect(r.value.html).toContain('🌱');
-        expect(r.value.html).toContain('🚚');
+        // Vector SVGs, never raw emoji passthrough.
+        expect(r.value.html).toContain('<svg');
+        expect(r.value.html).toContain('M23 6l-9.5 9.5-5-5L1 18');   // trending-up path (from 📈)
+        expect(r.value.html).not.toContain('📈');
+        expect(r.value.html).not.toContain('🦄');                    // uncurated → omitted
     });
 
     it('applies a per-slide background override with auto-contrast text', () => {

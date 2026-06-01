@@ -25,6 +25,11 @@ import {
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
 import { IR_RENDER_SPEC } from './irRenderSpec';
+import { resolvePresentationIcon } from './iconRegistry';
+import {
+    createSvgAssetCache, gradientSvgMarkup, renderIconSvgMarkup, addSvgImageSafe,
+    type SvgAssetCache,
+} from './svgAsset';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -72,9 +77,15 @@ interface RenderState {
     rasterize?: RasterizeFn;
     notices: FidelityNotice[];
     downgrades: string[];
+    /** Per-export-pass dedup cache for generated SVG assets (icons/gradients). */
+    svgCache: SvgAssetCache;
 }
 
 const PX_PER_IN = 96;
+
+/** Icon fill colour from the shared spec (primary | accent). */
+const iconColor = (theme: ExportTheme): string =>
+    IR_RENDER_SPEC.icon.colorRole === 'primary' ? theme.primaryColor : theme.accentColor;
 
 export async function renderDeckToPptx(
     deck: SlideDeckIr,
@@ -84,7 +95,7 @@ export async function renderDeckToPptx(
     // Defensive guard (audit M1) — dereference safely before the main try.
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
 
-    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme, rasterize: opts.rasterize, notices: [], downgrades: [] };
+    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme, rasterize: opts.rasterize, notices: [], downgrades: [], svgCache: createSvgAssetCache() };
 
     let pres: PptxLike;
     try {
@@ -139,19 +150,21 @@ async function renderSlide(pres: PptxLike, slide: SlideIr, index: number, st: Re
     const s = pres.addSlide();
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
-        // Solid backgrounds. We previously tried approximating the HTML's
-        // diagonal gradient (primary→sectionBg) by stacking 16, then 40
-        // interpolated horizontal bands — but PowerPoint's rendering quantises
-        // adjacent thin-rect boundaries into visible seams that no amount of
-        // overlap fully hides, and pptxgenjs 4.0.1 has no per-shape gradient
-        // fill in its public API (the `gradFill` XML in its runtime is
-        // theme-boilerplate-only). Solid reads cleaner than a banded gradient
-        // — and matches the original PowerPoint export anyway, since browsers
-        // are the only place the CSS gradient was ever visible.
-        // Per-slide background override (auto-contrast text) wins over the theme.
-        const bg = slide.background ?? (slide.type === 'section' ? theme.sectionBg : theme.primaryColor);
+        // #4 — gradient via a full-bleed SVG image (a single vector fill, no
+        // banding seams — pptxgenjs 4.0.1 has no per-shape gradient fill). The
+        // image is the FIRST add on the slide so the title text sits on top of
+        // it (Gemini draw-order); on failure it falls back to a solid fill.
+        const sb = IR_RENDER_SPEC.slideBackground(slide, theme);
         const fg = slide.background ? contrastTextColor(slide.background) : 'FFFFFF';
-        s.background = { color: hx(bg) };
+        if (sb.kind === 'gradient') {
+            const markup = gradientSvgMarkup({ from: sb.from, to: sb.to, angleDeg: sb.angleDeg, w: 1333, h: 750 });
+            addSvgImageSafe(s, markup, { x: 0, y: 0, w: CANVAS.w, h: CANVAS.h }, () => {
+                s.background = { color: hx(sb.from) };
+                st.notices.push({ slideIndex: index, blockKind: 'paragraph', severity: 'info', description: 'gradient image failed; solid-fill fallback.' });
+            }, st.svgCache);
+        } else {
+            s.background = { color: hx(sb.color) };
+        }
         const heroAlign = IR_RENDER_SPEC.titleLayout.align;   // #3 — left (matches HTML hero)
         s.addText(slide.title ?? '', {
             x: MARGIN, y: CANVAS.h / 2 - 1, w: CONTENT_WIDTH, h: 1.4,
@@ -235,8 +248,10 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         }
         case 'callout': {
             const h = clampH(estimateTextHeight(block.text, box.w - 0.4, theme.fontSize) + 0.3, box, block.kind, slideIndex, st);
-            s.addShape('rect', { x: box.x, y: box.y, w: box.w, h, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
-            s.addText(block.text + (block.cite ? `  — ${block.cite}` : ''), { x: box.x + 0.2, y: box.y + 0.1, w: box.w - 0.4, h: h - 0.2, fontFace: theme.fontFace, fontSize: theme.fontSize, color: hx(theme.bodyColor), valign: 'middle' });
+            const stripe = IR_RENDER_SPEC.calloutStripe.widthIn;   // #6 — left accent stripe (matches HTML border-left)
+            s.addShape('rect', { x: box.x, y: box.y, w: box.w, h, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 0.5 } });
+            s.addShape('rect', { x: box.x, y: box.y, w: stripe, h, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
+            s.addText(block.text + (block.cite ? `  — ${block.cite}` : ''), { x: box.x + stripe + 0.12, y: box.y + 0.1, w: box.w - stripe - 0.24, h: h - 0.2, fontFace: theme.fontFace, fontSize: theme.fontSize, color: hx(theme.bodyColor), valign: 'middle' });
             return h;
         }
         case 'stat-grid': {
@@ -248,8 +263,17 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 const x = box.x + (col.x - MARGIN) * scale;
                 const w = col.w * scale;
                 s.addShape('roundRect', { x, y: box.y, w, h, rectRadius: 0.08, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
-                s.addText((card.icon ? `${card.icon}  ` : '') + card.value, { x, y: box.y + 0.15, w, h: 0.6, fontFace: theme.fontFace, fontSize: 22, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
-                s.addText(card.label, { x, y: box.y + 0.75, w, h: 0.45, fontFace: theme.fontFace, fontSize: 11, color: hx(theme.bodyColor), align: 'center', valign: 'top' });
+                // #5 — vector icon above the value (resolved symmetrically with HTML);
+                // value carries NO emoji. #6 — value font shrinks as the row crowds.
+                const ic = resolvePresentationIcon(card.icon);
+                let valueY = box.y + 0.18;
+                if (ic.kind === 'svg') {
+                    const isz = IR_RENDER_SPEC.icon.statCardSizeIn;
+                    addSvgImageSafe(s, renderIconSvgMarkup(ic.name, iconColor(theme)), { x: x + (w - isz) / 2, y: box.y + 0.1, w: isz, h: isz }, () => { st.notices.push({ slideIndex, blockKind: 'stat-grid', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); }, st.svgCache);
+                    valueY = box.y + 0.1 + isz + 0.02;
+                }
+                s.addText(card.value, { x, y: valueY, w, h: 0.5, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.statValueFontPt(block.cards.length), bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+                s.addText(card.label, { x, y: box.y + 0.92, w, h: 0.38, fontFace: theme.fontFace, fontSize: 11, color: hx(theme.bodyColor), align: 'center', valign: 'top' });
             });
             return h;
         }
@@ -265,7 +289,15 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             block.steps.forEach((step, i) => {
                 const x = box.x + i * (stepW + gap);
                 s.addShape('roundRect', { x, y: box.y, w: stepW, h, rectRadius: 0.06, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
-                s.addText((step.icon ? `${step.icon}\n` : '') + step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: box.y, w: stepW, h, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+                // #5 — vector icon at the top of the step (resolved symmetrically with HTML).
+                const ic = resolvePresentationIcon(step.icon);
+                let textY = box.y; let textH = h; let textValign: 'top' | 'middle' = 'middle';
+                if (ic.kind === 'svg') {
+                    const isz = IR_RENDER_SPEC.icon.processStepSizeIn;
+                    addSvgImageSafe(s, renderIconSvgMarkup(ic.name, iconColor(theme)), { x: x + (stepW - isz) / 2, y: box.y + 0.08, w: isz, h: isz }, () => { st.notices.push({ slideIndex, blockKind: 'process-flow', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); }, st.svgCache);
+                    textY = box.y + 0.08 + isz; textH = h - (0.08 + isz); textValign = 'top';
+                }
+                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: textY, w: stepW, h: textH, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: textValign });
                 // Flow chevron in the gap, matching the HTML's yellow `▶` indicator.
                 // Vertically centred against the step cards, accent-coloured.
                 if (i < n - 1) {

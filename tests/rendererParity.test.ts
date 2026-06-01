@@ -94,6 +94,60 @@ describe('parity #1 — table header fill (primary in both, not accent)', () => 
     });
 });
 
+describe('parity #4 — hero gradient in both; content solid in both', () => {
+    const hero = deck([{ id: 's1', type: 'title', title: 'Hero', blocks: [] }]);
+    const content = deck([{ id: 's1', type: 'content', title: 'C', blocks: [{ kind: 'paragraph', text: 'x' }] }]);
+    it('HTML hero uses a linear-gradient backdrop', () => {
+        expect(html(hero)).toContain('linear-gradient(135deg');
+    });
+    it('PPTX hero draws the gradient image FIRST (draw-order), before the title', async () => {
+        const [s] = await pptxSlides(hero);
+        expect(s.calls[0]?.method).toBe('addImage');
+        const firstText = s.calls.findIndex(c => c.method === 'addText');
+        expect(s.calls.findIndex(c => c.method === 'addImage')).toBeLessThan(firstText);
+    });
+    it('content slide is solid (no gradient image, white HTML bg)', async () => {
+        expect(html(content)).not.toContain('linear-gradient');
+        const [s] = await pptxSlides(content);
+        expect(s.calls.some(c => c.method === 'addImage')).toBe(false);
+    });
+});
+
+describe('parity #5 — vector icons, symmetric presence', () => {
+    const withIcon = deck([{
+        id: 's1', type: 'content', title: 'C',
+        blocks: [{ kind: 'stat-grid', cards: [{ value: '9', label: 'L', icon: 'trending-up' }] }],
+    }]);
+    const unknownIcon = deck([{
+        id: 's1', type: 'content', title: 'C',
+        blocks: [{ kind: 'stat-grid', cards: [{ value: '9', label: 'L', icon: 'totally-unknown' }] }],
+    }]);
+    it('known icon → SVG in HTML AND an image in PPTX', async () => {
+        expect(html(withIcon)).toContain('<svg');
+        const [s] = await pptxSlides(withIcon);
+        expect(s.calls.some(c => c.method === 'addImage')).toBe(true);
+    });
+    it('unknown icon → absent in BOTH (symmetric)', async () => {
+        expect(html(unknownIcon)).not.toContain('<svg');
+        const [s] = await pptxSlides(unknownIcon);
+        expect(s.calls.some(c => c.method === 'addImage')).toBe(false);
+    });
+});
+
+describe('parity #6 — callout left stripe in both', () => {
+    const d = deck([{ id: 's1', type: 'content', title: 'C', blocks: [{ kind: 'callout', text: 'note' }] }]);
+    const stripeW = IR_RENDER_SPEC.calloutStripe.widthIn;
+    it('HTML callout has a left accent border', () => {
+        expect(html(d)).toContain(`border-left:${Math.round(stripeW * PX_PER_IN)}px solid`);
+    });
+    it('PPTX callout draws a thin left stripe rect', async () => {
+        const [s] = await pptxSlides(d);
+        const rects = s.calls.filter(c => c.method === 'addShape' && c.args[0] === 'rect')
+            .map(c => c.args[1] as { w: number });
+        expect(rects.some(r => Math.abs(r.w - stripeW) < 0.001)).toBe(true);
+    });
+});
+
 describe('parity #2 — accent motif is an underline, not a top bar', () => {
     const d = deck([{ id: 's1', type: 'content', title: 'Titled', blocks: [{ kind: 'paragraph', text: 'x' }] }]);
     const uW = IR_RENDER_SPEC.accentUnderline.widthIn;

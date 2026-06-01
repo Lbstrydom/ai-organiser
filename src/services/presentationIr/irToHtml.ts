@@ -24,6 +24,17 @@ import { sanitizeSvgMarkup } from '../chat/presentationSanitizer';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
 import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
+import { resolvePresentationIcon } from './iconRegistry';
+import { renderIconSvgMarkup } from './svgAsset';
+
+/** Inline vector icon (resolved symmetrically with PPTX). Empty string when the
+ *  icon resolves to `none`, so an unknown/dropped icon is absent in BOTH. */
+function iconHtml(raw: string | undefined, theme: ExportTheme, sizePx: number): string {
+    const r = resolvePresentationIcon(raw);
+    if (r.kind !== 'svg') return '';
+    const color = IR_RENDER_SPEC.icon.colorRole === 'primary' ? theme.primaryColor : theme.accentColor;
+    return `<div style="display:flex;justify-content:center;margin-bottom:12px;">${renderIconSvgMarkup(r.name, color, sizePx)}</div>`;
+}
 
 export interface HtmlRenderOutput {
     html: string;
@@ -85,12 +96,12 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
     const parts: string[] = [];
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
-        // Per-slide background override (auto-contrast text) wins over the theme.
-        const bg = slide.background
-            ? hx(slide.background)
-            : slide.type === 'section'
-                ? hx(theme.sectionBg)
-                : `linear-gradient(135deg, ${hx(theme.primaryColor)} 0%, ${hx(theme.sectionBg)} 100%)`;
+        // #4 — same gradient-vs-solid decision as PPTX (shared spec). Per-slide
+        // background override wins → solid with auto-contrast text.
+        const sb = IR_RENDER_SPEC.slideBackground(slide, theme);
+        const bg = sb.kind === 'gradient'
+            ? `linear-gradient(${sb.angleDeg}deg, ${hx(sb.from)} 0%, ${hx(sb.to)} 100%)`
+            : hx(sb.color);
         const fg = slide.background ? hx(contrastTextColor(slide.background)) : '#fff';
         parts.push(slideOpen(index,
             `background:${bg};color:${fg};font-family:${font};display:flex;flex-direction:column;`
@@ -140,14 +151,15 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
         case 'caption':
             return `<div style="font-size:24px;color:${body};opacity:0.65;">${esc(block.text)}</div>`;
         case 'callout':
-            return `<div style="background:${tint(theme.accentColor)};border-left:10px solid ${accent};border-radius:0 12px 12px 0;padding:28px 36px;">`
+            return `<div style="background:${tint(theme.accentColor)};border-left:${Math.round(IR_RENDER_SPEC.calloutStripe.widthIn * PX_PER_IN)}px solid ${accent};border-radius:0 12px 12px 0;padding:28px 36px;">`
                 + `<p style="font-size:30px;line-height:1.4;color:${body};margin:0;">${esc(block.text)}</p>`
                 + (block.cite ? `<div style="font-size:24px;color:${body};opacity:0.7;margin-top:10px;">— ${esc(block.cite)}</div>` : '')
                 + '</div>';
         case 'stat-grid': {
+            const iconPx = Math.round(IR_RENDER_SPEC.icon.statCardSizeIn * PX_PER_IN);
             const cards = block.cards.map(c =>
                 `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:18px;padding:40px 28px;text-align:center;">`
-                + (c.icon ? `<div style="font-size:52px;line-height:1;margin-bottom:12px;">${esc(c.icon)}</div>` : '')
+                + iconHtml(c.icon, theme, iconPx)
                 + `<div style="font-size:64px;font-weight:800;color:${primary};line-height:1.05;">${esc(c.value)}</div>`
                 + `<div style="font-size:26px;color:${body};opacity:0.85;margin-top:14px;line-height:1.3;">${esc(c.label)}</div></div>`,
             ).join('');
@@ -168,9 +180,10 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
             return `<div style="display:flex;flex-direction:column;gap:20px;">${rows}${cap}</div>`;
         }
         case 'process-flow': {
+            const stepIconPx = Math.round(IR_RENDER_SPEC.icon.processStepSizeIn * PX_PER_IN);
             const steps = block.steps.map((s, i) =>
                 `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:14px;padding:28px 18px;text-align:center;">`
-                + (s.icon ? `<div style="font-size:38px;line-height:1;margin-bottom:8px;">${esc(s.icon)}</div>` : '')
+                + iconHtml(s.icon, theme, stepIconPx)
                 + `<div style="font-size:30px;font-weight:700;color:${primary};">${esc(s.title)}</div>`
                 + (s.sub ? `<div style="font-size:23px;color:${body};opacity:0.8;margin-top:8px;line-height:1.3;">${esc(s.sub)}</div>` : '')
                 + '</div>'
