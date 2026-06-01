@@ -23,6 +23,7 @@ import type { ExportTheme } from '../export/exportTheme';
 import { sanitizeSvgMarkup } from '../chat/presentationSanitizer';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
+import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
 
 export interface HtmlRenderOutput {
     html: string;
@@ -56,6 +57,9 @@ function stripDangerousHtml(html: string): string {
 }
 
 export function renderDeckToHtml(deck: SlideDeckIr, theme: ExportTheme): Result<HtmlRenderOutput> {
+    // Same validity contract as renderDeckToPptx (audit M6/M19 — the two
+    // renderers must agree on what a renderable deck is).
+    if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
     try {
         const notices: FidelityNotice[] = [];
         const sections = deck.slides
@@ -101,7 +105,8 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
             `background:${bg};color:${bodyColor};font-family:${font};display:flex;flex-direction:column;padding:90px 110px;`));
         if (slide.title) {
             parts.push(`<h1 style="font-size:54px;font-weight:800;color:${titleColor};line-height:1.15;margin:0;">${esc(slide.title)}</h1>`);
-            parts.push(`<div style="width:130px;height:8px;background:${hx(theme.accentColor)};border-radius:4px;margin:18px 0 0 0;"></div>`);
+            const u = IR_RENDER_SPEC.accentUnderline;   // #2 — same motif/geometry as PPTX
+            parts.push(`<div style="width:${Math.round(u.widthIn * PX_PER_IN)}px;height:${Math.round(u.heightIn * PX_PER_IN)}px;background:${hx(theme.accentColor)};border-radius:4px;margin:${Math.round(u.gapBelowTitleIn * PX_PER_IN)}px 0 0 0;"></div>`);
         }
         if (slide.subtitle) parts.push(`<p style="font-size:32px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
         parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:28px;min-height:0;">');
@@ -174,7 +179,8 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
             return `<div style="display:flex;gap:14px;align-items:stretch;">${steps}</div>`;
         }
         case 'table': {
-            const head = `<thead><tr>${block.headers.map(h => `<th style="background:${primary};color:#fff;padding:18px 24px;text-align:left;font-size:28px;font-weight:700;">${esc(h)}</th>`).join('')}</tr></thead>`;
+            const headerFill = hx(IR_RENDER_SPEC.tableHeaderFill(theme));   // #1 — same fill as PPTX
+            const head = `<thead><tr>${block.headers.map(h => `<th style="background:${headerFill};color:#fff;padding:18px 24px;text-align:left;font-size:28px;font-weight:700;">${esc(h)}</th>`).join('')}</tr></thead>`;
             const rowsHtml = block.rows.map((r, ri) => `<tr style="background:${ri % 2 ? '#f6f8fa' : '#fff'};">${r.map(c => `<td style="padding:16px 24px;border-bottom:1px solid #e2e8f0;font-size:28px;color:${body};">${esc(c)}</td>`).join('')}</tr>`).join('');
             const cap = block.caption ? `<div style="font-size:24px;color:${body};opacity:0.65;margin-bottom:10px;">${esc(block.caption)}</div>` : '';
             return `${cap}<table style="width:100%;border-collapse:collapse;">${head}<tbody>${rowsHtml}</tbody></table>`;

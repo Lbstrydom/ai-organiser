@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { getDefaultTheme } from '../src/services/chat/brandThemeService';
 import {
     PRESENTATION_ICONS,
     ICON_CATEGORIES,
     buildIconReference,
-    getDefaultTheme,
-} from '../src/services/chat/brandThemeService';
+} from '../src/services/presentationIr/iconRegistry';
 
 // ── Icon Catalogue ─────────────────────────────────────────────────────────
 

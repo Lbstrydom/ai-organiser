@@ -24,6 +24,7 @@ import {
 } from './irLayout';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
+import { IR_RENDER_SPEC } from './irRenderSpec';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -151,25 +152,29 @@ async function renderSlide(pres: PptxLike, slide: SlideIr, index: number, st: Re
         const bg = slide.background ?? (slide.type === 'section' ? theme.sectionBg : theme.primaryColor);
         const fg = slide.background ? contrastTextColor(slide.background) : 'FFFFFF';
         s.background = { color: hx(bg) };
+        const heroAlign = IR_RENDER_SPEC.titleLayout.align;   // #3 — left (matches HTML hero)
         s.addText(slide.title ?? '', {
             x: MARGIN, y: CANVAS.h / 2 - 1, w: CONTENT_WIDTH, h: 1.4,
             fontFace: theme.fontFace, fontSize: slide.type === 'title' ? 40 : 34,
-            color: fg, bold: true, align: 'center', valign: 'middle',
+            color: fg, bold: true, align: heroAlign, valign: 'middle',
         });
         if (slide.subtitle) {
             s.addText(slide.subtitle, {
                 x: MARGIN, y: CANVAS.h / 2 + 0.5, w: CONTENT_WIDTH, h: 0.9,
-                fontFace: theme.fontFace, fontSize: 18, color: fg, align: 'center', valign: 'middle',
+                fontFace: theme.fontFace, fontSize: 18, color: fg, align: heroAlign, valign: 'middle',
             });
         }
         if (slide.notes) s.addNotes(slide.notes);
         return;
     }
 
-    // Content slide: accent bar + title + flowed blocks.
-    s.addShape('rect', { x: 0, y: 0, w: CANVAS.w, h: 0.08, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
+    // Content slide: title + accent UNDERLINE (motif shared with HTML — #2) + blocks.
+    // (The old full-width top bar was a PPTX-only motif that diverged from the
+    // preview; both now draw a short underline beneath the title.)
     if (slide.title) {
-        s.addText(slide.title, { x: MARGIN, y: 0.35, w: CONTENT_WIDTH, h: 0.7, fontFace: theme.fontFace, fontSize: 24, bold: true, color: hx(theme.primaryColor) });
+        s.addText(slide.title, { x: MARGIN, y: 0.35, w: CONTENT_WIDTH, h: 0.6, fontFace: theme.fontFace, fontSize: 24, bold: true, color: hx(theme.primaryColor) });
+        const u = IR_RENDER_SPEC.accentUnderline;
+        s.addShape('rect', { x: MARGIN, y: 0.35 + 0.6 + u.gapBelowTitleIn * 0.5, w: u.widthIn, h: u.heightIn, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
     }
     await flowBlocks(s, slide.blocks, { x: MARGIN, y: CONTENT_TOP, w: CONTENT_WIDTH }, index, st);
     if (slide.notes) s.addNotes(slide.notes);
@@ -368,7 +373,7 @@ function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box
         st.notices.push({ slideIndex, blockKind: 'table', severity: 'substantive', description: `table truncated to ${shown.length}/${block.rows.length} rows to fit the slide.` });
     }
     const colW = tableColumnWidths(block.headers, shown, box.w);
-    const header = block.headers.map(hh => ({ text: hh, options: { bold: true, color: 'FFFFFF', fill: { color: hx(theme.accentColor) } } }));
+    const header = block.headers.map(hh => ({ text: hh, options: { bold: true, color: 'FFFFFF', fill: { color: hx(IR_RENDER_SPEC.tableHeaderFill(theme)) } } }));
     const body = shown.map(r => r.map(c => ({ text: c, options: { color: hx(theme.bodyColor) } })));
     const h = Math.min(available, (body.length + 1) * TABLE_ROW_H);
     s.addTable([header, ...body], {
