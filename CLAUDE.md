@@ -291,6 +291,18 @@ AI free-form chat inside `UnifiedChatModal`.
 - `src/services/prompts/presentationPrompts.ts`: Slide generation, audit, refinement, attachment packing, and brand-guideline prompts
 - `src/ui/settings/AIChatSettingsSection.ts`: AI Chat settings UI
 
+### PresentationModeHandler decomposition (TD-SSR-02, June 2026)
+
+`PresentationModeHandler` is being decomposed from a 1909-line god-object into a thin facade + single-responsibility collaborators under `src/ui/chat/presentation/`. Shipped so far (handler **1909 → 1613 lines**):
+- `presentationCommandRegistry.ts`: explicit register/unregister (replaces the old static `activeInstance`; true most-recently-activated, no dangling pointer). Global slide-picker command queries it.
+- `presentationDeckStore.ts`: **single source of truth** for deck state (phase, html, deckIr, versions, activeSlideIndex, qualityResult, monotonic `deckEpoch`, `pushVersion`). Public mutable fields — handler/pipeline mutate in place. `deckEpoch` MUST stay monotonic (thumbnail-cache key + layout signal; never `versions.length`).
+- `presentationThemeResolver.ts`: shared `ExportTheme` resolver + memo cache (pipeline + exporter).
+- `presentationExporter.ts`: rich IR→PPTX + dom-to-pptx fallback, download, HTML vault write.
+- `editScopeController.ts`: selection / editMode / editFlags + the chat-input accessory; injected `getOperation`/`isLocked`/`onActiveSlide`.
+- `presentationCanvasView.ts`: the visual surface (iframe preview + filmstrip + thumbnail provider + slide-nav + `refreshPreview`); talked to via `canvas.*` methods. **Security invariant**: thumbnail provider fed only `deck.html` (post-sanitize), rasterized offscreen — slide CSS never enters the host DOM.
+
+**Remaining (dedicated session)**: `PresentationRunController` (single-flight lock + cancel + progress) + `PresentationPipeline` (the ~600-line generate/refine/scoped-edit/polish/extend + audit core). **Plan**: [docs/plans/presentation-handler-decomposition.md](docs/plans/presentation-handler-decomposition.md).
+
 ### Key Patterns
 
 - **Model routing**: Opus reasoning for generation/refinement, non-reasoning Sonnet for audits
