@@ -36,7 +36,6 @@ import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelector
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
 import { withProgressResult } from '../../services/progress';
 import { ok, err } from '../../core/result';
-import { renderEditAccessories } from './presentation/EditAccessories';
 import { renderCreatePanel } from './presentation/CreatePanel';
 import { PresentationSourceService, DEFAULT_CREATION_CONFIG } from '../../services/chat/presentationSourceService';
 import { CreationSourceController } from '../../services/chat/creationSourceController';
@@ -63,6 +62,7 @@ import type { ProjectConfig } from '../../services/chat/projectService';
 import { registerPresentationTarget, unregisterPresentationTarget } from './presentation/presentationCommandRegistry';
 import { PresentationThemeResolver } from './presentation/presentationThemeResolver';
 import { PresentationExporter } from './presentation/presentationExporter';
+import { EditScopeController } from './presentation/editScopeController';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -155,23 +155,9 @@ export class PresentationModeHandler implements ChatModeHandler {
     private thumbnailProvider: SlideThumbnailProvider | null = null;
 
     // ── Scoped editing (slide-authoring-editing plan) ───────────────────────
-    // Selection: null = whole-deck edit (existing Polish path); else the
-    //            iframe-clicked or slide-pill-clicked scope.
-    // editMode:  'content' (default) edits text/data; 'design' edits layout
-    //            without rewriting text. Hidden when no selection.
-    // editFlags: web search + reference notes — content mode only.
-    private selection: SelectionScope | null = null;
-    private editMode: EditMode = 'content';
-    private editFlags: EditFlags = { webSearch: false, references: [] };
-
-    // Container handles for the chat-input accessory area (selection pill
-    // + mode pills). Cleared in dispose() / onClear() and rebound in
-    // renderChatInputAccessory().
-    private accessoryContainer: HTMLElement | null = null;
-
-    // Translations stashed when renderContextPanel runs — refreshAccessory
-    // reads from here. Stays alive between renders; nulled in dispose.
-    private accessoryT: Translations['modals']['unifiedChat'] | null = null;
+    // Selection / editMode / editFlags + the chat-input accessory area now live
+    // in EditScopeController (TD-SSR-02 Phase 6). The handler reads the active
+    // scope from it in buildPrompt and routes element clicks into it.
 
     // ── Create-flow source state (slide-authoring-followup plan) ────────────
     // Lazily instantiated on first renderContextPanel call so we have access
@@ -187,12 +173,17 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Collaborators (TD-SSR-02 decomposition) ─────────────────────────────
     private readonly themeResolver = new PresentationThemeResolver();
     private readonly exporter = new PresentationExporter();
+    private readonly editScope = new EditScopeController({
+        getOperation: () => this.deriveOperation(),
+        isLocked: () => this.mutationLock,
+        onActiveSlide: (i) => { this.activeSlideIndex = i; },
+    });
 
     // ── Phase progress ──────────────────────────────────────────────────────
 
     /** Centralized phase setter that bubbles a phase-specific message to the
      *  chat "Thinking…" placeholder when an async action is active.
-     *  Also calls `refreshAccessory()` so the create panel / edit pills
+     *  Also re-renders the edit accessory so the create panel / edit pills
      *  reflect the new operation gate (audit Item 5). */
     private setPhase(phase: PresentationPhase): void {
         this.phase = phase;
@@ -200,7 +191,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (label && this.activeThinkingUpdater) {
             this.activeThinkingUpdater(label);
         }
-        this.refreshAccessory();
+        this.editScope.render();
     }
 
     /** Human-readable label per presentation phase. Returns null for phases
@@ -246,9 +237,6 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     renderContextPanel(container: HTMLElement, ctx: ModalContext): void {
         const t = ctx.plugin.t.modals.unifiedChat;
-        // Stash the i18n bundle so refreshAccessory has it available for
-        // every state-change-driven re-render between renderContextPanel calls.
-        this.accessoryT = t;
         // Register as the active target for global commands (e.g. the
         // slide-picker command bound to Mod+Shift+S). The registry tracks all
         // live handlers + unregisters cleanly on dispose (no dangling pointer).
@@ -272,9 +260,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.filmstrip = null;
         this.thumbnailProvider?.dispose();
         this.thumbnailProvider = null;
-        // Drop the accessory ref before container.empty() so refreshAccessory
-        // can't fire against detached DOM during the transition window.
-        this.accessoryContainer = null;
+        // Drop the accessory container ref before container.empty() so a
+        // render can't fire against detached DOM during the transition window.
+        this.editScope.unbind();
         this.versionNavHost = null;
         // Tear down any prior CreatePanel subscription so resubscribing
         // below doesn't double-fire on controller events.
@@ -314,12 +302,12 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.html) {
             // Edit-flow accessory area — selection pill + mode pills + flags.
             // Sits above the iframe so the user sees the active scope before
-            // they type the edit. Stable container reference enables in-place
-            // re-render on state changes via refreshAccessory().
-            this.accessoryContainer = container.createEl('div', {
+            // they type the edit. The controller owns the stable container ref
+            // for in-place re-render on state changes.
+            const accessoryHost = container.createEl('div', {
                 cls: 'ai-organiser-pres-accessory-host',
             });
-            this.refreshAccessory();
+            this.editScope.bind(accessoryHost, t);
 
             // Canvas body: filmstrip (left) + preview (fills). Wrapping them in a
             // horizontal row keeps the filmstrip inside the canvas grid cell, so
@@ -329,7 +317,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const previewContainer = canvasBody.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
             this.preview = new SlideIframePreview(previewContainer, {
                 onSlideSelect: (idx) => { this.activeSlideIndex = idx; this.filmstrip?.setActive(idx); },
-                onElementSelect: (event) => { this.handleElementSelect(event); },
+                onElementSelect: (event) => { this.editScope.selectFromEvent(event); },
                 emptyPlaceholderText: t.slidePreviewEmpty,
                 bgHoverLabelTemplate: t.slideBgHoverTooltipTemplate,
             });
@@ -448,7 +436,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.pushVersion(opts.versionLabel);
         this.updateReliability();
         this.runQualityCheck();
-        this.clearSelection();
+        this.editScope.clear();
         this.setPhase('preview-ready');
         void this.runBackgroundQualityScan(opts.llmCtx, opts.signal);
     }
@@ -490,8 +478,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                         if (!this.html) {
                             return await this.runGenerate(runCtx);
                         }
-                        if (this.selection) {
-                            return await this.runScopedEdit(runCtx, this.selection, this.editMode, this.editFlags);
+                        const selection = this.editScope.getSelection();
+                        if (selection) {
+                            return await this.runScopedEdit(runCtx, selection, this.editScope.getEditMode(), this.editScope.getEditFlags());
                         }
                         return await this.runRefine(runCtx);
                     } finally {
@@ -1003,9 +992,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.phase = 'empty';
         // Scoped-editing state — clear selection and reset mode/flags so a
         // fresh deck doesn't inherit stale scope from the previous one.
-        this.selection = null;
-        this.editMode = 'content';
-        this.editFlags = { webSearch: false, references: [] };
+        this.editScope.reset();
         // Increment epoch + reset source controller so the next creation
         // cycle starts clean and conversation history from the prior cycle
         // can be filtered out of generation prompts (audit Gemini-r2-G3 +
@@ -1024,10 +1011,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.filmstrip = null;
         this.thumbnailProvider?.dispose();
         this.thumbnailProvider = null;
-        this.accessoryContainer = null;
+        this.editScope.dispose();
         this.versionNavHost = null;
-        this.accessoryT = null;
-        this.selection = null;
         if (this.createPanelDispose) {
             this.createPanelDispose();
             this.createPanelDispose = null;
@@ -1069,9 +1054,19 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  iframe-click path so the chat-input accessory updates correctly. */
     selectSlideFromCommand(slideIndex: number): void {
         if (!this.html) return;
-        this.selection = { kind: 'slide', slideIndex };
         this.activeSlideIndex = slideIndex;
-        this.refreshAccessory();
+        this.editScope.setSelection({ kind: 'slide', slideIndex });
+    }
+
+    /** Test seam — exposed for unit tests that drive the handler without going
+     *  through the iframe's postMessage path. Forwards to the edit-scope controller. */
+    setSelectionForTesting(scope: SelectionScope | null): void {
+        this.editScope.setSelectionForTesting(scope);
+    }
+
+    /** Test seam — read the current selection without mutating. */
+    getSelection(): SelectionScope | null {
+        return this.editScope.getSelection();
     }
 
     /** Lazy controller construction — runs on first renderContextPanel so
@@ -1100,92 +1095,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    // ── Selection state (slide-authoring-editing plan) ──────────────────────
-
-    /** Iframe element-click handler. Updates selection and re-renders the
-     *  chat-input accessory area so the user sees the new scope pill. */
-    private handleElementSelect(event: import('../components/SlideIframePreview').IframeSelectionEvent): void {
-        if (this.mutationLock) return; // ignore clicks during apply
-        if (event.kind === 'slide') {
-            this.selection = { kind: 'slide', slideIndex: event.slideIndex };
-        } else {
-            // Coerce the runtime-derived `elementKind` string to the typed
-            // ElementKind union; unknown kinds drop through as undefined so
-            // the prompt builder treats them as generic elements.
-            const knownKinds: ReadonlySet<string> = new Set([
-                'heading', 'subheading', 'list', 'list-item',
-                'image', 'figure', 'table', 'callout',
-                'col-container', 'col', 'stats-grid',
-                'quote', 'code', 'speaker-notes',
-            ]);
-            const elementKind = knownKinds.has(event.elementKind)
-                ? (event.elementKind as import('../../services/chat/presentationTypes').ElementKind)
-                : undefined;
-            this.selection = {
-                kind: 'element',
-                slideIndex: event.slideIndex,
-                elementPath: event.elementPath,
-                elementKind,
-            };
-        }
-        this.activeSlideIndex = event.slideIndex;
-        this.refreshAccessory();
-    }
-
-    /** Test seam — exposed for unit tests that need to drive the handler
-     *  without going through the iframe's postMessage path. */
-    setSelectionForTesting(scope: SelectionScope | null): void {
-        this.selection = scope;
-    }
-
-    /** Test seam — read the current selection without mutating. */
-    getSelection(): SelectionScope | null {
-        return this.selection;
-    }
-
-    /** Clear the active selection — called by the × button on the selection
-     *  pill, by Esc keypress, and on every successful apply (so the next
-     *  edit doesn't inadvertently target stale scope). */
-    private clearSelection(): void {
-        this.selection = null;
-        this.refreshAccessory();
-    }
-
-    /** Set edit mode (Content vs Design). Hidden when no selection set. */
-    private setEditMode(mode: EditMode): void {
-        this.editMode = mode;
-        this.refreshAccessory();
-    }
-
-    /** Toggle the web-search flag (Content mode only). */
-    private setWebSearchFlag(on: boolean): void {
-        this.editFlags = { ...this.editFlags, webSearch: on };
-        this.refreshAccessory();
-    }
-
-    /** Idempotent re-render of the accessory area when state changes.
-     *  Reads `accessoryT` which is set by renderContextPanel — this stays
-     *  populated for the panel's lifetime, unlike `activeT` which is only
-     *  alive during buildPrompt's start hook.
-     *
-     *  Uses a static import (not dynamic) — the persona walkthrough
-     *  identified the dynamic-import path as the source of first-click
-     *  selection lag. The accessory module is small and used every Edit
-     *  flow render; no benefit to lazy loading.
-     */
-    private refreshAccessory(): void {
-        if (!this.accessoryContainer || !this.accessoryT) return;
-        renderEditAccessories(this.accessoryContainer, {
-            selection: this.selection,
-            editMode: this.editMode,
-            editFlags: this.editFlags,
-            operation: this.deriveOperation(),
-            t: this.accessoryT,
-            onClearSelection: () => this.clearSelection(),
-            onSetMode: (m) => this.setEditMode(m),
-            onSetWebSearch: (on) => this.setWebSearchFlag(on),
-        });
-    }
+    // ── Selection state ─────────────────────────────────────────────────────
+    // Owned by EditScopeController (TD-SSR-02 Phase 6). The preview's
+    // onElementSelect routes into `editScope.selectFromEvent`; the pipeline
+    // reads scope via `editScope.getSelection/getEditMode/getEditFlags`.
 
     /** Map the existing PresentationPhase to the two-axis (deckPresence,
      *  operation) view from the plan. Used by the accessory renderer to
@@ -1491,7 +1404,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.runQualityCheck();
             // Whole-deck mutation invalidates positional selection paths.
             // Plan §"State transitions" mandates clearing on every html mutation.
-            this.clearSelection();
+            this.editScope.clear();
             this.setPhase('preview-ready');
             callbacks.notify(
                 `Polish complete. Quality: ${this.qualityResult?.totalScore ?? '?'}/100`
@@ -1664,7 +1577,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Restoring a version is a whole-deck swap. Selection paths that
         // resolved against the previous version may not exist (or may
         // resolve to different content) in the restored one. Clear it.
-        this.clearSelection();
+        this.editScope.clear();
         this.phase = 'preview-ready';
         // Consistency: a version swap is a deck mutation — refresh the preview,
         // the filmstrip (thumbnails now re-rasterize against the bumped epoch so
