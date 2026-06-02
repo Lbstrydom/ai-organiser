@@ -30,7 +30,6 @@ import {
 import { runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
-import type { ExportTheme } from '../../services/export/exportTheme';
 import { projectForEditor } from '../../services/chat/presentationDomDecorator';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
@@ -62,6 +61,8 @@ import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/t
 import { logger } from '../../utils/logger';
 import type { ProjectConfig } from '../../services/chat/projectService';
 import { registerPresentationTarget, unregisterPresentationTarget } from './presentation/presentationCommandRegistry';
+import { PresentationThemeResolver } from './presentation/presentationThemeResolver';
+import { PresentationExporter } from './presentation/presentationExporter';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -182,6 +183,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     // module default — a shallow spread would let one handler mutate the default.
     private creationConfig: CreationConfig = structuredClone(DEFAULT_CREATION_CONFIG);
     private createPanelDispose: (() => void) | null = null;
+
+    // ── Collaborators (TD-SSR-02 decomposition) ─────────────────────────────
+    private readonly themeResolver = new PresentationThemeResolver();
+    private readonly exporter = new PresentationExporter();
 
     // ── Phase progress ──────────────────────────────────────────────────────
 
@@ -526,7 +531,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.renderProgress(r.streamCb, t, 0, undefined, 0);
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            const exportTheme = await this.resolveExportTheme(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx);
             // Resolve attached sources (notes / web-search / folders) — this is
             // what actually runs the web search — and thread them into the IR
             // prompt so all create-panel inputs reach generation.
@@ -605,26 +610,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    /** Resolve the user's ExportTheme (shared by IR→HTML preview + IR→PPTX). */
-    /** Resolve the user's ExportTheme, memoised by a signature of the relevant
-     *  export settings so repeated mutations don't re-import + re-resolve every
-     *  call (Stage 3.1 cleanup). Recomputes when an export setting changes. */
-    private exportThemeCache: { sig: string; theme: ExportTheme } | null = null;
-    private async resolveExportTheme(ctx: ModalContext): Promise<ExportTheme> {
-        const s = ctx.fullPlugin.settings;
-        const sig = [
-            s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor,
-            s.exportFontFace, String(s.exportFontSize),
-        ].join('|');
-        if (this.exportThemeCache?.sig === sig) return this.exportThemeCache.theme;
-        const { resolveTheme: resolveExportTheme } = await import('../../services/export/exportTheme');
-        const theme = resolveExportTheme(
-            s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor, s.exportFontFace, s.exportFontSize,
-        );
-        this.exportThemeCache = { sig, theme };
-        return theme;
-    }
-
     /** Polish an IR-backed deck by refining the IR (keeps it canonical). */
     private async polishDeckIr(
         ctx: ModalContext,
@@ -640,7 +625,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
                 .join('\n')}`
             : 'Polish the deck: tighten wording, sharpen the visual hierarchy, and ensure one idea per slide. Keep the facts and the slide count unchanged.';
-        const exportTheme = await this.resolveExportTheme(ctx);
+        const exportTheme = await this.themeResolver.resolve(ctx);
         const refined = await refineDeckIr(llmCtx, {
             currentDeck: this.deckIr,
             userRequest: polishRequest,
@@ -674,7 +659,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.renderProgress(r.streamCb, t, 0, undefined, 0);
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            const exportTheme = await this.resolveExportTheme(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx);
             const refined = await refineDeckIr(r.llmCtx, {
                 currentDeck: this.deckIr,
                 userRequest: r.effectiveQuery,
@@ -782,7 +767,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.lastError = refined.error;
                 return { finalContent: t.slideEditFailed.replace('{error}', refined.error) };
             }
-            const exportTheme = await this.resolveExportTheme(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx);
             const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 this.setPhase('error');
@@ -1305,25 +1290,11 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!iframeDoc) throw new Error('iframe not ready');
 
             // Show all slides for export (remove nav-hidden class)
-            const allSlides = iframeDoc.querySelectorAll('.slide');
+            const allSlides = Array.from(iframeDoc.querySelectorAll<HTMLElement>('.slide'));
             allSlides.forEach(s => s.classList.remove('pres-nav-hidden'));
 
-            const title = extractDeckTitle(this.html);
-            const fileName = sanitizeFileName(title) + '.pptx';
-
-            // Phase 2 sister-backport: prefer the rich renderer so exported
-            // decks are editable in PowerPoint (real text boxes, tables,
-            // notes) instead of rasterised slide screenshots.
-            const richBuffer = await this.tryRichPptxExport(ctx, title);
-            if (richBuffer) {
-                this.downloadBuffer(richBuffer, fileName);
-            } else {
-                // Parser returned zero slides (unexpected HTML shape) — fall
-                // back to the legacy DOM-to-pptx path which rasterises the
-                // rendered iframe. Loses editability but ships a usable file.
-                const { exportToPptx } = await import('dom-to-pptx');
-                await exportToPptx(Array.from(allSlides) as HTMLElement[], { fileName });
-            }
+            const theme = await this.themeResolver.resolve(ctx);
+            await this.exporter.exportPptx({ html: this.html, deckIr: this.deckIr, theme, allSlides, ctx });
 
             // Restore single-slide view
             this.preview.navigateToSlide(this.activeSlideIndex);
@@ -1338,48 +1309,6 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.mutationLock = false;
             callbacks.rerenderActions();
         }
-    }
-
-    /**
-     * Attempt the Phase 2 rich PPTX path: parse the current HTML into
-     * RichSlideJSON, render with pptxgenjs. Returns `null` when the parser
-     * yields zero slides (so the caller can fall back to dom-to-pptx) or
-     * when the user's theme resolution fails. Any render-time error is
-     * rethrown so the outer try/catch surfaces it to the user.
-     */
-    private async tryRichPptxExport(
-        ctx: ModalContext,
-        _deckTitle: string,
-    ): Promise<ArrayBuffer | null> {
-        if (!this.html || !this.deckIr) return null;
-        try {
-            const exportTheme = await this.resolveExportTheme(ctx);
-            // The deck is always IR-backed — render a faithful native PPTX from
-            // the IR. On render failure return null so the caller falls back to
-            // dom-to-pptx on the rendered HTML.
-            const { renderDeckToPptx } = await import('../../services/presentationIr');
-            const result = await renderDeckToPptx(this.deckIr, exportTheme, { placeholderLabel: ctx.plugin.t.progress.presentation.slideRenderFailed });
-            if (result.ok) return result.value.buffer;
-            logger.warn('Presentation', `IR PPTX render failed: ${result.error}`);
-            return null;
-        } catch (e) {
-            logger.warn('Presentation', `Rich PPTX path failed, will fall back to dom-to-pptx: ${e instanceof Error ? e.message : String(e)}`);
-            return null;
-        }
-    }
-
-    /** Browser download of an ArrayBuffer via a transient anchor click. */
-    private downloadBuffer(buffer: ArrayBuffer, fileName: string): void {
-        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        // Defer revoke to the next macrotask so the click has landed.
-        globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     // ── Export: HTML ─────────────────────────────────────────────────────────
@@ -1399,12 +1328,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         callbacks.rerenderActions();
 
         try {
-            const title = extractDeckTitle(this.html);
-            const folder = this.getOutputFolder(ctx);
-            const fileName = sanitizeFileName(title) + '.html';
-            const path = await getAvailablePath(ctx, folder, fileName);
-
-            await ctx.app.vault.create(path, this.html);
+            const path = await this.exporter.writeHtml(ctx, this.html);
             callbacks.notify(`Saved to ${path}`);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Export failed';
@@ -1676,7 +1600,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     if (code === 'aborted') return err('cancelled');
                     return err(tSlice.errorByCode[code] ?? tSlice.errorByCode['unexpected-exception']);
                 }
-                const exportTheme = await this.resolveExportTheme(ctx);
+                const exportTheme = await this.themeResolver.resolve(ctx);
                 const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage, ctx.plugin.t.progress.presentation.slideRenderFailed);
                 if (!built.ok) return err(tSlice.errorByCode['invalid-deck-after-splice']);
                 return ok({ refined: refined.value, html: built.value });
@@ -1884,30 +1808,4 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.qualityResult = computeQualityScore(findings, auditViolationCount);
     }
 
-    private getOutputFolder(ctx: ModalContext): string {
-        const sub = ctx.plugin.settings.presentationOutputFolder || 'Presentations';
-        return `${ctx.plugin.settings.pluginFolder}/${sub}`;
-    }
-}
-
-// ── File Utilities ──────────────────────────────────────────────────────────
-
-function sanitizeFileName(name: string): string {
-    return name.replace(/[/\\:*?"<>|]/g, '-').replace(/-+/g, '-').trim() || 'Presentation';
-}
-
-async function getAvailablePath(ctx: ModalContext, folder: string, fileName: string): Promise<string> {
-    if (!ctx.app.vault.getAbstractFileByPath(folder)) {
-        await ctx.app.vault.createFolder(folder);
-    }
-    const base = `${folder}/${fileName}`;
-    if (!ctx.app.vault.getAbstractFileByPath(base)) return base;
-
-    const ext = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
-    const stem = ext ? fileName.slice(0, -ext.length) : fileName;
-    for (let i = 1; i < 999; i++) {
-        const candidate = `${folder}/${stem} (${i})${ext}`;
-        if (!ctx.app.vault.getAbstractFileByPath(candidate)) return candidate;
-    }
-    return base;
 }
