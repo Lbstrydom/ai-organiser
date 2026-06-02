@@ -7587,16 +7587,77 @@
 .ai-organiser-pres-rail-collapsed .ai-organiser-pres-rail-toggle { right: 0; }
 
 /* Narrow MODAL (controller-measured, not viewport @media — audit Gemini-G2):
-   fall back to the stacked column so narrow panes / phones never get the
-   cramped two-column layout before the Phase 3 bottom-sheet exists. */
+   Phase 3 bottom-sheet. The canvas (slide) takes the full modal; the rail
+   becomes an off-screen drawer that slides up over a backdrop, opened by a FAB. */
 .ai-organiser-chat-modal-content.ai-organiser-pres-workspace.ai-organiser-pres-narrow {
     display: flex;
     flex-direction: column;
 }
+/* Desktop-only rail chrome hidden on narrow. */
 .ai-organiser-pres-narrow .ai-organiser-pres-resizer,
 .ai-organiser-pres-narrow .ai-organiser-pres-rail-toggle { display: none; }
-.ai-organiser-pres-narrow > .ai-organiser-pres-rail { border: none; background: transparent; }
-.ai-organiser-pres-narrow > .ai-organiser-pres-rail > .ai-organiser-chat-area { min-height: 88px; }
+/* Rail = bottom-sheet drawer (off-screen until opened). */
+.ai-organiser-pres-narrow > .ai-organiser-pres-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 70%;
+    z-index: 20;
+    transform: translateY(110%);
+    transition: transform 0.2s ease;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 12px 12px 0 0;
+    background: var(--background-primary);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+}
+.ai-organiser-pres-narrow.ai-organiser-pres-sheet-open > .ai-organiser-pres-rail {
+    transform: translateY(0);
+}
+/* FAB to open the sheet — only on narrow, hidden while the sheet is open. */
+.ai-organiser-pres-sheet-fab { display: none; }
+.ai-organiser-pres-narrow .ai-organiser-pres-sheet-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 18;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+    box-shadow: var(--shadow-s);
+}
+.ai-organiser-pres-narrow .ai-organiser-pres-sheet-fab::before { content: '\1F4AC'; }  /* 💬 */
+.ai-organiser-pres-narrow.ai-organiser-pres-sheet-open .ai-organiser-pres-sheet-fab { display: none; }
+/* Backdrop behind the open sheet (tap to close). */
+.ai-organiser-pres-sheet-backdrop { display: none; }
+.ai-organiser-pres-narrow.ai-organiser-pres-sheet-open .ai-organiser-pres-sheet-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 19;
+    background: rgba(0, 0, 0, 0.35);
+}
+/* Filmstrip → horizontal strip below the slide (audit / plan Phase 3). */
+.ai-organiser-pres-narrow .ai-organiser-pres-canvas-body { flex-direction: column; }
+.ai-organiser-pres-narrow .ai-organiser-pres-filmstrip-host {
+    flex: 0 0 auto;
+    width: auto;
+    overflow: hidden;
+}
+.ai-organiser-pres-narrow .ai-organiser-pres-filmstrip {
+    flex-direction: row;
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.ai-organiser-pres-narrow .ai-organiser-pres-filmstrip-thumb { flex: 0 0 96px; }
 
 /* Fixed bars always visible — never squashed off-screen by the preview. */
 .ai-organiser-chat-mode-bar,
@@ -7687,9 +7748,7 @@
     transition: opacity 0.15s ease;
 }
 .ai-organiser-pres-filmstrip-img.is-loaded { opacity: 1; }
-/* Narrow modal: hide the filmstrip (Phase 3 will give it a horizontal strip);
-   a 104px column beside an already-cramped preview isn't worth it here. */
-.ai-organiser-pres-narrow .ai-organiser-pres-filmstrip-host { display: none; }
+/* (Narrow-width filmstrip → horizontal strip: see the Phase-3 bottom-sheet block.) */
 
 /* iframe wrapper — scales 1920x1080 slides to fit the measured container.
    display:flex + the scaler's margin:auto centres the slide on both axes when

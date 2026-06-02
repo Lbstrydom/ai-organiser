@@ -57,6 +57,7 @@ interface Harness {
     layout: PresLayoutState;
     persist: ReturnType<typeof vi.fn>;
     controller: PresentationLayoutController;
+    setWidth: (px: number) => void;
 }
 
 function makeHarness(initial?: Partial<PresLayoutState>): Harness {
@@ -70,8 +71,11 @@ function makeHarness(initial?: Partial<PresLayoutState>): Harness {
 
     // Attach to the document so focus()/activeElement work in happy-dom.
     document.body.appendChild(contentEl);
-    // Give contentEl a measurable width for clamp (happy-dom clientWidth is 0).
-    Object.defineProperty(contentEl, 'clientWidth', { value: 1600, configurable: true });
+    // Give contentEl a MUTABLE measurable width (happy-dom clientWidth is 0) so
+    // tests can simulate crossing the narrow breakpoint.
+    const widthRef = { value: 1600 };
+    Object.defineProperty(contentEl, 'clientWidth', { get: () => widthRef.value, configurable: true });
+    const setWidth = (px: number): void => { widthRef.value = px; };
 
     const layout: PresLayoutState = {
         railCollapsed: false,
@@ -91,10 +95,11 @@ function makeHarness(initial?: Partial<PresLayoutState>): Harness {
             collapseChatPanel: 'Collapse chat panel',
             expandChatPanel: 'Expand chat panel',
             resizeChatPanel: 'Resize chat panel',
+            openChatPanel: 'Open chat',
         }),
     });
 
-    const harness = { contentEl, contextEl, chatAreaEl, inputRowEl, actionsEl, layout, persist, controller };
+    const harness = { contentEl, contextEl, chatAreaEl, inputRowEl, actionsEl, layout, persist, controller, setWidth };
     created.push(harness);
     return harness;
 }
@@ -295,6 +300,57 @@ describe('PresentationLayoutController', () => {
         // DOM restored
         expect(h.chatAreaEl.parentElement).toBe(h.contentEl);
         expect(h.contentEl.querySelector('.ai-organiser-pres-rail')).toBeNull();
+    });
+
+    // ── Phase 3 — narrow bottom-sheet ────────────────────────────────────────
+
+    it('on a narrow modal, marks narrow + mounts the bottom-sheet FAB', () => {
+        h = makeHarness();
+        h.setWidth(800); // below PRES_NARROW_BREAKPOINT_PX (900)
+        h.controller.sync(PRESENT);
+        expect(h.contentEl.classList.contains('ai-organiser-pres-narrow')).toBe(true);
+        expect(h.contentEl.querySelector('.ai-organiser-pres-sheet-fab')).not.toBeNull();
+    });
+
+    it('FAB opens the sheet (class + aria-expanded + focus into rail); Escape closes + returns focus', () => {
+        h = makeHarness();
+        h.setWidth(800);
+        h.controller.sync(PRESENT);
+        const fab = h.contentEl.querySelector('.ai-organiser-pres-sheet-fab') as HTMLElement;
+        // a focusable inside the rail so focus has somewhere to land
+        const input = document.createElement('button');
+        h.chatAreaEl.appendChild(input);
+
+        fab.dispatchEvent(new Event('click'));
+        expect(h.contentEl.classList.contains('ai-organiser-pres-sheet-open')).toBe(true);
+        expect(fab.getAttribute('aria-expanded')).toBe('true');
+
+        h.contentEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        expect(h.contentEl.classList.contains('ai-organiser-pres-sheet-open')).toBe(false);
+        expect(fab.getAttribute('aria-expanded')).toBe('false');
+        expect(document.activeElement).toBe(fab); // focus returned to the FAB
+    });
+
+    it('backdrop tap closes the sheet', () => {
+        h = makeHarness();
+        h.setWidth(800);
+        h.controller.sync(PRESENT);
+        (h.contentEl.querySelector('.ai-organiser-pres-sheet-fab') as HTMLElement).dispatchEvent(new Event('click'));
+        (h.contentEl.querySelector('.ai-organiser-pres-sheet-backdrop') as HTMLElement).dispatchEvent(new Event('click'));
+        expect(h.contentEl.classList.contains('ai-organiser-pres-sheet-open')).toBe(false);
+    });
+
+    it('crossing back to wide mid-session closes the sheet (clean breakpoint transition)', () => {
+        h = makeHarness();
+        h.setWidth(800);
+        h.controller.sync(PRESENT);
+        (h.contentEl.querySelector('.ai-organiser-pres-sheet-fab') as HTMLElement).dispatchEvent(new Event('click'));
+        expect(h.contentEl.classList.contains('ai-organiser-pres-sheet-open')).toBe(true);
+        // widen + resync → narrow drops, sheet must close
+        h.setWidth(1600);
+        h.controller.sync({ ...PRESENT, deckVersion: 2 });
+        expect(h.contentEl.classList.contains('ai-organiser-pres-narrow')).toBe(false);
+        expect(h.contentEl.classList.contains('ai-organiser-pres-sheet-open')).toBe(false);
     });
 
     it('seeds collapsed state from persisted settings on enter', () => {

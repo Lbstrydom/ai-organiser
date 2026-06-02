@@ -3074,6 +3074,9 @@ export interface Translations {
         collapseChatPanel: string;
         expandChatPanel: string;
         resizeChatPanel: string;
+        openChatPanel: string;   // narrow-width bottom-sheet FAB
+        slideThumbnails: string; // filmstrip group aria-label
+        slideThumbnailItem: string; // per-thumbnail aria-label, `{n}` = 1-based slide number
     };
 }
 

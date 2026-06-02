@@ -338,7 +338,7 @@ Targeted polish of individual slides in an IR-backed deck. `handlePolish` routes
 
 ## Slides Side-Rail Workspace
 
-**Status**: ✅ Phase 1 + Phase 2 (filmstrip) implemented (June 2026). Phase 3 (mobile bottom-sheet) pending.
+**Status**: ✅ Phases 1 + 2 (filmstrip) + 3 (mobile bottom-sheet) implemented (June 2026). Plan complete.
 
 In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail workspace**: the 1920×1080 preview is the artifact (width-bound, large), and the transcript + composer dock into a resizable/collapsible right rail. The other five chat modes are untouched.
 
@@ -368,8 +368,15 @@ In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail work
 A vertical thumbnail navigator left of the canvas (`SlideFilmstrip` + `SlideThumbnailProvider`).
 - **Thumbnails are inert rasters**: each slide → SVG `<foreignObject>` → `<img>` → `<canvas>` → PNG data-URL. Images don't run scripts and the sanitized deck restricts sub-resources to `data:`, so this renders the real slide (theme `<style>` + inline styles + data: images) with **no script execution and no network** — strictly more inert than the preview iframe. Provider must only be fed `this.html` (post-sanitize).
 - `src/services/chat/slideThumbnailProvider.ts`: offscreen raster, LRU cache keyed by deck version, `AbortSignal`, CDATA-terminator escaping, `XMLSerializer` (foreignObject needs valid XHTML). Injectable `rasterize` for tests.
-- `src/ui/components/SlideFilmstrip.ts`: presentational button group (NOT role=list — that breaks button semantics), **sequential** thumbnail load (bounded), `aria-current` + Arrow/Home/End keyboard nav, hidden at ≤1 slide, `listen()` cleanup, data:image/png-only `src` guard.
-- Wired in `PresentationModeHandler` canvas region (inside the canvas grid cell, so the side-rail grid is untouched); hidden on narrow widths (Phase 3 = horizontal strip). Real-Chromium spike validated the raster path.
+- `src/ui/components/SlideFilmstrip.ts`: presentational button group (NOT role=list — that breaks button semantics), **sequential** thumbnail load (bounded), **roving tabindex** (active = only tab stop) + `aria-current` + Arrow/Home/End keyboard nav (clamped both ends), focus restored to active thumb on rebuild, `scrollIntoView` on active change, `logger.warn` on thumbnail failures (no silent swallow), i18n group + item labels, `type=button`, hidden at ≤1 slide, `listen()` cleanup, data:image/png-only `src` guard.
+- Wired in `PresentationModeHandler` canvas region (inside the canvas grid cell, so the side-rail grid is untouched). Real-Chromium spike validated the raster path.
+
+### Phase 3 — mobile bottom-sheet (June 2026)
+
+At narrow modal widths the chat rail docks off-canvas as a **bottom-sheet** (`PresentationLayoutController`): a `💬` FAB (shown only when narrow, hidden when open) reveals it; a backdrop + Escape + close-on-widen dismiss it.
+- **Marker-class driven**: `CLS_SHEET_OPEN` toggles the sheet transform (`translateY(110%)` → `0`); the FAB + backdrop are mounted via `listen()` and torn down in `leaveWorkspace()`.
+- **Focus management**: `openSheet()` clears `inert`/`aria-hidden`, sets `aria-expanded=true`, focuses the first focusable in the rail, and attaches a Tab-trap keydown; `closeSheet()` reverses it and returns focus to the FAB. `updateNarrowClass()` auto-closes the sheet when the modal widens past `PRES_NARROW_BREAKPOINT_PX`.
+- The filmstrip becomes a horizontal strip on narrow widths (CSS only).
 
 **Plan**: [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) · **Audit**: [docs/plans/slides-side-rail-workspace-audit-summary.md](docs/plans/slides-side-rail-workspace-audit-summary.md)
 

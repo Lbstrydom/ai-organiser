@@ -16,6 +16,11 @@ function polyfill(el: HTMLElement): HTMLElement {
         if (on === undefined) el.classList.toggle(c);
         else el.classList.toggle(c, on);
     };
+    // happy-dom doesn't implement scrollIntoView — stub so setActive/arrow nav
+    // don't throw under test.
+    if (typeof (el as unknown as { scrollIntoView?: unknown }).scrollIntoView !== 'function') {
+        (el as unknown as Record<string, unknown>).scrollIntoView = (): void => {};
+    }
     e.createEl = (tag: string, opts?: { cls?: string; text?: string; attr?: Record<string, string> }): HTMLElement => {
         const child = document.createElement(tag);
         if (opts?.cls) child.className = opts.cls;
@@ -117,5 +122,79 @@ describe('SlideFilmstrip', () => {
         await flush(); await flush();
         const img = host.querySelector('.ai-organiser-pres-filmstrip-img') as HTMLImageElement;
         expect(img.getAttribute('src')).toBeNull();   // rejected, not assigned
+    });
+
+    it('uses a roving tabindex: only the active thumb is a tab stop', () => {
+        const { opts } = makeOpts(3);
+        new SlideFilmstrip(host, opts).render();  // active = 0
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        expect(thumbs[0].getAttribute('tabindex')).toBe('0');
+        expect(thumbs[1].getAttribute('tabindex')).toBe('-1');
+        expect(thumbs[2].getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('ArrowDown moves the roving tabindex + focus to the next thumb', () => {
+        const { opts } = makeOpts(3);
+        new SlideFilmstrip(host, opts).render();
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        (thumbs[0] as HTMLElement).focus();
+        const strip = host.querySelector('.ai-organiser-pres-filmstrip') as HTMLElement;
+        strip.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        expect(thumbs[1].getAttribute('tabindex')).toBe('0');
+        expect(thumbs[0].getAttribute('tabindex')).toBe('-1');
+        expect(document.activeElement).toBe(thumbs[1]);
+    });
+
+    it('ArrowDown on the last thumb stays put (clamped, no crash)', () => {
+        const { opts } = makeOpts(3);
+        new SlideFilmstrip(host, opts).render();
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        (thumbs[2] as HTMLElement).focus();   // last thumb
+        const strip = host.querySelector('.ai-organiser-pres-filmstrip') as HTMLElement;
+        expect(() => strip.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))).not.toThrow();
+        expect(thumbs[2].getAttribute('tabindex')).toBe('0');   // stayed on last
+        expect(document.activeElement).toBe(thumbs[2]);
+    });
+
+    it('End jumps to the last thumb, Home to the first', () => {
+        const { opts } = makeOpts(4);
+        new SlideFilmstrip(host, opts).render();
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        (thumbs[0] as HTMLElement).focus();
+        const strip = host.querySelector('.ai-organiser-pres-filmstrip') as HTMLElement;
+        strip.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+        expect(document.activeElement).toBe(thumbs[3]);
+        strip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+        expect(document.activeElement).toBe(thumbs[0]);
+    });
+
+    it('setActive moves the roving tabindex onto the active thumb', () => {
+        const { opts } = makeOpts(3);
+        const fs = new SlideFilmstrip(host, opts);
+        fs.render();
+        fs.setActive(2);
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        expect(thumbs[2].getAttribute('tabindex')).toBe('0');
+        expect(thumbs[0].getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('restores focus to the active thumb when the strip rebuilds with focus inside', () => {
+        let active = 1;
+        const fs = new SlideFilmstrip(host, {
+            getCount: () => 3, getActiveIndex: () => active,
+            getThumbnail: async (i) => `data:image/png;base64,T${i}`, onSelect: () => {},
+        });
+        fs.render();
+        (host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb')[1] as HTMLElement).focus();
+        fs.refresh();   // deck replaced — rebuild empties + recreates
+        const thumbs = host.querySelectorAll('.ai-organiser-pres-filmstrip-thumb');
+        expect(document.activeElement).toBe(thumbs[active]);
+    });
+
+    it('uses the supplied groupLabel for the group aria-label', () => {
+        const { opts } = makeOpts(2, { groupLabel: 'Diapositives' });
+        new SlideFilmstrip(host, opts).render();
+        const strip = host.querySelector('.ai-organiser-pres-filmstrip') as HTMLElement;
+        expect(strip.getAttribute('aria-label')).toBe('Diapositives');
     });
 });

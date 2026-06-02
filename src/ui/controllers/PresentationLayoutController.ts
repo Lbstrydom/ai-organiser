@@ -41,6 +41,7 @@ export interface PresLayoutLabels {
     collapseChatPanel: string;
     expandChatPanel: string;
     resizeChatPanel: string;
+    openChatPanel: string;
 }
 
 export interface PresLayoutControllerDeps {
@@ -64,6 +65,8 @@ const CLS_WORKSPACE = 'ai-organiser-pres-workspace';
 const CLS_COLLAPSED = 'ai-organiser-pres-rail-collapsed';
 const CLS_NARROW = 'ai-organiser-pres-narrow';
 const CLS_CREATE = 'ai-organiser-pres-create';
+const CLS_SHEET_OPEN = 'ai-organiser-pres-sheet-open';
+const SHEET_FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /** Set a CSS custom property via Obsidian's API (no inline `style.*` — keeps
  *  the review-bot `no-static-styles-assignment` rule happy). Tests polyfill
@@ -88,6 +91,12 @@ export class PresentationLayoutController {
 
     private cleanups: Array<() => void> = [];
     private resizeObserver: ResizeObserver | null = null;
+
+    // Narrow-width bottom-sheet (Phase 3).
+    private fabBtn: HTMLButtonElement | null = null;
+    private backdropEl: HTMLElement | null = null;
+    private sheetOpen = false;
+    private sheetKeyOff: (() => void) | null = null;
 
     // Persist debounce + in-flight coalescing.
     private persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -167,6 +176,10 @@ export class PresentationLayoutController {
         // when the rail is inert/collapsed (R3-H2 + Gemini-G4).
         this.mountToggle(contentEl);
 
+        // Narrow-width bottom-sheet controls (Phase 3) — CSS shows them only when
+        // `.ai-organiser-pres-narrow` is active.
+        this.mountSheetControls(contentEl);
+
         // Tag the canvas (context panel) for tests + ensure marker class.
         this.deps.contentEl.querySelector('.ai-organiser-chat-context')
             ?.setAttribute('data-testid', 'pres-canvas');
@@ -195,13 +208,22 @@ export class PresentationLayoutController {
         this.restoreNode(this.deps.inputRowEl, this.originalInputParent, this.originalInputNext);
         this.restoreNode(this.deps.chatAreaEl, this.originalChatParent, this.originalChatNext);
 
+        // Tear down the bottom-sheet (close trap listener + remove FAB/backdrop).
+        this.sheetKeyOff?.();
+        this.sheetKeyOff = null;
+        this.sheetOpen = false;
+        this.fabBtn?.remove();
+        this.fabBtn = null;
+        this.backdropEl?.remove();
+        this.backdropEl = null;
+
         this.railEl?.remove();
         this.railEl = null;
         this.toggleBtn?.remove();
         this.toggleBtn = null;
         this.resizerEl = null;
 
-        this.deps.contentEl.classList.remove(CLS_WORKSPACE, CLS_COLLAPSED, CLS_NARROW);
+        this.deps.contentEl.classList.remove(CLS_WORKSPACE, CLS_COLLAPSED, CLS_NARROW, CLS_SHEET_OPEN);
 
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
@@ -246,7 +268,7 @@ export class PresentationLayoutController {
     }
 
     private mountToggle(contentEl: HTMLElement): void {
-        const btn = contentEl.createEl('button', { cls: 'ai-organiser-pres-rail-toggle' });
+        const btn = contentEl.createEl('button', { cls: 'ai-organiser-pres-rail-toggle', attr: { type: 'button' } });
         this.toggleBtn = btn;
         this.cleanups.push(listen(btn, 'click', () => this.toggleCollapsed()));
     }
@@ -315,6 +337,64 @@ export class PresentationLayoutController {
     private updateNarrowClass(): void {
         const narrow = (this.deps.contentEl.clientWidth || Infinity) <= PRES_NARROW_BREAKPOINT_PX;
         this.deps.contentEl.classList.toggle(CLS_NARROW, narrow);
+        // Crossing back to wide mid-session: the rail returns to the side grid,
+        // so close the bottom-sheet + drop its trap (no orphaned state/listener).
+        if (!narrow && this.sheetOpen) this.closeSheet();
+    }
+
+    // ── Bottom-sheet (narrow widths, Phase 3) ───────────────────────────────────
+
+    private mountSheetControls(contentEl: HTMLElement): void {
+        const backdrop = contentEl.createDiv({ cls: 'ai-organiser-pres-sheet-backdrop' });
+        this.backdropEl = backdrop;
+        this.cleanups.push(listen(backdrop, 'click', () => this.closeSheet()));
+
+        const fab = contentEl.createEl('button', {
+            cls: 'ai-organiser-pres-sheet-fab',
+            attr: { type: 'button', 'aria-label': this.deps.labels().openChatPanel, 'aria-expanded': 'false' },
+        });
+        this.fabBtn = fab;
+        this.cleanups.push(listen(fab, 'click', () => this.openSheet()));
+    }
+
+    private openSheet(): void {
+        if (this.sheetOpen || !this.railEl) return;
+        this.sheetOpen = true;
+        this.deps.contentEl.classList.add(CLS_SHEET_OPEN);
+        // A bottom-sheet rail must be reachable: clear any collapsed inert/hidden.
+        this.railEl.removeAttribute('aria-hidden');
+        this.railEl.removeAttribute('inert');
+        this.fabBtn?.setAttribute('aria-expanded', 'true');
+        // Move focus into the sheet (composer first) + trap Tab within it.
+        const focusables = this.railEl.querySelectorAll<HTMLElement>(SHEET_FOCUSABLE);
+        (focusables[0] ?? this.railEl).focus();
+        this.sheetKeyOff?.();
+        this.sheetKeyOff = listen(this.deps.contentEl, 'keydown', (e) => this.onSheetKey(e));
+    }
+
+    private closeSheet(): void {
+        if (!this.sheetOpen) return;
+        this.sheetOpen = false;
+        this.deps.contentEl.classList.remove(CLS_SHEET_OPEN);
+        this.fabBtn?.setAttribute('aria-expanded', 'false');
+        this.sheetKeyOff?.();
+        this.sheetKeyOff = null;
+        // Restore focus to the FAB that opened it (focus-return contract).
+        this.fabBtn?.focus();
+    }
+
+    private onSheetKey(e: KeyboardEvent): void {
+        if (!this.sheetOpen || !this.railEl) return;
+        if (e.key === 'Escape') { e.preventDefault(); this.closeSheet(); return; }
+        if (e.key !== 'Tab') return;
+        const f = Array.from(this.railEl.querySelectorAll<HTMLElement>(SHEET_FOCUSABLE));
+        if (f.length === 0) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        const active = (this.deps.contentEl.ownerDocument ?? document).activeElement;
+        if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+        else if (!this.railEl.contains(active)) { e.preventDefault(); first.focus(); }
     }
 
     // ── Resize interaction ──────────────────────────────────────────────────────

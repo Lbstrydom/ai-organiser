@@ -339,6 +339,8 @@ export class PresentationModeHandler implements ChatModeHandler {
                 getActiveIndex: () => this.activeSlideIndex,
                 getThumbnail: (i, signal) => this.thumbnailProvider?.getThumbnail(i, signal) ?? Promise.resolve(null),
                 onSelect: (i) => { this.activeSlideIndex = i; this.preview?.navigateToSlide(i); this.filmstrip?.setActive(i); },
+                groupLabel: ctx.plugin.t.presentationLayout.slideThumbnails,
+                itemLabelTemplate: ctx.plugin.t.presentationLayout.slideThumbnailItem,
             });
             this.filmstrip.render();
 

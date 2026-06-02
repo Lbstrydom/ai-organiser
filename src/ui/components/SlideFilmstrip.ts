@@ -11,6 +11,7 @@
  */
 
 import { listen } from '../utils/domUtils';
+import { logger } from '../../utils/logger';
 
 export interface SlideFilmstripOptions {
     getCount: () => number;
@@ -19,6 +20,8 @@ export interface SlideFilmstripOptions {
     onSelect: (index: number) => void;
     /** i18n aria-label template with `{n}` for the 1-based slide number. */
     itemLabelTemplate?: string;
+    /** i18n aria-label for the thumbnail group as a whole. */
+    groupLabel?: string;
 }
 
 export class SlideFilmstrip {
@@ -43,6 +46,11 @@ export class SlideFilmstrip {
         const token = this.renderToken;
         this.teardownListeners();
 
+        // If focus is currently inside the strip we're about to empty, the
+        // rebuild would drop it to <body>. Remember so we can restore it to the
+        // active thumb after rebuild (audit: focus-loss on refresh/replace).
+        const hadFocus = this.container.contains(document.activeElement);
+
         this.container.empty();
         this.thumbs = [];
 
@@ -55,7 +63,7 @@ export class SlideFilmstrip {
         // buttons' native semantics for assistive tech; audit H2/M16).
         const strip = this.container.createEl('div', {
             cls: 'ai-organiser-pres-filmstrip',
-            attr: { role: 'group', 'aria-label': 'Slide thumbnails' },
+            attr: { role: 'group', 'aria-label': this.options.groupLabel ?? 'Slide thumbnails' },
         });
         // Vertical keyboard model for the thumbnail group (audit a11y).
         this.cleanups.push(listen(strip, 'keydown', (e) => this.onStripKey(e)));
@@ -66,7 +74,15 @@ export class SlideFilmstrip {
             const label = (this.options.itemLabelTemplate ?? 'Slide {n}').replace('{n}', String(i + 1));
             const btn = strip.createEl('button', {
                 cls: 'ai-organiser-pres-filmstrip-thumb',
-                attr: { 'aria-label': label, 'data-index': String(i) },
+                // Roving tabindex: only the active thumb is in the tab order; the
+                // rest are reachable via Arrow/Home/End. This keeps the group a
+                // single tab stop instead of N stops (audit: tab-order MEDIUM).
+                attr: {
+                    type: 'button',
+                    'aria-label': label,
+                    'data-index': String(i),
+                    tabindex: i === active ? '0' : '-1',
+                },
             });
             btn.toggleClass('is-active', i === active);
             if (i === active) btn.setAttribute('aria-current', 'true'); // expose active state to AT
@@ -78,10 +94,15 @@ export class SlideFilmstrip {
             this.thumbs.push(btn);
         }
 
+        // Restore keyboard focus to the active thumb if the user was navigating
+        // inside the strip when it rebuilt.
+        if (hadFocus) this.thumbs[active]?.focus();
+
         // Load thumbnails SEQUENTIALLY (not all at once) so a large deck can't
         // fire dozens of concurrent rasterizations (audit M3/M12). The whole
-        // loop is guarded so a stray throw can't become an unhandled rejection.
-        void this.loadThumbnails(token, signal, count, imgs).catch(() => undefined);
+        // loop is guarded so a stray throw is logged, never an unhandled rejection.
+        void this.loadThumbnails(token, signal, count, imgs).catch((e) =>
+            logger.warn('Presentation', `[filmstrip] thumbnail load loop failed: ${String(e)}`));
     }
 
     private onStripKey(e: KeyboardEvent): void {
@@ -93,9 +114,16 @@ export class SlideFilmstrip {
         else if (e.key === 'ArrowUp') next = cur < 0 ? 0 : Math.max(0, cur - 1);
         else if (e.key === 'Home') next = 0;
         else if (e.key === 'End') next = n - 1;
-        if (next < 0) return;
+        // ArrowDown/ArrowUp are already clamped via Math.min/Math.max above, but
+        // guard both ends explicitly so the invariant doesn't depend on reading
+        // the clamp (audit G1 — defensive against a future off-by-one).
+        if (next < 0 || next >= n) return;
         e.preventDefault();
+        // Move the roving tabindex with focus so Tab re-enters where we left off.
+        for (const b of this.thumbs) b.setAttribute('tabindex', '-1');
+        this.thumbs[next].setAttribute('tabindex', '0');
         this.thumbs[next].focus();
+        this.thumbs[next].scrollIntoView({ block: 'nearest' });
     }
 
     /** Re-render (deck changed). Alias for render() — kept for call-site clarity. */
@@ -108,8 +136,17 @@ export class SlideFilmstrip {
         for (const btn of this.thumbs) {
             const isActive = btn.getAttribute('data-index') === String(index);
             btn.toggleClass('is-active', isActive);
-            if (isActive) btn.setAttribute('aria-current', 'true');
-            else btn.removeAttribute('aria-current');
+            // Keep the roving tabindex and AT state on the active thumb so a Tab
+            // press lands on the current slide, not slide 1 (audit: roving tabindex).
+            btn.setAttribute('tabindex', isActive ? '0' : '-1');
+            if (isActive) {
+                btn.setAttribute('aria-current', 'true');
+                // When the slide is advanced from another control, scroll the
+                // active thumb into view in the scrollable strip (audit MEDIUM).
+                btn.scrollIntoView({ block: 'nearest' });
+            } else {
+                btn.removeAttribute('aria-current');
+            }
         }
     }
 
@@ -132,8 +169,13 @@ export class SlideFilmstrip {
             let url: string | null = null;
             try {
                 url = await this.options.getThumbnail(i, signal);
-            } catch {
-                url = null; // never let a provider rejection escape (audit H3/H4)
+            } catch (e) {
+                // Never let a provider rejection escape (audit H3/H4), but log
+                // it — silent swallowing violates the repo logging invariant.
+                url = null;
+                if (!signal.aborted) {
+                    logger.warn('Presentation', `[filmstrip] thumbnail ${i} failed: ${String(e)}`);
+                }
             }
             if (token !== this.renderToken || signal.aborted) return;
             // Enforce the EXACT contract — the provider emits a PNG data-URL.

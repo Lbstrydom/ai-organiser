@@ -3170,6 +3170,9 @@ export const en: Translations = {
     presentationLayout: {
         collapseChatPanel: "Collapse chat panel",
         expandChatPanel: "Expand chat panel",
-        resizeChatPanel: "Resize chat panel"
+        resizeChatPanel: "Resize chat panel",
+        openChatPanel: "Open chat",
+        slideThumbnails: "Slide thumbnails",
+        slideThumbnailItem: "Slide {n}"
     }
 };
