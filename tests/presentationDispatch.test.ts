@@ -118,4 +118,15 @@ describe('PresentationModeHandler — IR submission dispatch', () => {
         expect(mockRefineSelective).toHaveBeenCalledTimes(1);
         expect(mockRefineDeckIr).not.toHaveBeenCalled();
     });
+
+    it('selectSlideFromCommand navigates the preview to the picked slide (TD-SSR-05)', () => {
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const h = makeHandler();
+        const navSpy = vi.spyOn((h as any).canvas, 'navigateToSlide');
+        h.selectSlideFromCommand(2);
+        expect(navSpy).toHaveBeenCalledWith(2);
+        expect((h as any).deck.activeSlideIndex).toBe(2);
+        expect(h.getSelection()).toEqual({ kind: 'slide', slideIndex: 2 });
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+    });
 });

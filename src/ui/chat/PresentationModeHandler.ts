@@ -954,11 +954,14 @@ export class PresentationModeHandler implements ChatModeHandler {
         return this.deck.html;
     }
 
-    /** Set selection from outside (slide-picker command). Mirrors the
-     *  iframe-click path so the chat-input accessory updates correctly. */
+    /** Set selection from outside (slide-picker command, Mod+Shift+S). Updates
+     *  the edit-scope selection AND scrolls the preview to the picked slide —
+     *  unlike the iframe-click path (where the clicked slide is already in view),
+     *  a command-palette pick must navigate the preview there (TD-SSR-05). */
     selectSlideFromCommand(slideIndex: number): void {
         if (!this.deck.html) return;
         this.deck.activeSlideIndex = slideIndex;
+        this.canvas.navigateToSlide(slideIndex);
         this.editScope.setSelection({ kind: 'slide', slideIndex });
     }
 
