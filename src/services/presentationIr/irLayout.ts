@@ -5,6 +5,11 @@
  */
 
 export const CANVAS = { w: 13.33, h: 7.5 } as const;
+/** Pixel canvas for the HTML renderer — the SAME 16:9 surface as CANVAS, at the
+ *  144 px/in density (1920/13.33 ≡ 1080/7.5). Single source so irToHtml doesn't
+ *  re-hardcode the dimensions (debt D6). */
+export const SLIDE_W = 1920;
+export const SLIDE_H = 1080;
 export const MARGIN = 0.5;
 export const CONTENT_TOP = 1.3;     // below the title/branded zone
 export const FOOTER_Y = 7.1;        // reserved footer band start

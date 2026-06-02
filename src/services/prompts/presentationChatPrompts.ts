@@ -10,6 +10,7 @@ import type { BrandRule } from '../chat/brandThemeService';
 // M20 fix: import marker constants from SSOT (presentationConstants).
 // R3-M3 fix: MAX_HTML_PROMPT_CHARS now centralised in the same module.
 import { HTML_START_MARKER, HTML_END_MARKER, MAX_HTML_PROMPT_CHARS } from '../chat/presentationConstants';
+import { escapeForPrompt } from '../../utils/promptSafe';
 
 /**
  * Tag names that should be defanged in user/HTML inputs to prevent prompt
@@ -69,14 +70,13 @@ function sanitizeHtmlForPrompt(html: string): string {
 }
 
 /**
- * Sanitize prompt-XML delimiters in user-authored text before embedding.
- * Same logic as `sanitizeHtmlForPrompt` but no truncation — text inputs are
- * size-bounded by the caller. Matches both opening + closing tag forms.
+ * Sanitize user-authored TEXT before embedding in a prompt section. Delegates
+ * to the shared, TAG-AGNOSTIC `escapeForPrompt` (debt D5) — defangs ANY tag, not
+ * just the fixed chat-delimiter list, so future tags are covered too. (HTML
+ * content keeps the tag-preserving `sanitizeHtmlForPrompt` above.)
  */
-const TEXT_PROMPT_DELIMITER_RE = HTML_PROMPT_DELIMITER_RE;
-
 function sanitizeTextForPrompt(text: string): string {
-    return text.replaceAll(TEXT_PROMPT_DELIMITER_RE, defangDelimiter);
+    return escapeForPrompt(text);
 }
 
 // ── Generation ──────────────────────────────────────────────────────────────

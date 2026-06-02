@@ -12,6 +12,7 @@ import { err } from '../../core/result';
 import { tryExtractJson } from '../../utils/responseParser';
 import { IR_SCHEMA_VERSION, validateDeckIr, type SlideDeckIr } from './slideIr';
 import { buildIconReference } from './iconRegistry';
+import { escapeForPrompt } from '../../utils/promptSafe';
 
 /** A compact `(brief → IR)` example. Kept small to bound prompt cost. */
 const FEW_SHOT = `<example>
@@ -41,9 +42,15 @@ IR:
  * so the first attempt validates as often as possible.
  */
 export function buildIrSystemPrompt(options: { outputLanguage?: string; targetLength?: number } = {}): string {
-    const langLine = options.outputLanguage ? `\nWrite all slide text in ${options.outputLanguage}.` : '';
-    const countLine = options.targetLength
-        ? `\nIMPORTANT: produce EXACTLY ${options.targetLength} slides in total — counting the title slide and the closing slide. This slide count is a hard requirement set by the user; do not produce more or fewer.`
+    const langLine = options.outputLanguage ? `\nWrite all slide text in ${escapeForPrompt(options.outputLanguage)}.` : '';
+    // Validate targetLength to a sane integer range before interpolation (D5 —
+    // negative/NaN/fraction/huge values would produce impossible instructions).
+    const len = typeof options.targetLength === 'number' && Number.isInteger(options.targetLength)
+        && options.targetLength >= 1 && options.targetLength <= 50
+        ? options.targetLength
+        : undefined;
+    const countLine = len
+        ? `\nIMPORTANT: produce EXACTLY ${len} slides in total — counting the title slide and the closing slide. This slide count is a hard requirement set by the user; do not produce more or fewer.`
         : '';
     return `You are a presentation designer. You output a STRUCTURED JSON deck (an "IR"), NOT HTML.${langLine}${countLine}
 
@@ -73,7 +80,7 @@ Block (discriminated by "kind"):
 <requirements>
 - Use the RIGHT block for the data: numbers → stat-grid or bar-chart; steps/pipeline → process-flow; comparisons → table or two-column. Avoid walls of bullets.
 - Add a relevant "icon" NAME (chosen from the <icons> list below) on stat-grid cards and process-flow steps where it aids scanning. Use ONLY names from that list — never emoji or freeform text. Use them tastefully; most cards/steps should have one.
-- ${options.targetLength ? `Produce EXACTLY ${options.targetLength} slides total (title + content + closing) — match this count precisely.` : '6–10 slides for a normal deck unless the user asks for a specific count.'} One idea per slide.
+- ${len ? `Produce EXACTLY ${len} slides total (title + content + closing) — match this count precisely.` : '6–10 slides for a normal deck unless the user asks for a specific count.'} One idea per slide.
 - "color" must be a 6-digit hex WITHOUT '#'. No extra/unknown JSON keys (they are rejected).
 - Output MUST be valid JSON and nothing else.
 </requirements>
@@ -95,11 +102,11 @@ export function buildIrRefinePrompt(currentDeck: SlideDeckIr, userRequest: strin
     return `You are editing an existing structured slide deck (IR JSON).
 
 <current_deck>
-${JSON.stringify(currentDeck)}
+${escapeForPrompt(JSON.stringify(currentDeck))}
 </current_deck>
 
 <edit_request>
-${userRequest}
+${escapeForPrompt(userRequest)}
 </edit_request>
 
 Apply the requested change, preserving all other slides and content unless the request says otherwise. Return the COMPLETE updated deck as ONE JSON object conforming to the same schema (schemaVersion ${IR_SCHEMA_VERSION}). No prose, no markdown fences.`;
@@ -110,10 +117,10 @@ export function buildIrRepairPrompt(badOutput: string, validationError: string):
     const snippet = badOutput.length > 6_000 ? badOutput.slice(0, 6_000) + '\n…[truncated]' : badOutput;
     return `Your previous response was not a valid deck IR.
 
-<validation_error>${validationError}</validation_error>
+<validation_error>${escapeForPrompt(validationError)}</validation_error>
 
 <your_previous_output>
-${snippet}
+${escapeForPrompt(snippet)}
 </your_previous_output>
 
 Return ONLY a corrected JSON deck object that fixes the error above and conforms exactly to the schema. No prose, no markdown fences.`;

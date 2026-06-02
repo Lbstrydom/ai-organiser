@@ -24,6 +24,7 @@ import { sanitizeSvgMarkup, stripDangerousHtml } from '../../utils/svgSanitize';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
 import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
+import { SLIDE_W, SLIDE_H } from './irLayout';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
@@ -48,9 +49,6 @@ export interface HtmlRenderOutput {
     html: string;
     notices: FidelityNotice[];
 }
-
-const SLIDE_W = 1920;
-const SLIDE_H = 1080;
 
 const esc = (s: string): string =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

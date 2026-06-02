@@ -88,7 +88,7 @@ interface RenderState {
     placeholderLabel: string;
 }
 
-const PX_PER_IN = 96;
+const RASTER_PX_PER_IN = 96;   // rasteriser pixel hint — NOT the 144 canvas density (debt D6)
 
 /** Icon fill colour from the shared spec (primary | accent). */
 const iconColor = (theme: ExportTheme): string =>
@@ -456,7 +456,7 @@ async function renderSvg(s: SlideLike, block: Extract<Block, { kind: 'svg' }>, b
     }
     // No safe vector — rasterize the cleaned SVG if a rasterizer is injected.
     if (clean && st.rasterize) {
-        const dataUri = await tryRasterize(st, { svg: clean, widthPx: box.w * PX_PER_IN, heightPx: h * PX_PER_IN });
+        const dataUri = await tryRasterize(st, { svg: clean, widthPx: box.w * RASTER_PX_PER_IN, heightPx: h * RASTER_PX_PER_IN });
         if (dataUri) { s.addImage({ data: dataUri, x: box.x, y: box.y, w: box.w, h }); return h; }
     }
     placeholder(s, block.alt ?? 'Diagram', box, h, st.theme);
@@ -473,7 +473,7 @@ async function renderCustom(s: SlideLike, block: Extract<Block, { kind: 'custom'
     }
     // html-only: rasterize when a rasterizer is injected (Phase B), else placeholder.
     if (block.html && st.rasterize) {
-        const dataUri = await tryRasterize(st, { html: block.html, widthPx: box.w * PX_PER_IN, heightPx: h * PX_PER_IN });
+        const dataUri = await tryRasterize(st, { html: block.html, widthPx: box.w * RASTER_PX_PER_IN, heightPx: h * RASTER_PX_PER_IN });
         if (dataUri) { s.addImage({ data: dataUri, x: box.x, y: box.y, w: box.w, h }); return h; }
     }
     placeholder(s, block.fallbackText ?? 'Custom block (see HTML preview)', box, h, st.theme);
