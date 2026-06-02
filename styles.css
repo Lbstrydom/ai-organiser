@@ -7605,6 +7605,29 @@
     flex-shrink: 0;
 }
 
+/* Slides "create" state (presentation mode, no deck yet): the create form +
+   composer are the whole interaction, so collapse the empty transcript void
+   instead of letting it dominate the modal. The controller sets this marker
+   when mode === presentation && !hasDeck; it's removed once a deck exists (the
+   side-rail then owns the layout). */
+.ai-organiser-chat-modal-content.ai-organiser-pres-create .ai-organiser-chat-area {
+    display: none;
+}
+/* The create form + composer are short, but the modal is ~92vh tall. Centre the
+   cluster (create panel → composer → actions) in the space below the mode tabs
+   via balanced auto-margins, so the spare height reads as an intentional compose
+   screen instead of content stranded at the top over a void. Scoped to the
+   create state; the deck state uses the side-rail grid, other modes are
+   unaffected. (All four are direct children of contentEl here — no rail reparent
+   happens until a deck exists.) */
+.ai-organiser-chat-modal-content.ai-organiser-pres-create > .ai-organiser-chat-context {
+    margin-top: auto;
+    flex: 0 0 auto;
+}
+.ai-organiser-chat-modal-content.ai-organiser-pres-create > .ai-organiser-chat-actions {
+    margin-bottom: auto;
+}
+
 /* iframe wrapper — scales 1920x1080 slides to fit the measured container.
    display:flex + the scaler's margin:auto centres the slide on both axes when
    it's smaller than the wrapper; overflow:auto lets the user scroll when they

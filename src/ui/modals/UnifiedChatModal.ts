@@ -315,6 +315,9 @@ export class UnifiedChatModal extends Modal {
         this.sendButton = new ButtonComponent(inputRow)
             .setIcon('arrow-up')
             .setTooltip(this.plugin.t.modals.unifiedChat.send)
+            // Send is the PRIMARY action in every chat mode — make it the visual
+            // CTA so emphasis lands here, not on a secondary action-bar button.
+            .setCta()
             .onClick(() => void this.handleSend());
 
         this.actionsEl = this.contentEl.createDiv({ cls: 'ai-organiser-chat-actions' });

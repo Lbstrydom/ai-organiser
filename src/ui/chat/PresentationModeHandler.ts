@@ -913,7 +913,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                 tooltipKey: 'Save as a self-contained HTML note — keep chatting to refine, then export when finished',
                 isEnabled: hasDeck && ready && !locked,
                 requiresEditor: false,
-                isDefault: true,
+                // NOT the CTA: the primary action is the send arrow (generate /
+                // refine). A secondary "save" shouldn't be the loudest button.
+                isDefault: false,
             },
             {
                 id: 'export-pptx',

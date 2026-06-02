@@ -63,6 +63,7 @@ const PERSIST_DEBOUNCE_MS = 250;
 const CLS_WORKSPACE = 'ai-organiser-pres-workspace';
 const CLS_COLLAPSED = 'ai-organiser-pres-rail-collapsed';
 const CLS_NARROW = 'ai-organiser-pres-narrow';
+const CLS_CREATE = 'ai-organiser-pres-create';
 
 /** Set a CSS custom property via Obsidian's API (no inline `style.*` — keeps
  *  the review-bot `no-static-styles-assignment` rule happy). Tests polyfill
@@ -114,6 +115,11 @@ export class PresentationLayoutController {
      */
     sync(opts: { mode: string; hasDeck: boolean; deckVersion?: number }): void {
         const active = opts.mode === 'presentation' && opts.hasDeck;
+        // Presentation mode with NO deck yet = the "create" panel. Mark it so CSS
+        // can collapse the empty transcript void (the create form + composer are
+        // the whole interaction pre-generation). Cleared once a deck exists or on
+        // any other mode.
+        this.deps.contentEl.classList.toggle(CLS_CREATE, opts.mode === 'presentation' && !opts.hasDeck);
         if (active && !this.inWorkspace) {
             this.enterWorkspace();
         } else if (!active && this.inWorkspace) {
@@ -131,6 +137,7 @@ export class PresentationLayoutController {
 
     dispose(): void {
         if (this.inWorkspace) this.leaveWorkspace();
+        this.deps.contentEl.classList.remove(CLS_CREATE);
         if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = null; }
         if (this.pendingPersist) this.flushPersist();
     }

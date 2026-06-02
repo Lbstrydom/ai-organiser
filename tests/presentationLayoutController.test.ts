@@ -153,6 +153,18 @@ describe('PresentationLayoutController', () => {
         expect(h.chatAreaEl.parentElement).toBe(h.contentEl);
     });
 
+    it('marks the create state (presentation + no deck) so CSS collapses the empty transcript', () => {
+        h.controller.sync({ mode: 'presentation', hasDeck: false, deckVersion: 0 });
+        expect(h.contentEl.classList.contains('ai-organiser-pres-create')).toBe(true);
+        // Generating a deck clears the create marker (side-rail takes over).
+        h.controller.sync(PRESENT);
+        expect(h.contentEl.classList.contains('ai-organiser-pres-create')).toBe(false);
+        // Leaving presentation also clears it.
+        h.controller.sync({ mode: 'presentation', hasDeck: false, deckVersion: 0 });
+        h.controller.sync(NOTE);
+        expect(h.contentEl.classList.contains('ai-organiser-pres-create')).toBe(false);
+    });
+
     it('transitions cleanly from no-deck → deck → no-deck (deck generated then discarded)', () => {
         h.controller.sync({ mode: 'presentation', hasDeck: false, deckVersion: 0 }); // create panel
         h.controller.sync({ mode: 'presentation', hasDeck: true, deckVersion: 1 });  // generated

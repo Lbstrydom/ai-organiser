@@ -1,5 +1,15 @@
 # Project Status Log
 
+## 2026-06-02 — Slides chat UX polish (create-state layout + CTA emphasis)
+
+Two small fixes to the Slides chat surfaced by live use:
+- **Create-state layout**: in presentation mode with no deck yet, the empty chat transcript was a giant void. `PresentationLayoutController` now sets a `ai-organiser-pres-create` marker (mode === presentation && !hasDeck); CSS hides the empty transcript and vertically centres the create form + composer + actions below the mode tabs (balanced auto-margins). Cleared once a deck exists (side-rail grid takes over). Test added.
+- **CTA emphasis**: "Save as HTML note" was the purple CTA (mis-signalled as primary). Removed its `isDefault`; promoted the composer **send button** to the CTA — the primary action in every chat mode.
+
+Files: `PresentationLayoutController.ts`, `styles.css`, `UnifiedChatModal.ts`, `PresentationModeHandler.ts`, `tests/presentationLayoutController.test.ts`. 4921 tests green.
+
+---
+
 ## 2026-06-02 — Presentation sanitizer hardening (Phase 2: iframe CSP/sandbox)
 
 Implemented Phase 2 of [docs/plans/presentation-sanitizer-hardening.md](docs/plans/presentation-sanitizer-hardening.md) — **Decision-7 Outcome A (Harden)**. A real-Chromium spike proved the injected slide runtime was already CSP-blocked (so click-to-edit was already dead) and that an injected attacker script is already blocked under `default-src 'none'`. So: dropped `allow-scripts` from the preview iframe sandbox (now `allow-same-origin` only — the parent still reads `contentDocument` for nav/export), removed the dead runtime injection, and added a real-browser e2e harness proving the CSP + sandbox block scripts. Code-audited (GPT + Gemini APPROVE).
