@@ -19,33 +19,35 @@ export interface PresentationCommandTarget {
     selectSlideFromCommand(slideIndex: number): void;
 }
 
-const live = new Set<PresentationCommandTarget>();
-let lastActivated: PresentationCommandTarget | null = null;
+// Activation-ordered list — the tail is the most-recently-activated live
+// handler. An array (not a Set + pointer) is required for TRUE most-recent
+// semantics: a Set preserves *insertion* order, so on unregister the fallback
+// would pick the oldest-inserted survivor, not the most-recently-activated one
+// (audit HIGH). Re-registering moves a handler to the tail.
+const order: PresentationCommandTarget[] = [];
 
-/** Register (or re-activate) a handler. Called when it renders/gains focus. */
+/** Register (or re-activate) a handler. Called when it renders/gains focus.
+ *  Moves an already-present handler to the tail (most-recent). */
 export function registerPresentationTarget(target: PresentationCommandTarget): void {
-    live.add(target);
-    lastActivated = target;
+    const i = order.indexOf(target);
+    if (i !== -1) order.splice(i, 1);
+    order.push(target);
 }
 
-/** Unregister a handler. Called from its dispose(). If it was the active one,
- *  fall back to any other still-live handler (deterministic, no dangling ref). */
+/** Unregister a handler. Called from its dispose(). The tail of the remaining
+ *  list is the next-most-recently-activated handler (deterministic, no dangling ref). */
 export function unregisterPresentationTarget(target: PresentationCommandTarget): void {
-    live.delete(target);
-    if (lastActivated === target) {
-        lastActivated = live.size > 0 ? [...live][live.size - 1] : null;
-    }
+    const i = order.indexOf(target);
+    if (i !== -1) order.splice(i, 1);
 }
 
 /** The handler global commands should target: the most-recently-activated one
  *  that is still registered, or null when no chat modal is open. */
 export function getActivePresentationTarget(): PresentationCommandTarget | null {
-    if (lastActivated && live.has(lastActivated)) return lastActivated;
-    return live.size > 0 ? [...live][live.size - 1] : null;
+    return order.length > 0 ? order[order.length - 1] : null;
 }
 
 /** Test-only: reset module state between tests. */
 export function _resetPresentationRegistry(): void {
-    live.clear();
-    lastActivated = null;
+    order.length = 0;
 }

@@ -61,6 +61,18 @@ describe('presentationCommandRegistry', () => {
         expect(getActivePresentationTarget()).toBeNull();
     });
 
+    it('fallback after unregister is the most-recently-ACTIVATED survivor, not insertion order', () => {
+        const a = makeTarget('a');
+        const b = makeTarget('b');
+        const c = makeTarget('c');
+        registerPresentationTarget(a);
+        registerPresentationTarget(b);
+        registerPresentationTarget(c);
+        registerPresentationTarget(a);   // a re-activated → now most recent; order: b, c, a
+        unregisterPresentationTarget(a); // remaining most-recent is c (activated after b), NOT b
+        expect(getActivePresentationTarget()).toBe(c);
+    });
+
     it('unregistering a non-active handler leaves the active one intact', () => {
         const a = makeTarget('a');
         const b = makeTarget('b');
