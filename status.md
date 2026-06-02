@@ -1,5 +1,34 @@
 # Project Status Log
 
+## 2026-06-02 — Slides side-rail workspace (Phase 1) + preview quick-wins
+
+Implemented Phase 1 of [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) — the chat-driven Slides mode becomes a canvas-dominant **side-rail workspace** so the 16:9 slide is width-bound (large) instead of height-bound (tiny). Plan audited (GPT 3 rounds + Gemini APPROVE); code audited (GPT R1→R2 + Gemini APPROVE) — see [audit summary](docs/plans/slides-side-rail-workspace-audit-summary.md).
+
+### Changes
+- **PresentationLayoutController** (`src/ui/controllers/`): owns a `.ai-organiser-pres-workspace` marker class that activates a CSS grid; reversibly reparents the transcript + composer into a `.ai-organiser-pres-rail` wrapper; resizer (`role=separator`, keyboard-operable) + collapse/expand toggle (out of grid flow, reachable when the rail is `inert`); modal-measured `.ai-organiser-pres-narrow` fallback (NOT viewport `@media`); persists RAW width, clamps on read.
+- **Earlier quick-wins** (already shipped): zoom in/out/Fit on the preview, `margin:auto` centering + scaler scroll, 3:1 preview split, status events (Saved/Exported/Polished) demoted to toasts + a render-time filter hiding `system` bubbles in Slides mode.
+- **Settings**: `presLayout` slice (railCollapsed/railWidthPx/filmstripCollapsed) + `migrateOldSettings` backfill.
+- **i18n**: `presentationLayout` namespace (collapse/expand/resize labels).
+
+### Files Affected
+- `src/ui/controllers/PresentationLayoutController.ts` (new) — the layout controller
+- `src/ui/controllers/presentationLayoutConstants.ts` (new) — TS-owned clamp constants + `clampRailWidth`
+- `tests/presentationLayoutController.test.ts` (new) — 17 tests
+- `src/ui/modals/UnifiedChatModal.ts` — construct controller, `syncPresentationLayout()`, dispose
+- `src/ui/chat/PresentationModeHandler.ts` — `getLayoutState()`
+- `src/core/settings.ts`, `src/i18n/{types,en}.ts`, `styles.css`
+
+### Decisions Made
+- **Conditional CSS grid + thin controller, NOT a fork** — all 5 modal regions are direct children of contentEl, so a marker-class grid repositions them with one reversible reparent; the other 5 chat modes stay byte-identical.
+- **Activation via controller-owned marker class**, never the preview's internal `:has()` class (decoupled, survives loading/error).
+- Sanitizer HIGHs surfaced by the audit are **pre-existing, out-of-scope** (a separate hardening pass; `294211a` already addressed a batch).
+
+### Next Steps
+- Phase 2: vertical filmstrip (`SlideFilmstrip` + `SlideThumbnailProvider`).
+- Phase 3: mobile bottom-sheet fallback + Obsidian-Playwright e2e harness for `tests/e2e/slides-side-rail.spec.ts`.
+
+---
+
 ## 2026-06-01 — Slides: retire the legacy HTML presentation engine (Stages 0–4a)
 
 Implemented [docs/plans/retire-legacy-html-engine.md](docs/plans/retire-legacy-html-engine.md) — structured-IR is now the only presentation path. Commits `c2d4af0` (Stage 1) → `1cbb772` (Stage 2) → `36cffa7` (Stage 3+3.1) → `16ef0ad` (Stage 4a).

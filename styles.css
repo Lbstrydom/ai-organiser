@@ -7491,37 +7491,113 @@
     flex-direction: column;
 }
 
-/* When the context panel holds the slide preview, let it (and the panel) take
-   the available vertical space and shrink — driven by flex, not magic numbers.
-   `:has()` scopes this to presentation mode only; other modes keep a compact
-   context line. */
-.ai-organiser-chat-context:has(.ai-organiser-pres-preview-container) {
-    /* Preview gets the dominant vertical share (flex 3 vs the chat
-       transcript's flex 1). The slide is fit-to-HEIGHT (16:9 in a wide box),
-       so a starved height — not width — is what shrinks the slide. Giving the
-       panel ~3/4 of the shared space lets the iframe wrapper grow tall enough
-       that the slide scales up to use the available width. The chat below
-       scrolls, so it stays usable on its smaller share. */
-    flex: 3 1 0;
+/* ── Slides side-rail workspace (plan: slides-side-rail-workspace) ──────────
+   Activated by the controller-owned `.ai-organiser-pres-workspace` marker on
+   contentEl (NOT the preview's internal class). The canvas (context panel) +
+   the reparented rail (transcript + composer) sit side by side; the slide is
+   width-bound instead of height-bound, so it's far larger. */
+.ai-organiser-chat-modal-content.ai-organiser-pres-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--pres-rail-width, 360px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+        "modebar  modebar"
+        "canvas   rail"
+        "actions  actions";
+    gap: var(--size-4-2);
+    position: relative;   /* anchor for the absolutely-positioned rail toggle */
+}
+.ai-organiser-pres-workspace > .ai-organiser-chat-mode-bar { grid-area: modebar; }
+.ai-organiser-pres-workspace > .ai-organiser-chat-context {
+    grid-area: canvas;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;          /* override grid item min-width:auto so it can shrink */
+    min-height: 0;
+}
+.ai-organiser-pres-workspace > .ai-organiser-pres-rail {
+    grid-area: rail;
+    min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    position: relative;    /* anchor for the resizer at its left edge */
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background: var(--background-secondary);
     overflow: hidden;
 }
-/* In presentation mode the chat transcript shares the space (flex 1 vs the
-   preview's flex 3) and SCROLLS internally past its floor, so a long
-   conversation never squeezes the preview down to nothing. */
-.ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-area {
+.ai-organiser-pres-workspace > .ai-organiser-chat-actions { grid-area: actions; }
+
+/* Transcript scrolls; composer pinned below (grid scroll contract — audit M1). */
+.ai-organiser-pres-rail > .ai-organiser-chat-area {
     flex: 1 1 0;
-    min-height: 88px;
+    min-height: 0;
     overflow-y: auto;
 }
-/* Slides mode starts the composer compact so its height goes to the slide;
-   the user can still drag it taller (resize: vertical) or it grows with text. */
-.ai-organiser-chat-modal-content:has(.ai-organiser-pres-preview-container) .ai-organiser-chat-input-row textarea {
-    min-height: 44px;
+.ai-organiser-pres-rail > .ai-organiser-chat-input-row {
+    flex: 0 0 auto;
 }
+
+/* Rail resizer — a keyboard-operable separator on the rail's left edge. */
+.ai-organiser-pres-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 8px;
+    transform: translateX(-50%);
+    cursor: col-resize;
+    z-index: 2;
+    background: transparent;
+}
+.ai-organiser-pres-resizer:hover,
+.ai-organiser-pres-resizer:focus-visible {
+    background: var(--interactive-accent);
+    opacity: 0.5;
+    outline: none;
+}
+
+/* Collapse/expand toggle — OUTSIDE the rail (out of grid flow) so it stays
+   reachable when the rail is inert (audit R3-H2 + Gemini-G4). */
+.ai-organiser-pres-rail-toggle {
+    position: absolute;
+    top: var(--size-4-2);
+    right: var(--pres-rail-width, 360px);
+    transform: translateX(50%);
+    z-index: 3;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.ai-organiser-pres-rail-toggle::before { content: '\203A'; }            /* › expand-ish */
+.ai-organiser-pres-rail-toggle[aria-expanded='true']::before { content: '\2039'; } /* ‹ collapse */
+
+/* Collapsed: rail column → 0, hide resizer; toggle hugs the right edge. */
+.ai-organiser-chat-modal-content.ai-organiser-pres-rail-collapsed.ai-organiser-pres-workspace {
+    grid-template-columns: minmax(0, 1fr) 0;
+    gap: 0;
+}
+.ai-organiser-pres-rail-collapsed .ai-organiser-pres-resizer { display: none; }
+.ai-organiser-pres-rail-collapsed .ai-organiser-pres-rail-toggle { right: 0; }
+
+/* Narrow MODAL (controller-measured, not viewport @media — audit Gemini-G2):
+   fall back to the stacked column so narrow panes / phones never get the
+   cramped two-column layout before the Phase 3 bottom-sheet exists. */
+.ai-organiser-chat-modal-content.ai-organiser-pres-workspace.ai-organiser-pres-narrow {
+    display: flex;
+    flex-direction: column;
+}
+.ai-organiser-pres-narrow .ai-organiser-pres-resizer,
+.ai-organiser-pres-narrow .ai-organiser-pres-rail-toggle { display: none; }
+.ai-organiser-pres-narrow > .ai-organiser-pres-rail { border: none; background: transparent; }
+.ai-organiser-pres-narrow > .ai-organiser-pres-rail > .ai-organiser-chat-area { min-height: 88px; }
+
 /* Fixed bars always visible — never squashed off-screen by the preview. */
 .ai-organiser-chat-mode-bar,
 .ai-organiser-chat-input-row,

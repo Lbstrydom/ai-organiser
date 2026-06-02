@@ -3166,5 +3166,10 @@ export const en: Translations = {
         failedNotice: "Deepgram transcription failed: {error}",
         apiKeyLabel: "Deepgram API key",
         apiKeyDescription: "Required when 'Diarization provider' is set to Deepgram. Get a key at console.deepgram.com."
+    },
+    presentationLayout: {
+        collapseChatPanel: "Collapse chat panel",
+        expandChatPanel: "Expand chat panel",
+        resizeChatPanel: "Resize chat panel"
     }
 };

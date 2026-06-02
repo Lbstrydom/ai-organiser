@@ -26,6 +26,7 @@ import { ChatSearchModal } from './ChatSearchModal';
 import { ProjectTreePickerModal } from './ProjectTreePickerModal';
 import { ChatSearchService } from '../../services/chat/chatSearchService';
 import type { ConversationState } from '../../utils/chatExportUtils';
+import { PresentationLayoutController } from '../controllers/PresentationLayoutController';
 
 
 interface ChatMessage {
@@ -108,9 +109,11 @@ export class UnifiedChatModal extends Modal {
     private modeBarEl?: HTMLElement;
     private contextEl?: HTMLElement;
     private chatContainer?: HTMLElement;
+    private inputRowEl?: HTMLElement;
     private inputArea?: TextAreaComponent;
     private sendButton?: ButtonComponent;
     private actionsEl?: HTMLElement;
+    private layoutController?: PresentationLayoutController;
     private thinkingEl?: HTMLElement;
     private thinkingSlideEl?: HTMLElement;
     private thinkingElapsedEl?: HTMLElement;
@@ -265,6 +268,7 @@ export class UnifiedChatModal extends Modal {
         for (const handler of this.handlers.values()) {
             handler.dispose();
         }
+        this.layoutController?.dispose();
         this.contentEl.empty();
     }
 
@@ -292,6 +296,7 @@ export class UnifiedChatModal extends Modal {
         this.chatContainer = this.contentEl.createDiv({ cls: 'ai-organiser-chat-area' });
 
         const inputRow = this.contentEl.createDiv({ cls: 'ai-organiser-chat-input-row' });
+        this.inputRowEl = inputRow;
         this.inputArea = new TextAreaComponent(inputRow);
         this.inputArea.setPlaceholder(this.getActiveHandler().getPlaceholder(this.plugin.t));
         this.inputArea.inputEl.rows = 4;
@@ -313,6 +318,20 @@ export class UnifiedChatModal extends Modal {
             .onClick(() => void this.handleSend());
 
         this.actionsEl = this.contentEl.createDiv({ cls: 'ai-organiser-chat-actions' });
+
+        // Slides side-rail workspace controller. Owns the marker class + rail
+        // reparent + resize/collapse; presentation-only, inert in other modes.
+        this.layoutController = new PresentationLayoutController({
+            contentEl: this.contentEl,
+            chatAreaEl: this.chatContainer,
+            inputRowEl: inputRow,
+            getLayout: () => this.plugin.settings.presLayout,
+            persistLayout: async (next) => {
+                this.plugin.settings.presLayout = next;
+                await (this.plugin as unknown as import('../../main').default).saveSettings();
+            },
+            labels: () => this.plugin.t.presentationLayout,
+        });
     }
 
     private renderAll(): void {
@@ -396,6 +415,23 @@ export class UnifiedChatModal extends Modal {
 
         const handler = this.getActiveHandler();
         handler.renderContextPanel(this.contextEl, this.ctx);
+        this.syncPresentationLayout();
+    }
+
+    /** Drive the side-rail layout controller from the active mode + deck state.
+     *  Centralised here because renderContextPanel runs after every
+     *  renderAll/switchMode/post-generation/project change. Non-presentation
+     *  modes (or an empty deck) make the controller restore the stacked layout. */
+    private syncPresentationLayout(): void {
+        if (!this.layoutController) return;
+        const ls = this.activeMode === 'presentation' && this.presentationHandler
+            ? this.presentationHandler.getLayoutState()
+            : { hasDeck: false, deckVersion: 0 };
+        this.layoutController.sync({
+            mode: this.activeMode ?? '',
+            hasDeck: ls.hasDeck,
+            deckVersion: ls.deckVersion,
+        });
     }
 
     private renderMessages(): void {

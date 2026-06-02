@@ -336,6 +336,35 @@ Targeted polish of individual slides in an IR-backed deck. `handlePolish` routes
 
 **Plan**: [docs/completed/per-slide-polish.md](docs/completed/per-slide-polish.md) · **Audit**: [docs/completed/per-slide-polish-audit-summary.md](docs/completed/per-slide-polish-audit-summary.md)
 
+## Slides Side-Rail Workspace
+
+**Status**: ✅ Phase 1 implemented (June 2026) — Phase 2 (filmstrip) + Phase 3 (mobile bottom-sheet) pending.
+
+In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail workspace**: the 1920×1080 preview is the artifact (width-bound, large), and the transcript + composer dock into a resizable/collapsible right rail. The other five chat modes are untouched.
+
+### Core Components
+
+- `src/ui/controllers/PresentationLayoutController.ts`: owns the whole layout. `sync({mode, hasDeck, deckVersion})` toggles the `.ai-organiser-pres-workspace` marker class (which activates the CSS grid), reversibly reparents `chat-area` + `input-row` into a `.ai-organiser-pres-rail` wrapper, mounts the resizer + collapse toggle, applies persisted width/collapse. `dispose()` restores the DOM + flushes persistence.
+- `src/ui/controllers/presentationLayoutConstants.ts`: TS-owned constants + `clampRailWidth(desired, modalWidth)` (NaN/Infinity-safe; caps at 40% of modal width).
+- `PresentationModeHandler.getLayoutState()`: `{ hasDeck, deckVersion }` — the deck-state source the modal feeds to `sync()`.
+- `UnifiedChatModal.syncPresentationLayout()`: called from `renderContextPanel` (covers renderAll/switchMode/post-generation); constructs the controller in `renderShell`, disposes in `onClose`.
+
+### Key Patterns
+
+- **Activation = controller-owned marker class**, NEVER the preview's internal `:has(.ai-organiser-pres-preview-container)` class (decoupled; survives transient loading/error phases).
+- **Capture-once reparent**: original parent/next-sibling captured only on the enter edge; resyncs never re-capture (else restore would target the rail). Restore order is input-row then chat-area.
+- **Narrow detection is modal-measured** (`ResizeObserver` → `.ai-organiser-pres-narrow`), NOT a viewport `@media` (the modal is ~92vw, so a viewport query fires at the wrong width). `< PRES_NARROW_BREAKPOINT_PX` falls back to the stacked column.
+- **Persist RAW width, clamp on read** — a large-monitor preference survives a temporary open on a small screen.
+- **Collapse a11y**: collapsed rail gets `inert` + `aria-hidden`; the expand toggle lives OUTSIDE the rail (out of grid flow via `position:absolute`) so it stays reachable; focus moves to it on collapse.
+- **CSS grid scroll contract**: `minmax(0,1fr)` track + `min-width/height:0` on canvas/rail; transcript `overflow-y:auto`, composer `flex:0 0 auto`.
+- Settings: `presLayout { railCollapsed, railWidthPx, filmstripCollapsed }` (per-device).
+
+### Tests
+
+- `tests/presentationLayoutController.test.ts` (17): clamp math, enter/leave + exact restore, capture-once regression, collapse + inert + focus move, keyboard resize, persist coalescing, dispose flush, presentation-no-deck stacked.
+
+**Plan**: [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) · **Audit**: [docs/plans/slides-side-rail-workspace-audit-summary.md](docs/plans/slides-side-rail-workspace-audit-summary.md)
+
 ## Smart Document Indexing (AI Chat)
 
 **Status**: ✅ Implemented (March 2026)

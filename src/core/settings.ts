@@ -121,6 +121,14 @@ export interface AIOrganiserSettings {
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
     presentationBrandGuidelinesPath: string; // Vault path to brand guidelines file
     presentationExportEngine: 'structured-ir'; // Only the structured-IR engine remains (legacy HTML retired 2026-06; migrateOldSettings coerces stored 'html-legacy')
+    // Slides side-rail workspace layout (per-device UI prefs). railWidthPx is the
+    // user's RAW chosen width — clamped only at apply time so a large-monitor
+    // preference survives a temporary open on a small screen.
+    presLayout: {
+        railCollapsed: boolean;
+        railWidthPx: number;       // raw; default 360 (= PRES_RAIL_DEFAULT_PX)
+        filmstripCollapsed: boolean;
+    };
 
     // === CHAT PERSISTENCE & PROJECTS ===
     chatRootFolder: string;              // Root folder for conversations and projects (default: 'AI Chat')
@@ -433,6 +441,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // HTML generation if IR generation fails, and to legacy PPTX export for
     // decks edited after generation (stale-IR guard) — so this is safe-by-default.
     presentationExportEngine: 'structured-ir',
+    presLayout: { railCollapsed: false, railWidthPx: 360, filmstripCollapsed: false },
 
     // Chat Persistence & Projects Defaults
     chatRootFolder: 'AI Chat',
@@ -880,6 +889,12 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     // Migrate legacy sketch output folder: full path → subfolder only
     if (oldSettings.sketchOutputFolder === 'AI-Organiser/Sketches') {
         oldSettings.sketchOutputFolder = 'Sketches';
+    }
+
+    // Backfill the Slides side-rail layout slice for settings saved before it existed.
+    const pl = oldSettings.presLayout;
+    if (typeof pl !== 'object' || pl === null) {
+        oldSettings.presLayout = { railCollapsed: false, railWidthPx: 360, filmstripCollapsed: false };
     }
 
     migrateDeprecatedGeminiIds(oldSettings);

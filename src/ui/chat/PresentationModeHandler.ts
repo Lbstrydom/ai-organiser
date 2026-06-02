@@ -1019,6 +1019,20 @@ export class PresentationModeHandler implements ChatModeHandler {
         return this.html !== null;
     }
 
+    /**
+     * Layout state for the side-rail workspace controller (plan: slides-side-rail).
+     * `hasDeck` gates the grid (stays true through transient loading/error phases
+     * so the layout doesn't flicker); `deckVersion` bumps on every committed
+     * mutation (generate/refine/polish/restore push a version) so the controller
+     * can resync deterministically.
+     */
+    getLayoutState(): { hasDeck: boolean; deckVersion: number } {
+        return {
+            hasDeck: this.html !== null && this.phase !== 'empty',
+            deckVersion: this.versions.length,
+        };
+    }
+
     /** Used by the slide-picker command to read deck HTML. */
     getDeckHtml(): string | null {
         return this.html;

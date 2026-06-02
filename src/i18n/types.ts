@@ -3069,6 +3069,12 @@ export interface Translations {
         apiKeyLabel: string;
         apiKeyDescription: string;
     };
+    // Slides side-rail workspace layout controls (accessible names / tooltips).
+    presentationLayout: {
+        collapseChatPanel: string;
+        expandChatPanel: string;
+        resizeChatPanel: string;
+    };
 }
 
 /**
