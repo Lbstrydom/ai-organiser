@@ -302,7 +302,7 @@ AI free-form chat inside `UnifiedChatModal`.
 - `presentationCanvasView.ts`: the visual surface (iframe preview + filmstrip + thumbnail provider + slide-nav + `refreshPreview`); talked to via `canvas.*`. **Security invariant**: thumbnail provider fed only `deck.html` (post-sanitize), rasterized offscreen — slide CSS never enters the host DOM.
 - `presentationRunController.ts`: single-flight run lifecycle — lock, per-op `AbortController`, thinking sink, active i18n, cancel hook. `run.begin(thinkingSink, t)`/`run.end()` collapse the begin/finally boilerplate; `setPhase` + lock-guards stay on the handler and delegate internals.
 
-**Phase 3 (`PresentationPipeline`) deliberately NOT extracted — over-engineering.** Each generation method couples to ~12 collaborators/helpers (theme, sources, creationConfig, brand, deck, canvas, run, setPhase, commit, audit, quality, progress); a Pipeline-as-class would inject all of them — indirection without decoupling. The generation orchestration is the handler's core SRP. **Plan**: [docs/plans/presentation-handler-decomposition.md](docs/plans/presentation-handler-decomposition.md).
+**Phase 3 (`PresentationPipeline`) deliberately NOT extracted — over-engineering.** Each generation method couples to ~12 collaborators/helpers (theme, sources, creationConfig, brand, deck, canvas, run, setPhase, commit, audit, quality, progress); a Pipeline-as-class would inject all of them — indirection without decoupling. The generation orchestration is the handler's core SRP. **Plan**: [docs/completed/presentation-handler-decomposition.md](docs/completed/presentation-handler-decomposition.md).
 
 ### Key Patterns
 
