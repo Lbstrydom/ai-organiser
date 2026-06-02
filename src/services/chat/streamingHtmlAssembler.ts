@@ -234,10 +234,12 @@ export class StreamingHtmlAssembler {
     private countDangerousPatterns(text: string): number {
         let count = 0;
         for (const pattern of DANGEROUS_PATTERNS) {
-            // `String#match` with a /g regex scans the whole string and
-            // ignores `lastIndex` entirely (only `RegExp#exec` advances it).
-            // So no manual reset needed. (Gemini-gate G2 2026-04-20.)
-            const matches = text.match(pattern);
+            // The shared DANGEROUS_HTML_PATTERNS are intentionally NON-global
+            // (so `.test()` consumers stay stateless — see presentationSanitizer
+            // M7). To count ALL occurrences we need a global scan, so build a
+            // throwaway global copy here instead of mutating the shared object.
+            const globalFlags = pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g';
+            const matches = text.match(new RegExp(pattern.source, globalFlags));
             if (matches) count += matches.length;
         }
         return count;

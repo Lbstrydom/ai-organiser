@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizePresentation, injectCSP } from '../src/services/chat/presentationSanitizer';
+import { sanitizePresentation, injectCSP, DANGEROUS_HTML_PATTERNS } from '../src/services/chat/presentationSanitizer';
 
 // ── 1. Allowed Tags Pass Through ───────────────────────────────────────────
 
@@ -192,6 +192,99 @@ describe('CSS property validation', () => {
         const html = '<div style="background: url(https://evil.com/bg.png)">Content</div>';
         const result = sanitizePresentation(html);
         expect(result.html).not.toContain('evil.com');
+    });
+
+    it('strips image-set() / -webkit-image-set() bare-string URLs (H3 hardening)', () => {
+        const html = '<div style=\'background-image: image-set("https://evil.com/x.png" 1x)\'>x</div>';
+        const result = sanitizePresentation(html);
+        expect(result.html).not.toContain('evil.com');
+        expect(result.html).not.toContain('image-set');
+        const webkit = sanitizePresentation('<div style=\'background-image: -webkit-image-set("https://evil.com/y.png" 2x)\'>x</div>');
+        expect(webkit.html).not.toContain('evil.com');
+    });
+
+    it('strips cross-fade() resource-loading CSS (H3 hardening)', () => {
+        const html = '<div style=\'background: cross-fade(url(https://evil.com/a.png), 50%)\'>x</div>';
+        const result = sanitizePresentation(html);
+        expect(result.html).not.toContain('evil.com');
+        expect(result.html).not.toContain('cross-fade');
+    });
+});
+
+// ── 5b. Attribute serialization safety (H3) ────────────────────────────────
+
+describe('attribute serialization escaping (H3)', () => {
+    it('does not let a quote inside a CSS value break out into a new handler', () => {
+        // `color` passes sanitizeCssValue (no expression()/javascript:), but the
+        // raw value carries a quote that would terminate style="…" if unescaped.
+        const html = '<div style=\'color: red" onload="alert(1)\'>x</div>';
+        const result = sanitizePresentation(html);
+        // The injected handler must NOT survive as a live attribute.
+        expect(result.html).not.toMatch(/onload\s*=\s*"alert/i);
+        // The breaking quote is neutralised as an entity inside the style value.
+        expect(result.html).toContain('&quot;');
+    });
+
+    it('escapes angle brackets in generic attribute values', () => {
+        const html = '<div data-title="a<b and c">x</div>';
+        const result = sanitizePresentation(html);
+        expect(result.html).toContain('data-title="a&lt;b and c"');
+        expect(result.html).not.toContain('a<b');
+    });
+
+    it('round-trips a legitimate quoted font-family through entity-encoding', () => {
+        const html = '<p style=\'font-family: "Arial", sans-serif\'>x</p>';
+        const result = sanitizePresentation(html);
+        // Serialized safely (quote encoded); browser decodes &quot; back to ".
+        expect(result.html).toContain('font-family: &quot;Arial&quot;, sans-serif');
+        expect(result.rejectionCount).toBe(0);
+    });
+});
+
+// ── 5c. box-sizing allowlisted (M6) ────────────────────────────────────────
+
+describe('box-sizing CSS property (M6)', () => {
+    it('preserves box-sizing so the fixed-canvas slide layout survives', () => {
+        const html = '<section class="slide" style="box-sizing: border-box; padding: 90px">x</section>';
+        const result = sanitizePresentation(html);
+        expect(result.html).toContain('box-sizing: border-box');
+        expect(result.html).toContain('padding: 90px');
+        expect(result.rejectionCount).toBe(0);
+    });
+});
+
+// ── 5d. Boolean data-/aria- attributes preserved (H5) ──────────────────────
+
+describe('boolean data-/aria- attribute preservation (H5)', () => {
+    it('keeps the renderer boolean data-slide marker alongside data-slide-index', () => {
+        const html = '<section data-slide data-slide-index="0" class="slide">x</section>';
+        const result = sanitizePresentation(html);
+        // Primary selector hook for slideRuntime — must survive sanitization.
+        expect(result.html).toMatch(/<section[^>]*\bdata-slide\b/);
+        expect(result.html).toContain('data-slide-index="0"');
+        expect(result.html).toContain('class="slide"');
+    });
+
+    it('still drops a bare on* handler in the boolean-attribute path', () => {
+        const html = '<div onload data-flag>x</div>';
+        const result = sanitizePresentation(html);
+        expect(result.html).not.toContain('onload');
+        expect(result.html).toContain('data-flag');
+    });
+});
+
+// ── 5e. DANGEROUS_HTML_PATTERNS statelessness (M7) ──────────────────────────
+
+describe('DANGEROUS_HTML_PATTERNS are stateless (M7)', () => {
+    it('exports non-global patterns so repeated .test() is order-independent', () => {
+        for (const pattern of DANGEROUS_HTML_PATTERNS) {
+            expect(pattern.global, pattern.source).toBe(false);
+        }
+        const scriptPattern = DANGEROUS_HTML_PATTERNS[0];
+        // A /g regex would advance lastIndex and flip to false on the 2nd call.
+        expect(scriptPattern.test('<script>')).toBe(true);
+        expect(scriptPattern.test('<script>')).toBe(true);
+        expect(scriptPattern.lastIndex).toBe(0);
     });
 });
 

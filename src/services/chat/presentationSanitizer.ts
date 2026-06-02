@@ -41,6 +41,14 @@ const ALLOWED_TAGS = new Set([
     'details', 'summary', 'mark',
 ]);
 
+/**
+ * BLOCKED_TAGS is NOT a redundant mirror of "not in ALLOWED_TAGS" — it drives
+ * DIFFERENT Phase-1 behaviour: these tags are removed TOGETHER WITH their inner
+ * content (a `<script>…</script>` body must not survive as text) and each
+ * removal increments `rejectionCount`. Tags that are merely not-allowlisted are
+ * stripped in Phase 2 but their text children are kept. So the two sets are
+ * complementary, not duplicative.
+ */
 const BLOCKED_TAGS = new Set([
     'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet',
     'form', 'input', 'textarea', 'select', 'button', 'link', 'meta',
@@ -95,6 +103,10 @@ const ALLOWED_CSS_PROPERTIES = new Set([
     'display', 'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'gap',
     'grid-template-columns', 'grid-template-rows', 'grid-gap',
     'position', 'top', 'right', 'bottom', 'left', 'z-index',
+    // box-sizing: the IR renderer pins every slide to a fixed 1920×1080 canvas
+    // with internal padding and relies on border-box so padding doesn't overflow
+    // the slide (irToHtml.slideOpen). Stripping it broke the fixed-canvas layout.
+    'box-sizing',
     'opacity', 'visibility', 'overflow', 'overflow-x', 'overflow-y',
     'box-shadow', 'text-shadow', 'transform', 'transition',
     'white-space', 'word-break', 'vertical-align',
@@ -110,18 +122,34 @@ const DANGEROUS_CSS_VALUE_PATTERNS = [
     /-moz-binding\s*:/i,
     /javascript\s*:/i,
     /vbscript\s*:/i,
+    // H3 hardening: sanitizeCssValue only inspects literal `url(...)` tokens, but
+    // CSS has other resource-loading syntaxes that take a bare-string URL the
+    // url() check never sees (e.g. `background-image: image-set("https://…" 1x)`).
+    // Slide output never needs these, so reject any value that uses them. The
+    // iframe CSP (img-src data:) is still the authoritative outer boundary; the
+    // sustainable fix (a context-aware CSS tokenizer) is tracked as debt.
+    /image-set\s*\(/i,   // also matches -webkit-image-set(
+    /cross-fade\s*\(/i,
 ];
 
 /**
  * M5 fix: shared dangerous HTML patterns (DRY).
  * Exported so StreamingHtmlAssembler can reference the same set
  * rather than maintaining a parallel list.
+ *
+ * M7 fix: these are case-insensitive but DELIBERATELY NOT global. A shared
+ * `/g` RegExp object carries a mutable `lastIndex`, so any consumer that calls
+ * `.test()` / `.exec()` on it would get order-dependent results (and skip
+ * matches) because the cursor persists across calls. Keeping them non-global
+ * makes `.test()` stateless. A consumer that needs to COUNT all occurrences
+ * must build a fresh global copy locally (see StreamingHtmlAssembler) rather
+ * than mutate this shared set.
  */
 export const DANGEROUS_HTML_PATTERNS: ReadonlyArray<RegExp> = [
-    /<script/gi,
-    /<iframe/gi,
-    /on\w+=/gi,
-    /javascript:/gi,
+    /<script/i,
+    /<iframe/i,
+    /on\w+=/i,
+    /javascript:/i,
 ];
 
 // ── URL Validation ─────────────────────────────────────────────────────────
@@ -211,6 +239,24 @@ interface AttrFilterResult {
     rejected: number;
 }
 
+/**
+ * H3 fix: escape every character that could break out of a double-quoted
+ * attribute value before re-serializing it. Without this a CSS value such as
+ * `color: red" onload="alert(1)` (which `sanitizeCssValue` passes — it only
+ * blocks `expression(`/`javascript:`/etc., not a bare `"`) would terminate the
+ * `style="…"` attribute and inject a live `onload` handler. `&` is escaped
+ * first so we never double-encode the entities we emit. The browser decodes
+ * `&quot;`/`&lt;`/`&gt;` back to the literal characters inside the attribute,
+ * so legitimate CSS like `font-family: "Arial"` still renders correctly.
+ */
+function escapeAttrValue(value: string): string {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+}
+
 /** Filter a single attribute, returning its sanitized form or null if rejected. */
 function filterAttribute(tag: string, attrName: string, attrValue: string): string | null {
     if (attrName.startsWith('on')) return null;
@@ -229,12 +275,11 @@ function filterAttribute(tag: string, attrName: string, attrValue: string): stri
 
     if (attrName === 'style') {
         const sanitized = sanitizeStyleAttribute(attrValue);
-        return sanitized ? `style="${sanitized}"` : null;
+        return sanitized ? `style="${escapeAttrValue(sanitized)}"` : null;
     }
 
-    // H1 fix: HTML-escape double-quotes in attribute values before re-serializing with double-quote delimiters
-    const safeValue = attrValue.replaceAll('"', '&quot;');
-    return `${attrName}="${safeValue}"`;
+    // H1/H3 fix: escape attribute-breaking characters before re-serializing with double-quote delimiters
+    return `${attrName}="${escapeAttrValue(attrValue)}"`;
 }
 
 /** Parse and filter all attributes from a decoded attribute string. */
@@ -256,12 +301,19 @@ function filterAttributes(tag: string, decodedAttrs: string): AttrFilterResult {
         }
     }
 
-    // Handle bare attributes (no value) like hidden
+    // Handle bare attributes (no value) like `hidden` or `data-slide`.
+    // H5 fix: the valued-attribute path already allows any `data-*`, but the
+    // bare path only kept GLOBAL_ATTRIBUTES — so the renderer's boolean
+    // `data-slide` marker (irToHtml.slideOpen) was silently stripped, forcing
+    // slideRuntime's `section[data-slide]` query to fall back to `.slide` by
+    // accident. Mirror the valued-path allowlist (data-/aria- prefixes) here so
+    // the renderer↔sanitizer contract holds. `on*` stays excluded.
     const bareAttrPattern = /\s+([a-zA-Z][a-zA-Z0-9_-]*)(?=\s|\/?>|$)(?!\s*=)/g;
     let bareMatch: RegExpExecArray | null;
     while ((bareMatch = bareAttrPattern.exec(decodedAttrs)) !== null) {
         const attrName = bareMatch[1].toLowerCase();
-        if (GLOBAL_ATTRIBUTES.has(attrName)) {
+        if (attrName.startsWith('on')) continue;
+        if (GLOBAL_ATTRIBUTES.has(attrName) || attrName.startsWith('data-') || attrName.startsWith('aria-')) {
             kept.push(attrName);
         }
     }
