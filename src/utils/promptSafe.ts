@@ -31,3 +31,15 @@ export function escapeForPrompt(text: string): string {
         (_m, slash: string, tag: string, attrs: string, selfClose: string) => `< ${slash}${tag}${attrs}${selfClose}>`,
     );
 }
+
+/**
+ * Serialise a value to JSON that is safe to embed in a prompt `<section>`: every
+ * `<` / `>` becomes a JSON unicode escape (`<` / `>`). No literal tag
+ * survives to forge a section boundary, yet the JSON stays VALID and the model
+ * decodes the escapes back to the original characters — so string values inside
+ * the object are NOT mutated. (Running `escapeForPrompt` over a serialised JSON
+ * string would corrupt any `<…>` inside the data — audit D5-D6 H4.)
+ */
+export function jsonForPrompt(value: unknown): string {
+    return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}

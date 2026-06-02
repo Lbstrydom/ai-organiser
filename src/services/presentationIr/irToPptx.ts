@@ -127,7 +127,15 @@ export async function renderDeckToPptx(
     const slideCount = deck.slides.length;
     let builtCount = 0;
     for (let i = 0; i < deck.slides.length; i++) {
-        const s = pres.addSlide();
+        // Guard addSlide too (audit H2) — if pptxgenjs rejects it, record a
+        // notice and skip rather than letting it escape the never-throws contract.
+        let s: SlideLike;
+        try {
+            s = pres.addSlide();
+        } catch (e) {
+            state.notices.push(slideFailureNotice(i, 'build', e));
+            continue;
+        }
         try {
             await renderSlide(s, deck.slides[i], i, state);
             builtCount++;

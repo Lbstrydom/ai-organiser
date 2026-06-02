@@ -75,7 +75,12 @@ function scrubSvgNode(el: Element): void {
             // Strip namespace prefix (e.g. xml:space) before the allowlist check,
             // but never allow xlink:* / *href.
             && !name.includes('href');
-        if (!isAllowed || name.startsWith('on')) {
+        // Drop EXTERNAL url() references in otherwise-allowlisted paint/presentation
+        // attributes (e.g. `fill="url(http://…)"` / `stroke="url(//…)"`) — the
+        // allowlist permits the attribute but not an external paint server. Internal
+        // refs (`url(#gradient)`) are kept. (audit D2-D4 H4.)
+        const hasExternalUrl = /url\(\s*['"]?\s*(?!#)/i.test(attr.value);
+        if (!isAllowed || name.startsWith('on') || hasExternalUrl) {
             el.removeAttribute(attr.name);
         }
     }

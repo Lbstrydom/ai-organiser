@@ -66,6 +66,16 @@ export function sanitizeExportTheme(theme: ExportTheme, onInvalid?: (field: stri
         accentColor: fix('accentColor', theme.accentColor, 'F5C842'),
         sectionBg: fix('sectionBg', theme.sectionBg, '1D6B4A'),
         bodyColor: fix('bodyColor', theme.bodyColor, '2D4A5A'),
-        fontFace: safeFont(theme.fontFace),
+        fontFace: fixFont(theme.fontFace, onInvalid),
     };
+}
+
+/** safeFont + observability — fires `onInvalid('fontFace')` when DANGEROUS chars
+ *  were stripped (not merely whitespace normalised), so font sanitisation is as
+ *  visible as colour fallback (audit M8). */
+function fixFont(raw: string, onInvalid?: (field: string) => void): string {
+    const clean = safeFont(raw);
+    const wsNormalised = (raw ?? '').replace(/\s+/g, ' ').trim();
+    if (clean !== wsNormalised) onInvalid?.('fontFace');
+    return clean;
 }

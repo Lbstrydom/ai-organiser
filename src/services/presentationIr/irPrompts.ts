@@ -12,7 +12,7 @@ import { err } from '../../core/result';
 import { tryExtractJson } from '../../utils/responseParser';
 import { IR_SCHEMA_VERSION, validateDeckIr, type SlideDeckIr } from './slideIr';
 import { buildIconReference } from './iconRegistry';
-import { escapeForPrompt } from '../../utils/promptSafe';
+import { escapeForPrompt, jsonForPrompt } from '../../utils/promptSafe';
 
 /** A compact `(brief → IR)` example. Kept small to bound prompt cost. */
 const FEW_SHOT = `<example>
@@ -102,7 +102,7 @@ export function buildIrRefinePrompt(currentDeck: SlideDeckIr, userRequest: strin
     return `You are editing an existing structured slide deck (IR JSON).
 
 <current_deck>
-${escapeForPrompt(JSON.stringify(currentDeck))}
+${jsonForPrompt(currentDeck)}
 </current_deck>
 
 <edit_request>

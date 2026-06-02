@@ -21,6 +21,14 @@ describe('sanitizeSvgMarkup (relocated, neutral util)', () => {
     it('returns empty string for non-SVG / unparseable input (fail-closed)', () => {
         expect(sanitizeSvgMarkup('<div>not svg</div>')).toBe('');
     });
+    it('drops EXTERNAL url() in paint attributes, keeps internal url(#…) (H4)', () => {
+        const dirty = `<svg xmlns="http://www.w3.org/2000/svg">`
+            + `<rect fill="url(http://evil/x)" x="0" y="0" width="2" height="2"/>`
+            + `<circle fill="url(#grad)" cx="1" cy="1" r="1"/></svg>`;
+        const clean = sanitizeSvgMarkup(dirty);
+        expect(clean.toLowerCase()).not.toContain('url(http');   // external paint server dropped
+        expect(clean).toContain('url(#grad)');                   // internal ref kept
+    });
 });
 
 describe('stripDangerousHtml (relocated, defence-in-depth)', () => {

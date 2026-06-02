@@ -54,9 +54,16 @@ describe('sanitizeExportTheme', () => {
         expect(bad).toContain('primaryColor');
         expect(t.primaryColor).toBe('1A3A5C');
     });
-    it('sanitises a malicious fontFace', () => {
-        const t = sanitizeExportTheme({ ...base, fontFace: 'Evil"; color:red; }' }, () => {});
+    it('sanitises a malicious fontFace AND fires onInvalid (M8)', () => {
+        const bad: string[] = [];
+        const t = sanitizeExportTheme({ ...base, fontFace: 'Evil"; color:red; }' }, f => bad.push(f));
         expect(t.fontFace).not.toContain(';');
         expect(t.fontFace).not.toContain('}');
+        expect(bad).toContain('fontFace');
+    });
+    it('does NOT fire onInvalid for a benign font (incl. extra whitespace)', () => {
+        const bad: string[] = [];
+        sanitizeExportTheme({ ...base, fontFace: 'Noto  Sans' }, f => bad.push(f));
+        expect(bad).not.toContain('fontFace');
     });
 });
