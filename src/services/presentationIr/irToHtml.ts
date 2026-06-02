@@ -20,7 +20,7 @@
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { ExportTheme } from '../export/exportTheme';
-import { sanitizeSvgMarkup } from '../chat/presentationSanitizer';
+import { sanitizeSvgMarkup, stripDangerousHtml } from '../../utils/svgSanitize';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor } from './slideIr';
 import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
@@ -59,21 +59,6 @@ const esc = (s: string): string =>
 const hx = (hex: string): string => `#${hex.replace('#', '')}`;
 /** 8-digit hex tint (alpha) for light card/callout fills over a white slide. */
 const tint = (hex: string, alpha = '22'): string => `${hx(hex)}${alpha}`;
-
-/**
- * Defense-in-depth strip for raw `custom.html` so the renderer output is safe
- * even when consumed directly (audit H2/H5). The service still runs the full
- * `sanitizePresentation` allowlist on top. Non-stateful `String.replace`.
- */
-function stripDangerousHtml(html: string): string {
-    return html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<script[^>]*>/gi, '')
-        .replace(/[\s/]on\w+\s*=\s*"[^"]*"/gi, '')
-        .replace(/[\s/]on\w+\s*=\s*'[^']*'/gi, '')
-        .replace(/[\s/]on\w+\s*=\s*[^\s>]+/gi, '')
-        .replace(/javascript:/gi, '');
-}
 
 export function renderDeckToHtml(deck: SlideDeckIr, rawTheme: ExportTheme, opts: RenderHtmlOptions = {}): Result<HtmlRenderOutput> {
     // Same validity contract as renderDeckToPptx (audit M6/M19 — the two

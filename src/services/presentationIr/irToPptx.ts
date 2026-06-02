@@ -17,7 +17,7 @@
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { ExportTheme } from '../export/exportTheme';
-import { sanitizeSvgMarkup } from '../chat/presentationSanitizer';
+import { sanitizeSvgMarkup } from '../../utils/svgSanitize';
 import {
     CANVAS, MARGIN, CONTENT_TOP, CONTENT_WIDTH, FOOTER_Y,
     splitColumns, gridColumns, estimateTextHeight, tableColumnWidths,
