@@ -25,6 +25,8 @@ export interface ProviderSettingsMap {
     grok?: ProviderSettings;
     mistral?: ProviderSettings;
     'openai-compatible'?: ProviderSettings;
+    'azure-claude'?: ProviderSettings;
+    'azure-openai'?: ProviderSettings;
 
 }
 
@@ -359,6 +361,42 @@ export interface AIOrganiserSettings {
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
     secretStorageMigrated: boolean;      // Whether keys have been migrated to SecretStorage
+
+    // === AZURE AI FOUNDRY (Plan A — Azure providers) ===
+    /** Azure-first mode is UX-ONLY (plan AD-6): when true, the settings UI promotes
+     *  the Azure section and collapses the other providers. It does NOT route
+     *  requests — actual routing stays driven by `cloudServiceType` + per-task
+     *  provider selection. Vault-local; default off. */
+    azureFirstMode: boolean;
+    /** Write-once migration input; cleared after the SecretStorage write. */
+    azureApiKey: string;
+    /** Soft indicator that a key lives in SecretStorage. */
+    azureKeyStored: boolean;
+    /** Azure AI Foundry endpoint host (Claude) — e.g. https://<your-resource>.services.ai.azure.com */
+    azureAIEndpoint: string;
+    /** Azure OpenAI endpoint host (GPT/embeddings/Whisper) — e.g. https://<your-resource>.openai.azure.com */
+    azureOpenAIEndpoint: string;
+    /** Deployment name for audio transcription (default 'whisper'). */
+    azureWhisperDeployment: string;
+    /** GPT model id used by the Azure OpenAI surface. */
+    azureGPTModel: string;
+    /** model-based (default; model in body) vs deployment-based (deployment in URL). */
+    azureRoutingMode: 'model-based' | 'deployment-based';
+    /** Canonical-model-id → deployment-name mapping for deployment-based routing. */
+    azureDeployments: { chat?: string; embeddings?: string };
+    /** Legacy deployment-based paths (whisper + chat/embeddings) carry an api-version; override here if Azure changes it. */
+    azureApiVersionOverride: { whisper?: string; chat?: string };
+    /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
+    taskModels: {
+        tagging: string;
+        summarization: string;
+        audit: string;
+        research: string;
+        chat: string;
+        mermaid: string;
+        embeddings: string;
+        transcription: string;
+    };
 }
 
 // Main plugin folder - all subfolders are relative to this
@@ -643,6 +681,29 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet
+
+    // Azure AI Foundry Defaults — ALL endpoints empty in the public store.
+    // No corporate value ships in DEFAULT_SETTINGS (plan §2/§8).
+    azureFirstMode: false,
+    azureApiKey: '',
+    azureKeyStored: false,
+    azureAIEndpoint: '',
+    azureOpenAIEndpoint: '',
+    azureWhisperDeployment: 'whisper',
+    azureGPTModel: 'gpt-5.3-chat',
+    azureRoutingMode: 'model-based',
+    azureDeployments: {},
+    azureApiVersionOverride: {},
+    taskModels: {
+        tagging: 'claude-sonnet-4-6',
+        summarization: 'claude-sonnet-4-6',
+        audit: 'claude-opus-4-6',
+        research: 'claude-opus-4-6',
+        chat: 'claude-sonnet-4-6',
+        mermaid: 'claude-sonnet-4-6',
+        embeddings: 'text-embedding-3-large',
+        transcription: 'whisper',
+    },
 };
 
 /**
@@ -929,7 +990,52 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         delete oldSettings.notebooklmPdfIncludeTitle;
     }
 
+    migrateAzureSettings(oldSettings);
+
     return oldSettings;
+}
+
+/**
+ * Plan A — Azure providers migration (sync, pure; plan §9).
+ *
+ * - Rename the work-fork `workplaceMode` flag → `azureFirstMode` (non-destructive).
+ * - Seed missing Azure connection-config + `taskModels` defaults so a settings
+ *   object saved before these fields existed type-narrows cleanly.
+ *
+ * Intentionally does NOT force `cloudServiceType` or rewrite `embeddingProvider`
+ * (the work fork did — that is corporate routing behaviour). Public Azure-first
+ * mode is UX-only (plan AD-6); the user explicitly selects the Azure provider.
+ *
+ * Async secret-id migration (SecretStorage keychain) cannot run inside this pure
+ * function — it lives in `main.ts` `migrateAzureSecretOnLoad()`, called from
+ * `loadSettings()` after this pure pass.
+ */
+function migrateAzureSettings(s: Record<string, unknown>): void {
+    // workplaceMode (work-fork) → azureFirstMode (public). Non-destructive rename.
+    if (typeof s.workplaceMode === 'boolean' && s.azureFirstMode === undefined) {
+        s.azureFirstMode = s.workplaceMode;
+    }
+    delete s.workplaceMode;
+
+    if (typeof s.azureFirstMode !== 'boolean') s.azureFirstMode = DEFAULT_SETTINGS.azureFirstMode;
+    if (typeof s.azureApiKey !== 'string') s.azureApiKey = DEFAULT_SETTINGS.azureApiKey;
+    if (typeof s.azureKeyStored !== 'boolean') s.azureKeyStored = DEFAULT_SETTINGS.azureKeyStored;
+    if (typeof s.azureAIEndpoint !== 'string') s.azureAIEndpoint = DEFAULT_SETTINGS.azureAIEndpoint;
+    if (typeof s.azureOpenAIEndpoint !== 'string') s.azureOpenAIEndpoint = DEFAULT_SETTINGS.azureOpenAIEndpoint;
+    if (typeof s.azureWhisperDeployment !== 'string') s.azureWhisperDeployment = DEFAULT_SETTINGS.azureWhisperDeployment;
+    if (typeof s.azureGPTModel !== 'string') s.azureGPTModel = DEFAULT_SETTINGS.azureGPTModel;
+    if (s.azureRoutingMode !== 'model-based' && s.azureRoutingMode !== 'deployment-based') {
+        s.azureRoutingMode = DEFAULT_SETTINGS.azureRoutingMode;
+    }
+    if (typeof s.azureDeployments !== 'object' || s.azureDeployments === null) {
+        s.azureDeployments = { ...DEFAULT_SETTINGS.azureDeployments };
+    }
+    if (typeof s.azureApiVersionOverride !== 'object' || s.azureApiVersionOverride === null) {
+        s.azureApiVersionOverride = { ...DEFAULT_SETTINGS.azureApiVersionOverride };
+    }
+    if (typeof s.taskModels !== 'object' || s.taskModels === null) {
+        s.taskModels = { ...DEFAULT_SETTINGS.taskModels };
+    }
 }
 
 /**

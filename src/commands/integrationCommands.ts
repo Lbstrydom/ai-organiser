@@ -507,7 +507,8 @@ export async function resolveAllPendingContent(
     const audioConfig: AudioTranscriptionConfig | undefined = audioTranscriptionConfig
         ? {
             provider: audioTranscriptionConfig.provider,
-            apiKey: audioTranscriptionConfig.key
+            apiKey: audioTranscriptionConfig.key,
+            azureEndpoint: audioTranscriptionConfig.azureEndpoint
         }
         : undefined;
 
@@ -517,6 +518,7 @@ export async function resolveAllPendingContent(
             provider: pdfProviderConfig.provider,
             apiKey: pdfProviderConfig.apiKey,
             model: pdfProviderConfig.model,
+            endpoint: pdfProviderConfig.endpoint,
             language: plugin.settings.summaryLanguage !== 'auto'
                 ? plugin.settings.summaryLanguage
                 : undefined

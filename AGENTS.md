@@ -2725,6 +2725,36 @@ Phase 2 work surfaced that officeparser was silently broken in the production bu
 - **Volatile-after-stable invariant** (chat handler): test `freeChatModeHandler.test.ts` asserts `stablePrefix` is byte-identical between turns 1 and 2 when context doesn't change. The reorder of "flat attachments above history" is what makes this true — pre-Phase-3, attachments sat AFTER history, so the prefix wasn't contiguous.
 - **Provider-neutral API**: `stablePrefix` on generic `SummarizeOptions` works for all providers. Claude uses it for `cache_control`; others silently concatenate. Adding Gemini context caching later doesn't require changing callers.
 
+## Azure AI Foundry Providers
+
+**Status**: ✅ Implemented (June 2026) — config-gated, default off
+
+Two first-class providers for Azure AI Foundry, which exposes two surfaces under one resource + one API key (`azure-ai-foundry-key`):
+- **`azure-claude`** — Claude via `/anthropic/v1/messages`, `Authorization: Bearer` + `anthropic-version: 2023-06-01`. Native Anthropic request/response (mirrors `ClaudeAdapter`).
+- **`azure-openai`** — GPT chat + embeddings + Whisper via `/openai/v1/*` (model-based, model in body, no api-version) or `/openai/deployments/<dep>/...?api-version=` (deployment-based); `api-key` header. Mirrors `OpenAIAdapter`.
+
+### Core components
+- `src/services/adapters/azureClaudeAdapter.ts` / `azureOpenAIAdapter.ts` — thin variants of the public `claude`/`openai` adapters (auth header + endpoint + concrete default model differ; everything else identical). **Concrete default models, never `latest-*` sentinels** (Azure deployments lag; sentinel resolution is structurally absent on the Azure path).
+- `src/services/azure/endpointResolver.ts` — single source of all Azure URLs (`getClaudeMessagesEndpoint`/`getOpenAIChatEndpoint`/`getOpenAIEmbeddingsEndpoint`/`getWhisperEndpoint`/`normalizeEndpointUrl`) + `isAzureMode(settings)` (= `cloudServiceType.startsWith('azure')`).
+- `src/core/modelCatalog.ts` (+ `src/core/taskTypes.ts`) — model capabilities/defaults/aliases SSOT; embedding cross-dimension aliasing forbidden (would invalidate vector indexes).
+- `src/services/azure/settingsValidator.ts` — pre-flight config validation (host-anchored `*.services.ai.azure.com` / `*.openai.azure.com`, https-only, deployment-name charset).
+- `src/services/azure/azureConnectionTest.ts` — **live** connection test: real round-trips to all four surfaces (Claude / OpenAI chat / embeddings / Whisper-via-tiny-silent-WAV), per-surface `{ok, status, message}` with REDACTED messages (never echoes endpoint/key/headers).
+- `src/services/azure/requestLimiter.ts` — `SimpleSemaphore` concurrency cap.
+
+### Azure mode (auto-routing, no silent fallback)
+`isAzureMode` (main provider is `azure-*`) auto-routes specialist services to the right Azure surface — both surfaces share one resource+key:
+- **Audio → Azure Whisper**, **embeddings → Azure OpenAI**, **PDF → Azure Claude** (documents). **No silent fallback**: in Azure mode a missing/invalid Azure surface surfaces a clear error, never quietly borrows the user's personal key. **YouTube** genuinely needs a separate Gemini key (Azure has no path) — shown explicitly, not a fallback.
+- Settings UI streamlines in Azure-first mode: provider choice lives in the Azure section; the generic provider config (endpoint/key/model/test) is suppressed (`displayCloudSettings` early-returns on `isAzureMode`); Specialist Providers show "handled by Azure". A "use a different provider" escape hatch reveals the full provider dropdown to switch (a switch, NOT a fallback).
+
+### Key patterns
+- **`getAzureApiKey(plugin, provider)`** — `useMainKeyFallback: false` always (no personal-key borrow). `azure-openai` falls back to the shared Foundry key via two sequential lookups.
+- **`blockOverride = adapterType === 'azure-openai'`** in `cloudService` drops `modelOverride` on the deployment-routed URL.
+- **Capability detection**: the resolved canonical model id flows as `modelName` (so `modelCapabilities`/`tokenLimits` regexes match); the deployment name never escapes the adapter.
+- **Hygiene**: `PROVIDER_ENDPOINT` Azure entries `''`; no corporate endpoints/keys in defaults; redacted logs. `docs/plans/sync/azure-providers.md` (+ audit summary) are gitignored.
+
+### Tests
+`tests/azureClaudeAdapter.test.ts`, `tests/azureOpenAIAdapter.test.ts`, `tests/endpointResolver.test.ts`, `tests/modelCatalog.test.ts`, `tests/requestLimiter.test.ts`, `tests/openaiEmbeddingService.test.ts`, `tests/azureMode.test.ts` (isAzureMode, no-fallback, connection-test redaction).
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

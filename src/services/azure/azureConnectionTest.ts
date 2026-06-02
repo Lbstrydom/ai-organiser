@@ -1,0 +1,307 @@
+/**
+ * Live Azure connection test.
+ *
+ * Runs `validateSettings` as a pre-flight, then makes REAL minimal round-trips
+ * against each configured Azure surface (Claude messages, OpenAI chat, OpenAI
+ * embeddings) using Obsidian's `requestUrl`. Each surface is independent —
+ * one failure never aborts the others.
+ *
+ * Result messages are REDACTED: never echo endpoint URLs, keys, or header
+ * contents. HTTP statuses map to fixed user-facing strings.
+ */
+
+import { requestUrl } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
+import { getAzureApiKey } from '../apiKeyHelpers';
+import { validateSettings } from './settingsValidator';
+import {
+	getClaudeMessagesEndpoint,
+	getOpenAIChatEndpoint,
+	getOpenAIEmbeddingsEndpoint,
+	getWhisperEndpoint,
+} from './endpointResolver';
+
+export type AzureTestSurface =
+	| 'azure-claude'
+	| 'azure-openai-chat'
+	| 'azure-openai-embeddings'
+	| 'azure-openai-whisper';
+
+export interface AzureSurfaceResult {
+	surface: AzureTestSurface;
+	ok: boolean;
+	/** HTTP status when a round-trip happened; 0 when skipped or network error. */
+	status: number;
+	/** REDACTED user-facing message (no endpoint / key / header content). */
+	message: string;
+}
+
+export interface AzureTestReport {
+	/** True only when pre-flight validation passed. */
+	preflightOk: boolean;
+	/** Validation errors (shown verbatim — these are about the user's own config). */
+	preflightErrors: string[];
+	/** Per-surface live-test results (empty when pre-flight failed). */
+	surfaces: AzureSurfaceResult[];
+}
+
+const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_GPT_MODEL = 'gpt-5.3-chat';
+const DEFAULT_EMBED_MODEL = 'text-embedding-3-large';
+
+/**
+ * Map an HTTP status / failure mode to a fixed, redacted message. Never includes
+ * the endpoint, key, or any response body that could leak config.
+ */
+function redactedMessage(status: number): string {
+	if (status === 200) return 'connected';
+	if (status === 401 || status === 403) return 'unauthorized — check key';
+	if (status === 404) return 'deployment/endpoint not found';
+	if (status === 0) return 'could not reach endpoint';
+	if (status >= 500) return 'server error — try again';
+	return `unexpected response (status ${status})`;
+}
+
+/** Shared minimal POST. Returns the HTTP status, or 0 on transport failure. */
+async function probe(
+	url: string,
+	headers: Record<string, string>,
+	body: unknown,
+	signal?: AbortSignal,
+): Promise<{ status: number; bodyOk: boolean; raw?: unknown }> {
+	if (signal?.aborted) return { status: 0, bodyOk: false };
+	try {
+		const res = await requestUrl({
+			url,
+			method: 'POST',
+			headers,
+			body: JSON.stringify(body),
+			throw: false,
+		});
+		let parsed: unknown;
+		try {
+			parsed = res.json;
+		} catch {
+			parsed = undefined;
+		}
+		return { status: res.status, bodyOk: res.status === 200, raw: parsed };
+	} catch {
+		// Network / DNS / TLS / CSP rejection — surfaced as status 0.
+		return { status: 0, bodyOk: false };
+	}
+}
+
+async function testClaudeSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult> {
+	const surface: AzureTestSurface = 'azure-claude';
+	let endpoint: string;
+	try {
+		endpoint = getClaudeMessagesEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-claude');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	const model = plugin.settings.cloudModel || DEFAULT_CLAUDE_MODEL;
+	const { status, raw } = await probe(
+		endpoint,
+		{
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${key}`,
+			'anthropic-version': '2023-06-01',
+		},
+		{ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] },
+		signal,
+	);
+	// Success = HTTP 200 + a content block in the response.
+	const hasContent =
+		status === 200 &&
+		!!raw &&
+		typeof raw === 'object' &&
+		Array.isArray((raw as { content?: unknown }).content) &&
+		(raw as { content: unknown[] }).content.length > 0;
+	const ok = hasContent;
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+}
+
+async function testOpenAIChatSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	// Only run when the Azure OpenAI endpoint is configured.
+	if (!plugin.settings.azureOpenAIEndpoint) return null;
+	const surface: AzureTestSurface = 'azure-openai-chat';
+	let endpoint: string;
+	try {
+		endpoint = getOpenAIChatEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-openai');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	const model = plugin.settings.azureGPTModel || DEFAULT_GPT_MODEL;
+	// Mirror AzureOpenAIAdapter: gpt-5 / o1 / o3 are reasoning models — Azure rejects
+	// `max_tokens` and `temperature` for them, requiring `max_completion_tokens`.
+	const isReasoning = model.startsWith('gpt-5') || model.startsWith('o1') || model.startsWith('o3');
+	const tokenParam = isReasoning ? { max_completion_tokens: 16 } : { max_tokens: 8 };
+	const { status, raw } = await probe(
+		endpoint,
+		{ 'Content-Type': 'application/json', 'api-key': key },
+		{ model, messages: [{ role: 'user', content: 'ping' }], ...tokenParam },
+		signal,
+	);
+	const hasChoice =
+		status === 200 &&
+		!!raw &&
+		typeof raw === 'object' &&
+		Array.isArray((raw as { choices?: unknown }).choices) &&
+		(raw as { choices: unknown[] }).choices.length > 0;
+	const ok = hasChoice;
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+}
+
+async function testEmbeddingsSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	if (!plugin.settings.azureOpenAIEndpoint) return null;
+	const surface: AzureTestSurface = 'azure-openai-embeddings';
+	let endpoint: string;
+	try {
+		endpoint = getOpenAIEmbeddingsEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-openai');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	const model = plugin.settings.embeddingModel || DEFAULT_EMBED_MODEL;
+	const { status, raw } = await probe(
+		endpoint,
+		{ 'Content-Type': 'application/json', 'api-key': key },
+		{ model, input: 'ping' },
+		signal,
+	);
+	// Success = a non-empty embedding vector in the response.
+	const data = (raw as { data?: Array<{ embedding?: unknown }> } | undefined)?.data;
+	const hasVector =
+		status === 200 &&
+		Array.isArray(data) &&
+		data.length > 0 &&
+		Array.isArray(data[0]?.embedding) &&
+		(data[0].embedding as unknown[]).length > 0;
+	const ok = hasVector;
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+}
+
+/** Build a tiny valid silent WAV (8 kHz mono 16-bit, ~0.2 s) for the Whisper probe. */
+function buildSilentWavBytes(): Uint8Array {
+	const sampleRate = 8000;
+	const numSamples = 1600; // 0.2 s
+	const dataSize = numSamples * 2;
+	const buf = new ArrayBuffer(44 + dataSize);
+	const dv = new DataView(buf);
+	let p = 0;
+	const wstr = (s: string) => { for (let i = 0; i < s.length; i++) dv.setUint8(p++, s.charCodeAt(i)); };
+	wstr('RIFF'); dv.setUint32(p, 36 + dataSize, true); p += 4;
+	wstr('WAVE'); wstr('fmt '); dv.setUint32(p, 16, true); p += 4;
+	dv.setUint16(p, 1, true); p += 2;            // PCM
+	dv.setUint16(p, 1, true); p += 2;            // mono
+	dv.setUint32(p, sampleRate, true); p += 4;
+	dv.setUint32(p, sampleRate * 2, true); p += 4; // byte rate
+	dv.setUint16(p, 2, true); p += 2;            // block align
+	dv.setUint16(p, 16, true); p += 2;           // bits per sample
+	wstr('data'); dv.setUint32(p, dataSize, true); // p += 4; data stays zero (silence)
+	return new Uint8Array(buf);
+}
+
+/** Assemble a multipart/form-data body (single `file` part) for the Whisper probe. */
+function buildWhisperMultipart(wav: Uint8Array): { body: ArrayBuffer; contentType: string } {
+	const boundary = '----AzureWhisperConnTest7f3a';
+	const enc = new TextEncoder();
+	const pre = enc.encode(
+		`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="ping.wav"\r\nContent-Type: audio/wav\r\n\r\n`,
+	);
+	const post = enc.encode(`\r\n--${boundary}--\r\n`);
+	const out = new Uint8Array(pre.length + wav.length + post.length);
+	out.set(pre, 0);
+	out.set(wav, pre.length);
+	out.set(post, pre.length + wav.length);
+	return { body: out.buffer, contentType: `multipart/form-data; boundary=${boundary}` };
+}
+
+async function testWhisperSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	// Only run when the Azure OpenAI endpoint is configured (Whisper rides the OpenAI surface).
+	if (!plugin.settings.azureOpenAIEndpoint) return null;
+	const surface: AzureTestSurface = 'azure-openai-whisper';
+	let endpoint: string;
+	try {
+		endpoint = getWhisperEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-openai');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+	if (signal?.aborted) return { surface, ok: false, status: 0, message: 'could not reach endpoint' };
+
+	const { body, contentType } = buildWhisperMultipart(buildSilentWavBytes());
+	let status = 0;
+	try {
+		const res = await requestUrl({
+			url: endpoint,
+			method: 'POST',
+			headers: { 'api-key': key, 'Content-Type': contentType },
+			body,
+			throw: false,
+		});
+		status = res.status;
+	} catch {
+		status = 0;
+	}
+	// 200 = transcribed. 400 = the request reached + authenticated + routed to the deployment
+	// but the tiny silent clip was rejected — which still proves endpoint + deployment + key
+	// are valid (the point of a connectivity test). 401/403/404/5xx/0 = genuine failure.
+	const ok = status === 200 || status === 400;
+	const message =
+		status === 200 ? 'connected'
+			: status === 400 ? 'connected — endpoint, deployment + key valid'
+				: redactedMessage(status);
+	return { surface, ok, status, message };
+}
+
+/**
+ * Run the full Azure live connection test. Pre-flight validation gates the live
+ * probes — if config is invalid, we short-circuit and report the validation
+ * errors (no network calls). Otherwise each surface is probed independently.
+ */
+export async function testAzureConnection(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureTestReport> {
+	const validation = validateSettings(plugin.settings);
+	if (!validation.valid) {
+		return { preflightOk: false, preflightErrors: validation.errors, surfaces: [] };
+	}
+
+	const surfaces: AzureSurfaceResult[] = [];
+
+	// Claude messages (always probed in Azure mode — primary surface).
+	surfaces.push(await testClaudeSurface(plugin, signal));
+
+	// OpenAI chat + embeddings — only when the OpenAI endpoint is set.
+	const chat = await testOpenAIChatSurface(plugin, signal);
+	if (chat) surfaces.push(chat);
+	const embeddings = await testEmbeddingsSurface(plugin, signal);
+	if (embeddings) surfaces.push(embeddings);
+	const whisper = await testWhisperSurface(plugin, signal);
+	if (whisper) surfaces.push(whisper);
+
+	return { preflightOk: true, preflightErrors: validation.errors, surfaces };
+}

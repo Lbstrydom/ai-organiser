@@ -34,19 +34,23 @@ export interface ExtractionResult {
 }
 
 export interface AudioTranscriptionConfig {
-    provider: 'openai' | 'groq';
+    provider: 'openai' | 'groq' | 'azure';
     apiKey: string;
     language?: string;
+    /** Azure Whisper only: pre-resolved endpoint URL. */
+    azureEndpoint?: string;
 }
 
 /**
- * Configuration for multimodal PDF extraction using Claude/Gemini
+ * Configuration for multimodal PDF extraction using Claude/Gemini/Azure-Claude
  */
 export interface PdfExtractionConfig {
-    provider: 'claude' | 'gemini';
+    provider: 'claude' | 'gemini' | 'azure-claude';
     apiKey: string;
     model: string;
     language?: string;
+    /** Resolved endpoint URL. Only set for azure-claude (vault-local config). */
+    endpoint?: string;
 }
 
 export class ContentExtractionService {
@@ -439,9 +443,13 @@ export class ContentExtractionService {
             const { CloudLLMService } = await import('./cloudService');
             const cloudService = new CloudLLMService({
                 type: this.pdfExtractionConfig.provider,
-                endpoint: this.pdfExtractionConfig.provider === 'claude'
-                    ? 'https://api.anthropic.com/v1/messages'
-                    : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+                // Azure-claude carries a resolved vault-local endpoint; the
+                // static providers use their fixed public endpoints.
+                endpoint: this.pdfExtractionConfig.endpoint
+                    ? this.pdfExtractionConfig.endpoint
+                    : this.pdfExtractionConfig.provider === 'claude'
+                        ? 'https://api.anthropic.com/v1/messages'
+                        : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
                 apiKey: this.pdfExtractionConfig.apiKey,
                 modelName: this.pdfExtractionConfig.model
             }, this.app);
@@ -513,7 +521,8 @@ export class ContentExtractionService {
             const options: TranscriptionOptions = {
                 provider: this.audioTranscriptionConfig.provider,
                 apiKey: this.audioTranscriptionConfig.apiKey,
-                language: this.audioTranscriptionConfig.language
+                language: this.audioTranscriptionConfig.language,
+                azureEndpoint: this.audioTranscriptionConfig.azureEndpoint
             };
 
             const result = await transcribeAudioWithFullWorkflow(this.app, file, options);

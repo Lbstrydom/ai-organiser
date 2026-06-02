@@ -37,7 +37,8 @@ import {
 } from '../services/youtubeService';
 import {
     transcribeAudioWithFullWorkflow,
-    AudioWorkflowProgress
+    AudioWorkflowProgress,
+    ResolvedTranscriptionConfig
 } from '../services/audioTranscriptionService';
 
 /**
@@ -1048,7 +1049,7 @@ async function extractAndTranslateAudio(
     isVaultFile: boolean,
     targetLanguage: string,
     serviceType: string,
-    audioConfig: { key: string; provider: 'openai' | 'groq' } | null
+    audioConfig: ResolvedTranscriptionConfig | null
 ): Promise<TranslatedSource> {
     const today = getTodayDate();
     const audioTitle = audioPath.split('/').pop() || audioPath;
@@ -1109,6 +1110,7 @@ async function extractAndTranslateAudio(
         {
             provider: audioConfig.provider,
             apiKey: audioConfig.key,
+            azureEndpoint: audioConfig.azureEndpoint,
             language: plugin.settings.summaryLanguage || undefined
         },
         (progress: AudioWorkflowProgress) => {

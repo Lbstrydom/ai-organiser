@@ -10,6 +10,7 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import type { AdapterType } from '../../services/adapters';
 import { buildProviderOptions, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 
 export class SpecialistProvidersSettingsSection extends BaseSettingSection {
     async display(): Promise<void> {
@@ -29,14 +30,22 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             cls: 'setting-item-description'
         });
 
-        // === YOUTUBE (Gemini) ===
+        // === YOUTUBE (Gemini) — visible in all modes (Azure has no YouTube path) ===
         await this.renderYouTubeProvider(hasSecretStorage, mainProvider);
 
-        // === PDF (Claude or Gemini) ===
-        await this.renderPdfProvider(hasSecretStorage, mainProvider);
+        if (isAzureMode(this.plugin.settings)) {
+            // In Azure mode, Audio / PDF / Embeddings route through Azure
+            // automatically — replace their provider dropdowns with a read-only
+            // "Handled automatically by Azure" status. NOT a fallback: these are
+            // genuinely served by the configured Azure resource.
+            this.renderAzureAutoStatus();
+        } else {
+            // === PDF (Claude or Gemini) ===
+            await this.renderPdfProvider(hasSecretStorage, mainProvider);
 
-        // === AUDIO TRANSCRIPTION (Whisper: OpenAI or Groq) ===
-        await this.renderAudioProvider(hasSecretStorage, mainProvider);
+            // === AUDIO TRANSCRIPTION (Whisper: OpenAI or Groq) ===
+            await this.renderAudioProvider(hasSecretStorage, mainProvider);
+        }
 
         // === FLASHCARD (Any provider, Claude recommended) ===
         this.renderFlashcardProvider();
@@ -46,6 +55,20 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
         // === QUICK PEEK (Any provider, fast/cheap recommended) ===
         this.renderQuickPeekProvider();
+    }
+
+    // ─── Azure auto-routing status (Audio / PDF / Embeddings) ───────────
+
+    /** Read-only status replacing Audio/PDF/Embeddings dropdowns in Azure mode. */
+    private renderAzureAutoStatus(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const box = this.containerEl.createDiv({ cls: 'ai-organiser-azure-auto-status' });
+        box.createEl('strong', { text: az.handledByAzureHeading });
+        box.createEl('p', { text: az.handledByAzureDesc, cls: 'setting-item-description' });
+        const list = box.createEl('ul');
+        list.createEl('li', { text: az.autoAudio, cls: 'setting-item-description' });
+        list.createEl('li', { text: az.autoPdf, cls: 'setting-item-description' });
+        list.createEl('li', { text: az.autoEmbeddings, cls: 'setting-item-description' });
     }
 
     // ─── YouTube (Gemini) ───────────────────────────────────────────────
@@ -74,6 +97,16 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
         // Sub-header
         this.containerEl.createEl('h4', { text: sp?.youtubeHeader || '🎬 YouTube — gemini' });
+
+        // In Azure mode YouTube still needs a separate Gemini key — Azure has no
+        // YouTube/Gemini path. This is a genuine separate requirement, NOT a
+        // fallback, so the YouTube provider stays fully visible here.
+        if (isAzureMode(this.plugin.settings)) {
+            this.containerEl.createDiv({
+                cls: 'setting-item-description',
+                text: this.plugin.t.settings.llm.azure.youtubeSeparateNote,
+            });
+        }
 
         // Report the *actual* source of the key, not a blanket "using main key"
         // claim. Fixes the lying-UI case where the user's main provider is

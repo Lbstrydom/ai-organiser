@@ -45,6 +45,7 @@ import { withBusyIndicator } from '../../utils/busyIndicator';
 import { resolveSlideTierModel } from '../../services/specialistModelResolver';
 import type { SummarizeOptions } from '../../services/types';
 import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import type { TranscriptionProvider } from '../../services/audioTranscriptionService';
 import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
 import {
     DEEPGRAM_LARGE_FILE_WARN_BYTES,
@@ -2092,6 +2093,7 @@ export class MinutesCreationModal extends Modal {
                 {
                     provider: provider.provider,
                     apiKey: provider.apiKey,
+                    azureEndpoint: provider.azureEndpoint,
                     language: this.getTranscriptionLanguageCode()
                 },
                 (progress) => {
@@ -2293,10 +2295,10 @@ export class MinutesCreationModal extends Modal {
         return this.state.transcriptionLanguage === 'auto' ? undefined : this.state.transcriptionLanguage;
     }
 
-    private async getTranscriptionProvider(): Promise<{ provider: 'openai' | 'groq'; apiKey: string } | null> {
+    private async getTranscriptionProvider(): Promise<{ provider: TranscriptionProvider; apiKey: string; azureEndpoint?: string } | null> {
         const result = await getAudioTranscriptionApiKey(this.plugin);
         if (result) {
-            return { provider: result.provider, apiKey: result.key };
+            return { provider: result.provider, apiKey: result.key, azureEndpoint: result.azureEndpoint };
         }
         return null;
     }

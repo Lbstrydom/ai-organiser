@@ -12,6 +12,7 @@ import { OllamaEmbeddingService } from './ollamaEmbeddingService';
 import { GeminiEmbeddingService } from './geminiEmbeddingService';
 import { CohereEmbeddingService } from './cohereEmbeddingService';
 import { VoyageEmbeddingService } from './voyageEmbeddingService';
+import { getOpenAIEmbeddingsEndpoint, isAzureMode } from '../azure/endpointResolver';
 
 // EmbeddingProvider type is imported from embeddingRegistry.ts
 export type { EmbeddingProvider } from './embeddingRegistry';
@@ -28,7 +29,8 @@ export async function createEmbeddingService(config: EmbeddingServiceConfig): Pr
             return new OpenAIEmbeddingService({
                 apiKey: config.apiKey,
                 model: config.model,
-                endpoint: config.endpoint
+                endpoint: config.endpoint,
+                authHeaderType: config.authHeaderType
             });
 
         case 'ollama':
@@ -112,6 +114,42 @@ export async function createEmbeddingServiceFromSettings(
             ? settings.providerSettings?.[provider as keyof typeof settings.providerSettings]?.apiKey
             : undefined;
         const apiKey = apiKeyOverride || settings.embeddingApiKey || providerKey || settings.cloudApiKey || '';
+
+        // Azure embeddings ride the `openai` provider with an Azure endpoint
+        // + 'api-key' auth (plan §3). In Azure mode (any azure-* main provider)
+        // openai-embeddings auto-route to the Azure embeddings surface.
+        const useAzure = provider === 'openai' && isAzureMode(settings);
+
+        if (useAzure) {
+            // No silent fallback in Azure mode: the key MUST be the Azure key
+            // (apiKeyOverride from the caller's Azure resolution, or a dedicated
+            // embedding key) — NEVER the personal OpenAI providerKey or the main
+            // cloudApiKey. Missing key OR invalid endpoint returns null so
+            // semantic search reports "Azure embeddings not configured" rather
+            // than silently embedding with local-onnx or a personal key.
+            const azureKey = apiKeyOverride || settings.embeddingApiKey || '';
+            if (!azureKey) {
+                logger.error('Search', 'Azure embeddings not configured — no Azure key resolved.');
+                return null;
+            }
+            let azureEndpoint: string | undefined;
+            try {
+                azureEndpoint = getOpenAIEmbeddingsEndpoint(settings);
+            } catch {
+                azureEndpoint = undefined;
+            }
+            if (!azureEndpoint) {
+                logger.error('Search', 'Azure embeddings not configured — Azure OpenAI endpoint missing or invalid.');
+                return null;
+            }
+            return await createEmbeddingService({
+                provider: 'openai',
+                model: settings.embeddingModel,
+                apiKey: azureKey,
+                endpoint: azureEndpoint,
+                authHeaderType: 'api-key'
+            });
+        }
 
         // If provider needs an API key but none is available, fall back to built-in local-onnx
         if (requiresApiKey(provider) && !apiKey) {

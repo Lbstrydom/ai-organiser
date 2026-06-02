@@ -48,6 +48,8 @@ export const PLUGIN_SECRET_IDS = {
     DEEPGRAM: 'ai-organiser-deepgram-key',
     LLM_ENHANCER_GEMINI: 'ai-organiser-llm-enhancer-gemini-key',
     LLM_ENHANCER_ANTHROPIC: 'ai-organiser-llm-enhancer-anthropic-key',
+    AZURE_AI_FOUNDRY: 'ai-organiser-azure-ai-foundry-key',
+    AZURE_OPENAI: 'ai-organiser-azure-openai-key',
 } as const;
 
 /**
@@ -65,6 +67,10 @@ export const PROVIDER_TO_SECRET_ID: Partial<Record<AdapterType, string>> = {
     openrouter: STANDARD_SECRET_IDS.OPENROUTER,
     grok: STANDARD_SECRET_IDS.GROK,
     'openai-compatible': STANDARD_SECRET_IDS.OPENAI_COMPATIBLE,
+    // Azure providers — `azure-openai` defaults to the shared Foundry key when
+    // its own key is unset (handled in apiKeyHelpers via fallback lookup).
+    'azure-claude': PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY,
+    'azure-openai': PLUGIN_SECRET_IDS.AZURE_OPENAI,
     // Note: Not all adapter types have standard secret IDs
     // aliyun, vertex, bedrock, requesty don't have cross-plugin IDs yet
 };

@@ -1,15 +1,44 @@
 import type AIOrganiserPlugin from '../main';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { PdfContent } from './pdfService';
+import { isAzureMode } from './azure/endpointResolver';
+import { getAzureApiKey, resolveEndpoint } from './apiKeyHelpers';
+
+export interface PdfProviderConfig {
+    provider: 'claude' | 'gemini' | 'azure-claude';
+    apiKey: string;
+    model: string;
+    /** Resolved endpoint URL. Only set for azure-claude (vault-local config). */
+    endpoint?: string;
+}
 
 /**
  * Get the PDF provider configuration
  * Returns the provider and API key to use for PDF processing
- * Priority: 1) main provider if PDF-capable, 2) dedicated PDF provider, 3) auto-detect from available keys
+ * Priority: 0) Azure mode → azure-claude (no silent fallback), 1) main provider
+ * if PDF-capable, 2) dedicated PDF provider, 3) auto-detect from available keys
  */
-export async function getPdfProviderConfig(plugin: AIOrganiserPlugin): Promise<{ provider: 'claude' | 'gemini'; apiKey: string; model: string } | null> {
+export async function getPdfProviderConfig(plugin: AIOrganiserPlugin): Promise<PdfProviderConfig | null> {
     const mainProvider = plugin.settings.cloudServiceType;
     const secretStorage = plugin.secretStorageService;
+
+    // Azure mode (plan §4): PDF routes to azure-claude — the only Azure surface
+    // with document multimodal capability. No silent fallback to a personal
+    // Claude/Gemini key; if the Azure key/endpoint is missing we return null and
+    // the caller surfaces "PDF provider not configured".
+    if (isAzureMode(plugin.settings)) {
+        const azureKey = await getAzureApiKey(plugin, 'azure-claude');
+        const endpoint = resolveEndpoint('azure-claude', plugin);
+        if (azureKey && endpoint) {
+            return {
+                provider: 'azure-claude',
+                apiKey: azureKey,
+                model: plugin.settings.cloudModel || 'claude-sonnet-4-6',
+                endpoint,
+            };
+        }
+        return null;
+    }
 
     const resolveProviderKey = async (
         provider: 'claude' | 'gemini',
@@ -131,12 +160,15 @@ export async function translatePdfWithLLM(
             return response;
         }
 
-        // Create temporary service with PDF provider config
+        // Create temporary service with PDF provider config. Azure-claude uses
+        // the resolved vault-local endpoint; claude/gemini use static endpoints.
         const pdfCloudService = new CloudLLMService({
             type: pdfConfig.provider,
-            endpoint: pdfConfig.provider === 'claude'
-                ? 'https://api.anthropic.com/v1/messages'
-                : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            endpoint: pdfConfig.endpoint
+                ? pdfConfig.endpoint
+                : pdfConfig.provider === 'claude'
+                    ? 'https://api.anthropic.com/v1/messages'
+                    : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
             apiKey: pdfConfig.apiKey,
             // `latest-*` sentinels resolve inside CloudLLMService constructor
             // via the dynamic-model cache → static registry → passthrough,

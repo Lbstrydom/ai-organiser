@@ -17,6 +17,7 @@ import {
 } from '../../services/audioRecordingService';
 import { MAX_FILE_SIZE_BYTES, transcribeAudio, formatFileSize } from '../../services/audioTranscriptionService';
 import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 import { ensureFolderExists, sanitizeFileName, getAvailableFilePath } from '../../utils/minutesUtils';
 import { insertAtCursor } from '../../utils/editorUtils';
 import { DEFAULT_RECORDING_FOLDER } from '../../core/constants';
@@ -424,7 +425,17 @@ export class AudioRecorderModal extends Modal {
     private async transcribeFile(file: TFile): Promise<string | undefined> {
         try {
             const apiKeyResult = await getAudioTranscriptionApiKey(this.plugin);
-            if (!apiKeyResult) return undefined;
+            if (!apiKeyResult) {
+                // No silent no-op: name the missing provider so the user knows
+                // what to fix. In Azure mode this means the Azure OpenAI
+                // endpoint / shared key; otherwise OpenAI or Groq.
+                new Notice(
+                    isAzureMode(this.plugin.settings)
+                        ? 'Transcription provider not configured — set your Azure OpenAI endpoint and key in AI provider settings.'
+                        : 'Transcription provider not configured — add an OpenAI or Groq key in settings.',
+                );
+                return undefined;
+            }
 
             const language = this.options.transcriptionLanguage || 'auto';
 
@@ -433,6 +444,7 @@ export class AudioRecorderModal extends Modal {
             const result = await transcribeAudio(this.app, file, {
                 provider: apiKeyResult.provider,
                 apiKey: apiKeyResult.key,
+                azureEndpoint: apiKeyResult.azureEndpoint,
                 language: language === 'auto' ? undefined : language
             });
 

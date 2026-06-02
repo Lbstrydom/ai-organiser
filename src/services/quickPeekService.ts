@@ -92,7 +92,7 @@ export class QuickPeekService {
                 : undefined
         );
         if (audioConfig) {
-            extractor.setAudioTranscriptionConfig({ provider: audioConfig.provider, apiKey: audioConfig.key });
+            extractor.setAudioTranscriptionConfig({ provider: audioConfig.provider, apiKey: audioConfig.key, azureEndpoint: audioConfig.azureEndpoint });
         }
         return extractor;
     }

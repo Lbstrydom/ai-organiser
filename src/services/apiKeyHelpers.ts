@@ -3,6 +3,77 @@ import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import type { AdapterType } from './adapters';
 import { PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT } from './adapters/providerRegistry';
 import type { AIOrganiserSettings } from '../core/settings';
+import { getOpenAIChatEndpoint, getWhisperEndpoint, isAzureMode } from './azure/endpointResolver';
+import type { ResolvedTranscriptionConfig } from './audioTranscriptionService';
+
+/**
+ * Resolve the endpoint for a provider.
+ *
+ * Static providers read from `PROVIDER_ENDPOINT`. Azure providers have EMPTY
+ * entries there — their URL is vault-local config resolved from settings at
+ * call time (plan AD-4). Returns `''` when the Azure endpoint is unset/invalid
+ * (empty-state guidance, no broken network call).
+ */
+export function resolveEndpoint(provider: AdapterType, plugin: AIOrganiserPlugin): string {
+    const staticEndpoint = PROVIDER_ENDPOINT[provider];
+    if (staticEndpoint) return staticEndpoint;
+
+    if (provider === 'azure-claude') {
+        const base = (plugin.settings.azureAIEndpoint || '').replace(/\/+$/, '');
+        return base ? `${base}/anthropic/v1/messages` : '';
+    }
+    if (provider === 'azure-openai') {
+        try {
+            return getOpenAIChatEndpoint(plugin.settings);
+        } catch {
+            // Missing/invalid endpoint → empty-state guidance, no network call.
+            return '';
+        }
+    }
+    return '';
+}
+
+/**
+ * Resolve the Azure API key for an Azure provider.
+ *
+ * `azure-claude` → AZURE_AI_FOUNDRY secret. `azure-openai` → its own
+ * AZURE_OPENAI secret, falling back to the shared AZURE_AI_FOUNDRY key when
+ * unset (plan AD-2 — the corporate setup shares one resource/key, but the
+ * public store also supports separate keys). `useMainKeyFallback: false`
+ * everywhere — an Azure provider must never silently borrow the user's
+ * personal Claude/OpenAI key (Deepgram lesson, AD-8).
+ */
+export async function getAzureApiKey(
+    plugin: AIOrganiserPlugin,
+    provider: 'azure-claude' | 'azure-openai',
+): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    const plainTextFallback = { primaryKey: plugin.settings.azureApiKey };
+
+    if (!secretStorage.isAvailable()) {
+        return plugin.settings.azureApiKey || null;
+    }
+
+    if (provider === 'azure-claude') {
+        return await secretStorage.resolveApiKey({
+            primaryId: PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY,
+            useMainKeyFallback: false,
+            plainTextFallback,
+        });
+    }
+
+    // azure-openai: dedicated key first, then shared Foundry key, then plaintext.
+    const dedicated = await secretStorage.resolveApiKey({
+        primaryId: PLUGIN_SECRET_IDS.AZURE_OPENAI,
+        useMainKeyFallback: false,
+    });
+    if (dedicated) return dedicated;
+    return await secretStorage.resolveApiKey({
+        primaryId: PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY,
+        useMainKeyFallback: false,
+        plainTextFallback,
+    });
+}
 
 /**
  * Unified specialist provider configuration.
@@ -95,7 +166,7 @@ export async function resolveSpecialistProvider(
     const model = options.modelKey
         ? (settings[options.modelKey] as string) || PROVIDER_DEFAULT_MODEL[provider] || ''
         : PROVIDER_DEFAULT_MODEL[provider] || '';
-    const endpoint = PROVIDER_ENDPOINT[provider] || '';
+    const endpoint = resolveEndpoint(provider, plugin);
 
     return { provider, apiKey, model, endpoint };
 }
@@ -266,9 +337,37 @@ export async function hasLlmEnhancementKey(
 
 /**
  * Get API key for audio transcription (Whisper).
- * Tries selected provider first, then falls back to the other (openai↔groq).
+ *
+ * In Azure mode (main provider is ANY azure-* surface), route Whisper through
+ * the Azure OpenAI surface using the shared Foundry key + the resolved Whisper
+ * endpoint — even when the main model is azure-claude. NO silent fallback: if
+ * the Azure key or endpoint is missing/invalid, return null so the caller
+ * surfaces "transcription provider not configured" rather than quietly billing
+ * a personal OpenAI/Groq key. Direct openai/groq fallback only when NOT in
+ * Azure mode.
  */
-export async function getAudioTranscriptionApiKey(plugin: AIOrganiserPlugin): Promise<{ key: string; provider: 'openai' | 'groq' } | null> {
+export async function getAudioTranscriptionApiKey(
+    plugin: AIOrganiserPlugin,
+): Promise<ResolvedTranscriptionConfig | null> {
+    // Azure Whisper path (plan §2): any azure-* main provider routes here.
+    if (isAzureMode(plugin.settings)) {
+        // Whisper rides the Azure OpenAI surface — resolve the shared key.
+        const azureKey = await getAzureApiKey(plugin, 'azure-openai');
+        if (azureKey) {
+            try {
+                const azureEndpoint = getWhisperEndpoint(plugin.settings);
+                return { key: azureKey, provider: 'azure', azureEndpoint };
+            } catch {
+                // Missing/invalid Azure OpenAI endpoint. No silent fallback in
+                // Azure mode — fall through to the null return below.
+            }
+        }
+        // No Azure key or no valid endpoint: return null (no openai/groq
+        // fallback). The caller surfaces a "transcription provider not
+        // configured" notice naming the Azure OpenAI endpoint as the fix.
+        return null;
+    }
+
     const selectedProvider = plugin.settings.audioTranscriptionProvider || 'openai';
 
     const resolveKey = async (provider: 'openai' | 'groq'): Promise<string | null> => {
@@ -336,7 +435,9 @@ export async function getQuickPeekProviderConfig(
 
 /**
  * Resolve Claude Web Search API key.
- * AD-4: dedicated research key → main Claude key (when provider is Claude).
+ * AD-4/AD-8: dedicated research key → main Claude key (when provider is Claude)
+ * → Azure AI Foundry key (only when provider is `azure-claude`) → null.
+ * No silent fall-through to a personal Anthropic key from the Azure tier.
  */
 export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<string | null> {
     const secretStorage = plugin.secretStorageService;
@@ -351,6 +452,16 @@ export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<
         if (mainKey) return mainKey;
         return plugin.settings.cloudApiKey || null;
     }
+
+    // AZURE (plan AD-8): the shared Foundry key serves web search, but ONLY when
+    // the user has actually selected the Azure Claude provider — never a silent
+    // cross-boundary fallback to a personal Anthropic key.
+    if (plugin.settings.cloudServiceType === 'azure-claude') {
+        return await getAzureApiKey(plugin, 'azure-claude');
+    }
+    // Azure transport (base + Bearer auth + dynamic-filtering `anthropic-beta`
+    // header) is wired in `claudeWebSearchAdapter` via the `azureEndpointBase`
+    // option threaded from `researchSearchService`.
     return null;
 }
 

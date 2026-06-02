@@ -8,20 +8,28 @@ import { getFs, getPath } from '../utils/desktopRequire';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
 
-export type TranscriptionProvider = 'openai' | 'groq';
+export type TranscriptionProvider = 'openai' | 'groq' | 'azure';
 
 /**
  * Audio Transcription Provider Registry
- * Single source of truth for Whisper API endpoints and models
+ * Single source of truth for Whisper API endpoints and models.
+ *
+ * Azure Whisper (plan §5): the endpoint is resolved dynamically by the caller via
+ * `azure/endpointResolver.getWhisperEndpoint(settings)` (carries the
+ * `deployments/<dep>/audio/transcriptions?api-version=2024-10-21` pattern) and
+ * passed in as `options.azureEndpoint`. Azure auth uses the `api-key` header
+ * (not `Authorization: Bearer`); the model name is the deployment ('whisper').
  */
-const WHISPER_ENDPOINT: Record<TranscriptionProvider, string> = {
+// Direct-provider endpoints (Azure is resolved dynamically, so excluded here).
+const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure'>, string> = {
     openai: 'https://api.openai.com/v1/audio/transcriptions',
     groq: 'https://api.groq.com/openai/v1/audio/transcriptions'
 };
 
 const WHISPER_MODEL: Record<TranscriptionProvider, string> = {
     openai: 'whisper-1',
-    groq: 'whisper-large-v3'
+    groq: 'whisper-large-v3',
+    azure: 'whisper'
 };
 
 /** Whisper verbose_json segment with timestamps and quality signals (Phase 4b TRA) */
@@ -66,6 +74,22 @@ export interface TranscriptionOptions {
     apiKey: string;
     language?: string;
     prompt?: string;
+    /**
+     * Azure Whisper only: pre-resolved endpoint URL (includes deployment name +
+     * api-version). Required when `provider === 'azure'`; ignored otherwise.
+     */
+    azureEndpoint?: string;
+}
+
+/**
+ * Resolved transcription credentials returned by `getAudioTranscriptionApiKey`.
+ * For Azure (`provider === 'azure'`), `azureEndpoint` carries the pre-resolved
+ * Whisper URL and callers MUST forward it into `TranscriptionOptions`.
+ */
+export interface ResolvedTranscriptionConfig {
+    key: string;
+    provider: TranscriptionProvider;
+    azureEndpoint?: string;
 }
 
 // Supported audio formats for Whisper API
@@ -160,7 +184,7 @@ export async function transcribeAudio(
         }
 
         // Get the appropriate endpoint and prepare the request
-        const endpoint = getWhisperEndpoint(options.provider);
+        const endpoint = getWhisperEndpoint(options);
 
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
@@ -184,7 +208,7 @@ export async function transcribeAudio(
             url: endpoint,
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${options.apiKey}`,
+                ...getTranscriptionAuthHeaders(options),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
             body: formData,
@@ -240,7 +264,7 @@ export async function transcribeAudioFromData(
         }
 
         // Get the appropriate endpoint and prepare the request
-        const endpoint = getWhisperEndpoint(options.provider);
+        const endpoint = getWhisperEndpoint(options);
 
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
@@ -268,7 +292,7 @@ export async function transcribeAudioFromData(
             url: endpoint,
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${options.apiKey}`,
+                ...getTranscriptionAuthHeaders(options),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
             body: formData,
@@ -307,10 +331,28 @@ export async function transcribeAudioFromData(
 }
 
 /**
- * Get the Whisper API endpoint for the provider
+ * Get the Whisper API endpoint for the provider.
+ * Azure callers must supply the pre-resolved endpoint in `options.azureEndpoint`.
  */
-function getWhisperEndpoint(provider: TranscriptionProvider): string {
-    return WHISPER_ENDPOINT[provider] || WHISPER_ENDPOINT.openai;
+function getWhisperEndpoint(options: TranscriptionOptions): string {
+    if (options.provider === 'azure') {
+        if (!options.azureEndpoint) {
+            throw new Error('Azure Whisper requires a resolved endpoint');
+        }
+        return options.azureEndpoint;
+    }
+    return WHISPER_ENDPOINT[options.provider] || WHISPER_ENDPOINT.openai;
+}
+
+/**
+ * Build auth headers for the transcription provider.
+ * Azure OpenAI uses the `api-key` header; OpenAI/Groq use a Bearer token.
+ */
+function getTranscriptionAuthHeaders(options: TranscriptionOptions): Record<string, string> {
+    if (options.provider === 'azure') {
+        return { 'api-key': options.apiKey };
+    }
+    return { 'Authorization': `Bearer ${options.apiKey}` };
 }
 
 /**
@@ -331,7 +373,6 @@ function buildMultipartFormData(
     boundary: string
 ): ArrayBuffer {
     const mimeType = getAudioMimeType(extension);
-    const model = getWhisperModel(options.provider);
 
     // Build the form data parts
     const parts: (string | ArrayBuffer)[] = [];
@@ -345,12 +386,17 @@ function buildMultipartFormData(
     parts.push(fileData);
     parts.push('\r\n');
 
-    // Model part
-    parts.push(
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="model"\r\n\r\n` +
-        `${model}\r\n`
-    );
+    // Model part — OMITTED for Azure: the deployment encoded in the URL is the
+    // authoritative model selector, and a static `model` field conflicts with
+    // deployment-scoped semantics. openai/groq still require it.
+    if (options.provider !== 'azure') {
+        const model = getWhisperModel(options.provider);
+        parts.push(
+            `--${boundary}\r\n` +
+            `Content-Disposition: form-data; name="model"\r\n\r\n` +
+            `${model}\r\n`
+        );
+    }
 
     // Response format — verbose_json provides timestamps + quality signals (Phase 4b TRA)
     parts.push(
@@ -472,7 +518,7 @@ export async function transcribeExternalAudio(
         const extension = path.extname(normalizedPath).slice(1).toLowerCase();
 
         // Get the appropriate endpoint and prepare the request
-        const endpoint = getWhisperEndpoint(options.provider);
+        const endpoint = getWhisperEndpoint(options);
 
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
@@ -489,7 +535,7 @@ export async function transcribeExternalAudio(
             url: endpoint,
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${options.apiKey}`,
+                ...getTranscriptionAuthHeaders(options),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
             body: formData

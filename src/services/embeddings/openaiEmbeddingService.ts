@@ -20,7 +20,19 @@ export interface OpenAIEmbeddingConfig {
     apiKey: string;
     model?: string;
     endpoint?: string;
+    /**
+     * Auth header style (Plan A — Azure providers).
+     * 'bearer' (default) → `Authorization: Bearer` (OpenAI direct).
+     * 'api-key' / 'azure' → `api-key` header (Azure OpenAI embeddings).
+     */
+    authHeaderType?: 'bearer' | 'api-key' | 'azure';
 }
+
+/**
+ * Azure caps embedding batch size well below OpenAI's 2048 — large arrays 400
+ * unless clamped. 16 is a safe per-request batch for the Azure path (plan §5).
+ */
+export const AZURE_EMBEDDING_BATCH_SIZE = 16;
 
 /**
  * OpenAI Embedding Service Implementation
@@ -31,6 +43,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     private model: string;
     private endpoint: string;
     private dimensions: number;
+    private authHeaderType: 'bearer' | 'api-key' | 'azure';
     // OpenAI embedding models support 8191 tokens max
     // Using ~4 chars/token as conservative estimate, with safety margin
     private static readonly MAX_CHARS = 30000; // ~7500 tokens
@@ -40,6 +53,22 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         this.model = config.model || 'text-embedding-3-small';
         this.endpoint = config.endpoint || 'https://api.openai.com/v1/embeddings';
         this.dimensions = getEmbeddingDimensions(this.model);
+        // Default 'bearer' preserves OpenAI-direct behaviour; Azure callers pass 'api-key'.
+        this.authHeaderType = config.authHeaderType ?? 'bearer';
+    }
+
+    /** Build auth + content-type headers per configured auth style. */
+    private buildHeaders(): Record<string, string> {
+        if (this.authHeaderType === 'bearer') {
+            return { 'Authorization': `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' };
+        }
+        // 'api-key' / 'azure' both use the Azure-style api-key header.
+        return { 'api-key': this.apiKey, 'Content-Type': 'application/json' };
+    }
+
+    /** Whether this service is talking to an Azure endpoint (drives batch clamp). */
+    private get isAzure(): boolean {
+        return this.authHeaderType === 'api-key' || this.authHeaderType === 'azure';
     }
 
     /**
@@ -71,10 +100,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
             const requestParams: RequestUrlParam = {
                 url: this.endpoint,
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: this.buildHeaders(),
                 body: JSON.stringify({
                     model: this.model,
                     input: processedText,
@@ -94,9 +120,15 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                 return { success: false, error: 'Invalid response format' };
             }
 
+            const embedding: number[] = data.data[0].embedding;
+            if (embedding.length !== this.dimensions) {
+                logger.warn('Search', `Embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length} (model ${this.model})`);
+                throw new Error(`Embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length}`);
+            }
+
             return {
                 success: true,
-                embedding: data.data[0].embedding,
+                embedding,
                 tokenCount: data.usage?.total_tokens
             };
         } catch (error) {
@@ -108,35 +140,38 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
 
     async batchGenerateEmbeddings(texts: string[]): Promise<BatchEmbeddingResult> {
         try {
-            // Filter out empty texts and truncate to prevent 400 errors
-            const validTexts = texts
-                .filter(t => t.trim())
-                .map(t => this.truncateText(t.trim()));
-            if (validTexts.length === 0) {
+            // Preserve original indices: empty/whitespace entries are skipped from
+            // the provider call but still occupy their slot in the output (filled
+            // with a zero-vector) so callers zipping with `texts` stay aligned.
+            const nonEmpty: { originalIndex: number; text: string }[] = [];
+            texts.forEach((t, i) => {
+                if (t.trim()) {
+                    nonEmpty.push({ originalIndex: i, text: this.truncateText(t.trim()) });
+                }
+            });
+
+            // Output array sized to the ORIGINAL input; default = zero-vector.
+            const zeroVector = (): number[] => new Array(this.dimensions).fill(0);
+            const result: number[][] = texts.map(() => zeroVector());
+
+            if (nonEmpty.length === 0) {
                 return { success: false, error: 'No valid texts provided' };
             }
 
-            // OpenAI supports batch embedding up to 2048 inputs
-            const maxBatchSize = 100;
-            const batches: string[][] = [];
-            for (let i = 0; i < validTexts.length; i += maxBatchSize) {
-                batches.push(validTexts.slice(i, i + maxBatchSize));
-            }
-
-            const allEmbeddings: number[][] = [];
+            // OpenAI supports batch embedding up to 2048 inputs; Azure caps far
+            // lower, so clamp to AZURE_EMBEDDING_BATCH_SIZE on the Azure path.
+            const maxBatchSize = this.isAzure ? AZURE_EMBEDDING_BATCH_SIZE : 100;
             let totalTokens = 0;
 
-            for (const batch of batches) {
+            for (let start = 0; start < nonEmpty.length; start += maxBatchSize) {
+                const slice = nonEmpty.slice(start, start + maxBatchSize);
                 const requestParams: RequestUrlParam = {
                     url: this.endpoint,
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${this.apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: this.buildHeaders(),
                     body: JSON.stringify({
                         model: this.model,
-                        input: batch,
+                        input: slice.map(s => s.text),
                         encoding_format: 'float'
                     })
                 };
@@ -153,10 +188,31 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                     return { success: false, error: 'Invalid response format' };
                 }
 
-                // Sort by index to maintain order
-                const sortedData = data.data.sort((a: { index: number }, b: { index: number }) => a.index - b.index);
-                for (const item of sortedData) {
-                    allEmbeddings.push(item.embedding);
+                // Validate coverage: every slice position must be filled by exactly
+                // one provider embedding. A missing / duplicate / out-of-range
+                // provider `index` would silently misalign embeddings with their
+                // source text, so fail closed with a redacted error instead.
+                const covered = new Array<boolean>(slice.length).fill(false);
+                for (const item of data.data) {
+                    const idx: number = (item as { index: number }).index;
+                    if (!Number.isInteger(idx) || idx < 0 || idx >= slice.length) {
+                        return { success: false, error: `Batch embedding index out of range (expected 0..${slice.length - 1})` };
+                    }
+                    if (covered[idx]) {
+                        return { success: false, error: 'Batch embedding returned a duplicate index' };
+                    }
+                    covered[idx] = true;
+
+                    const embedding: number[] = (item as { embedding: number[] }).embedding;
+                    if (embedding.length !== this.dimensions) {
+                        logger.warn('Search', `Batch embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length} (model ${this.model})`);
+                        return { success: false, error: `Embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length}` };
+                    }
+                    result[slice[idx].originalIndex] = embedding;
+                }
+
+                if (covered.some((c) => !c)) {
+                    return { success: false, error: 'Batch embedding response missing one or more inputs' };
                 }
 
                 if (data.usage?.total_tokens) {
@@ -166,7 +222,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
 
             return {
                 success: true,
-                embeddings: allEmbeddings,
+                embeddings: result,
                 totalTokens
             };
         } catch (error) {

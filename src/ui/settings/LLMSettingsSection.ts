@@ -11,13 +11,33 @@ import {
 } from '../../services/adapters/dynamicModelService';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 
 export class LLMSettingsSection extends BaseSettingSection {
     private statusContainer: HTMLElement = null!;
     private statusEl: HTMLElement = null!;
+    /** Escape-hatch: when true, reveal the full provider dropdown even in
+     *  streamlined Azure mode. Resets each settings-tab open (instance-local). */
+    private azureShowFullProvider = false;
+
+    /**
+     * Streamlined Azure UX is active when Azure-first mode is on, the main
+     * provider is an Azure surface, and the user hasn't clicked the
+     * "Use a different provider" escape hatch. In this state the generic full
+     * provider dropdown + getting-started box are suppressed (redundant with
+     * the Azure section, which owns the azure-claude vs azure-openai choice).
+     */
+    private isStreamlinedAzure(): boolean {
+        return (
+            !!this.plugin.settings.azureFirstMode &&
+            isAzureMode(this.plugin.settings) &&
+            !this.azureShowFullProvider
+        );
+    }
 
     display(): void {
         this.createSectionHeader(this.plugin.t.settings.llm.title, 'bot');
+        this.renderAzureFirstToggle();
         this.createServiceTypeDropdown();
         if (this.plugin.settings.serviceType === 'local') {
             this.displayLocalSettings();
@@ -47,6 +67,266 @@ export class LLMSettingsSection extends BaseSettingSection {
             );
     }
 
+    /**
+     * Azure-first mode toggle + section (Plan A — Azure providers).
+     *
+     * Azure-first is UX-ONLY (plan AD-6): it surfaces the Azure config fields up
+     * front but does NOT route requests. The user still explicitly selects the
+     * `azure-claude` / `azure-openai` provider in the cloud-provider dropdown.
+     * Fields are vault-local (stored in data.json, never shipped as defaults).
+     */
+    private renderAzureFirstToggle(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        new Setting(this.containerEl)
+            .setName(az.firstMode)
+            .setDesc(az.firstModeDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.azureFirstMode ?? false)
+                .onChange((value) => {
+                    this.plugin.settings.azureFirstMode = value;
+                    void this.plugin.saveSettings();
+                    this.settingTab.display();
+                })
+            );
+
+        if (this.plugin.settings.azureFirstMode) {
+            const banner = this.containerEl.createDiv({ cls: 'ai-organiser-azure-banner' });
+            banner.createSpan({ text: az.banner });
+            this.renderAzureSection();
+        }
+    }
+
+    /** Azure config fields, shown when Azure-first mode is on. */
+    private renderAzureSection(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        this.containerEl.createEl('h4', { text: az.foundryHeading });
+
+        // Main-provider choice (azure-claude vs azure-openai) lives INSIDE the
+        // Azure section in streamlined mode — the generic full dropdown is
+        // suppressed below. Both surfaces are still served automatically.
+        if (this.isStreamlinedAzure()) {
+            const current = isAzureMode(this.plugin.settings)
+                ? this.plugin.settings.cloudServiceType
+                : 'azure-claude';
+            new Setting(this.containerEl)
+                .setName(az.mainProviderChoice)
+                .setDesc(az.mainProviderChoiceDesc)
+                .addDropdown(dropdown => dropdown
+                    .addOption('azure-claude', az.providerAzureClaude)
+                    .addOption('azure-openai', az.providerAzureOpenAI)
+                    .setValue(current)
+                    .onChange((value) => {
+                        this.plugin.settings.cloudServiceType = value as typeof this.plugin.settings.cloudServiceType;
+                        this.plugin.settings.cloudEndpoint = PROVIDER_ENDPOINT[value as keyof typeof PROVIDER_ENDPOINT] || '';
+                        void this.plugin.saveSettings();
+                        this.settingTab.display();
+                    }));
+        }
+
+        // API key — plain password field (transient; migrated to SecretStorage on save).
+        new Setting(this.containerEl)
+            .setName(az.apiKey)
+            .setDesc(az.apiKeyDesc)
+            .addText(text => {
+                text.setPlaceholder(az.apiKeyPlaceholder)
+                    .setValue(this.plugin.settings.azureApiKey ? '••••••••' : '')
+                    .onChange((value) => {
+                        if (value !== '••••••••') {
+                            this.plugin.settings.azureApiKey = value;
+                            void this.plugin.saveSettings();
+                        }
+                    });
+                text.inputEl.type = 'password';
+                return text;
+            });
+
+        new Setting(this.containerEl)
+            .setName(az.aiEndpoint)
+            .setDesc(az.aiEndpointDesc)
+            .addText(text => text
+                .setPlaceholder('https://<your-resource>.services.ai.azure.com')
+                .setValue(this.plugin.settings.azureAIEndpoint)
+                .onChange((value) => {
+                    this.plugin.settings.azureAIEndpoint = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(az.openAIEndpoint)
+            .setDesc(az.openAIEndpointDesc)
+            .addText(text => text
+                .setPlaceholder('https://<your-resource>.openai.azure.com')
+                .setValue(this.plugin.settings.azureOpenAIEndpoint)
+                .onChange((value) => {
+                    this.plugin.settings.azureOpenAIEndpoint = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(az.whisperDeployment)
+            .setDesc(az.whisperDeploymentDesc)
+            .addText(text => text
+                .setPlaceholder(az.whisperDeploymentPlaceholder)
+                .setValue(this.plugin.settings.azureWhisperDeployment)
+                .onChange((value) => {
+                    this.plugin.settings.azureWhisperDeployment = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        // Default model for general tasks.
+        new Setting(this.containerEl)
+            .setName(az.defaultModel)
+            .setDesc(az.defaultModelDesc)
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('claude-sonnet-4-6', az.modelSonnet)
+                    .addOption('claude-opus-4-6', az.modelOpus)
+                    .setValue(this.plugin.settings.taskModels?.tagging || 'claude-sonnet-4-6')
+                    .onChange((value) => {
+                        if (!this.plugin.settings.taskModels) return;
+                        this.plugin.settings.taskModels.tagging = value;
+                        this.plugin.settings.taskModels.summarization = value;
+                        this.plugin.settings.taskModels.chat = value;
+                        this.plugin.settings.taskModels.mermaid = value;
+                        void this.plugin.saveSettings();
+                    });
+            });
+
+        // GPT model — used by azure-openai chat + the live test.
+        new Setting(this.containerEl)
+            .setName(az.gptModel)
+            .setDesc(az.gptModelDesc)
+            .addText(text => text
+                .setPlaceholder(az.gptModelPlaceholder)
+                .setValue(this.plugin.settings.azureGPTModel)
+                .onChange((value) => {
+                    this.plugin.settings.azureGPTModel = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        // Embedding model — so semantic-search embeddings are configurable.
+        new Setting(this.containerEl)
+            .setName(az.embeddingModel)
+            .setDesc(az.embeddingModelDesc)
+            .addText(text => text
+                .setPlaceholder(az.embeddingModelPlaceholder)
+                .setValue(this.plugin.settings.embeddingModel)
+                .onChange((value) => {
+                    this.plugin.settings.embeddingModel = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        // Routing mode — deployment-based reveals named deployment fields.
+        new Setting(this.containerEl)
+            .setName(az.routingMode)
+            .setDesc(az.routingModeDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('model-based', az.routingModel)
+                .addOption('deployment-based', az.routingDeployment)
+                .setValue(this.plugin.settings.azureRoutingMode)
+                .onChange((value) => {
+                    this.plugin.settings.azureRoutingMode = value as 'model-based' | 'deployment-based';
+                    void this.plugin.saveSettings();
+                    this.settingTab.display();
+                }));
+
+        if (this.plugin.settings.azureRoutingMode === 'deployment-based') {
+            new Setting(this.containerEl)
+                .setName(az.chatDeployment)
+                .setDesc(az.chatDeploymentDesc)
+                .addText(text => text
+                    .setValue(this.plugin.settings.azureDeployments?.chat || '')
+                    .onChange((value) => {
+                        if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
+                        this.plugin.settings.azureDeployments.chat = value;
+                        void this.plugin.saveSettings();
+                    }));
+
+            new Setting(this.containerEl)
+                .setName(az.embeddingsDeployment)
+                .setDesc(az.embeddingsDeploymentDesc)
+                .addText(text => text
+                    .setValue(this.plugin.settings.azureDeployments?.embeddings || '')
+                    .onChange((value) => {
+                        if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
+                        this.plugin.settings.azureDeployments.embeddings = value;
+                        void this.plugin.saveSettings();
+                    }));
+        }
+
+        // Live connection test — pre-flight validates config, then makes real
+        // minimal round-trips to each configured Azure surface. Results render
+        // per-surface (✓/✗ + redacted message) under the button.
+        const resultsEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-test-results' });
+        new Setting(this.containerEl)
+            .setName(az.testConfig)
+            .setDesc(az.testConfigDesc)
+            .addButton(button => button
+                .setButtonText(az.testButton)
+                .onClick(async () => {
+                    button.setButtonText(az.testingButton);
+                    button.setDisabled(true);
+                    resultsEl.empty();
+                    try {
+                        const { testAzureConnection } = await import('../../services/azure/azureConnectionTest');
+                        const report = await testAzureConnection(this.plugin);
+                        this.renderAzureTestReport(resultsEl, report);
+                    } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        resultsEl.createDiv({ cls: 'ai-organiser-azure-test-row error', text: `✗ ${msg}` });
+                    } finally {
+                        button.setButtonText(az.testButton);
+                        button.setDisabled(false);
+                    }
+                }));
+
+        // Escape hatch — reveal the full provider dropdown for users who want a
+        // non-Azure provider while keeping Azure-first mode on.
+        if (this.isStreamlinedAzure()) {
+            const hatch = this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-mt-4' });
+            const link = hatch.createEl('a', {
+                text: az.useDifferentProvider,
+                cls: 'ai-organiser-cursor-pointer',
+            });
+            link.addEventListener('click', () => {
+                this.azureShowFullProvider = true;
+                this.settingTab.display();
+            });
+        }
+    }
+
+    /** Render a live Azure test report as a per-surface result list. */
+    private renderAzureTestReport(
+        container: HTMLElement,
+        report: import('../../services/azure/azureConnectionTest').AzureTestReport,
+    ): void {
+        const az = this.plugin.t.settings.llm.azure;
+        container.empty();
+
+        if (!report.preflightOk) {
+            container.createDiv({
+                cls: 'ai-organiser-azure-test-row error',
+                text: `✗ ${az.configInvalid} ${report.preflightErrors.join('; ')}`,
+            });
+            return;
+        }
+
+        container.createEl('h4', { text: az.liveTestHeading });
+        const labels: Record<string, string> = {
+            'azure-claude': az.surfaceClaude,
+            'azure-openai-chat': az.surfaceOpenAIChat,
+            'azure-openai-embeddings': az.surfaceEmbeddings,
+            'azure-openai-whisper': az.surfaceWhisper,
+        };
+        for (const s of report.surfaces) {
+            const label = labels[s.surface] ?? s.surface;
+            container.createDiv({
+                cls: `ai-organiser-azure-test-row ${s.ok ? 'success' : 'error'}`,
+                text: `${s.ok ? '✓' : '✗'} ${label}: ${s.message}`,
+            });
+        }
+    }
+
     private createServiceTypeDropdown(): void {
         if (!this.plugin.settings.serviceType) {
             this.plugin.settings.serviceType = 'cloud';
@@ -68,7 +348,9 @@ export class LLMSettingsSection extends BaseSettingSection {
                     })
             );
 
-        if (this.plugin.settings.serviceType === 'cloud') {
+        // In streamlined Azure mode the azure-claude/azure-openai choice lives
+        // inside the Azure section — suppress the redundant full dropdown here.
+        if (this.plugin.settings.serviceType === 'cloud' && !this.isStreamlinedAzure()) {
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.cloudProvider)
                 .setDesc(this.plugin.t.settings.llm.cloudProviderDesc)
@@ -243,8 +525,22 @@ export class LLMSettingsSection extends BaseSettingSection {
     private displayCloudSettings(): void {
         const serviceType = this.plugin.settings.cloudServiceType;
 
-        // Getting Started info box
-        this.renderGettingStartedBox(serviceType);
+        // Azure providers are configured ENTIRELY via the Azure section (its own
+        // key, endpoints, models, and live connection test). The generic cloud
+        // config below (API endpoint / key / model / generic test) doesn't apply
+        // to Azure — its endpoint lives in the Azure fields, so the generic test
+        // fails with "API endpoint is not configured". Suppress it here. Provider
+        // SWITCHING still works via the cloud-provider dropdown in
+        // createServiceTypeDropdown (shown when the "use a different provider"
+        // escape hatch is expanded) — pick a non-Azure provider and this generic
+        // config renders for it.
+        if (isAzureMode(this.plugin.settings)) return;
+
+        // Getting Started info box — suppressed in streamlined Azure mode
+        // (the Azure section already owns the provider guidance).
+        if (!this.isStreamlinedAzure()) {
+            this.renderGettingStartedBox(serviceType);
+        }
 
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.apiEndpoint)
@@ -506,10 +802,17 @@ export class LLMSettingsSection extends BaseSettingSection {
         };
 
         const missing: string[] = [];
-        if (!caps.youtube.includes(provider)) missing.push(t.youtube);
-        if (!caps.audio.includes(provider)) missing.push(t.audio);
-        if (!caps.pdf.includes(provider)) missing.push(t.pdf);
-        if (provider === 'claude') missing.push(t.embeddings);
+        if (provider.startsWith('azure')) {
+            // In Azure mode, audio (Whisper), PDF (Azure Claude) and embeddings
+            // (Azure OpenAI) are auto-handled by Azure — only YouTube genuinely
+            // needs a separate Gemini key (Azure has no YouTube/Gemini path).
+            missing.push(t.youtube);
+        } else {
+            if (!caps.youtube.includes(provider)) missing.push(t.youtube);
+            if (!caps.audio.includes(provider)) missing.push(t.audio);
+            if (!caps.pdf.includes(provider)) missing.push(t.pdf);
+            if (provider === 'claude') missing.push(t.embeddings);
+        }
 
         if (missing.length === 0) return;
 

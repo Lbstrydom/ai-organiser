@@ -273,6 +273,7 @@ export class TranscribeOnlyModal extends Modal {
                 {
                     provider: apiKeyResult.provider,
                     apiKey: apiKeyResult.key,
+                    azureEndpoint: apiKeyResult.azureEndpoint,
                     language: undefined,
                 },
                 (progress) => this.setStatus(progress.message)

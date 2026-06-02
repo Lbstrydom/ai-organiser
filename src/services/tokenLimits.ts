@@ -18,6 +18,9 @@ export const PROVIDER_LIMITS: Record<string, ProviderLimits> = {
     'deepseek': { maxInputTokens: 64000, maxOutputTokens: 8192, charsPerToken: 4 },
     'openrouter': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
     'local': { maxInputTokens: 8000, maxOutputTokens: 4096, charsPerToken: 4 },  // Conservative default
+    // Azure providers mirror their direct-provider limits (same underlying models).
+    'azure-claude': { maxInputTokens: 200000, maxOutputTokens: 64000, charsPerToken: 4 },
+    'azure-openai': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
 };
 
 // Reserve tokens for prompt template + output

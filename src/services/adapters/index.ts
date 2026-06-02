@@ -3,6 +3,8 @@ export * from './baseAdapter';
 export * from './openaiAdapter';
 export * from './geminiAdapter';
 export * from './openaiCompatibleAdapter';
+export * from './azureClaudeAdapter';
+export * from './azureOpenAIAdapter';
 import * as cloudEndpoints from './cloudEndpoints.json';
 
 import { AdapterConfig } from './types';
@@ -21,9 +23,12 @@ import { CohereAdapter } from './cohereAdapter';
 import { GrokAdapter } from './grokAdapter';
 import { MistralAdapter } from './mistralAdapter';
 import { OpenAICompatibleAdapter } from './openaiCompatibleAdapter';
+import { AzureClaudeAdapter } from './azureClaudeAdapter';
+import { AzureOpenAIAdapter } from './azureOpenAIAdapter';
 
 export type AdapterType = 'openai' | 'gemini' | 'deepseek' | 'aliyun' | 'claude' | 'groq' | 'vertex' |
-    'openrouter' | 'bedrock' | 'requesty' | 'cohere' | 'grok' | 'mistral' | 'openai-compatible';
+    'openrouter' | 'bedrock' | 'requesty' | 'cohere' | 'grok' | 'mistral' | 'openai-compatible' |
+    'azure-claude' | 'azure-openai';
 
 export function createAdapter(type: AdapterType, config: AdapterConfig): BaseAdapter {
     switch (type.toLowerCase()) {
@@ -94,6 +99,12 @@ export function createAdapter(type: AdapterType, config: AdapterConfig): BaseAda
             });
         case 'openai-compatible':
             return new OpenAICompatibleAdapter(config);
+        case 'azure-claude':
+            // Endpoint comes from settings (resolved upstream) — no cloudEndpoints default.
+            return new AzureClaudeAdapter(config);
+        case 'azure-openai':
+            // Endpoint comes from settings (resolved upstream) — no cloudEndpoints default.
+            return new AzureOpenAIAdapter(config);
         default:
             throw new Error(`Unsupported adapter type: ${type}`);
     }

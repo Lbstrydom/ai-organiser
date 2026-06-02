@@ -527,8 +527,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             ? `${options.stablePrefix}\n\n${prompt}`
             : prompt;
 
-        // Use the stored adapter type for reliable detection
-        if (this.adapterType === 'claude') {
+        // Use the stored adapter type for reliable detection.
+        // AZURE: azure-claude uses the native Anthropic wire format (it talks to
+        // Azure's /anthropic/v1/messages passthrough), so it must build the
+        // Anthropic-shaped body, not the OpenAI-compatible one.
+        if (this.adapterType === 'claude' || this.adapterType === 'azure-claude') {
             return this.buildClaudeSummarizeBody(prompt, summarizeSystemPrompt, options);
         } else if (this.adapterType === 'gemini') {
             // Gemini's endpoint is the OpenAI-compat path
@@ -552,7 +555,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
             // modelOverride allows per-call model switching (e.g., presentation pipeline
             // routes generation to Opus and audits to Sonnet non-reasoning).
-            const modelName = options?.modelOverride
+            // AZURE: azure-openai's deployment-routed URL bakes the deployment into the
+            // path and ignores body.model, so drop modelOverride for it (plan AD-4).
+            const blockOverride = this.adapterType === 'azure-openai';
+            const modelName = (!blockOverride && options?.modelOverride)
                 || (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim())
                 || PROVIDER_DEFAULT_MODEL[this.adapterType]
                 || PROVIDER_DEFAULT_MODEL.openai;

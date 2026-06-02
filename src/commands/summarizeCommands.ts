@@ -40,7 +40,8 @@ import {
 import {
     transcribeExternalAudio,
     transcribeAudioWithFullWorkflow,
-    AudioWorkflowProgress
+    AudioWorkflowProgress,
+    TranscriptionProvider
 } from '../services/audioTranscriptionService';
 import {
     addToReferencesSection,
@@ -801,6 +802,7 @@ async function handleMultiSourceResult(
                     {
                         provider: audioTranscriptionConfig.provider,
                         apiKey: audioTranscriptionConfig.key,
+                        azureEndpoint: audioTranscriptionConfig.azureEndpoint,
                         language: plugin.settings.summaryLanguage || undefined
                     },
                     (progress: AudioWorkflowProgress) => {
@@ -1360,7 +1362,7 @@ async function openAudioSummarizeModal(
         personas,
         plugin.settings.enableStudyCompanion,
         (result: AudioSelectResult) => { void (async () => {
-            await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key);
+            await handleAudioSummarization(plugin, editor, result, transcriptionConfig.provider, transcriptionConfig.key, transcriptionConfig.azureEndpoint);
         })(); }
     );
     modal.open();
@@ -1894,8 +1896,9 @@ async function handleAudioSummarization(
     plugin: AIOrganiserPlugin,
     editor: Editor,
     result: AudioSelectResult,
-    provider: 'openai' | 'groq',
-    apiKey: string
+    provider: TranscriptionProvider,
+    apiKey: string,
+    azureEndpoint?: string
 ): Promise<void> {
     const { file, externalPath, language, context, needsCompression } = result;
     const serviceType = plugin.settings.serviceType === 'cloud'
@@ -1939,6 +1942,7 @@ async function handleAudioSummarization(
         transcriptionResult = await transcribeExternalAudio(externalPath, {
             provider,
             apiKey,
+            azureEndpoint,
             language: language || plugin.settings.summaryLanguage || undefined,
             prompt: context || undefined
         });
@@ -1968,6 +1972,7 @@ async function handleAudioSummarization(
                 {
                     provider,
                     apiKey,
+                    azureEndpoint,
                     language: language || plugin.settings.summaryLanguage || undefined,
                     prompt: context || undefined
                 },
@@ -2869,12 +2874,15 @@ async function summarizePdfWithLLM(
             return response;
         }
 
-        // Create temporary service with PDF provider config
+        // Create temporary service with PDF provider config. Azure-claude uses
+        // the resolved vault-local endpoint; claude/gemini use static endpoints.
         const pdfCloudService = new CloudLLMService({
             type: pdfConfig.provider,
-            endpoint: pdfConfig.provider === 'claude'
-                ? 'https://api.anthropic.com/v1/messages'
-                : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            endpoint: pdfConfig.endpoint
+                ? pdfConfig.endpoint
+                : pdfConfig.provider === 'claude'
+                    ? 'https://api.anthropic.com/v1/messages'
+                    : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
             apiKey: pdfConfig.apiKey,
             // `latest-*` sentinels resolve inside CloudLLMService constructor
             // so newly released Sonnet / Flash variants auto-upgrade.

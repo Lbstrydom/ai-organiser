@@ -82,6 +82,12 @@ export interface EmbeddingServiceConfig {
     model: string;
     apiKey?: string;
     endpoint?: string;
+    /**
+     * Auth header style for the OpenAI-compatible service. Defaults to 'bearer'
+     * (OpenAI direct). Azure OpenAI embeddings ride the `openai` provider with
+     * an Azure endpoint + 'api-key' auth.
+     */
+    authHeaderType?: 'bearer' | 'api-key' | 'azure';
 }
 
 /**

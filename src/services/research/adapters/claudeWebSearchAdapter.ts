@@ -75,8 +75,28 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
             model?: string;
             maxSearches?: number;
             useDynamicFiltering?: boolean;
+            /**
+             * Azure AI Foundry endpoint base (e.g.
+             * https://<your-resource>.services.ai.azure.com). When set, the adapter
+             * routes to the Azure `/anthropic/v1/messages` passthrough with
+             * `Authorization: Bearer` auth instead of direct Anthropic + `x-api-key`.
+             */
+            azureEndpointBase?: string;
         } = {},
     ) {}
+
+    /** Messages endpoint URL: Azure passthrough when configured, else direct Anthropic. */
+    private get messagesUrl(): string {
+        if (this.options.azureEndpointBase) {
+            return `${this.options.azureEndpointBase}/anthropic/v1/messages`;
+        }
+        return `${CLAUDE_API_BASE}/v1/messages`;
+    }
+
+    /** Whether this adapter is configured to route through Azure. */
+    private get isAzure(): boolean {
+        return !!this.options.azureEndpointBase;
+    }
 
     async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
         // For compatibility with the SearchProvider interface.
@@ -370,7 +390,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         errorPrefix: string,
     ): Promise<ClaudeWebSearchResponse> {
         const response = await requestUrl({
-            url: `${CLAUDE_API_BASE}/v1/messages`,
+            url: this.messagesUrl,
             method: 'POST',
             headers,
             body: JSON.stringify(body),
@@ -407,7 +427,10 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'anthropic-version': '2023-06-01',
-            'x-api-key': apiKey,
+            // Azure uses Authorization: Bearer; direct Anthropic uses x-api-key.
+            ...(this.isAzure
+                ? { 'Authorization': `Bearer ${apiKey}` }
+                : { 'x-api-key': apiKey }),
         };
         if (useDynamic) {
             headers['anthropic-beta'] = BETA_HEADER;
@@ -431,7 +454,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await globalThis.fetch(`${CLAUDE_API_BASE}/v1/messages`, {
+        const response = await globalThis.fetch(this.messagesUrl, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),

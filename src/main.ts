@@ -34,6 +34,8 @@ import { IEmbeddingService, createEmbeddingServiceFromSettings } from './service
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 import { EMBEDDING_PROVIDER_TO_SECRET_ID, PLUGIN_SECRET_IDS } from './core/secretIds';
+import { getAzureApiKey } from './services/apiKeyHelpers';
+import { isAzureMode } from './services/azure/endpointResolver';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -138,6 +140,44 @@ export default class AIOrganiserPlugin extends Plugin {
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
+
+        // Async secret-id migration (plan §9): the pure `migrateAzureSettings`
+        // can't touch SecretStorage. Move any transient plaintext Azure key into
+        // the keychain on load. Best-effort, never throws.
+        await this.migrateAzureSecretOnLoad();
+    }
+
+    /**
+     * One-time, forward-safe Azure secret migration (plan §9).
+     *
+     * The public repo never shipped a legacy Azure secret id, so there is nothing
+     * to rename. The only real work is hardening: if a transient plaintext
+     * `azureApiKey` is present and SecretStorage is available, the user just
+     * typed it — persist it into the shared `AZURE_AI_FOUNDRY` secret (always
+     * overwriting any stale stored value), clear the plaintext, and mark it
+     * stored. Mirrors how other transient keys are moved into SecretStorage.
+     * Endpoints/keys are never logged (plan §8).
+     */
+    private async migrateAzureSecretOnLoad(): Promise<void> {
+        try {
+            const plaintext = this.settings.azureApiKey?.trim();
+            if (!plaintext) return;
+            if (!this.secretStorageService.isAvailable()) return;
+
+            // A non-empty transient plaintext key means the user just typed it —
+            // that value is the authoritative user intent. ALWAYS write/overwrite
+            // it into the keychain (a stale or wrong stored secret must not win),
+            // then clear + flag so the plaintext never lingers in persisted settings.
+            await this.secretStorageService.setSecret(PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY, plaintext);
+
+            this.settings.azureApiKey = '';
+            this.settings.azureKeyStored = true;
+            // Persist via the central path so reinit + sanitization run. Never log the key.
+            await this.saveSettings();
+            logger.debug('Core', 'Cleared transient Azure key from settings (SecretStorage authoritative)');
+        } catch (err) {
+            logger.warn('Core', `Azure secret migration skipped: ${err instanceof Error ? err.message : 'unknown error'}`);
+        }
     }
 
     public async saveSettings(): Promise<void> {
@@ -210,6 +250,16 @@ export default class AIOrganiserPlugin extends Plugin {
      */
     private async resolveEmbeddingApiKey(): Promise<string | null> {
         const provider = this.settings.embeddingProvider;
+
+        // Azure embeddings ride the `openai` provider but use the shared Azure
+        // Foundry key (never the personal OpenAI key). Plan §3 — any azure-*
+        // main provider routes openai-embeddings to Azure. No silent fallback:
+        // in Azure mode return the Azure key (or null), never the personal-key
+        // chain below — the factory surfaces "Azure embeddings not configured".
+        if (provider === 'openai' && isAzureMode(this.settings)) {
+            return await getAzureApiKey(this, 'azure-openai');
+        }
+
         const secretId = EMBEDDING_PROVIDER_TO_SECRET_ID[provider];
 
         return await this.secretStorageService.resolveApiKey({

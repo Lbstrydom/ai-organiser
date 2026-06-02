@@ -32,13 +32,20 @@ export class ResearchSearchService {
             ['claude-web-search', new ClaudeWebSearchAdapter(
                 () => this.resolveClaudeWebSearchKey(),
                 {
-                    // When the user's main provider is Claude, reuse their cloudModel
-                    // (which itself defaults to `latest-sonnet`). Otherwise resolve a
-                    // dedicated Sonnet for web search via the same sentinel — never
-                    // pin a concrete version here.
-                    model: plugin.settings.cloudServiceType === 'claude' ? plugin.settings.cloudModel : 'latest-sonnet',
+                    // When the user's main provider is Claude (direct or Azure),
+                    // reuse their cloudModel (which itself defaults to `latest-sonnet`).
+                    // Otherwise resolve a dedicated Sonnet for web search via the same
+                    // sentinel — never pin a concrete version here.
+                    model: (plugin.settings.cloudServiceType === 'claude' || plugin.settings.cloudServiceType === 'azure-claude')
+                        ? plugin.settings.cloudModel
+                        : 'latest-sonnet',
                     maxSearches: plugin.settings.researchClaudeMaxSearches ?? 5,
                     useDynamicFiltering: plugin.settings.researchClaudeUseDynamicFiltering ?? true,
+                    // Azure web search routes through the Foundry passthrough; only set
+                    // the base when the active provider is azure-claude.
+                    azureEndpointBase: plugin.settings.cloudServiceType === 'azure-claude'
+                        ? (plugin.settings.azureAIEndpoint?.trim().replace(/\/+$/, '') || undefined)
+                        : undefined,
                 },
             )],
         ]);

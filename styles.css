@@ -9611,3 +9611,52 @@
     gap: var(--size-4-2);
     margin-top: var(--size-4-4);
 }
+
+/* ── Azure-first mode banner (Plan A — Azure providers) ── */
+.ai-organiser-azure-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 14px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary-alt);
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-azure-test-results {
+    margin: 8px 0 12px;
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-azure-test-results h4 {
+    margin: 4px 0;
+}
+
+.ai-organiser-azure-test-row {
+    padding: 2px 0;
+}
+
+.ai-organiser-azure-test-row.success {
+    color: var(--color-green);
+}
+
+.ai-organiser-azure-test-row.error {
+    color: var(--color-red);
+}
+
+.ai-organiser-azure-auto-status {
+    margin: 6px 0 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary-alt);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-azure-auto-status ul {
+    margin: 4px 0 0 0;
+    padding-left: 20px;
+}

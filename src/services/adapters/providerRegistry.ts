@@ -17,6 +17,8 @@ export const ALL_ADAPTERS: AdapterType[] = [
   'grok',
   'mistral',
   'openai-compatible',
+  'azure-claude',
+  'azure-openai',
 ];
 
 // Default models per provider
@@ -51,6 +53,10 @@ export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   grok: 'grok-4',
   mistral: 'mistral-large-3',
   'openai-compatible': 'your-model',
+  // Azure: concrete catalog ids only — `latest-*` sentinels never reach the
+  // Azure path (plan AD-5). Endpoints are resolved from vault-local settings.
+  'azure-claude': 'claude-sonnet-4-6',
+  'azure-openai': 'gpt-5.3-chat',
 };
 
 // Default endpoints per provider
@@ -69,6 +75,10 @@ export const PROVIDER_ENDPOINT: Record<AdapterType, string> = {
   grok: endpoints.grok,
   mistral: endpoints.mistral,
   'openai-compatible': 'http://your-api-endpoint/v1/chat/completions',
+  // Azure endpoints are vault-local config (empty public default) — resolved
+  // from settings at adapter-build time, never shipped in DEFAULT_SETTINGS.
+  'azure-claude': '',
+  'azure-openai': '',
 };
 
 // Helper to build provider dropdown options using translations
@@ -88,6 +98,8 @@ export function buildProviderOptions(t: AIOrganiserTranslations['dropdowns']): R
     grok: t.grok,
     mistral: t.mistral,
     'openai-compatible': t.openaiCompatible,
+    'azure-claude': t.azureClaude,
+    'azure-openai': t.azureOpenAI,
   };
 }
 
@@ -108,5 +120,7 @@ export interface AIOrganiserTranslations {
     grok: string;
     mistral: string;
     openaiCompatible: string;
+    azureClaude: string;
+    azureOpenAI: string;
   };
 }
