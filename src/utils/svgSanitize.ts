@@ -13,7 +13,7 @@
  * consumes renderer output WITHOUT the service boundary must run an allowlist.
  */
 
-import { SVG_TAGS, SVG_ATTRS, MAX_INPUT_CHARS } from './presentationSanitizePolicy';
+import { SVG_TAGS, SVG_ATTRS, MAX_INPUT_CHARS, extractCssUrls } from './presentationSanitizePolicy';
 
 /** Allowed SVG element tag names (lowercased), DERIVED from the shared policy
  *  SSOT (M6 — no parallel tag list). This embed/PPTX context is intentionally
@@ -78,10 +78,13 @@ function scrubSvgNode(el: Element): void {
         // (`href` / `xlink:href`) is always excluded regardless of the allowlist.
         const isAllowed = ALLOWED_SVG_ATTRS.has(name) && !name.includes('href');
         // Drop EXTERNAL url() references in otherwise-allowlisted paint/presentation
-        // attributes (e.g. `fill="url(http://…)"` / `stroke="url(//…)"`) — the
-        // allowlist permits the attribute but not an external paint server. Internal
-        // refs (`url(#gradient)`) are kept. (audit D2-D4 H4.)
-        const hasExternalUrl = /url\(\s*['"]?\s*(?!#)/i.test(attr.value);
+        // attributes (e.g. `fill="url(http://…)"`) — the allowlist permits the
+        // attribute but not an external paint server. Internal refs (`url(#gradient)`,
+        // including quoted `url('#g')`) are kept. Uses the shared robust extractor
+        // (fail-closed on unparseable url(), no backtracking false-positive on
+        // quoted internal refs — audit Gemini-G1 + D2-D4 H4).
+        const { tokens, clean } = extractCssUrls(attr.value);
+        const hasExternalUrl = !clean || tokens.some((t) => !t.trim().startsWith('#'));
         if (!isAllowed || name.startsWith('on') || hasExternalUrl) {
             el.removeAttribute(attr.name);
         }

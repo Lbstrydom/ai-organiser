@@ -1,5 +1,29 @@
 # Project Status Log
 
+## 2026-06-02 — Presentation sanitizer hardening (Phase 1: regex → DOMPurify)
+
+Implemented Phase 1 of [docs/plans/presentation-sanitizer-hardening.md](docs/plans/presentation-sanitizer-hardening.md) — replaced the regex/string-rewrite sanitizer for LLM-generated slide HTML with a **DOMPurify** engine, closing the parser-differential bypass class the code audit flagged HIGH. Code-audited (GPT R1→R2 + Gemini R1→R3 APPROVE); see [audit summary](docs/plans/presentation-sanitizer-hardening-audit-summary.md).
+
+### Changes
+- **`src/utils/presentationSanitizePolicy.ts`** (new, neutral SSOT): allowlists, `isAllowedPresentationUrl` matrix, `parsePresentationDataImageUrl` (decoded-byte measurement), `extractCssUrls` (robust, fail-closed), budget constants. No DOM/DOMPurify import.
+- **`src/services/chat/presentationSanitizer.ts`**: rewritten on DOMPurify — singleton engine + per-call `activeCtx` (enforced re-entrancy guard) + hooks (per-element URL policy, CSS-property allowlist via CSSOM, anchor `rel` canonicalisation) + post-walk image/byte budgets + richer typed `SanitizeResult` (`status`/`removed`/`resources`/`budgetHit`) + **fail-closed** on any error. Same signature; consumers unchanged.
+- **`src/utils/svgSanitize.ts`**: derives tags + attrs from the shared policy (M6); input-size budget (M7); external-paint detection via the robust extractor (fixes a backtracking false-positive).
+- **`dompurify`** added as a bundled dependency (~45 KB; ships its own types).
+- **`tests/presentationSanitizer.test.ts`**: 44-test security corpus (classic + mXSS/parser-differential + SVG + anchor + CSS allowlist + budgets + result contract + golden parity + fail-open regression).
+
+### Decisions Made
+- **DOMPurify, not a hand-rolled DOMParser walk** — stop owning the XSS arms race; the engine is the industry answer to parser differentials.
+- **Strict allowlist** — `ALLOW_DATA_ATTR/ARIA:false` + enumerated data-*/aria- (per plan + Gemini-G2); CSS url() validation **fails closed** on unparseable tokens (Gemini-G1).
+- **Phase 2 deferred** — iframe CSP spike (Decision 7) + real-browser Playwright CSP/parity tests need an Obsidian/Playwright e2e harness that doesn't exist yet; the SlideIframePreview findings the audit surfaced belong there.
+
+### Files Affected
+- `src/utils/presentationSanitizePolicy.ts` (new), `src/services/chat/presentationSanitizer.ts`, `src/utils/svgSanitize.ts`, `tests/presentationSanitizer.test.ts`, `package.json`, `package-lock.json`
+
+### Next Steps
+- Phase 2: Decision-7 iframe CSP spike → CSP Outcome A/B + `allow-scripts` decision + `tests/e2e/presentationSanitizerCsp.spec.ts` (Chromium).
+
+---
+
 ## 2026-06-02 — Slides side-rail workspace (Phase 1) + preview quick-wins
 
 Implemented Phase 1 of [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) — the chat-driven Slides mode becomes a canvas-dominant **side-rail workspace** so the 16:9 slide is width-bound (large) instead of height-bound (tiny). Plan audited (GPT 3 rounds + Gemini APPROVE); code audited (GPT R1→R2 + Gemini APPROVE) — see [audit summary](docs/plans/slides-side-rail-workspace-audit-summary.md).

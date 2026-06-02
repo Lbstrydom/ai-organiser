@@ -365,6 +365,30 @@ In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail work
 
 **Plan**: [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) · **Audit**: [docs/plans/slides-side-rail-workspace-audit-summary.md](docs/plans/slides-side-rail-workspace-audit-summary.md)
 
+## Presentation Sanitizer (DOMPurify)
+
+**Status**: ✅ Phase 1 (June 2026) — Phase 2 (iframe CSP spike + real-browser tests) pending.
+
+`sanitizePresentation` (`src/services/chat/presentationSanitizer.ts`) is the **trust boundary** for LLM-generated slide HTML before it renders in the preview iframe (`sandbox="allow-same-origin allow-scripts"` — so the sanitizer + injected CSP are the real boundary, not the sandbox). Phase 1 replaced the regex engine with **DOMPurify** to eliminate parser-differential / mXSS bypasses.
+
+### Components
+- `src/utils/presentationSanitizePolicy.ts` — **neutral SSOT** (no DOM/DOMPurify): `ALLOWED_TAGS`/`ALLOWED_ATTR`/`FORBID_TAGS`, `ALLOWED_CSS_PROPERTIES`, `isAllowedPresentationUrl(el,attr,val)` matrix, `parsePresentationDataImageUrl` (decoded-byte size), `extractCssUrls` (robust, fail-closed), budgets (`MAX_INPUT_CHARS`/`MAX_DATA_URI_BYTES`/`MAX_IMAGE_COUNT`/`MAX_ATTR_CHARS`). Both the sanitizer and `svgSanitize` import downward into it.
+- `src/services/chat/presentationSanitizer.ts` — DOMPurify singleton (hooks registered once) + per-call `activeCtx` (enforced re-entrancy guard) + hooks (URL/CSS-allowlist via CSSOM/anchor) + post-sanitize image-budget walk + filtered `removed` accounting + richer `SanitizeResult`. Returns the plain result object (NOT `Result<T>`); fails **closed** (empty html) on any error or absent DOM.
+- `src/utils/svgSanitize.ts` — DOMParser allowlist walk for embedded SVG; derives tags+attrs from the policy.
+
+### Key patterns
+- **DOMPurify config strict**: `ALLOW_DATA_ATTR:false` + `ALLOW_ARIA_ATTR:false` — only the enumerated data-*/aria- in the policy survive.
+- **URL validation in hooks** (parsed node, not re-parsed string); per-element matrix. `a@href` = https/#/mailto; `use@href` = `#frag`; `img@src` + CSS `url()` = data:image raster only; SVG paint `fill`/`stroke` url() = `#frag`/data-raster.
+- **Fail-closed CSS url() extraction**: `extractCssUrls` reports `clean:false` when `url(` count ≠ parsed-token count → caller drops the declaration (no fail-open on crafted `url("…)…")`).
+- **Budgets**: oversized input → fail-closed empty; per-image bytes / image count degrade gracefully (strip the resource, keep the deck).
+- **`DANGEROUS_HTML_PATTERNS`** stays exported but is documented as the streaming reliability **heuristic only — NOT a security boundary**.
+- `injectCSP` keeps `default-src 'none'; style-src 'unsafe-inline'; img-src data:` (the stronger first-child-of-head + Outcome A/B `script-src` is Phase 2).
+
+### Tests
+- `tests/presentationSanitizer.test.ts` (44, happy-dom): classic XSS + mXSS/parser-differential + SVG specialisation + anchor canonicalisation + CSS allowlist + budgets + result contract + golden parity + fail-open regression. (Real-browser CSP/parity tests are Phase 2.)
+
+**Plan**: [docs/plans/presentation-sanitizer-hardening.md](docs/plans/presentation-sanitizer-hardening.md) · **Audit**: [docs/plans/presentation-sanitizer-hardening-audit-summary.md](docs/plans/presentation-sanitizer-hardening-audit-summary.md)
+
 ## Smart Document Indexing (AI Chat)
 
 **Status**: ✅ Implemented (March 2026)

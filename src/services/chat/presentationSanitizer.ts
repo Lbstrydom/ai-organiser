@@ -228,8 +228,10 @@ const PURIFY_CONFIG = {
     ALLOWED_TAGS: [...ALLOWED_TAGS],
     ALLOWED_ATTR: [...ALLOWED_ATTR],
     FORBID_TAGS: [...FORBID_TAGS],
-    ALLOW_DATA_ATTR: true,
-    ALLOW_ARIA_ATTR: true,
+    // Strict allowlist (audit Gemini-G2): only the data-*/aria-* enumerated in
+    // the policy's ALLOWED_ATTR survive — no arbitrary data-attribute injection.
+    ALLOW_DATA_ATTR: false,
+    ALLOW_ARIA_ATTR: false,
     ADD_ATTR: ['target', 'rel', 'xlink:href'],
     WHOLE_DOCUMENT: false,
     RETURN_DOM: true,            // post-walk budgets on the returned tree

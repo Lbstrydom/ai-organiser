@@ -60,12 +60,18 @@ export const FORBID_TAGS: readonly string[] = [
 
 // ── Attribute allowlist (flattened for DOMPurify's global ALLOWED_ATTR) ───────
 
-// data-* and aria-* are inert (cannot execute) and the renderer uses arbitrary
-// data-slide-index/data-num markers, so they are allowed wholesale via DOMPurify's
-// ALLOW_DATA_ATTR / ALLOW_ARIA_ATTR flags (NOT enumerated here — enumerating a
-// subset alongside the broad flags is dead policy and reads as drift; audit M3).
+// Strict enumeration (audit Gemini-G2): the DOMPurify config sets
+// ALLOW_DATA_ATTR / ALLOW_ARIA_ATTR = false, so ONLY the data-*/aria-* listed
+// here survive — no arbitrary data-attribute injection. This set covers every
+// data-* the IR renderer emits at sanitize time (data-slide / data-slide-index
+// / data-title) PLUS the editor-projection markers (data-element /
+// data-bg-hover-label) and the plan's data-type/data-index/data-num, so adding
+// the strict flags can't regress rendering or the click-to-edit path.
 const GLOBAL_ATTRIBUTES = [
     'class', 'id', 'style', 'title', 'lang', 'dir', 'tabindex', 'hidden', 'role',
+    'data-slide', 'data-slide-index', 'data-title', 'data-type', 'data-index',
+    'data-num', 'data-element', 'data-bg-hover-label',
+    'aria-label', 'aria-hidden', 'aria-describedby', 'aria-labelledby',
 ];
 
 /** SVG presentation/geometry attributes (lowercase). Shared with `svgSanitize`. */
