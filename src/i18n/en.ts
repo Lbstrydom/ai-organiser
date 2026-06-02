@@ -3083,7 +3083,8 @@ export const en: Translations = {
             generating: "Generating deck…",
             auditing: "Auditing deck…",
             refining: "Refining deck…",
-            exporting: "Exporting deck…"
+            exporting: "Exporting deck…",
+            slideRenderFailed: "This slide could not be rendered."
         },
         kindle: {
             authenticating: "Authenticating with amazon…",

@@ -30,6 +30,7 @@ import {
     createSvgAssetCache, gradientSvgMarkup, renderIconSvgMarkup, addSvgImageSafe,
     type SvgAssetCache,
 } from './svgAsset';
+import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -60,6 +61,9 @@ export interface RenderPptxOptions {
     rasterize?: RasterizeFn;
     /** Test seam — inject a pptxgenjs stub/class. Defaults to the real module. */
     pptxModule?: PptxCtor;
+    /** Localised label for a slide that fails to render (caller injects via
+     *  plugin.t — the renderer stays Obsidian-free). Default English. */
+    placeholderLabel?: string;
 }
 
 export interface PptxRenderOutput {
@@ -79,6 +83,8 @@ interface RenderState {
     downgrades: string[];
     /** Per-export-pass dedup cache for generated SVG assets (icons/gradients). */
     svgCache: SvgAssetCache;
+    /** Localised placeholder label for a failed slide (default English). */
+    placeholderLabel: string;
 }
 
 const PX_PER_IN = 96;
@@ -95,7 +101,7 @@ export async function renderDeckToPptx(
     // Defensive guard (audit M1) — dereference safely before the main try.
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
 
-    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme, rasterize: opts.rasterize, notices: [], downgrades: [], svgCache: createSvgAssetCache() };
+    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme, rasterize: opts.rasterize, notices: [], downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL };
 
     let pres: PptxLike;
     try {
@@ -106,20 +112,29 @@ export async function renderDeckToPptx(
         return err(`fatal: pptxgenjs init failed: ${msg(e)}`);
     }
 
-    let slideCount = 0;
+    // D1 — every slide is added; one that fails to render degrades to a VISIBLE
+    // placeholder card (+ notice) instead of either sinking the deck or shipping
+    // a silent partial slide. Direct rendering preserves the per-OP fallbacks
+    // (native-chart→bars, svg-image→solid) that need a synchronous throw — a
+    // buffer-then-commit recorder would defer those throws past their try/catch.
+    // Blocks are already isolated per-block in flowBlocks; this catches the rare
+    // uncaught scaffolding error.
+    const slideCount = deck.slides.length;
+    let builtCount = 0;
     for (let i = 0; i < deck.slides.length; i++) {
+        const s = pres.addSlide();
         try {
-            await renderSlide(pres, deck.slides[i], i, state);
-            slideCount++;
+            await renderSlide(s, deck.slides[i], i, state);
+            builtCount++;
         } catch (e) {
-            // Per-slide isolation — one bad slide never kills the deck.
-            state.notices.push({ slideIndex: i, blockKind: 'paragraph', severity: 'substantive', description: `slide ${i} failed: ${msg(e)}` });
+            state.notices.push(slideFailureNotice(i, 'build', e));
+            try { buildPptxPlaceholder(s, state); } catch { /* never throw */ }
         }
     }
 
-    // All slides failed → don't hand back a successful-looking empty export
+    // Nothing rendered → don't hand back an all-placeholder deck as success
     // (audit H4/M10).
-    if (slideCount === 0) return err('fatal: every slide failed to render');
+    if (builtCount === 0) return err('fatal: every slide failed to render');
 
     try {
         const out = await pres.write({ outputType: 'arraybuffer' });
@@ -145,9 +160,8 @@ function toArrayBuffer(out: unknown): ArrayBuffer | null {
 
 interface Box { x: number; y: number; w: number }
 
-async function renderSlide(pres: PptxLike, slide: SlideIr, index: number, st: RenderState): Promise<void> {
+async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: RenderState): Promise<void> {
     const { theme } = st;
-    const s = pres.addSlide();
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
         // #4 — gradient via a full-bleed SVG image (a single vector fill, no
@@ -191,6 +205,15 @@ async function renderSlide(pres: PptxLike, slide: SlideIr, index: number, st: Re
     }
     await flowBlocks(s, slide.blocks, { x: MARGIN, y: CONTENT_TOP, w: CONTENT_WIDTH }, index, st);
     if (slide.notes) s.addNotes(slide.notes);
+}
+
+/** Render the user-visible placeholder card for a slide that failed to build
+ *  (D1). Label is the caller-injected localised string (default English). */
+function buildPptxPlaceholder(s: SlideLike, st: RenderState): void {
+    const { theme } = st;
+    s.background = { color: 'FFFFFF' };
+    s.addShape('roundRect', { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, rectRadius: 0.1, fill: { color: 'F1F5F9' }, line: { color: hx(theme.bodyColor), width: 0.5, dashType: 'dash' } });
+    s.addText(st.placeholderLabel, { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, fontFace: theme.fontFace, fontSize: 16, italic: true, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
 }
 
 /** Place blocks top-to-bottom within a column box, advancing a y cursor. */

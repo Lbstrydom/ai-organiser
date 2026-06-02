@@ -26,6 +26,13 @@ import { contrastTextColor } from './slideIr';
 import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
+import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
+
+export interface RenderHtmlOptions {
+    /** Localised label for a slide that fails to render (caller injects via
+     *  plugin.t — the renderer stays Obsidian-free). Default English. */
+    placeholderLabel?: string;
+}
 
 /** Inline vector icon (resolved symmetrically with PPTX). Empty string when the
  *  icon resolves to `none`, so an unknown/dropped icon is absent in BOTH. */
@@ -67,20 +74,45 @@ function stripDangerousHtml(html: string): string {
         .replace(/javascript:/gi, '');
 }
 
-export function renderDeckToHtml(deck: SlideDeckIr, theme: ExportTheme): Result<HtmlRenderOutput> {
+export function renderDeckToHtml(deck: SlideDeckIr, theme: ExportTheme, opts: RenderHtmlOptions = {}): Result<HtmlRenderOutput> {
     // Same validity contract as renderDeckToPptx (audit M6/M19 — the two
     // renderers must agree on what a renderable deck is).
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
+    const placeholderLabel = opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL;
     try {
         const notices: FidelityNotice[] = [];
+        // D1 — per-slide isolation: one bad slide degrades to a placeholder
+        // section + a notice instead of failing the WHOLE deck (parity with the
+        // PPTX per-slide isolation).
+        let builtCount = 0;
         const sections = deck.slides
-            .map((slide, i) => renderSlide(slide, i, theme, notices))
+            .map((slide, i) => {
+                try {
+                    const html = renderSlide(slide, i, theme, notices);
+                    builtCount++;
+                    return html;
+                } catch (e) {
+                    notices.push(slideFailureNotice(i, 'build', e));
+                    return placeholderSection(i, theme, placeholderLabel);
+                }
+            })
             .join('\n');
+        // Nothing rendered → don't return an all-placeholder doc as success
+        // (parity with renderDeckToPptx's builtCount guard — audit H5).
+        if (builtCount === 0) return err('fatal: every slide failed to render');
         const title = deck.title ? ` data-title="${esc(deck.title)}"` : '';
         return ok({ html: `<div class="deck"${title}>\n${sections}\n</div>`, notices });
     } catch (e) {
         return err(`irToHtml failed: ${e instanceof Error ? e.message : String(e)}`);
     }
+}
+
+/** User-visible placeholder section for a slide that failed to build (D1). */
+function placeholderSection(index: number, theme: ExportTheme, label: string): string {
+    const body = hx(theme.bodyColor);
+    return slideOpen(index, `background:#ffffff;color:${body};font-family:${theme.fontFace};display:flex;align-items:center;justify-content:center;padding:90px 110px;`)
+        + `<div style="border:2px dashed ${body}66;border-radius:16px;padding:60px;font-size:32px;font-style:italic;color:${body};opacity:0.7;text-align:center;max-width:60%;">${esc(label)}</div>`
+        + '</section>';
 }
 
 /** Common fixed-canvas box for every slide. `class="slide"` so the preview can
@@ -121,13 +153,24 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
         }
         if (slide.subtitle) parts.push(`<p style="font-size:32px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
         parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:28px;min-height:0;">');
-        for (const block of slide.blocks) parts.push(renderBlock(block, index, theme, notices));
+        for (const block of slide.blocks) parts.push(renderBlockSafe(block, index, theme, notices));
         parts.push('</div>');
     }
 
     if (slide.notes) parts.push(`<aside class="speaker-notes" style="display:none;">${esc(slide.notes)}</aside>`);
     parts.push('</section>');
     return parts.join('\n');
+}
+
+/** Per-block isolation (audit M6) — a single throwing block is dropped + noticed
+ *  instead of sinking the whole slide, matching the PPTX `flowBlocks` contract. */
+function renderBlockSafe(block: Block, slideIndex: number, theme: ExportTheme, notices: FidelityNotice[]): string {
+    try {
+        return renderBlock(block, slideIndex, theme, notices);
+    } catch (e) {
+        notices.push({ slideIndex, blockKind: block.kind, severity: 'substantive', description: `block "${block.kind}" failed: ${e instanceof Error ? e.message : String(e)}` });
+        return '';
+    }
 }
 
 function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notices: FidelityNotice[]): string {
@@ -210,7 +253,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
         }
         case 'two-column': {
             const col = (blocks: LeafBlock[]): string =>
-                `<div class="ir-col" style="flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;">${blocks.map(b => renderBlock(b, slideIndex, theme, notices)).join('')}</div>`;
+                `<div class="ir-col" style="flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;">${blocks.map(b => renderBlockSafe(b, slideIndex, theme, notices)).join('')}</div>`;
             return `<div class="ir-cols" style="display:flex;gap:56px;flex:1;min-height:0;">${col(block.left)}${col(block.right)}</div>`;
         }
         case 'custom': {

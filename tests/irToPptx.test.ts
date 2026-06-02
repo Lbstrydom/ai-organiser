@@ -181,6 +181,17 @@ describe('renderDeckToPptx — escape hatch + isolation', () => {
         expect(slides[0].count('addShape')).toBeGreaterThanOrEqual(1); // placeholder box
     });
 
+    it('a slide that fails to build degrades to a placeholder; the deck still ships (D1)', async () => {
+        // addShape throws → content slides fail at the accent-underline scaffolding
+        // (before flowBlocks); title/closing slides (no scaffolding addShape) survive.
+        // The deck returns ok with every slide present + a build-failed notice.
+        const { r } = await render(coffeeDeckIr, { failOn: ['addShape'] });
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.slideCount).toBe(coffeeDeckIr.slides.length);
+        expect(r.value.notices.some(n => /build failed/.test(n.description))).toBe(true);
+    });
+
     it('isolates a block whose primitive throws — deck still renders (never-throws)', async () => {
         // addImage throws → the svg slide's block fails but the deck survives.
         const { r } = await render(coffeeDeckIr, { failOn: ['addImage'] });

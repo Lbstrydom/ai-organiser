@@ -526,6 +526,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             const built = buildHtmlFromDeckIr(
                 irResult.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage,
+                r.ctx.plugin.t.progress.presentation.slideRenderFailed,
             );
             if (!built.ok) {
                 logger.error('Presentation', `[IR-gen] IR→HTML render failed: ${built.error}`);
@@ -609,7 +610,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             signal: abort.signal,
         });
         if (abort.signal.aborted || !refined.ok) return;
-        const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage);
+        const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage, ctx.plugin.t.progress.presentation.slideRenderFailed);
         if (!built.ok) return;
         this.commitDeckMutation({
             deckIr: refined.value,
@@ -649,7 +650,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.lastError = refined.error;
                 return { finalContent: t.slideRefineFailed.replace('{error}', refined.error) };
             }
-            const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage);
+            const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 logger.error('Presentation', `[IR-refine] IR→HTML failed: ${built.error}`);
                 this.setPhase('error');
@@ -744,7 +745,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 return { finalContent: t.slideEditFailed.replace('{error}', refined.error) };
             }
             const exportTheme = await this.resolveExportTheme(r.ctx);
-            const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage);
+            const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 this.setPhase('error');
                 this.lastError = built.error;
@@ -1300,7 +1301,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // the IR. On render failure return null so the caller falls back to
             // dom-to-pptx on the rendered HTML.
             const { renderDeckToPptx } = await import('../../services/presentationIr');
-            const result = await renderDeckToPptx(this.deckIr, exportTheme);
+            const result = await renderDeckToPptx(this.deckIr, exportTheme, { placeholderLabel: ctx.plugin.t.progress.presentation.slideRenderFailed });
             if (result.ok) return result.value.buffer;
             logger.warn('Presentation', `IR PPTX render failed: ${result.error}`);
             return null;
@@ -1619,7 +1620,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     return err(tSlice.errorByCode[code] ?? tSlice.errorByCode['unexpected-exception']);
                 }
                 const exportTheme = await this.resolveExportTheme(ctx);
-                const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage);
+                const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage, ctx.plugin.t.progress.presentation.slideRenderFailed);
                 if (!built.ok) return err(tSlice.errorByCode['invalid-deck-after-splice']);
                 return ok({ refined: refined.value, html: built.value });
             },

@@ -119,9 +119,16 @@ export function buildHtmlFromDeckIr(
     exportTheme: ExportTheme,
     brandCss: string,
     language?: string,
+    placeholderLabel?: string,
 ): Result<string> {
-    const rendered = renderDeckToHtml(deck, exportTheme);
+    const rendered = renderDeckToHtml(deck, exportTheme, { placeholderLabel });
     if (!rendered.ok) return rendered;
+
+    // Surface per-slide isolation notices — don't silently drop them (Gemini /
+    // observability). Mirrors how the PPTX export path reports its notices.
+    for (const n of rendered.value.notices) {
+        if (n.severity === 'substantive') logger.warn('Presentation', `IR→HTML: ${n.description}`);
+    }
 
     const sanitized = sanitizePresentation(rendered.value.html);
     if (!sanitized.hasDeckRoot) return err('IR→HTML: missing .deck root element');

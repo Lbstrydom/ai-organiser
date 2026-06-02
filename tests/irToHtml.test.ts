@@ -71,6 +71,43 @@ describe('renderDeckToHtml', () => {
         expect(r.value.html).not.toContain('🦄');                    // uncurated → omitted
     });
 
+    it('a slide that throws degrades to a placeholder section; the deck still renders (D1)', () => {
+        const deck = {
+            schemaVersion: IR_SCHEMA_VERSION,
+            title: 'Iso',
+            slides: [
+                { id: 's1', type: 'content', title: 'Good', blocks: [{ kind: 'paragraph', text: 'ok' }] },
+                // null blocks → renderSlide throws iterating (defensive isolation path).
+                { id: 's2', type: 'content', title: 'Bad', blocks: null as unknown },
+            ],
+        } as unknown as SlideDeckIr;
+        const r = renderDeckToHtml(deck, theme, { placeholderLabel: 'FAILED-CARD' });
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.html).toContain('Good');         // good slide still rendered
+        expect(r.value.html).toContain('FAILED-CARD');  // failed slide → placeholder
+        expect(r.value.notices.some(n => /build failed/.test(n.description))).toBe(true);
+    });
+
+    it('isolates a single throwing block — the rest of the slide still renders (M6)', () => {
+        const deck = {
+            schemaVersion: IR_SCHEMA_VERSION,
+            title: 'Blk',
+            slides: [{
+                id: 's1', type: 'content', title: 'C', blocks: [
+                    { kind: 'paragraph', text: 'GOOD-PARA' },
+                    { kind: 'bullets', items: null as unknown },   // throws in renderBlock
+                ],
+            }],
+        } as unknown as SlideDeckIr;
+        const r = renderDeckToHtml(deck, theme, { placeholderLabel: 'WHOLE-SLIDE-FAILED' });
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.html).toContain('GOOD-PARA');                  // sibling block survived
+        expect(r.value.html).not.toContain('WHOLE-SLIDE-FAILED');     // NOT a whole-slide placeholder
+        expect(r.value.notices.some(n => /block "bullets" failed/.test(n.description))).toBe(true);
+    });
+
     it('applies a per-slide background override with auto-contrast text', () => {
         const deck: SlideDeckIr = {
             schemaVersion: IR_SCHEMA_VERSION,

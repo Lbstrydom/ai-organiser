@@ -3133,6 +3133,7 @@ export interface ProgressStrings {
         auditing: string;
         refining: string;
         exporting: string;
+        slideRenderFailed: string;
     };
     kindle: {
         authenticating: string;
