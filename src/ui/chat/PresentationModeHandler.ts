@@ -89,6 +89,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     private deckIr: SlideDeckIr | null = null;
     private versions: PresentationVersion[] = [];
     private versionIndex = -1;
+    // Monotonic deck-mutation counter — the source of truth for "the deck
+    // changed". Used as the thumbnail-cache key + the layout-controller's
+    // change signal. MUST be monotonic (never `versions.length`): the
+    // MAX_VERSIONS cap keeps length constant after the 20th version, and a
+    // version restore doesn't change length at all — either would silently
+    // serve STALE thumbnails / miss a layout resync. Bumped on every deck swap.
+    private deckEpoch = 0;
     private activeSlideIndex = 0;
     private lastError: string | null = null;
     private qualityResult: QualityResult | null = null;
@@ -326,7 +333,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // from this.html (offscreen, never cloned into the host DOM).
             this.thumbnailProvider = new SlideThumbnailProvider({
                 getHtml: () => this.html,
-                getDeckVersion: () => this.versions.length,
+                getDeckVersion: () => this.deckEpoch,
             });
             this.filmstrip = new SlideFilmstrip(filmstripHost, {
                 getCount: () => this.thumbnailProvider?.slideCount() ?? 0,
@@ -1064,7 +1071,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     getLayoutState(): { hasDeck: boolean; deckVersion: number } {
         return {
             hasDeck: this.html !== null && this.phase !== 'empty',
-            deckVersion: this.versions.length,
+            deckVersion: this.deckEpoch,
         };
     }
 
@@ -1268,6 +1275,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.brandEnabled = session.brandEnabled;
         this.activeSlideIndex = 0;
         this.phase = 'preview-ready';
+        this.deckEpoch++;   // a restored session is a fresh deck — invalidate any cache
         return true;
     }
 
@@ -1716,6 +1724,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         });
         if (this.versions.length > MAX_VERSIONS) this.versions.shift();
         this.versionIndex = this.versions.length - 1;
+        this.deckEpoch++;   // deck changed — invalidate thumbnail cache + signal layout
     }
 
     private restoreVersion(index: number): void {
@@ -1727,14 +1736,17 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.deckIr = version.deckIr ?? null;
         this.activeSlideIndex = version.activeSlideIndex;
         this.versionIndex = index;
+        this.deckEpoch++;   // restoring swaps the whole deck — invalidate stale thumbnails
         // Restoring a version is a whole-deck swap. Selection paths that
         // resolved against the previous version may not exist (or may
         // resolve to different content) in the restored one. Clear it.
         this.clearSelection();
         this.phase = 'preview-ready';
-        // Consistency: a version swap is a deck mutation — refresh the preview
-        // and the nav (counter + button states) like every other path.
+        // Consistency: a version swap is a deck mutation — refresh the preview,
+        // the filmstrip (thumbnails now re-rasterize against the bumped epoch so
+        // they reflect the restored deck, not the cached newer one), and the nav.
         this.refreshPreview();
+        this.filmstrip?.refresh();
         this.refreshVersionNav();
     }
 
