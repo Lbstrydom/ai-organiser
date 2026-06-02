@@ -1,40 +1,32 @@
-import { zhCN } from './zh-cn';
 import { en } from './en';
 import { Translations } from './types';
 
 export type { Translations } from './types';
 
-// 支持的语言类型
-export type SupportedLanguage = 'zh-cn' | 'en';
+// Supported interface languages. English-only — the i18n system stays, but the
+// Simplified-Chinese locale was dropped (the EN/ZH parity burden outweighed its
+// use). Re-adding a locale = add a `Translations` impl + an entry here.
+export type SupportedLanguage = 'en';
 
-// 语言映射
 export const languageMap: Record<SupportedLanguage, string> = {
-    'zh-cn': '中文（简体）',
     'en': 'English'
 };
 
-// 语言包映射
 export const translations: Record<SupportedLanguage, Translations> = {
-    'zh-cn': zhCN,
     'en': en
 };
 
-// 默认语言
 export const DEFAULT_LANGUAGE: SupportedLanguage = 'en';
 
 /**
- * 获取当前语言设置
- * @param languageCode 语言代码
- * @returns 对应的语言包
+ * Resolve the language pack for a stored language code. Unknown/legacy codes
+ * (e.g. a previously-stored `'zh-cn'`) fall back to English.
  */
-export function getTranslations(languageCode: string = DEFAULT_LANGUAGE): Translations {
-    return translations[languageCode as SupportedLanguage] || translations[DEFAULT_LANGUAGE];
+export function getTranslations(_languageCode: string = DEFAULT_LANGUAGE): Translations {
+    return translations[DEFAULT_LANGUAGE];
 }
 
-/**
- * 获取所有支持的语言选项
- * @returns 语言选项映射
- */
+/** All selectable interface-language options (code → display name). */
 export function getLanguageOptions(): Record<string, string> {
     return Object.entries(languageMap).reduce((acc, [code, name]) => {
         acc[code] = name;
@@ -42,11 +34,7 @@ export function getLanguageOptions(): Record<string, string> {
     }, {} as Record<string, string>);
 }
 
-/**
- * 检查是否为支持的语言
- * @param languageCode 语言代码
- * @returns 是否支持
- */
+/** Whether a language code is a supported interface language. */
 export function isSupportedLanguage(languageCode: string): languageCode is SupportedLanguage {
     return languageCode in translations;
 }

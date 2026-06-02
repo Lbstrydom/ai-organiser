@@ -9,7 +9,6 @@
 import { stripExistingHighlight } from '../src/commands/highlightCommands';
 import { splitIntoBlocks } from '../src/utils/highlightExtractor';
 import { en } from '../src/i18n/en';
-import { zhCN } from '../src/i18n/zh-cn';
 import { normalizeCreatePath, shouldShowCreateFolder } from '../src/ui/modals/FolderScopePickerModal';
 import { lineHasImageEmbed } from '../src/ui/contextMenu';
 
@@ -267,15 +266,6 @@ describe('i18n completeness for UX fix keys', () => {
             expect(en.modals.folderScopePicker.exportDestination).toContain('{path}');
         });
 
-        it('zh-cn has createFolder key', () => {
-            expect(zhCN.modals.folderScopePicker.createFolder).toBeTruthy();
-            expect(zhCN.modals.folderScopePicker.createFolder).toContain('{path}');
-        });
-
-        it('zh-cn has exportDestination key', () => {
-            expect(zhCN.modals.folderScopePicker.exportDestination).toBeTruthy();
-            expect(zhCN.modals.folderScopePicker.exportDestination).toContain('{path}');
-        });
     });
 
     describe('unifiedChat new keys', () => {
@@ -285,27 +275,17 @@ describe('i18n completeness for UX fix keys', () => {
             it(`en has ${key}`, () => {
                 expect(en.modals.unifiedChat[key]).toBeTruthy();
             });
-
-            it(`zh-cn has ${key}`, () => {
-                expect(zhCN.modals.unifiedChat[key]).toBeTruthy();
-            });
         }
 
         it('showingCount contains {visible} and {total} placeholders', () => {
             expect(en.modals.unifiedChat.showingCount).toContain('{visible}');
             expect(en.modals.unifiedChat.showingCount).toContain('{total}');
-            expect(zhCN.modals.unifiedChat.showingCount).toContain('{visible}');
-            expect(zhCN.modals.unifiedChat.showingCount).toContain('{total}');
         });
     });
 
     describe('contextMenu digitise key', () => {
         it('en has digitise key', () => {
             expect(en.contextMenu.digitise).toBeTruthy();
-        });
-
-        it('zh-cn has digitise key', () => {
-            expect(zhCN.contextMenu.digitise).toBeTruthy();
         });
     });
 });

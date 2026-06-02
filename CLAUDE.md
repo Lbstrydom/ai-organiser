@@ -101,14 +101,15 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 ### Internationalization (i18n)
 
 **Translation system** (`src/i18n/`):
-- Supported languages: English (`en.ts`) and Simplified Chinese (`zh-cn.ts`)
-- Type-safe translations via `Translations` interface
+- **English only** (`en.ts`). The i18n system stays (typed `t.*` access), but the Simplified-Chinese locale was retired 2026-06 — the EN/ZH parity maintenance burden outweighed its use. `migrateOldSettings` coerces any stored `interfaceLanguage: 'zh-cn'` → `'en'`.
+- Type-safe translations via the `Translations` interface
 - Access translations: `this.t.settings.someKey` or `plugin.t.messages.someMessage`
 - Interface language change requires Obsidian restart
+- Re-adding a locale later = add a `Translations` impl + an entry in `src/i18n/index.ts`
 
 **Adding new i18n strings**:
-1. Add to `Translations` interface in `types.ts`
-2. Implement in both `en.ts` and `zh-cn.ts`
+1. Add to the `Translations` interface in `types.ts`
+2. Implement in `en.ts` (the only locale)
 3. Reference via `t.section.key` in code
 
 ### Tag Utilities & Operations
@@ -212,7 +213,7 @@ The build process uses esbuild to bundle `src/main.ts` into `main.js`. Productio
 - **280-char summaries**: Optimized for Bases preview pane, truncates at sentence boundaries
 - **Graceful degradation**: Works without Bases plugin (metadata still useful for Dataview, search)
 - **Type safety**: ContentType, StatusValue, SourceType enums in constants.ts
-- **Bilingual**: Complete EN + ZH-CN translations for all UI elements
+- **i18n**: English-only (`en.ts`); the i18n system remains, the zh-cn locale was retired 2026-06
 
 **Integration Points**:
 - Tag generation: Suggested tags from structured responses added to frontmatter
@@ -560,7 +561,7 @@ plugin.addCommand({
 - **Semantic views**: `src/ui/views/RelatedNotesView.ts`
 - **Bases integration**: `src/utils/frontmatterUtils.ts`, `src/services/migrationService.ts`, `src/services/dashboardService.ts`
 - **Metadata handling**: `src/core/constants.ts`, `src/utils/responseParser.ts`
-- **Translations**: `src/i18n/en.ts` and `src/i18n/zh-cn.ts`
+- **Translations**: `src/i18n/en.ts` (English-only; zh-cn retired 2026-06)
 - **Logging**: `src/utils/logger.ts` — centralised Logger singleton (use `logger.debug/warn/error('Tag', msg)`)
 - **Result type**: `src/core/result.ts` — `Result<T>` discriminated union for service boundaries
 - **Event cleanup helper**: `src/ui/utils/domUtils.ts` — `listen()` helper for modal event listener cleanup
@@ -997,7 +998,7 @@ The Bases integration enables structured metadata and dashboard generation for s
 
 **Type Safety**: `ContentType`, `StatusValue`, `SourceType` enums in constants.ts
 
-**Bilingual Support**: Complete EN + ZH-CN translations for all UI elements (130+ strings)
+**i18n**: English-only (`en.ts`) — zh-cn locale retired 2026-06 (i18n system retained)
 
 **4-Tier JSON Parsing**: Handles various LLM response formats gracefully
 

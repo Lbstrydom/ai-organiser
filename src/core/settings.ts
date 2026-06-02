@@ -836,6 +836,12 @@ export function getChatRootFullPath(settings: AIOrganiserSettings): string {
 export function migrateOldSettings(oldSettings: Record<string, unknown> | null): Record<string, unknown> | null {
     if (!oldSettings) return oldSettings;
 
+    // Retire the Simplified-Chinese locale: English is the only interface
+    // language now. Coerce any stored 'zh-cn' so the setting stays valid.
+    if (oldSettings.interfaceLanguage === 'zh-cn') {
+        oldSettings.interfaceLanguage = 'en';
+    }
+
     // Migrate old Ollama settings to local
     if (oldSettings.serviceType === 'ollama') {
         oldSettings.serviceType = 'local';
