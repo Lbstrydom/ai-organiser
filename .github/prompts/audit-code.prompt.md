@@ -12,7 +12,7 @@ Multi-pass code audit against a plan with R2+ ledger suppression and debt captur
 Invoke the engineering skills CLI:
 
 ```bash
-node scripts/openai-audit.mjs code ${input:plan_path} --scope diff
+node scripts/.claude-skills/openai-audit.mjs code ${input:plan_path} --scope diff
 ```
 
 Underlying script: `scripts/openai-audit.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.

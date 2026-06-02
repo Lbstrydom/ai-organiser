@@ -22,13 +22,13 @@
     "persona:register": "node scripts/persona-harness/register-personas.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "install-ffmpeg": "node scripts/install-ffmpeg.js",
-    "arch:refresh": "node scripts/symbol-index/refresh.mjs",
-    "arch:refresh:full": "node scripts/symbol-index/refresh.mjs --full",
-    "arch:render": "node scripts/symbol-index/render-mermaid.mjs",
-    "arch:drift": "node scripts/symbol-index/drift.mjs",
-    "arch:duplicates": "node scripts/symbol-index/duplicates.mjs",
-    "arch:prune": "node scripts/symbol-index/prune.mjs",
-    "arch:spike": "node scripts/symbol-index/spike-extract.mjs"
+    "arch:refresh": "node scripts/.claude-skills/symbol-index/refresh.mjs",
+    "arch:refresh:full": "node scripts/.claude-skills/symbol-index/refresh.mjs --full",
+    "arch:render": "node scripts/.claude-skills/symbol-index/render-mermaid.mjs",
+    "arch:drift": "node scripts/.claude-skills/symbol-index/drift.mjs",
+    "arch:duplicates": "node scripts/.claude-skills/symbol-index/duplicates.mjs",
+    "arch:prune": "node scripts/.claude-skills/symbol-index/prune.mjs",
+    "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs"
   },
   "keywords": [
     "obsidian",

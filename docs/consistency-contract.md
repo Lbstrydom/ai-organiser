@@ -304,7 +304,7 @@ $EDITOR .persona-test/canaries/<your-canary>.json
 #    (Add data-engine-claim / data-engine-value / data-freshness)
 
 # 4. Run
-node scripts/persona-consistency-run.mjs \
+node scripts/.claude-skills/persona-consistency-run.mjs \
   --canary <your-canary> \
   --url http://localhost:3000
 ```
@@ -497,7 +497,7 @@ Add to your existing test workflow:
 
 ```yaml
 - run: npx playwright install --with-deps chromium
-- run: node scripts/persona-consistency-run.mjs --canary <canary> --url $STAGING_URL
+- run: node scripts/.claude-skills/persona-consistency-run.mjs --canary <canary> --url $STAGING_URL
 ```
 
 The runner exits with one of:

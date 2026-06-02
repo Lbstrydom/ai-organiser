@@ -127,3 +127,7 @@ skills.manifest.json
 .requirements/candidates.json
 .requirements/gaps.json
 .requirements/.lock
+
+# managed-by:claude-engineering-skills-sync — DO NOT EDIT INSIDE
+scripts/.claude-skills/
+# /managed-by:claude-engineering-skills-sync

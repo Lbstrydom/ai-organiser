@@ -12,7 +12,7 @@ Concept-level multi-LLM brainstorming — calls OpenAI (and optionally Gemini) f
 Invoke the engineering skills CLI:
 
 ```bash
-node scripts/brainstorm-round.mjs --topic-stdin ${input:flags}
+node scripts/.claude-skills/brainstorm-round.mjs --topic-stdin ${input:flags}
 ```
 
 Underlying script: `scripts/brainstorm-round.mjs` — same code path that Claude skills orchestrate, so output is consistent across both surfaces.
