@@ -52,9 +52,9 @@ const STUB_IR = { schemaVersion: 1, slides: [{ id: 's1', type: 'content', blocks
 function makeHandler(): PresentationModeHandler {
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const h = new PresentationModeHandler();
-    (h as any).html = STUB_DECK;
-    (h as any).deckIr = STUB_IR;     // deck is always IR-backed now
-    (h as any).deckIrStale = false;
+    // Deck state lives on the PresentationDeckStore (TD-SSR-02 foundation).
+    (h as any).deck.html = STUB_DECK;
+    (h as any).deck.deckIr = STUB_IR;     // deck is always IR-backed now
     /* eslint-enable @typescript-eslint/no-explicit-any */
     return h;
 }

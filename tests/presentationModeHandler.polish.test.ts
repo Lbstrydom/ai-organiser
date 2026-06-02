@@ -93,15 +93,18 @@ function makeCallbacks() {
 
 function makeHandler(state: Record<string, unknown> = {}): PresentationModeHandler {
     const h = new PresentationModeHandler();
-    Object.assign(h as unknown as Record<string, unknown>, {
+    // Deck state lives on the PresentationDeckStore (TD-SSR-02 foundation);
+    // overrides (deckIr / qualityResult) target deck fields.
+    Object.assign((h as unknown as { deck: Record<string, unknown> }).deck, {
         html: '<deck>',
         deckIr: coffeeDeckIr,
-        deckIrStale: false,
         qualityResult: null,
+        ...state,
+    });
+    Object.assign(h as unknown as Record<string, unknown>, {
         preview: null,
         brandTheme: { css: '', auditChecklist: [], promptRules: '' },
         brandEnabled: false,
-        ...state,
     });
     // The multi-slide Polish path runs an autodetect pre-scan before opening the
     // modal; stub the LLM fast scan so routing tests stay deterministic.
@@ -135,7 +138,7 @@ describe('handlePolish — routing', () => {
         await (handler as never as { handlePolish: (c: never, cb: never) => Promise<void> })
             .handlePolish(makeCtx(), makeCallbacks());
         expect(PolishSelectorModalMock).not.toHaveBeenCalled();
-        expect((handler as unknown as { deckIr: unknown }).deckIr).toBeNull();
+        expect((handler as unknown as { deck: { deckIr: unknown } }).deck.deckIr).toBeNull();
     });
 
     it('multi-slide IR deck opens the selector modal', async () => {
@@ -153,7 +156,7 @@ describe('handlePolish — routing', () => {
             .handlePolish(makeCtx(), makeCallbacks());
         const inst = PolishSelectorModalMock.mock.instances[0] as { findings: unknown[] };
         expect(inst.findings).toEqual([]);
-        expect((handler as unknown as { qualityResult: unknown }).qualityResult).toBeNull();
+        expect((handler as unknown as { deck: { qualityResult: unknown } }).deck.qualityResult).toBeNull();
     });
 
     it('single-flight: a second Polish while a modal is open is a no-op', async () => {
@@ -210,10 +213,9 @@ describe('handlePolish — submit outcomes', () => {
         );
         expect(res).toEqual({ ok: true });
 
-        const h = handler as unknown as {
-            deckIr: SlideDeckIr; html: string;
-            versions: Array<{ userPrompt: string }>;
-        };
+        const h = (handler as unknown as {
+            deck: { deckIr: SlideDeckIr; html: string; versions: Array<{ userPrompt: string }> };
+        }).deck;
         expect(h.deckIr).toBe(refined);
         expect(h.html).toBe('<refined-html>');
         // Quality is refreshed via the consolidated commit (no stale findings):
@@ -236,7 +238,7 @@ describe('handlePolish — submit outcomes', () => {
         if (!res.ok) {
             expect(res.error).toBe(en.modals.polishSelector.errorByCode['malformed-json']);
         }
-        const h = handler as unknown as { deckIr: SlideDeckIr; html: string; versions: unknown[] };
+        const h = (handler as unknown as { deck: { deckIr: SlideDeckIr; html: string; versions: unknown[] } }).deck;
         expect(h.deckIr).toBe(coffeeDeckIr); // unchanged
         expect(h.html).toBe('<deck>');       // unchanged
         expect(h.versions).toHaveLength(0);  // no version pushed

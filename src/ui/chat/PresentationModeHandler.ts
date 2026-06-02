@@ -22,7 +22,7 @@ import type {
 import { pluginContext } from '../../services/llmFacade';
 import type { LLMFacadeContext } from '../../services/llmFacade';
 import {
-    type PresentationPhase, type PresentationVersion, type QualityResult,
+    type PresentationPhase,
     type SelectionScope, type EditMode, type EditFlags,
     MAX_VERSIONS, extractSlideInfo, runStructureChecks, computeQualityScore,
     migratePresentationSession, classifyReliability,
@@ -63,6 +63,7 @@ import { registerPresentationTarget, unregisterPresentationTarget } from './pres
 import { PresentationThemeResolver } from './presentation/presentationThemeResolver';
 import { PresentationExporter } from './presentation/presentationExporter';
 import { EditScopeController } from './presentation/editScopeController';
+import { PresentationDeckStore } from './presentation/presentationDeckStore';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -81,25 +82,10 @@ interface RunContext {
 export class PresentationModeHandler implements ChatModeHandler {
     readonly mode: ChatMode = 'presentation';
 
-    // State
-    private phase: PresentationPhase = 'empty';
-    private html: string | null = null;
-    // `deckIr` is the canonical artifact — the deck is always IR-backed (legacy
-    // HTML generation was retired 2026-06). Every mutation path produces a new
-    // IR via commitDeckMutation, so it never disagrees with `this.html`.
-    private deckIr: SlideDeckIr | null = null;
-    private versions: PresentationVersion[] = [];
-    private versionIndex = -1;
-    // Monotonic deck-mutation counter — the source of truth for "the deck
-    // changed". Used as the thumbnail-cache key + the layout-controller's
-    // change signal. MUST be monotonic (never `versions.length`): the
-    // MAX_VERSIONS cap keeps length constant after the 20th version, and a
-    // version restore doesn't change length at all — either would silently
-    // serve STALE thumbnails / miss a layout resync. Bumped on every deck swap.
-    private deckEpoch = 0;
-    private activeSlideIndex = 0;
-    private lastError: string | null = null;
-    private qualityResult: QualityResult | null = null;
+    // Deck state — single source of truth (TD-SSR-02 foundation). Fields are
+    // mutated in place via `this.deck.*`; pushVersion + the monotonic epoch live
+    // on the store. See PresentationDeckStore.
+    private readonly deck = new PresentationDeckStore();
 
     // Brand
     private brandEnabled = false;
@@ -150,7 +136,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     // Preview
     private preview: SlideIframePreview | null = null;
     // Phase 2 filmstrip: thumbnail navigator (left of the canvas). Disposed with
-    // the preview. Thumbnails are rastered from this.html, keyed by deck version.
+    // the preview. Thumbnails are rastered from this.deck.html, keyed by deck version.
     private filmstrip: SlideFilmstrip | null = null;
     private thumbnailProvider: SlideThumbnailProvider | null = null;
 
@@ -176,7 +162,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private readonly editScope = new EditScopeController({
         getOperation: () => this.deriveOperation(),
         isLocked: () => this.mutationLock,
-        onActiveSlide: (i) => { this.activeSlideIndex = i; },
+        onActiveSlide: (i) => { this.deck.activeSlideIndex = i; },
     });
 
     // ── Phase progress ──────────────────────────────────────────────────────
@@ -186,7 +172,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  Also re-renders the edit accessory so the create panel / edit pills
      *  reflect the new operation gate (audit Item 5). */
     private setPhase(phase: PresentationPhase): void {
-        this.phase = phase;
+        this.deck.phase = phase;
         const label = this.getPhaseMessage(phase);
         if (label && this.activeThinkingUpdater) {
             this.activeThinkingUpdater(label);
@@ -229,7 +215,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Phase 1B F13: once a deck exists, placeholder pivots from
         // "describe" to "refine" so the textarea visibly signals the mode
         // has shifted from initial generation to iterative polish.
-        return this.html
+        return this.deck.html
             ? t.modals.unifiedChat.placeholderPresentationRefine
             : t.modals.unifiedChat.placeholderPresentation;
     }
@@ -243,7 +229,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         registerPresentationTarget(this);
 
         // F3: dispose any prior SlideIframePreview BEFORE clearing the DOM.
-        // Previously this was nested inside the `if (this.html)` recreate
+        // Previously this was nested inside the `if (this.deck.html)` recreate
         // branch — transitions to empty / error / non-preview states cleared
         // the container without ever calling dispose(), leaking the iframe
         // + its listeners.
@@ -281,7 +267,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // No deck yet — render the Create panel so the user can configure
         // sources / audience / length / speed before generating.
-        if (!this.html) {
+        if (!this.deck.html) {
             this.ensureSourceController(ctx);
             const panelHost = container.createDiv({ cls: 'ai-organiser-pres-create-panel-host' });
             if (this.sourceController) {
@@ -296,10 +282,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             }
         }
 
-        if (this.phase === 'empty') return;
+        if (this.deck.phase === 'empty') return;
 
         // Slide preview
-        if (this.html) {
+        if (this.deck.html) {
             // Edit-flow accessory area — selection pill + mode pills + flags.
             // Sits above the iframe so the user sees the active scope before
             // they type the edit. The controller owns the stable container ref
@@ -316,23 +302,23 @@ export class PresentationModeHandler implements ChatModeHandler {
             const filmstripHost = canvasBody.createEl('div', { cls: 'ai-organiser-pres-filmstrip-host' });
             const previewContainer = canvasBody.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
             this.preview = new SlideIframePreview(previewContainer, {
-                onSlideSelect: (idx) => { this.activeSlideIndex = idx; this.filmstrip?.setActive(idx); },
+                onSlideSelect: (idx) => { this.deck.activeSlideIndex = idx; this.filmstrip?.setActive(idx); },
                 onElementSelect: (event) => { this.editScope.selectFromEvent(event); },
                 emptyPlaceholderText: t.slidePreviewEmpty,
                 bgHoverLabelTemplate: t.slideBgHoverTooltipTemplate,
             });
 
             // Filmstrip thumbnail navigator (Phase 2). Thumbnails are rastered
-            // from this.html (offscreen, never cloned into the host DOM).
+            // from this.deck.html (offscreen, never cloned into the host DOM).
             this.thumbnailProvider = new SlideThumbnailProvider({
-                getHtml: () => this.html,
-                getDeckVersion: () => this.deckEpoch,
+                getHtml: () => this.deck.html,
+                getDeckVersion: () => this.deck.deckEpoch,
             });
             this.filmstrip = new SlideFilmstrip(filmstripHost, {
                 getCount: () => this.thumbnailProvider?.slideCount() ?? 0,
-                getActiveIndex: () => this.activeSlideIndex,
+                getActiveIndex: () => this.deck.activeSlideIndex,
                 getThumbnail: (i, signal) => this.thumbnailProvider?.getThumbnail(i, signal) ?? Promise.resolve(null),
-                onSelect: (i) => { this.activeSlideIndex = i; this.preview?.navigateToSlide(i); this.filmstrip?.setActive(i); },
+                onSelect: (i) => { this.deck.activeSlideIndex = i; this.preview?.navigateToSlide(i); this.filmstrip?.setActive(i); },
                 groupLabel: ctx.plugin.t.presentationLayout.slideThumbnails,
                 itemLabelTemplate: ctx.plugin.t.presentationLayout.slideThumbnailItem,
             });
@@ -340,7 +326,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             // Project canonical HTML for the editor: adds data-element
             // attributes the iframe runtime walks on click. Canonical HTML
-            // (no data-element) stays in this.html for prompts/exports.
+            // (no data-element) stays in this.deck.html for prompts/exports.
             this.refreshPreview();
         }
 
@@ -354,16 +340,16 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (phaseText) {
             container.createEl('div', { cls: 'ai-organiser-pres-status', text: phaseText });
         }
-        if (this.phase === 'error' && this.lastError) {
+        if (this.deck.phase === 'error' && this.deck.lastError) {
             const el = container.createEl('div', { cls: 'ai-organiser-pres-error' });
-            el.textContent = this.lastError;
+            el.textContent = this.deck.lastError;
         }
     }
 
     /** F4: single source of truth for side-panel status text, maps phase
      *  → i18n key. Returns null for phases with no visible status line. */
     private getPhaseStatusText(t: Translations['modals']['unifiedChat']): string | null {
-        switch (this.phase) {
+        switch (this.deck.phase) {
             case 'generating': return t.phaseGenerating;
             case 'refining':   return t.phaseRefining;
             case 'auditing':   return t.phaseAuditing;
@@ -390,23 +376,23 @@ export class PresentationModeHandler implements ChatModeHandler {
      * through here so the preview can never be left stale or blank.
      */
     private refreshPreview(): void {
-        if (!this.preview || !this.html) return;
-        const count = countSlides(this.html);
-        if (this.activeSlideIndex < 0 || this.activeSlideIndex >= count) {
-            this.activeSlideIndex = 0;
+        if (!this.preview || !this.deck.html) return;
+        const count = countSlides(this.deck.html);
+        if (this.deck.activeSlideIndex < 0 || this.deck.activeSlideIndex >= count) {
+            this.deck.activeSlideIndex = 0;
         }
-        this.preview.setHtml(projectForEditor(this.html));
-        if (this.activeSlideIndex > 0) {
+        this.preview.setHtml(projectForEditor(this.deck.html));
+        if (this.deck.activeSlideIndex > 0) {
             // F5: track the navigate handle so rapid re-render / dispose can
             // cancel the stale callback before it fires.
             this.clearNavigateTimeout();
             this.navigateTimeoutId = setTimeout(() => {
                 this.navigateTimeoutId = null;
-                this.preview?.navigateToSlide(this.activeSlideIndex);
+                this.preview?.navigateToSlide(this.deck.activeSlideIndex);
             }, 200);
         }
-        if (this.qualityResult) {
-            this.preview.setQuality(this.qualityResult);
+        if (this.deck.qualityResult) {
+            this.preview.setQuality(this.deck.qualityResult);
         }
         // Rebuild the filmstrip for the (possibly new) deck — the provider keys
         // its cache by deck version, so unchanged decks reuse cached thumbnails.
@@ -429,11 +415,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         signal: AbortSignal;
         resetActiveSlide?: boolean;
     }): void {
-        if (opts.resetActiveSlide) this.activeSlideIndex = 0;
-        this.deckIr = opts.deckIr;
-        this.html = opts.html;
+        if (opts.resetActiveSlide) this.deck.activeSlideIndex = 0;
+        this.deck.deckIr = opts.deckIr;
+        this.deck.html = opts.html;
         this.refreshPreview();
-        this.pushVersion(opts.versionLabel);
+        this.deck.pushVersion(opts.versionLabel);
         this.updateReliability();
         this.runQualityCheck();
         this.editScope.clear();
@@ -475,7 +461,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                             ctx, streamCb, abort, llmCtx, theme,
                             effectiveQuery, history, originalQuery: query, noteContent,
                         };
-                        if (!this.html) {
+                        if (!this.deck.html) {
                             return await this.runGenerate(runCtx);
                         }
                         const selection = this.editScope.getSelection();
@@ -552,7 +538,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!irResult.ok) {
                 logger.error('Presentation', `[IR-gen] generation failed: ${irResult.error}`);
                 this.setPhase('error');
-                this.lastError = irResult.error;
+                this.deck.lastError = irResult.error;
                 return { finalContent: t.slideGenerateFailed.replace('{error}', irResult.error) };
             }
 
@@ -563,15 +549,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!built.ok) {
                 logger.error('Presentation', `[IR-gen] IR→HTML render failed: ${built.error}`);
                 this.setPhase('error');
-                this.lastError = built.error;
+                this.deck.lastError = built.error;
                 return { finalContent: t.slideGenerateFailed.replace('{error}', built.error) };
             }
 
-            this.deckIr = irResult.value;
-            this.html = built.value;
-            this.activeSlideIndex = 0;
+            this.deck.deckIr = irResult.value;
+            this.deck.html = built.value;
+            this.deck.activeSlideIndex = 0;
             this.refreshPreview();
-            this.pushVersion(r.originalQuery);
+            this.deck.pushVersion(r.originalQuery);
             this.updateReliability();
 
             if (this.brandEnabled && r.theme.auditChecklist.length > 0) {
@@ -591,7 +577,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const msg = e instanceof Error ? e.message : String(e);
             logger.error('Presentation', `[IR-gen] threw: ${msg}`);
             this.setPhase('error');
-            this.lastError = msg;
+            this.deck.lastError = msg;
             return { finalContent: t.slideGenerateFailed.replace('{error}', msg) };
         } finally {
             globalThis.clearInterval(elapsedTimer);
@@ -606,9 +592,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         theme: BrandTheme,
         abort: AbortController,
     ): Promise<void> {
-        if (!this.deckIr) return;
+        if (!this.deck.deckIr) return;
         this.runQualityCheck();
-        const findings = this.qualityResult?.findings ?? [];
+        const findings = this.deck.qualityResult?.findings ?? [];
         const polishRequest = findings.length > 0
             ? `Polish the deck. Improve clarity and fix these issues:\n${findings
                 .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
@@ -616,7 +602,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             : 'Polish the deck: tighten wording, sharpen the visual hierarchy, and ensure one idea per slide. Keep the facts and the slide count unchanged.';
         const exportTheme = await this.themeResolver.resolve(ctx);
         const refined = await refineDeckIr(llmCtx, {
-            currentDeck: this.deckIr,
+            currentDeck: this.deck.deckIr,
             userRequest: polishRequest,
             outputLanguage: ctx.plugin.settings.summaryLanguage,
             signal: abort.signal,
@@ -641,7 +627,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      */
     private async refineIr(r: RunContext): Promise<StreamingResult> {
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.deckIr) return { finalContent: t.slideRefineNoDeck };
+        if (!this.deck.deckIr) return { finalContent: t.slideRefineNoDeck };
         const controller = this.createProgressController(
             r.abort, r.streamCb, t, REFINEMENT_SOFT_BUDGET_MS, REFINEMENT_HARD_BUDGET_MS, undefined,
         );
@@ -650,7 +636,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         try {
             const exportTheme = await this.themeResolver.resolve(r.ctx);
             const refined = await refineDeckIr(r.llmCtx, {
-                currentDeck: this.deckIr,
+                currentDeck: this.deck.deckIr,
                 userRequest: r.effectiveQuery,
                 outputLanguage: r.ctx.plugin.settings.summaryLanguage,
                 signal: r.abort.signal,
@@ -659,14 +645,14 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!refined.ok) {
                 logger.error('Presentation', `[IR-refine] failed: ${refined.error}`);
                 this.setPhase('error');
-                this.lastError = refined.error;
+                this.deck.lastError = refined.error;
                 return { finalContent: t.slideRefineFailed.replace('{error}', refined.error) };
             }
             const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 logger.error('Presentation', `[IR-refine] IR→HTML failed: ${built.error}`);
                 this.setPhase('error');
-                this.lastError = built.error;
+                this.deck.lastError = built.error;
                 return { finalContent: t.slideRefineFailed.replace('{error}', built.error) };
             }
             this.commitDeckMutation({
@@ -683,7 +669,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const msg = e instanceof Error ? e.message : String(e);
             logger.error('Presentation', `[IR-refine] threw: ${msg}`);
             this.setPhase('error');
-            this.lastError = msg;
+            this.deck.lastError = msg;
             return { finalContent: t.slideRefineFailed.replace('{error}', msg) };
         } finally {
             globalThis.clearInterval(elapsedTimer);
@@ -694,7 +680,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runRefine(r: RunContext): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html || !this.deckIr) return { finalContent: t.slideRefineNoDeck };
+        if (!this.deck.html || !this.deck.deckIr) return { finalContent: t.slideRefineNoDeck };
         // IR is the only refine path — edits the deck IR so it stays canonical
         // and the PPTX export stays faithful. Explicit error on failure (no
         // silent HTML-refine fallback).
@@ -716,7 +702,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     ): Promise<StreamingResult> {
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
-        if (!this.html || !this.deckIr) return { finalContent: t.slideEditNoDeck };
+        if (!this.deck.html || !this.deck.deckIr) return { finalContent: t.slideEditNoDeck };
 
         // Targeted edit is now an IR slice-refine on the selected slide(s) —
         // IR-native (the deck stays canonical) and consistent with per-slide
@@ -727,7 +713,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         const end = scope.kind === 'range' && scope.slideEndIndex !== undefined ? scope.slideEndIndex : start;
         const indices: number[] = [];
         for (let i = Math.min(start, end); i <= Math.max(start, end); i++) {
-            if (i >= 0 && i < this.deckIr.slides.length) indices.push(i);
+            if (i >= 0 && i < this.deck.deckIr.slides.length) indices.push(i);
         }
         if (indices.length === 0) return { finalContent: t.slideEditNoDeck };
 
@@ -744,7 +730,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
             const refined = await refineDeckIrSelective(r.llmCtx, {
-                currentDeck: this.deckIr,
+                currentDeck: this.deck.deckIr,
                 selections: indices.map(slideIndex => ({ slideIndex, instruction })),
                 outputLanguage: r.ctx.plugin.settings.summaryLanguage,
                 signal: r.abort.signal,
@@ -753,14 +739,14 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!refined.ok) {
                 logger.error('Presentation', `[IR-scoped-edit] failed: ${refined.error}`);
                 this.setPhase('error');
-                this.lastError = refined.error;
+                this.deck.lastError = refined.error;
                 return { finalContent: t.slideEditFailed.replace('{error}', refined.error) };
             }
             const exportTheme = await this.themeResolver.resolve(r.ctx);
             const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 this.setPhase('error');
-                this.lastError = built.error;
+                this.deck.lastError = built.error;
                 return { finalContent: t.slideEditFailed.replace('{error}', built.error) };
             }
             this.commitDeckMutation({
@@ -777,7 +763,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const msg = e instanceof Error ? e.message : String(e);
             logger.error('Presentation', `[IR-scoped-edit] threw: ${msg}`);
             this.setPhase('error');
-            this.lastError = msg;
+            this.deck.lastError = msg;
             return { finalContent: t.slideEditFailed.replace('{error}', msg) };
         } finally {
             globalThis.clearInterval(elapsedTimer);
@@ -908,8 +894,8 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     getActionDescriptors(_t: Translations): ActionDescriptor[] {
-        const hasDeck = !!this.html;
-        const ready = this.phase === 'preview-ready';
+        const hasDeck = !!this.deck.html;
+        const ready = this.deck.phase === 'preview-ready';
         const locked = this.mutationLock;
 
         // Export HTML is the primary CTA: the HTML note is the editable
@@ -982,14 +968,14 @@ export class PresentationModeHandler implements ChatModeHandler {
     onClear(): void {
         this.cancelActiveOperation();
         this.clearNavigateTimeout();  // F5
-        this.html = null;
-        this.deckIr = null;
-        this.versions = [];
-        this.versionIndex = -1;
-        this.activeSlideIndex = 0;
-        this.qualityResult = null;
-        this.lastError = null;
-        this.phase = 'empty';
+        this.deck.html = null;
+        this.deck.deckIr = null;
+        this.deck.versions = [];
+        this.deck.versionIndex = -1;
+        this.deck.activeSlideIndex = 0;
+        this.deck.qualityResult = null;
+        this.deck.lastError = null;
+        this.deck.phase = 'empty';
         // Scoped-editing state — clear selection and reset mode/flags so a
         // fresh deck doesn't inherit stale scope from the previous one.
         this.editScope.reset();
@@ -1028,7 +1014,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     /** Public seam for the global slide-picker command (Mod+Shift+S).
      *  Returns true if the picker was opened, false if no deck is loaded. */
     hasDeck(): boolean {
-        return this.html !== null;
+        return this.deck.html !== null;
     }
 
     /**
@@ -1040,21 +1026,21 @@ export class PresentationModeHandler implements ChatModeHandler {
      */
     getLayoutState(): { hasDeck: boolean; deckVersion: number } {
         return {
-            hasDeck: this.html !== null && this.phase !== 'empty',
-            deckVersion: this.deckEpoch,
+            hasDeck: this.deck.html !== null && this.deck.phase !== 'empty',
+            deckVersion: this.deck.deckEpoch,
         };
     }
 
     /** Used by the slide-picker command to read deck HTML. */
     getDeckHtml(): string | null {
-        return this.html;
+        return this.deck.html;
     }
 
     /** Set selection from outside (slide-picker command). Mirrors the
      *  iframe-click path so the chat-input accessory updates correctly. */
     selectSlideFromCommand(slideIndex: number): void {
-        if (!this.html) return;
-        this.activeSlideIndex = slideIndex;
+        if (!this.deck.html) return;
+        this.deck.activeSlideIndex = slideIndex;
         this.editScope.setSelection({ kind: 'slide', slideIndex });
     }
 
@@ -1104,7 +1090,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  operation) view from the plan. Used by the accessory renderer to
      *  decide whether pills are interactive or disabled-with-spinner. */
     private deriveOperation(): 'idle' | 'applying' | 'error' {
-        switch (this.phase) {
+        switch (this.deck.phase) {
             case 'generating':
             case 'refining':
             case 'auditing':
@@ -1139,18 +1125,18 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Serialization ───────────────────────────────────────────────────────
 
     getSerializableState(): Record<string, unknown> | null {
-        if (!this.html) return null;
+        if (!this.deck.html) return null;
         return {
             schemaVersion: 1,
-            html: this.html,
-            versions: this.versions,
+            html: this.deck.html,
+            versions: this.deck.versions,
             conversation: [],
             brandEnabled: this.brandEnabled,
             // Persist the deck IR so a faithful native PPTX export + further
             // IR editing survive a reload.
-            deckIr: this.deckIr ?? undefined,
-            createdAt: this.versions[0]?.timestamp
-                ? new Date(this.versions[0].timestamp).toISOString()
+            deckIr: this.deck.deckIr ?? undefined,
+            createdAt: this.deck.versions[0]?.timestamp
+                ? new Date(this.deck.versions[0].timestamp).toISOString()
                 : new Date().toISOString(),
             lastActiveAt: new Date().toISOString(),
         };
@@ -1160,20 +1146,20 @@ export class PresentationModeHandler implements ChatModeHandler {
         const session = migratePresentationSession(data);
         if (!session) return false;
 
-        this.html = session.html;
+        this.deck.html = session.html;
         // Rehydrate the persisted deck IR (validated). New sessions always carry
         // it; a legacy session saved before structured editing loads view-only
         // (deckIr null → IR refine/polish guard out gracefully, and PPTX export
         // falls through to the dom-to-pptx path on the restored HTML).
         const rawIr = (data as { deckIr?: unknown } | null)?.deckIr;
         const validated = rawIr != null ? validateDeckIr(rawIr) : null;
-        this.deckIr = validated?.ok ? validated.value : null;
-        this.versions = session.versions.slice(0, MAX_VERSIONS);
-        this.versionIndex = this.versions.length - 1;
+        this.deck.deckIr = validated?.ok ? validated.value : null;
+        this.deck.versions = session.versions.slice(0, MAX_VERSIONS);
+        this.deck.versionIndex = this.deck.versions.length - 1;
         this.brandEnabled = session.brandEnabled;
-        this.activeSlideIndex = 0;
-        this.phase = 'preview-ready';
-        this.deckEpoch++;   // a restored session is a fresh deck — invalidate any cache
+        this.deck.activeSlideIndex = 0;
+        this.deck.phase = 'preview-ready';
+        this.deck.deckEpoch++;   // a restored session is a fresh deck — invalidate any cache
         return true;
     }
 
@@ -1182,7 +1168,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async exportPptx(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         // Phase 1B F8: replace silent returns with user-visible notices so
         // broken-state clicks don't look like the button is dead.
-        if (!this.html) {
+        if (!this.deck.html) {
             callbacks.notify('Can\'t export — no presentation generated yet.');
             return;
         }
@@ -1207,10 +1193,10 @@ export class PresentationModeHandler implements ChatModeHandler {
             allSlides.forEach(s => s.classList.remove('pres-nav-hidden'));
 
             const theme = await this.themeResolver.resolve(ctx);
-            await this.exporter.exportPptx({ html: this.html, deckIr: this.deckIr, theme, allSlides, ctx });
+            await this.exporter.exportPptx({ html: this.deck.html, deckIr: this.deck.deckIr, theme, allSlides, ctx });
 
             // Restore single-slide view
-            this.preview.navigateToSlide(this.activeSlideIndex);
+            this.preview.navigateToSlide(this.deck.activeSlideIndex);
 
             callbacks.notify('Exported to PPTX — check your downloads folder.');
         } catch (e) {
@@ -1228,7 +1214,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async exportHtmlFile(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         // Phase 1B F8: same treatment as exportPptx — user-visible notices.
-        if (!this.html) {
+        if (!this.deck.html) {
             callbacks.notify('Can\'t save — no presentation generated yet.');
             return;
         }
@@ -1241,7 +1227,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         callbacks.rerenderActions();
 
         try {
-            const path = await this.exporter.writeHtml(ctx, this.html);
+            const path = await this.exporter.writeHtml(ctx, this.deck.html);
             callbacks.notify(`Saved to ${path}`);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Export failed';
@@ -1256,7 +1242,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Brand Audit ─────────────────────────────────────────────────────────
 
     private async handleBrandAudit(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
-        if (!this.html || !this.brandEnabled || this.mutationLock) return;
+        if (!this.deck.html || !this.brandEnabled || this.mutationLock) return;
         this.mutationLock = true;
         this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
         this.activeT = ctx.plugin.t.modals.unifiedChat;  // F4
@@ -1275,7 +1261,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const llmCtx = this.getLLMContext(ctx);
             const theme = await this.getTheme(ctx);
 
-            const result = await runBrandAudit(llmCtx, this.html, theme, abort.signal);
+            const result = await runBrandAudit(llmCtx, this.deck.html, theme, abort.signal);
             if (abort.signal.aborted) return;
 
             if (result.ok && result.value.violations.length > 0) {
@@ -1292,7 +1278,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         } catch (e) {
             if (!abort.signal.aborted) {
                 this.setPhase('error');
-                this.lastError = e instanceof Error ? e.message : 'Audit failed';
+                this.deck.lastError = e instanceof Error ? e.message : 'Audit failed';
             }
         } finally {
             this.mutationLock = false;
@@ -1304,8 +1290,8 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     private async runAudit(llmCtx: LLMFacadeContext, theme: BrandTheme, signal: AbortSignal): Promise<void> {
-        if (!this.html) return;
-        const result = await runBrandAudit(llmCtx, this.html, theme, signal);
+        if (!this.deck.html) return;
+        const result = await runBrandAudit(llmCtx, this.deck.html, theme, signal);
         if (result.ok && result.value.violations.length > 0 && this.preview) {
             // Fixes will be applied once preview renders
             // Store for later application
@@ -1319,11 +1305,11 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async handlePolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (this.activePolish) return;                       // single-flight: modal already open
-        if (!this.html || this.mutationLock) return;
+        if (!this.deck.html || this.mutationLock) return;
 
         // Per-slide polish: a deck with >1 slide opens the selector modal so the
         // user can target specific slides; a single-slide deck polishes whole.
-        if (this.deckIr !== null && this.deckIr.slides.length > 1) {
+        if (this.deck.deckIr !== null && this.deck.deckIr.slides.length > 1) {
             // Run the autodetect quality scan first so the per-slide polish
             // boxes prefill with detected issues — the per-slide findings come
             // from the LLM fast scan, which may not have finished after
@@ -1351,11 +1337,11 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  LLM fast scan has produced the per-slide issues the polish boxes prefill
      *  from. */
     private hasPerSlideFindings(): boolean {
-        return (this.qualityResult?.findings ?? []).some(f => f.slideIndex !== undefined);
+        return (this.deck.qualityResult?.findings ?? []).some(f => f.slideIndex !== undefined);
     }
 
     /** Run the autodetect quality scan (structural pass → LLM fast scan) so
-     *  `this.qualityResult.findings` carries per-slide issues before the polish
+     *  `this.deck.qualityResult.findings` carries per-slide issues before the polish
      *  modal opens. Best-effort: the modal still opens if the scan fails. */
     private async ensureQualityFindings(ctx: ModalContext): Promise<void> {
         this.runQualityCheck();                       // structural — sets qualityResult
@@ -1372,7 +1358,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  extracted from the original handlePolish (plan §4.6: all-slides path
      *  stays untouched). */
     private async runWholeDeckPolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
-        if (!this.html || this.mutationLock) return;
+        if (!this.deck.html || this.mutationLock) return;
         this.mutationLock = true;
         this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
         this.activeT = ctx.plugin.t.modals.unifiedChat;  // F4
@@ -1392,7 +1378,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // The deck is always IR-backed — polish via the IR (keeps export
             // faithful). polishDeckIr runs the autodetect scan + general/issue
             // refine and routes through commitDeckMutation.
-            if (this.deckIr) {
+            if (this.deck.deckIr) {
                 await this.polishDeckIr(ctx, llmCtx, theme, abort);
             }
 
@@ -1407,13 +1393,13 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.editScope.clear();
             this.setPhase('preview-ready');
             callbacks.notify(
-                `Polish complete. Quality: ${this.qualityResult?.totalScore ?? '?'}/100`
+                `Polish complete. Quality: ${this.deck.qualityResult?.totalScore ?? '?'}/100`
             );
         } catch (e) {
             if (!abort.signal.aborted) {
                 this.setPhase('error');
-                this.lastError = e instanceof Error ? e.message : 'Polish failed';
-                callbacks.notify(`Polish failed: ${this.lastError}`);
+                this.deck.lastError = e instanceof Error ? e.message : 'Polish failed';
+                callbacks.notify(`Polish failed: ${this.deck.lastError}`);
             }
         } finally {
             this.mutationLock = false;
@@ -1429,10 +1415,10 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  after a Result.ok from `runPolishSubmit` (plan §4.2b). */
     private openPolishSelector(ctx: ModalContext, callbacks: ActionCallbacks): void {
         const llmCtx = this.getLLMContext(ctx);
-        const deck = this.deckIr!;
-        // Local view of findings — NO mutation of this.qualityResult here
+        const deck = this.deck.deckIr!;
+        // Local view of findings — NO mutation of this.deck.qualityResult here
         // (audit-r2 H1 + r3 H5). A null scan simply yields empty placeholders.
-        const findings = this.qualityResult?.findings ?? [];
+        const findings = this.deck.qualityResult?.findings ?? [];
         const tSlice = ctx.plugin.t.modals.polishSelector;
 
         const modal = new PolishSelectorModal(
@@ -1491,7 +1477,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Selective path — wrapped in withProgressResult so the reporter owns
         // the toast (audit-r2 M1). Compute phase (refine + build HTML) runs
         // inside; commit phase runs after Result.ok and cannot fail.
-        const deckWideFindings = (this.qualityResult?.findings ?? []).filter(f => f.slideIndex === undefined);
+        const deckWideFindings = (this.deck.qualityResult?.findings ?? []).filter(f => f.slideIndex === undefined);
         const compute = await withProgressResult<{ refined: SlideDeckIr; html: string }, 'polishing'>(
             {
                 plugin: ctx.fullPlugin,
@@ -1500,7 +1486,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             },
             async () => {
                 const refined = await refineDeckIrSelective(llmCtx, {
-                    currentDeck: this.deckIr!,
+                    currentDeck: this.deck.deckIr!,
                     selections: draft.selections,
                     deckWideFindings,
                     outputLanguage: ctx.plugin.settings.summaryLanguage,
@@ -1550,35 +1536,21 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     // ── Version History ─────────────────────────────────────────────────────
 
-    private pushVersion(userPrompt: string): void {
-        if (!this.html) return;
-        this.versions.push({
-            html: this.html,
-            userPrompt,
-            timestamp: Date.now(),
-            activeSlideIndex: this.activeSlideIndex,
-            deckIr: this.deckIr ?? undefined,
-        });
-        if (this.versions.length > MAX_VERSIONS) this.versions.shift();
-        this.versionIndex = this.versions.length - 1;
-        this.deckEpoch++;   // deck changed — invalidate thumbnail cache + signal layout
-    }
-
     private restoreVersion(index: number): void {
-        if (index < 0 || index >= this.versions.length) return;
-        const version = this.versions[index];
-        this.html = version.html;
+        if (index < 0 || index >= this.deck.versions.length) return;
+        const version = this.deck.versions[index];
+        this.deck.html = version.html;
         // Restore the version's IR snapshot so the deck stays IR-backed (and
         // editable/exportable). Versions captured post-IR always carry it.
-        this.deckIr = version.deckIr ?? null;
-        this.activeSlideIndex = version.activeSlideIndex;
-        this.versionIndex = index;
-        this.deckEpoch++;   // restoring swaps the whole deck — invalidate stale thumbnails
+        this.deck.deckIr = version.deckIr ?? null;
+        this.deck.activeSlideIndex = version.activeSlideIndex;
+        this.deck.versionIndex = index;
+        this.deck.deckEpoch++;   // restoring swaps the whole deck — invalidate stale thumbnails
         // Restoring a version is a whole-deck swap. Selection paths that
         // resolved against the previous version may not exist (or may
         // resolve to different content) in the restored one. Clear it.
         this.editScope.clear();
-        this.phase = 'preview-ready';
+        this.deck.phase = 'preview-ready';
         // Consistency: a version swap is a deck mutation — refresh the preview,
         // the filmstrip (thumbnails now re-rasterize against the bumped epoch so
         // they reflect the restored deck, not the cached newer one), and the nav.
@@ -1592,24 +1564,24 @@ export class PresentationModeHandler implements ChatModeHandler {
     private refreshVersionNav(): void {
         if (!this.versionNavHost) return;
         this.versionNavHost.empty();
-        if (this.versions.length > 1) this.renderVersionNav(this.versionNavHost);
+        if (this.deck.versions.length > 1) this.renderVersionNav(this.versionNavHost);
     }
 
     private renderVersionNav(container: HTMLElement): void {
         const nav = container.createEl('div', { cls: 'ai-organiser-pres-version-nav' });
 
         const prevBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: '◄ prev' });
-        prevBtn.disabled = this.versionIndex <= 0;
-        prevBtn.addEventListener('click', () => this.restoreVersion(this.versionIndex - 1));
+        prevBtn.disabled = this.deck.versionIndex <= 0;
+        prevBtn.addEventListener('click', () => this.restoreVersion(this.deck.versionIndex - 1));
 
         nav.createEl('span', {
             cls: 'ai-organiser-pres-version-counter',
-            text: `v${this.versionIndex + 1}/${this.versions.length}`,
+            text: `v${this.deck.versionIndex + 1}/${this.deck.versions.length}`,
         });
 
         const nextBtn = nav.createEl('button', { cls: 'ai-organiser-pres-version-btn', text: 'Next ►' });
-        nextBtn.disabled = this.versionIndex >= this.versions.length - 1;
-        nextBtn.addEventListener('click', () => this.restoreVersion(this.versionIndex + 1));
+        nextBtn.disabled = this.deck.versionIndex >= this.deck.versions.length - 1;
+        nextBtn.addEventListener('click', () => this.restoreVersion(this.deck.versionIndex + 1));
     }
 
     // ── Brand Toggle ────────────────────────────────────────────────────────
@@ -1681,8 +1653,8 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     /** Phase 3: classify and display reliability from sanitizer results. */
     private updateReliability(): void {
-        if (!this.html || !this.preview) return;
-        const result = sanitizePresentation(this.html);
+        if (!this.deck.html || !this.preview) return;
+        const result = sanitizePresentation(this.deck.html);
         const tier = classifyReliability({
             rejectionCount: result.rejectionCount,
             hasDeckRoot: result.hasDeckRoot,
@@ -1692,33 +1664,33 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal): Promise<void> {
-        if (!this.html) return;
-        const slideCount = countSlides(this.html);
+        if (!this.deck.html) return;
+        const slideCount = countSlides(this.deck.html);
 
-        const fastResult = await runFastScan(ctx, this.html, slideCount, signal);
+        const fastResult = await runFastScan(ctx, this.deck.html, slideCount, signal);
         if (signal.aborted || !fastResult.ok) return;
 
         // Merge with existing deterministic findings
         const merged = deduplicateFindings(
-            this.qualityResult?.findings ?? [],
+            this.deck.qualityResult?.findings ?? [],
             fastResult.value.findings
         );
-        if (this.qualityResult) {
-            this.qualityResult = { ...this.qualityResult, findings: merged };
-            this.preview?.setQuality(this.qualityResult);
+        if (this.deck.qualityResult) {
+            this.deck.qualityResult = { ...this.deck.qualityResult, findings: merged };
+            this.preview?.setQuality(this.deck.qualityResult);
         }
     }
 
     private runQualityCheck(auditViolationCount = 0): void {
-        if (!this.html || !this.preview) {
-            this.qualityResult = null;
+        if (!this.deck.html || !this.preview) {
+            this.deck.qualityResult = null;
             return;
         }
         const doc = this.preview.getIframeDocument();
         if (!doc) return;
         const slides = extractSlideInfo(doc);
         const findings = runStructureChecks(slides);
-        this.qualityResult = computeQualityScore(findings, auditViolationCount);
+        this.deck.qualityResult = computeQualityScore(findings, auditViolationCount);
     }
 
 }
