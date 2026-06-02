@@ -30,7 +30,6 @@ import {
 import { runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
-import { projectForEditor } from '../../services/chat/presentationDomDecorator';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
@@ -53,9 +52,6 @@ import {
     type BrandTheme,
 } from '../../services/chat/brandThemeService';
 import { extractDeckTitle, countSlides } from '../../services/prompts/presentationChatPrompts';
-import { SlideIframePreview } from '../components/SlideIframePreview';
-import { SlideFilmstrip } from '../components/SlideFilmstrip';
-import { SlideThumbnailProvider } from '../../services/chat/slideThumbnailProvider';
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/tokenLimits';
 import { logger } from '../../utils/logger';
 import type { ProjectConfig } from '../../services/chat/projectService';
@@ -64,6 +60,7 @@ import { PresentationThemeResolver } from './presentation/presentationThemeResol
 import { PresentationExporter } from './presentation/presentationExporter';
 import { EditScopeController } from './presentation/editScopeController';
 import { PresentationDeckStore } from './presentation/presentationDeckStore';
+import { PresentationCanvasView } from './presentation/presentationCanvasView';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -122,10 +119,6 @@ export class PresentationModeHandler implements ChatModeHandler {
     // handlers, cleared in their finally blocks.
     private activeT: Translations['modals']['unifiedChat'] | null = null;
 
-    // F5: tracked handle for the navigate-to-slide deferral so rapid
-    // re-renders / dispose clean it up instead of letting stale callbacks
-    // fire on a torn-down preview.
-    private navigateTimeoutId: ReturnType<typeof setTimeout> | null = null;
     /** Stable host for the version nav so restoreVersion can re-render it. */
     private versionNavHost: HTMLElement | null = null;
 
@@ -133,12 +126,8 @@ export class PresentationModeHandler implements ChatModeHandler {
     private projectInstructions: string | null = null;
     private projectMemory: string[] = [];
 
-    // Preview
-    private preview: SlideIframePreview | null = null;
-    // Phase 2 filmstrip: thumbnail navigator (left of the canvas). Disposed with
-    // the preview. Thumbnails are rastered from this.deck.html, keyed by deck version.
-    private filmstrip: SlideFilmstrip | null = null;
-    private thumbnailProvider: SlideThumbnailProvider | null = null;
+    // Preview + filmstrip + slide-nav now live in PresentationCanvasView
+    // (TD-SSR-02 Phase 5). The handler talks to the surface via this.canvas.*.
 
     // ── Scoped editing (slide-authoring-editing plan) ───────────────────────
     // Selection / editMode / editFlags + the chat-input accessory area now live
@@ -163,6 +152,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         getOperation: () => this.deriveOperation(),
         isLocked: () => this.mutationLock,
         onActiveSlide: (i) => { this.deck.activeSlideIndex = i; },
+    });
+    private readonly canvas = new PresentationCanvasView(this.deck, {
+        onElementSelect: (event) => this.editScope.selectFromEvent(event),
     });
 
     // ── Phase progress ──────────────────────────────────────────────────────
@@ -235,17 +227,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         // + its listeners.
         // F5: same for the navigate deferral — cancel before the container
         // goes away so it doesn't fire against a stale preview.
-        this.clearNavigateTimeout();
-        if (this.preview) {
-            this.preview.dispose();
-            this.preview = null;
-        }
-        // Filmstrip + thumbnail provider are recreated alongside the preview;
-        // dispose them here too (before container.empty()) to avoid leaks.
-        this.filmstrip?.dispose();
-        this.filmstrip = null;
-        this.thumbnailProvider?.dispose();
-        this.thumbnailProvider = null;
+        // Dispose the canvas widgets (preview + filmstrip + provider) + cancel
+        // the pending nav before container.empty() so nothing fires against
+        // detached DOM. Recreated below via canvas.mount() when a deck exists.
+        this.canvas.dispose();
         // Drop the accessory container ref before container.empty() so a
         // render can't fire against detached DOM during the transition window.
         this.editScope.unbind();
@@ -299,35 +284,15 @@ export class PresentationModeHandler implements ChatModeHandler {
             // horizontal row keeps the filmstrip inside the canvas grid cell, so
             // the side-rail grid template (modebar/canvas/rail/actions) is untouched.
             const canvasBody = container.createEl('div', { cls: 'ai-organiser-pres-canvas-body' });
-            const filmstripHost = canvasBody.createEl('div', { cls: 'ai-organiser-pres-filmstrip-host' });
-            const previewContainer = canvasBody.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
-            this.preview = new SlideIframePreview(previewContainer, {
-                onSlideSelect: (idx) => { this.deck.activeSlideIndex = idx; this.filmstrip?.setActive(idx); },
-                onElementSelect: (event) => { this.editScope.selectFromEvent(event); },
-                emptyPlaceholderText: t.slidePreviewEmpty,
-                bgHoverLabelTemplate: t.slideBgHoverTooltipTemplate,
+            // Canvas view builds the preview + filmstrip into canvasBody and
+            // projects the deck (refreshPreview). Canonical HTML (no data-element
+            // attrs) stays in this.deck.html for prompts/exports.
+            this.canvas.mount(canvasBody, {
+                slidePreviewEmpty: t.slidePreviewEmpty,
+                slideBgHoverTooltip: t.slideBgHoverTooltipTemplate,
+                slideThumbnails: ctx.plugin.t.presentationLayout.slideThumbnails,
+                slideThumbnailItem: ctx.plugin.t.presentationLayout.slideThumbnailItem,
             });
-
-            // Filmstrip thumbnail navigator (Phase 2). Thumbnails are rastered
-            // from this.deck.html (offscreen, never cloned into the host DOM).
-            this.thumbnailProvider = new SlideThumbnailProvider({
-                getHtml: () => this.deck.html,
-                getDeckVersion: () => this.deck.deckEpoch,
-            });
-            this.filmstrip = new SlideFilmstrip(filmstripHost, {
-                getCount: () => this.thumbnailProvider?.slideCount() ?? 0,
-                getActiveIndex: () => this.deck.activeSlideIndex,
-                getThumbnail: (i, signal) => this.thumbnailProvider?.getThumbnail(i, signal) ?? Promise.resolve(null),
-                onSelect: (i) => { this.deck.activeSlideIndex = i; this.preview?.navigateToSlide(i); this.filmstrip?.setActive(i); },
-                groupLabel: ctx.plugin.t.presentationLayout.slideThumbnails,
-                itemLabelTemplate: ctx.plugin.t.presentationLayout.slideThumbnailItem,
-            });
-            this.filmstrip.render();
-
-            // Project canonical HTML for the editor: adds data-element
-            // attributes the iframe runtime walks on click. Canonical HTML
-            // (no data-element) stays in this.deck.html for prompts/exports.
-            this.refreshPreview();
         }
 
         // Version navigation — rendered into a stable host so restoreVersion
@@ -358,47 +323,6 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    /** F5: idempotent cancel for the navigate-to-slide deferral. Called from
-     *  renderContextPanel (before rebuild) and dispose(). */
-    private clearNavigateTimeout(): void {
-        if (this.navigateTimeoutId !== null) {
-            clearTimeout(this.navigateTimeoutId);
-            this.navigateTimeoutId = null;
-        }
-    }
-
-    /**
-     * SINGLE, consistent preview refresh — called by EVERY deck mutation
-     * (generate / refine / polish / scoped edit / version restore). Clamps the
-     * active slide to the (possibly changed) deck size, projects the editor
-     * HTML, restores the active slide, and re-applies the quality overlay. No
-     * deck-mutation path should poke `this.preview.setHtml` directly — route
-     * through here so the preview can never be left stale or blank.
-     */
-    private refreshPreview(): void {
-        if (!this.preview || !this.deck.html) return;
-        const count = countSlides(this.deck.html);
-        if (this.deck.activeSlideIndex < 0 || this.deck.activeSlideIndex >= count) {
-            this.deck.activeSlideIndex = 0;
-        }
-        this.preview.setHtml(projectForEditor(this.deck.html));
-        if (this.deck.activeSlideIndex > 0) {
-            // F5: track the navigate handle so rapid re-render / dispose can
-            // cancel the stale callback before it fires.
-            this.clearNavigateTimeout();
-            this.navigateTimeoutId = setTimeout(() => {
-                this.navigateTimeoutId = null;
-                this.preview?.navigateToSlide(this.deck.activeSlideIndex);
-            }, 200);
-        }
-        if (this.deck.qualityResult) {
-            this.preview.setQuality(this.deck.qualityResult);
-        }
-        // Rebuild the filmstrip for the (possibly new) deck — the provider keys
-        // its cache by deck version, so unchanged decks reuse cached thumbnails.
-        this.filmstrip?.refresh();
-    }
-
     /**
      * SINGLE, consistent post-mutation commit — every path that produces a new
      * deck (refine / whole-deck polish / selective polish) routes through here
@@ -418,7 +342,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (opts.resetActiveSlide) this.deck.activeSlideIndex = 0;
         this.deck.deckIr = opts.deckIr;
         this.deck.html = opts.html;
-        this.refreshPreview();
+        this.canvas.refreshPreview();
         this.deck.pushVersion(opts.versionLabel);
         this.updateReliability();
         this.runQualityCheck();
@@ -556,7 +480,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.deck.deckIr = irResult.value;
             this.deck.html = built.value;
             this.deck.activeSlideIndex = 0;
-            this.refreshPreview();
+            this.canvas.refreshPreview();
             this.deck.pushVersion(r.originalQuery);
             this.updateReliability();
 
@@ -967,7 +891,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     onClear(): void {
         this.cancelActiveOperation();
-        this.clearNavigateTimeout();  // F5
+        this.canvas.clearNavigateTimeout();  // F5
         this.deck.html = null;
         this.deck.deckIr = null;
         this.deck.versions = [];
@@ -990,13 +914,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     dispose(): void {
         this.cancelActiveOperation();
-        this.clearNavigateTimeout();  // F5
-        this.preview?.dispose();
-        this.preview = null;
-        this.filmstrip?.dispose();
-        this.filmstrip = null;
-        this.thumbnailProvider?.dispose();
-        this.thumbnailProvider = null;
+        this.canvas.dispose();
         this.editScope.dispose();
         this.versionNavHost = null;
         if (this.createPanelDispose) {
@@ -1176,7 +1094,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Can\'t export right now — generation / refinement in progress.');
             return;
         }
-        if (!this.preview) {
+        if (!this.canvas.isReady()) {
             callbacks.notify('Preview not ready — click into the slide panel once, then retry export.');
             return;
         }
@@ -1185,7 +1103,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         callbacks.rerenderActions();
 
         try {
-            const iframeDoc = this.preview.getIframeDocument();
+            const iframeDoc = this.canvas.getIframeDocument();
             if (!iframeDoc) throw new Error('iframe not ready');
 
             // Show all slides for export (remove nav-hidden class)
@@ -1196,7 +1114,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             await this.exporter.exportPptx({ html: this.deck.html, deckIr: this.deck.deckIr, theme, allSlides, ctx });
 
             // Restore single-slide view
-            this.preview.navigateToSlide(this.deck.activeSlideIndex);
+            this.canvas.navigateToSlide(this.deck.activeSlideIndex);
 
             callbacks.notify('Exported to PPTX — check your downloads folder.');
         } catch (e) {
@@ -1265,7 +1183,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (abort.signal.aborted) return;
 
             if (result.ok && result.value.violations.length > 0) {
-                this.preview?.applyDomFixes(result.value.violations);
+                this.canvas.applyDomFixes(result.value.violations);
                 callbacks.notify(
                     `Brand audit: ${result.value.violations.length} fix(es) applied.`
                 );
@@ -1292,7 +1210,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runAudit(llmCtx: LLMFacadeContext, theme: BrandTheme, signal: AbortSignal): Promise<void> {
         if (!this.deck.html) return;
         const result = await runBrandAudit(llmCtx, this.deck.html, theme, signal);
-        if (result.ok && result.value.violations.length > 0 && this.preview) {
+        if (result.ok && result.value.violations.length > 0 && this.canvas.isReady()) {
             // Fixes will be applied once preview renders
             // Store for later application
             this.pendingFixes = result.value.violations;
@@ -1551,11 +1469,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         // resolve to different content) in the restored one. Clear it.
         this.editScope.clear();
         this.deck.phase = 'preview-ready';
-        // Consistency: a version swap is a deck mutation — refresh the preview,
-        // the filmstrip (thumbnails now re-rasterize against the bumped epoch so
-        // they reflect the restored deck, not the cached newer one), and the nav.
-        this.refreshPreview();
-        this.filmstrip?.refresh();
+        // Consistency: a version swap is a deck mutation — refresh the canvas
+        // (refreshPreview re-rasterizes the filmstrip against the bumped epoch so
+        // thumbnails reflect the restored deck, not the cached newer one) + nav.
+        this.canvas.refreshPreview();
         this.refreshVersionNav();
     }
 
@@ -1653,14 +1570,14 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     /** Phase 3: classify and display reliability from sanitizer results. */
     private updateReliability(): void {
-        if (!this.deck.html || !this.preview) return;
+        if (!this.deck.html || !this.canvas.isReady()) return;
         const result = sanitizePresentation(this.deck.html);
         const tier = classifyReliability({
             rejectionCount: result.rejectionCount,
             hasDeckRoot: result.hasDeckRoot,
             hasSlides: result.hasSlides,
         });
-        this.preview.setReliability(tier);
+        this.canvas.setReliability(tier);
     }
 
     private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal): Promise<void> {
@@ -1677,16 +1594,16 @@ export class PresentationModeHandler implements ChatModeHandler {
         );
         if (this.deck.qualityResult) {
             this.deck.qualityResult = { ...this.deck.qualityResult, findings: merged };
-            this.preview?.setQuality(this.deck.qualityResult);
+            this.canvas.setQuality(this.deck.qualityResult);
         }
     }
 
     private runQualityCheck(auditViolationCount = 0): void {
-        if (!this.deck.html || !this.preview) {
+        if (!this.deck.html || !this.canvas.isReady()) {
             this.deck.qualityResult = null;
             return;
         }
-        const doc = this.preview.getIframeDocument();
+        const doc = this.canvas.getIframeDocument();
         if (!doc) return;
         const slides = extractSlideInfo(doc);
         const findings = runStructureChecks(slides);
