@@ -61,6 +61,7 @@ import { PresentationExporter } from './presentation/presentationExporter';
 import { EditScopeController } from './presentation/editScopeController';
 import { PresentationDeckStore } from './presentation/presentationDeckStore';
 import { PresentationCanvasView } from './presentation/presentationCanvasView';
+import { PresentationRunController } from './presentation/presentationRunController';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -89,35 +90,19 @@ export class PresentationModeHandler implements ChatModeHandler {
     private brandTheme: BrandTheme | null = null;
     private brandAvailable = false;
 
-    // Concurrency
-    private activeAbort: AbortController | null = null;
-    private mutationLock = false;
+    // Concurrency / run lifecycle — the single-flight lock, abort, thinking
+    // sink, i18n bundle, and cancel hook now live in PresentationRunController
+    // (TD-SSR-02 Phase 2). Accessed via this.run.*.
+
     // Single-flight guard for the per-slide polish modal: while a modal is
     // open, a second Polish click is a no-op rather than opening a duplicate
     // (audit-r2 H3). Cleared from the modal's onClose (audit-r3 H3).
     private activePolish: { modal: PolishSelectorModal } | null = null;
 
-    // Phase-progress: when an async action wires this, setPhase() bubbles
-    // human-readable labels into the chat "Thinking…" placeholder so users
-    // don't stare at silent spinner. Cleared in finally blocks.
-    private activeThinkingUpdater: ((msg: string) => void) | null = null;
-
-    // Extend-card cleanup: modal registers its dismiss function via
-    // StreamingCallbacks.requestBudgetExtension.onRegisterCancelHook so the
-    // controller can auto-close the card on completion / hard cap (plan §4
-    // race protocol, sources 4-5). Nulled after use.
-    private pendingCancelHook: (() => void) | null = null;
-
     // Cached slide fragment for the 1s elapsed ticker — lets the ticker
     // re-render progress without clobbering the slide-count text the
     // previous checkpoint wrote to the live region.
     private lastSlideFragment = '';
-
-    // F4: cached translations for the period an async op owns the handler,
-    // so phase labels + mutex-lock copy can i18n without threading ctx
-    // through every internal helper. Populated in buildPrompt / action
-    // handlers, cleared in their finally blocks.
-    private activeT: Translations['modals']['unifiedChat'] | null = null;
 
     /** Stable host for the version nav so restoreVersion can re-render it. */
     private versionNavHost: HTMLElement | null = null;
@@ -146,11 +131,12 @@ export class PresentationModeHandler implements ChatModeHandler {
     private createPanelDispose: (() => void) | null = null;
 
     // ── Collaborators (TD-SSR-02 decomposition) ─────────────────────────────
+    private readonly run = new PresentationRunController();
     private readonly themeResolver = new PresentationThemeResolver();
     private readonly exporter = new PresentationExporter();
     private readonly editScope = new EditScopeController({
         getOperation: () => this.deriveOperation(),
-        isLocked: () => this.mutationLock,
+        isLocked: () => this.run.isLocked(),
         onActiveSlide: (i) => { this.deck.activeSlideIndex = i; },
     });
     private readonly canvas = new PresentationCanvasView(this.deck, {
@@ -166,17 +152,15 @@ export class PresentationModeHandler implements ChatModeHandler {
     private setPhase(phase: PresentationPhase): void {
         this.deck.phase = phase;
         const label = this.getPhaseMessage(phase);
-        if (label && this.activeThinkingUpdater) {
-            this.activeThinkingUpdater(label);
-        }
+        if (label) this.run.setThinking(label);   // no-op when no op owns the sink
         this.editScope.render();
     }
 
     /** Human-readable label per presentation phase. Returns null for phases
      *  the user shouldn't see a thinking text for. (F4 — i18n-driven, falls
-     *  back to English if no `activeT` has been registered yet.) */
+     *  back to English if no op-scoped i18n bundle has been registered yet.) */
     private getPhaseMessage(phase: PresentationPhase): string | null {
-        const t = this.activeT;
+        const t = this.run.translations;
         switch (phase) {
             case 'generating':   return t?.phaseGenerating ?? 'Generating slides…';
             case 'refining':     return t?.phaseRefining   ?? 'Refining presentation…';
@@ -352,7 +336,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {
-        if (this.mutationLock) {
+        if (this.run.isLocked()) {
             return Promise.resolve({ prompt: '', directResponse: ctx.plugin.t.modals.unifiedChat.presentationBusy });
         }
 
@@ -361,14 +345,9 @@ export class PresentationModeHandler implements ChatModeHandler {
             streamingSetup: {
                 start: async (streamCb) => {
                     this.cancelActiveOperation();
-                    this.mutationLock = true;
-                    const abort = new AbortController();
-                    this.activeAbort = abort;
-                    this.activeThinkingUpdater = (m) => streamCb.updateThinking?.(m);
-                    // F4: stash translations for setPhase's lifetime so
-                    // getPhaseMessage can localise without threading ctx
-                    // through every internal helper.
-                    this.activeT = ctx.plugin.t.modals.unifiedChat;
+                    // begin() takes the lock, mints the AbortController, and
+                    // stashes the thinking sink + i18n for setPhase's lifetime.
+                    const abort = this.run.begin((m) => streamCb.updateThinking?.(m), ctx.plugin.t.modals.unifiedChat);
 
                     // Render Cancel button in the thinking indicator so the
                     // user always has an escape hatch during long generations.
@@ -394,9 +373,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                         }
                         return await this.runRefine(runCtx);
                     } finally {
-                        this.mutationLock = false;
-                        this.activeThinkingUpdater = null;
-                        this.activeT = null;
+                        this.run.end();
                     }
                 },
             },
@@ -732,11 +709,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             onDispose: () => {
                 // Forward dispose to the modal's cancel hook so the extend
                 // card auto-dismisses. Idempotent: handle is cleared after use.
-                if (this.pendingCancelHook) {
-                    const hook = this.pendingCancelHook;
-                    this.pendingCancelHook = null;
-                    try { hook(); } catch { /* noop */ }
-                }
+                this.run.consumeCancelHook();
             },
         });
     }
@@ -758,7 +731,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             hardBudgetMs,
             // Modal registers a cancel fn; we stash so the controller's
             // dispose() (completion / hard cap) can force-dismiss the card.
-            onRegisterCancelHook: (fn) => { this.pendingCancelHook = fn; },
+            onRegisterCancelHook: (fn) => { this.run.registerCancelHook(fn); },
         });
         if (choice === 'cancel') {
             abort.abort();
@@ -820,7 +793,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     getActionDescriptors(_t: Translations): ActionDescriptor[] {
         const hasDeck = !!this.deck.html;
         const ready = this.deck.phase === 'preview-ready';
-        const locked = this.mutationLock;
+        const locked = this.run.isLocked();
 
         // Export HTML is the primary CTA: the HTML note is the editable
         // intermediate form users iterate on via chat. PPTX is a terminal
@@ -1093,7 +1066,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Can\'t export — no presentation generated yet.');
             return;
         }
-        if (this.mutationLock) {
+        if (this.run.isLocked()) {
             callbacks.notify('Can\'t export right now — generation / refinement in progress.');
             return;
         }
@@ -1101,7 +1074,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Preview not ready — click into the slide panel once, then retry export.');
             return;
         }
-        this.mutationLock = true;
+        this.run.lock();
         this.setPhase('exporting');
         callbacks.rerenderActions();
 
@@ -1126,7 +1099,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             logger.error('Presentation', `PPTX export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
-            this.mutationLock = false;
+            this.run.unlock();
             callbacks.rerenderActions();
         }
     }
@@ -1139,11 +1112,11 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Can\'t save — no presentation generated yet.');
             return;
         }
-        if (this.mutationLock) {
+        if (this.run.isLocked()) {
             callbacks.notify('Can\'t save right now — generation / refinement in progress.');
             return;
         }
-        this.mutationLock = true;
+        this.run.lock();
         this.setPhase('exporting');
         callbacks.rerenderActions();
 
@@ -1155,7 +1128,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify(`HTML export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
-            this.mutationLock = false;
+            this.run.unlock();
             callbacks.rerenderActions();
         }
     }
@@ -1163,20 +1136,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Brand Audit ─────────────────────────────────────────────────────────
 
     private async handleBrandAudit(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
-        if (!this.deck.html || !this.brandEnabled || this.mutationLock) return;
-        this.mutationLock = true;
-        this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
-        this.activeT = ctx.plugin.t.modals.unifiedChat;  // F4
+        if (!this.deck.html || !this.brandEnabled || this.run.isLocked()) return;
+        // Abort any prior in-flight op BEFORE begin() mints the new controller,
+        // so the cancel can't abort our own fresh signal.
+        this.cancelActiveOperation();
+        const abort = this.run.begin((m) => callbacks.showThinking(m), ctx.plugin.t.modals.unifiedChat);
         this.setPhase('auditing');
         callbacks.rerenderActions();
-
-        // Abort any prior in-flight operation before taking the slot — mutationLock
-        // prevents concurrent entry today, but onClear()/dispose() call
-        // cancelActiveOperation() on whatever's pointed to by activeAbort, so we
-        // must not leave a stale controller behind.
-        this.cancelActiveOperation();
-        const abort = new AbortController();
-        this.activeAbort = abort;
 
         try {
             const llmCtx = this.getLLMContext(ctx);
@@ -1202,9 +1168,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.deck.lastError = e instanceof Error ? e.message : 'Audit failed';
             }
         } finally {
-            this.mutationLock = false;
-            this.activeThinkingUpdater = null;
-            this.activeT = null;
+            this.run.end();
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
@@ -1226,7 +1190,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async handlePolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (this.activePolish) return;                       // single-flight: modal already open
-        if (!this.deck.html || this.mutationLock) return;
+        if (!this.deck.html || this.run.isLocked()) return;
 
         // Per-slide polish: a deck with >1 slide opens the selector modal so the
         // user can target specific slides; a single-slide deck polishes whole.
@@ -1235,14 +1199,14 @@ export class PresentationModeHandler implements ChatModeHandler {
             // boxes prefill with detected issues — the per-slide findings come
             // from the LLM fast scan, which may not have finished after
             // generation. Skip if we already have per-slide findings.
-            if (!this.hasPerSlideFindings() && !this.mutationLock) {
-                this.mutationLock = true;
+            if (!this.hasPerSlideFindings() && !this.run.isLocked()) {
+                this.run.lock();
                 callbacks.showThinking(ctx.plugin.t.modals.polishSelector.analysingLabel);
                 callbacks.rerenderActions();
                 try {
                     await this.ensureQualityFindings(ctx);
                 } finally {
-                    this.mutationLock = false;
+                    this.run.unlock();
                     callbacks.hideThinking();
                     callbacks.rerenderActions();
                 }
@@ -1279,18 +1243,12 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  extracted from the original handlePolish (plan §4.6: all-slides path
      *  stays untouched). */
     private async runWholeDeckPolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
-        if (!this.deck.html || this.mutationLock) return;
-        this.mutationLock = true;
-        this.activeThinkingUpdater = (m) => callbacks.showThinking(m);
-        this.activeT = ctx.plugin.t.modals.unifiedChat;  // F4
+        if (!this.deck.html || this.run.isLocked()) return;
+        // Abort any prior in-flight op before begin() mints the new controller.
+        this.cancelActiveOperation();
+        const abort = this.run.begin((m) => callbacks.showThinking(m), ctx.plugin.t.modals.unifiedChat);
         this.setPhase('refining');
         callbacks.rerenderActions();
-
-        // Same rationale as handleBrandAudit — abort any stale controller so
-        // onClear()/dispose() never hold a reference to a defunct one.
-        this.cancelActiveOperation();
-        const abort = new AbortController();
-        this.activeAbort = abort;
 
         try {
             const llmCtx = this.getLLMContext(ctx);
@@ -1323,9 +1281,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 callbacks.notify(`Polish failed: ${this.deck.lastError}`);
             }
         } finally {
-            this.mutationLock = false;
-            this.activeThinkingUpdater = null;
-            this.activeT = null;
+            this.run.end();
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
@@ -1547,10 +1503,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     private cancelActiveOperation(): void {
-        if (this.activeAbort) {
-            this.activeAbort.abort();
-            this.activeAbort = null;
-        }
+        this.run.abort();
         // Same hazard for the per-slide polish modal — close it so its
         // in-flight LLM call aborts and onClose clears activePolish before
         // handler state is nulled (audit-r3 H4).
