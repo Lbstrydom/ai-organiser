@@ -1,5 +1,22 @@
 # Project Status Log
 
+## 2026-06-02 — Presentation sanitizer hardening (Phase 2: iframe CSP/sandbox)
+
+Implemented Phase 2 of [docs/plans/presentation-sanitizer-hardening.md](docs/plans/presentation-sanitizer-hardening.md) — **Decision-7 Outcome A (Harden)**. A real-Chromium spike proved the injected slide runtime was already CSP-blocked (so click-to-edit was already dead) and that an injected attacker script is already blocked under `default-src 'none'`. So: dropped `allow-scripts` from the preview iframe sandbox (now `allow-same-origin` only — the parent still reads `contentDocument` for nav/export), removed the dead runtime injection, and added a real-browser e2e harness proving the CSP + sandbox block scripts. Code-audited (GPT + Gemini APPROVE).
+
+### Changes
+- `src/ui/components/SlideIframePreview.ts`: sandbox `allow-same-origin allow-scripts` → `allow-same-origin`; removed dead `<script>` runtime injection; documented the boundary (CSP + DOMPurify; sandbox now a real second layer).
+- `playwright.config.ts` (new) + `tests/e2e/presentationSanitizerCsp.spec.ts` (new, 3 Chromium tests) + `npm run test:e2e` script + `.gitignore` for `test-results/`.
+
+### Decisions Made
+- **Outcome A over B**: the runtime was already CSP-dead, so `allow-scripts` was dead surface — dropping it is strictly safer with no functional loss beyond the already-broken in-iframe click-to-edit (chat refine + prev/next nav unaffected).
+- Pre-existing SlideIframePreview debt the audit surfaced (DOM-fix CSS caps, nonce length, focus mgmt, announce i18n) is **deferred** to a future component-hardening pass — out of Phase-2 scope.
+
+### Next Steps
+- Optional Phase 3 (svgSanitize absorption); optional SlideIframePreview-hardening pass for the deferred debt.
+
+---
+
 ## 2026-06-02 — Presentation sanitizer hardening (Phase 1: regex → DOMPurify)
 
 Implemented Phase 1 of [docs/plans/presentation-sanitizer-hardening.md](docs/plans/presentation-sanitizer-hardening.md) — replaced the regex/string-rewrite sanitizer for LLM-generated slide HTML with a **DOMPurify** engine, closing the parser-differential bypass class the code audit flagged HIGH. Code-audited (GPT R1→R2 + Gemini R1→R3 APPROVE); see [audit summary](docs/plans/presentation-sanitizer-hardening-audit-summary.md).

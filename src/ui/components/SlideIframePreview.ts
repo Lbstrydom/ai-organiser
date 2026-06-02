@@ -11,7 +11,6 @@
 
 import type { DomFix, QualityResult, ReliabilityTier } from '../../services/chat/presentationTypes';
 import { SLIDE_WIDTH, SLIDE_HEIGHT, DECK_CLASSES } from '../../services/chat/presentationConstants';
-import { buildSlideRuntimeCode } from '../../services/chat/slideRuntime';
 
 // ── CSS Sanitisation for DOM Fixes ──────────────────────────────────────────
 
@@ -353,10 +352,19 @@ export class SlideIframePreview {
         // attributes retained their literal single quotes as `'24'`, and
         // inline <style> content rendered as body text). The property
         // setter preserves the raw HTML string verbatim.
+        // Sandbox: `allow-same-origin` ONLY (NOT `allow-scripts`) — sanitizer
+        // Phase 2 / Decision 7 Outcome A. The parent reads `iframe.contentDocument`
+        // for slide nav, `applyDomFixes`, and dom-to-pptx export — that needs
+        // same-origin, NOT scripts. The slide HTML is static (DOMPurify-sanitized,
+        // no scripts) and the injected CSP is `default-src 'none'`, so NO script
+        // ever needs to run in here. Dropping `allow-scripts` makes the sandbox a
+        // real second layer (defense-in-depth) instead of dead surface: even if
+        // the CSP were somehow bypassed, the sandbox still blocks all scripts.
+        // (A spike confirmed the prior in-iframe runtime was CSP-blocked anyway.)
         this.iframe = this.iframeScaler.createEl('iframe', {
             cls: 'ai-organiser-pres-iframe',
             attr: {
-                sandbox: 'allow-same-origin allow-scripts',
+                sandbox: 'allow-same-origin',
                 title: 'Slide deck preview', // H5 accessibility
             },
         });
@@ -408,10 +416,15 @@ export class SlideIframePreview {
         this.state = 'ready';
         if (this.statusEl) this.statusEl.textContent = '';
 
-        // Phase 6: Inject slide runtime for in-iframe keyboard nav + postMessage sync
-        const runtimeScript = doc.createElement('script');
-        runtimeScript.textContent = buildSlideRuntimeCode(this.nonce, this.options.bgHoverLabelTemplate);
-        doc.body.appendChild(runtimeScript);
+        // NOTE (sanitizer Phase 2 / Decision 7 Outcome A): the in-iframe slide
+        // runtime injection was REMOVED. The iframe sandbox no longer grants
+        // `allow-scripts` and the CSP is `default-src 'none'`, so an injected
+        // <script> cannot execute (a real-browser spike confirmed it was already
+        // CSP-blocked). All navigation/scaling is parent-driven via the
+        // same-origin contentDocument (showActiveSlide() toggles a CSS class;
+        // updateScale() transforms the host iframe). In-iframe keyboard nav and
+        // click-to-select-element editing are intentionally not supported in this
+        // hardened model; prev/next + the wrapper keyboard handler still work.
 
         this.updateScale();
         this.showActiveSlide();

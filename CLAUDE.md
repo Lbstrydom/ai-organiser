@@ -367,9 +367,9 @@ In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail work
 
 ## Presentation Sanitizer (DOMPurify)
 
-**Status**: ✅ Phase 1 (June 2026) — Phase 2 (iframe CSP spike + real-browser tests) pending.
+**Status**: ✅ Phase 1 + Phase 2 (June 2026). Phase 3 (svgSanitize absorption) optional.
 
-`sanitizePresentation` (`src/services/chat/presentationSanitizer.ts`) is the **trust boundary** for LLM-generated slide HTML before it renders in the preview iframe (`sandbox="allow-same-origin allow-scripts"` — so the sanitizer + injected CSP are the real boundary, not the sandbox). Phase 1 replaced the regex engine with **DOMPurify** to eliminate parser-differential / mXSS bypasses.
+`sanitizePresentation` (`src/services/chat/presentationSanitizer.ts`) is the **trust boundary** for LLM-generated slide HTML before it renders in the preview iframe. Phase 1 replaced the regex engine with **DOMPurify** (parser-differential / mXSS); Phase 2 hardened the iframe: `sandbox="allow-same-origin"` (NO `allow-scripts`) + CSP `default-src 'none'` + DOMPurify are the layered boundary. A real-Chromium spike (Decision 7 Outcome A) confirmed scripts can't execute; the in-iframe runtime was retired (it was already CSP-blocked). The parent keeps `contentDocument` access (needs only same-origin) for nav / `applyDomFixes` / dom-to-pptx export. **Real-browser CSP/sandbox tests**: `tests/e2e/presentationSanitizerCsp.spec.ts` (`npm run test:e2e`).
 
 ### Components
 - `src/utils/presentationSanitizePolicy.ts` — **neutral SSOT** (no DOM/DOMPurify): `ALLOWED_TAGS`/`ALLOWED_ATTR`/`FORBID_TAGS`, `ALLOWED_CSS_PROPERTIES`, `isAllowedPresentationUrl(el,attr,val)` matrix, `parsePresentationDataImageUrl` (decoded-byte size), `extractCssUrls` (robust, fail-closed), budgets (`MAX_INPUT_CHARS`/`MAX_DATA_URI_BYTES`/`MAX_IMAGE_COUNT`/`MAX_ATTR_CHARS`). Both the sanitizer and `svgSanitize` import downward into it.
@@ -382,7 +382,7 @@ In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail work
 - **Fail-closed CSS url() extraction**: `extractCssUrls` reports `clean:false` when `url(` count ≠ parsed-token count → caller drops the declaration (no fail-open on crafted `url("…)…")`).
 - **Budgets**: oversized input → fail-closed empty; per-image bytes / image count degrade gracefully (strip the resource, keep the deck).
 - **`DANGEROUS_HTML_PATTERNS`** stays exported but is documented as the streaming reliability **heuristic only — NOT a security boundary**.
-- `injectCSP` keeps `default-src 'none'; style-src 'unsafe-inline'; img-src data:` (the stronger first-child-of-head + Outcome A/B `script-src` is Phase 2).
+- `injectCSP` keeps `default-src 'none'; style-src 'unsafe-inline'; img-src data:`. Phase 2 (Decision 7 Outcome A) dropped iframe `allow-scripts` and removed the in-iframe runtime — scripts cannot execute (proven by `tests/e2e/presentationSanitizerCsp.spec.ts` in real Chromium).
 
 ### Tests
 - `tests/presentationSanitizer.test.ts` (44, happy-dom): classic XSS + mXSS/parser-differential + SVG specialisation + anchor canonicalisation + CSS allowlist + budgets + result contract + golden parity + fail-open regression. (Real-browser CSP/parity tests are Phase 2.)

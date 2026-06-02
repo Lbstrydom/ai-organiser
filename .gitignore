@@ -131,3 +131,7 @@ skills.manifest.json
 # managed-by:claude-engineering-skills-sync — DO NOT EDIT INSIDE
 scripts/.claude-skills/
 # /managed-by:claude-engineering-skills-sync
+
+# Playwright e2e output
+test-results/
+playwright-report/
