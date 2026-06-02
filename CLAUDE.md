@@ -378,7 +378,7 @@ At narrow modal widths the chat rail docks off-canvas as a **bottom-sheet** (`Pr
 - **Focus management**: `openSheet()` clears `inert`/`aria-hidden`, sets `aria-expanded=true`, focuses the first focusable in the rail, and attaches a Tab-trap keydown; `closeSheet()` reverses it and returns focus to the FAB. `updateNarrowClass()` auto-closes the sheet when the modal widens past `PRES_NARROW_BREAKPOINT_PX`.
 - The filmstrip becomes a horizontal strip on narrow widths (CSS only).
 
-**Plan**: [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) · **Audit**: [docs/plans/slides-side-rail-workspace-audit-summary.md](docs/plans/slides-side-rail-workspace-audit-summary.md)
+**Plan**: [docs/completed/slides-side-rail-workspace.md](docs/completed/slides-side-rail-workspace.md) · **Audit**: [docs/completed/slides-side-rail-workspace-audit-summary.md](docs/completed/slides-side-rail-workspace-audit-summary.md)
 
 ## Presentation Sanitizer (DOMPurify)
 
