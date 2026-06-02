@@ -415,7 +415,7 @@ At narrow modal widths the chat rail docks off-canvas as a **bottom-sheet** (`Pr
 ### Tests
 - `tests/presentationSanitizer.test.ts` (44, happy-dom): classic XSS + mXSS/parser-differential + SVG specialisation + anchor canonicalisation + CSS allowlist + budgets + result contract + golden parity + fail-open regression. (Real-browser CSP/parity tests are Phase 2.)
 
-**Plan**: [docs/plans/presentation-future-phase.md](docs/plans/presentation-future-phase.md) · **Audit**: [docs/plans/presentation-sanitizer-hardening-audit-summary.md](docs/plans/presentation-sanitizer-hardening-audit-summary.md)
+**Plan**: [docs/plans/presentation-future-phase.md](docs/plans/presentation-future-phase.md) · **Audit**: [docs/completed/presentation-sanitizer-hardening-audit-summary.md](docs/completed/presentation-sanitizer-hardening-audit-summary.md)
 
 ## Smart Document Indexing (AI Chat)
 
