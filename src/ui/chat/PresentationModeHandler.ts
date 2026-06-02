@@ -61,6 +61,7 @@ import { SlideThumbnailProvider } from '../../services/chat/slideThumbnailProvid
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/tokenLimits';
 import { logger } from '../../utils/logger';
 import type { ProjectConfig } from '../../services/chat/projectService';
+import { registerPresentationTarget, unregisterPresentationTarget } from './presentation/presentationCommandRegistry';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -78,16 +79,6 @@ interface RunContext {
 
 export class PresentationModeHandler implements ChatModeHandler {
     readonly mode: ChatMode = 'presentation';
-
-    /** Singleton tracker for global commands (e.g. Mod+Shift+S slide picker)
-     *  to find the currently-mounted handler. Set in renderContextPanel,
-     *  cleared in dispose. Most-recently-mounted wins when multiple modals
-     *  exist (rare). */
-    private static activeInstance: PresentationModeHandler | null = null;
-
-    static getActiveInstance(): PresentationModeHandler | null {
-        return PresentationModeHandler.activeInstance;
-    }
 
     // State
     private phase: PresentationPhase = 'empty';
@@ -180,7 +171,9 @@ export class PresentationModeHandler implements ChatModeHandler {
     // for teardown when the create panel is replaced by the iframe.
     private sourceController: CreationSourceController | null = null;
     private creationFlowEpoch = 1;
-    private creationConfig: CreationConfig = { ...DEFAULT_CREATION_CONFIG };
+    // Deep clone so nested config (arrays/objects) can never alias the shared
+    // module default — a shallow spread would let one handler mutate the default.
+    private creationConfig: CreationConfig = structuredClone(DEFAULT_CREATION_CONFIG);
     private createPanelDispose: (() => void) | null = null;
 
     // ── Phase progress ──────────────────────────────────────────────────────
@@ -244,9 +237,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Stash the i18n bundle so refreshAccessory has it available for
         // every state-change-driven re-render between renderContextPanel calls.
         this.accessoryT = t;
-        // Register as the active instance for global commands (e.g. the
-        // slide-picker command bound to Mod+Shift+S).
-        PresentationModeHandler.activeInstance = this;
+        // Register as the active target for global commands (e.g. the
+        // slide-picker command bound to Mod+Shift+S). The registry tracks all
+        // live handlers + unregisters cleanly on dispose (no dangling pointer).
+        registerPresentationTarget(this);
 
         // F3: dispose any prior SlideIframePreview BEFORE clearing the DOM.
         // Previously this was nested inside the `if (this.html)` recreate
@@ -1026,7 +1020,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // r5-G3 + r6-G1).
         this.creationFlowEpoch++;
         if (this.sourceController) this.sourceController.reset();
-        this.creationConfig = { ...DEFAULT_CREATION_CONFIG };
+        this.creationConfig = structuredClone(DEFAULT_CREATION_CONFIG);
     }
 
     dispose(): void {
@@ -1051,9 +1045,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.sourceController = null;
         }
         this.creationFlowEpoch++;
-        if (PresentationModeHandler.activeInstance === this) {
-            PresentationModeHandler.activeInstance = null;
-        }
+        unregisterPresentationTarget(this);
     }
 
     /** Public seam for the global slide-picker command (Mod+Shift+S).

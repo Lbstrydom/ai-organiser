@@ -8,7 +8,7 @@ import AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
-import { PresentationModeHandler } from '../ui/chat/PresentationModeHandler';
+import { getActivePresentationTarget } from '../ui/chat/presentation/presentationCommandRegistry';
 import { SlidePickerModal, parseSlideEntries } from '../ui/modals/SlidePickerModal';
 
 function notify(message: string, duration?: number): Notice {
@@ -93,7 +93,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         name: plugin.t.modals.unifiedChat.slideSelectorCommand,
         icon: 'list-tree',
         callback: () => {
-            const handler = PresentationModeHandler.getActiveInstance();
+            const handler = getActivePresentationTarget();
             const html = handler?.getDeckHtml();
             if (!handler || !html) {
                 notify(plugin.t.modals.unifiedChat.slidePreviewEmpty);
