@@ -9,9 +9,11 @@
  * ## Composition Rules list.
  */
 
-import { type App, TFile } from 'obsidian';
+import { type App, TFile, normalizePath } from 'obsidian';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { logger } from '../../utils/logger';
+import { type Result, ok, err } from '../../core/result';
+import { safeHex, safeFont } from '../presentationIr/themeSafe';
 import { SLIDE_WIDTH, SLIDE_HEIGHT } from './presentationConstants';
 // Icon data relocated to the neutral registry (dependency inverted — see
 // presentation-renderer-fidelity.md D1). Only the path map is needed here (the
@@ -86,14 +88,19 @@ const DEFAULT_COLORS: ParsedColors = {
 const DEFAULT_FONT = "'Segoe UI', system-ui, -apple-system, sans-serif";
 
 function buildCssFromColors(colors: ParsedColors, font: string): string {
+    // Validate every brand value before it enters the CSS — a brand-guidelines
+    // file is user/config-authored, so a malformed colour/font could otherwise
+    // break out of the custom-property and inject CSS. safeHex degrades to the
+    // role default; safeFont strips anything that could close the declaration.
+    const c = (val: string, fallback: string): string => `#${safeHex(val, fallback).hex}`;
     return `:root {
-    --brand-primary: ${colors.primary};
-    --brand-secondary: ${colors.secondary};
-    --brand-accent: ${colors.accent};
-    --brand-bg: ${colors.background};
-    --brand-text: ${colors.text};
-    --brand-link: ${colors.link};
-    --brand-font: ${font};
+    --brand-primary: ${c(colors.primary, '1A3A5C')};
+    --brand-secondary: ${c(colors.secondary, '0F3460')};
+    --brand-accent: ${c(colors.accent, 'F5C842')};
+    --brand-bg: ${c(colors.background, 'FFFFFF')};
+    --brand-text: ${c(colors.text, '2D3748')};
+    --brand-link: ${c(colors.link, '1A3A5C')};
+    --brand-font: ${safeFont(font)};
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -184,28 +191,30 @@ export function getDefaultTheme(): BrandTheme {
     };
 }
 
+/** True only when the brand path resolves to a readable FILE — the SAME
+ *  question `loadBrandTheme` answers (previously this returned true for a folder
+ *  at the path, then `loadBrandTheme` rejected it → the two disagreed). */
 export function isBrandAvailable(app: App, settings: AIOrganiserSettings): boolean {
-    const path = getBrandPath(settings);
-    return !!app.vault.getAbstractFileByPath(path);
+    const file = app.vault.getAbstractFileByPath(getBrandPath(settings));
+    return file instanceof TFile;
 }
 
-export async function loadBrandTheme(app: App, settings: AIOrganiserSettings): Promise<BrandTheme | null> {
+/**
+ * Load + parse the brand-guidelines file. Returns a `Result` that distinguishes
+ * the failure modes (missing / not-a-file / read-error) instead of collapsing
+ * them all to `null` — the service-boundary convention. Parsing itself never
+ * fails (it degrades to defaults per section), so a found-and-read file is `ok`.
+ */
+export async function loadBrandTheme(app: App, settings: AIOrganiserSettings): Promise<Result<BrandTheme>> {
     const path = getBrandPath(settings);
     const abstract = app.vault.getAbstractFileByPath(path);
-    if (!abstract) return null;
-
-    // Verify it's a file, not a folder (M6 fix)
-    if (!(abstract instanceof TFile)) {
-        logger.warn('BrandTheme', `Path is not a file: ${path}`);
-        return null;
-    }
-
+    if (!abstract) return err(`brand file not found: ${path}`);
+    if (!(abstract instanceof TFile)) return err(`brand path is not a file: ${path}`);
     try {
         const content = await app.vault.cachedRead(abstract);
-        return parseBrandFile(content);
+        return ok(parseBrandFile(content));
     } catch (e) {
-        logger.warn('BrandTheme', `Failed to load brand file: ${e instanceof Error ? e.message : String(e)}`);
-        return null;
+        return err(`brand file read failed: ${e instanceof Error ? e.message : String(e)}`);
     }
 }
 
@@ -216,16 +225,24 @@ export async function resolveTheme(
 ): Promise<BrandTheme> {
     if (!brandEnabled) return getDefaultTheme();
     const brand = await loadBrandTheme(app, settings);
-    return brand ?? getDefaultTheme();
+    if (!brand.ok) {
+        logger.warn('BrandTheme', brand.error);
+        return getDefaultTheme();
+    }
+    return brand.value;
 }
 
-// ── Path Resolution (M5 fix — uses settings helpers) ────────────────────────
+// ── Path Resolution ──────────────────────────────────────────────────────────
 
+/** Resolve the brand-guidelines path, normalised (consistent slashes, no
+ *  stray whitespace). A custom path overrides the default `<pluginFolder>/
+ *  <configFolder>/brand-guidelines.md`. */
 function getBrandPath(settings: AIOrganiserSettings): string {
     const custom = (settings as AIOrganiserSettings & { presentationBrandGuidelinesPath?: string }).presentationBrandGuidelinesPath;
-    if (custom && typeof custom === 'string' && custom.trim()) return custom.trim();
-    const configFolder = settings.configFolderPath || 'Config';
-    return `${settings.pluginFolder}/${configFolder}/brand-guidelines.md`;
+    if (custom && typeof custom === 'string' && custom.trim()) return normalizePath(custom.trim());
+    const pluginFolder = (settings.pluginFolder || '').trim();
+    const configFolder = (settings.configFolderPath || 'Config').trim();
+    return normalizePath(`${pluginFolder}/${configFolder}/brand-guidelines.md`);
 }
 
 // ── Section-Scoped Parsing (M7 fix) ─────────────────────────────────────────

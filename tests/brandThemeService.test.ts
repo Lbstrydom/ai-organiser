@@ -1,10 +1,70 @@
 import { describe, it, expect } from 'vitest';
-import { getDefaultTheme } from '../src/services/chat/brandThemeService';
+import { getDefaultTheme, loadBrandTheme, isBrandAvailable, resolveTheme } from '../src/services/chat/brandThemeService';
 import {
     PRESENTATION_ICONS,
     ICON_CATEGORIES,
     buildIconReference,
 } from '../src/services/presentationIr/iconRegistry';
+import { createTFile, createTFolder } from './mocks/obsidian';
+import type { App } from 'obsidian';
+import type { AIOrganiserSettings } from '../src/core/settings';
+
+const SETTINGS = { pluginFolder: 'AI-Organiser', configFolderPath: 'Config' } as unknown as AIOrganiserSettings;
+function makeApp(file: unknown, content = '', throwOnRead = false): App {
+    return {
+        vault: {
+            getAbstractFileByPath: () => file,
+            cachedRead: async () => { if (throwOnRead) throw new Error('boom'); return content; },
+        },
+    } as unknown as App;
+}
+
+describe('isBrandAvailable — file-only (reconciled with loadBrandTheme)', () => {
+    it('true for a TFile at the path', () => {
+        expect(isBrandAvailable(makeApp(createTFile('x/brand-guidelines.md')), SETTINGS)).toBe(true);
+    });
+    it('false for a FOLDER at the path (the bug it fixes)', () => {
+        expect(isBrandAvailable(makeApp(createTFolder('x')), SETTINGS)).toBe(false);
+    });
+    it('false when nothing is there', () => {
+        expect(isBrandAvailable(makeApp(null), SETTINGS)).toBe(false);
+    });
+});
+
+describe('loadBrandTheme — Result with distinct failure modes', () => {
+    it('err when the file is missing', async () => {
+        const r = await loadBrandTheme(makeApp(null), SETTINGS);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toContain('not found');
+    });
+    it('err when the path is a folder', async () => {
+        const r = await loadBrandTheme(makeApp(createTFolder('x')), SETTINGS);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toContain('not a file');
+    });
+    it('err when the read throws', async () => {
+        const r = await loadBrandTheme(makeApp(createTFile('x/brand-guidelines.md'), '', true), SETTINGS);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toContain('read failed');
+    });
+    it('ok for a readable file (parse degrades to defaults per section)', async () => {
+        const r = await loadBrandTheme(makeApp(createTFile('x/brand-guidelines.md'), '## Colors\n'), SETTINGS);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.css).toContain('--brand-primary');
+    });
+});
+
+describe('resolveTheme falls back to the default theme on a brand-load failure', () => {
+    it('returns the default theme when the brand file is missing', async () => {
+        const t = await resolveTheme(makeApp(null), SETTINGS, true);
+        expect(t.css).toContain('--brand-primary');
+        expect(t.auditChecklist).toEqual([]);
+    });
+    it('returns the default theme when brand is disabled', async () => {
+        const t = await resolveTheme(makeApp(createTFile('x/brand-guidelines.md')), SETTINGS, false);
+        expect(t.css).toContain('--brand-primary');
+    });
+});
 
 // ── Icon Catalogue ─────────────────────────────────────────────────────────
 
