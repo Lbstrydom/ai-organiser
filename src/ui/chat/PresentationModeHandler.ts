@@ -56,6 +56,8 @@ import {
 } from '../../services/chat/brandThemeService';
 import { extractDeckTitle, countSlides } from '../../services/prompts/presentationChatPrompts';
 import { SlideIframePreview } from '../components/SlideIframePreview';
+import { SlideFilmstrip } from '../components/SlideFilmstrip';
+import { SlideThumbnailProvider } from '../../services/chat/slideThumbnailProvider';
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/tokenLimits';
 import { logger } from '../../utils/logger';
 import type { ProjectConfig } from '../../services/chat/projectService';
@@ -148,6 +150,10 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     // Preview
     private preview: SlideIframePreview | null = null;
+    // Phase 2 filmstrip: thumbnail navigator (left of the canvas). Disposed with
+    // the preview. Thumbnails are rastered from this.html, keyed by deck version.
+    private filmstrip: SlideFilmstrip | null = null;
+    private thumbnailProvider: SlideThumbnailProvider | null = null;
 
     // ── Scoped editing (slide-authoring-editing plan) ───────────────────────
     // Selection: null = whole-deck edit (existing Polish path); else the
@@ -254,6 +260,12 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.preview.dispose();
             this.preview = null;
         }
+        // Filmstrip + thumbnail provider are recreated alongside the preview;
+        // dispose them here too (before container.empty()) to avoid leaks.
+        this.filmstrip?.dispose();
+        this.filmstrip = null;
+        this.thumbnailProvider?.dispose();
+        this.thumbnailProvider = null;
         // Drop the accessory ref before container.empty() so refreshAccessory
         // can't fire against detached DOM during the transition window.
         this.accessoryContainer = null;
@@ -303,13 +315,33 @@ export class PresentationModeHandler implements ChatModeHandler {
             });
             this.refreshAccessory();
 
-            const previewContainer = container.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
+            // Canvas body: filmstrip (left) + preview (fills). Wrapping them in a
+            // horizontal row keeps the filmstrip inside the canvas grid cell, so
+            // the side-rail grid template (modebar/canvas/rail/actions) is untouched.
+            const canvasBody = container.createEl('div', { cls: 'ai-organiser-pres-canvas-body' });
+            const filmstripHost = canvasBody.createEl('div', { cls: 'ai-organiser-pres-filmstrip-host' });
+            const previewContainer = canvasBody.createEl('div', { cls: 'ai-organiser-pres-preview-container' });
             this.preview = new SlideIframePreview(previewContainer, {
-                onSlideSelect: (idx) => { this.activeSlideIndex = idx; },
+                onSlideSelect: (idx) => { this.activeSlideIndex = idx; this.filmstrip?.setActive(idx); },
                 onElementSelect: (event) => { this.handleElementSelect(event); },
                 emptyPlaceholderText: t.slidePreviewEmpty,
                 bgHoverLabelTemplate: t.slideBgHoverTooltipTemplate,
             });
+
+            // Filmstrip thumbnail navigator (Phase 2). Thumbnails are rastered
+            // from this.html (offscreen, never cloned into the host DOM).
+            this.thumbnailProvider = new SlideThumbnailProvider({
+                getHtml: () => this.html,
+                getDeckVersion: () => this.versions.length,
+            });
+            this.filmstrip = new SlideFilmstrip(filmstripHost, {
+                getCount: () => this.thumbnailProvider?.slideCount() ?? 0,
+                getActiveIndex: () => this.activeSlideIndex,
+                getThumbnail: (i, signal) => this.thumbnailProvider?.getThumbnail(i, signal) ?? Promise.resolve(null),
+                onSelect: (i) => { this.activeSlideIndex = i; this.preview?.navigateToSlide(i); this.filmstrip?.setActive(i); },
+            });
+            this.filmstrip.render();
+
             // Project canonical HTML for the editor: adds data-element
             // attributes the iframe runtime walks on click. Canonical HTML
             // (no data-element) stays in this.html for prompts/exports.
@@ -380,6 +412,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.qualityResult) {
             this.preview.setQuality(this.qualityResult);
         }
+        // Rebuild the filmstrip for the (possibly new) deck — the provider keys
+        // its cache by deck version, so unchanged decks reuse cached thumbnails.
+        this.filmstrip?.refresh();
     }
 
     /**
@@ -997,6 +1032,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.clearNavigateTimeout();  // F5
         this.preview?.dispose();
         this.preview = null;
+        this.filmstrip?.dispose();
+        this.filmstrip = null;
+        this.thumbnailProvider?.dispose();
+        this.thumbnailProvider = null;
         this.accessoryContainer = null;
         this.versionNavHost = null;
         this.accessoryT = null;

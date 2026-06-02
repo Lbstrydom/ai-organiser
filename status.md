@@ -1,5 +1,25 @@
 # Project Status Log
 
+## 2026-06-02 — Slides side-rail workspace Phase 2 (vertical filmstrip)
+
+Implemented Phase 2 of [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) — a thumbnail navigator left of the slide canvas. A real-Chromium spike validated rastering each slide via SVG `<foreignObject>` → `<img>` → `<canvas>` → PNG data-URL: renders the real slide, no canvas taint, **no script execution** (images don't run scripts), **no external fetch** (Phase-1 sanitization restricts sub-resources to `data:`), and slide CSS never touches the host DOM. Code-audited (GPT R1→R2 + Gemini APPROVE).
+
+### Changes
+- `src/services/chat/slideThumbnailProvider.ts` (new): offscreen raster from `this.html`, LRU cache keyed by deck version, `AbortSignal`, CDATA-terminator escaping, `XMLSerializer` for valid XHTML; injectable `rasterize` for tests.
+- `src/ui/components/SlideFilmstrip.ts` (new): presentational button group, **sequential** thumbnail load (bounded concurrency), `aria-current` + Arrow/Home/End keyboard nav, hidden at ≤1 slide, `listen()` cleanup, `data:image/png`-only `src` guard.
+- `PresentationModeHandler`: filmstrip in the canvas region (inside the canvas grid cell → side-rail grid untouched), wired to `navigateToSlide`, refreshed on deck mutation, disposed. `styles.css`: filmstrip layout, hidden on narrow widths.
+- Tests: `tests/slideThumbnailProvider.test.ts` (9), `tests/SlideFilmstrip.test.ts` (7). 4936 unit tests green.
+
+### Decisions Made
+- **Raster, not HTML clone**: cloning slide HTML into the host DOM would render untrusted slide CSS outside the sandbox — rejected. Inert PNG thumbnails keep the boundary.
+- **Sequential load + tight `data:image/png` guard** (audit): no unbounded concurrent rasterization; only the provider's exact PNG contract reaches `img.src`.
+- Pre-existing arch debt (god-object handler, dual deck SoT, hardcoded mode registries) + side-rail e2e spec remain **deferred** — out of Phase-2 scope.
+
+### Next Steps
+- Phase 3 (mobile bottom-sheet + filmstrip horizontal strip on narrow widths); optional SlideIframePreview-hardening pass for the deferred debt.
+
+---
+
 ## 2026-06-02 — Slides chat UX polish (create-state layout + CTA emphasis)
 
 Two small fixes to the Slides chat surfaced by live use:

@@ -338,7 +338,7 @@ Targeted polish of individual slides in an IR-backed deck. `handlePolish` routes
 
 ## Slides Side-Rail Workspace
 
-**Status**: ✅ Phase 1 implemented (June 2026) — Phase 2 (filmstrip) + Phase 3 (mobile bottom-sheet) pending.
+**Status**: ✅ Phase 1 + Phase 2 (filmstrip) implemented (June 2026). Phase 3 (mobile bottom-sheet) pending.
 
 In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail workspace**: the 1920×1080 preview is the artifact (width-bound, large), and the transcript + composer dock into a resizable/collapsible right rail. The other five chat modes are untouched.
 
@@ -362,6 +362,14 @@ In Slides mode the `UnifiedChatModal` becomes a **canvas-dominant side-rail work
 ### Tests
 
 - `tests/presentationLayoutController.test.ts` (17): clamp math, enter/leave + exact restore, capture-once regression, collapse + inert + focus move, keyboard resize, persist coalescing, dispose flush, presentation-no-deck stacked.
+
+### Phase 2 — filmstrip (June 2026)
+
+A vertical thumbnail navigator left of the canvas (`SlideFilmstrip` + `SlideThumbnailProvider`).
+- **Thumbnails are inert rasters**: each slide → SVG `<foreignObject>` → `<img>` → `<canvas>` → PNG data-URL. Images don't run scripts and the sanitized deck restricts sub-resources to `data:`, so this renders the real slide (theme `<style>` + inline styles + data: images) with **no script execution and no network** — strictly more inert than the preview iframe. Provider must only be fed `this.html` (post-sanitize).
+- `src/services/chat/slideThumbnailProvider.ts`: offscreen raster, LRU cache keyed by deck version, `AbortSignal`, CDATA-terminator escaping, `XMLSerializer` (foreignObject needs valid XHTML). Injectable `rasterize` for tests.
+- `src/ui/components/SlideFilmstrip.ts`: presentational button group (NOT role=list — that breaks button semantics), **sequential** thumbnail load (bounded), `aria-current` + Arrow/Home/End keyboard nav, hidden at ≤1 slide, `listen()` cleanup, data:image/png-only `src` guard.
+- Wired in `PresentationModeHandler` canvas region (inside the canvas grid cell, so the side-rail grid is untouched); hidden on narrow widths (Phase 3 = horizontal strip). Real-Chromium spike validated the raster path.
 
 **Plan**: [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) · **Audit**: [docs/plans/slides-side-rail-workspace-audit-summary.md](docs/plans/slides-side-rail-workspace-audit-summary.md)
 

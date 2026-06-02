@@ -7628,6 +7628,69 @@
     margin-bottom: auto;
 }
 
+/* ── Slides filmstrip (Phase 2) ─────────────────────────────────────────────
+   Canvas body lays the filmstrip (left) + preview (fills) in a row inside the
+   canvas grid cell, so the side-rail grid template is untouched. */
+.ai-organiser-pres-canvas-body {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+}
+.ai-organiser-pres-canvas-body > .ai-organiser-pres-preview-container {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.ai-organiser-pres-filmstrip-host {
+    flex: 0 0 var(--pres-filmstrip-width, 104px);
+    min-height: 0;
+    overflow: hidden;
+}
+.ai-organiser-pres-filmstrip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    overflow-y: auto;
+    padding: 4px;
+}
+.ai-organiser-pres-filmstrip-thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 2px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    cursor: pointer;
+    overflow: hidden;
+}
+.ai-organiser-pres-filmstrip-thumb:hover { border-color: var(--text-muted); }
+.ai-organiser-pres-filmstrip-thumb.is-active { border-color: var(--interactive-accent); }
+.ai-organiser-pres-filmstrip-num {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    z-index: 1;
+}
+.ai-organiser-pres-filmstrip-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.ai-organiser-pres-filmstrip-img.is-loaded { opacity: 1; }
+/* Narrow modal: hide the filmstrip (Phase 3 will give it a horizontal strip);
+   a 104px column beside an already-cramped preview isn't worth it here. */
+.ai-organiser-pres-narrow .ai-organiser-pres-filmstrip-host { display: none; }
+
 /* iframe wrapper — scales 1920x1080 slides to fit the measured container.
    display:flex + the scaler's margin:auto centres the slide on both axes when
    it's smaller than the wrapper; overflow:auto lets the user scroll when they
