@@ -31,6 +31,7 @@ import {
     type SvgAssetCache,
 } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
+import { sanitizeExportTheme } from './themeSafe';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -101,7 +102,11 @@ export async function renderDeckToPptx(
     // Defensive guard (audit M1) — dereference safely before the main try.
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
 
-    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme, rasterize: opts.rasterize, notices: [], downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL };
+    const notices: FidelityNotice[] = [];
+    // D2 — validate the theme ONCE at the boundary (config-sourced, not Zod).
+    const safeTheme = sanitizeExportTheme(theme, f =>
+        notices.push({ slideIndex: 0, blockKind: 'paragraph', severity: 'info', description: `theme.${f} invalid; using fallback` }));
+    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme: safeTheme, rasterize: opts.rasterize, notices, downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL };
 
     let pres: PptxLike;
     try {

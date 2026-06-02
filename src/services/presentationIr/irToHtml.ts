@@ -27,6 +27,7 @@ import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
+import { sanitizeExportTheme } from './themeSafe';
 
 export interface RenderHtmlOptions {
     /** Localised label for a slide that fails to render (caller injects via
@@ -74,13 +75,18 @@ function stripDangerousHtml(html: string): string {
         .replace(/javascript:/gi, '');
 }
 
-export function renderDeckToHtml(deck: SlideDeckIr, theme: ExportTheme, opts: RenderHtmlOptions = {}): Result<HtmlRenderOutput> {
+export function renderDeckToHtml(deck: SlideDeckIr, rawTheme: ExportTheme, opts: RenderHtmlOptions = {}): Result<HtmlRenderOutput> {
     // Same validity contract as renderDeckToPptx (audit M6/M19 — the two
     // renderers must agree on what a renderable deck is).
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
     const placeholderLabel = opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL;
     try {
         const notices: FidelityNotice[] = [];
+        // D2 — validate the theme ONCE at the boundary; every downstream colour/
+        // font interpolation then uses already-safe values (the theme is config-
+        // sourced, not Zod-validated).
+        const theme = sanitizeExportTheme(rawTheme, f =>
+            notices.push({ slideIndex: 0, blockKind: 'paragraph', severity: 'info', description: `theme.${f} invalid; using fallback` }));
         // D1 — per-slide isolation: one bad slide degrades to a placeholder
         // section + a notice instead of failing the WHOLE deck (parity with the
         // PPTX per-slide isolation).
