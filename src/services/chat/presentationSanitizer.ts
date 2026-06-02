@@ -1,149 +1,64 @@
 /**
- * Presentation Sanitizer
+ * Presentation Sanitizer — parser-based (DOMPurify) trust boundary.
  *
- * Sanitizes LLM-generated HTML for safe iframe preview.
- * Allowlist-based tag/attribute filtering, URL scheme validation,
- * CSS property validation, and CSP injection.
+ * Plan: docs/plans/presentation-sanitizer-hardening.md.
+ *
+ * Sanitizes LLM-generated slide HTML before it renders in a sandboxed iframe.
+ * The engine is DOMPurify (real browser parser → no regex parser-differentials);
+ * the allow/deny policy is the single source of truth in
+ * `utils/presentationSanitizePolicy`. Per-element URL rules, the CSS-property
+ * allowlist, anchor canonicalisation, and resource budgets run in DOMPurify
+ * hooks (they see the PARSED node). Fails CLOSED: any internal error returns
+ * empty HTML, never raw input.
+ *
+ * Synchronous + main-thread (Electron/Chromium at runtime; happy-dom in tests).
  */
+
+import DOMPurify from 'dompurify';
+import { logger } from '../../utils/logger';
+import {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    FORBID_TAGS,
+    ALLOWED_CSS_PROPERTIES,
+    DANGEROUS_CSS_VALUE_PATTERNS,
+    MAX_INPUT_CHARS,
+    MAX_DATA_URI_BYTES,
+    MAX_IMAGE_COUNT,
+    MAX_ATTR_CHARS,
+    isAllowedPresentationUrl,
+    isAllowedAnchorTarget,
+    parsePresentationDataImageUrl,
+    hasOnlyAllowedUrlTokens,
+    extractCssUrls,
+} from '../../utils/presentationSanitizePolicy';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type SanitizeStatus =
+    | 'ok'
+    | 'sanitized'
+    | 'budget-exceeded'
+    | 'malformed-input'
+    | 'internal-error';
+
 export interface SanitizeResult {
     html: string;
-    rejectionCount: number;
+    status: SanitizeStatus;
     hasDeckRoot: boolean;
     hasSlides: boolean;
+    /** Back-compat: total removals (tags + attrs + urls). */
+    rejectionCount: number;
+    removed: { tags: number; attrs: number; urls: number };
+    resources: { dataUriBytes: number; imageCount: number; inputChars: number };
+    budgetHit?: 'input-size' | 'data-uri-size' | 'image-count';
 }
 
-// ── Allowlists ─────────────────────────────────────────────────────────────
-
-const ALLOWED_TAGS = new Set([
-    // Structure
-    'div', 'section', 'article', 'header', 'footer', 'main', 'nav', 'aside',
-    // Headings
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    // Text
-    'p', 'span', 'strong', 'em', 'b', 'i', 'u', 'small', 'sub', 'sup',
-    'blockquote', 'code', 'pre', 'br', 'hr',
-    // Lists
-    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
-    // Tables
-    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
-    // Media (restricted URLs handled separately)
-    'img', 'figure', 'figcaption',
-    // Links
-    'a',
-    // SVG
-    'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon',
-    'ellipse', 'g', 'defs', 'text', 'tspan', 'use', 'symbol',
-    'clippath', 'lineargradient', 'radialgradient', 'stop', 'mask',
-    // Misc
-    'details', 'summary', 'mark',
-]);
-
 /**
- * BLOCKED_TAGS is NOT a redundant mirror of "not in ALLOWED_TAGS" — it drives
- * DIFFERENT Phase-1 behaviour: these tags are removed TOGETHER WITH their inner
- * content (a `<script>…</script>` body must not survive as text) and each
- * removal increments `rejectionCount`. Tags that are merely not-allowlisted are
- * stripped in Phase 2 but their text children are kept. So the two sets are
- * complementary, not duplicative.
- */
-const BLOCKED_TAGS = new Set([
-    'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet',
-    'form', 'input', 'textarea', 'select', 'button', 'link', 'meta',
-    'base',
-]);
-
-/** Attributes allowed on any element. */
-const GLOBAL_ATTRIBUTES = new Set([
-    'class', 'id', 'style', 'title', 'lang', 'dir', 'tabindex', 'hidden',
-    'role', 'aria-label', 'aria-hidden', 'aria-describedby', 'aria-labelledby',
-    'data-title', 'data-type', 'data-index',
-]);
-
-/** Tag-specific allowed attributes. */
-const TAG_ATTRIBUTES: Record<string, Set<string>> = {
-    a: new Set(['href', 'target', 'rel']),
-    img: new Set(['src', 'alt', 'width', 'height', 'loading']),
-    svg: new Set(['viewbox', 'xmlns', 'width', 'height', 'fill', 'stroke']),
-    path: new Set(['d', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin']),
-    circle: new Set(['cx', 'cy', 'r', 'fill', 'stroke']),
-    rect: new Set(['x', 'y', 'width', 'height', 'rx', 'ry', 'fill', 'stroke']),
-    line: new Set(['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width']),
-    polyline: new Set(['points', 'fill', 'stroke']),
-    polygon: new Set(['points', 'fill', 'stroke']),
-    ellipse: new Set(['cx', 'cy', 'rx', 'ry', 'fill', 'stroke']),
-    g: new Set(['transform', 'fill', 'stroke']),
-    text: new Set(['x', 'y', 'dx', 'dy', 'text-anchor', 'fill', 'font-size']),
-    tspan: new Set(['x', 'y', 'dx', 'dy']),
-    use: new Set(['href', 'xlink:href', 'x', 'y', 'width', 'height']),
-    symbol: new Set(['viewbox', 'id']),
-    lineargradient: new Set(['id', 'x1', 'y1', 'x2', 'y2', 'gradientunits']),
-    radialgradient: new Set(['id', 'cx', 'cy', 'r', 'fx', 'fy', 'gradientunits']),
-    stop: new Set(['offset', 'stop-color', 'stop-opacity']),
-    clippath: new Set(['id']),
-    mask: new Set(['id']),
-    th: new Set(['colspan', 'rowspan', 'scope']),
-    td: new Set(['colspan', 'rowspan']),
-    col: new Set(['span']),
-    colgroup: new Set(['span']),
-    span: new Set(['data-num']),
-};
-
-/** CSS properties allowed in inline styles. */
-const ALLOWED_CSS_PROPERTIES = new Set([
-    'color', 'background-color', 'background',
-    'font-size', 'font-weight', 'font-style', 'font-family',
-    'text-align', 'text-decoration', 'text-transform', 'line-height', 'letter-spacing',
-    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-    'border', 'border-radius', 'border-color', 'border-width', 'border-style',
-    'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
-    'display', 'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'gap',
-    'grid-template-columns', 'grid-template-rows', 'grid-gap',
-    'position', 'top', 'right', 'bottom', 'left', 'z-index',
-    // box-sizing: the IR renderer pins every slide to a fixed 1920×1080 canvas
-    // with internal padding and relies on border-box so padding doesn't overflow
-    // the slide (irToHtml.slideOpen). Stripping it broke the fixed-canvas layout.
-    'box-sizing',
-    'opacity', 'visibility', 'overflow', 'overflow-x', 'overflow-y',
-    'box-shadow', 'text-shadow', 'transform', 'transition',
-    'white-space', 'word-break', 'vertical-align',
-    'list-style', 'list-style-type',
-    'background-image', 'background-size', 'background-position', 'background-repeat',
-    'fill', 'stroke', 'stroke-width',
-]);
-
-/** Patterns that indicate malicious CSS values. */
-const DANGEROUS_CSS_VALUE_PATTERNS = [
-    /expression\s*\(/i,
-    /behavior\s*:/i,
-    /-moz-binding\s*:/i,
-    /javascript\s*:/i,
-    /vbscript\s*:/i,
-    // H3 hardening: sanitizeCssValue only inspects literal `url(...)` tokens, but
-    // CSS has other resource-loading syntaxes that take a bare-string URL the
-    // url() check never sees (e.g. `background-image: image-set("https://…" 1x)`).
-    // Slide output never needs these, so reject any value that uses them. The
-    // iframe CSP (img-src data:) is still the authoritative outer boundary; the
-    // sustainable fix (a context-aware CSS tokenizer) is tracked as debt.
-    /image-set\s*\(/i,   // also matches -webkit-image-set(
-    /cross-fade\s*\(/i,
-];
-
-/**
- * M5 fix: shared dangerous HTML patterns (DRY).
- * Exported so StreamingHtmlAssembler can reference the same set
- * rather than maintaining a parallel list.
- *
- * M7 fix: these are case-insensitive but DELIBERATELY NOT global. A shared
- * `/g` RegExp object carries a mutable `lastIndex`, so any consumer that calls
- * `.test()` / `.exec()` on it would get order-dependent results (and skip
- * matches) because the cursor persists across calls. Keeping them non-global
- * makes `.test()` stateless. A consumer that needs to COUNT all occurrences
- * must build a fresh global copy locally (see StreamingHtmlAssembler) rather
- * than mutate this shared set.
+ * Shared dangerous-pattern regexes for the STREAMING reliability heuristic
+ * (`streamingHtmlAssembler.countDangerousPatterns`). **NOT a security boundary**
+ * — DOMPurify is. Kept non-global so `.test()` stays stateless (a counter must
+ * build its own global copy).
  */
 export const DANGEROUS_HTML_PATTERNS: ReadonlyArray<RegExp> = [
     /<script/i,
@@ -152,243 +67,321 @@ export const DANGEROUS_HTML_PATTERNS: ReadonlyArray<RegExp> = [
     /javascript:/i,
 ];
 
-// ── URL Validation ─────────────────────────────────────────────────────────
+// ── Engine (singleton instance + per-call context) ──────────────────────────
 
-function isAllowedHref(url: string): boolean {
-    const trimmed = url.trim().toLowerCase();
-    return trimmed.startsWith('http://') || trimmed.startsWith('https://')
-        || trimmed.startsWith('#') || trimmed.startsWith('mailto:');
+interface SanitizeCtx {
+    win: Window;
+    removedAttrs: number;     // our attr strips (oversized / bad target / dropped CSS decls)
+    removedUrls: number;      // our URL rejects
+    cssDataUriBytes: number;  // bytes from CSS url(data:image) (M5 budget accounting)
+    budgetHit?: 'data-uri-size';  // CSS data: over the byte cap
 }
 
-/** Returns true for raster data: image URIs. SVG is blocked — it can carry scripts. */
-function isAllowedDataImageUri(trimmedLower: string): boolean {
-    return trimmedLower.startsWith('data:image/') && !trimmedLower.startsWith('data:image/svg');
+/** Single active context — safe because `DOMPurify.sanitize` is strictly
+ *  synchronous and hooks must never call `sanitize` (documented invariant), so
+ *  no two sanitize calls can interleave on JS's single thread (Decision 6). */
+let activeCtx: SanitizeCtx | null = null;
+
+interface AttrHookEvent { attrName: string; attrValue: string; keepAttr: boolean }
+
+type Purifier = ReturnType<typeof DOMPurify>;
+let purifier: Purifier | null = null;
+let purifierWin: unknown = null;
+
+function isElement(node: Node): node is Element {
+    return node.nodeType === 1;
 }
 
-function isAllowedImgSrc(url: string): boolean {
-    const trimmed = url.trim().toLowerCase();
-    return isAllowedDataImageUri(trimmed);
-}
+// Cached CSSOM scratch element per window (L2 — avoid one alloc per style attr).
+let scratchStyleEl: HTMLElement | null = null;
+let scratchStyleWin: unknown = null;
 
-function isAllowedCssUrl(url: string): boolean {
-    const trimmed = url.trim().toLowerCase();
-    return isAllowedDataImageUri(trimmed);
-}
-
-// ── CSS Sanitization ───────────────────────────────────────────────────────
-
-function sanitizeCssValue(value: string): string | null {
-    for (const pattern of DANGEROUS_CSS_VALUE_PATTERNS) {
-        if (pattern.test(value)) return null;
-    }
-    // Check ALL url() references (M4 fix — global match prevents bypass via multiple url())
-    for (const urlMatch of value.matchAll(/url\s*\(\s*['"]?([^'")]+)['"]?\s*\)/gi)) {
-        if (!isAllowedCssUrl(urlMatch[1])) {
-            return null;
+/** Rebuild a `style` value keeping only allowlisted properties + safe values,
+ *  using CSSOM on the PURIFIER'S OWN window (not ambient globalThis — R2-L1).
+ *  Counts dropped declarations (M4) and enforces the data: byte budget on CSS
+ *  `url()` images, accumulating bytes into ctx (M5). */
+function sanitizeStyleValue(ctx: SanitizeCtx, value: string): { css: string; dropped: number } {
+    let el: HTMLElement;
+    try {
+        if (scratchStyleWin !== ctx.win || !scratchStyleEl) {
+            scratchStyleEl = ctx.win.document.createElement('div');
+            scratchStyleWin = ctx.win;
         }
+        el = scratchStyleEl;
+        // Parse the untrusted CSS via the attribute (CSSOM canonicalises it).
+        // Using setAttribute rather than `.style.cssText =` keeps this a parse,
+        // not a static-style assignment (lint: no-static-styles-assignment).
+        el.removeAttribute('style');  // reset before reuse
+        el.setAttribute('style', value);
+    } catch {
+        return { css: '', dropped: 1 };
     }
-    return value;
+    const decls: string[] = [];
+    let dropped = 0;
+    for (let i = 0; i < el.style.length; i++) {
+        const prop = el.style.item(i);
+        if (!ALLOWED_CSS_PROPERTIES.has(prop)) { dropped++; continue; }
+        const val = el.style.getPropertyValue(prop);
+        if (DANGEROUS_CSS_VALUE_PATTERNS.some((re) => re.test(val))) { dropped++; continue; }
+        // Every url(...) token must be #fragment or an allowed data:image raster
+        // within the byte budget (M5). Fail CLOSED on an unparseable url(
+        // (audit Gemini-G1 — no fail-open).
+        const { tokens, clean } = extractCssUrls(val);
+        let urlOk = clean;
+        if (urlOk) {
+            for (const raw of tokens) {
+                if (raw.trim().startsWith('#')) continue;
+                const parsed = parsePresentationDataImageUrl(raw);
+                if (!parsed) { urlOk = false; break; }
+                ctx.cssDataUriBytes += parsed.byteLength;
+                if (parsed.byteLength > MAX_DATA_URI_BYTES) { urlOk = false; ctx.budgetHit = 'data-uri-size'; break; }
+            }
+        }
+        if (!urlOk) { dropped++; continue; }
+        decls.push(`${prop}: ${val}`);
+    }
+    return { css: decls.join('; '), dropped };
 }
+
+function registerHooks(dp: Purifier): void {
+    dp.addHook('uponSanitizeAttribute', (node, data) => {
+        const ctx = activeCtx;
+        if (!ctx || !isElement(node)) return;
+        const ev = data as unknown as AttrHookEvent;
+        const tag = node.nodeName.toLowerCase();
+        const name = ev.attrName;
+        const value = ev.attrValue ?? '';
+
+        // Oversized attribute value → strip.
+        if (value.length > MAX_ATTR_CHARS) {
+            ev.keepAttr = false;
+            ctx.removedAttrs++;
+            return;
+        }
+
+        // Inline style → CSS-property allowlist (DOMPurify does NOT enforce ours).
+        if (name === 'style') {
+            const clean = sanitizeStyleValue(ctx, value);
+            ctx.removedAttrs += clean.dropped;     // M4: partial strip counts as a removal
+            if (clean.css) ev.attrValue = clean.css;
+            else ev.keepAttr = false;
+            return;
+        }
+
+        // Anchor target canonicalisation (rel forced in afterSanitizeAttributes).
+        if (tag === 'a' && name === 'target') {
+            if (!isAllowedAnchorTarget(value)) { ev.keepAttr = false; ctx.removedAttrs++; }
+            return;
+        }
+
+        // URL-bearing attributes → per-element policy (byte budgets run in the
+        // post-sanitize DOM walk, not here — mid-traversal node removal breaks
+        // DOMPurify's iterator).
+        if (name === 'href' || name === 'src' || name === 'xlink:href') {
+            const el = tag === 'use' ? 'use'
+                : (tag === 'a' && name === 'href') ? 'a'
+                : (tag === 'img' && name === 'src') ? 'img'
+                : 'other';
+            if (!isAllowedPresentationUrl(el, name, value)) {
+                ev.keepAttr = false;
+                ctx.removedUrls++;
+            }
+            return;
+        }
+
+        // SVG presentation attributes (fill / stroke / etc.) can carry
+        // url(http://evil) / url(javascript:…) paint refs — only #fragment or
+        // data:image raster url() tokens are allowed (audit H1). The pre-check is
+        // case-INSENSITIVE: `URL(`/`Url(` are valid CSS (audit R2-H1).
+        if (/url\(/i.test(value) && !hasOnlyAllowedUrlTokens(value)) {
+            ev.keepAttr = false;
+            ctx.removedUrls++;
+        }
+    });
+
+    dp.addHook('afterSanitizeAttributes', (node) => {
+        if (!isElement(node)) return;
+        // Force noopener/noreferrer on target=_blank anchors.
+        if (node.nodeName.toLowerCase() === 'a') {
+            const target = node.getAttribute('target');
+            if (target && target.trim().toLowerCase() === '_blank') {
+                node.setAttribute('rel', 'noopener noreferrer');
+            }
+        }
+    });
+}
+
+/** Lazily build the dedicated purifier (hooks registered once). Returns null
+ *  when no DOM-capable window is available (fail closed at the call site). */
+function getPurifier(): Purifier | null {
+    const win = (typeof window !== 'undefined' ? window : undefined) as Window | undefined;
+    if (!win || !win.document) return null;
+    if (purifier && purifierWin === win) return purifier;
+    const dp = DOMPurify(win as unknown as Window & typeof globalThis);
+    registerHooks(dp);
+    purifier = dp;
+    purifierWin = win;
+    return dp;
+}
+
+const PURIFY_CONFIG = {
+    ALLOWED_TAGS: [...ALLOWED_TAGS],
+    ALLOWED_ATTR: [...ALLOWED_ATTR],
+    FORBID_TAGS: [...FORBID_TAGS],
+    ALLOW_DATA_ATTR: true,
+    ALLOW_ARIA_ATTR: true,
+    ADD_ATTR: ['target', 'rel', 'xlink:href'],
+    WHOLE_DOCUMENT: false,
+    RETURN_DOM: true,            // post-walk budgets on the returned tree
+    RETURN_DOM_FRAGMENT: false,
+    KEEP_CONTENT: true,
+};
+
+/** DOMPurify reports the boilerplate body/html/head wrapper in `.removed`;
+ *  exclude it so a clean deck isn't mis-counted as `sanitized`. */
+const WRAPPER_NODE_NAMES = new Set(['BODY', 'HTML', 'HEAD']);
 
 /**
- * Split a CSS style string into declarations, respecting semicolons inside url().
- * e.g. "background-image: url(data:image/png;base64,abc); color: red"
- *   → ["background-image: url(data:image/png;base64,abc)", "color: red"]
+ * Enforce resource budgets on the sanitised DOM (Decision 5) — done AFTER
+ * sanitize (not in hooks) because removing nodes mid-traversal breaks
+ * DOMPurify's iterator. Returns the removed-element count + which budget tripped.
  */
-function splitCssDeclarations(style: string): string[] {
-    const results: string[] = [];
-    let depth = 0;
-    let current = '';
-    for (const ch of style) {
-        if (ch === '(') depth++;
-        if (ch === ')') depth = Math.max(0, depth - 1);
-        if (ch === ';' && depth === 0) {
-            const trimmed = current.trim();
-            if (trimmed) results.push(trimmed);
-            current = '';
-        } else {
-            current += ch;
+function enforceImageBudgets(root: Element): {
+    removedTags: number; dataUriBytes: number; imageCount: number;
+    budgetHit?: 'data-uri-size' | 'image-count';
+} {
+    let removedTags = 0;
+    let dataUriBytes = 0;
+    let budgetHit: 'data-uri-size' | 'image-count' | undefined;
+
+    // Byte budget — strip any single oversized data: image, keep the deck.
+    for (const img of Array.from(root.querySelectorAll('img'))) {
+        const src = img.getAttribute('src');
+        if (!src) continue;
+        const parsed = parsePresentationDataImageUrl(src);
+        if (!parsed) continue;
+        dataUriBytes += parsed.byteLength;
+        if (parsed.byteLength > MAX_DATA_URI_BYTES) {
+            img.remove();
+            removedTags++;
+            budgetHit = 'data-uri-size';
         }
     }
-    const last = current.trim();
-    if (last) results.push(last);
-    return results;
-}
 
-function sanitizeStyleAttribute(style: string): string {
-    const declarations = splitCssDeclarations(style);
-    const kept: string[] = [];
-    for (const decl of declarations) {
-        const colonIdx = decl.indexOf(':');
-        if (colonIdx < 0) continue;
-        const prop = decl.slice(0, colonIdx).trim().toLowerCase();
-        const val = decl.slice(colonIdx + 1).trim();
-        if (!ALLOWED_CSS_PROPERTIES.has(prop)) continue;
-        const sanitized = sanitizeCssValue(val);
-        if (sanitized !== null) {
-            kept.push(`${prop}: ${sanitized}`);
+    // Count budget — keep the first N in document order, strip the rest.
+    const remaining = Array.from(root.querySelectorAll('img'));
+    if (remaining.length > MAX_IMAGE_COUNT) {
+        for (let i = MAX_IMAGE_COUNT; i < remaining.length; i++) {
+            remaining[i].remove();
+            removedTags++;
         }
+        budgetHit = 'image-count';
     }
-    return kept.join('; ');
+
+    const imageCount = Math.min(remaining.length, MAX_IMAGE_COUNT);
+    return { removedTags, dataUriBytes, imageCount, budgetHit };
 }
 
-// ── HTML Sanitization (regex-based, no DOM parser dependency) ──────────────
-
-interface AttrFilterResult {
-    kept: string[];
-    rejected: number;
-}
+// ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * H3 fix: escape every character that could break out of a double-quoted
- * attribute value before re-serializing it. Without this a CSS value such as
- * `color: red" onload="alert(1)` (which `sanitizeCssValue` passes — it only
- * blocks `expression(`/`javascript:`/etc., not a bare `"`) would terminate the
- * `style="…"` attribute and inject a live `onload` handler. `&` is escaped
- * first so we never double-encode the entities we emit. The browser decodes
- * `&quot;`/`&lt;`/`&gt;` back to the literal characters inside the attribute,
- * so legitimate CSS like `font-family: "Arial"` still renders correctly.
- */
-function escapeAttrValue(value: string): string {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('"', '&quot;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-}
-
-/** Filter a single attribute, returning its sanitized form or null if rejected. */
-function filterAttribute(tag: string, attrName: string, attrValue: string): string | null {
-    if (attrName.startsWith('on')) return null;
-
-    const tagSpecific = TAG_ATTRIBUTES[tag];
-    const isAllowedAttr = GLOBAL_ATTRIBUTES.has(attrName)
-        || tagSpecific?.has(attrName)
-        || attrName.startsWith('data-');
-    if (!isAllowedAttr) return null;
-
-    if (attrName === 'href' && !isAllowedHref(attrValue)) return null;
-    // H3/M3 fix: xlink:href and SVG2 href on <use> must be local fragment references only
-    if (attrName === 'xlink:href' && !attrValue.trim().startsWith('#')) return null;
-    if (attrName === 'href' && tag === 'use' && !attrValue.trim().startsWith('#')) return null;
-    if (attrName === 'src' && tag === 'img' && !isAllowedImgSrc(attrValue)) return null;
-
-    if (attrName === 'style') {
-        const sanitized = sanitizeStyleAttribute(attrValue);
-        return sanitized ? `style="${escapeAttrValue(sanitized)}"` : null;
-    }
-
-    // H1/H3 fix: escape attribute-breaking characters before re-serializing with double-quote delimiters
-    return `${attrName}="${escapeAttrValue(attrValue)}"`;
-}
-
-/** Parse and filter all attributes from a decoded attribute string. */
-function filterAttributes(tag: string, decodedAttrs: string): AttrFilterResult {
-    const kept: string[] = [];
-    let rejected = 0;
-
-    const attrPattern = /\s+([a-zA-Z][a-zA-Z0-9_:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g;
-    let attrMatch: RegExpExecArray | null;
-
-    while ((attrMatch = attrPattern.exec(decodedAttrs)) !== null) {
-        const attrName = attrMatch[1].toLowerCase();
-        const attrValue = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? '';
-        const result = filterAttribute(tag, attrName, attrValue);
-        if (result !== null) {
-            kept.push(result);
-        } else if (attrName.startsWith('on') || attrName === 'href' || attrName === 'xlink:href' || attrName === 'src') {
-            rejected++;
-        }
-    }
-
-    // Handle bare attributes (no value) like `hidden` or `data-slide`.
-    // H5 fix: the valued-attribute path already allows any `data-*`, but the
-    // bare path only kept GLOBAL_ATTRIBUTES — so the renderer's boolean
-    // `data-slide` marker (irToHtml.slideOpen) was silently stripped, forcing
-    // slideRuntime's `section[data-slide]` query to fall back to `.slide` by
-    // accident. Mirror the valued-path allowlist (data-/aria- prefixes) here so
-    // the renderer↔sanitizer contract holds. `on*` stays excluded.
-    const bareAttrPattern = /\s+([a-zA-Z][a-zA-Z0-9_-]*)(?=\s|\/?>|$)(?!\s*=)/g;
-    let bareMatch: RegExpExecArray | null;
-    while ((bareMatch = bareAttrPattern.exec(decodedAttrs)) !== null) {
-        const attrName = bareMatch[1].toLowerCase();
-        if (attrName.startsWith('on')) continue;
-        if (GLOBAL_ATTRIBUTES.has(attrName) || attrName.startsWith('data-') || attrName.startsWith('aria-')) {
-            kept.push(attrName);
-        }
-    }
-
-    return { kept, rejected };
-}
-
-/** Decode common HTML entities that could bypass event handler detection. */
-function decodeEntities(s: string): string {
-    return s
-        .replaceAll(/&#x([0-9a-f]+);?/gi, (_m, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
-        .replaceAll(/&#(\d+);?/g, (_m, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)));
-}
-
-/**
- * Sanitize LLM-generated presentation HTML.
- *
- * Uses regex-based tag/attribute filtering (no DOM dependency).
- * Strips blocked tags entirely, filters attributes on allowed tags,
- * validates URLs and CSS values.
+ * Sanitize LLM-generated presentation HTML. Same signature as before; returns
+ * the richer `SanitizeResult` (NOT `Result<T>` — fail-closed-to-safe-output is
+ * the contract, see plan Decision 4). Idempotent on already-clean HTML.
  */
 export function sanitizePresentation(rawHtml: string): SanitizeResult {
-    if (!rawHtml?.trim()) {
-        return { html: '', rejectionCount: 0, hasDeckRoot: false, hasSlides: false };
+    const empty = (status: SanitizeStatus, budgetHit?: SanitizeResult['budgetHit']): SanitizeResult => ({
+        html: '', status, hasDeckRoot: false, hasSlides: false, rejectionCount: 0,
+        removed: { tags: 0, attrs: 0, urls: 0 },
+        resources: { dataUriBytes: 0, imageCount: 0, inputChars: typeof rawHtml === 'string' ? rawHtml.length : 0 },
+        budgetHit,
+    });
+
+    if (typeof rawHtml !== 'string') return empty('malformed-input');
+    if (!rawHtml.trim()) return { ...empty('ok'), resources: { dataUriBytes: 0, imageCount: 0, inputChars: 0 } };
+
+    // Budget: reject a multi-MB blob before handing it to the parser (fail closed).
+    if (rawHtml.length > MAX_INPUT_CHARS) return empty('budget-exceeded', 'input-size');
+
+    const dp = getPurifier();
+    if (!dp) {
+        logger.error('Presentation', 'sanitizePresentation: no DOM available — failing closed');
+        return empty('internal-error');
     }
 
-    let rejectionCount = 0;
-    let working = rawHtml;
+    // Re-entrancy guard (audit R2-M4): the single `activeCtx` slot is safe only
+    // because DOMPurify is synchronous and hooks must never re-enter sanitize.
+    // ENFORCE that invariant rather than merely documenting it — a future hook
+    // (or logging/consumer callback) that re-enters fails closed instead of
+    // corrupting the in-flight context.
+    if (activeCtx !== null) {
+        logger.error('Presentation', 'sanitizePresentation: re-entrant call detected — failing closed');
+        return empty('internal-error');
+    }
 
-    // Phase 1: Remove blocked tags and their content
-    for (const tag of BLOCKED_TAGS) {
-        // Tags with content (try first — greedy match prevents orphaned close tags)
-        const contentPattern = new RegExp(String.raw`<${tag}\b[^>]*>[\s\S]*?</${tag}>`, 'gi');
-        const contentMatches = working.match(contentPattern);
-        if (contentMatches) {
-            rejectionCount += contentMatches.length;
-            working = working.replace(contentPattern, '');
-        }
+    const ctx: SanitizeCtx = {
+        win: purifierWin as Window,
+        removedAttrs: 0, removedUrls: 0, cssDataUriBytes: 0,
+    };
 
-        // Self-closing or void tags (remaining after content removal)
-        const voidPattern = new RegExp(String.raw`<${tag}\b[^>]*/?>`, 'gi');
-        const voidMatches = working.match(voidPattern);
-        if (voidMatches) {
-            rejectionCount += voidMatches.length;
-            working = working.replace(voidPattern, '');
+    let root: Element;
+    try {
+        activeCtx = ctx;
+        // RETURN_DOM → the sanitised <body> element (its innerHTML is the deck).
+        root = dp.sanitize(rawHtml, PURIFY_CONFIG) as unknown as Element;
+    } catch (e) {
+        logger.error('Presentation', `sanitizePresentation threw — failing closed: ${String(e)}`);
+        return empty('internal-error');
+    } finally {
+        activeCtx = null;
+    }
+
+    // Resource budgets on the returned tree (post-traversal — Decision 5).
+    const budgets = enforceImageBudgets(root);
+    const html = root.innerHTML;
+
+    // Removal accounting: DOMPurify's own removals (script/forbidden/disallowed
+    // attrs) live in dp.removed; merge with our hook + budget tallies (R2-H2).
+    // Exclude the boilerplate body/html/head wrapper DOMPurify reports.
+    let domTags = 0;
+    let domAttrs = 0;
+    for (const entry of dp.removed as Array<{ element?: Node; attribute?: unknown }>) {
+        if (entry.element) {
+            const nn = (entry.element.nodeName || '').toUpperCase();
+            if (WRAPPER_NODE_NAMES.has(nn)) continue;
+            domTags++;
+        } else {
+            domAttrs++;
         }
     }
 
-    // Phase 2: Process remaining tags — filter attributes
-    working = working.replaceAll(/<([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^>]*?)?)(\s*\/?)>/g,
-        (_match, tagName: string, attrs: string, closing: string) => {
-            const tag = tagName.toLowerCase();
+    const removed = {
+        tags: domTags + budgets.removedTags,
+        attrs: domAttrs + ctx.removedAttrs,
+        urls: ctx.removedUrls,
+    };
+    const total = removed.tags + removed.attrs + removed.urls;
 
-            if (!ALLOWED_TAGS.has(tag)) {
-                rejectionCount++;
-                return '';
-            }
+    const hasDeckRoot = /class\s*=\s*"[^"]*\bdeck\b/.test(html) || /class\s*=\s*'[^']*\bdeck\b/.test(html);
+    const hasSlides = /class\s*=\s*"[^"]*\bslide\b/.test(html) || /class\s*=\s*'[^']*\bslide\b/.test(html);
 
-            if (!attrs.trim()) {
-                return `<${tagName}${closing}>`;
-            }
+    const budgetHit = budgets.budgetHit ?? ctx.budgetHit;
+    const status: SanitizeStatus = (total > 0 || budgetHit) ? 'sanitized' : 'ok';
 
-            const decodedAttrs = decodeEntities(attrs);
-            const { kept, rejected } = filterAttributes(tag, decodedAttrs);
-            rejectionCount += rejected;
-
-            const attrStr = kept.length > 0 ? ' ' + kept.join(' ') : '';
-            return `<${tagName}${attrStr}${closing}>`;
-        });
-
-    // Structural detection
-    const hasDeckRoot = /class="[^"]*\bdeck\b/.test(working) || /class='[^']*\bdeck\b/.test(working);
-    const hasSlides = /class="[^"]*\bslide\b/.test(working) || /class='[^']*\bslide\b/.test(working);
-
-    return { html: working, rejectionCount, hasDeckRoot, hasSlides };
+    return {
+        html,
+        status,
+        hasDeckRoot,
+        hasSlides,
+        rejectionCount: total,
+        removed,
+        resources: {
+            dataUriBytes: budgets.dataUriBytes + ctx.cssDataUriBytes,  // img + CSS data: (M5)
+            imageCount: budgets.imageCount,
+            inputChars: rawHtml.length,
+        },
+        budgetHit,
+    };
 }
 
 // ── CSP Injection ──────────────────────────────────────────────────────────
@@ -398,24 +391,22 @@ const CSP_META = '<meta http-equiv="Content-Security-Policy" content="default-sr
 /**
  * Inject a Content-Security-Policy meta tag into the <head> of an HTML document.
  * If a CSP meta already exists, returns the HTML unchanged.
+ *
+ * NOTE (plan Phase 2): the stronger "CSP is the FIRST child of <head>" guarantee
+ * + the Outcome A/B script-src decision are Phase 2 work; Phase 1 keeps the
+ * existing `default-src 'none'` behaviour unchanged.
  */
 export function injectCSP(html: string): string {
-    // Already has CSP?
     if (/content-security-policy/i.test(html)) {
         return html;
     }
-
-    // Insert after <head> if present
     const headMatch = /<head[^>]*>/i.exec(html);
     if (headMatch) {
         const insertAt = headMatch.index + headMatch[0].length;
         return html.slice(0, insertAt) + '\n' + CSP_META + html.slice(insertAt);
     }
-
-    // No head — prepend
     return CSP_META + '\n' + html;
 }
 
-
-// SVG sanitiser relocated to a neutral util (debt D3); re-exported for back-compat.
+// SVG sanitiser lives in a neutral util (debt D3); re-exported for back-compat.
 export { sanitizeSvgMarkup } from '../../utils/svgSanitize';

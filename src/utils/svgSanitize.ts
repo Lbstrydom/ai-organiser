@@ -13,25 +13,23 @@
  * consumes renderer output WITHOUT the service boundary must run an allowlist.
  */
 
-/** Allowed SVG element tag names (lowercased). External-ref + scripting
- *  elements (`script`, `foreignObject`, `use`, `image`, `a`, `animate`,
- *  `set`) are deliberately excluded. */
-const ALLOWED_SVG_TAGS = new Set([
-    'svg', 'g', 'defs', 'title', 'desc', 'symbol', 'mask', 'clippath',
-    'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
-    'text', 'tspan', 'lineargradient', 'radialgradient', 'stop',
-]);
+import { SVG_TAGS, SVG_ATTRS, MAX_INPUT_CHARS } from './presentationSanitizePolicy';
 
-/** Allowed presentation/geometry attributes. Anything not listed — including
- *  every `on*` handler and `href`/`xlink:href` — is dropped. */
+/** Allowed SVG element tag names (lowercased), DERIVED from the shared policy
+ *  SSOT (M6 — no parallel tag list). This embed/PPTX context is intentionally
+ *  TIGHTER than the inline-preview policy: `<use>` is removed because embedded
+ *  SVG must not carry even local-fragment refs out of context. `script`,
+ *  `foreignObject`, `image`, `a`, `animate`, `set` are already absent from the
+ *  policy set. */
+const ALLOWED_SVG_TAGS = new Set([...SVG_TAGS].filter((t) => t !== 'use'));
+
+/** Allowed SVG attributes, DERIVED from the shared policy SVG_ATTRS (M6): every
+ *  policy SVG attr EXCEPT the URL-bearing `href`/`xlink:href` (embedded SVG must
+ *  not reference anything), PLUS `class`/`id` (global in the policy but needed
+ *  here). The `!name.includes('href')` guard below is belt-and-braces. */
 const ALLOWED_SVG_ATTRS = new Set([
-    'd', 'points', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
-    'width', 'height', 'viewbox', 'preserveaspectratio',
-    'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-linecap',
-    'stroke-linejoin', 'stroke-dasharray', 'stroke-opacity', 'opacity',
-    'transform', 'offset', 'stop-color', 'stop-opacity', 'gradientunits',
-    'gradienttransform', 'class', 'id', 'text-anchor', 'dominant-baseline',
-    'font-size', 'font-family', 'font-weight', 'xmlns',
+    ...[...SVG_ATTRS].filter((a) => !a.includes('href')),
+    'class', 'id',
 ]);
 
 /**
@@ -47,6 +45,9 @@ const ALLOWED_SVG_ATTRS = new Set([
  */
 export function sanitizeSvgMarkup(svg: string): string {
     if (typeof DOMParser === 'undefined') return '';
+    // Input budget (audit M7) — parity with the main sanitizer's MAX_INPUT_CHARS;
+    // refuse to parse a multi-MB blob (fail closed).
+    if (typeof svg !== 'string' || svg.length > MAX_INPUT_CHARS) return '';
     let doc: Document;
     try {
         doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
