@@ -71,10 +71,11 @@ function scrubSvgNode(el: Element): void {
     }
     for (const attr of Array.from(el.attributes)) {
         const name = attr.name.toLowerCase();
-        const isAllowed = ALLOWED_SVG_ATTRS.has(name)
-            // Strip namespace prefix (e.g. xml:space) before the allowlist check,
-            // but never allow xlink:* / *href.
-            && !name.includes('href');
+        // Match the FULL (prefixed) attribute name against the allowlist — we do
+        // NOT strip namespace prefixes, so namespaced attrs like `xml:space` are
+        // dropped (they aren't in ALLOWED_SVG_ATTRS). Any name containing `href`
+        // (`href` / `xlink:href`) is always excluded regardless of the allowlist.
+        const isAllowed = ALLOWED_SVG_ATTRS.has(name) && !name.includes('href');
         // Drop EXTERNAL url() references in otherwise-allowlisted paint/presentation
         // attributes (e.g. `fill="url(http://…)"` / `stroke="url(//…)"`) — the
         // allowlist permits the attribute but not an external paint server. Internal
