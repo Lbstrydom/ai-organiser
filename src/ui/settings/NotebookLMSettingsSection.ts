@@ -3,9 +3,10 @@
  * Settings UI for configuring NotebookLM source pack exports
  */
 
-import { Setting, TFolder } from 'obsidian';
+import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { getNotebookLMExportFullPath, getEffectiveOutputRoot } from '../../core/settings';
 
@@ -38,60 +39,25 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
                     })
             );
 
-        // Export folder — dropdown + optional custom path text
-        const exportFolderSetting = new Setting(containerEl)
-            .setName(t?.exportFolder || 'Export folder')
-            .setDesc(t?.exportFolderDesc || 'Folder for exports');
-
-        exportFolderSetting.addDropdown(dropdown => {
-            const folders = this.getVaultFolders();
-            const pluginPrefix = `${getEffectiveOutputRoot(plugin.settings)}/`;
-            const resolvedDefault = getNotebookLMExportFullPath(plugin.settings);
-            const currentResolved = getNotebookLMExportFullPath(plugin.settings);
-
-            dropdown.addOption(resolvedDefault, `${resolvedDefault} (default)`);
-            for (const folder of folders) {
-                if (folder !== resolvedDefault) dropdown.addOption(folder, folder);
-            }
-            dropdown.addOption('__custom__', '— custom path —');
-
-            const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-            dropdown.setValue(isCustom ? '__custom__' : currentResolved);
-
-            dropdown.onChange(value => {
-                if (value === '__custom__') {
-                    this.settingTab.display();
-                } else {
-                    const normalized = value.startsWith(pluginPrefix)
-                        ? value.slice(pluginPrefix.length)
-                        : value;
-                    plugin.settings.notebooklmExportFolder = normalized || 'NotebookLM';
-                    void plugin.saveSettings();
-                }
-            });
-        });
-
-        const currentResolved = getNotebookLMExportFullPath(plugin.settings);
-        const folders = this.getVaultFolders();
-        const resolvedDefault = getNotebookLMExportFullPath(plugin.settings);
+        // Export folder — browse-style picker. Displays the resolved full path;
+        // stores the subfolder relative to the output-root (prefix stripped).
         const pluginPrefix = `${getEffectiveOutputRoot(plugin.settings)}/`;
-        const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-
-        if (isCustom) {
-            exportFolderSetting.addText(text =>
-                text
-                    .setPlaceholder('Folder name')
-                    .setValue(plugin.settings.notebooklmExportFolder)
-                    .onChange(value => {
-                        const sanitized = (value || 'NotebookLM').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-                        const normalized = sanitized.startsWith(pluginPrefix)
-                            ? sanitized.slice(pluginPrefix.length)
-                            : sanitized;
-                        plugin.settings.notebooklmExportFolder = normalized || 'NotebookLM';
-                        void plugin.saveSettings();
-                    })
-            );
-        }
+        addFolderPicker(
+            new Setting(containerEl)
+                .setName(t?.exportFolder || 'Export folder')
+                .setDesc(t?.exportFolderDesc || 'Folder for exports'),
+            plugin.app,
+            () => getNotebookLMExportFullPath(plugin.settings),
+            (value) => {
+                const sanitized = (value || 'NotebookLM').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                const normalized = sanitized.startsWith(pluginPrefix)
+                    ? sanitized.slice(pluginPrefix.length)
+                    : sanitized;
+                plugin.settings.notebooklmExportFolder = normalized || 'NotebookLM';
+                void plugin.saveSettings();
+            },
+            getNotebookLMExportFullPath(plugin.settings),
+        );
 
         // === EXPORT FORMAT ===
         containerEl.createEl('h4', { text: t?.exportFormatTitle || 'Export format' });
@@ -209,15 +175,5 @@ export class NotebookLMSettingsSection extends BaseSettingSection {
                         void plugin.saveSettings();
                     })
             );
-    }
-
-    private getVaultFolders(): string[] {
-        const folders: string[] = [];
-        for (const file of this.plugin.app.vault.getAllLoadedFiles()) {
-            if (file instanceof TFolder && file.path !== '/') {
-                folders.push(file.path);
-            }
-        }
-        return folders.sort((a, b) => a.localeCompare(b));
     }
 }

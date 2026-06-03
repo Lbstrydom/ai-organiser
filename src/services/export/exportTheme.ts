@@ -69,14 +69,40 @@ export function lightenHex(hex: string, amt: number): string {
     return rgbToHex(r + (255 - r) * amt, g + (255 - g) * amt, b + (255 - b) * amt);
 }
 
-/** Resolve settings into a full ExportTheme. Falls back to navy-gold if scheme unknown. */
+/** Universal min-font floor defaults (points). The footer (slide-number strip)
+ *  is auto-placed and is NOT user-editable — it stays a code constant. */
+const MIN_FONT_FLOOR_DEFAULTS = { body: 12, caption: 10, table: 11, footer: 9 } as const;
+
+/**
+ * Build the universal min-font floor from the (optional) user settings. Applied
+ * to EVERY export — not just the brand path — so all exports get a floor. A brand
+ * file can still override per-role downstream (see `toExportTheme`). The three
+ * content roles are user-set; the footer is the one auto-placed exception.
+ */
+function resolveMinFont(body?: number, caption?: number, table?: number): ExportMinFont {
+    const pick = (v: number | undefined, fallback: number): number =>
+        Number.isFinite(v) ? (v as number) : fallback;
+    return {
+        body: pick(body, MIN_FONT_FLOOR_DEFAULTS.body),
+        caption: pick(caption, MIN_FONT_FLOOR_DEFAULTS.caption),
+        table: pick(table, MIN_FONT_FLOOR_DEFAULTS.table),
+        footer: MIN_FONT_FLOOR_DEFAULTS.footer,
+    };
+}
+
+/** Resolve settings into a full ExportTheme. Falls back to navy-gold if scheme unknown.
+ *  The optional min-font args set a universal floor on ALL (non-brand) exports. */
 export function resolveTheme(
     scheme: string,
     primaryColor: string,
     accentColor: string,
     fontFace: string,
     fontSize: number,
+    minFontBody?: number,
+    minFontCaption?: number,
+    minFontTable?: number,
 ): ExportTheme {
+    const minFont = resolveMinFont(minFontBody, minFontCaption, minFontTable);
     if (scheme === 'custom') {
         const p = primaryColor || '1A3A5C';
         return {
@@ -86,8 +112,9 @@ export function resolveTheme(
             bodyColor: lightenHex(p, 0.20),
             fontFace,
             fontSize,
+            minFont,
         };
     }
     const preset = COLOR_SCHEMES[scheme] ?? COLOR_SCHEMES['navy-gold'];
-    return { ...preset, fontFace, fontSize };
+    return { ...preset, fontFace, fontSize, minFont };
 }

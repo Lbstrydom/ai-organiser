@@ -6,10 +6,11 @@
  * output folder, highlight style, grouping, cover image, auto-tag.
  */
 
-import { Notice, Platform, Setting, TFolder } from 'obsidian';
+import { Notice, Platform, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 import { AMAZON_REGIONS } from '../../core/constants';
 import { getKindleOutputFullPath, getEffectiveOutputRoot } from '../../core/settings';
 import { isAuthenticated, getStoredCookies, clearCookies, getCookieAgeDays, getStoredAmazonEmail, getStoredAmazonPassword, storeAmazonEmail, storeAmazonPassword } from '../../services/kindle/kindleAuthService';
@@ -154,51 +155,23 @@ export class KindleSettingsSection extends BaseSettingSection {
 
         // --- Output & Display Settings ---
 
-        // Output folder — dropdown with existing vault folders + custom path
-        const folderSetting = new Setting(this.containerEl)
-            .setName(t.settings.kindle.outputFolder)
-            .setDesc(t.settings.kindle.outputFolderDesc);
-
+        // Output folder — browse-style picker. Displays the resolved full path;
+        // stores the subfolder relative to the output-root (prefix stripped).
         const pluginPrefix = `${getEffectiveOutputRoot(this.plugin.settings)}/`;
-        const resolvedDefault = getKindleOutputFullPath(this.plugin.settings);
-        const currentResolved = getKindleOutputFullPath(this.plugin.settings);
-        const folders = this.getVaultFolders();
-
-        folderSetting.addDropdown(dropdown => {
-            dropdown.addOption(resolvedDefault, `${resolvedDefault} (default)`);
-            for (const folder of folders) {
-                if (folder !== resolvedDefault) {
-                    dropdown.addOption(folder, folder);
-                }
-            }
-            dropdown.addOption('__custom__', 'Custom path');
-
-            const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-            dropdown.setValue(isCustom ? '__custom__' : currentResolved);
-
-            dropdown.onChange(value => {
-                if (value === '__custom__') {
-                    this.settingTab.display();
-                } else {
-                    const normalized = value.startsWith(pluginPrefix) ? value.slice(pluginPrefix.length) : value;
-                    this.plugin.settings.kindleOutputFolder = normalized || 'Kindle';
-                    void this.plugin.saveSettings();
-                }
-            });
-        });
-
-        const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-        if (isCustom) {
-            folderSetting.addText(text => text
-                .setPlaceholder('Kindle')
-                .setValue(this.plugin.settings.kindleOutputFolder)
-                .onChange(value => {
-                    const sanitized = (value || 'Kindle').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-                    const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
-                    this.plugin.settings.kindleOutputFolder = normalized || 'Kindle';
-                    void this.plugin.saveSettings();
-                }));
-        }
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(t.settings.kindle.outputFolder)
+                .setDesc(t.settings.kindle.outputFolderDesc),
+            this.plugin.app,
+            () => getKindleOutputFullPath(this.plugin.settings),
+            (value) => {
+                const sanitized = (value || 'Kindle').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
+                this.plugin.settings.kindleOutputFolder = normalized || 'Kindle';
+                void this.plugin.saveSettings();
+            },
+            getKindleOutputFullPath(this.plugin.settings),
+        );
 
         // Highlight style dropdown
         new Setting(this.containerEl)
@@ -246,16 +219,5 @@ export class KindleSettingsSection extends BaseSettingSection {
                     this.plugin.settings.kindleAutoTag = value;
                     void this.plugin.saveSettings();
                 }));
-    }
-
-    private getVaultFolders(): string[] {
-        const folders: string[] = [];
-        for (const file of this.plugin.app.vault.getAllLoadedFiles()) {
-            if (file instanceof TFolder && file.path !== '/') {
-                folders.push(file.path);
-            }
-        }
-        folders.sort((a, b) => a.localeCompare(b));
-        return folders;
     }
 }

@@ -1,9 +1,10 @@
-import { Setting, TFolder } from 'obsidian';
+import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { getExportOutputFullPath, getEffectiveOutputRoot } from '../../core/settings';
 import { resolveTheme } from '../../services/export/markdownPptxGenerator';
+import { addFolderPicker } from './components/FolderSuggest';
 
 export class ExportSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
@@ -21,53 +22,25 @@ export class ExportSettingsSection extends BaseSettingSection {
             });
         }
 
-        // Output folder — dropdown with existing vault folders + custom path
-        const folderSetting = new Setting(this.containerEl)
-            .setName(t.settings.export?.outputFolder || 'Output folder')
-            .setDesc(t.settings.export?.outputFolderDesc || 'Where to save exported documents');
-
+        // Output folder — browse-style picker. Displays the resolved full path;
+        // stores the subfolder relative to the output-root (prefix stripped).
         const pluginPrefix = `${getEffectiveOutputRoot(this.plugin.settings)}/`;
-        const resolvedDefault = getExportOutputFullPath(this.plugin.settings);
-        const currentResolved = getExportOutputFullPath(this.plugin.settings);
-        const folders = this.getVaultFolders();
-
-        folderSetting.addDropdown(dropdown => {
-            dropdown.addOption(resolvedDefault, `${resolvedDefault} (default)`);
-            for (const folder of folders) {
-                if (folder !== resolvedDefault) {
-                    dropdown.addOption(folder, folder);
-                }
-            }
-            dropdown.addOption('__custom__', '— custom path —');
-
-            const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-            dropdown.setValue(isCustom ? '__custom__' : currentResolved);
-
-            dropdown.onChange(value => {
-                if (value === '__custom__') {
-                    this.settingTab.display();
-                } else {
-                    const normalized = value.startsWith(pluginPrefix) ? value.slice(pluginPrefix.length) : value;
-                    this.plugin.settings.exportOutputFolder = normalized || 'Exports';
-                    void this.plugin.saveSettings();
-                }
-            });
-        });
-
-        const isCustom = !folders.includes(currentResolved) && currentResolved !== resolvedDefault;
-        if (isCustom) {
-            folderSetting.addText(text => text
-                .setPlaceholder('Exports')
-                .setValue(this.plugin.settings.exportOutputFolder)
-                .onChange(value => {
-                    let sanitized = (value || 'Exports').trim().replaceAll('\\', '/');
-                    while (sanitized.startsWith('/')) sanitized = sanitized.slice(1);
-                    while (sanitized.endsWith('/')) sanitized = sanitized.slice(0, -1);
-                    const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
-                    this.plugin.settings.exportOutputFolder = normalized || 'Exports';
-                    void this.plugin.saveSettings();
-                }));
-        }
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(t.settings.export?.outputFolder || 'Output folder')
+                .setDesc(t.settings.export?.outputFolderDesc || 'Where to save exported documents'),
+            this.plugin.app,
+            () => getExportOutputFullPath(this.plugin.settings),
+            (value) => {
+                let sanitized = (value || 'Exports').trim().replaceAll('\\', '/');
+                while (sanitized.startsWith('/')) sanitized = sanitized.slice(1);
+                while (sanitized.endsWith('/')) sanitized = sanitized.slice(0, -1);
+                const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
+                this.plugin.settings.exportOutputFolder = normalized || 'Exports';
+                void this.plugin.saveSettings();
+            },
+            getExportOutputFullPath(this.plugin.settings),
+        );
 
         // ── Export Theme ──────────────────────────────────────────────────────
         this.containerEl.createEl('h4', { text: t.settings.export?.themeHeader || 'Export theme' });
@@ -184,16 +157,5 @@ export class ExportSettingsSection extends BaseSettingSection {
 
         dot(primary);
         if (accent) dot(accent);
-    }
-
-    private getVaultFolders(): string[] {
-        const folders: string[] = [];
-        for (const file of this.plugin.app.vault.getAllLoadedFiles()) {
-            if (file instanceof TFolder && file.path !== '/') {
-                folders.push(file.path);
-            }
-        }
-        folders.sort((a, b) => a.localeCompare(b));
-        return folders;
     }
 }

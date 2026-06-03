@@ -5,6 +5,7 @@
 import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import type { Persona } from '../../services/configurationService';
 
@@ -156,18 +157,18 @@ export class SummarizationSettingsSection extends BaseSettingSection {
       );
 
     // Transcript folder
-    new Setting(containerEl)
-      .setName(t.transcriptFolder || 'Transcript folder')
-      .setDesc(t.transcriptFolderDesc || 'Folder where transcript files will be saved')
-      .addText(text =>
-        text
-          .setPlaceholder('Transcripts')
-          .setValue(plugin.settings.transcriptFolder)
-          .onChange(value => {
-            plugin.settings.transcriptFolder = value || 'Transcripts';
-            void plugin.saveSettings();
-          })
-      );
+    addFolderPicker(
+      new Setting(containerEl)
+        .setName(t.transcriptFolder || 'Transcript folder')
+        .setDesc(t.transcriptFolderDesc || 'Folder where transcript files will be saved'),
+      plugin.app,
+      () => plugin.settings.transcriptFolder,
+      (value) => {
+        plugin.settings.transcriptFolder = value || 'Transcripts';
+        void plugin.saveSettings();
+      },
+      'Transcripts',
+    );
 
     // Advanced Options subheader
     containerEl.createEl('h4', { text: t.advancedOptions || 'Advanced options' });

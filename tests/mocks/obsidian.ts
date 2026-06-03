@@ -49,6 +49,23 @@ export function createTFolder(path: string): TFolder {
 
 export type TAbstractFile = TFile | TFolder;
 
+/** Minimal AbstractInputSuggest stub so modules that subclass it can load + be
+ *  instantiated in tests. Real popover behaviour is not simulated. */
+export class AbstractInputSuggest<T> {
+    app: any;
+    protected textInputEl: any;
+    limit = 100;
+    constructor(app: any, textInputEl: any) {
+        this.app = app;
+        this.textInputEl = textInputEl;
+    }
+    setValue(_value: string): void { /* no-op */ }
+    getValue(): string { return this.textInputEl?.value ?? ''; }
+    selectSuggestion(_value: T, _evt?: any): void { /* no-op */ }
+    onSelect(_cb: (value: T, evt: any) => any): this { return this; }
+    close(): void { /* no-op */ }
+}
+
 export class Notice {
     message: string;
     messageEl: MockHTMLElement;

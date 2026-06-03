@@ -415,6 +415,12 @@ export const en: Translations = {
             checkIcons: "{count} icons found",
             checkIconsMissing: "Icons missing",
             usingExample: "The public example brand is used until you add a brand-guidelines.md file.",
+            minFontHeading: "Minimum font sizes",
+            minFontDesc: "The minimum content font sizes (pt) enforced on every export. A brand-guidelines.md file can override these per role. The footer (slide-number strip) is auto-placed and is the one exception.",
+            minFontBodyTitle: "Minimum body size (pt)",
+            minFontCaptionTitle: "Minimum caption size (pt)",
+            minFontTableTitle: "Minimum table size (pt)",
+            setupGuideText: "How to set up your own brand",
         },
         semanticSearch: {
             title: "Semantic search",

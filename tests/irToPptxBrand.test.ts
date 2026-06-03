@@ -67,10 +67,10 @@ const statDeck: SlideDeckIr = {
 const fullDeck: SlideDeckIr = {
     schemaVersion: IR_SCHEMA_VERSION,
     slides: [
-        { id: 't', type: 'title', title: 'Title', subtitle: 'Sub' },
-        { id: 'sec', type: 'section', title: 'Section' },
+        { id: 't', type: 'title', title: 'Title', subtitle: 'Sub', blocks: [] },
+        { id: 'sec', type: 'section', title: 'Section', blocks: [] },
         { id: 'c', type: 'content', title: 'Content', blocks: [{ kind: 'paragraph', text: 'Body text here.' }] },
-        { id: 'end', type: 'closing', title: 'Thanks' },
+        { id: 'end', type: 'closing', title: 'Thanks', blocks: [] },
     ],
 };
 

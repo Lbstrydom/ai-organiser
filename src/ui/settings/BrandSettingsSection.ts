@@ -3,6 +3,7 @@ import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { loadBrandTheme } from '../../services/chat/brandThemeService';
+import { addFolderPicker } from './components/FolderSuggest';
 import { logger } from '../../utils/logger';
 // Single shared brand-folder resolver + asset filename constants (audit M4/M9/M10)
 // so the settings detection matches `brandAssets` resolution exactly.
@@ -48,21 +49,28 @@ export class BrandSettingsSection extends BaseSettingSection {
         // (now-detached) statusEl/resolvedEl (audit M12).
         this.validationSeq++;
 
-        this.createSectionHeader(t.title, 'palette');
+        // No leading section header: the sub-collapsible summary already shows the
+        // "Brand" title, so an inner h1 only added empty space before the controls.
 
-        new Setting(containerEl)
-            .setName(t.folderPathTitle)
-            .setDesc(t.folderPathDesc)
-            .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- folder-name token, not prose
-                .setPlaceholder('999_Brand')
-                .setValue(plugin.settings.brandFolderPath || '999_Brand')
-                .onChange(value => {
-                    // Update in memory immediately; debounce the persist (reinit + I/O).
-                    plugin.settings.brandFolderPath = value.trim() || '999_Brand';
-                    this.scheduleSave();
-                    this.scheduleRevalidate();
-                }));
+        // Help link to the public brand-setup guide (item D).
+        const helpEl = containerEl.createDiv({ cls: 'ai-organiser-brand-help setting-item-description' });
+        helpEl.createEl('a', {
+            text: t.setupGuideText,
+            href: 'https://github.com/Lbstrydom/ai-organiser/blob/main/docs/brand-setup.md',
+        });
+
+        addFolderPicker(
+            new Setting(containerEl).setName(t.folderPathTitle).setDesc(t.folderPathDesc),
+            plugin.app,
+            () => plugin.settings.brandFolderPath || '999_Brand',
+            (value) => {
+                // Update in memory immediately; debounce the persist (reinit + I/O).
+                plugin.settings.brandFolderPath = value.trim() || '999_Brand';
+                this.scheduleSave();
+                this.scheduleRevalidate();
+            },
+            '999_Brand',
+        );
 
         new Setting(containerEl)
             .setName(t.onBrandDefaultTitle)
@@ -73,6 +81,18 @@ export class BrandSettingsSection extends BaseSettingSection {
                     plugin.settings.onBrandByDefault = value;
                     plugin.saveSettings().catch(e => logger.error('Brand', 'saveSettings failed', e));
                 }));
+
+        // Editable universal min-font floor (item C). These are the minimum content
+        // font sizes enforced on EVERY export; a brand-guidelines.md file can
+        // override per role. The footer (slide-number strip) is the one auto-placed
+        // exception and is not user-editable.
+        // h4 group label (not createSectionHeader → its h2 is CSS-hidden inside a
+        // sub-collapsible; h4 stays visible, matching the Export-section pattern).
+        containerEl.createEl('h4', { text: t.minFontHeading });
+        new Setting(containerEl).setDesc(t.minFontDesc);
+        this.addMinFontInput(t.minFontBodyTitle, () => plugin.settings.exportMinFontBody, v => { plugin.settings.exportMinFontBody = v; });
+        this.addMinFontInput(t.minFontCaptionTitle, () => plugin.settings.exportMinFontCaption, v => { plugin.settings.exportMinFontCaption = v; });
+        this.addMinFontInput(t.minFontTableTitle, () => plugin.settings.exportMinFontTable, v => { plugin.settings.exportMinFontTable = v; });
 
         // Read-only resolved font + min-font (filled async by revalidate()).
         this.resolvedEl = new Setting(containerEl)
@@ -101,6 +121,35 @@ export class BrandSettingsSection extends BaseSettingSection {
         this.saveHandle = setTimeout(() => {
             this.plugin.saveSettings().catch(e => logger.error('Brand', 'saveSettings failed', e));
         }, 600);
+    }
+
+    /**
+     * Add a clamped (8–24) min-font number input. Validated finite + clamped on
+     * change; persist debounced. After save, re-resolves the readout so the
+     * "Resolved font" line reflects the new effective floor when no brand file
+     * overrides it.
+     */
+    private addMinFontInput(name: string, getValue: () => number, setValue: (v: number) => void): void {
+        new Setting(this.containerEl)
+            .setName(name)
+            .addText(text => {
+                text.inputEl.type = 'number';
+                text.inputEl.min = '8';
+                text.inputEl.max = '24';
+                text.setValue(String(getValue()));
+                text.onChange(raw => {
+                    const n = parseFloat(raw);
+                    if (!Number.isFinite(n)) return;
+                    const clamped = Math.max(8, Math.min(24, Math.round(n)));
+                    setValue(clamped);
+                    this.scheduleSave();
+                    this.scheduleRevalidate();
+                });
+                text.inputEl.addEventListener('blur', () => {
+                    // Normalise the visible value to the clamped/stored value.
+                    text.setValue(String(getValue()));
+                });
+            });
     }
 
     private brandFolder(): string {

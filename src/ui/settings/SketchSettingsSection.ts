@@ -1,23 +1,24 @@
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 
 export class SketchSettingsSection extends BaseSettingSection {
     display(): void {
         const t = this.plugin.t.settings.sketch;
         this.createSectionHeader(t?.title || 'Sketch pad', 'pencil', 2);
 
-        new Setting(this.containerEl)
-            .setName(t?.outputFolder || 'Sketch output folder')
-            .setDesc(t?.outputFolderDesc || 'Where sketch PNG files are saved')
-            .addText((text) =>
-                text
-                    .setPlaceholder('Sketches')
-                    .setValue(this.plugin.settings.sketchOutputFolder)
-                    .onChange((value) => {
-                        this.plugin.settings.sketchOutputFolder = value.trim() || 'Sketches';
-                        void this.plugin.saveSettings();
-                    })
-            );
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(t?.outputFolder || 'Sketch output folder')
+                .setDesc(t?.outputFolderDesc || 'Where sketch PNG files are saved'),
+            this.plugin.app,
+            () => this.plugin.settings.sketchOutputFolder,
+            (value) => {
+                this.plugin.settings.sketchOutputFolder = value.trim() || 'Sketches';
+                void this.plugin.saveSettings();
+            },
+            'Sketches',
+        );
 
         new Setting(this.containerEl)
             .setName(t?.autoDigitise || 'Auto digitise')

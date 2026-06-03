@@ -4,6 +4,7 @@ import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { GlobalMemoryService } from '../../services/chat/globalMemoryService';
 import { GlobalMemoryModal } from '../modals/GlobalMemoryModal';
+import { addFolderPicker } from './components/FolderSuggest';
 
 export class AIChatSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
@@ -92,16 +93,18 @@ export class AIChatSettingsSection extends BaseSettingSection {
         // === Presentation Settings ===
         this.createSectionHeader(t.presentationOutputFolderTitle, 'presentation', 2);
 
-        new Setting(containerEl)
-            .setName(t.presentationOutputFolderTitle)
-            .setDesc(t.presentationOutputFolderDesc)
-            .addText(text => text
-                .setPlaceholder('Presentations')
-                .setValue(plugin.settings.presentationOutputFolder || 'Presentations')
-                .onChange(value => {
-                    plugin.settings.presentationOutputFolder = value.trim() || 'Presentations';
-                    void plugin.saveSettings();
-                }));
+        addFolderPicker(
+            new Setting(containerEl)
+                .setName(t.presentationOutputFolderTitle)
+                .setDesc(t.presentationOutputFolderDesc),
+            plugin.app,
+            () => plugin.settings.presentationOutputFolder || 'Presentations',
+            (value) => {
+                plugin.settings.presentationOutputFolder = value.trim() || 'Presentations';
+                void plugin.saveSettings();
+            },
+            'Presentations',
+        );
 
         // Brand path moved to the dedicated Brand section (Plan B). Leave a pointer.
         new Setting(containerEl)

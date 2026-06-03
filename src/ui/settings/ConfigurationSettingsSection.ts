@@ -1,9 +1,10 @@
-import { Setting, Notice, Modal, App, TFolder } from 'obsidian';
+import { Setting, Notice, Modal, App } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { BaseSettingSection } from './BaseSettingSection';
-import { getConfigFolderFullPath, getEffectiveOutputRoot } from '../../core/settings';
+import { getConfigFolderFullPath } from '../../core/settings';
 import { TaxonomySuggestionService, SuggestedDiscipline, SuggestedTheme, TaxonomyChange } from '../../services/taxonomySuggestionService';
 import { withBusyIndicator } from '../../utils/busyIndicator';
+import { addFolderPicker } from './components/FolderSuggest';
 
 /**
  * Existing item with potential suggested change
@@ -861,72 +862,46 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
         this.createSectionHeader(t.settings.configuration.title, 'settings');
 
-        // Output root folder — dropdown with existing vault folders + custom path
-        const outputFolderSetting = new Setting(containerEl)
-            .setName(t.settings.configuration.outputRootFolder)
-            .setDesc(t.settings.configuration.outputRootFolderDesc);
-
-        const currentOutputRoot = getEffectiveOutputRoot(this.plugin.settings);
-        const outputFolders = this.getVaultFolders();
         const pluginFolder = this.plugin.settings.pluginFolder || 'AI-Organiser';
-        const hasCustomOutputRoot = this.plugin.settings.outputRootFolder &&
-            !outputFolders.includes(currentOutputRoot);
 
-        outputFolderSetting.addDropdown(dropdown => {
-            // Default option (same as plugin folder)
-            dropdown.addOption('', `${pluginFolder} (default)`);
+        // Output root folder — browse-style picker (empty = plugin folder default).
+        addFolderPicker(
+            new Setting(containerEl)
+                .setName(t.settings.configuration.outputRootFolder)
+                .setDesc(t.settings.configuration.outputRootFolderDesc),
+            this.plugin.app,
+            () => this.plugin.settings.outputRootFolder || '',
+            (value) => {
+                let sanitized = (value || '').trim().replaceAll('\\', '/');
+                while (sanitized.startsWith('/')) sanitized = sanitized.slice(1);
+                while (sanitized.endsWith('/')) sanitized = sanitized.slice(0, -1);
+                // Empty → use plugin folder (default semantics preserved).
+                this.plugin.settings.outputRootFolder = sanitized;
+                void this.plugin.saveSettings();
+            },
+            `${pluginFolder} (default)`,
+        );
 
-            for (const folder of outputFolders) {
-                if (folder !== pluginFolder) {
-                    dropdown.addOption(folder, folder);
-                }
-            }
-            dropdown.addOption('__custom__', 'Custom path');
+        // Config folder path — browse-style picker.
+        addFolderPicker(
+            new Setting(containerEl)
+                .setName(t.settings.configuration.configFolder)
+                .setDesc(t.settings.configuration.configFolderDesc),
+            this.plugin.app,
+            () => this.plugin.settings.configFolderPath,
+            (value) => {
+                const pluginPrefix = `${this.plugin.settings.pluginFolder}/`;
+                const sanitized = (value || 'Config').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                const normalizedSubfolder = sanitized.startsWith(pluginPrefix)
+                    ? sanitized.slice(pluginPrefix.length)
+                    : sanitized || 'Config';
 
-            dropdown.setValue(hasCustomOutputRoot ? '__custom__' : (this.plugin.settings.outputRootFolder || ''));
-
-            dropdown.onChange(value => {
-                if (value === '__custom__') {
-                    this.settingTab.display();
-                } else {
-                    this.plugin.settings.outputRootFolder = value;
-                    void this.plugin.saveSettings();
-                }
-            });
-        });
-
-        if (hasCustomOutputRoot) {
-            outputFolderSetting.addText(text => text
-                .setPlaceholder(pluginFolder)
-                .setValue(this.plugin.settings.outputRootFolder)
-                .onChange(value => {
-                    let sanitized = (value || '').trim().replaceAll('\\', '/');
-                    while (sanitized.startsWith('/')) sanitized = sanitized.slice(1);
-                    while (sanitized.endsWith('/')) sanitized = sanitized.slice(0, -1);
-                    this.plugin.settings.outputRootFolder = sanitized;
-                    void this.plugin.saveSettings();
-                }));
-        }
-
-        // Config folder path
-        new Setting(containerEl)
-            .setName(t.settings.configuration.configFolder)
-            .setDesc(t.settings.configuration.configFolderDesc)
-            .addText(text => text
-                .setPlaceholder('Config')
-                .setValue(this.plugin.settings.configFolderPath)
-                .onChange((value) => {
-                    const pluginPrefix = `${this.plugin.settings.pluginFolder}/`;
-                    const sanitized = (value || 'Config').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-                    const normalizedSubfolder = sanitized.startsWith(pluginPrefix)
-                        ? sanitized.slice(pluginPrefix.length)
-                        : sanitized || 'Config';
-
-                    this.plugin.settings.configFolderPath = normalizedSubfolder || 'Config';
-                    this.plugin.configService.setConfigFolder(getConfigFolderFullPath(this.plugin.settings));
-                    void this.plugin.saveSettings();
-                })
-            );
+                this.plugin.settings.configFolderPath = normalizedSubfolder || 'Config';
+                this.plugin.configService.setConfigFolder(getConfigFolderFullPath(this.plugin.settings));
+                void this.plugin.saveSettings();
+            },
+            'Config',
+        );
 
         // Buttons row
         const buttonsContainer = containerEl.createDiv({ cls: 'config-buttons-container' });
@@ -1746,16 +1721,5 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`Failed to update taxonomy: ${errorMsg}`);
         }
-    }
-
-    private getVaultFolders(): string[] {
-        const folders: string[] = [];
-        for (const file of this.plugin.app.vault.getAllLoadedFiles()) {
-            if (file instanceof TFolder && file.path !== '/') {
-                folders.push(file.path);
-            }
-        }
-        folders.sort((a, b) => a.localeCompare(b));
-        return folders;
     }
 }

@@ -224,6 +224,7 @@ export class ExportModal extends Modal {
         const s = this.plugin.settings;
         const exportSettingsTheme = resolveTheme(
             s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor, s.exportFontFace, s.exportFontSize,
+            s.exportMinFontBody, s.exportMinFontCaption, s.exportMinFontTable,
         );
         const onBrandByDefault = (s as typeof s & { onBrandByDefault?: boolean }).onBrandByDefault ?? false;
         if (!onBrandByDefault) return exportSettingsTheme;

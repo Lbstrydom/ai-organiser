@@ -2,6 +2,7 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 import type { MinutesStyle } from '../../core/constants';
 
 export class MinutesSettingsSection extends BaseSettingSection {
@@ -20,16 +21,18 @@ export class MinutesSettingsSection extends BaseSettingSection {
             });
         }
 
-        new Setting(this.containerEl)
-            .setName(t.settings.minutes?.outputFolder || 'Output folder')
-            .setDesc(t.settings.minutes?.outputFolderDesc || 'Where to save generated meeting minutes')
-            .addText(text => text
-                .setPlaceholder('Meetings')
-                .setValue(this.plugin.settings.minutesOutputFolder)
-                .onChange((value) => {
-                    this.plugin.settings.minutesOutputFolder = value.trim() || 'Meetings';
-                    void this.plugin.saveSettings();
-                }));
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(t.settings.minutes?.outputFolder || 'Output folder')
+                .setDesc(t.settings.minutes?.outputFolderDesc || 'Where to save generated meeting minutes'),
+            this.plugin.app,
+            () => this.plugin.settings.minutesOutputFolder,
+            (value) => {
+                this.plugin.settings.minutesOutputFolder = value.trim() || 'Meetings';
+                void this.plugin.saveSettings();
+            },
+            'Meetings',
+        );
 
         new Setting(this.containerEl)
             .setName(t.settings.minutes?.defaultTimezone || 'Default timezone')

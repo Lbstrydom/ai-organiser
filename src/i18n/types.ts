@@ -404,6 +404,12 @@ export interface Translations {
             checkIcons: string;
             checkIconsMissing: string;
             usingExample: string;
+            minFontHeading: string;
+            minFontDesc: string;
+            minFontBodyTitle: string;
+            minFontCaptionTitle: string;
+            minFontTableTitle: string;
+            setupGuideText: string;
         };
         semanticSearch: {
             title: string;

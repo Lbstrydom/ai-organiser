@@ -2,6 +2,7 @@ import { Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
+import { addFolderPicker } from './components/FolderSuggest';
 
 export class CanvasSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
@@ -16,16 +17,18 @@ export class CanvasSettingsSection extends BaseSettingSection {
             cls: 'setting-item-description'
         });
 
-        new Setting(this.containerEl)
-            .setName(t.canvas.outputFolder)
-            .setDesc(t.canvas.outputFolderDesc)
-            .addText(text => text
-                .setPlaceholder('Canvas')
-                .setValue(this.plugin.settings.canvasOutputFolder)
-                .onChange((value) => {
-                    this.plugin.settings.canvasOutputFolder = value.trim() || 'Canvas';
-                    void this.plugin.saveSettings();
-                }));
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(t.canvas.outputFolder)
+                .setDesc(t.canvas.outputFolderDesc),
+            this.plugin.app,
+            () => this.plugin.settings.canvasOutputFolder,
+            (value) => {
+                this.plugin.settings.canvasOutputFolder = value.trim() || 'Canvas';
+                void this.plugin.saveSettings();
+            },
+            'Canvas',
+        );
 
         new Setting(this.containerEl)
             .setName(t.canvas.openAfterCreate)

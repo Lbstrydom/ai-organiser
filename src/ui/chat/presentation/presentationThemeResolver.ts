@@ -46,6 +46,7 @@ export class PresentationThemeResolver {
             String(brandEnabled), folderPath, String(brandMtime),
             s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor,
             s.exportFontFace, String(s.exportFontSize),
+            String(s.exportMinFontBody), String(s.exportMinFontCaption), String(s.exportMinFontTable),
         ].join('|');
         if (this.cache?.sig === sig) return this.cache.theme;
 
@@ -74,6 +75,7 @@ export class PresentationThemeResolver {
         const { resolveTheme } = await import('../../../services/export/exportTheme');
         theme = resolveTheme(
             s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor, s.exportFontFace, s.exportFontSize,
+            s.exportMinFontBody, s.exportMinFontCaption, s.exportMinFontTable,
         );
         this.cache = { sig, theme };
         return theme;

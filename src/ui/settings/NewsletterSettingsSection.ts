@@ -5,7 +5,7 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { getNewsletterOutputFullPath, getEffectiveOutputRoot } from '../../core/settings';
 import { NewsletterService, SEEN_DATA_KEY, LAST_FETCH_DATA_KEY } from '../../services/newsletter/newsletterService';
 import { showNewsletterFetchResultNotice } from '../../commands/newsletterCommands';
-import { getAllFolders } from '../../utils/folderContextUtils';
+import { addFolderPicker } from './components/FolderSuggest';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
@@ -219,28 +219,23 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 });
             });
 
-        // Output folder
+        // Output folder — browse-style picker. Displays the resolved full path;
+        // stores the subfolder relative to the output-root (prefix stripped).
         const pluginPrefix = `${getEffectiveOutputRoot(this.plugin.settings)}/`;
-        const resolvedDefault = getNewsletterOutputFullPath(this.plugin.settings);
-        const folders = getAllFolders(this.plugin.app).map(f => f.path);
-
-        new Setting(this.containerEl)
-            .setName(nl?.outputFolder || 'Output folder')
-            .setDesc(nl?.outputFolderDesc || 'Where to save newsletter digest notes')
-            .addDropdown(dropdown => {
-                dropdown.addOption(resolvedDefault, `${resolvedDefault} (default)`);
-                for (const folder of folders) {
-                    if (folder !== resolvedDefault) {
-                        dropdown.addOption(folder, folder);
-                    }
-                }
-                dropdown.setValue(resolvedDefault);
-                dropdown.onChange(value => {
-                    const normalized = value.startsWith(pluginPrefix) ? value.slice(pluginPrefix.length) : value;
-                    this.plugin.settings.newsletterOutputFolder = normalized || 'Newsletter Inbox';
-                    void this.plugin.saveSettings();
-                });
-            });
+        addFolderPicker(
+            new Setting(this.containerEl)
+                .setName(nl?.outputFolder || 'Output folder')
+                .setDesc(nl?.outputFolderDesc || 'Where to save newsletter digest notes'),
+            this.plugin.app,
+            () => getNewsletterOutputFullPath(this.plugin.settings),
+            (value) => {
+                const sanitized = (value || 'Newsletter Inbox').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+                const normalized = sanitized.startsWith(pluginPrefix) ? sanitized.slice(pluginPrefix.length) : sanitized;
+                this.plugin.settings.newsletterOutputFolder = normalized || 'Newsletter Inbox';
+                void this.plugin.saveSettings();
+            },
+            getNewsletterOutputFullPath(this.plugin.settings),
+        );
 
         // Preferred language for newsletter summaries
         const langOptions = COMMON_LANGUAGES.filter(l => l.code !== 'auto');

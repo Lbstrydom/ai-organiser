@@ -105,6 +105,9 @@ export interface AIOrganiserSettings {
     exportColorScheme: string;           // Preset name or 'custom'
     exportPrimaryColor: string;          // Hex (no #) — used when exportColorScheme = 'custom'
     exportAccentColor: string;           // Hex (no #) — used when exportColorScheme = 'custom'
+    exportMinFontBody: number;           // Universal min-font floor (pt) for body text on export
+    exportMinFontCaption: number;        // Universal min-font floor (pt) for captions on export
+    exportMinFontTable: number;          // Universal min-font floor (pt) for table text on export
     // Flashcard Settings
     flashcardFolder: string;             // Subfolder for flashcard exports (under pluginFolder)
     flashcardProvider: 'main' | AdapterType;  // LLM provider for flashcards ('main' = use main provider)
@@ -463,6 +466,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     exportColorScheme: 'navy-gold',
     exportPrimaryColor: '1A3A5C',
     exportAccentColor: 'F5C842',
+    exportMinFontBody: 12,
+    exportMinFontCaption: 10,
+    exportMinFontTable: 11,
     flashcardFolder: 'Flashcards',
     flashcardProvider: 'main',
     flashcardModel: '',
