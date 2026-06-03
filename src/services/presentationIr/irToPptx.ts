@@ -24,7 +24,7 @@ import {
     splitColumns, gridColumns, estimateTextHeight, tableColumnWidths,
 } from './irLayout';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
-import { contrastTextColor } from './slideIr';
+import { contrastTextColor, stripBulletPrefix } from './slideIr';
 import { IR_RENDER_SPEC } from './irRenderSpec';
 import { resolvePresentationIcon } from './iconRegistry';
 import {
@@ -390,7 +390,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             return h;
         }
         case 'bullets': {
-            const lines = block.items.map(it => ({ text: it, options: { bullet: block.ordered ? { type: 'number' as const } : true } }));
+            const lines = block.items.map(it => ({ text: stripBulletPrefix(it), options: { bullet: block.ordered ? { type: 'number' as const } : true } }));
             const h = clampH(Math.max(0.4, block.items.length * 0.32), box, block.kind, slideIndex, st);
             s.addText(lines, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: theme.fontSize, color: hx(theme.bodyColor), valign: 'top' });
             return h;

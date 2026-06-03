@@ -1,6 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { validateDeckIr, IR_SCHEMA_VERSION } from '../src/services/presentationIr/slideIr';
+import { validateDeckIr, IR_SCHEMA_VERSION, stripBulletPrefix } from '../src/services/presentationIr/slideIr';
 import { coffeeDeckIr } from './fixtures/coffeeDeckIr';
+
+describe('stripBulletPrefix — double-bullet fix', () => {
+    it('removes a leading diamond marker a polish pass adds', () => {
+        expect(stripBulletPrefix('◆ Israel-Hizbullah ceasefire')).toBe('Israel-Hizbullah ceasefire');
+    });
+    it('removes leading •, -, *, – markers', () => {
+        expect(stripBulletPrefix('• point')).toBe('point');
+        expect(stripBulletPrefix('- point')).toBe('point');
+        expect(stripBulletPrefix('* point')).toBe('point');
+        expect(stripBulletPrefix('– point')).toBe('point');
+    });
+    it('leaves unmarked text untouched', () => {
+        expect(stripBulletPrefix('Plain bullet text')).toBe('Plain bullet text');
+    });
+    it('does not strip a hyphen inside a word or a leading minus-number', () => {
+        expect(stripBulletPrefix('well-being matters')).toBe('well-being matters');
+        // "-5% decline" — leading marker+space rule needs whitespace after the glyph,
+        // so a hyphenated token without a space is preserved.
+        expect(stripBulletPrefix('-5% decline')).toBe('-5% decline');
+    });
+});
 
 // Negative tests pass intentionally-malformed payloads, so the input is typed
 // `unknown[]` rather than the strict slide union (Gemini H2 — don't fight the

@@ -1225,6 +1225,11 @@ export class PresentationModeHandler implements ChatModeHandler {
                 );
             } else if (result.ok) {
                 callbacks.notify('Brand audit: all checks passed.');
+            } else {
+                // Audit returned a failure Result (e.g. the LLM call timed out
+                // or was rate-limited). Surface it — a silent "checking…" that
+                // ends with no message reads as a hang to the user.
+                callbacks.notify(`Brand audit could not complete: ${result.error}. Please try again.`);
             }
 
             this.runQualityCheck(result.ok ? result.value.violations.length : 0);
@@ -1233,6 +1238,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (!abort.signal.aborted) {
                 this.setPhase('error');
                 this.deck.lastError = e instanceof Error ? e.message : 'Audit failed';
+                callbacks.notify(`Brand audit failed: ${this.deck.lastError}. Please try again.`);
             }
         } finally {
             this.run.end();

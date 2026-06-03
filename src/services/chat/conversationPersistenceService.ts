@@ -11,6 +11,11 @@ export type RecentConversation = ConversationSummary;
 export class ConversationPersistenceService {
     private saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private currentFiles = new Map<string, TFile | null>();
+    /** Per-conversation save serialiser — prevents the "File already exists"
+     *  race when overlapping autosaves (streaming + action handlers fire
+     *  `triggerAutosave` repeatedly) both reach `doSave` before either has
+     *  populated `currentFiles`. */
+    private saveChains = new Map<string, Promise<string>>();
 
     constructor(private app: App, private settings: AIOrganiserSettings) {}
 
@@ -179,8 +184,23 @@ export class ConversationPersistenceService {
         return state.projectId ? `${state.mode}::${state.projectId}` : state.mode;
     }
 
-    private async doSave(state: ConversationState): Promise<string> {
+    private doSave(state: ConversationState): Promise<string> {
         const key = this.cacheKey(state);
+        // Single-flight per conversation key: chain this save after any in-flight
+        // one for the same key, so the first to create the file populates
+        // `currentFiles` before the next runs (which then reuses + modifies it).
+        // Eliminates the "File already exists" race from overlapping autosaves.
+        const prev = this.saveChains.get(key) ?? Promise.resolve('');
+        const next = prev.catch(() => '').then(() => this.doSaveInner(state, key));
+        this.saveChains.set(key, next);
+        // Drop the chain entry once settled, but only if it's still the latest.
+        void next.catch(() => undefined).finally(() => {
+            if (this.saveChains.get(key) === next) this.saveChains.delete(key);
+        });
+        return next;
+    }
+
+    private async doSaveInner(state: ConversationState, key: string): Promise<string> {
         const targetFile = this.currentFiles.get(key) ?? null;
         const now = new Date().toISOString();
         const ts = state.updatedAt ?? now;
@@ -198,7 +218,22 @@ export class ConversationPersistenceService {
         }
         const path = await this.buildFilePath(state);
         await ensureFolderExists(this.app.vault, path.substring(0, path.lastIndexOf('/')));
-        const newFile = await this.app.vault.create(path, content);
+        let newFile: TFile;
+        try {
+            newFile = await this.app.vault.create(path, content);
+        } catch {
+            // A file already exists at this path (concurrent create that the
+            // single-flight chain didn't cover, or an external create). Adopt it
+            // and modify in place instead of throwing an uncaught "File already
+            // exists" — the autosave must never reject the action flow.
+            const existing = this.app.vault.getAbstractFileByPath(path);
+            if (existing instanceof TFile) {
+                await this.app.vault.modify(existing, content);
+                newFile = existing;
+            } else {
+                throw new Error(`Could not create or adopt conversation file at ${path}`);
+            }
+        }
         this.currentFiles.set(key, newFile);
         return newFile.path;
     }

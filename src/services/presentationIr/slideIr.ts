@@ -245,6 +245,17 @@ export function contrastTextColor(hex: string): string {
     return lum > 0.6 ? '1a1a2e' : 'ffffff';
 }
 
+/**
+ * Strip a leading list-marker glyph the LLM sometimes prepends to a bullet
+ * item (e.g. a polish pass adding decorative "◆ "). The renderers already draw
+ * their own marker (CSS `<li>` / native PPTX bullet), so a literal prefix
+ * produces a double bullet ("• ◆ text"). Removes one leading marker glyph +
+ * its trailing whitespace; leaves the text otherwise untouched.
+ */
+export function stripBulletPrefix(text: string): string {
+    return text.replace(/^\s*[•◆▪‣·●○■□–—*-]+\s+/u, '');
+}
+
 /** A per-block downgrade surfaced by either renderer (plan H3/M2). */
 export interface FidelityNotice {
     slideIndex: number;

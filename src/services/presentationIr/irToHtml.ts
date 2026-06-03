@@ -22,7 +22,7 @@ import { ok, err } from '../../core/result';
 import type { ExportTheme } from '../export/exportTheme';
 import { sanitizeSvgMarkup, stripDangerousHtml } from '../../utils/svgSanitize';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
-import { contrastTextColor } from './slideIr';
+import { contrastTextColor, stripBulletPrefix } from './slideIr';
 import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
 import { SLIDE_W, SLIDE_H } from './irLayout';
 import { resolvePresentationIcon } from './iconRegistry';
@@ -177,7 +177,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
             return `<p style="font-size:30px;line-height:1.45;color:${body};margin:0;">${block.emphasis ? `<strong style="color:${primary};">${esc(block.text)}</strong>` : esc(block.text)}</p>`;
         case 'bullets': {
             const tag = block.ordered ? 'ol' : 'ul';
-            const items = block.items.map(it => `<li style="font-size:30px;line-height:1.4;color:${body};margin-bottom:14px;">${esc(it)}</li>`).join('');
+            const items = block.items.map(it => `<li style="font-size:30px;line-height:1.4;color:${body};margin-bottom:14px;">${esc(stripBulletPrefix(it))}</li>`).join('');
             return `<${tag} style="margin:0;padding-left:48px;">${items}</${tag}>`;
         }
         case 'caption':

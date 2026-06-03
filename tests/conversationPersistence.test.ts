@@ -219,6 +219,28 @@ describe('ConversationPersistenceService', () => {
 
             expect(mockApp.vault.create).toHaveBeenCalledTimes(2);
         });
+
+        it('does not throw "File already exists" on concurrent saves (race fix)', async () => {
+            // Realistic vault.create: throws when the path already exists, like Obsidian.
+            const created = new Set<string>();
+            mockApp.vault.create.mockImplementation(async (path: string) => {
+                if (created.has(path)) throw new Error('File already exists.');
+                created.add(path);
+                const file = createTFile(path);
+                mockApp.files.set(path, { file, content: '' });
+                return file;
+            });
+
+            // Two overlapping autosaves for the same conversation, neither with a
+            // cached handle yet — the pre-fix race. Single-flight must serialise
+            // them: first creates, second adopts + modifies. Neither rejects.
+            const results = await Promise.allSettled([
+                service.saveNow(makeState()),
+                service.saveNow(makeState({ updatedAt: '2026-03-13T10:11:00.000Z' })),
+            ]);
+            expect(results.every(r => r.status === 'fulfilled')).toBe(true);
+            expect(mockApp.vault.create).toHaveBeenCalledTimes(1);
+        });
     });
 
     // ── startNew ─────────────────────────────────────────────────────────
