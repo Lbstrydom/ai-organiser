@@ -374,6 +374,10 @@ export interface AIOrganiserSettings {
      *  requests — actual routing stays driven by `cloudServiceType` + per-task
      *  provider selection. Vault-local; default off. */
     azureFirstMode: boolean;
+    /** The non-Azure ("personal") provider the user was on before they enabled
+     *  Azure-first (corporate) mode — restored on toggle-off so they return to
+     *  e.g. direct Anthropic. Empty when not in / never entered Azure-first. */
+    preAzureFirstProvider: string;
     /** Write-once migration input; cleared after the SecretStorage write. */
     azureApiKey: string;
     /** Soft indicator that a key lives in SecretStorage. */
@@ -697,6 +701,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     // Azure AI Foundry Defaults — ALL endpoints empty in the public store.
     // No corporate value ships in DEFAULT_SETTINGS (plan §2/§8).
     azureFirstMode: false,
+    preAzureFirstProvider: '',
     azureApiKey: '',
     azureKeyStored: false,
     azureAIEndpoint: '',
@@ -1088,11 +1093,14 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     // heal a diverged state (e.g. user toggled Azure-first but provider = claude).
     if (s.azureFirstMode === true && typeof s.cloudServiceType === 'string'
         && !s.cloudServiceType.startsWith('azure')) {
+        // Remember the personal provider so a later toggle-off restores it (corporate↔personal).
+        if (!s.preAzureFirstProvider) s.preAzureFirstProvider = s.cloudServiceType;
         s.cloudServiceType = 'azure-claude';
         s.cloudEndpoint = '';
         const tm = s.taskModels as { chat?: string } | undefined;
         s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-4-6';
     }
+    if (typeof s.preAzureFirstProvider !== 'string') s.preAzureFirstProvider = DEFAULT_SETTINGS.preAzureFirstProvider;
 
     // Stale hardcoded mobile fallback model (an old default) → the latest-* sentinel,
     // so normal-mode mobile uses the newest model instead of a pinned old one.

@@ -83,16 +83,37 @@ export class LLMSettingsSection extends BaseSettingSection {
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.azureFirstMode ?? false)
                 .onChange((value) => {
-                    this.plugin.settings.azureFirstMode = value;
-                    // Enabling Azure-first actually SELECTS the Azure provider, so all
-                    // routing (chat, specialists, mobile) uses Azure — not just the UI.
-                    // Without this, azureFirstMode + a non-Azure provider diverge and
-                    // isAzureMode stays false (mobile/specialists never route to Azure).
-                    if (value && !isAzureMode(this.plugin.settings)) {
-                        this.plugin.settings.cloudServiceType = 'azure-claude';
-                        this.plugin.settings.cloudEndpoint = '';
-                        this.plugin.settings.cloudModel =
-                            this.plugin.settings.taskModels?.chat || 'claude-sonnet-4-6';
+                    // The toggle is a CORPORATE ↔ PERSONAL switch: ON selects Azure for
+                    // all routing; OFF restores the personal provider the user had before
+                    // (e.g. direct Anthropic). We snapshot on enter and restore on exit so
+                    // a private-PC user flips back to their own provider, not stranded on Azure.
+                    const s = this.plugin.settings;
+                    if (value) {
+                        if (!isAzureMode(s)) {
+                            s.preAzureFirstProvider = s.cloudServiceType; // remember personal (e.g. 'claude')
+                            if (!s.providerSettings) s.providerSettings = {};
+                            if (!s.providerSettings[s.cloudServiceType]) s.providerSettings[s.cloudServiceType] = {};
+                            if (s.cloudModel) s.providerSettings[s.cloudServiceType].model = s.cloudModel;
+                            s.cloudServiceType = 'azure-claude';
+                            s.cloudEndpoint = '';
+                            s.cloudModel = s.taskModels?.chat || 'claude-sonnet-4-6';
+                        }
+                        s.azureFirstMode = true;
+                    } else {
+                        s.azureFirstMode = false;
+                        if (s.cloudServiceType.startsWith('azure')) {
+                            const target = (s.preAzureFirstProvider && !s.preAzureFirstProvider.startsWith('azure'))
+                                ? s.preAzureFirstProvider : 'claude';
+                            const t = target as typeof s.cloudServiceType;
+                            const saved = s.providerSettings?.[t];
+                            s.cloudServiceType = t;
+                            s.cloudEndpoint = PROVIDER_ENDPOINT[t] ?? '';
+                            s.cloudModel = saved?.model || PROVIDER_DEFAULT_MODEL[t] || 'latest-sonnet';
+                            const secretId = PROVIDER_TO_SECRET_ID[t];
+                            s.cloudApiKey = (this.plugin.secretStorageService.isAvailable() && secretId)
+                                ? '' : (saved?.apiKey || '');
+                        }
+                        s.preAzureFirstProvider = '';
                     }
                     void this.plugin.saveSettings();
                     this.settingTab.display();
