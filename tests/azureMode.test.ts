@@ -23,7 +23,7 @@ vi.mock('obsidian', async () => {
 });
 
 import { isAzureMode } from '../src/services/azure/endpointResolver';
-import { getAudioTranscriptionApiKey } from '../src/services/apiKeyHelpers';
+import { getAudioTranscriptionApiKey, resolveEndpoint } from '../src/services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../src/services/pdfTranslationService';
 import { createEmbeddingServiceFromSettings } from '../src/services/embeddings/embeddingServiceFactory';
 import { testAzureConnection } from '../src/services/azure/azureConnectionTest';
@@ -220,5 +220,32 @@ describe('testAzureConnection — redaction + status mapping', () => {
 		expect(report.surfaces.find(s => s.surface === 'azure-openai-chat')).toBeUndefined();
 		expect(report.surfaces.find(s => s.surface === 'azure-openai-embeddings')).toBeUndefined();
 		expect(report.surfaces.find(s => s.surface === 'azure-claude')).toBeDefined();
+	});
+});
+
+describe('resolveEndpoint — single Azure-aware endpoint SSOT', () => {
+	const mkPlugin = (settings: Record<string, unknown>) => ({ settings }) as unknown as Parameters<typeof resolveEndpoint>[1];
+
+	it('azure-claude resolves the Foundry messages URL from azureAIEndpoint', () => {
+		const p = mkPlugin({ azureAIEndpoint: AI_ENDPOINT, azureOpenAIEndpoint: OAI_ENDPOINT });
+		expect(resolveEndpoint('azure-claude', p)).toBe(`${AI_ENDPOINT}/anthropic/v1/messages`);
+	});
+
+	it('azure-openai resolves the OpenAI chat URL from azureOpenAIEndpoint', () => {
+		const p = mkPlugin({ azureOpenAIEndpoint: OAI_ENDPOINT, azureRoutingMode: 'model-based' });
+		expect(resolveEndpoint('azure-openai', p)).toContain(OAI_ENDPOINT);
+		expect(resolveEndpoint('azure-openai', p)).toContain('/openai/v1/');
+	});
+
+	it('returns empty string for an Azure provider with no endpoint configured (no fabricated URL)', () => {
+		const p = mkPlugin({ azureAIEndpoint: '', azureOpenAIEndpoint: '' });
+		expect(resolveEndpoint('azure-claude', p)).toBe('');
+		expect(resolveEndpoint('azure-openai', p)).toBe('');
+	});
+
+	it('non-Azure providers keep their static public endpoint (regression guard)', () => {
+		const p = mkPlugin({});
+		expect(resolveEndpoint('claude', p)).toMatch(/^https?:\/\//);
+		expect(resolveEndpoint('openai', p)).toMatch(/^https?:\/\//);
 	});
 });

@@ -34,7 +34,7 @@ import { IEmbeddingService, createEmbeddingServiceFromSettings } from './service
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 import { EMBEDDING_PROVIDER_TO_SECRET_ID, PLUGIN_SECRET_IDS } from './core/secretIds';
-import { getAzureApiKey } from './services/apiKeyHelpers';
+import { getAzureApiKey, resolveEndpoint } from './services/apiKeyHelpers';
 import { isAzureMode } from './services/azure/endpointResolver';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
@@ -312,9 +312,21 @@ export default class AIOrganiserPlugin extends Plugin {
         return this.settings.providerSettings?.[type]?.model || this.settings.cloudModel;
     }
 
+    /**
+     * Resolve a provider's request endpoint. Delegates Azure to the single
+     * Azure-aware SSOT `resolveEndpoint` (apiKeyHelpers) so EVERY endpoint path
+     * — main service, mobile fallback, specialists — funnels Azure through one
+     * place. Azure's `PROVIDER_ENDPOINT` entries are `''` (the URL lives in the
+     * azure* settings), so any path that reads `cloudEndpoint`/`PROVIDER_ENDPOINT`
+     * directly for an Azure provider would get an empty endpoint — this method is
+     * the guard against that whole class of bug.
+     */
     private getProviderEndpoint(type: AdapterType): string {
         if (type === 'openai-compatible') {
             return this.settings.cloudEndpoint || 'http://your-api-endpoint/v1/chat/completions';
+        }
+        if (type.startsWith('azure')) {
+            return resolveEndpoint(type, this);
         }
         if (type === this.settings.cloudServiceType && this.settings.cloudEndpoint) {
             return this.settings.cloudEndpoint;
@@ -401,6 +413,24 @@ export default class AIOrganiserPlugin extends Plugin {
                 cloudModel = fallbackModel;
                 cloudEndpoint = this.getProviderEndpoint(fallbackProvider);
                 cloudApiKey = await this.getProviderApiKey(fallbackProvider);
+            }
+        }
+
+        // Azure: the main LLM endpoint lives in the azure* settings, NOT `cloudEndpoint`
+        // (which is '' for Azure). Resolve it via the single `getProviderEndpoint`
+        // accessor (→ `resolveEndpoint` SSOT) + the shared Foundry key. Without this the
+        // main service (chat, presentations, tagging, summarize, …) gets an empty
+        // endpoint → "API endpoint is not configured". The mobile block above is gated
+        // on `!isAzureMode`, so it never touches these values.
+        if (serviceType === 'cloud' && isAzureMode(this.settings)) {
+            cloudEndpoint = this.getProviderEndpoint(cloudType);
+            cloudApiKey = (await getAzureApiKey(this, cloudType as 'azure-claude' | 'azure-openai')) || cloudApiKey;
+            if (!cloudEndpoint) {
+                // Guardrail: a configured Azure provider must have an endpoint. A loud,
+                // actionable warning if any future change ever leaves it empty.
+                logger.warn('Core',
+                    `Azure provider "${cloudType}" is selected but its endpoint is not configured — `
+                    + `set the Azure ${cloudType === 'azure-claude' ? 'AI' : 'OpenAI'} endpoint in AI provider settings.`);
             }
         }
 
