@@ -92,8 +92,8 @@ export class LLMSettingsSection extends BaseSettingSection {
                         if (!isAzureMode(s)) {
                             s.preAzureFirstProvider = s.cloudServiceType; // remember personal (e.g. 'claude')
                             if (!s.providerSettings) s.providerSettings = {};
-                            if (!s.providerSettings[s.cloudServiceType]) s.providerSettings[s.cloudServiceType] = {};
-                            if (s.cloudModel) s.providerSettings[s.cloudServiceType].model = s.cloudModel;
+                            const ps = s.providerSettings[s.cloudServiceType] ?? (s.providerSettings[s.cloudServiceType] = {});
+                            if (s.cloudModel) ps.model = s.cloudModel;
                             s.cloudServiceType = 'azure-claude';
                             s.cloudEndpoint = '';
                             s.cloudModel = s.taskModels?.chat || 'claude-sonnet-4-6';
