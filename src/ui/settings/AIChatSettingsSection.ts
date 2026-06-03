@@ -103,16 +103,10 @@ export class AIChatSettingsSection extends BaseSettingSection {
                     void plugin.saveSettings();
                 }));
 
+        // Brand path moved to the dedicated Brand section (Plan B). Leave a pointer.
         new Setting(containerEl)
             .setName(t.presentationBrandGuidelinesTitle)
-            .setDesc(t.presentationBrandGuidelinesDesc)
-            .addText(text => text
-                .setPlaceholder('AI-Organiser/Config/brand-guidelines.md')
-                .setValue(plugin.settings.presentationBrandGuidelinesPath || '')
-                .onChange(value => {
-                    plugin.settings.presentationBrandGuidelinesPath = value.trim();
-                    void plugin.saveSettings();
-                }));
+            .setDesc(t.brandConfigMoved);
 
         // Export-engine toggle retired (2026-06): the structured-IR engine is
         // now the only path (legacy HTML generation is being removed). Any

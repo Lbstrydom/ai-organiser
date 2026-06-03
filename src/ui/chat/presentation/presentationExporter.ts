@@ -13,6 +13,7 @@
 import type { ModalContext } from '../ChatModeHandler';
 import type { ExportTheme } from '../../../services/export/exportTheme';
 import type { SlideDeckIr } from '../../../services/presentationIr/slideIr';
+import type { ResolvedBrandAssets } from '../../../services/export/brand/brandRenderContext';
 import { extractDeckTitle } from '../../../services/prompts/presentationChatPrompts';
 import { logger } from '../../../utils/logger';
 
@@ -29,9 +30,12 @@ export class PresentationExporter {
         theme: ExportTheme;
         allSlides: HTMLElement[];
         ctx: ModalContext;
+        /** Pre-resolved brand assets (icons/logo). Threaded into the rich IR
+         *  renderer; absent → Lucide-only (unchanged). */
+        brandAssets?: ResolvedBrandAssets;
     }): Promise<void> {
         const fileName = sanitizeFileName(extractDeckTitle(opts.html)) + '.pptx';
-        const richBuffer = await this.tryRichPptx(opts.deckIr, opts.theme, opts.ctx);
+        const richBuffer = await this.tryRichPptx(opts.deckIr, opts.theme, opts.ctx, opts.brandAssets);
         if (richBuffer) {
             this.downloadBuffer(richBuffer, fileName);
             return;
@@ -51,12 +55,14 @@ export class PresentationExporter {
      */
     private async tryRichPptx(
         deckIr: SlideDeckIr | null, theme: ExportTheme, ctx: ModalContext,
+        brandAssets?: ResolvedBrandAssets,
     ): Promise<ArrayBuffer | null> {
         if (!deckIr) return null;
         try {
             const { renderDeckToPptx } = await import('../../../services/presentationIr');
             const result = await renderDeckToPptx(deckIr, theme, {
                 placeholderLabel: ctx.plugin.t.progress.presentation.slideRenderFailed,
+                ...(brandAssets ? { brandAssets } : {}),
             });
             if (result.ok) return result.value.buffer;
             logger.warn('Presentation', `IR PPTX render failed: ${result.error}`);

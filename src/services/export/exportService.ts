@@ -100,6 +100,13 @@ export class ExportService {
                 includeToc: config.includeToc ?? false,
                 fontFace: config.theme?.fontFace,
                 fontSize: config.theme?.fontSize,
+                // §5 H1 — DOCX font + colour parity: heading colour from the
+                // BRAND ExportTheme only (a brand theme is identified by its
+                // `minFont` floor). Non-brand export themes leave headingColor
+                // undefined → docx default heading style, byte-identical to today.
+                ...(config.theme?.minFont
+                    ? { headingColor: config.theme.primaryColor, tableMinFont: config.theme.minFont.table }
+                    : {}),
             };
             buffer = await generateDocx(combinedMarkdown, docxOptions);
         } else if (config.presentationHtml) {

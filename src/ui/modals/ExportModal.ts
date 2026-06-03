@@ -4,6 +4,9 @@ import { ExportService } from '../../services/export/exportService';
 import type { ExportFormat } from '../../services/export/exportService';
 import { getExportOutputFullPath } from '../../core/settings';
 import { resolveTheme } from '../../services/export/markdownPptxGenerator';
+import type { ExportTheme } from '../../services/export/exportTheme';
+import { resolveBrandRenderContext } from '../../services/export/brand/brandRenderContext';
+import { logger } from '../../utils/logger';
 import { FolderScopePickerModal } from './FolderScopePickerModal';
 
 export class ExportModal extends Modal {
@@ -183,14 +186,7 @@ export class ExportModal extends Modal {
         btn.setButtonText(t.modals.exportNote?.exporting || 'Exporting...');
 
         try {
-            const s = this.plugin.settings;
-            const theme = resolveTheme(
-                s.exportColorScheme,
-                s.exportPrimaryColor,
-                s.exportAccentColor,
-                s.exportFontFace,
-                s.exportFontSize,
-            );
+            const theme = await this.resolveExportTheme();
             const exportService = new ExportService(this.app.vault);
             const result = await exportService.exportNotes({
                 format: this.format,
@@ -211,6 +207,40 @@ export class ExportModal extends Modal {
             new Notice(errorMsg, 5000);
             btn.setDisabled(false);
             btn.setButtonText(t.modals.exportNote?.exportButton || 'Export');
+        }
+    }
+
+    /**
+     * Resolve the ExportTheme for this export. When the brand "on by default"
+     * setting is on, resolve the brand render context (theme = brand colours +
+     * font + min-font when a brand file is present, else the generic example);
+     * otherwise the export-settings theme (unchanged). Falls back to the
+     * export-settings theme on any resolver error.
+     *
+     * `onBrandByDefault` is added by the parallel settings task — read
+     * defensively so this compiles + degrades to off-brand before it lands.
+     */
+    private async resolveExportTheme(): Promise<ExportTheme> {
+        const s = this.plugin.settings;
+        const exportSettingsTheme = resolveTheme(
+            s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor, s.exportFontFace, s.exportFontSize,
+        );
+        const onBrandByDefault = (s as typeof s & { onBrandByDefault?: boolean }).onBrandByDefault ?? false;
+        if (!onBrandByDefault) return exportSettingsTheme;
+        try {
+            // Markdown/rich exports reference no IR icon concepts, so no icons
+            // need rasterizing here — pass an empty concept set. The brand theme
+            // (colours + font + min-font) is what these generators consume.
+            const result = await resolveBrandRenderContext(this.app, s, true, [], exportSettingsTheme);
+            if (!result.ok) {
+                logger.warn('Export', `brand theme resolve failed: ${result.error}`);
+                return exportSettingsTheme;
+            }
+            for (const w of result.value.warnings) logger.warn('Export', `brand: ${w}`);
+            return result.value.theme;
+        } catch (e) {
+            logger.warn('Export', `brand theme resolution error: ${e instanceof Error ? e.message : String(e)}`);
+            return exportSettingsTheme;
         }
     }
 

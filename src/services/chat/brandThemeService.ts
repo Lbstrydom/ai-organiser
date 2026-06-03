@@ -54,10 +54,42 @@ ${rules.join('\n')}`;
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+export interface BrandMinFont {
+    body: number;
+    caption: number;
+    table: number;
+    footer: number;
+}
+
+export interface BrandLayout {
+    headerBandIn: number;
+    contentTopIn: number;
+    footerBandIn: number;
+    logoReserveIn: number;
+    sideMarginIn: number;
+}
+
 export interface BrandTheme {
     css: string;
     promptRules: string;
     auditChecklist: BrandRule[];
+    /** Parsed colour roles (also encoded in `css`); exposed so the export-theme
+     *  mapper can read them without re-parsing the CSS. Hex with leading `#`. */
+    colors: ParsedColors;
+    /** Resolved font family (the first declared family + system fallbacks). */
+    font: string;
+    /** Secondary/fallback font family (bare name, no quotes). */
+    fontFallback: string;
+    /** Nominal body font size (points). A `## Typography` `Body pt:` key overrides
+     *  the neutral default; distinct from the `minFont.body` floor (which clamps a
+     *  smaller nominal up, but is NOT itself the nominal size). */
+    bodyFontPt: number;
+    /** Minimum font floor per role (points). */
+    minFont: BrandMinFont;
+    /** Safe-area / zone geometry (inches on the 13.33×7.5in canvas). */
+    layout: BrandLayout;
+    /** Non-fatal parse diagnostics (degrade-to-default, clamp, etc.). */
+    warnings: string[];
 }
 
 export interface BrandRule {
@@ -65,7 +97,7 @@ export interface BrandRule {
     description: string;
 }
 
-interface ParsedColors {
+export interface ParsedColors {
     primary: string;
     secondary: string;
     accent: string;
@@ -73,6 +105,37 @@ interface ParsedColors {
     text: string;
     link: string;
 }
+
+// ── Generic defaults (BD-2: neutral, no corporate numbers) ───────────────────
+
+/** Neutral nominal body font size (points) when no `Body pt:` key is present.
+ *  Distinct from the min-body floor — this is the size text is actually set at. */
+export const BRAND_BODY_FONT_DEFAULT = 14;
+
+/** Min-font floor defaults (points). Public, generic. */
+export const BRAND_MIN_FONT_DEFAULTS: BrandMinFont = {
+    body: 12,
+    caption: 10,
+    table: 11,
+    footer: 9,
+};
+
+/** Generic safe-area defaults (inches). A vault `## Layout` overrides these to
+ *  match a corporate template master; absent → these neutral values. */
+export const BRAND_LAYOUT_DEFAULTS: BrandLayout = {
+    headerBandIn: 1.0,
+    contentTopIn: 1.6,
+    footerBandIn: 7.0,
+    logoReserveIn: 2.0,
+    sideMarginIn: 0.3,
+};
+
+/** Min-font clamp range (points). Out-of-range → clamp + warning. */
+const MIN_FONT_RANGE = { min: 8, max: 24 } as const;
+/** Layout zone clamp range (inches). Out-of-range → clamp + warning. */
+const LAYOUT_RANGE = { min: 0, max: 8 } as const;
+
+const DEFAULT_FONT_FALLBACK = 'Inter';
 
 // ── Default Theme (navy-gold) ───────────────────────────────────────────────
 
@@ -188,6 +251,13 @@ export function getDefaultTheme(): BrandTheme {
         css: buildCssFromColors(DEFAULT_COLORS, DEFAULT_FONT),
         promptRules: '',
         auditChecklist: [],
+        colors: { ...DEFAULT_COLORS },
+        font: DEFAULT_FONT,
+        fontFallback: DEFAULT_FONT_FALLBACK,
+        bodyFontPt: BRAND_BODY_FONT_DEFAULT,
+        minFont: { ...BRAND_MIN_FONT_DEFAULTS },
+        layout: { ...BRAND_LAYOUT_DEFAULTS },
+        warnings: [],
     };
 }
 
@@ -248,18 +318,35 @@ function getBrandPath(settings: AIOrganiserSettings): string {
 // ── Section-Scoped Parsing (M7 fix) ─────────────────────────────────────────
 
 function extractSection(content: string, heading: string): string {
-    const regex = new RegExp(`^## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`, 'mi');
-    const match = regex.exec(content);
-    return match ? match[1] : '';
+    // Find the `## <heading>` line, then capture everything up to the NEXT
+    // `## ` heading (or end-of-file). The previous single-regex form used `$`
+    // under the `m` flag, whose per-line semantics made the lazy capture stop at
+    // the first content line — so only the heading's first line was ever read.
+    // Splitting on the next heading boundary captures the full multi-line body.
+    const headingRe = new RegExp(`^## ${heading}\\s*$`, 'mi');
+    const start = headingRe.exec(content);
+    if (!start) return '';
+    const bodyStart = start.index + start[0].length;
+    const rest = content.slice(bodyStart);
+    const nextHeading = /\n## /.exec(rest);
+    const body = nextHeading ? rest.slice(0, nextHeading.index) : rest;
+    // Strip the leading newline left after the heading line.
+    return body.replace(/^\r?\n/, '');
 }
 
 function parseBrandFile(content: string): BrandTheme {
     const colorsSection = extractSection(content, 'Colors');
     const typographySection = extractSection(content, 'Typography');
     const rulesSection = extractSection(content, 'Composition Rules');
+    const layoutSection = extractSection(content, 'Layout');
 
+    const warnings: string[] = [];
     const colors = parseColors(colorsSection);
     const font = parseFont(typographySection);
+    const fontFallback = parseFontFallback(typographySection);
+    const bodyFontPt = parseNumericKey(typographySection, 'Body pt', BRAND_BODY_FONT_DEFAULT, MIN_FONT_RANGE, warnings);
+    const minFont = parseMinFont(typographySection, warnings);
+    const layout = parseLayout(layoutSection, warnings);
     const promptRules = parseRules(rulesSection);
     const auditChecklist = parseAuditChecklist(rulesSection);
 
@@ -267,6 +354,78 @@ function parseBrandFile(content: string): BrandTheme {
         css: buildCssFromColors(colors, font),
         promptRules,
         auditChecklist,
+        colors,
+        font,
+        fontFallback,
+        bodyFontPt,
+        minFont,
+        layout,
+        warnings,
+    };
+}
+
+// ── Typography extras + Layout parsing (degrade-to-default per key) ──────────
+
+/** Read a `- Key: value` bullet line (case-insensitive key) from a section. */
+function readBulletValue(section: string, key: string): string | null {
+    if (!section) return null;
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^\\s*[-*]\\s*${escaped}\\s*:\\s*(.+)$`, 'im');
+    const m = re.exec(section);
+    return m ? m[1].trim() : null;
+}
+
+/**
+ * Parse a numeric bullet value with degrade-to-default + clamp semantics
+ * (plan §4 R2-L2): non-numeric/missing → role default + warning; numeric but
+ * out-of-range → CLAMP to the nearest bound + warning; in-range → as-is.
+ */
+function parseNumericKey(
+    section: string,
+    key: string,
+    fallback: number,
+    range: { min: number; max: number },
+    warnings: string[],
+): number {
+    const raw = readBulletValue(section, key);
+    if (raw === null) return fallback;
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) {
+        warnings.push(`${key}: "${raw}" is not a number — using default ${fallback}`);
+        return fallback;
+    }
+    if (n < range.min) {
+        warnings.push(`${key}: ${n} below ${range.min} — clamped to ${range.min}`);
+        return range.min;
+    }
+    if (n > range.max) {
+        warnings.push(`${key}: ${n} above ${range.max} — clamped to ${range.max}`);
+        return range.max;
+    }
+    return n;
+}
+
+function parseFontFallback(section: string): string {
+    const raw = readBulletValue(section, 'Font fallback');
+    return raw && raw.length > 0 ? raw : DEFAULT_FONT_FALLBACK;
+}
+
+function parseMinFont(section: string, warnings: string[]): BrandMinFont {
+    return {
+        body: parseNumericKey(section, 'Min body pt', BRAND_MIN_FONT_DEFAULTS.body, MIN_FONT_RANGE, warnings),
+        caption: parseNumericKey(section, 'Min caption pt', BRAND_MIN_FONT_DEFAULTS.caption, MIN_FONT_RANGE, warnings),
+        table: parseNumericKey(section, 'Min table pt', BRAND_MIN_FONT_DEFAULTS.table, MIN_FONT_RANGE, warnings),
+        footer: parseNumericKey(section, 'Min footer pt', BRAND_MIN_FONT_DEFAULTS.footer, MIN_FONT_RANGE, warnings),
+    };
+}
+
+function parseLayout(section: string, warnings: string[]): BrandLayout {
+    return {
+        headerBandIn: parseNumericKey(section, 'Header band in', BRAND_LAYOUT_DEFAULTS.headerBandIn, LAYOUT_RANGE, warnings),
+        contentTopIn: parseNumericKey(section, 'Content top in', BRAND_LAYOUT_DEFAULTS.contentTopIn, LAYOUT_RANGE, warnings),
+        footerBandIn: parseNumericKey(section, 'Footer band in', BRAND_LAYOUT_DEFAULTS.footerBandIn, LAYOUT_RANGE, warnings),
+        logoReserveIn: parseNumericKey(section, 'Logo reserve in', BRAND_LAYOUT_DEFAULTS.logoReserveIn, LAYOUT_RANGE, warnings),
+        sideMarginIn: parseNumericKey(section, 'Side margin in', BRAND_LAYOUT_DEFAULTS.sideMarginIn, LAYOUT_RANGE, warnings),
     };
 }
 

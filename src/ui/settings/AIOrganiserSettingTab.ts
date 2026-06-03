@@ -22,6 +22,7 @@ import { SketchSettingsSection } from './SketchSettingsSection';
 import { ResearchSettingsSection } from './ResearchSettingsSection';
 import { MermaidChatSettingsSection } from './MermaidChatSettingsSection';
 import { AIChatSettingsSection } from './AIChatSettingsSection';
+import { BrandSettingsSection } from './BrandSettingsSection';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
@@ -217,6 +218,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         new NewsletterSettingsSection(this.plugin, sub, this).display();
         sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');
         new ExportSettingsSection(this.plugin, sub, this).display();
+        sub = this.createSubCollapsibleSection(content, 'sub-brand', t.brand?.title || 'Brand', 'palette');
+        new BrandSettingsSection(this.plugin, sub, this).display();
 
         // 10. Preferences (Interface, Mobile)
         content = this.createCollapsibleSection(

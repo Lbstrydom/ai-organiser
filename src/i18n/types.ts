@@ -379,6 +379,31 @@ export interface Translations {
             refinementPassesDesc: string;
             brandToggleDefaultTitle: string;
             brandToggleDefaultDesc: string;
+            brandConfigMoved: string;
+        };
+        brand: {
+            title: string;
+            description: string;
+            folderPathTitle: string;
+            folderPathDesc: string;
+            onBrandDefaultTitle: string;
+            onBrandDefaultDesc: string;
+            resolvedFontTitle: string;
+            resolvedFontDesc: string;
+            minFontLabel: string;
+            statusHeading: string;
+            statusChecking: string;
+            statusNotConfigured: string;
+            statusPartial: string;
+            statusOk: string;
+            statusInvalid: string;
+            checkGuidelines: string;
+            checkGuidelinesMissing: string;
+            checkLogo: string;
+            checkLogoMissing: string;
+            checkIcons: string;
+            checkIconsMissing: string;
+            usingExample: string;
         };
         semanticSearch: {
             title: string;

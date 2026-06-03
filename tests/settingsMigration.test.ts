@@ -87,6 +87,62 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('brand folder migration (Plan B)', () => {
+        it('should seed brandFolderPath from the parent folder of presentationBrandGuidelinesPath', () => {
+            const old = { presentationBrandGuidelinesPath: 'AI-Organiser/Config/brand-guidelines.md' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBe('AI-Organiser/Config');
+        });
+
+        it('should handle a nested brand path', () => {
+            const old = { presentationBrandGuidelinesPath: 'a/b/c/brand.md' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBe('a/b/c');
+        });
+
+        it('should leave the deprecated field intact (non-destructive)', () => {
+            const old = { presentationBrandGuidelinesPath: 'Brand/guidelines.md' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.presentationBrandGuidelinesPath).toBe('Brand/guidelines.md');
+        });
+
+        it('should NOT overwrite an already-customised brandFolderPath', () => {
+            const old = {
+                presentationBrandGuidelinesPath: 'Old/Path/brand.md',
+                brandFolderPath: 'My_Brand',
+            } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBe('My_Brand');
+        });
+
+        it('should seed over the default value when migration source is present', () => {
+            const old = {
+                presentationBrandGuidelinesPath: 'Corp/Brand/brand-guidelines.md',
+                brandFolderPath: '999_Brand', // default — treated as unset
+            } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBe('Corp/Brand');
+        });
+
+        it('should not seed when the deprecated path is empty', () => {
+            const old = { presentationBrandGuidelinesPath: '' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBeUndefined();
+        });
+
+        it('should not seed when the deprecated path is a bare filename (no parent folder)', () => {
+            const old = { presentationBrandGuidelinesPath: 'brand-guidelines.md' } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBeUndefined();
+        });
+
+        it('should leave brandFolderPath untouched when no migration source exists', () => {
+            const old = { maxTags: 5 } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.brandFolderPath).toBeUndefined();
+        });
+    });
+
     describe('sketch output folder migration', () => {
         it('should migrate legacy full path to subfolder', () => {
             const old = { sketchOutputFolder: 'AI-Organiser/Sketches' } as any;

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { getDefaultTheme, loadBrandTheme, isBrandAvailable, resolveTheme } from '../src/services/chat/brandThemeService';
+import {
+    getDefaultTheme, loadBrandTheme, isBrandAvailable, resolveTheme,
+    BRAND_MIN_FONT_DEFAULTS, BRAND_LAYOUT_DEFAULTS,
+} from '../src/services/chat/brandThemeService';
 import {
     PRESENTATION_ICONS,
     ICON_CATEGORIES,
@@ -63,6 +66,77 @@ describe('resolveTheme falls back to the default theme on a brand-load failure',
     it('returns the default theme when brand is disabled', async () => {
         const t = await resolveTheme(makeApp(createTFile('x/brand-guidelines.md')), SETTINGS, false);
         expect(t.css).toContain('--brand-primary');
+    });
+});
+
+// ── Typography extras + Layout parsing ──────────────────────────────────────
+
+async function parse(content: string) {
+    const r = await loadBrandTheme(makeApp(createTFile('x/brand-guidelines.md'), content), SETTINGS);
+    if (!r.ok) throw new Error(`expected ok, got: ${r.error}`);
+    return r.value;
+}
+
+describe('brand parsing — min-font + layout + font-fallback', () => {
+    it('degrades to role defaults when sections absent', async () => {
+        const v = await parse('## Colors\n');
+        expect(v.minFont).toEqual(BRAND_MIN_FONT_DEFAULTS);
+        expect(v.layout).toEqual(BRAND_LAYOUT_DEFAULTS);
+        expect(v.fontFallback).toBe('Inter');
+        expect(v.warnings).toEqual([]);
+    });
+
+    it('parses min-font keys (case-insensitive bullets)', async () => {
+        const v = await parse('## Typography\n- min body pt: 14\n- Min caption pt: 11\n- Min table pt: 13\n- Min footer pt: 8\n');
+        expect(v.minFont).toEqual({ body: 14, caption: 11, table: 13, footer: 8 });
+        expect(v.warnings).toEqual([]);
+    });
+
+    it('parses font + font fallback', async () => {
+        const v = await parse('## Typography\n- Font: Noto Sans\n- Font fallback: Roboto\n');
+        expect(v.font).toContain('Noto Sans');
+        expect(v.fontFallback).toBe('Roboto');
+    });
+
+    it('clamps out-of-range min-font + warns', async () => {
+        const v = await parse('## Typography\n- Min body pt: 30\n- Min footer pt: 2\n');
+        expect(v.minFont.body).toBe(24);
+        expect(v.minFont.footer).toBe(8);
+        expect(v.warnings.some(w => w.includes('Min body pt') && w.includes('24'))).toBe(true);
+        expect(v.warnings.some(w => w.includes('Min footer pt') && w.includes('8'))).toBe(true);
+    });
+
+    it('non-numeric min-font → default + warn', async () => {
+        const v = await parse('## Typography\n- Min body pt: huge\n');
+        expect(v.minFont.body).toBe(BRAND_MIN_FONT_DEFAULTS.body);
+        expect(v.warnings.some(w => w.includes('Min body pt') && w.includes('not a number'))).toBe(true);
+    });
+
+    it('parses ## Layout zones', async () => {
+        const v = await parse('## Layout\n- Header band in: 1.0\n- Content top in: 1.95\n- Footer band in: 7.23\n- Logo reserve in: 2.25\n- Side margin in: 0.25\n');
+        expect(v.layout).toEqual({ headerBandIn: 1.0, contentTopIn: 1.95, footerBandIn: 7.23, logoReserveIn: 2.25, sideMarginIn: 0.25 });
+    });
+
+    it('clamps out-of-range layout + warns', async () => {
+        const v = await parse('## Layout\n- Content top in: 12\n- Side margin in: -1\n');
+        expect(v.layout.contentTopIn).toBe(8);
+        expect(v.layout.sideMarginIn).toBe(0);
+        expect(v.warnings.some(w => w.includes('Content top in'))).toBe(true);
+        expect(v.warnings.some(w => w.includes('Side margin in'))).toBe(true);
+    });
+
+    it('exposes parsed colour roles on the theme', async () => {
+        const v = await parse('## Colors\n| Role | Name | Hex |\n| primary | x | #112233 |\n| accent | y | #AABBCC |\n');
+        expect(v.colors.primary).toBe('#112233');
+        expect(v.colors.accent).toBe('#AABBCC');
+    });
+
+    it('getDefaultTheme carries the new fields', () => {
+        const t = getDefaultTheme();
+        expect(t.minFont).toEqual(BRAND_MIN_FONT_DEFAULTS);
+        expect(t.layout).toEqual(BRAND_LAYOUT_DEFAULTS);
+        expect(t.warnings).toEqual([]);
+        expect(t.colors.primary).toBeTruthy();
     });
 });
 

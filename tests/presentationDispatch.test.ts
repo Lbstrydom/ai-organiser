@@ -41,6 +41,12 @@ vi.mock('../src/services/llmFacade', () => ({
 vi.mock('../src/services/chat/brandThemeService', () => ({
     isBrandAvailable: () => false,
     resolveTheme: () => Promise.resolve({ css: '', auditChecklist: [], promptRules: '' }),
+    loadBrandTheme: () => Promise.resolve({ ok: false, error: 'no brand' }),
+    // brandRenderContext → exampleBrandTheme imports these defaults; the renderer
+    // wiring pulls that chain into this test's graph, so the mock must export them.
+    BRAND_MIN_FONT_DEFAULTS: { body: 12, caption: 10, table: 11, footer: 9 },
+    BRAND_LAYOUT_DEFAULTS: { headerBandIn: 1.0, contentTopIn: 1.6, footerBandIn: 7.0, logoReserveIn: 2.0, sideMarginIn: 0.3 },
+    BRAND_BODY_FONT_DEFAULT: 14,
 }));
 
 import { PresentationModeHandler } from '../src/ui/chat/PresentationModeHandler';

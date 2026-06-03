@@ -121,7 +121,10 @@ export interface AIOrganiserSettings {
     aichatRefinementPasses: 1 | 2;       // Number of refinement passes in presentation build
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
-    presentationBrandGuidelinesPath: string; // Vault path to brand guidelines file
+    presentationBrandGuidelinesPath: string; // DEPRECATED (Plan B): read-only migration source for brandFolderPath; no UI
+    // === BRAND FIDELITY (Plan B) ===
+    brandFolderPath: string;             // Vault folder holding brand-guidelines.md + logo-*.png + icons/
+    onBrandByDefault: boolean;           // Apply the brand theme to exports by default
     presentationExportEngine: 'structured-ir'; // Only the structured-IR engine remains (legacy HTML retired 2026-06; migrateOldSettings coerces stored 'html-legacy')
     // Slides side-rail workspace layout (per-device UI prefs). railWidthPx is the
     // user's RAW chosen width — clamped only at apply time so a large-monitor
@@ -475,6 +478,9 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aichatBrandToggleDefault: false,
     presentationOutputFolder: 'Presentations',
     presentationBrandGuidelinesPath: '',
+    // Brand fidelity (Plan B)
+    brandFolderPath: '999_Brand',
+    onBrandByDefault: false,
     // Default to the structured-IR engine (faithful PPTX). Falls back to legacy
     // HTML generation if IR generation fails, and to legacy PPTX export for
     // decks edited after generation (stale-IR guard) — so this is safe-by-default.
@@ -991,8 +997,41 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     }
 
     migrateAzureSettings(oldSettings);
+    migrateBrandSettings(oldSettings);
 
     return oldSettings;
+}
+
+/**
+ * Plan B — Brand fidelity migration (sync, pure; plan §5a).
+ *
+ * The plugin standardizes on `brandFolderPath` + a fixed `brand-guidelines.md`
+ * filename inside it. If the deprecated `presentationBrandGuidelinesPath` was set
+ * (a full file path) and `brandFolderPath` is still unset/default, seed
+ * `brandFolderPath` from the PARENT folder of that path. Pure string work only —
+ * non-destructive (the deprecated field is left intact as a migration source).
+ *
+ * TODO(brand): one-time rename Notice in main.loadSettings — if the old file
+ * wasn't named `brand-guidelines.md`, tell the user (once) to rename it inside
+ * the brand folder. That is a runtime/async concern (Notice + vault check) and
+ * does NOT belong in this pure function; leave the seam here as the trigger.
+ */
+function migrateBrandSettings(s: Record<string, unknown>): void {
+    const oldPath = s.presentationBrandGuidelinesPath;
+    if (typeof oldPath !== 'string' || oldPath.trim() === '') return;
+
+    const current = s.brandFolderPath;
+    const isUnset =
+        typeof current !== 'string' ||
+        current.trim() === '' ||
+        current.trim() === DEFAULT_SETTINGS.brandFolderPath;
+    if (!isUnset) return;
+
+    // Parent folder = the path with the trailing filename segment dropped.
+    const segments = oldPath.trim().split('/').filter(Boolean);
+    if (segments.length <= 1) return; // bare filename — no parent folder to seed
+    const parent = segments.slice(0, -1).join('/');
+    if (parent) s.brandFolderPath = parent;
 }
 
 /**

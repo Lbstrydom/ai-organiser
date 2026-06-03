@@ -17,6 +17,22 @@
 import type { ExportTheme } from '../export/markdownPptxGenerator';
 import type { RichSlideJSON, SlideElement } from './richSlideTypes';
 
+// ── Min-font floor (plan §5 H4) ──────────────────────────────────────────────
+// `theme.minFont` is present only for brand exports; absent → pass-through, so
+// non-brand output stays byte-identical.
+type MinFontRole = 'body' | 'caption' | 'table' | 'footer';
+
+/** Clamp a FIXED-SIZE structural font UP to its role floor. */
+function clampFixedFont(theme: ExportTheme, role: MinFontRole, intended: number): number {
+    const floor = theme.minFont?.[role];
+    return floor === undefined ? intended : Math.max(floor, intended);
+}
+
+/** Lower bound for a SHRINK-TO-FIT font (−Infinity when no floor set). */
+function fontFloor(theme: ExportTheme, role: MinFontRole): number {
+    return theme.minFont?.[role] ?? -Infinity;
+}
+
 // ── Layout constants ─────────────────────────────────────────────────────
 
 const SLIDE_WIDTH = 10;    // inches (default 16:9 pptxgenjs)
@@ -202,7 +218,8 @@ function renderText(s: SlideLike, theme: ExportTheme, el: { level: string; conte
         h2: { size: 22, bold: true, color: theme.primaryColor },
         h3: { size: 18, bold: true, color: theme.bodyColor },
         body: { size: theme.fontSize, bold: false, color: theme.bodyColor },
-        caption: { size: Math.max(10, theme.fontSize - 2), bold: false, color: theme.bodyColor },
+        // Shrink-to-fit (body − 2, hard floor 10), lower-bounded at the caption floor.
+        caption: { size: Math.max(fontFloor(theme, 'caption'), 10, theme.fontSize - 2), bold: false, color: theme.bodyColor },
     };
     const style = fontMap[el.level] ?? fontMap.body;
     const h = Math.min(maxH, estimateTextHeight(el.content, w, style.size));
@@ -242,7 +259,8 @@ function renderTable(s: SlideLike, theme: ExportTheme, el: { headers: string[]; 
 
     s.addTable(tableData, {
         x, y, w, h,
-        fontFace: theme.fontFace, fontSize: Math.max(10, theme.fontSize - 2),
+        // Shrink-to-fit (body − 2, hard floor 10), lower-bounded at the table floor.
+        fontFace: theme.fontFace, fontSize: Math.max(fontFloor(theme, 'table'), 10, theme.fontSize - 2),
         border: { type: 'solid', pt: 1, color: 'DDDDDD' },
     });
     return { consumedHeight: h };
@@ -256,11 +274,11 @@ function renderStatCard(s: SlideLike, theme: ExportTheme, el: { value: string; l
     });
     s.addText(el.value, {
         x, y: y + 0.1, w, h: 0.6,
-        fontFace: theme.fontFace, fontSize: 24, color: theme.primaryColor, bold: true, align: 'center', valign: 'middle',
+        fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'body', 24), color: theme.primaryColor, bold: true, align: 'center', valign: 'middle',
     });
     s.addText(el.label, {
         x, y: y + 0.7, w, h: 0.4,
-        fontFace: theme.fontFace, fontSize: 12, color: theme.bodyColor, align: 'center', valign: 'middle',
+        fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 12), color: theme.bodyColor, align: 'center', valign: 'middle',
     });
     return { consumedHeight: 1.2 };
 }

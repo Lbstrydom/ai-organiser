@@ -58,6 +58,8 @@ import type { ProjectConfig } from '../../services/chat/projectService';
 import { registerPresentationTarget, unregisterPresentationTarget } from './presentation/presentationCommandRegistry';
 import { PresentationThemeResolver } from './presentation/presentationThemeResolver';
 import { PresentationExporter } from './presentation/presentationExporter';
+import { resolveBrandRenderContext, type ResolvedBrandAssets } from '../../services/export/brand/brandRenderContext';
+import { collectDeckIconConcepts } from '../../services/presentationIr/deckIconConcepts';
 import { EditScopeController } from './presentation/editScopeController';
 import { PresentationDeckStore } from './presentation/presentationDeckStore';
 import { PresentationCanvasView } from './presentation/presentationCanvasView';
@@ -407,7 +409,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.renderProgress(r.streamCb, t, 0, undefined, 0);
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            const exportTheme = await this.themeResolver.resolve(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx, this.brandEnabled);
             // Resolve attached sources (notes / web-search / folders) — this is
             // what actually runs the web search — and thread them into the IR
             // prompt so all create-panel inputs reach generation.
@@ -501,7 +503,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 .map(f => `[${f.severity}] ${f.slideIndex !== undefined ? `Slide ${f.slideIndex + 1}: ` : ''}${f.issue} → ${f.suggestion}`)
                 .join('\n')}`
             : 'Polish the deck: tighten wording, sharpen the visual hierarchy, and ensure one idea per slide. Keep the facts and the slide count unchanged.';
-        const exportTheme = await this.themeResolver.resolve(ctx);
+        const exportTheme = await this.themeResolver.resolve(ctx, this.brandEnabled);
         const refined = await refineDeckIr(llmCtx, {
             currentDeck: this.deck.deckIr,
             userRequest: polishRequest,
@@ -535,7 +537,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.renderProgress(r.streamCb, t, 0, undefined, 0);
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            const exportTheme = await this.themeResolver.resolve(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx, this.brandEnabled);
             const refined = await refineDeckIr(r.llmCtx, {
                 currentDeck: this.deck.deckIr,
                 userRequest: r.effectiveQuery,
@@ -643,7 +645,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 this.deck.lastError = refined.error;
                 return { finalContent: t.slideEditFailed.replace('{error}', refined.error) };
             }
-            const exportTheme = await this.themeResolver.resolve(r.ctx);
+            const exportTheme = await this.themeResolver.resolve(r.ctx, this.brandEnabled);
             const built = buildHtmlFromDeckIr(refined.value, exportTheme, r.theme.css, r.ctx.plugin.settings.summaryLanguage, r.ctx.plugin.t.progress.presentation.slideRenderFailed);
             if (!built.ok) {
                 this.setPhase('error');
@@ -1086,8 +1088,12 @@ export class PresentationModeHandler implements ChatModeHandler {
             const allSlides = Array.from(iframeDoc.querySelectorAll<HTMLElement>('.slide'));
             allSlides.forEach(s => s.classList.remove('pres-nav-hidden'));
 
-            const theme = await this.themeResolver.resolve(ctx);
-            await this.exporter.exportPptx({ html: this.deck.html, deckIr: this.deck.deckIr, theme, allSlides, ctx });
+            const theme = await this.themeResolver.resolve(ctx, this.brandEnabled);
+            // Resolve brand assets (icons/logo) ONCE up front — bounded to the
+            // icon concepts the deck actually references (plan §5a). The pure IR
+            // renderer consumes the pre-resolved PNGs; warnings surface to the log.
+            const brandAssets = await this.resolveBrandAssetsForExport(ctx);
+            await this.exporter.exportPptx({ html: this.deck.html, deckIr: this.deck.deckIr, theme, allSlides, ctx, ...(brandAssets ? { brandAssets } : {}) });
 
             // Restore single-slide view
             this.canvas.navigateToSlide(this.deck.activeSlideIndex);
@@ -1101,6 +1107,32 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.setPhase('preview-ready');
             this.run.unlock();
             callbacks.rerenderActions();
+        }
+    }
+
+    /**
+     * Resolve brand assets (icons by concept, both variants) for the current
+     * deck — bounded to the icons the deck references (plan §5a G1). Off-brand →
+     * returns undefined (no assets). Never throws; on a resolver error it logs
+     * and degrades to Lucide-only.
+     */
+    private async resolveBrandAssetsForExport(ctx: ModalContext): Promise<ResolvedBrandAssets | undefined> {
+        if (!this.brandEnabled) return undefined;
+        try {
+            const concepts = collectDeckIconConcepts(this.deck.deckIr);
+            const theme = await this.themeResolver.resolve(ctx, this.brandEnabled);
+            const result = await resolveBrandRenderContext(
+                ctx.app, ctx.fullPlugin.settings, this.brandEnabled, concepts, theme,
+            );
+            if (!result.ok) {
+                logger.warn('Presentation', `brand render context failed: ${result.error}`);
+                return undefined;
+            }
+            for (const w of result.value.warnings) logger.warn('Presentation', `brand: ${w}`);
+            return result.value.assets;
+        } catch (e) {
+            logger.warn('Presentation', `brand asset resolution failed: ${e instanceof Error ? e.message : String(e)}`);
+            return undefined;
         }
     }
 
@@ -1376,7 +1408,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     if (code === 'aborted') return err('cancelled');
                     return err(tSlice.errorByCode[code] ?? tSlice.errorByCode['unexpected-exception']);
                 }
-                const exportTheme = await this.themeResolver.resolve(ctx);
+                const exportTheme = await this.themeResolver.resolve(ctx, this.brandEnabled);
                 const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage, ctx.plugin.t.progress.presentation.slideRenderFailed);
                 if (!built.ok) return err(tSlice.errorByCode['invalid-deck-after-splice']);
                 return ok({ refined: refined.value, html: built.value });

@@ -16,6 +16,7 @@
 
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
+import { logger } from '../../utils/logger';
 import type { ExportTheme } from '../export/exportTheme';
 import { sanitizeSvgMarkup } from '../../utils/svgSanitize';
 import {
@@ -32,6 +33,9 @@ import {
 } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
 import { sanitizeExportTheme } from './themeSafe';
+// Type-only — erased at compile, so the pure renderer keeps NO runtime
+// dependency on the Obsidian-bound brand-asset module (plan M6).
+import type { ResolvedBrandAssets } from '../export/brand/brandRenderContext';
 
 // ── Injected pptxgenjs surface (structural typing — avoids `any`) ────────────
 
@@ -65,6 +69,15 @@ export interface RenderPptxOptions {
     /** Localised label for a slide that fails to render (caller injects via
      *  plugin.t — the renderer stays Obsidian-free). Default English. */
     placeholderLabel?: string;
+    /** Pre-resolved brand assets (icons by concept, both variants). When a slide
+     *  references an icon concept present here, the variant PNG matching the
+     *  slide background is used; else the existing Lucide path. Absent → Lucide
+     *  only (byte-identical to today). */
+    brandAssets?: ResolvedBrandAssets;
+    // NOTE(brand): a centred-logo draw on closing slides is deferred. The inert
+    // `drawLogo?: boolean` option was removed (audit M14 — no shipped no-op flag);
+    // logos still RESOLVE via `brandAssets.logoLightPng/logoDarkPng` for future
+    // use. Re-introduce the option only when the actual draw is implemented.
 }
 
 export interface PptxRenderOutput {
@@ -86,6 +99,15 @@ interface RenderState {
     svgCache: SvgAssetCache;
     /** Localised placeholder label for a failed slide (default English). */
     placeholderLabel: string;
+    /** Footer-band Y for the CURRENT slide (safe-area aware). Block-flow helpers
+     *  clip against this instead of the module `FOOTER_Y` constant. Reset per
+     *  slide; defaults to the module constant when no safe-area is set. */
+    footerY: number;
+    /** Pre-resolved brand icon assets (absent → Lucide only). */
+    brandAssets?: ResolvedBrandAssets;
+    /** Whether the CURRENT slide's background is dark — selects the icon variant
+     *  (dark bg → light icon, light bg → dark icon). Reset per slide. */
+    slideBgDark: boolean;
 }
 
 const RASTER_PX_PER_IN = 96;   // rasteriser pixel hint — NOT the 144 canvas density (debt D6)
@@ -93,6 +115,86 @@ const RASTER_PX_PER_IN = 96;   // rasteriser pixel hint — NOT the 144 canvas d
 /** Icon fill colour from the shared spec (primary | accent). */
 const iconColor = (theme: ExportTheme): string =>
     IR_RENDER_SPEC.icon.colorRole === 'primary' ? theme.primaryColor : theme.accentColor;
+
+/**
+ * Draw a resolved icon at `rect`, preferring a brand-asset PNG over the Lucide
+ * vector (plan §5a G2 / §6).
+ *
+ * Lookup: the resolved Lucide name doubles as the brand concept key (both are
+ * lowercase-hyphen normalised). When `brandAssets.icons` has the concept, the
+ * variant PNG matching the slide background is used; on a miss (or no assets) we
+ * fall back to the existing Lucide SVG path. `onFail` fires only if the Lucide
+ * fallback itself fails (brand-PNG failure silently falls through to Lucide).
+ */
+function drawIcon(
+    s: SlideLike, iconName: string, rect: { x: number; y: number; w: number; h: number },
+    st: RenderState, onFail: () => void,
+): void {
+    const brand = st.brandAssets?.icons.get(iconName);
+    if (brand) {
+        // dark bg → light icon; light bg → dark icon.
+        const png = st.slideBgDark ? brand.lightPng : brand.darkPng;
+        if (png) {
+            try { s.addImage({ data: png, x: rect.x, y: rect.y, w: rect.w, h: rect.h }); return; }
+            catch (e) {
+                // Fidelity downgrade — surface it instead of silently falling back
+                // to the generic Lucide vector (audit M9/M13).
+                logger.warn('Brand', `brand icon raster failed, using Lucide fallback for "${iconName}"`, e);
+            }
+        }
+    }
+    addSvgImageSafe(s, renderIconSvgMarkup(iconName, iconColor(st.theme)), rect, onFail, st.svgCache);
+}
+
+// ── Min-font floor (plan §5 H4 / §5a precision) ──────────────────────────────
+// `theme.minFont` is present only for brand exports. When absent, every helper
+// below is a pass-through → byte-identical output to a non-brand export.
+type MinFontRole = 'body' | 'caption' | 'table' | 'footer';
+
+/** Clamp a FIXED-SIZE structural font UP to its role floor (footer/caption/
+ *  table literals). No floor set → the literal is returned unchanged. */
+function clampFixedFont(theme: ExportTheme, role: MinFontRole, intended: number): number {
+    const floor = theme.minFont?.[role];
+    return floor === undefined ? intended : Math.max(floor, intended);
+}
+
+/** Lower-bound for a SHRINK-TO-FIT font at its role floor. No floor set →
+ *  `-Infinity` so an existing shrink computation is unaffected. The caller still
+ *  keeps its own overflow/truncation behaviour once it bottoms out (no new
+ *  clipping — plan §5a). */
+function fontFloor(theme: ExportTheme, role: MinFontRole): number {
+    return theme.minFont?.[role] ?? -Infinity;
+}
+
+// ── Safe-area geometry (plan §7) ─────────────────────────────────────────────
+// When `theme.safeArea` is present (brand exports), the content layout rectangle
+// is derived from the brand's POTX zones; absent → the current module constants
+// (CONTENT_TOP / FOOTER_Y / MARGIN / CONTENT_WIDTH) — byte-identical to today.
+
+/** Resolved content rectangle for a slide (inches on the 13.33×7.5 canvas). */
+interface SlideGeometry { left: number; top: number; width: number; footerY: number }
+
+/** Default geometry = the existing module constants (no safe-area). */
+const DEFAULT_GEOMETRY: SlideGeometry = { left: MARGIN, top: CONTENT_TOP, width: CONTENT_WIDTH, footerY: FOOTER_Y };
+
+/**
+ * Compute the content rectangle for `slideType` from the theme's safe-area.
+ *
+ * - content / title carry the master logo → reserve `logoReserveIn` on the right.
+ * - section / closing centre their own content → logo reserve N/A; footer band
+ *   still reserved.
+ *
+ * Absent `safeArea` → the unchanged default geometry.
+ */
+function geometryFor(theme: ExportTheme, slideType: SlideIr['type']): SlideGeometry {
+    const sa = theme.safeArea;
+    if (!sa) return DEFAULT_GEOMETRY;
+    const left = sa.sideMarginIn;
+    const carriesLogo = slideType === 'content' || slideType === 'title';
+    const rightInset = carriesLogo ? sa.logoReserveIn : 0;
+    const width = Math.max(0.5, CANVAS.w - left - sa.sideMarginIn - rightInset);
+    return { left, top: sa.contentTopIn, width, footerY: sa.footerBandIn };
+}
 
 export async function renderDeckToPptx(
     deck: SlideDeckIr,
@@ -106,7 +208,7 @@ export async function renderDeckToPptx(
     // D2 — validate the theme ONCE at the boundary (config-sourced, not Zod).
     const safeTheme = sanitizeExportTheme(theme, f =>
         notices.push({ slideIndex: 0, blockKind: 'paragraph', severity: 'info', description: `theme.${f} invalid; using fallback` }));
-    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme: safeTheme, rasterize: opts.rasterize, notices, downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL };
+    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme: safeTheme, rasterize: opts.rasterize, notices, downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL, footerY: FOOTER_Y, brandAssets: opts.brandAssets, slideBgDark: false };
 
     let pres: PptxLike;
     try {
@@ -175,6 +277,15 @@ interface Box { x: number; y: number; w: number }
 
 async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: RenderState): Promise<void> {
     const { theme } = st;
+    // Safe-area geometry for this archetype (no-op when theme.safeArea absent).
+    const geom = geometryFor(theme, slide.type);
+    st.footerY = geom.footerY;
+    // Slide background darkness drives the brand-icon variant (dark bg → light
+    // icon). Content slides are white unless a per-slide background overrides it;
+    // title/section/closing carry a dark brand bg. Mirrors IR_RENDER_SPEC.
+    st.slideBgDark = slide.background
+        ? contrastTextColor(slide.background) === 'ffffff'
+        : slide.type !== 'content';
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
         // #4 — gradient via a full-bleed SVG image (a single vector fill, no
@@ -194,13 +305,13 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
         }
         const heroAlign = IR_RENDER_SPEC.titleLayout.align;   // #3 — left (matches HTML hero)
         s.addText(slide.title ?? '', {
-            x: MARGIN, y: CANVAS.h / 2 - 1, w: CONTENT_WIDTH, h: 1.4,
+            x: geom.left, y: CANVAS.h / 2 - 1, w: geom.width, h: 1.4,
             fontFace: theme.fontFace, fontSize: slide.type === 'title' ? 40 : 34,
             color: fg, bold: true, align: heroAlign, valign: 'middle',
         });
         if (slide.subtitle) {
             s.addText(slide.subtitle, {
-                x: MARGIN, y: CANVAS.h / 2 + 0.5, w: CONTENT_WIDTH, h: 0.9,
+                x: geom.left, y: CANVAS.h / 2 + 0.5, w: geom.width, h: 0.9,
                 fontFace: theme.fontFace, fontSize: 18, color: fg, align: heroAlign, valign: 'middle',
             });
         }
@@ -212,11 +323,11 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
     // (The old full-width top bar was a PPTX-only motif that diverged from the
     // preview; both now draw a short underline beneath the title.)
     if (slide.title) {
-        s.addText(slide.title, { x: MARGIN, y: 0.35, w: CONTENT_WIDTH, h: 0.6, fontFace: theme.fontFace, fontSize: 24, bold: true, color: hx(theme.primaryColor) });
+        s.addText(slide.title, { x: geom.left, y: 0.35, w: geom.width, h: 0.6, fontFace: theme.fontFace, fontSize: 24, bold: true, color: hx(theme.primaryColor) });
         const u = IR_RENDER_SPEC.accentUnderline;
-        s.addShape('rect', { x: MARGIN, y: 0.35 + 0.6 + u.gapBelowTitleIn * 0.5, w: u.widthIn, h: u.heightIn, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
+        s.addShape('rect', { x: geom.left, y: 0.35 + 0.6 + u.gapBelowTitleIn * 0.5, w: u.widthIn, h: u.heightIn, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
     }
-    await flowBlocks(s, slide.blocks, { x: MARGIN, y: CONTENT_TOP, w: CONTENT_WIDTH }, index, st);
+    await flowBlocks(s, slide.blocks, { x: geom.left, y: geom.top, w: geom.width }, index, st);
     if (slide.notes) s.addNotes(slide.notes);
 }
 
@@ -233,7 +344,7 @@ function buildPptxPlaceholder(s: SlideLike, st: RenderState): void {
 async function flowBlocks(s: SlideLike, blocks: Block[], box: Box, slideIndex: number, st: RenderState): Promise<void> {
     let y = box.y;
     for (const block of blocks) {
-        if (y >= FOOTER_Y) {
+        if (y >= st.footerY) {
             st.notices.push({ slideIndex, blockKind: block.kind, severity: 'substantive', description: `block "${block.kind}" clipped — content exceeds slide.` });
             continue;
         }
@@ -248,7 +359,7 @@ async function flowBlocks(s: SlideLike, blocks: Block[], box: Box, slideIndex: n
 /** Clamp a block's height to the remaining content zone so it never runs off
  *  the slide; emit a clip notice when it had to be cut (audit H7). */
 function clampH(natural: number, box: Box, kind: Block['kind'], slideIndex: number, st: RenderState): number {
-    const remaining = FOOTER_Y - box.y;
+    const remaining = st.footerY - box.y;
     if (natural > remaining) {
         st.notices.push({ slideIndex, blockKind: kind, severity: 'substantive', description: `block "${kind}" clipped to fit slide.` });
         return Math.max(0.2, remaining);
@@ -272,8 +383,10 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             return h;
         }
         case 'caption': {
-            const h = clampH(estimateTextHeight(block.text, box.w, theme.fontSize - 2), box, block.kind, slideIndex, st);
-            s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: theme.fontSize - 2, italic: true, color: hx(theme.bodyColor), valign: 'top' });
+            // Shrink-to-fit derivation (body − 2), lower-bounded at the caption floor.
+            const captionSize = Math.max(fontFloor(theme, 'caption'), theme.fontSize - 2);
+            const h = clampH(estimateTextHeight(block.text, box.w, captionSize), box, block.kind, slideIndex, st);
+            s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: captionSize, italic: true, color: hx(theme.bodyColor), valign: 'top' });
             return h;
         }
         case 'bullets': {
@@ -305,11 +418,14 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 let valueY = box.y + 0.18;
                 if (ic.kind === 'svg') {
                     const isz = IR_RENDER_SPEC.icon.statCardSizeIn;
-                    addSvgImageSafe(s, renderIconSvgMarkup(ic.name, iconColor(theme)), { x: x + (w - isz) / 2, y: box.y + 0.1, w: isz, h: isz }, () => { st.notices.push({ slideIndex, blockKind: 'stat-grid', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); }, st.svgCache);
+                    drawIcon(s, ic.name, { x: x + (w - isz) / 2, y: box.y + 0.1, w: isz, h: isz }, st, () => { st.notices.push({ slideIndex, blockKind: 'stat-grid', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); });
                     valueY = box.y + 0.1 + isz + 0.02;
                 }
-                s.addText(card.value, { x, y: valueY, w, h: 0.5, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.statValueFontPt(block.cards.length), bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
-                s.addText(card.label, { x, y: box.y + 0.92, w, h: 0.38, fontFace: theme.fontFace, fontSize: 11, color: hx(theme.bodyColor), align: 'center', valign: 'top' });
+                // Stat value shrinks as the row crowds — lower-bound at body floor.
+                const statValueSize = Math.max(fontFloor(theme, 'body'), IR_RENDER_SPEC.statValueFontPt(block.cards.length));
+                s.addText(card.value, { x, y: valueY, w, h: 0.5, fontFace: theme.fontFace, fontSize: statValueSize, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+                // Stat label is fixed-size structural text → clamp up to caption floor.
+                s.addText(card.label, { x, y: box.y + 0.92, w, h: 0.38, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), color: hx(theme.bodyColor), align: 'center', valign: 'top' });
             });
             return h;
         }
@@ -330,10 +446,10 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 let textY = box.y; let textH = h; let textValign: 'top' | 'middle' = 'middle';
                 if (ic.kind === 'svg') {
                     const isz = IR_RENDER_SPEC.icon.processStepSizeIn;
-                    addSvgImageSafe(s, renderIconSvgMarkup(ic.name, iconColor(theme)), { x: x + (stepW - isz) / 2, y: box.y + 0.08, w: isz, h: isz }, () => { st.notices.push({ slideIndex, blockKind: 'process-flow', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); }, st.svgCache);
+                    drawIcon(s, ic.name, { x: x + (stepW - isz) / 2, y: box.y + 0.08, w: isz, h: isz }, st, () => { st.notices.push({ slideIndex, blockKind: 'process-flow', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); });
                     textY = box.y + 0.08 + isz; textH = h - (0.08 + isz); textValign = 'top';
                 }
-                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: textY, w: stepW, h: textH, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: textValign });
+                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: textY, w: stepW, h: textH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), bold: true, color: hx(theme.primaryColor), align: 'center', valign: textValign });
                 // Flow chevron in the gap, matching the HTML's yellow `▶` indicator.
                 // Vertically centred against the step cards, accent-coloured.
                 if (i < n - 1) {
@@ -351,17 +467,22 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         case 'table':
             return renderTable(s, block, box, slideIndex, st);
         case 'image': {
-            const h = Math.min(FOOTER_Y - box.y, box.w * 0.5);
+            const h = Math.min(st.footerY - box.y, box.w * 0.5);
             s.addImage({ data: block.dataUri, x: box.x, y: box.y, w: box.w, h });
             return h;
         }
         case 'svg':
             return renderSvg(s, block, box, slideIndex, st);
         case 'two-column': {
+            // TODO(brand): splitColumns() uses absolute MARGIN-based x, so a
+            // two-column slide does not shift with the safe-area side margin /
+            // logo reserve. Single-column + grid paths (which derive x from
+            // box.x) already honour the safe area; column math is left for a
+            // follow-up to avoid reworking the shared layout helper here.
             const { left, right } = splitColumns();
             await renderColumn(s, block.left, { x: left.x, y: box.y, w: left.w }, slideIndex, st);
             await renderColumn(s, block.right, { x: right.x, y: box.y, w: right.w }, slideIndex, st);
-            return FOOTER_Y - box.y;     // columns consume the remaining zone
+            return st.footerY - box.y;     // columns consume the remaining zone
         }
         case 'custom':
             return renderCustom(s, block, box, slideIndex, st);
@@ -371,7 +492,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
 async function renderColumn(s: SlideLike, blocks: LeafBlock[], box: Box, slideIndex: number, st: RenderState): Promise<void> {
     let y = box.y;
     for (const block of blocks) {
-        if (y >= FOOTER_Y) {
+        if (y >= st.footerY) {
             st.notices.push({ slideIndex, blockKind: block.kind, severity: 'substantive', description: `column block "${block.kind}" clipped.` });
             continue;
         }
@@ -385,7 +506,7 @@ async function renderColumn(s: SlideLike, blocks: LeafBlock[], box: Box, slideIn
 
 function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' }>, box: Box, slideIndex: number, st: RenderState): number {
     const { theme } = st;
-    const h = Math.min(FOOTER_Y - box.y, Math.max(1.5, block.bars.length * 0.45));
+    const h = Math.min(st.footerY - box.y, Math.max(1.5, block.bars.length * 0.45));
     if (st.barStyle === 'native') {
         try {
             // PPT bar charts (horizontal `barDir: 'bar'`) plot the first label
@@ -418,12 +539,12 @@ function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' 
     const labelW = 1.2;
     block.bars.forEach((bar, i) => {
         const y = box.y + i * (rowH + 0.06);
-        s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
+        s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
         const trackX = box.x + labelW + 0.1;
         const trackW = box.w - labelW - 0.1;
         s.addShape('rect', { x: trackX, y, w: trackW, h: rowH, fill: { color: 'EEEEEE' }, line: { width: 0 } });
         s.addShape('rect', { x: trackX, y, w: Math.max(0.02, trackW * (bar.pct / 100)), h: rowH, fill: { color: bar.color ? hx(bar.color) : hx(theme.accentColor) }, line: { width: 0 } });
-        s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: 10, bold: true, color: 'FFFFFF', valign: 'middle' });
+        s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'footer', 10), bold: true, color: 'FFFFFF', valign: 'middle' });
     });
     return h;
 }
@@ -432,7 +553,7 @@ const TABLE_ROW_H = 0.35;
 
 function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box: Box, slideIndex: number, st: RenderState): number {
     const theme = st.theme;
-    const available = FOOTER_Y - box.y;
+    const available = st.footerY - box.y;
     // Slice rows to those that actually fit (G3) — drawing N rows into a
     // too-small height squashes them illegibly. +1 for the header row.
     const maxBodyRows = Math.max(1, Math.floor(available / TABLE_ROW_H) - 1);
@@ -446,14 +567,15 @@ function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box
     const h = Math.min(available, (body.length + 1) * TABLE_ROW_H);
     s.addTable([header, ...body], {
         x: box.x, y: box.y, w: box.w, colW,
-        fontFace: theme.fontFace, fontSize: Math.max(9, theme.fontSize - 3),
+        // Shrink-to-fit (body − 3, hard floor 9), lower-bounded at the table floor.
+        fontFace: theme.fontFace, fontSize: Math.max(fontFloor(theme, 'table'), 9, theme.fontSize - 3),
         border: { type: 'solid', pt: 0.5, color: 'DDDDDD' }, autoPage: false, valign: 'middle',
     });
     return h;
 }
 
 async function renderSvg(s: SlideLike, block: Extract<Block, { kind: 'svg' }>, box: Box, slideIndex: number, st: RenderState): Promise<number> {
-    const h = Math.min(FOOTER_Y - box.y, box.w * 0.45);
+    const h = Math.min(st.footerY - box.y, box.w * 0.45);
     const clean = sanitizeSvgMarkup(block.svg);
     // Proactively validate root attrs (G2) — pptxgenjs won't throw on a bad
     // base64 SVG, so we decide up-front whether to embed or fall back.
@@ -473,7 +595,7 @@ async function renderSvg(s: SlideLike, block: Extract<Block, { kind: 'svg' }>, b
 }
 
 async function renderCustom(s: SlideLike, block: Extract<Block, { kind: 'custom' }>, box: Box, slideIndex: number, st: RenderState): Promise<number> {
-    const h = Math.min(FOOTER_Y - box.y, box.w * 0.45);
+    const h = Math.min(st.footerY - box.y, box.w * 0.45);
     // Precedence IDENTICAL to HTML (plan G3): image wins.
     if (block.image) {
         s.addImage({ data: block.image, x: box.x, y: box.y, w: box.w, h });

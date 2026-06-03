@@ -12,6 +12,26 @@
 
 // ── Export Theme ─────────────────────────────────────────────────────────────
 
+/** Per-role minimum font floor (points). Optional on ExportTheme — present only
+ *  for brand exports; absent → renderers keep their literal sizes. */
+export interface ExportMinFont {
+    body: number;
+    caption: number;
+    table: number;
+    footer: number;
+}
+
+/** Safe-area geometry (inches on the 13.33×7.5in 16:9 canvas). Optional on
+ *  ExportTheme — present only for brand exports; absent → renderers keep their
+ *  current layout. */
+export interface ExportSafeArea {
+    headerBandIn: number;
+    contentTopIn: number;
+    footerBandIn: number;
+    logoReserveIn: number;
+    sideMarginIn: number;
+}
+
 export interface ExportTheme {
     primaryColor: string;  // Heading / title text + title slide bg (hex, no #)
     accentColor: string;   // Accent bar + table header fill
@@ -19,6 +39,10 @@ export interface ExportTheme {
     bodyColor: string;     // Body text color
     fontFace: string;
     fontSize: number;      // Body font size in points
+    /** Min-font floor per role (brand exports only; absent → no floor). */
+    minFont?: ExportMinFont;
+    /** Safe-area zones (brand exports only; absent → current layout). */
+    safeArea?: ExportSafeArea;
 }
 
 export const COLOR_SCHEMES: Record<string, Omit<ExportTheme, 'fontFace' | 'fontSize'>> = {
