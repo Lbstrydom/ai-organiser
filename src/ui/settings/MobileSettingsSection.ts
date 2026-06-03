@@ -1,6 +1,7 @@
 import { Platform, Setting } from 'obsidian';
 import { AdapterType } from '../../services/adapters';
 import { buildProviderOptions, PROVIDER_DEFAULT_MODEL } from '../../services/adapters/providerRegistry';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 import { BaseSettingSection } from './BaseSettingSection';
 
 export class MobileSettingsSection extends BaseSettingSection {
@@ -19,6 +20,16 @@ export class MobileSettingsSection extends BaseSettingSection {
                 text: t.settings.mobile.desktopOnlyNote,
                 cls: 'setting-item-description mod-warning'
             });
+        }
+
+        // In Azure mode the mobile provider is fixed to Azure — it works identically
+        // on mobile (plain HTTPS), so the fallback-provider controls don't apply.
+        if (isAzureMode(plugin.settings)) {
+            containerEl.createEl('p', {
+                text: t.settings.mobile.azureAutomatic,
+                cls: 'setting-item-description'
+            });
+            return;
         }
 
         new Setting(containerEl)

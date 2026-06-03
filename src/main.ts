@@ -377,7 +377,11 @@ export default class AIOrganiserPlugin extends Plugin {
         let cloudApiKey = await this.secretStorageService.getProviderKey(cloudType) ||
                           this.settings.cloudApiKey;
 
-        if (Platform.isMobile) {
+        // Azure providers are plain HTTPS (via requestUrl) — they work identically
+        // on mobile, so there is NO mobile fallback in Azure mode: the main Azure
+        // provider config is used as-is. Falling back to a non-Azure provider on
+        // mobile would need a personal key and break the Azure-only constraint.
+        if (Platform.isMobile && !isAzureMode(this.settings)) {
             const fallbackProvider = this.settings.mobileFallbackProvider || this.settings.cloudServiceType;
             const fallbackModel = this.settings.mobileFallbackModel || this.getProviderModel(fallbackProvider);
 

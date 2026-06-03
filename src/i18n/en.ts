@@ -502,7 +502,8 @@ export const en: Translations = {
             indexFull: "Full",
             indexSizeLimit: "Index size limit (mb)",
             indexSizeLimitDesc: "Skip loading the index if it exceeds this size",
-            desktopOnlyNote: "These settings apply on mobile only."
+            desktopOnlyNote: "These settings apply on mobile only.",
+            azureAutomatic: "Mobile uses Azure automatically — Azure works the same on mobile, so no fallback provider is needed."
         },
         captureInput: {
             title: "Capture & input",

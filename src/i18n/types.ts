@@ -492,6 +492,7 @@ export interface Translations {
             indexSizeLimit: string;
             indexSizeLimitDesc: string;
             desktopOnlyNote: string;
+            azureAutomatic: string;
         };
         captureInput: {
             title: string;
