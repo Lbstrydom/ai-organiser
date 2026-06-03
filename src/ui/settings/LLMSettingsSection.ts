@@ -84,6 +84,16 @@ export class LLMSettingsSection extends BaseSettingSection {
                 .setValue(this.plugin.settings.azureFirstMode ?? false)
                 .onChange((value) => {
                     this.plugin.settings.azureFirstMode = value;
+                    // Enabling Azure-first actually SELECTS the Azure provider, so all
+                    // routing (chat, specialists, mobile) uses Azure — not just the UI.
+                    // Without this, azureFirstMode + a non-Azure provider diverge and
+                    // isAzureMode stays false (mobile/specialists never route to Azure).
+                    if (value && !isAzureMode(this.plugin.settings)) {
+                        this.plugin.settings.cloudServiceType = 'azure-claude';
+                        this.plugin.settings.cloudEndpoint = '';
+                        this.plugin.settings.cloudModel =
+                            this.plugin.settings.taskModels?.chat || 'claude-sonnet-4-6';
+                    }
                     void this.plugin.saveSettings();
                     this.settingTab.display();
                 })
@@ -404,6 +414,13 @@ export class LLMSettingsSection extends BaseSettingSection {
                                 this.plugin.settings.cloudModel = savedSettings.model;
                             } else {
                                 this.plugin.settings.cloudModel = PROVIDER_DEFAULT_MODEL[newType] || 'gpt-4.1';
+                            }
+
+                            // Picking a NON-Azure provider exits Azure-first mode so the
+                            // two never diverge (else the load-time reconcile would flip
+                            // the provider back to Azure and fight the user's choice).
+                            if (this.plugin.settings.azureFirstMode && !newType.startsWith('azure')) {
+                                this.plugin.settings.azureFirstMode = false;
                             }
 
                             void this.plugin.saveSettings();

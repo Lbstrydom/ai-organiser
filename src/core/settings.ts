@@ -1081,6 +1081,24 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     if (typeof s.taskModels !== 'object' || s.taskModels === null) {
         s.taskModels = { ...DEFAULT_SETTINGS.taskModels };
     }
+
+    // Reconcile azureFirstMode ↔ provider: Azure-first ON must mean an Azure
+    // provider, else isAzureMode stays false and mobile/specialists never route
+    // to Azure (and the generic provider UI duplicates the Azure section). Auto-
+    // heal a diverged state (e.g. user toggled Azure-first but provider = claude).
+    if (s.azureFirstMode === true && typeof s.cloudServiceType === 'string'
+        && !s.cloudServiceType.startsWith('azure')) {
+        s.cloudServiceType = 'azure-claude';
+        s.cloudEndpoint = '';
+        const tm = s.taskModels as { chat?: string } | undefined;
+        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-4-6';
+    }
+
+    // Stale hardcoded mobile fallback model (an old default) → the latest-* sentinel,
+    // so normal-mode mobile uses the newest model instead of a pinned old one.
+    if (s.mobileFallbackModel === 'gpt-5.2' || s.mobileFallbackModel === 'gpt-5.3-chat') {
+        s.mobileFallbackModel = DEFAULT_SETTINGS.mobileFallbackModel;
+    }
 }
 
 /**
