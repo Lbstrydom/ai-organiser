@@ -391,7 +391,13 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         }
         case 'bullets': {
             const lines = block.items.map(it => ({ text: stripBulletPrefix(it), options: { bullet: block.ordered ? { type: 'number' as const } : true } }));
-            const h = clampH(Math.max(0.4, block.items.length * 0.32), box, block.kind, slideIndex, st);
+            // Measure each item's WRAPPED height instead of a flat 0.32"/item — a
+            // long multi-line bullet otherwise under-measures, so the next block
+            // (or the footer) overlaps the overflow. Bullet glyph + indent ≈ 0.3".
+            const natural = block.items.reduce(
+                (acc, it) => acc + estimateTextHeight(stripBulletPrefix(it), Math.max(0.5, box.w - 0.3), theme.fontSize) + 0.04,
+                0.1);
+            const h = clampH(Math.max(0.4, natural), box, block.kind, slideIndex, st);
             s.addText(lines, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: theme.fontSize, color: hx(theme.bodyColor), valign: 'top' });
             return h;
         }
@@ -406,7 +412,21 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         case 'stat-grid': {
             const cols = gridColumns(block.cards.length);
             const scale = box.w / CONTENT_WIDTH;
-            const h = 1.3;
+            const labelFont = clampFixedFont(theme, 'caption', 11);
+            // Region above the label (icon + value). Card height GROWS to fit the
+            // tallest wrapped label instead of a fixed 1.3" that clipped long
+            // labels and made the next block overlap the overflow.
+            const LABEL_TOP = 0.92;
+            const cardW = (cols[0]?.w ?? CONTENT_WIDTH / Math.max(1, block.cards.length)) * scale;
+            const labelH = Math.max(
+                0.38,
+                ...block.cards.map(c => estimateTextHeight(c.label, Math.max(0.5, cardW - 0.16), labelFont)),
+            );
+            // Tight card: top region + label + small pad; never run past the footer band.
+            const h = Math.min(
+                Math.max(1.3, LABEL_TOP + labelH + 0.12),
+                Math.max(1.3, st.footerY - box.y),
+            );
             block.cards.forEach((card, i) => {
                 const col = cols[i];
                 const x = box.x + (col.x - MARGIN) * scale;
@@ -424,8 +444,9 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 // Stat value shrinks as the row crowds — lower-bound at body floor.
                 const statValueSize = Math.max(fontFloor(theme, 'body'), IR_RENDER_SPEC.statValueFontPt(block.cards.length));
                 s.addText(card.value, { x, y: valueY, w, h: 0.5, fontFace: theme.fontFace, fontSize: statValueSize, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
-                // Stat label is fixed-size structural text → clamp up to caption floor.
-                s.addText(card.label, { x, y: box.y + 0.92, w, h: 0.38, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), color: hx(theme.bodyColor), align: 'center', valign: 'top' });
+                // Label box fills the rest of the (now content-sized) card so multi-line
+                // labels wrap inside it instead of being clipped at a fixed 0.38".
+                s.addText(card.label, { x, y: box.y + LABEL_TOP, w, h: Math.max(0.3, h - LABEL_TOP - 0.08), fontFace: theme.fontFace, fontSize: labelFont, color: hx(theme.bodyColor), align: 'center', valign: 'top' });
             });
             return h;
         }
@@ -436,7 +457,20 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             // Widened from 0.15 → 0.28 to fit a chevron in each inter-step gap.
             const gap = 0.28;
             const stepW = (box.w - gap * (n - 1)) / n;
-            const h = 1.0;
+            const stepFont = clampFixedFont(theme, 'caption', 11);
+            const iconH = block.steps.some(st2 => resolvePresentationIcon(st2.icon).kind === 'svg')
+                ? IR_RENDER_SPEC.icon.processStepSizeIn + 0.12 : 0;
+            // Card height grows to fit the tallest step text (title + sub) instead
+            // of a fixed 1.0" that clipped long steps + overlapped the next block.
+            const maxStepTextH = Math.max(
+                0.5,
+                ...block.steps.map(s2 => estimateTextHeight(
+                    s2.title + (s2.sub ? `\n${s2.sub}` : ''), Math.max(0.5, stepW - 0.12), stepFont)),
+            );
+            const h = Math.min(
+                Math.max(1.0, iconH + maxStepTextH + 0.2),
+                Math.max(1.0, st.footerY - box.y),
+            );
             const chevW = 0.28;
             block.steps.forEach((step, i) => {
                 const x = box.x + i * (stepW + gap);
@@ -449,7 +483,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                     drawIcon(s, ic.name, { x: x + (stepW - isz) / 2, y: box.y + 0.08, w: isz, h: isz }, st, () => { st.notices.push({ slideIndex, blockKind: 'process-flow', severity: 'info', description: `icon "${ic.name}" image failed; omitted.` }); });
                     textY = box.y + 0.08 + isz; textH = h - (0.08 + isz); textValign = 'top';
                 }
-                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: textY, w: stepW, h: textH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), bold: true, color: hx(theme.primaryColor), align: 'center', valign: textValign });
+                s.addText(step.title + (step.sub ? `\n${step.sub}` : ''), { x, y: textY, w: stepW, h: textH, fontFace: theme.fontFace, fontSize: stepFont, bold: true, color: hx(theme.primaryColor), align: 'center', valign: textValign });
                 // Flow chevron in the gap, matching the HTML's yellow `▶` indicator.
                 // Vertically centred against the step cards, accent-coloured.
                 if (i < n - 1) {

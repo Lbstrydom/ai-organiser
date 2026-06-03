@@ -103,6 +103,44 @@ describe('renderDeckToPptx — structural regression gate (not a text dump)', ()
         expect(sum).toBeLessThanOrEqual(CONTENT_WIDTH + 1e-9);
         expect(sum).toBeCloseTo(opts.w, 5);
     });
+
+    // ── Export-fidelity: stat-card labels must not clip, and the next block
+    //    must not overlap the (now content-sized) card. Regression for the live
+    //    "incl. $10B Berkshire" clip + Energy-slide bullet overlap. ──────────────
+    const LONG_LABEL = 'Alphabet equity raise (incl. $10B Berkshire placement) added to US listings';
+    function statThenBulletsDeck(): SlideDeckIr {
+        return {
+            schemaVersion: IR_SCHEMA_VERSION,
+            slides: [{
+                id: 's1', type: 'content', title: 'Stats',
+                blocks: [
+                    { kind: 'stat-grid', cards: [
+                        { value: '$80B', label: LONG_LABEL },
+                        { value: '~$4T', label: 'Combined market value added to US listings this month overall' },
+                    ] },
+                    { kind: 'bullets', items: ['First follow-up point', 'Second follow-up point'] },
+                ],
+            }],
+        } as SlideDeckIr;
+    }
+
+    it('stat-card grows to fit a long label (no fixed 1.3" clip) and the next block stacks below it', async () => {
+        const { slides } = await render(statThenBulletsDeck());
+        const calls = slides[0].calls;
+        // The card roundRect height grew past the old fixed 1.3".
+        const cardShapes = calls.filter(c => c.method === 'addShape'
+            && (c.args[1] as { h: number }).h > 1.3);
+        expect(cardShapes.length).toBeGreaterThanOrEqual(1);
+        const cardH = (cardShapes[0].args[1] as { y: number; h: number });
+        // The long label's text box is taller than the old fixed 0.38".
+        const labelCall = calls.find(c => c.method === 'addText' && c.args[0] === LONG_LABEL)!;
+        expect((labelCall.args[1] as { h: number }).h).toBeGreaterThan(0.38);
+        // The bullets block starts at or below the card bottom — no overlap.
+        const bulletCall = calls.find(c => c.method === 'addText'
+            && Array.isArray(c.args[0]))!;  // bullets pass an array of line objects
+        const bulletY = (bulletCall.args[1] as { y: number }).y;
+        expect(bulletY).toBeGreaterThanOrEqual(cardH.y + cardH.h - 1e-6);
+    });
 });
 
 describe('renderDeckToPptx — bar-chart strategies', () => {
