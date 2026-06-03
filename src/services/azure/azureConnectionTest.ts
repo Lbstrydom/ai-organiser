@@ -105,7 +105,14 @@ async function testClaudeSurface(
 	const key = await getAzureApiKey(plugin, 'azure-claude');
 	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
 
-	const model = plugin.settings.cloudModel || DEFAULT_CLAUDE_MODEL;
+	// Use a CONCRETE Azure Claude model for the probe — never the main-provider's
+	// `cloudModel`, which becomes a non-Azure value (e.g. the `latest-sonnet`
+	// sentinel) the moment the user selects a different main provider, causing a
+	// 404 on the Foundry endpoint even though Azure is configured correctly.
+	const model =
+		(plugin.settings.cloudServiceType === 'azure-claude' && plugin.settings.cloudModel)
+			? plugin.settings.cloudModel
+			: (plugin.settings.taskModels?.chat || DEFAULT_CLAUDE_MODEL);
 	const { status, raw } = await probe(
 		endpoint,
 		{
