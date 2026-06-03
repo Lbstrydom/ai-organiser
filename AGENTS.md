@@ -2755,6 +2755,32 @@ Two first-class providers for Azure AI Foundry, which exposes two surfaces under
 ### Tests
 `tests/azureClaudeAdapter.test.ts`, `tests/azureOpenAIAdapter.test.ts`, `tests/endpointResolver.test.ts`, `tests/modelCatalog.test.ts`, `tests/requestLimiter.test.ts`, `tests/openaiEmbeddingService.test.ts`, `tests/azureMode.test.ts` (isAzureMode, no-fallback, connection-test redaction).
 
+## Brand Fidelity (presentation/DOCX export)
+
+**Status**: ✅ Implemented (June 2026)
+
+Makes presentation (PPTX) + DOCX exports on-brand and **template-ready**: a vault `brand-guidelines.md` now feeds the **export `ExportTheme`** (not just the HTML preview) — brand colours + font + a per-role **min-font floor** + **template safe-area geometry**. Brand is **configured once in settings**; the existing **per-deck "On-brand" toggle** decides whether a deck applies it (settings = config, toggle = apply).
+
+### Vault brand pack (config, never in repo)
+`<vault>/<brandFolderPath>/` (default `999_Brand`): `brand-guidelines.md` (required — `## Colors`/`## Typography` incl. `Font fallback` + `Min {body,caption,table,footer} pt` + `Body pt`/`## Layout` zones in inches/`## Composition Rules`), optional `logo-light/dark.(png|svg)`, optional `icons/<concept>.svg` (+ optional `icons/manifest.json`). Read via the vault API (must be inside the vault; works on mobile; Obsidian-Sync-distributable). Corporate brand assets are **gitignored** (`docs/plans/brand/`, `docs/plans/999_Brand/`); public ships only the generic mechanism + neutral defaults.
+
+### Core components
+- `src/services/chat/brandThemeService.ts` — parses `brand-guidelines.md` → `BrandTheme` (colours, font, `fontFallback`, `bodyFontPt`, `minFont`, `layout`, `warnings`); degrade-to-default per section; `loadBrandTheme` returns `Result<BrandTheme>`. (`extractSection` reads full multi-line sections.)
+- `src/services/export/brand/brandExportTheme.ts` — **pure** `toExportTheme(brand)` + `getSafeArea(brand)`; colours via `safeHex`, `firstFontFamily` (strips CSS quotes), `fontSize` = nominal `Body pt` clamped ≥ `minFont.body`.
+- `src/services/export/brand/brandRenderContext.ts` — `resolveBrandRenderContext(app, settings, brandEnabled, usedConcepts, fallbackTheme): Result<BrandRenderContext>`; resolved **once, async**, passed to all export entry points; renderers stay pure. Source `'brand' | 'example' | 'export-settings'` (missing brand file → generic `exampleBrandTheme`, matching preview + export).
+- `src/services/export/brand/brandAssets.ts` — vault asset resolution: `getBrandFolder`, `getLogo`, `getBrandIcon` (concept→file via `icons/manifest.json` or `<concept>.svg`), `sanitizeSvgMarkup` fail-closed, `MAX_SVG_BYTES`/`MAX_PNG_BYTES` caps, offscreen SVG→PNG raster with timeout + light/dark recolour, LRU cache keyed by `(kind, full-path, variant, mtime, recolour)`. Shared filename constants (`BRAND_GUIDELINES_FILE`, `LOGO_LIGHT/DARK`, `ICONS_DIR`).
+- `src/services/presentationIr/deckIconConcepts.ts` — extracts the icon concepts a deck references (bounds rasterization).
+- `src/ui/settings/BrandSettingsSection.ts` — dedicated **Brand** settings section (folder path + on-brand-default + detected-status state machine); debounced save + `validationSeq` stale-write guard. Migration: `presentationBrandGuidelinesPath` (deprecated) → `brandFolderPath` (parent folder).
+
+### Key patterns
+- **Renderers stay pure**: `irToPptx`/`richPptxRenderer` consume a resolved `ExportTheme` (`minFont?`/`safeArea?` optional → non-brand exports byte-identical) + `RenderPptxOptions.brandAssets`; brand icon by concept (variant by slide bg) → Lucide fallback (logged).
+- **Min-font = shrink-floor**: fixed-size text clamps up; autofit lower-bounds at the role floor, then existing overflow/truncation runs (no new clipping).
+- **Safe-area**: content rectangle reserves the master logo (top-right) + footer (bottom-left) zones so decks paste cleanly into the corporate template ("Use Destination Theme"); the template delivers the swoosh/logo. Logo drawing is opt-in (default off; `// TODO(brand)`).
+- **SVG safety**: all brand SVGs pass `sanitizeSvgMarkup` (fail-closed), byte-capped; redacted diagnostics (asset name only).
+
+### Tests
+`tests/brandThemeService.test.ts`, `tests/brandExportTheme.test.ts`, `tests/brandAssets.test.ts`, `tests/brandRenderContext.test.ts`, `tests/deckIconConcepts.test.ts`, `tests/irToPptxBrand.test.ts`, `tests/markdownDocxBrand.test.ts`, `tests/settingsMigration.test.ts` (brand migration). Plans (gitignored): `docs/plans/sync/brand-fidelity.md` (+ audit summary).
+
 ## Documentation
 
 See `docs/` folder for additional documentation:
