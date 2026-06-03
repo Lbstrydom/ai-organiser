@@ -137,5 +137,15 @@ export class AIChatSettingsSection extends BaseSettingSection {
                     plugin.settings.aichatBrandToggleDefault = value;
                     void plugin.saveSettings();
                 }));
+
+        new Setting(containerEl)
+            .setName(t.groundWebSearchTitle)
+            .setDesc(t.groundWebSearchDesc)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.presentationGroundWebSearch)
+                .onChange(value => {
+                    plugin.settings.presentationGroundWebSearch = value;
+                    void plugin.saveSettings();
+                }));
     }
 }

@@ -323,6 +323,10 @@ AI free-form chat inside `UnifiedChatModal`.
 
 **Plan**: [docs/completed/pres-plan.md](docs/completed/pres-plan.md)
 
+### Web-search query grounding (Option A, June 2026)
+
+Presentation `web-search` sources are LLM-grounded in the deck's attached notes + prompt before dispatch (instead of running the literal query). `PresentationSourceService.resolve()` is **two-phase** (notes/folders resolved first → web-search last) so the grounder sees resolved note content; `buildWebSearchGroundingPrompt()` (`presentationChatPrompts.ts`) distils one ≤256-char query. The grounder seam (`WebSearchGroundingFn` injected via `creationSourceController.resolveForSubmit`) is **graceful by contract** — `groundQuery()` falls back to the literal query on no-grounder / no-context / empty / any throw, and never throws. Bounds: description ≤2000 chars, 6×1500-char excerpts (standalone notes prioritised over folder-derived), in-service ≤256-char clamp; abort re-checked after the grounding call. Web-search **bypasses the literal-query preload cache** when grounding is active (else grounding is skipped at submit). `ref` stays the literal query (stable cache identity). Gated by `presentationGroundWebSearch` (default `true`) — the privacy off-switch surfacing that note-derived terms reach the search provider (notes already reach the LLM as deck sources, so the only new surface is the distilled query → search provider).
+
 ## Per-Slide Polish (Presentation)
 
 **Status**: ✅ Implemented (June 2026)

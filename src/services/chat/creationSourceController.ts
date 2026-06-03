@@ -28,6 +28,7 @@ import {
     PresentationSourceService,
     type SourceFailure,
     type ResolveResult,
+    type WebSearchGroundingFn,
 } from './presentationSourceService';
 import { allocateBudget } from './presentationSourceBudget';
 import type { Result } from '../../core/result';
@@ -219,7 +220,15 @@ export class CreationSourceController {
      * runs `allocateBudget()` and applies the H6 generation gate.
      */
     async resolveForSubmit(
-        opts: { folderCap?: number; signal?: AbortSignal; totalBudgetChars?: number } = {},
+        opts: {
+            folderCap?: number;
+            signal?: AbortSignal;
+            totalBudgetChars?: number;
+            /** Option A: LLM grounder for web-search queries (notes + description). */
+            groundWebSearchQuery?: WebSearchGroundingFn;
+            /** The deck prompt/description, fed to the grounder as context. */
+            deckDescription?: string;
+        } = {},
     ): Promise<Result<{ usable: PromptSource[]; failures: SourceFailure[] }>> {
         if (this.selected.length === 0) {
             return err<{ usable: PromptSource[]; failures: SourceFailure[] }>('zero-selected');
@@ -234,7 +243,12 @@ export class CreationSourceController {
             const id = this.idsBySelected[i];
             const cache = this.resolvedById.get(id);
             const status = this.statusById.get(id);
-            if (status === 'resolved' && cache && this.cacheStillValid(sel, cache)) {
+            // When grounding is active, web-search must ALWAYS re-resolve: any
+            // preload cached the LITERAL-query result, but submit grounds the
+            // query in the (now-resolved) notes + description. Serving the
+            // literal cache would silently bypass grounding (Option A).
+            const forceResolve = sel.kind === 'web-search' && !!opts.groundWebSearchQuery;
+            if (!forceResolve && status === 'resolved' && cache && this.cacheStillValid(sel, cache)) {
                 cachedSources.push(...cache.sources);
             } else {
                 needsResolve.push(sel);
@@ -245,7 +259,12 @@ export class CreationSourceController {
         let mergedFailures: SourceFailure[] = [...cachedFailures];
         let mergedSources: PromptSource[] = [...cachedSources];
         if (needsResolve.length > 0) {
-            const r = await this.service.resolve(needsResolve, { folderCap: opts.folderCap, signal: opts.signal });
+            const r = await this.service.resolve(needsResolve, {
+                folderCap: opts.folderCap,
+                signal: opts.signal,
+                groundWebSearchQuery: opts.groundWebSearchQuery,
+                deckDescription: opts.deckDescription,
+            });
             mergedSources = mergedSources.concat(r.usable);
             mergedFailures = mergedFailures.concat(r.failures);
             // Cache the freshly-resolved entries.

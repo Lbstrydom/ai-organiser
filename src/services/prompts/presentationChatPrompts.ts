@@ -103,6 +103,45 @@ export function buildGenerationPrompt(options: {
     return prompt;
 }
 
+// ── Web-search query grounding (Option A) ────────────────────────────────────
+
+/** Hard cap on the grounded query the LLM may return — a web search query
+ *  should be a short phrase, not an essay. Enforced by the caller. */
+export const GROUNDED_QUERY_MAX_CHARS = 256;
+
+/**
+ * Build the prompt that asks the LLM to turn the user's literal web-search
+ * query into ONE focused query grounded in the deck's topic + attached notes.
+ * Output contract: a single plain-text search query line, no quotes, no
+ * commentary — so the caller can pass it straight to the search provider.
+ */
+export function buildWebSearchGroundingPrompt(options: {
+    literalQuery: string;
+    description?: string;
+    noteExcerpts: string[];
+}): string {
+    const { literalQuery, description, noteExcerpts } = options;
+
+    let prompt = `<task>\nYou are refining a web search query for a slide deck. Rewrite the user's search request into ONE focused, high-signal web search query that is anchored in the deck's topic and the attached note context below. Add the specific entities, domain terms, timeframe, or qualifiers the context implies; drop nothing essential from the user's intent.\n</task>\n\n`;
+
+    if (description) {
+        prompt += `<deck_topic>\n${sanitizeTextForPrompt(description)}\n</deck_topic>\n\n`;
+    }
+    if (noteExcerpts.length > 0) {
+        prompt += `<note_context>\n`;
+        noteExcerpts.forEach((excerpt, i) => {
+            prompt += `<note index="${i + 1}">\n${sanitizeTextForPrompt(excerpt)}\n</note>\n`;
+        });
+        prompt += `</note_context>\n\n`;
+    }
+
+    prompt += `<user_search_request>\n${sanitizeTextForPrompt(literalQuery)}\n</user_search_request>\n\n`;
+
+    prompt += `<output_format>\nReturn ONLY the rewritten search query as a single line of plain text — no quotes, no markdown, no explanation, no leading label. Keep it concise (a search query, not a sentence). If the context adds nothing useful, return the user's request unchanged.\n</output_format>`;
+
+    return prompt;
+}
+
 // ── Brand Audit ─────────────────────────────────────────────────────────────
 
 export function buildBrandAuditPrompt(html: string, rules: BrandRule[]): string {

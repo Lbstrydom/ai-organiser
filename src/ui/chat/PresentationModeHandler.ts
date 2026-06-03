@@ -19,7 +19,7 @@ import type {
     ActionDescriptor, ActionCallbacks,
     StreamingCallbacks, StreamingResult,
 } from './ChatModeHandler';
-import { pluginContext } from '../../services/llmFacade';
+import { pluginContext, summarizeText } from '../../services/llmFacade';
 import type { LLMFacadeContext } from '../../services/llmFacade';
 import {
     type PresentationPhase,
@@ -51,7 +51,8 @@ import {
     isBrandAvailable, resolveTheme,
     type BrandTheme,
 } from '../../services/chat/brandThemeService';
-import { extractDeckTitle, countSlides } from '../../services/prompts/presentationChatPrompts';
+import { extractDeckTitle, countSlides, buildWebSearchGroundingPrompt, GROUNDED_QUERY_MAX_CHARS } from '../../services/prompts/presentationChatPrompts';
+import type { WebSearchGroundingFn } from '../../services/chat/presentationSourceService';
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../../services/tokenLimits';
 import { logger } from '../../utils/logger';
 import type { ProjectConfig } from '../../services/chat/projectService';
@@ -421,9 +422,19 @@ export class PresentationModeHandler implements ChatModeHandler {
                 const s = r.ctx.fullPlugin.settings;
                 const provider = s.serviceType === 'local' ? 'local' : s.cloudServiceType;
                 const totalBudgetChars = computeSourceBudgetChars(provider, s.cloudModel);
+                // Option A: ground any web-search query in the deck's attached
+                // notes + prompt before dispatching the search. Gated by setting
+                // (default on) so privacy-conscious users can keep searches to
+                // their exact query — grounding sends note-derived terms to the
+                // search provider (audit H1/H3).
+                const groundWebSearchQuery = s.presentationGroundWebSearch
+                    ? this.buildWebSearchGrounder(r.llmCtx)
+                    : undefined;
                 const resolved = await this.sourceController.resolveForSubmit({
                     signal: r.abort.signal,
                     totalBudgetChars,
+                    groundWebSearchQuery,
+                    deckDescription: r.originalQuery,
                 });
                 if (resolved.ok) sources = resolved.value.usable;
             }
@@ -975,6 +986,30 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.sourceController.addSource(auto);
             void this.sourceController.preloadAsync(0);
         }
+    }
+
+    /**
+     * Build the Option-A web-search query grounder: an LLM call that rewrites
+     * the user's literal search query into one anchored in the deck's prompt +
+     * attached note excerpts. Returns a function that NEVER throws — the source
+     * service falls back to the literal query on any failure (the `summarizeText`
+     * facade already wraps errors into a non-throwing Result, and we clamp/guard
+     * the output here so a junk response degrades to the literal query).
+     */
+    private buildWebSearchGrounder(llmCtx: LLMFacadeContext): WebSearchGroundingFn {
+        return async (literalQuery, context, signal) => {
+            const prompt = buildWebSearchGroundingPrompt({
+                literalQuery,
+                description: context.description,
+                noteExcerpts: context.noteExcerpts,
+            });
+            const res = await summarizeText(llmCtx, prompt, { signal, maxTokens: 200 });
+            if (!res.success || !res.content) return literalQuery;
+            // Collapse to a single line and clamp — the prompt asks for a bare
+            // query, but defend against a chatty model returning prose.
+            const cleaned = res.content.trim().split('\n')[0].trim().slice(0, GROUNDED_QUERY_MAX_CHARS);
+            return cleaned || literalQuery;
+        };
     }
 
     // ── Selection state ─────────────────────────────────────────────────────

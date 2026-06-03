@@ -1,5 +1,27 @@
 # Project Status Log
 
+## 2026-06-03 — Presentation web-search grounding (Option A) + feature-toggles plan audit
+
+Two pieces of work. **(1)** Implemented + code-audited **Option A**: presentation `web-search` sources are now LLM-grounded in the deck's attached notes + prompt before dispatch, instead of running the user's literal query verbatim. **(2)** Authored + audited the **feature-toggles plan** (`docs/plans/feature-toggles.md`, gitignored) to implementation-ready (GPT R1–R3 + Gemini ×9 → Strong coherence) — implementation deferred per the agreed sequencing.
+
+### Changes (Option A — shipped)
+- `src/services/prompts/presentationChatPrompts.ts`: `buildWebSearchGroundingPrompt()` + `GROUNDED_QUERY_MAX_CHARS` — XML-structured prompt that distils one grounded query; all user/vault fields escaped via `escapeForPrompt`.
+- `src/services/chat/presentationSourceService.ts`: `WebSearchGroundingFn`/`WebSearchGroundingContext`/`ResolveOptions`; `resolve()` is now **two-phase** (notes/folders → web-search) so grounding sees resolved note content. `groundQuery()` is the graceful seam (literal fallback on no-grounder/no-context/empty/throw, never throws). Bounds: description ≤2000 chars, 6×1500-char excerpts, grounded query clamped ≤256 chars in-service; abort re-checked after the grounding call; **standalone notes prioritised over folder-derived** for excerpts.
+- `src/services/chat/creationSourceController.ts`: threads `groundWebSearchQuery` + `deckDescription`; **forces web-search to bypass the literal-query preload cache** when grounding is active.
+- `src/ui/chat/PresentationModeHandler.ts`: `buildWebSearchGrounder(llmCtx)` (via `summarizeText`, single-line clamp); gated on the new setting.
+- `src/core/settings.ts` + `AIChatSettingsSection.ts` + i18n: `presentationGroundWebSearch` (default **true**) — privacy off-switch surfacing that note-derived terms reach the search provider.
+- Tests: +37 across `presentationSourceService` (grounding, fallbacks, abort, caps, standalone-priority, read-failure), `creationSourceController` (cache bypass), `presentationChatPrompts` (prompt structure + injection escaping). **5199 unit tests green**, lint 0 errors.
+
+### Decisions Made
+- **Grounding is automatic but bounded + cancellable + privacy-gated**: notes already reach the LLM as deck sources, so the only new exfiltration surface is a ≤256-char distilled query → search provider; the default-on setting gives an explicit off-switch.
+- **`ref` stays the literal query** (stable cache/dedup identity); the grounded query steers dispatch and is noted in the content header when it differs.
+- **Audit convergence**: code audit R2 (security+correctness) PASS, 0 findings; Gemini in-scope findings fixed; deferred findings (`projectService` regex frontmatter, `exportService` BOM, `presentationSourceBudget` folder-floor) are **pre-existing code in files this diff did not touch**.
+
+### Next Steps
+- Implement feature-toggles (E) when scheduled; the per-feature folder-floor budget behaviour (Gemini, out-of-scope) is a candidate pre-existing-debt cleanup.
+
+---
+
 ## 2026-06-02 — Slides side-rail workspace Phase 2 (vertical filmstrip)
 
 Implemented Phase 2 of [docs/plans/slides-side-rail-workspace.md](docs/plans/slides-side-rail-workspace.md) — a thumbnail navigator left of the slide canvas. A real-Chromium spike validated rastering each slide via SVG `<foreignObject>` → `<img>` → `<canvas>` → PNG data-URL: renders the real slide, no canvas taint, **no script execution** (images don't run scripts), **no external fetch** (Phase-1 sanitization restricts sub-resources to `data:`), and slide CSS never touches the host DOM. Code-audited (GPT R1→R2 + Gemini APPROVE).

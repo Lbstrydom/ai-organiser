@@ -179,6 +179,187 @@ describe('PresentationSourceService.resolve — web-search kind', () => {
     });
 });
 
+describe('PresentationSourceService.resolve — web-search grounding (Option A)', () => {
+    it('grounds the query in attached notes + description before dispatch', async () => {
+        const searched: string[] = [];
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `results for ${q}`; },
+        };
+        const app = buildApp(new Map([['hamina.md', 'Hamina port LNG terminal expansion 2026']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        const groundedCtx: { description?: string; noteExcerpts: string[] }[] = [];
+        const r = await svc.resolve(
+            [
+                { kind: 'note', ref: 'hamina.md' },
+                { kind: 'web-search', ref: 'port news' },
+            ],
+            {
+                deckDescription: 'Board update on the port',
+                groundWebSearchQuery: async (literal, ctx) => {
+                    groundedCtx.push(ctx);
+                    return `${literal} Hamina LNG 2026`;
+                },
+            },
+        );
+        // Grounder saw the resolved note content + the description.
+        expect(groundedCtx).toHaveLength(1);
+        expect(groundedCtx[0].description).toBe('Board update on the port');
+        expect(groundedCtx[0].noteExcerpts[0]).toContain('Hamina port LNG');
+        // Dispatcher was called with the grounded query, not the literal one.
+        expect(searched).toEqual(['port news Hamina LNG 2026']);
+        // ref stays the literal query (stable identity); grounded query noted in content.
+        const ws = r.usable.find(s => s.kind === 'web-search')!;
+        expect(ws.ref).toBe('port news');
+        expect(ws.content).toContain('grounded search: port news Hamina LNG 2026');
+    });
+
+    it('falls back to the literal query when the grounder throws', async () => {
+        const searched: string[] = [];
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `results for ${q}`; },
+        };
+        const app = buildApp(new Map([['n.md', 'context text']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        const r = await svc.resolve(
+            [{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'literal q' }],
+            { deckDescription: 'desc', groundWebSearchQuery: async () => { throw new Error('LLM down'); } },
+        );
+        expect(searched).toEqual(['literal q']);
+        const ws = r.usable.find(s => s.kind === 'web-search')!;
+        expect(ws.content).not.toContain('grounded search');
+        expect(r.failures).toHaveLength(0);
+    });
+
+    it('falls back to the literal query when the grounder returns empty', async () => {
+        const searched: string[] = [];
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `r ${q}`; },
+        };
+        const app = buildApp(new Map([['n.md', 'ctx']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'literal' }],
+            { deckDescription: 'd', groundWebSearchQuery: async () => '   ' },
+        );
+        expect(searched).toEqual(['literal']);
+    });
+
+    it('skips the LLM call entirely when there is no note/description context', async () => {
+        let grounderCalls = 0;
+        const dispatcher: WebSearchDispatcher = { search: async (q) => `r ${q}` };
+        const app = buildApp(new Map(), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [{ kind: 'web-search', ref: 'standalone' }],
+            { groundWebSearchQuery: async () => { grounderCalls++; return 'x'; } },
+        );
+        // No description, no notes → groundQuery short-circuits, no LLM spend.
+        expect(grounderCalls).toBe(0);
+    });
+
+    it('searches the literal query when no grounder is supplied (back-compat)', async () => {
+        const searched: string[] = [];
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `r ${q}`; },
+        };
+        const app = buildApp(new Map([['n.md', 'ctx']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve([{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'plain' }]);
+        expect(searched).toEqual(['plain']);
+    });
+
+    it('clamps the grounded query before dispatch (audit M1/M14 defence in depth)', async () => {
+        const searched: string[] = [];
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `r`; },
+        };
+        const app = buildApp(new Map([['n.md', 'ctx']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'q' }],
+            { deckDescription: 'd', groundWebSearchQuery: async () => 'x'.repeat(5000) },
+        );
+        expect(searched[0].length).toBeLessThanOrEqual(256);
+    });
+
+    it('caps the description fed to the grounder (audit M2/M14)', async () => {
+        let seenDescLen = -1;
+        const dispatcher: WebSearchDispatcher = { search: async (q) => `r ${q}` };
+        const app = buildApp(new Map([['n.md', 'ctx']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'q' }],
+            {
+                deckDescription: 'D'.repeat(10_000),
+                groundWebSearchQuery: async (_l, ctx) => { seenDescLen = ctx.description!.length; return 'g'; },
+            },
+        );
+        expect(seenDescLen).toBeLessThanOrEqual(2000);
+    });
+
+    it('prioritises standalone notes over folder-derived ones for grounding context (Gemini-G1)', async () => {
+        let excerpts: string[] = [];
+        // 6 folder files + 1 standalone note; cap is 6 — the standalone must survive.
+        const files = new Map<string, string>([['standalone.md', 'STANDALONE anchor text']]);
+        const folder = createTFolder('big');
+        const folderChildren: TFile[] = [];
+        for (let i = 0; i < 6; i++) {
+            const p = `big/f${i}.md`;
+            files.set(p, `folder note ${i}`);
+            const tf = createTFile(p);
+            tf.stat = { mtime: 1, ctime: 1, size: 10 };
+            folderChildren.push(tf);
+        }
+        folder.children = folderChildren;
+        const app = buildApp(files, new Map([['big', folder]]));
+        const dispatcher: WebSearchDispatcher = { search: async (q) => `r ${q}` };
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [
+                { kind: 'folder', ref: 'big' },
+                { kind: 'note', ref: 'standalone.md' },
+                { kind: 'web-search', ref: 'q' },
+            ],
+            {
+                deckDescription: 'd',
+                groundWebSearchQuery: async (_l, ctx) => { excerpts = ctx.noteExcerpts; return 'g'; },
+            },
+        );
+        expect(excerpts.length).toBe(6);
+        expect(excerpts.some(e => e.includes('STANDALONE'))).toBe(true);
+    });
+
+    it('does not abort-guard-bypass: no search dispatched when aborted during grounding (audit H2/H4)', async () => {
+        const searched: string[] = [];
+        const controller = new AbortController();
+        const dispatcher: WebSearchDispatcher = {
+            search: async (q) => { searched.push(q); return `r ${q}`; },
+        };
+        const app = buildApp(new Map([['n.md', 'ctx']]), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        await svc.resolve(
+            [{ kind: 'note', ref: 'n.md' }, { kind: 'web-search', ref: 'q' }],
+            {
+                signal: controller.signal,
+                deckDescription: 'd',
+                groundWebSearchQuery: async () => { controller.abort(); return 'grounded'; },
+            },
+        );
+        expect(searched).toHaveLength(0);
+    });
+});
+
+describe('PresentationSourceService.resolve — note read failure (audit M6)', () => {
+    it('records note-read-failed when vault.read rejects', async () => {
+        const app = buildApp(new Map([['n.md', 'content']]), new Map());
+        app.vault.read = async () => { throw new Error('EIO'); };
+        const svc = new PresentationSourceService(app, null);
+        const r = await svc.resolve([{ kind: 'note', ref: 'n.md' }]);
+        expect(r.usable).toHaveLength(0);
+        expect(r.failures[0].code).toBe('note-read-failed');
+    });
+});
+
 describe('validateCreationConfig', () => {
     const cfg: CreationConfig = { ...DEFAULT_CREATION_CONFIG };
 

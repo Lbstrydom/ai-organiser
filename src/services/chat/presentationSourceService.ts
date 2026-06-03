@@ -52,6 +52,47 @@ export interface WebSearchDispatcher {
     search(query: string, opts?: { signal?: AbortSignal }): Promise<string>;
 }
 
+/** Context handed to a query-grounding function: the deck's description/topic
+ *  plus excerpts from already-resolved note/folder sources. */
+export interface WebSearchGroundingContext {
+    /** The user's deck prompt / description, if any. */
+    description?: string;
+    /** Leading excerpts of resolved note/folder content (capped). */
+    noteExcerpts: string[];
+}
+
+/** Optional LLM-backed query grounder. Given the user's literal web-search
+ *  query and the deck's note/description context, returns a focused query that
+ *  anchors the search in that context. MUST NOT throw to the caller — the
+ *  service falls back to the literal query on any failure or empty result. */
+export type WebSearchGroundingFn = (
+    literalQuery: string,
+    context: WebSearchGroundingContext,
+    signal?: AbortSignal,
+) => Promise<string>;
+
+/** Grounding context caps — keep the grounding prompt bounded regardless of
+ *  how many/large the attached notes are (audit M2/M14: description was
+ *  previously unbounded). */
+const GROUNDING_MAX_NOTE_EXCERPTS = 6;
+const GROUNDING_EXCERPT_CHARS = 1500;
+const GROUNDING_DESCRIPTION_CHARS = 2000;
+/** Service-side cap on the grounded query actually dispatched — defence in
+ *  depth so a chatty grounder can't push an unbounded string to the search
+ *  provider even if the caller forgets to clamp (audit M1/M14). */
+const GROUNDED_QUERY_DISPATCH_CHARS = 256;
+
+/** Extra options for {@link PresentationSourceService.resolve}. */
+export interface ResolveOptions {
+    folderCap?: number;
+    signal?: AbortSignal;
+    /** When present, web-search queries are LLM-grounded in the deck's notes +
+     *  description before dispatch (Option A). Absent ⟹ literal-query search. */
+    groundWebSearchQuery?: WebSearchGroundingFn;
+    /** The deck prompt/description, fed to the grounding function as context. */
+    deckDescription?: string;
+}
+
 export class PresentationSourceService {
     constructor(
         private readonly app: App,
@@ -72,7 +113,7 @@ export class PresentationSourceService {
      */
     async resolve(
         selected: ReadonlyArray<SelectedSource>,
-        opts: { folderCap?: number; signal?: AbortSignal } = {},
+        opts: ResolveOptions = {},
     ): Promise<ResolveResult> {
         const folderCap = opts.folderCap ?? DEFAULT_FOLDER_CAP;
         const usable: PromptSource[] = [];
@@ -86,6 +127,10 @@ export class PresentationSourceService {
             if (src.kind === 'note') standaloneNotePaths.add(src.ref);
         }
 
+        // Two-phase: resolve notes/folders BEFORE web-search so the web-search
+        // grounder can anchor its query in the already-resolved note content
+        // (Option A). Web-search sources are processed last, in selection order.
+        const webSearchSources: SelectedSource[] = [];
         for (const src of selected) {
             if (opts.signal?.aborted) break;
             if (src.kind === 'note') {
@@ -96,12 +141,50 @@ export class PresentationSourceService {
                     folderCap, standaloneNotePaths,
                 );
             } else if (src.kind === 'web-search') {
-                await this.resolveWebSearchInto(src, usable, failures, opts.signal);
+                webSearchSources.push(src);
             } else {
                 failures.push({ selected: src, code: 'unsupported-kind' });
             }
         }
+
+        if (webSearchSources.length > 0) {
+            // Build grounding context once from the resolved note/folder content.
+            const groundingContext = this.buildGroundingContext(usable, opts.deckDescription);
+            for (const src of webSearchSources) {
+                if (opts.signal?.aborted) break;
+                await this.resolveWebSearchInto(
+                    src, usable, failures, opts.signal,
+                    opts.groundWebSearchQuery, groundingContext,
+                );
+            }
+        }
+
         return { usable, failures, mtimeByPath, folderPathsSignature };
+    }
+
+    /** Assemble bounded grounding context from resolved note/folder sources.
+     *  Standalone notes (explicitly chosen by the user) are prioritised over
+     *  folder-derived ones, so a large attached folder can't crowd the few
+     *  hand-picked notes out of the excerpt budget (Gemini-G1). */
+    private buildGroundingContext(
+        usable: ReadonlyArray<PromptSource>,
+        description?: string,
+    ): WebSearchGroundingContext {
+        const notes = usable.filter(s => s.kind === 'note');
+        // Stable partition: standalone (no `fromFolder`) first, folder-derived next.
+        const ordered = [
+            ...notes.filter(s => !s.fromFolder),
+            ...notes.filter(s => s.fromFolder),
+        ];
+        const noteExcerpts: string[] = [];
+        for (const s of ordered) {
+            if (noteExcerpts.length >= GROUNDING_MAX_NOTE_EXCERPTS) break;
+            const trimmed = s.content.trim();
+            if (!trimmed) continue;
+            noteExcerpts.push(trimmed.slice(0, GROUNDING_EXCERPT_CHARS));
+        }
+        const desc = description?.trim().slice(0, GROUNDING_DESCRIPTION_CHARS);
+        return { description: desc ? desc : undefined, noteExcerpts };
     }
 
     private async resolveNoteInto(
@@ -189,27 +272,70 @@ export class PresentationSourceService {
         }
     }
 
+    /**
+     * Resolve the effective web-search query. Returns the LLM-grounded query
+     * when a grounder is supplied AND there's context to anchor on; otherwise
+     * (no grounder, no context, empty result, or any error) returns the literal
+     * query. Graceful by contract — grounding must never break search.
+     */
+    private async groundQuery(
+        literalQuery: string,
+        signal?: AbortSignal,
+        ground?: WebSearchGroundingFn,
+        ctx?: WebSearchGroundingContext,
+    ): Promise<string> {
+        if (!ground || !ctx) return literalQuery;
+        // Nothing to anchor on → don't spend an LLM call; literal is correct.
+        if (!ctx.description && ctx.noteExcerpts.length === 0) return literalQuery;
+        try {
+            const grounded = (await ground(literalQuery, ctx, signal))?.trim();
+            // Defence in depth — clamp regardless of caller-side clamping so an
+            // unbounded grounder result can't reach the search provider (M1/M14).
+            return grounded ? grounded.slice(0, GROUNDED_QUERY_DISPATCH_CHARS) : literalQuery;
+        } catch (e) {
+            logger.warn(
+                'PresentationSourceService',
+                `web-search grounding failed for "${literalQuery}" — using literal query: ${e instanceof Error ? e.message : String(e)}`,
+            );
+            return literalQuery;
+        }
+    }
+
     private async resolveWebSearchInto(
         src: SelectedSource,
         usable: PromptSource[],
         failures: SourceFailure[],
         signal?: AbortSignal,
+        ground?: WebSearchGroundingFn,
+        groundingContext?: WebSearchGroundingContext,
     ): Promise<void> {
         if (!this.research) {
             failures.push({ selected: src, code: 'web-search-not-configured', debugMessage: 'no research service' });
             return;
         }
+        // Option A: ground the literal query in the deck's notes/description.
+        // Only when a grounder is supplied AND there's actual context to anchor
+        // on. Grounding NEVER throws to here — fall back to the literal query.
+        const effectiveQuery = await this.groundQuery(src.ref, signal, ground, groundingContext);
+        // Grounding can be a slow LLM call — re-check abort before spending a
+        // search request on a cancelled run (audit H2/H4).
+        if (signal?.aborted) return;
         try {
-            const results = await this.research.search(src.ref, { signal });
+            const results = await this.research.search(effectiveQuery, { signal });
             if (!results.trim()) {
-                logger.warn('PresentationSourceService', `web-search returned no results for "${src.ref}"`);
+                logger.warn('PresentationSourceService', `web-search returned no results for "${effectiveQuery}"`);
                 failures.push({ selected: src, code: 'web-search-no-results' });
                 return;
             }
             usable.push({
                 kind: 'web-search',
+                // ref stays the user's literal query — it is the source's stable
+                // identity for caching/dedup. The grounded query only steers the
+                // dispatch; when it differs we note it in the content header.
                 ref: src.ref,
-                content: results,
+                content: effectiveQuery !== src.ref
+                    ? `<!-- grounded search: ${effectiveQuery} -->\n${results}`
+                    : results,
             });
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

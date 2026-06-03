@@ -226,6 +226,27 @@ describe('CreationSourceController.resolveForSubmit', () => {
         await controller.resolveForSubmit();
         expect(resolveSpy).toHaveBeenCalledTimes(2);
     });
+
+    it('bypasses the preload cache for web-search when grounding is active (Option A)', async () => {
+        // A web-search preloaded with the literal query must NOT be served from
+        // cache at submit when a grounder is supplied — else grounding is silently
+        // skipped. resolveForSubmit must re-resolve it through the service.
+        const maps: VaultMaps = { files: new Map(), folders: new Map(), mtimes: new Map() };
+        const { controller, service } = buildController(maps);
+        const resolveSpy = vi.spyOn(service, 'resolve');
+        controller.addSource({ kind: 'web-search', ref: 'q' });
+        await controller.preloadAsync(0);
+        expect(resolveSpy).toHaveBeenCalledTimes(1);
+        await controller.resolveForSubmit({
+            groundWebSearchQuery: async (literal) => `${literal} grounded`,
+            deckDescription: 'topic',
+        });
+        // Re-resolved (grounding bypasses cache) → second call, with the hook threaded through.
+        expect(resolveSpy).toHaveBeenCalledTimes(2);
+        const lastOpts = resolveSpy.mock.calls[1][1];
+        expect(lastOpts?.groundWebSearchQuery).toBeDefined();
+        expect(lastOpts?.deckDescription).toBe('topic');
+    });
 });
 
 describe('CreationSourceController.reset', () => {

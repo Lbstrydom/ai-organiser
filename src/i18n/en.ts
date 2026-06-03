@@ -390,6 +390,8 @@ export const en: Translations = {
             refinementPassesDesc: 'Number of auto-polish passes (1 = quick, 2 = thorough)',
             brandToggleDefaultTitle: "Brand toggle default",
             brandToggleDefaultDesc: "Whether the on-brand toggle starts enabled in presentation mode",
+            groundWebSearchTitle: "Ground web search in attached notes",
+            groundWebSearchDesc: "Use the AI to refine a presentation web-search query with your attached notes and prompt before searching. This sends note-derived search terms to your search provider; turn off to search your exact query only.",
             brandConfigMoved: "Brand configuration has moved to the Brand section.",
         },
         brand: {

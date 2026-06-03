@@ -379,6 +379,8 @@ export interface Translations {
             refinementPassesDesc: string;
             brandToggleDefaultTitle: string;
             brandToggleDefaultDesc: string;
+            groundWebSearchTitle: string;
+            groundWebSearchDesc: string;
             brandConfigMoved: string;
         };
         brand: {
