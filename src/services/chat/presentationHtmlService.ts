@@ -46,6 +46,8 @@ export interface GenerateIrOptions {
     /** Audience tier for density/tone guidance. */
     audience?: AudienceTier;
     signal?: AbortSignal;
+    /** D6: surfaces a 429 backoff ("retrying in Ns") into the run's thinking sink. */
+    onRetryStatus?: (seconds: number) => void;
 }
 
 /**
@@ -82,6 +84,8 @@ export async function generateDeckIr(
         const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
             timeoutMs: GENERATION_HARD_BUDGET_MS,
             signal: options.signal,
+            label: 'presentation',
+            onRetryStatus: options.onRetryStatus,
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!first.success || !first.content) {
@@ -98,6 +102,8 @@ export async function generateDeckIr(
         const retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
             timeoutMs: GENERATION_HARD_BUDGET_MS,
             signal: options.signal,
+            label: 'presentation',
+            onRetryStatus: options.onRetryStatus,
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!retry.success || !retry.content) return err(parsed.error);

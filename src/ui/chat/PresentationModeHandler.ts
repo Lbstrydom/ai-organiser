@@ -447,6 +447,10 @@ export class PresentationModeHandler implements ChatModeHandler {
                 audience: this.creationConfig.audience,
                 sources,
                 signal: r.abort.signal,
+                // D6: a 429 backoff surfaces as a status line in the thinking sink.
+                onRetryStatus: (seconds) => this.run.setThinking(
+                    r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
+                ),
             });
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
             if (!irResult.ok) {

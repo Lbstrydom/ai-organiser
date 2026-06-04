@@ -9,6 +9,7 @@ import { getCachedModels } from './adapters/dynamicModelService';
 import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
+import { abortableSleep } from '../utils/abortableSleep';
 
 export class CloudLLMService extends BaseLLMService implements MultimodalLLMService {
     private adapter: BaseAdapter;
@@ -144,15 +145,18 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     /** Retriable HTTP status codes: 429 rate-limit, Anthropic 529 overload, standard 5xx transients. */
     private readonly RETRIABLE_STATUSES = new Set([429, 502, 503, 504, 529]);
 
-    /** Sleep with jitter on transient network errors. Returns false if retries exhausted (caller should rethrow). */
-    private async retryOnNetworkError(attempt: number): Promise<boolean> {
+    /** Sleep with jitter on transient network errors. Returns false if retries exhausted (caller should rethrow).
+     *  The backoff is abortable (D6/G2) so Cancel interrupts a stall immediately. */
+    private async retryOnNetworkError(attempt: number, signal?: AbortSignal, onRetryStatus?: (seconds: number) => void): Promise<boolean> {
         if (attempt >= this.MAX_RETRIES - 1) return false;
         const jitteredMs = Math.min(
             this.RETRY_DELAY * Math.pow(2, attempt) * (0.5 + Math.random()),
             this.MAX_RETRY_DELAY_MS
         );
-        logger.warn('LLM', `Network error. Retrying in ${Math.round(jitteredMs / 1000)}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
-        await new Promise(resolve => setTimeout(resolve, jitteredMs));
+        const seconds = Math.round(jitteredMs / 1000);
+        onRetryStatus?.(seconds);
+        logger.warn('LLM', `Network error. Retrying in ${seconds}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
+        await abortableSleep(jitteredMs, signal);
         return true;
     }
 
@@ -161,7 +165,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      *  Explicit `Retry-After` values are honoured in full — batch tasks use `setTimeout` which does not
      *  block the UI thread, so long server-directed waits are safe. The `MAX_RETRY_DELAY_MS` cap applies
      *  only to the fallback exponential delay when no `Retry-After` header is present. */
-    private async retryOnHttpStatus(response: import('obsidian').RequestUrlResponse, attempt: number): Promise<boolean> {
+    private async retryOnHttpStatus(response: import('obsidian').RequestUrlResponse, attempt: number, signal?: AbortSignal, onRetryStatus?: (seconds: number) => void): Promise<boolean> {
         if (response.status === 401 || response.status === 403) return false;
         if (!this.RETRIABLE_STATUSES.has(response.status)) return false;
         if (attempt >= this.MAX_RETRIES - 1) return false;
@@ -171,8 +175,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             this.MAX_RETRY_DELAY_MS
         );
         const waitMs = headerMs > 0 ? headerMs : fallbackMs;
-        logger.warn('LLM', `HTTP ${response.status}. Retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
-        await new Promise(resolve => setTimeout(resolve, waitMs));
+        const seconds = Math.round(waitMs / 1000);
+        // D6: surface the 429 retry state to the UI, then back off abortably.
+        onRetryStatus?.(seconds);
+        logger.warn('LLM', `HTTP ${response.status}. Retrying in ${seconds}s (attempt ${attempt + 1}/${this.MAX_RETRIES})`);
+        await abortableSleep(waitMs, signal);
         return true;
     }
 
@@ -187,21 +194,29 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         url: string,
         headers: Record<string, string>,
         body: string,
-        timeoutMs: number
+        timeoutMs: number,
+        signal?: AbortSignal,
+        onRetryStatus?: (seconds: number) => void
     ): Promise<import('obsidian').RequestUrlResponse> {
         let lastResponse: import('obsidian').RequestUrlResponse | null = null;
         for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+            // D6/Gemini-R2-G3: an aborted op returns a definitive 'Aborted' error
+            // (not the last 429 response) so the UI renders a clean cancellation,
+            // not a network-error phase.
+            if (signal?.aborted) throw new Error('Aborted');
             try {
                 lastResponse = await this.requestWithTimeout(
                     requestUrl({ url, method: 'POST', headers, body, throw: false }),
                     timeoutMs
                 );
             } catch (networkErr) {
-                if (!await this.retryOnNetworkError(attempt)) throw networkErr;
+                if (!await this.retryOnNetworkError(attempt, signal, onRetryStatus)) throw networkErr;
+                if (signal?.aborted) throw new Error('Aborted');
                 continue;
             }
             if (lastResponse.status >= 200 && lastResponse.status < 300) break;
-            if (!await this.retryOnHttpStatus(lastResponse, attempt)) break;
+            if (!await this.retryOnHttpStatus(lastResponse, attempt, signal, onRetryStatus)) break;
+            if (signal?.aborted) throw new Error('Aborted');
         }
         return lastResponse!;
     }
@@ -510,11 +525,15 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         // postWithRetry handles 429 backoff so batch operations (e.g. newsletter triage)
         // don't silently fall back to truncated content when a rate limit is hit.
+        // D6: thread the abort signal + retry-status callback so Cancel interrupts
+        // a backoff and the UI surfaces "retrying in Ns".
         const response = await this.postWithRetry(
             endpoint,
             this.adapter.getHeaders(),
             JSON.stringify(requestBody),
-            timeoutMs
+            timeoutMs,
+            options?.signal,
+            options?.onRetryStatus
         );
 
         if (response.status < 200 || response.status >= 300) {
