@@ -3147,10 +3147,10 @@ async function insertWebSummary(
     if (externalLinks.length > 0 && externalLinks.length <= 20) {
         output += '\n\n### Related Links\n\n';
         for (const link of externalLinks.slice(0, 15)) {
-            const displayText = link.text.length > 60
+            const rawText = link.text.length > 60
                 ? link.text.substring(0, 57) + '...'
                 : link.text;
-            output += `- [${displayText}](${link.href})\n`;
+            output += `- [${escapeMarkdownLinkText(rawText)}](${link.href})\n`;
         }
     }
 
@@ -3220,12 +3220,21 @@ function getExternalLinks(links: { text: string; href: string }[], sourceUrl: st
 
     return links.filter(link => {
         try {
-            const linkHost = new URL(link.href).hostname;
-            return linkHost !== sourceHost;
+            const url = new URL(link.href);
+            // Only http(s) links — drop javascript:/data:/vbscript: etc. that
+            // would otherwise be inserted verbatim into a clickable markdown link.
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+            return url.hostname !== sourceHost;
         } catch {
             return false;
         }
     });
+}
+
+/** Escape markdown link-syntax chars in display text so a crafted link label
+ *  (e.g. `x](javascript:alert(1))[y`) can't break out of `[text](href)`. */
+function escapeMarkdownLinkText(text: string): string {
+    return text.replace(/[[\]]/g, '\\$&');
 }
 
 /**

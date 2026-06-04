@@ -220,6 +220,28 @@ describe('VectorStoreService rename batching', () => {
 
 // ─── Index Version Persistence Tests ───
 
+describe('VectorStoreService updateEmbeddingService — cache invalidation (M7)', () => {
+    it('clears the search cache when swapping the embedding service with shouldClear', async () => {
+        const app = new App();
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
+        const clear = vi.fn();
+        (service as any).vectorStore = { clear: vi.fn() };
+        const cacheClear = vi.spyOn((service as any).searchCache, 'clear');
+        await service.updateEmbeddingService(mockEmbeddingService(), true);
+        expect(cacheClear).toHaveBeenCalled();
+        void clear;
+    });
+
+    it('does NOT clear the cache when shouldClear is false (provider unchanged)', async () => {
+        const app = new App();
+        const service = new VectorStoreService(app as any, { ...DEFAULT_SETTINGS }, mockEmbeddingService());
+        (service as any).vectorStore = { clear: vi.fn() };
+        const cacheClear = vi.spyOn((service as any).searchCache, 'clear');
+        await service.updateEmbeddingService(mockEmbeddingService(), false);
+        expect(cacheClear).not.toHaveBeenCalled();
+    });
+});
+
 describe('INDEX_SCHEMA_VERSION consistency', () => {
     it('types.ts and vectorStoreService.ts export the same value', () => {
         expect(INDEX_SCHEMA_VERSION).toBe(INDEX_SCHEMA_VERSION_TYPES);

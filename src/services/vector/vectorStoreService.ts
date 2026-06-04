@@ -233,6 +233,9 @@ export class VectorStoreService {
         this.embeddingService = embeddingService;
         if (shouldClear && this.vectorStore) {
             await this.vectorStore.clear();
+            // Stale SearchResults from the OLD embeddings (different model/
+            // dimensions) must not survive the swap — clear the query cache too.
+            this.searchCache.clear();
             this.hasWarnedIndexVersion = false;
         }
     }
