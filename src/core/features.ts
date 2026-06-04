@@ -87,7 +87,7 @@ function freezeDef(f: FeatureDef): Readonly<FeatureDef> {
     return Object.freeze({
         ...f,
         requires: Object.freeze([...f.requires]) as FeatureId[],
-        boundary: f.boundary ? (Object.freeze([...f.boundary]) as readonly FeatureBoundary[]) : undefined,
+        boundary: f.boundary ? Object.freeze([...f.boundary]) : undefined,
     });
 }
 

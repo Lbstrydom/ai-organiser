@@ -991,7 +991,7 @@ export default class AIOrganiserPlugin extends Plugin {
             // Execute the command via Obsidian's command system
             // @ts-ignore - commands API is internal but stable
             (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(commandId);
-        }, this.settings.pickerEssentialsCommandIds ?? []);
+        }, this.settings.pickerPinnedCommandIds ?? []);
 
         const modal = new CommandPickerModal(this.app, this, this.t, categories);
         modal.open();

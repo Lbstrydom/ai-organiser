@@ -72,13 +72,11 @@ describe('filterCategoriesByFeature (FT-10ii)', () => {
     });
 
     it('suppresses a sub-group whose every leaf is gated out', () => {
-        // find-discover holds web-reader, research-web, find-related, insert-related-notes
-        // → owned by web-reader / research / semantic-search. Disable all three.
-        const off = new Set<FeatureId>(['web-reader', 'research', 'semantic-search']);
-        const out = filterCategoriesByFeature(categories, (f) => !off.has(f));
-        const find = out.find((c) => c.id === 'find');
-        const groupIds = find?.commands.filter((c) => c.subCommands).map((c) => c.id) ?? [];
-        expect(groupIds).not.toContain('find-discover');
+        // maintain-bases holds the 3 bases commands → all owned by `bases`. Disable it.
+        const out = filterCategoriesByFeature(categories, (f) => f !== 'bases');
+        const maintain = out.find((c) => c.id === 'maintain');
+        const groupIds = maintain?.commands.filter((c) => c.subCommands).map((c) => c.id) ?? [];
+        expect(groupIds).not.toContain('maintain-bases');
     });
 
     it('returns a new tree (no mutation of the source)', () => {
@@ -92,16 +90,16 @@ describe('buildVisibleItems feature gating', () => {
     const categories = buildCommandCategories(en, noop);
 
     it('emits no category-header for a fully-disabled category (empty-category suppression)', () => {
-        // Disable every feature that appears in Manage so the whole category empties.
-        const manage = categories.find((c) => c.id === 'manage')!;
-        const manageFeatures = new Set<FeatureId>(
-            collectLeaves([manage]).map((l) => l.feature!).filter(Boolean),
+        // Disable every feature that appears in Maintain so the whole category empties.
+        const maintain = categories.find((c) => c.id === 'maintain')!;
+        const maintainFeatures = new Set<FeatureId>(
+            collectLeaves([maintain]).map((l) => l.feature!).filter(Boolean),
         );
         const items = buildVisibleItems(
             categories, new Set(), null, new Set(categories.map((c) => c.id)),
-            (f) => !manageFeatures.has(f),
+            (f) => !maintainFeatures.has(f),
         );
-        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'manage')).toBe(false);
+        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'maintain')).toBe(false);
     });
 
     it('keeps an enabled category visible', () => {

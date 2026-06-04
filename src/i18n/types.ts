@@ -2458,20 +2458,13 @@ export interface Translations {
             closeHint: string;
             emptyState: string;
             // Output-anchored category labels (locked 2026-05-01)
-            categoryEssentials: string;
-            categoryCreate: string;
-            categoryRefine: string;
-            categoryFind: string;
-            categoryManage: string;
-            // Verb-anchored sub-group labels (added 2026-05-02)
+            // Pinned favourites cross-cut; the 5 stage categories use `t.workflowStages.*`.
+            categoryPinned: string;
+            // Verb-anchored sub-group labels (within a stage; presentation detail)
             groupCreateWrite: string;
             groupCreateVisualise: string;
-            groupFindDiscover: string;
-            groupFindAudit: string;
             groupRefinePending: string;
-            groupManageSync: string;
-            groupManageAudio: string;
-            groupManageBases: string;
+            groupMaintainBases: string;
             // Requirement chip + reason strings (4 chips + 5 reasons; semantic-search has 2)
             requiresChipNote: string;
             requiresChipSelection: string;
@@ -2538,12 +2531,8 @@ export interface Translations {
                 upgradeFolderMetadata: string;
                 groupCreateWrite: string;
                 groupCreateVisualise: string;
-                groupFindDiscover: string;
-                groupFindAudit: string;
                 groupRefinePending: string;
-                groupManageSync: string;
-                groupManageAudio: string;
-                groupManageBases: string;
+                groupMaintainBases: string;
             };
             badgeComingSoonExplanation: string;
             badgeDevelopingExplanation: string;

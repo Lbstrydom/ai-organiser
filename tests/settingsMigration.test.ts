@@ -312,4 +312,47 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('picker taxonomy migration (unified-feature-taxonomy Cluster B)', () => {
+        it('copies pickerEssentialsCommandIds → pickerPinnedCommandIds and drops the old key', () => {
+            const old = { pickerEssentialsCommandIds: ['chat-with-ai', 'smart-tag'] } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pickerPinnedCommandIds).toEqual(['chat-with-ai', 'smart-tag']);
+            expect('pickerEssentialsCommandIds' in result).toBe(false);
+        });
+
+        it('new key wins when both old and new are present (idempotent re-run)', () => {
+            const old = {
+                pickerEssentialsCommandIds: ['old'],
+                pickerPinnedCommandIds: ['new'],
+            } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pickerPinnedCommandIds).toEqual(['new']);
+            expect('pickerEssentialsCommandIds' in result).toBe(false);
+        });
+
+        it('remaps expanded category ids (essentials→pinned, manage→maintain) preserving order', () => {
+            const old = { pickerExpandedCategoryIds: ['essentials', 'create', 'manage'] } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'create', 'maintain']);
+        });
+
+        it('de-duplicates when a remap collapses two ids onto one', () => {
+            const old = { pickerExpandedCategoryIds: ['essentials', 'pinned', 'find'] } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'find']);
+        });
+
+        it('leaves unrecognised expanded ids untouched (harmless — expand nothing)', () => {
+            const old = { pickerExpandedCategoryIds: ['find', 'totally-unknown'] } as any;
+            const result = migrateOldSettings(old)!;
+            expect(result.pickerExpandedCategoryIds).toEqual(['find', 'totally-unknown']);
+        });
+
+        it('is a no-op when neither picker key is present', () => {
+            const old = { serviceType: 'local' } as any;
+            const result = migrateOldSettings(old)!;
+            expect('pickerPinnedCommandIds' in result).toBe(false);
+        });
+    });
+
 });

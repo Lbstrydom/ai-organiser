@@ -363,12 +363,13 @@ export interface AIOrganiserSettings {
     llmEnhancerReuseYoutubeKey: boolean;                                 // Fall back to YouTube Gemini key if no dedicated key configured
 
     // === COMMAND PICKER ===
-    /** User-configurable Essentials list — up to 5 favourite command IDs
-     *  promoted to the top "Essentials" category in the picker. Empty
-     *  array means use the static default (chat / search / quick-peek). */
-    pickerEssentialsCommandIds: string[];
+    /** User-configurable Pinned list — up to 5 favourite command IDs promoted
+     *  to the top "Pinned" category in the picker. Empty array means use the
+     *  static default (chat / search / quick-peek). Renamed from the legacy
+     *  `pickerEssentialsCommandIds` (migrateOldSettings copies it forward). */
+    pickerPinnedCommandIds: string[];
     /** Persisted set of category IDs the user has expanded in the picker.
-     *  Defaults to ['essentials'] only — other categories collapsed.
+     *  Defaults to ['pinned'] only — other categories collapsed.
      *  Updated on toggle so picker remembers preference across opens. */
     pickerExpandedCategoryIds: string[];
 
@@ -703,11 +704,11 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     llmEnhancerAnthropicApiKey: '',
     llmEnhancerReuseYoutubeKey: false,
 
-    // Command picker — Essentials defaults to empty array (picker falls
+    // Command picker — Pinned defaults to empty array (picker falls
     // back to static chat / search / quick-peek defaults).
-    pickerEssentialsCommandIds: [],
-    // Only Essentials expanded by default; other categories collapsed.
-    pickerExpandedCategoryIds: ['essentials'],
+    pickerPinnedCommandIds: [],
+    // Only Pinned expanded by default; other categories collapsed.
+    pickerExpandedCategoryIds: ['pinned'],
 
     // Secret Storage Defaults
     secretStorageMigrated: false,                       // Not migrated yet
@@ -1024,6 +1025,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
     migrateFeatureFlags(oldSettings);
+    migratePickerTaxonomy(oldSettings);
 
     return oldSettings;
 }
@@ -1064,6 +1066,37 @@ function migrateFeatureFlags(s: Record<string, unknown>): void {
 
     s.featureFlags = flags;
     if (typeof s.featuresIntroShown !== 'boolean') s.featuresIntroShown = false;
+}
+
+/**
+ * Unified-feature-taxonomy migration (Cluster B). Two moves:
+ *  1. Favourites setting renamed `pickerEssentialsCommandIds` → `pickerPinnedCommandIds`.
+ *     Precedence: if the NEW key already holds an array it wins (idempotent re-run);
+ *     else copy the old key's array forward. The old key is then removed.
+ *  2. Persisted expanded category ids are remapped to the new stage taxonomy
+ *     (`essentials`→`pinned`, `manage`→`maintain`; create/refine/find unchanged), then
+ *     de-duplicated preserving first-seen order. Unrecognised ids are left untouched
+ *     (they simply match no category and expand nothing — harmless).
+ */
+function migratePickerTaxonomy(s: Record<string, unknown>): void {
+    // (1) favourites key rename
+    if (!Array.isArray(s.pickerPinnedCommandIds) && Array.isArray(s.pickerEssentialsCommandIds)) {
+        s.pickerPinnedCommandIds = s.pickerEssentialsCommandIds;
+    }
+    if ('pickerEssentialsCommandIds' in s) delete s.pickerEssentialsCommandIds;
+
+    // (2) expanded-category id remap + dedup
+    if (Array.isArray(s.pickerExpandedCategoryIds)) {
+        const remap: Record<string, string> = { essentials: 'pinned', manage: 'maintain' };
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const raw of s.pickerExpandedCategoryIds) {
+            if (typeof raw !== 'string') continue;
+            const id = remap[raw] ?? raw;
+            if (!seen.has(id)) { seen.add(id); out.push(id); }
+        }
+        s.pickerExpandedCategoryIds = out;
+    }
 }
 
 /**

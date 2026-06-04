@@ -1,8 +1,8 @@
 /**
- * Tests for Command Picker Modal — output-anchored taxonomy.
+ * Tests for Command Picker Modal — unified workflow-stage taxonomy.
  *
- * Plan: docs/completed/command-picker-output-anchored*.md (5 docs, locked
- * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
+ * Plan: docs/plans/unified-feature-taxonomy.md (audit-converged — GPT ×3 + Gemini APPROVE).
+ * Categories = Pinned + the 5 workflow stages (capture/create/refine/find/maintain).
  */
 
 import { buildCommandCategories, type PickerCommand } from '../src/ui/modals/CommandPickerModal';
@@ -26,46 +26,54 @@ function collectLeafCommands(commands: PickerCommand[]): PickerCommand[] {
     });
 }
 
-describe('Command Picker — output-anchored taxonomy', () => {
+describe('Command Picker — unified workflow-stage taxonomy', () => {
     const mockTranslations = en;
     const mockExecuteCommand = vi.fn();
 
     describe('buildCommandCategories — top-level structure', () => {
-        it('returns the 5 locked categories in order', () => {
+        it('returns Pinned + the 5 workflow-stage categories in order', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             expect(categories.map(c => c.id)).toEqual([
-                'essentials', 'create', 'refine', 'find', 'manage',
+                'pinned', 'capture', 'create', 'refine', 'find', 'maintain',
             ]);
         });
 
-        it('category names resolve through i18n', () => {
+        it('category names resolve through i18n (stages share t.workflowStages.*)', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             expect(categories.map(c => c.name)).toEqual([
-                en.modals.commandPicker.categoryEssentials,
-                en.modals.commandPicker.categoryCreate,
-                en.modals.commandPicker.categoryRefine,
-                en.modals.commandPicker.categoryFind,
-                en.modals.commandPicker.categoryManage,
+                en.modals.commandPicker.categoryPinned,
+                en.workflowStages.capture,
+                en.workflowStages.create,
+                en.workflowStages.refine,
+                en.workflowStages.find,
+                en.workflowStages.maintain,
             ]);
         });
     });
 
-    describe('Essentials — user-configurable favourites (2026-05-02)', () => {
+    describe('Pinned — user-configurable favourites', () => {
         it('uses default chat/search/quick-peek when no custom selection', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.map(c => c.id)).toEqual([
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            expect(pinned.commands.map(c => c.id)).toEqual([
                 'chat-with-ai', 'semantic-search', 'quick-peek',
             ]);
         });
 
+        it('cross-listed entries declare canonicalCategoryId === "pinned"', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            for (const c of pinned.commands) {
+                expect(c.canonicalCategoryId).toBe('pinned');
+            }
+        });
+
         it('replaces defaults with user selection (any IDs across the tree)', () => {
-            // User pins narrate-note + smart-tag — non-cross-listed picks.
             const cats = buildCommandCategories(
                 mockTranslations, mockExecuteCommand, ['narrate-note', 'smart-tag'],
             );
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            expect(pinned.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
         });
 
         it('caps user selection at 5 commands', () => {
@@ -74,20 +82,19 @@ describe('Command Picker — output-anchored taxonomy', () => {
                 ['chat-with-ai', 'semantic-search', 'quick-peek',
                  'narrate-note', 'smart-tag', 'kindle-sync', 'export-flashcards'],
             );
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.length).toBe(5);
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            expect(pinned.commands.length).toBe(5);
         });
 
         it('preserves cross-listing object identity for promoted leaves', () => {
             const cats = buildCommandCategories(
                 mockTranslations, mockExecuteCommand, ['narrate-note'],
             );
-            const ess = cats.find(c => c.id === 'essentials')!;
+            const pinned = cats.find(c => c.id === 'pinned')!;
             const create = cats.find(c => c.id === 'create')!;
-            const essNarrate = ess.commands.find(c => c.id === 'narrate-note')!;
+            const pinnedNarrate = pinned.commands.find(c => c.id === 'narrate-note')!;
             const createNarrate = create.commands.find(c => c.id === 'narrate-note')!;
-            // Same object → search dedup will treat them as one command.
-            expect(essNarrate).toBe(createNarrate);
+            expect(pinnedNarrate).toBe(createNarrate);
         });
 
         it('silently skips unknown IDs', () => {
@@ -95,74 +102,49 @@ describe('Command Picker — output-anchored taxonomy', () => {
                 mockTranslations, mockExecuteCommand,
                 ['narrate-note', 'made-up-command', 'smart-tag'],
             );
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            expect(pinned.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
         });
 
         it('finds leaves nested in sub-groups (e.g. Create → Write → smart-summarize)', () => {
             const cats = buildCommandCategories(
                 mockTranslations, mockExecuteCommand, ['smart-summarize'],
             );
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.map(c => c.id)).toEqual(['smart-summarize']);
+            const pinned = cats.find(c => c.id === 'pinned')!;
+            expect(pinned.commands.map(c => c.id)).toEqual(['smart-summarize']);
         });
     });
 
-    describe('Essentials (cross-listing default)', () => {
-        it('contains chat / search / quick-peek (canonical)', () => {
+    describe('Capture — pulls new content in (flat, 5 leaves)', () => {
+        it('contains research / web-reader / kindle / newsletter / record', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const ess = cats.find(c => c.id === 'essentials')!;
-            expect(ess.commands.map(c => c.id)).toEqual([
-                'chat-with-ai', 'semantic-search', 'quick-peek',
+            const capture = cats.find(c => c.id === 'capture')!;
+            expect(capture.commands.map(c => c.id)).toEqual([
+                'research-web', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'record-audio',
             ]);
         });
-        it('cross-listed entries declare canonicalCategoryId === "essentials"', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const ess = cats.find(c => c.id === 'essentials')!;
-            for (const c of ess.commands) {
-                expect(c.canonicalCategoryId).toBe('essentials');
-            }
-        });
     });
 
-    describe('Create — verb-anchored sub-groups + 3 direct leaves', () => {
-        it('has 2 sub-groups (Write, Visualise) + 3 direct leaves on first expansion', () => {
+    describe('Create — Write + Visualise sub-groups + 4 direct leaves', () => {
+        it('first-expansion: 2 sub-groups + narrate / play / flashcards / tags', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const create = cats.find(c => c.id === 'create')!;
             expect(create.commands.map(c => c.id)).toEqual([
                 'create-write', 'create-visualise',
-                'narrate-note', 'export-flashcards', 'smart-tag',
+                'narrate-note', 'play-narration', 'export-flashcards', 'smart-tag',
             ]);
         });
-        it('Write sub-group contains the 5 written-output commands', () => {
+        it('Write sub-group contains the 6 written-output commands', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const create = cats.find(c => c.id === 'create')!;
-            const write = create.commands.find(c => c.id === 'create-write')!;
+            const write = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-write')!;
             expect(write.subCommands?.map(c => c.id)).toEqual([
-                // Plan F3 — transcribe-audio added between create-meeting-minutes
-                // and smart-translate so users typing the natural transcription
-                // verb find a direct leaf (Pat persona-test P0).
                 'smart-summarize', 'create-meeting-minutes', 'transcribe-audio',
                 'smart-translate', 'export-note', 'export-minutes-docx',
             ]);
         });
-
-        it('Plan F3 — transcribe-audio leaf has the right aliases for fuzzy search', () => {
+        it('Minutes leaf still carries the transcribe aliases (Plan F3 preserved)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const write = cats.find(c => c.id === 'create')!
-                .commands.find(c => c.id === 'create-write')!;
-            const transcribe = write.subCommands?.find(c => c.id === 'transcribe-audio')!;
-            expect(transcribe).toBeDefined();
-            // All natural search verbs should land here.
-            expect(transcribe.aliases).toEqual(expect.arrayContaining([
-                'transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes',
-            ]));
-        });
-
-        it('Plan F3 — Minutes leaf carries the transcribe aliases so it ALSO surfaces on "transcribe"', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const write = cats.find(c => c.id === 'create')!
-                .commands.find(c => c.id === 'create-write')!;
+            const write = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-write')!;
             const minutes = write.subCommands?.find(c => c.id === 'create-meeting-minutes')!;
             expect(minutes.aliases).toEqual(expect.arrayContaining([
                 'minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text',
@@ -170,8 +152,7 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
         it('Visualise sub-group contains the 6 visual-output commands', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const create = cats.find(c => c.id === 'create')!;
-            const visualise = create.commands.find(c => c.id === 'create-visualise')!;
+            const visualise = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-visualise')!;
             expect(visualise.subCommands?.map(c => c.id)).toEqual([
                 'presentation-chat', 'edit-mermaid-diagram', 'new-sketch',
                 'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
@@ -179,75 +160,44 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
     });
 
-    describe('Refine — Pending sub-group + cross-listed quick-peek', () => {
-        it('first-expansion has 5 rows: improve, Pending sub-group, digitise, clear-tags, peek', () => {
+    describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
+        it('first-expansion has 4 rows (quick-peek moved to Find)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'quick-peek',
+                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags',
             ]);
         });
         it('Process pending sub-group contains the 3 pending commands', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const refine = cats.find(c => c.id === 'refine')!;
-            const pending = refine.commands.find(c => c.id === 'refine-pending')!;
+            const pending = cats.find(c => c.id === 'refine')!.commands.find(c => c.id === 'refine-pending')!;
             expect(pending.subCommands?.map(c => c.id)).toEqual([
                 'integrate-pending-content', 'add-to-pending-integration', 'resolve-pending-embeds',
             ]);
         });
     });
 
-    describe('Find — cross-lists chat + search at top, sub-groups below', () => {
-        it('contains chat + search at top, then Discover + Audit sub-groups', () => {
+    describe('Find — search verbs over existing vault content (flat)', () => {
+        it('contains chat + search (cross-listed) + related + quick-peek', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const find = cats.find(c => c.id === 'find')!;
             expect(find.commands.map(c => c.id)).toEqual([
-                'chat-with-ai', 'semantic-search',
-                'find-discover', 'find-audit',
-            ]);
-        });
-        it('Discover sub-group contains web/research/related commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const find = cats.find(c => c.id === 'find')!;
-            const discover = find.commands.find(c => c.id === 'find-discover')!;
-            expect(discover.subCommands?.map(c => c.id)).toEqual([
-                'web-reader', 'research-web', 'find-related', 'insert-related-notes',
-            ]);
-        });
-        it('Audit sub-group contains the vault inspection commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const find = cats.find(c => c.id === 'find')!;
-            const audit = find.commands.find(c => c.id === 'find-audit')!;
-            expect(audit.subCommands?.map(c => c.id)).toEqual([
-                'find-embeds', 'show-tag-network', 'collect-all-tags',
+                'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek',
             ]);
         });
     });
 
-    describe('Manage — 3 sub-groups + 1 direct leaf', () => {
-        it('first-expansion has 4 rows: Sync, Audio, Bases sub-groups + NotebookLM leaf', () => {
+    describe('Maintain — hygiene + admin (local tools)', () => {
+        it('contains tag-network, collect-tags, find-embeds, Bases sub-group, notebooklm', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            expect(manage.commands.map(c => c.id)).toEqual([
-                'manage-sync', 'manage-audio', 'manage-bases', 'notebooklm-export',
+            const maintain = cats.find(c => c.id === 'maintain')!;
+            expect(maintain.commands.map(c => c.id)).toEqual([
+                'show-tag-network', 'collect-all-tags', 'find-embeds', 'maintain-bases', 'notebooklm-export',
             ]);
-        });
-        it('Sync sub-group contains kindle-sync + newsletter-fetch', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            const sync = manage.commands.find(c => c.id === 'manage-sync')!;
-            expect(sync.subCommands?.map(c => c.id)).toEqual(['kindle-sync', 'newsletter-fetch']);
-        });
-        it('Audio admin sub-group contains record + play', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            const audio = manage.commands.find(c => c.id === 'manage-audio')!;
-            expect(audio.subCommands?.map(c => c.id)).toEqual(['record-audio', 'play-narration']);
         });
         it('Bases sub-group contains migration + dashboard commands', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            const bases = manage.commands.find(c => c.id === 'manage-bases')!;
+            const bases = cats.find(c => c.id === 'maintain')!.commands.find(c => c.id === 'maintain-bases')!;
             expect(bases.subCommands?.map(c => c.id)).toEqual([
                 'upgrade-metadata', 'upgrade-folder-metadata', 'create-bases-dashboard',
             ]);
@@ -255,18 +205,17 @@ describe('Command Picker — output-anchored taxonomy', () => {
     });
 
     describe('Cross-listing identity', () => {
-        it('cross-listed commands share callback identity (same object)', () => {
+        it('cross-listed commands share object identity across Pinned and Find', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const ess = cats.find(c => c.id === 'essentials')!;
+            const pinned = cats.find(c => c.id === 'pinned')!;
             const find = cats.find(c => c.id === 'find')!;
-            const refine = cats.find(c => c.id === 'refine')!;
-            const essChat = ess.commands.find(c => c.id === 'chat-with-ai')!;
+            const pinnedChat = pinned.commands.find(c => c.id === 'chat-with-ai')!;
             const findChat = find.commands.find(c => c.id === 'chat-with-ai')!;
-            expect(essChat).toBe(findChat);
+            expect(pinnedChat).toBe(findChat);
 
-            const essPeek = ess.commands.find(c => c.id === 'quick-peek')!;
-            const refinePeek = refine.commands.find(c => c.id === 'quick-peek')!;
-            expect(essPeek).toBe(refinePeek);
+            const pinnedPeek = pinned.commands.find(c => c.id === 'quick-peek')!;
+            const findPeek = find.commands.find(c => c.id === 'quick-peek')!;
+            expect(pinnedPeek).toBe(findPeek);
         });
     });
 
@@ -282,14 +231,12 @@ describe('Command Picker — output-anchored taxonomy', () => {
         });
         it('semantic-search command requires "semantic-search"', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const ess = cats.find(c => c.id === 'essentials')!;
-            const search = ess.commands.find(c => c.id === 'semantic-search')!;
+            const search = cats.find(c => c.id === 'pinned')!.commands.find(c => c.id === 'semantic-search')!;
             expect(search.requires).toBe('semantic-search');
         });
-        it('notebooklm-export requires "vault" (Gemini-G1 fix)', () => {
+        it('notebooklm-export requires "vault"', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            const nbExport = manage.commands.find(c => c.id === 'notebooklm-export')!;
+            const nbExport = cats.find(c => c.id === 'maintain')!.commands.find(c => c.id === 'notebooklm-export')!;
             expect(nbExport.requires).toBe('vault');
         });
     });
@@ -297,20 +244,14 @@ describe('Command Picker — output-anchored taxonomy', () => {
     describe('legacyHomes — backward-compat alias derivation', () => {
         it('moved commands declare legacyHomes (preserves search vocabulary)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const create = cats.find(c => c.id === 'create')!;
-            const narrate = create.commands.find(c => c.id === 'narrate-note')!;
-            // narrate-note moved out of Active Note → Export
+            const narrate = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'narrate-note')!;
             expect(narrate.legacyHomes).toContain('active-note-export');
-            // Aliases should now include "export" + "active note"
             expect(narrate.aliases).toContain('export');
             expect(narrate.aliases).toContain('active note');
         });
-        it('play-narration also has active-note-export legacy home (Gemini-G4 — was missing under manual approach)', () => {
+        it('play-narration keeps its active-note-export legacy home', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const manage = cats.find(c => c.id === 'manage')!;
-            // play-narration now lives under the Audio admin sub-group
-            const audio = manage.commands.find(c => c.id === 'manage-audio')!;
-            const play = audio.subCommands!.find(c => c.id === 'play-narration')!;
+            const play = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'play-narration')!;
             expect(play.legacyHomes).toContain('active-note-export');
             expect(play.aliases).toContain('export');
         });
@@ -318,7 +259,6 @@ describe('Command Picker — output-anchored taxonomy', () => {
 
     describe('counts', () => {
         it('total picker rows = 42 (39 unique + 3 cross-listings)', () => {
-            // Plan F3 — added `transcribe-audio` leaf (was 41/38; now 42/39).
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
             expect(leafCount).toBe(42);
@@ -329,13 +269,10 @@ describe('Command Picker — output-anchored taxonomy', () => {
             const uniqueIds = new Set(leaves.map(l => l.id));
             expect(uniqueIds.size).toBe(39);
         });
-
         it('alphabetised ai-organiser:* callbacks (39 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
-            // Each callback may be present multiple times via cross-listing —
-            // calling once via Set keeps the test about unique callbacks fired.
             const seen = new Set<PickerCommand>();
             for (const leaf of leaves) {
                 if (seen.has(leaf)) continue;
@@ -379,7 +316,6 @@ describe('Command Picker — output-anchored taxonomy', () => {
                 'ai-organiser:smart-summarize',
                 'ai-organiser:smart-tag',
                 'ai-organiser:smart-translate',
-                // Plan F3 — new transcribe verb.
                 'ai-organiser:transcribe-audio',
                 'ai-organiser:upgrade-folder-metadata',
                 'ai-organiser:upgrade-metadata',

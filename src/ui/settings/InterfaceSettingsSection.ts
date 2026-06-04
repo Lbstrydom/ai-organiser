@@ -119,7 +119,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
     private renderEssentialsList(host: HTMLElement): void {
         host.empty();
         const t = this.plugin.t.settings.interface;
-        const ids = this.plugin.settings.pickerEssentialsCommandIds ?? [];
+        const ids = this.plugin.settings.pickerPinnedCommandIds ?? [];
 
         const allLeaves = this.collectAllLeaves();
         const leafById = new Map(allLeaves.map(l => [l.id, l]));
@@ -141,7 +141,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                 });
                 removeBtn.addEventListener('click', () => {
                     const next = ids.filter((_, i) => i !== idx);
-                    this.plugin.settings.pickerEssentialsCommandIds = next;
+                    this.plugin.settings.pickerPinnedCommandIds = next;
                     void this.plugin.saveSettings();
                     this.renderEssentialsList(host);
                 });
@@ -162,7 +162,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                 t.essentialsPickerPlaceholder,
                 (picked) => {
                     const next = [...ids, picked.id].slice(0, ESSENTIALS_MAX);
-                    this.plugin.settings.pickerEssentialsCommandIds = next;
+                    this.plugin.settings.pickerPinnedCommandIds = next;
                     void this.plugin.saveSettings();
                     this.renderEssentialsList(host);
                 },
@@ -178,7 +178,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
             new ButtonComponent(actions)
                 .setButtonText(t.essentialsResetButton)
                 .onClick(() => {
-                    this.plugin.settings.pickerEssentialsCommandIds = [];
+                    this.plugin.settings.pickerPinnedCommandIds = [];
                     void this.plugin.saveSettings();
                     this.renderEssentialsList(host);
                 });

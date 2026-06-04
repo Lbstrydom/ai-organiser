@@ -16,6 +16,7 @@ import {
 } from './commandPickerViewModel';
 import { checkRequirement, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 import type { FeatureId } from '../../core/features';
+import type { WorkflowStage } from '../../core/workflowStages';
 import { isFeatureEnabled } from '../../services/featureService';
 
 export interface CommandCategory {
@@ -48,6 +49,14 @@ export interface PickerCommand {
 	 * their single canonical `feature` — the cross-listing is a placement, not a 2nd owner.
 	 */
 	feature?: FeatureId;
+	/**
+	 * Workflow stage this leaf belongs to (unified-feature-taxonomy). Declared
+	 * assertion metadata: it MUST equal the id of the (non-`pinned`) category the leaf is
+	 * hand-placed in — the cross-surface consistency test enforces this. Optional on the
+	 * type because group-container rows (with `subCommands`/no `feature`) carry no stage;
+	 * the test requires it on every executable leaf (parallel to `feature`).
+	 */
+	stage?: WorkflowStage;
 	/** If present, clicking opens sub-commands inline instead of executing callback */
 	subCommands?: PickerCommand[];
 	/** Optional status badge: 'coming-soon' (needs IT setup) or 'developing' (needs separate API) */
@@ -100,10 +109,10 @@ export class CommandPickerModal extends Modal {
 		this.categories = flattenSingleChildGroups(categories);
 		this.modalEl.addClass('ai-organiser-command-picker-modal');
 		// Hydrate expanded-categories from persisted settings. Falls back
-		// to ['essentials'] only when settings haven't been written yet.
+		// to ['pinned'] only when settings haven't been written yet.
 		const persisted = this.plugin.settings.pickerExpandedCategoryIds;
 		this.expandedCategories = new Set<string>(
-			persisted && persisted.length > 0 ? persisted : ['essentials'],
+			persisted && persisted.length > 0 ? persisted : ['pinned'],
 		);
 	}
 
@@ -644,28 +653,28 @@ export class CommandPickerModal extends Modal {
 }
 
 /**
- * Build command categories — output-anchored taxonomy.
+ * Build command categories — unified workflow-stage taxonomy.
  *
- * 5 categories: essentials / create / refine / find / manage. Create has
- * verb-anchored sub-groups (Write, Visualise) plus 3 direct leaves (audit
- * 2026-05-02 user feedback — flat 14 was too long). Find has Discover +
- * Audit-vault sub-groups. Cross-listing: AI Chat + Vault search live in
- * Essentials AND Find; Quick peek lives in Essentials AND Refine. Same
+ * 6 top-level categories: Pinned + the 5 workflow stages (capture / create /
+ * refine / find / maintain), labelled from the shared `t.workflowStages.*` SSOT.
+ * Every top-level category id === its workflow stage (except `pinned`); each leaf
+ * declares a matching `stage`, asserted by crossSurfaceTaxonomy.test. Create has
+ * verb-anchored sub-groups (Write, Visualise) plus direct leaves; Refine has a
+ * Process-pending sub-group; Maintain has a Bases sub-group. Cross-listing: AI Chat
+ * + Vault search + Quick peek live in Pinned AND in Find (their real stage). Same
  * callback, two browse rows; search-mode dedupes by command.id.
  *
- * Essentials is user-configurable: if `essentialsCommandIds` is provided
- * (max 5 entries), the Essentials category is built from those command
- * objects looked up across every other category. Empty / undefined ⇒
- * use the static default (chat / search / quick-peek).
+ * Pinned is user-configurable: if `pinnedCommandIds` is provided (max 5 entries),
+ * the Pinned category is built from those command objects looked up across every
+ * other category. Empty / undefined ⇒ static default (chat / search / quick-peek).
  *
- * Plan: docs/completed/command-picker-output-anchored*.md (5 docs, locked
- * after 3 GPT audit rounds + 3 Gemini final reviews — APPROVE).
+ * Plan: docs/plans/unified-feature-taxonomy.md (audit-converged — GPT ×3 + Gemini APPROVE).
  */
 /** Find a leaf command by id across an arbitrary category tree. Searches
  *  top-level commands first, then descends into `subCommands`. Returns
  *  the SAME object reference (preserves cross-listing identity for the
  *  search-mode dedup logic). Used by `buildCommandCategories` to resolve
- *  user-configurable Essentials. */
+ *  user-configurable Pinned. */
 function findLeafByIdInCategories(
 	id: string,
 	categories: readonly CommandCategory[],
@@ -685,7 +694,7 @@ function findLeafByIdInCategories(
 export function buildCommandCategories(
 	t: Translations,
 	executeCommand: (commandId: string) => void,
-	essentialsCommandIds: readonly string[] = [],
+	pinnedCommandIds: readonly string[] = [],
 ): CommandCategory[] {
 	const summarizeAliases = [
 		t.commands.summarizeSmart,
@@ -698,52 +707,74 @@ export function buildCommandCategories(
 	const relatedAliases = ['related', 'similar', 'connections', 'linked'];
 	const desc = t.modals.commandPicker.descriptions ?? {} as Record<string, string>;
 
-	// Helper — terse leaf builder. `feature` (FT-4) is the leading REQUIRED arg so
-	// no leaf can ship untagged (a typo is a compile error, not a silent leak).
-	// legacyHomes drives backward-compat alias derivation (audit R3 M3 + Gemini-G4)
-	// — moved commands keep their old taxonomy terms searchable.
+	// Helper — terse leaf builder. `feature` (FT-4) + `stage` (unified taxonomy) are the
+	// leading REQUIRED args so no leaf can ship untagged or off-stage (a typo is a compile
+	// error, not a silent leak). `stage` MUST equal the id of the category the leaf is placed
+	// in (asserted by crossSurfaceTaxonomy.test). legacyHomes drives backward-compat alias
+	// derivation — moved commands keep their old taxonomy terms searchable.
 	const cmd = (
-		feature: FeatureId, id: string, name: string, icon: string, requires: RequirementKind,
+		feature: FeatureId, stage: WorkflowStage, id: string, name: string, icon: string, requires: RequirementKind,
 		description: string, aliases: string[] = [], legacyHomes: string[] = [],
 	): PickerCommand => ({
-		id, name, icon, feature,
+		id, name, icon, feature, stage,
 		callback: () => executeCommand(`ai-organiser:${id}`),
 		requires, description,
 		aliases: [...aliases, ...legacyHomes.flatMap(legacyHomeAliases)],
 		legacyHomes,
 	});
 
-	// Cross-listings — defined ONCE, referenced TWICE (browse).
-	// canonicalCategoryId tells search-mode dedup which placement's chip
-	// to show (audit Gemini-G2 — explicit field, not array order).
+	// Cross-listings — defined ONCE, referenced TWICE (browse): in Pinned AND in their
+	// real stage category (Find). canonicalCategoryId 'pinned' tells search-mode dedup
+	// which placement's chip to show (audit Gemini-G2 — explicit field, not array order).
+	// Their `stage` stays 'find' (real home) — the pinned category is exempt from the
+	// stage===categoryId invariant (it's a favourites cross-cut, not a stage).
 	const chatLeaf: PickerCommand = {
-		...cmd('chat', 'chat-with-ai', t.commands.chatWithAI, 'message-circle', 'none',
+		...cmd('chat', 'find', 'chat-with-ai', t.commands.chatWithAI, 'message-circle', 'none',
 			desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
 			['ask', 'question', 'chat', 'rag', 'passages']),
-		canonicalCategoryId: 'essentials',
+		canonicalCategoryId: 'pinned',
 	};
 	const searchLeaf: PickerCommand = {
-		...cmd('semantic-search', 'semantic-search', t.commands.searchSemanticVault, 'search', 'semantic-search',
+		...cmd('semantic-search', 'find', 'semantic-search', t.commands.searchSemanticVault, 'search', 'semantic-search',
 			desc.semanticSearch || 'Find notes by meaning, not just keywords',
 			['semantic', 'search', 'find', 'query', 'lookup']),
-		canonicalCategoryId: 'essentials',
+		canonicalCategoryId: 'pinned',
 	};
 	const peekLeaf: PickerCommand = {
-		...cmd('quick-peek', 'quick-peek', t.commands.quickPeek, 'zap', 'active-note',
+		...cmd('quick-peek', 'find', 'quick-peek', t.commands.quickPeek, 'zap', 'active-note',
 			desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
 			['peek', 'quick', 'triage', 'skim', 'preview', 'sources']),
-		canonicalCategoryId: 'essentials',
+		canonicalCategoryId: 'pinned',
 	};
 
 	const nonEssentialCategories: CommandCategory[] = [
 		{
+			id: 'capture',
+			name: t.workflowStages.capture,
+			icon: 'inbox',
+			commands: [
+				cmd('research', 'capture', 'research-web', t.commands.researchWeb, 'globe', 'none',
+					desc.researchWeb || 'Web research with citations',
+					['research', 'web', 'citations'], ['capture']),
+				cmd('web-reader', 'capture', 'web-reader', t.commands.webReader, 'newspaper', 'active-note',
+					desc.webReader || 'Triage web URLs in the active note',
+					['web', 'reader', 'triage', 'article'], ['capture']),
+				cmd('kindle', 'capture', 'kindle-sync', t.commands.kindleSync, 'book-open', 'none',
+					desc.kindleSync || 'Sync Kindle highlights into the vault',
+					['kindle', 'sync', 'highlights'], ['capture']),
+				cmd('newsletter', 'capture', 'newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
+					desc.newsletter || 'Fetch newsletters from Gmail and triage them',
+					['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
+				cmd('summarize', 'capture', 'record-audio', t.commands.recordAudio, 'mic', 'none',
+					desc.recordAudio || 'Record audio directly in Obsidian',
+					['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
+			],
+		},
+		{
 			id: 'create',
-			name: t.modals.commandPicker.categoryCreate,
+			name: t.workflowStages.create,
 			icon: 'sparkles',
 			commands: [
-				// Verb-anchored sub-groups (depth 1 — collapsed by default).
-				// User feedback 2026-05-02: 14 leaves was too long to scan;
-				// each sub-group is a discoverable verb-anchored bucket.
 				{
 					id: 'create-write',
 					name: t.modals.commandPicker.groupCreateWrite,
@@ -751,26 +782,23 @@ export function buildCommandCategories(
 					description: t.modals.commandPicker.descriptions.groupCreateWrite,
 					callback: () => {},
 					subCommands: [
-						cmd('summarize', 'smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
+						cmd('summarize', 'create', 'smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
 							desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
 							[...summarizeAliases, 'create', 'summary'], ['capture']),
-						cmd('minutes', 'create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
+						cmd('minutes', 'create', 'create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
 							desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
-							// Plan F3 — added 'transcribe', 'audio', 'speech-to-text' aliases so
-							// users who type the natural transcription verb still find Minutes.
 							['minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text'], ['capture']),
-						// Plan F3 — new top-level Transcribe verb. Pat persona P0 closed.
-						cmd('minutes', 'transcribe-audio', t.commands.transcribeAudio, 'mic', 'none',
+						cmd('minutes', 'create', 'transcribe-audio', t.commands.transcribeAudio, 'mic', 'none',
 							desc.transcribeAudio || 'Transcribe an audio file to a speaker-labelled note',
 							['transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes'], ['capture']),
-						cmd('translate', 'smart-translate', t.commands.translate, 'languages', 'active-note',
+						cmd('translate', 'create', 'smart-translate', t.commands.translate, 'languages', 'active-note',
 							desc.smartTranslate || 'Translate the active note into another language',
 							['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],
 							['active-note-refine']),
-						cmd('export', 'export-note', t.commands.exportNote, 'file-output', 'active-note',
+						cmd('export', 'create', 'export-note', t.commands.exportNote, 'file-output', 'active-note',
 							desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
 							['pdf', 'docx', 'pptx', 'word', 'powerpoint'], ['active-note-export']),
-						cmd('minutes', 'export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
+						cmd('minutes', 'create', 'export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
 							desc.exportMinutesDocx || 'Export meeting minutes as Word document',
 							['minutes', 'meeting', 'word', 'docx'], ['active-note-export']),
 					],
@@ -782,46 +810,49 @@ export function buildCommandCategories(
 					description: t.modals.commandPicker.descriptions.groupCreateVisualise,
 					callback: () => {},
 					subCommands: [
-						cmd('presentation', 'presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
+						cmd('presentation', 'create', 'presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
 							desc.presentationChat || 'Generate a structured slide deck from this note',
 							['slides', 'presentation', 'deck', 'pitch'], ['active-note-refine']),
-						cmd('mermaid-chat', 'edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
+						cmd('mermaid-chat', 'create', 'edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
 							desc.editMermaidDiagram || 'Conversational Mermaid diagram editing',
 							['mermaid', 'diagram', 'flowchart'], ['active-note-refine']),
-						cmd('sketch', 'new-sketch', t.commands.newSketch, 'pencil', 'none',
+						cmd('sketch', 'create', 'new-sketch', t.commands.newSketch, 'pencil', 'none',
 							desc.newSketch || 'Open the sketch pad to draw a quick sketch',
 							['sketch', 'draw', 'whiteboard'], ['capture']),
-						cmd('canvas', 'build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
+						cmd('canvas', 'create', 'build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
 							desc.buildInvestigationCanvas || 'Build an investigation canvas from related notes',
 							['canvas', 'investigate', 'board'], ['active-note-maps']),
-						cmd('canvas', 'build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
+						cmd('canvas', 'create', 'build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
 							desc.buildContextCanvas || 'Build a context canvas from embedded sources',
 							['canvas', 'context', 'board'], ['active-note-maps']),
-						cmd('canvas', 'build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
+						cmd('canvas', 'create', 'build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
 							desc.buildClusterCanvas || 'Build a cluster canvas grouping vault notes by tag',
 							['canvas', 'cluster', 'board'], ['vault-visualize']),
 					],
 				},
 				// Direct leaves — single-action verbs.
-				cmd('audio-narration', 'narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
+				cmd('audio-narration', 'create', 'narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
 					desc.narrateNote || 'Convert this note to a spoken-audio MP3',
 					['narrate', 'audio', 'tts', 'listen', 'voice', 'speak', 'podcast', 'mp3'],
 					['active-note-export']),
-				cmd('flashcards', 'export-flashcards', t.commands.exportFlashcards, 'layers', 'active-note',
+				cmd('audio-narration', 'create', 'play-narration', t.commands.playNarration, 'play-circle', 'active-note',
+					desc.playNarration || 'Open mp3 in a player with speed and skip controls',
+					['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
+				cmd('flashcards', 'create', 'export-flashcards', t.commands.exportFlashcards, 'layers', 'active-note',
 					desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
 					['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
 					['active-note-export']),
-				cmd('tagging', 'smart-tag', t.commands.generateTagsForCurrentNote, 'tag', 'active-note',
+				cmd('tagging', 'create', 'smart-tag', t.commands.generateTagsForCurrentNote, 'tag', 'active-note',
 					desc.smartTag || 'Generate tags for the active note',
 					['tag', 'tagging', 'categorise', t.commands.tag], ['active-note-refine']),
 			],
 		},
 		{
 			id: 'refine',
-			name: t.modals.commandPicker.categoryRefine,
+			name: t.workflowStages.refine,
 			icon: 'wand-2',
 			commands: [
-				cmd('smart-note', 'enhance-note', t.commands.improveNote, 'sparkles', 'active-note',
+				cmd('smart-note', 'refine', 'enhance-note', t.commands.improveNote, 'sparkles', 'active-note',
 					desc.enhanceNote || 'Improve the active note with AI suggestions',
 					['improve', 'polish', 'enhance', 'rewrite', t.commands.enhance],
 					['active-note-refine']),
@@ -832,155 +863,100 @@ export function buildCommandCategories(
 					description: t.modals.commandPicker.descriptions.groupRefinePending,
 					callback: () => {},
 					subCommands: [
-						cmd('smart-note', 'integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
+						cmd('smart-note', 'refine', 'integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
 							desc.integratePending || 'Integrate pending content into the active note',
 							['integrate', 'merge'], ['active-note-pending']),
-						cmd('smart-note', 'add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
+						cmd('smart-note', 'refine', 'add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
 							desc.addToPending || 'Add the active note to the pending-integration queue',
 							['add'], ['active-note-pending']),
-						cmd('smart-note', 'resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
+						cmd('smart-note', 'refine', 'resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
 							desc.resolveEmbeds || 'Resolve embedded content references in the active note',
 							['embeds', 'resolve', 'expand'], ['active-note-pending']),
 					],
 				},
-				cmd('digitisation', 'digitise-image', t.commands.digitiseImage, 'scan', 'active-note',
+				cmd('digitisation', 'refine', 'digitise-image', t.commands.digitiseImage, 'scan', 'active-note',
 					desc.digitiseImage || 'Digitise a handwritten or whiteboard image',
 					['digitise', 'digitize', 'ocr', 'image', 'scan'], ['active-note-refine']),
-				cmd('tagging', 'clear-tags', t.commands.clearTags, 'eraser', 'active-note',
+				cmd('tagging', 'refine', 'clear-tags', t.commands.clearTags, 'eraser', 'active-note',
 					desc.clearTags || 'Clear tags from the active note',
 					['clear', 'tags', 'reset'], ['active-note-refine']),
-				peekLeaf,
 			],
 		},
 		{
 			id: 'find',
-			name: t.modals.commandPicker.categoryFind,
+			name: t.workflowStages.find,
 			icon: 'search',
 			commands: [
-				// Cross-listed from Essentials — keep at top so users who jumped
-				// straight to "Find" still see the search verbs.
+				// Cross-listed from Pinned — kept at top so users who jumped straight
+				// to "Find" still see the search verbs (their canonical home is Pinned).
 				chatLeaf,
 				searchLeaf,
-				{
-					id: 'find-discover',
-					name: t.modals.commandPicker.groupFindDiscover,
-					icon: 'compass',
-					description: t.modals.commandPicker.descriptions.groupFindDiscover,
-					callback: () => {},
-					subCommands: [
-						cmd('web-reader', 'web-reader', t.commands.webReader, 'newspaper', 'active-note',
-							desc.webReader || 'Triage web URLs in the active note',
-							['web', 'reader', 'triage', 'article'], ['capture']),
-						cmd('research', 'research-web', t.commands.researchWeb, 'globe', 'none',
-							desc.researchWeb || 'Web research with citations',
-							['research', 'web', 'citations'], ['capture']),
-						cmd('semantic-search', 'find-related', t.commands.findResources, 'compass', 'active-note',
-							desc.findRelated || 'Find related resources for the active note',
-							[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
-						cmd('semantic-search', 'insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
-							desc.insertRelatedNotes || 'Insert related notes into the active note',
-							[...relatedAliases, 'insert'], ['active-note-maps']),
-					],
-				},
-				{
-					id: 'find-audit',
-					name: t.modals.commandPicker.groupFindAudit,
-					icon: 'shield-check',
-					description: t.modals.commandPicker.descriptions.groupFindAudit,
-					callback: () => {},
-					subCommands: [
-						cmd('embed-scan', 'find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
-							desc.findEmbeds || 'Find every embedded asset in the vault',
-							['embeds', 'find', 'hygiene'], ['vault']),
-						cmd('tagging', 'show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
-							desc.showTagNetwork || 'Visualise the tag network for the vault',
-							['tags', 'network', 'graph'], ['vault-visualize']),
-						cmd('tagging', 'collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
-							desc.collectAllTags || 'Collect every tag in the vault into a list',
-							['tags', 'collect', 'list'], ['vault-visualize']),
-					],
-				},
+				cmd('semantic-search', 'find', 'find-related', t.commands.findResources, 'compass', 'active-note',
+					desc.findRelated || 'Find related resources for the active note',
+					[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
+				cmd('semantic-search', 'find', 'insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
+					desc.insertRelatedNotes || 'Insert related notes into the active note',
+					[...relatedAliases, 'insert'], ['active-note-maps']),
+				peekLeaf,
 			],
 		},
 		{
-			id: 'manage',
-			name: t.modals.commandPicker.categoryManage,
+			id: 'maintain',
+			name: t.workflowStages.maintain,
 			icon: 'wrench',
 			commands: [
+				cmd('tagging', 'maintain', 'show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
+					desc.showTagNetwork || 'Visualise the tag network for the vault',
+					['tags', 'network', 'graph'], ['vault-visualize']),
+				cmd('tagging', 'maintain', 'collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
+					desc.collectAllTags || 'Collect every tag in the vault into a list',
+					['tags', 'collect', 'list'], ['vault-visualize']),
+				cmd('embed-scan', 'maintain', 'find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
+					desc.findEmbeds || 'Find every embedded asset in the vault',
+					['embeds', 'find', 'hygiene'], ['vault']),
 				{
-					id: 'manage-sync',
-					name: t.modals.commandPicker.groupManageSync,
-					icon: 'rss',
-					description: t.modals.commandPicker.descriptions.groupManageSync,
-					callback: () => {},
-					subCommands: [
-						cmd('kindle', 'kindle-sync', t.commands.kindleSync, 'book-open', 'none',
-							desc.kindleSync || 'Sync Kindle highlights into the vault',
-							['kindle', 'sync', 'highlights'], ['capture']),
-						cmd('newsletter', 'newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
-							desc.newsletter || 'Fetch newsletters from Gmail and triage them',
-							['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
-					],
-				},
-				{
-					id: 'manage-audio',
-					name: t.modals.commandPicker.groupManageAudio,
-					icon: 'mic',
-					description: t.modals.commandPicker.descriptions.groupManageAudio,
-					callback: () => {},
-					subCommands: [
-						cmd('summarize', 'record-audio', t.commands.recordAudio, 'mic', 'none',
-							desc.recordAudio || 'Record audio directly in Obsidian',
-							['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
-						cmd('audio-narration', 'play-narration', t.commands.playNarration, 'play-circle', 'active-note',
-							desc.playNarration || 'Open mp3 in a player with speed and skip controls',
-							['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
-					],
-				},
-				{
-					id: 'manage-bases',
-					name: t.modals.commandPicker.groupManageBases,
+					id: 'maintain-bases',
+					name: t.modals.commandPicker.groupMaintainBases,
 					icon: 'database',
-					description: t.modals.commandPicker.descriptions.groupManageBases,
+					description: t.modals.commandPicker.descriptions.groupMaintainBases,
 					callback: () => {},
 					subCommands: [
-						cmd('bases', 'upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
+						cmd('bases', 'maintain', 'upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
 							desc.upgradeMetadata || 'Upgrade vault notes to Bases metadata format',
 							['migrate', 'upgrade', 'bases', 'metadata']),
-						cmd('bases', 'upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
+						cmd('bases', 'maintain', 'upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
 							desc.upgradeFolderMetadata || 'Upgrade current folder notes to Bases metadata',
 							['migrate', 'folder', 'upgrade', 'bases']),
-						cmd('bases', 'create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
+						cmd('bases', 'maintain', 'create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
 							desc.createDashboard || 'Create a Bases dashboard for the vault',
 							['dashboard', 'bases', 'create'], ['vault-visualize']),
 					],
 				},
-				cmd('notebooklm', 'notebooklm-export', t.commands.notebookLMExport, 'book-open', 'vault',
+				cmd('notebooklm', 'maintain', 'notebooklm-export', t.commands.notebookLMExport, 'book-open', 'vault',
 					desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
 					['notebooklm', 'export', 'pdf', 'pack'], ['tools']),
 			],
 		},
 	];
 
-	// Resolve the user's Essentials selection (max 5). Empty / undefined →
-	// fall back to the static default (chat / search / quick-peek). Look up
-	// each ID across nonEssentialCategories so the SAME object reference is
-	// pushed into Essentials too — preserves cross-listing semantics for
-	// search dedup. IDs not found are silently skipped.
-	const customEssentials = essentialsCommandIds
+	// Resolve the user's Pinned selection (max 5). Empty / undefined → fall back to the
+	// static default (chat / search / quick-peek). Look up each ID across
+	// nonEssentialCategories so the SAME object reference is pushed into Pinned too —
+	// preserves cross-listing semantics for search dedup. IDs not found are silently skipped.
+	const customPinned = pinnedCommandIds
 		.slice(0, 5)
 		.map(id => findLeafByIdInCategories(id, nonEssentialCategories))
 		.filter((leaf): leaf is PickerCommand => leaf !== null);
-	const essentialCommands = customEssentials.length > 0
-		? customEssentials
+	const pinnedCommands = customPinned.length > 0
+		? customPinned
 		: [chatLeaf, searchLeaf, peekLeaf];
 
 	return [
 		{
-			id: 'essentials',
-			name: t.modals.commandPicker.categoryEssentials,
+			id: 'pinned',
+			name: t.modals.commandPicker.categoryPinned,
 			icon: 'star',
-			commands: essentialCommands,
+			commands: pinnedCommands,
 		},
 		...nonEssentialCategories,
 	];
