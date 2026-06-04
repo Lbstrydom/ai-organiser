@@ -227,6 +227,9 @@ class MockHTMLElement {
         return null;
     }
     querySelectorAll(selector: string) { return []; }
+    /** Minimal closest — tag/class matching isn't tracked, so returns null
+     *  (callers use `?.` and treat null as "no ancestor"). */
+    closest(selector: string): MockHTMLElement | null { return null; }
     setAttribute(name: string, value: string) { this._attributes[name] = value; }
     setAttr(name: string, value: string) { this._attributes[name] = value; }
     getAttribute(name: string) { return this._attributes[name]; }
@@ -483,6 +486,7 @@ export class Plugin {
 export class PluginSettingTab {
     app: App;
     plugin: any;
+    containerEl: MockHTMLElement = new MockHTMLElement();
 
     constructor(app: App, plugin: any) {
         this.app = app;

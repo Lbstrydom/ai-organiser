@@ -10,6 +10,7 @@ import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
 import { getActivePresentationTarget } from '../ui/chat/presentation/presentationCommandRegistry';
 import { SlidePickerModal, parseSlideEntries } from '../ui/modals/SlidePickerModal';
+import { isFeatureEnabled } from '../services/featureService';
 
 function notify(message: string, duration?: number): Notice {
     return new Notice(message, duration);
@@ -53,7 +54,10 @@ export function openAIChat(plugin: AIOrganiserPlugin): void {
 }
 
 /**
- * Register chat commands
+ * Register chat commands. `chat-with-ai` is the ONLY core command here; the
+ * presentation + related-notes commands are extracted into their own
+ * feature-keyed register-fns (FT-9b) so they don't leak into the native palette
+ * when `presentation` / `semantic-search` are disabled.
  */
 export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     // Unified chat command — auto-selects best mode based on context
@@ -63,7 +67,17 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
         icon: 'message-circle',
         callback: () => openAIChat(plugin),
     });
+}
 
+/**
+ * Presentation commands — EXTRACTED from registerChatCommands (FT-9b) so the
+ * `presentation` feature owns its own register-fn and gates independently. The
+ * plan's §4 modelled presentation as "no addCommand (chat mode only)", but live
+ * code registers `presentation-chat` + `select-presentation-slide`; left inside
+ * the core chat registrar they would still appear in the native palette when
+ * `presentation` is off. Same mechanical extraction pattern as mermaid.
+ */
+export function registerPresentationCommands(plugin: AIOrganiserPlugin): void {
     // Presentation chat — opens UnifiedChatModal in presentation mode
     plugin.addCommand({
         id: 'presentation-chat',
@@ -84,8 +98,8 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     });
 
     // Slide-picker command — keyboard-reachable scope selection for the
-    // presentation builder. Bound to Mod+Shift+S by default. Falls back to
-    // a notice when no deck is loaded (audit Gemini-r7-G2).
+    // presentation builder. Falls back to a notice when no deck is loaded
+    // (audit Gemini-r7-G2).
     plugin.addCommand({
         // No default hotkey — Obsidian bot rule `obsidianmd/commands/no-default-hotkeys`.
         // Users can bind one in Settings → Hotkeys if they want fast access.
@@ -109,13 +123,21 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
             }).open();
         },
     });
+}
 
+/**
+ * Insert-related-notes — EXTRACTED from registerChatCommands (FT-9b) so the
+ * `semantic-search` feature owns it and it gates out of the native palette when
+ * semantic search is off (it requires the vector store regardless).
+ */
+export function registerInsertRelatedNotesCommand(plugin: AIOrganiserPlugin): void {
     // Find and insert related notes
     plugin.addCommand({
         id: 'insert-related-notes',
         name: plugin.t.commands.insertRelatedNotes,
         editorCallback: async (editor, view) => {
-            if (!plugin.vectorStore || !plugin.settings.enableSemanticSearch) {
+            // FT-11 sweep: gate on the feature predicate (absorbs enableSemanticSearch).
+            if (!plugin.vectorStore || !isFeatureEnabled(plugin.settings, 'semantic-search')) {
                 notify(plugin.t.messages.semanticSearchNotEnabledDetailed);
                 return;
             }

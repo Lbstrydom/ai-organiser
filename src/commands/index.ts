@@ -9,7 +9,7 @@ import { registerSmartNoteCommands, registerMermaidChatCommand } from './smartNo
 import { registerIntegrationCommands } from './integrationCommands';
 import { registerHighlightCommands } from './highlightCommands';
 import { registerSemanticSearchCommands } from './semanticSearchCommands';
-import { registerChatCommands } from './chatCommands';
+import { registerChatCommands, registerPresentationCommands, registerInsertRelatedNotesCommand } from './chatCommands';
 import { registerMigrationCommands } from './migrationCommands';
 import { registerDashboardCommands } from './dashboardCommands';
 import { registerNotebookLMCommands } from './notebookLMCommands';
@@ -36,10 +36,12 @@ type RegisterFn = (plugin: AIOrganiserPlugin) => void;
  * FeatureId → its command register-fn(s) (FT-4). Array-valued: a feature owns 1-to-many
  * register-fns (`tagging`→generate/clear/utility, `minutes`→minutes/transcribe,
  * `bases`→migration/dashboard, `smart-note`→smartNote/integration/highlight). Partial —
- * features with no own register-fn are absent: `provider` (core, no commands) and
- * `presentation` (a chat mode, no addCommand) gate via other maps (FT-9). `mermaid-chat`
- * is the extracted `registerMermaidChatCommand` (FT-9b). `registerContextMenu` is NOT
- * here — it stays unconditionally registered with per-item gating (Gemini-G2).
+ * `provider` (core, no commands) is absent and gates via section ownership only.
+ * `mermaid-chat`→`registerMermaidChatCommand`, `presentation`→`registerPresentationCommands`,
+ * and `semantic-search`→`registerInsertRelatedNotesCommand` are FT-9b extractions: their
+ * `addCommand`s rode inside a core/shared registrar and would leak into the native palette
+ * when the feature is off. `registerContextMenu` is NOT here — it stays unconditionally
+ * registered with per-item gating (Gemini-G2).
  */
 export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     tagging: [registerGenerateCommands, registerClearCommands, registerUtilityCommands],
@@ -47,8 +49,9 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     minutes: [registerMinutesCommands, registerTranscribeCommands],
     translate: [registerTranslateCommands],
     'smart-note': [registerSmartNoteCommands, registerIntegrationCommands, registerHighlightCommands],
-    'semantic-search': [registerSemanticSearchCommands],
+    'semantic-search': [registerSemanticSearchCommands, registerInsertRelatedNotesCommand],
     chat: [registerChatCommands],
+    presentation: [registerPresentationCommands],
     bases: [registerMigrationCommands, registerDashboardCommands],
     notebooklm: [registerNotebookLMCommands],
     export: [registerExportCommands],

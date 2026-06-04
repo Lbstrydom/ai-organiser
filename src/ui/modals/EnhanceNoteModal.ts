@@ -1,8 +1,9 @@
 import { App, Modal, Notice, Setting, setIcon } from 'obsidian';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
+import type { FeatureGatedAction } from '../utils/featureActions';
 
-export interface EnhanceAction {
+export interface EnhanceAction extends FeatureGatedAction {
     id: string;
     icon?: string;
     label: string;
