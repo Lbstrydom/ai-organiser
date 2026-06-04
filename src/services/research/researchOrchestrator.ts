@@ -12,6 +12,7 @@ import { requestUrl } from 'obsidian';
 import { TFile, TFolder } from 'obsidian';
 import { Readability } from '@mozilla/readability';
 import type AIOrganiserPlugin from '../../main';
+import { isFeatureEnabled } from '../featureService';
 import { summarizeText, summarizeTextStream, pluginContext } from '../llmFacade';
 import {
     buildQueryDecompositionPrompt,
@@ -857,7 +858,7 @@ export class ResearchOrchestrator {
         try {
             // Check RAG availability — requires vectorStore + embeddingService
             if (!this.plugin.vectorStore || !this.plugin.embeddingService) return null;
-            if (!this.plugin.settings.enableSemanticSearch) return null;
+            if (!isFeatureEnabled(this.plugin.settings, 'semantic-search')) return null;
 
             const ragService = new RAGService(
                 this.plugin.vectorStore,

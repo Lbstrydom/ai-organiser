@@ -64,7 +64,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private lastEmbeddingConfig = {
         provider: DEFAULT_SETTINGS.embeddingProvider,
         model: DEFAULT_SETTINGS.embeddingModel,
-        enabled: DEFAULT_SETTINGS.enableSemanticSearch
+        enabled: isFeatureEnabled(DEFAULT_SETTINGS, 'semantic-search')
     };
     public llmService: SummarizableLLMService;
     /** Resolved, validated active-provider profile (D1 SSOT). Null pre-init. */
@@ -151,13 +151,16 @@ export default class AIOrganiserPlugin extends Plugin {
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,
             model: this.settings.embeddingModel,
-            enabled: this.settings.enableSemanticSearch
+            // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
+            // enableSemanticSearch master) so a feature toggle is detected as a change.
+            enabled: isFeatureEnabled(this.settings, 'semantic-search')
         };
         try {
             this.newsletterLastFetchTime = oldSettings?.[LAST_FETCH_DATA_KEY] ?? 0;
         } catch { /* best-effort */ }
         this.lastNewsletterConfig = {
-            enabled: this.settings.newsletterEnabled,
+            // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
+            enabled: isFeatureEnabled(this.settings, 'newsletter'),
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
@@ -205,10 +208,10 @@ export default class AIOrganiserPlugin extends Plugin {
         const embeddingSettingsChanged =
             this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
             this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
-            this.settings.enableSemanticSearch !== this.lastEmbeddingConfig.enabled;
+            isFeatureEnabled(this.settings, 'semantic-search') !== this.lastEmbeddingConfig.enabled;
 
         const newsletterSettingsChanged =
-            this.settings.newsletterEnabled !== this.lastNewsletterConfig.enabled ||
+            isFeatureEnabled(this.settings, 'newsletter') !== this.lastNewsletterConfig.enabled ||
             this.settings.newsletterAutoFetch !== this.lastNewsletterConfig.autoFetch ||
             this.settings.newsletterAutoFetchIntervalMins !== this.lastNewsletterConfig.intervalMins;
 
@@ -232,14 +235,17 @@ export default class AIOrganiserPlugin extends Plugin {
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,
             model: this.settings.embeddingModel,
-            enabled: this.settings.enableSemanticSearch
+            // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
+            // enableSemanticSearch master) so a feature toggle is detected as a change.
+            enabled: isFeatureEnabled(this.settings, 'semantic-search')
         };
         this.t = getTranslations(this.settings.interfaceLanguage);
         if (newsletterSettingsChanged) {
             this.startNewsletterScheduler();
         }
         this.lastNewsletterConfig = {
-            enabled: this.settings.newsletterEnabled,
+            // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
+            enabled: isFeatureEnabled(this.settings, 'newsletter'),
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
@@ -253,8 +259,8 @@ export default class AIOrganiserPlugin extends Plugin {
         await this.embeddingService?.dispose();
         this.embeddingService = null;
 
-        // Only create if semantic search is enabled
-        if (this.settings.enableSemanticSearch) {
+        // Only create if the semantic-search feature is enabled (FT-11/FT-12).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
             // Resolve API key from SecretStorage with inheritance chain
             const apiKey = await this.resolveEmbeddingApiKey();
             this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined, this.embeddingCooldown);

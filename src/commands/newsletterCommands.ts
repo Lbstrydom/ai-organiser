@@ -6,6 +6,7 @@
 
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
@@ -76,7 +77,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         name: t.commands.newsletterFetch,
         icon: 'mail',
         callback: async () => {
-            if (!plugin.settings.newsletterEnabled) {
+            if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
                 noticeWithSettingsLink(plugin, t.settings.newsletter?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
                 return;
             }

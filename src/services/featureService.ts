@@ -22,14 +22,22 @@ export interface FeatureFlagsHost {
  * coalescing `undefined → registry.defaultOn` (not `false`) makes it appear per its
  * declared default rather than silently vanishing.
  */
-export function isFeatureEnabled(settings: FeatureFlagsHost, id: FeatureId): boolean {
+export function isFeatureEnabled(settings: FeatureFlagsHost, id: FeatureId, _seen?: Set<FeatureId>): boolean {
     const def = FEATURE_BY_ID[id];
     if (!def) return false; // fail-closed: unknown id
     if (def.core) return true;
-    const self = settings.featureFlags?.[id] ?? def.defaultOn;
+    // Fail-closed input validation: `featureFlags` is user-editable JSON — accept ONLY
+    // a strict boolean; any other value (string, number, null) coalesces to the registry
+    // default rather than being treated as truthy/falsy. Pairs with the Gemini-G4 coalesce.
+    const raw = settings.featureFlags?.[id];
+    const self = typeof raw === 'boolean' ? raw : def.defaultOn;
     if (!self) return false;
-    // All dependencies must also resolve enabled (transitive via recursion; acyclic by test).
-    return def.requires.every((dep) => isFeatureEnabled(settings, dep));
+    // Cycle guard: the registry is acyclic by test, but a future edit could introduce a
+    // cycle; fail CLOSED on revisit instead of recursing without bound (stack overflow).
+    const seen = _seen ?? new Set<FeatureId>();
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return def.requires.every((dep) => isFeatureEnabled(settings, dep, seen));
 }
 
 /**
@@ -58,7 +66,10 @@ export function resolveEnable(
 ): { flags: Partial<Record<FeatureId, boolean>>; also: FeatureId[] } {
     const next = { ...flags };
     const also: FeatureId[] = [];
+    const seen = new Set<FeatureId>();
     const visit = (target: FeatureId, isRoot: boolean): void => {
+        if (seen.has(target)) return; // cycle/diamond guard (acyclic by test, defensive)
+        seen.add(target);
         const def = FEATURE_BY_ID[target];
         if (!def || def.core) return; // unknown or core → nothing to flip
         const wasOn = next[target] ?? def.defaultOn;
@@ -100,6 +111,13 @@ export function resolveDisable(
     settings: FeatureFlagsHost,
     id: FeatureId,
 ): { flags: Partial<Record<FeatureId, boolean>>; cascaded: FeatureId[] } {
+    const def = FEATURE_BY_ID[id];
+    // Core features are always-on (FT-6) — disabling one is not representable. Refuse at
+    // the service boundary (defence in depth; the UI also locks the toggle) so a persisted
+    // flag set can never encode `core: false`.
+    if (!def || def.core) {
+        return { flags: { ...settings.featureFlags }, cascaded: [] };
+    }
     const cascaded = dependentsOf(settings, id);
     const next: Partial<Record<FeatureId, boolean>> = { ...settings.featureFlags };
     next[id] = false;

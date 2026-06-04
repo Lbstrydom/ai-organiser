@@ -7,6 +7,7 @@ import { TFile } from 'obsidian';
 import { IVectorStore, SearchResult, VectorDocument } from './vector/types';
 import { IEmbeddingService } from './embeddings/types';
 import { AIOrganiserSettings } from '../core/settings';
+import { isFeatureEnabled } from './featureService';
 import { logger } from '../utils/logger';
 
 export interface RAGContext {
@@ -266,6 +267,6 @@ export class RAGService {
      * Check if RAG is available
      */
     public isAvailable(): boolean {
-        return this.settings.enableSemanticSearch && this.vectorStore !== null;
+        return isFeatureEnabled(this.settings, 'semantic-search') && this.vectorStore !== null;
     }
 }

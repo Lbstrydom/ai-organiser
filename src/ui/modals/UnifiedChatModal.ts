@@ -30,6 +30,7 @@ import type { ConversationState } from '../../utils/chatExportUtils';
 import { PresentationLayoutController } from '../controllers/PresentationLayoutController';
 import { CHATMODE_FEATURE, type FeatureId } from '../../core/features';
 import { filterEnabledActions } from '../utils/featureActions';
+import { isFeatureEnabled } from '../../services/featureService';
 
 
 interface ChatMessage {
@@ -71,14 +72,16 @@ export function selectInitialMode(
         if (handler?.isAvailable(ctx)) return ctx.options.initialMode;
     }
 
-    // Gemini-R9-G1: the heuristic 'highlight' picks must guard on handlers.has —
-    // when `smart-note` is off the highlight mode isn't in the map and these
-    // early returns would otherwise hand back a mode with no handler.
-    if (ctx.options.editorSelection?.trim() && handlers.has('highlight')) {
+    // The heuristic 'highlight' picks must route through the SAME availability
+    // contract as every other branch (audit M11) — `isAvailable(ctx)` also covers
+    // the feature gate (when `smart-note` is off the handler isn't in the map, so
+    // `?.isAvailable` is undefined → falls through to a present mode; Gemini-R9-G1).
+    const highlightAvailable = handlers.get('highlight')?.isAvailable(ctx) ?? false;
+    if (ctx.options.editorSelection?.trim() && highlightAvailable) {
         return 'highlight';
     }
 
-    if (ctx.options.noteContent && handlers.has('highlight')) {
+    if (ctx.options.noteContent && highlightAvailable) {
         const blocks = splitIntoBlocks(ctx.options.noteContent);
         if (blocks.some(b => b.hasHighlight)) return 'highlight';
     }
@@ -308,7 +311,7 @@ export class UnifiedChatModal extends Modal {
             vaultDocCount: metadata?.totalDocuments ?? 0,
             vaultIndexVersion: metadata?.version ?? 'unknown',
             hasEmbeddingService: !!this.plugin.embeddingService,
-            semanticSearchEnabled: this.plugin.settings.enableSemanticSearch
+            semanticSearchEnabled: isFeatureEnabled(this.plugin.settings, 'semantic-search')
         };
     }
 

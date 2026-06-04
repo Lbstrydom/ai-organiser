@@ -97,12 +97,19 @@ describe('dependentsOf / resolveDisable', () => {
         expect(deps).not.toContain('canvas'); // canvas is off by default → not "broken"
     });
 
-    it('resolveDisable turns off the target and cascades enabled dependents', () => {
+    it('resolveDisable refuses to disable a core feature (always-on invariant, FT-6)', () => {
         const { flags, cascaded } = resolveDisable(host({ summarize: true, translate: true }), 'provider');
-        expect(flags.provider).toBe(false);
-        expect(cascaded).toContain('summarize');
-        expect(cascaded).toContain('translate');
-        for (const id of cascaded) expect(flags[id]).toBe(false);
+        // Core can't be turned off — no flag written, no cascade (it would otherwise
+        // cascade-disable every provider-dependent, an impossible persisted state).
+        expect(flags.provider).toBeUndefined();
+        expect(cascaded).toEqual([]);
+    });
+
+    it('resolveDisable turns off a non-core target', () => {
+        const { flags, cascaded } = resolveDisable(host({ summarize: true }), 'summarize');
+        expect(flags.summarize).toBe(false);
+        // Nothing in the registry depends on summarize → no cascade.
+        expect(cascaded).toEqual([]);
     });
 });
 

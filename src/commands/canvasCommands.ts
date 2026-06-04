@@ -1,6 +1,7 @@
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
+import { isFeatureEnabled } from '../services/featureService';
 import { pluginContext } from '../services/llmFacade';
 import { buildInvestigationBoard } from '../services/canvas/investigationBoard';
 import { buildContextBoard } from '../services/canvas/contextBoard';
@@ -36,7 +37,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
                 return;
             }
 
-            if (!plugin.settings.enableSemanticSearch || !plugin.vectorStore) {
+            if (!isFeatureEnabled(plugin.settings, 'semantic-search') || !plugin.vectorStore) {
                 new Notice(plugin.t.canvas.requiresSemanticSearch);
                 return;
             }
