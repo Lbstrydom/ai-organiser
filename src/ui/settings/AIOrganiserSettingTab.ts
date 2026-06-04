@@ -78,14 +78,18 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     }
 
     /**
-     * Empty-umbrella suppression by post-block removal (FT-10i, async-aware).
-     * Called AFTER all of an umbrella's children have rendered + awaited: if the
-     * umbrella's content holds zero rendered sub-sections, remove the whole
-     * `<details>`. Pure DOM derivation of the gated child set — no pre-computed
-     * child-count shadow.
+     * Empty-collapsible suppression by post-block removal (FT-10i, async-aware).
+     * Called AFTER a collapsible's children have rendered + awaited: if the content
+     * container has ZERO child elements, remove the whole `<details>`. Uses
+     * `children.length` (not a `.ai-organiser-settings-sub-section` selector) so it is
+     * correct for BOTH container shapes (Gemini-R9-G4) — umbrellas that hold sub-
+     * collapsibles AND any collapsible wrapping a single direct child that renders
+     * `.setting-item`s straight into the content. A disabled child contributes no element
+     * (its `renderIfEnabled` block was skipped), so an all-disabled container is empty.
+     * Pure DOM derivation of the gated child set — no pre-computed child-count shadow.
      */
     private removeUmbrellaIfEmpty(content: HTMLElement): void {
-        if (content.querySelectorAll('.ai-organiser-settings-sub-section').length === 0) {
+        if (content.children.length === 0) {
             content.closest('details')?.remove();
         }
     }
