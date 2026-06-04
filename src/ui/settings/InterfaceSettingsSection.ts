@@ -8,8 +8,8 @@ import {
     type PickerCommand,
 } from '../modals/CommandPickerModal';
 
-const ESSENTIALS_MAX = 5;
-const DEFAULT_ESSENTIALS = ['chat-with-ai', 'semantic-search', 'quick-peek'];
+const PINNED_MAX = 5;
+const DEFAULT_PINNED = ['chat-with-ai', 'semantic-search', 'quick-peek'];
 
 export class InterfaceSettingsSection extends BaseSettingSection {
     private initialLanguage!: SupportedLanguage;
@@ -98,7 +98,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
-        // === Quick commands (configurable Essentials) ===
+        // === Quick commands (configurable Pinned) ===
         this.renderQuickCommandsSection();
     }
 
@@ -110,13 +110,13 @@ export class InterfaceSettingsSection extends BaseSettingSection {
             .setName(t.pinnedTitle)
             .setDesc(t.pinnedDesc);
 
-        const listHost = this.containerEl.createDiv({ cls: 'ai-organiser-essentials-list' });
-        this.renderEssentialsList(listHost);
+        const listHost = this.containerEl.createDiv({ cls: 'ai-organiser-pinned-list' });
+        this.renderPinnedList(listHost);
     }
 
-    /** Render the current Essentials selection + add/reset controls.
+    /** Render the current Pinned selection + add/reset controls.
      *  Idempotent — called on initial display and after each mutation. */
-    private renderEssentialsList(host: HTMLElement): void {
+    private renderPinnedList(host: HTMLElement): void {
         host.empty();
         const t = this.plugin.t.settings.interface;
         const ids = this.plugin.settings.pickerPinnedCommandIds ?? [];
@@ -126,16 +126,16 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
         // Render current pinned commands
         if (ids.length === 0) {
-            host.createDiv({ cls: 'ai-organiser-essentials-empty', text: t.pinnedEmpty });
+            host.createDiv({ cls: 'ai-organiser-pinned-empty', text: t.pinnedEmpty });
         } else {
-            const rows = host.createDiv({ cls: 'ai-organiser-essentials-rows' });
+            const rows = host.createDiv({ cls: 'ai-organiser-pinned-rows' });
             ids.forEach((id, idx) => {
                 const leaf = leafById.get(id);
                 if (!leaf) return;  // ignore stale ids silently
-                const row = rows.createDiv({ cls: 'ai-organiser-essentials-row' });
-                row.createSpan({ cls: 'ai-organiser-essentials-row-name', text: leaf.name });
+                const row = rows.createDiv({ cls: 'ai-organiser-pinned-row' });
+                row.createSpan({ cls: 'ai-organiser-pinned-row-name', text: leaf.name });
                 const removeBtn = row.createEl('button', {
-                    cls: 'ai-organiser-essentials-row-remove',
+                    cls: 'ai-organiser-pinned-row-remove',
                     text: '×',
                     attr: { type: 'button', 'aria-label': t.pinnedRemoveAria },
                 });
@@ -143,33 +143,33 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                     const next = ids.filter((_, i) => i !== idx);
                     this.plugin.settings.pickerPinnedCommandIds = next;
                     void this.plugin.saveSettings();
-                    this.renderEssentialsList(host);
+                    this.renderPinnedList(host);
                 });
             });
         }
 
         // Action row
-        const actions = host.createDiv({ cls: 'ai-organiser-essentials-actions' });
+        const actions = host.createDiv({ cls: 'ai-organiser-pinned-actions' });
         const addBtn = new ButtonComponent(actions);
         addBtn.setButtonText(t.pinnedAddButton);
         addBtn.onClick(() => {
-            if (ids.length >= ESSENTIALS_MAX) return;
+            if (ids.length >= PINNED_MAX) return;
             const used = new Set(ids);
             const candidates = allLeaves.filter(l => !used.has(l.id));
-            const modal = new EssentialsPickerModal(
+            const modal = new PinnedPickerModal(
                 this.plugin.app,
                 candidates,
                 t.pinnedPickerPlaceholder,
                 (picked) => {
-                    const next = [...ids, picked.id].slice(0, ESSENTIALS_MAX);
+                    const next = [...ids, picked.id].slice(0, PINNED_MAX);
                     this.plugin.settings.pickerPinnedCommandIds = next;
                     void this.plugin.saveSettings();
-                    this.renderEssentialsList(host);
+                    this.renderPinnedList(host);
                 },
             );
             modal.open();
         });
-        if (ids.length >= ESSENTIALS_MAX) {
+        if (ids.length >= PINNED_MAX) {
             addBtn.setDisabled(true);
             addBtn.setTooltip(t.pinnedLimitNotice);
         }
@@ -180,19 +180,19 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                 .onClick(() => {
                     this.plugin.settings.pickerPinnedCommandIds = [];
                     void this.plugin.saveSettings();
-                    this.renderEssentialsList(host);
+                    this.renderPinnedList(host);
                 });
         }
     }
 
     /** Build the full leaf list from buildCommandCategories using empty
-     *  Essentials override so we get every command exactly once (deduped
+     *  Pinned override so we get every command exactly once (deduped
      *  by command.id since cross-listings reference the same object). */
     private collectAllLeaves(): PickerCommand[] {
         const cats = buildCommandCategories(
             this.plugin.t,
             () => { /* no-op — settings UI doesn't execute */ },
-            DEFAULT_ESSENTIALS,
+            DEFAULT_PINNED,
         );
         const seen = new Set<string>();
         const out: PickerCommand[] = [];
@@ -244,10 +244,10 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 }
 
 /**
- * Modal that lets the user pick a command to pin to Essentials. Reuses
+ * Modal that lets the user pick a command to pin to Pinned. Reuses
  * Obsidian's `FuzzySuggestModal` for native search / keyboard navigation.
  */
-class EssentialsPickerModal extends FuzzySuggestModal<PickerCommand> {
+class PinnedPickerModal extends FuzzySuggestModal<PickerCommand> {
     private picked = false;
 
     constructor(
