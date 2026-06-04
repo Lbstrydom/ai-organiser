@@ -36,6 +36,8 @@ import cloudEndpoints from './services/adapters/cloudEndpoints.json';
 import { EMBEDDING_PROVIDER_TO_SECRET_ID, PLUGIN_SECRET_IDS } from './core/secretIds';
 import { getAzureApiKey, resolveEndpoint } from './services/apiKeyHelpers';
 import { isAzureMode } from './services/azure/endpointResolver';
+import { ProviderProfile, resolveProviderProfile } from './services/providerProfile';
+import { NullLLMService } from './services/llm/nullLLMService';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -61,6 +63,14 @@ export default class AIOrganiserPlugin extends Plugin {
         enabled: DEFAULT_SETTINGS.enableSemanticSearch
     };
     public llmService: SummarizableLLMService;
+    /** Resolved, validated active-provider profile (D1 SSOT). Null pre-init. */
+    public providerProfile: ProviderProfile | null = null;
+    /** Listeners fired after `providerProfile` is recomputed (badge re-render, R2-M4). */
+    private readonly profileChangeListeners = new Set<() => void>();
+    /** Guards the one-time misconfigured-Azure Notice (re-armed when valid again). */
+    private azureMisconfigNoticeShown = false;
+    /** Monotonic init epoch — overlapping initializeLLMService calls: latest wins (H5). */
+    private llmInitEpoch = 0;
     public configService: ConfigurationService;
     public secretStorageService: SecretStorageService;
     public basesService: BasesService;
@@ -367,6 +377,10 @@ export default class AIOrganiserPlugin extends Plugin {
     }
 
     private async initializeLLMService(): Promise<void> {
+        // H5: claim an epoch up front. If a later init starts while this one is
+        // awaiting (secret lookups, profile resolution), the stale call bails
+        // before mutating `llmService`/`providerProfile` so the latest wins.
+        const myEpoch = ++this.llmInitEpoch;
         await this.llmService?.dispose();
 
         let serviceType = this.settings.serviceType;
@@ -424,35 +438,73 @@ export default class AIOrganiserPlugin extends Plugin {
         // on `!isAzureMode`, so it never touches these values.
         if (serviceType === 'cloud' && isAzureMode(this.settings)) {
             cloudEndpoint = this.getProviderEndpoint(cloudType);
-            cloudApiKey = (await getAzureApiKey(this, cloudType as 'azure-claude' | 'azure-openai')) || cloudApiKey;
-            if (!cloudEndpoint) {
-                // Guardrail: a configured Azure provider must have an endpoint. A loud,
-                // actionable warning if any future change ever leaves it empty.
-                logger.warn('Core',
-                    `Azure provider "${cloudType}" is selected but its endpoint is not configured — `
-                    + `set the Azure ${cloudType === 'azure-claude' ? 'AI' : 'OpenAI'} endpoint in AI provider settings.`);
-            }
+            // D2: NO `|| cloudApiKey` fallback — an Azure provider must never
+            // silently borrow the user's personal Claude/OpenAI key. A missing
+            // Azure key yields the fail-closed NullLLMService below.
+            cloudApiKey = (await getAzureApiKey(this, cloudType as 'azure-claude' | 'azure-openai')) || '';
         }
 
-        this.llmService = serviceType === 'local'
-            ? new LocalLLMService({
-                endpoint: localEndpoint,
-                modelName: localModel,
-                language: this.settings.language
-            }, this.app)
-            : new CloudLLMService({
-                endpoint: cloudEndpoint,
-                apiKey: cloudApiKey,
-                modelName: cloudModel,
-                type: cloudType,
-                language: this.settings.language,
-                thinkingMode: this.settings.claudeThinkingMode
-            }, this.app);
+        // D1: resolve the validated provider profile (SSOT) and cache it for the
+        // badge + per-call attribution. Recomputed on every init (saveSettings).
+        const profile = await resolveProviderProfile(this);
+
+        // H5: a newer init superseded us while awaiting — abandon this result.
+        if (myEpoch !== this.llmInitEpoch) return;
+        this.providerProfile = profile;
+
+        // D2: fail closed. A misconfigured Azure setup gets a NullLLMService —
+        // no network path can fire — plus one actionable Notice per misconfig
+        // episode (re-armed once the profile becomes valid again).
+        if (profile.mode === 'azure' && !profile.valid) {
+            this.llmService = new NullLLMService(profile.error ?? this.t.llmGateway.azureNotConfiguredNotice);
+            if (!this.azureMisconfigNoticeShown) {
+                new Notice(this.t.llmGateway.azureNotConfiguredNotice, 8000);
+                this.azureMisconfigNoticeShown = true;
+            }
+        } else {
+            this.azureMisconfigNoticeShown = false;
+            this.llmService = serviceType === 'local'
+                ? new LocalLLMService({
+                    endpoint: localEndpoint,
+                    modelName: localModel,
+                    language: this.settings.language
+                }, this.app)
+                : new CloudLLMService({
+                    endpoint: cloudEndpoint,
+                    apiKey: cloudApiKey,
+                    modelName: cloudModel,
+                    type: cloudType,
+                    language: this.settings.language,
+                    thinkingMode: this.settings.claudeThinkingMode
+                }, this.app);
+        }
 
         this.llmService.setDebugMode(this.settings.debugMode);
         this.llmService.setSummarizeTimeout(this.settings.summarizeTimeoutSeconds);
         setGlobalDebugMode(this.settings.debugMode);
         logger.setDebugMode(this.settings.debugMode);
+
+        // Notify subscribers (badge) that the profile may have changed.
+        this.fireProfileChange();
+    }
+
+    /**
+     * Subscribe to provider-profile changes (badge re-render). Returns an
+     * unsubscribe fn. Fired after each `initializeLLMService` recompute (R2-M4).
+     */
+    public onProfileChange(listener: () => void): () => void {
+        this.profileChangeListeners.add(listener);
+        return () => this.profileChangeListeners.delete(listener);
+    }
+
+    private fireProfileChange(): void {
+        for (const listener of this.profileChangeListeners) {
+            try {
+                listener();
+            } catch (e) {
+                logger.warn('Core', 'profile-change listener threw', e);
+            }
+        }
     }
 
     public async onload(): Promise<void> {

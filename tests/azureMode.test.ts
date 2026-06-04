@@ -27,6 +27,8 @@ import { getAudioTranscriptionApiKey, resolveEndpoint } from '../src/services/ap
 import { getPdfProviderConfig } from '../src/services/pdfTranslationService';
 import { createEmbeddingServiceFromSettings } from '../src/services/embeddings/embeddingServiceFactory';
 import { testAzureConnection } from '../src/services/azure/azureConnectionTest';
+import { resolveProviderProfile } from '../src/services/providerProfile';
+import { NullLLMService } from '../src/services/llm/nullLLMService';
 
 const AI_ENDPOINT = 'https://my-resource.services.ai.azure.com';
 const OAI_ENDPOINT = 'https://my-resource.openai.azure.com';
@@ -220,6 +222,57 @@ describe('testAzureConnection — redaction + status mapping', () => {
 		expect(report.surfaces.find(s => s.surface === 'azure-openai-chat')).toBeUndefined();
 		expect(report.surfaces.find(s => s.surface === 'azure-openai-embeddings')).toBeUndefined();
 		expect(report.surfaces.find(s => s.surface === 'azure-claude')).toBeDefined();
+	});
+});
+
+describe('fail-closed Azure — no personal-Anthropic call (keystone negative test)', () => {
+	beforeEach(() => {
+		mockRequestUrl.mockReset();
+		mockRequestUrl.mockResolvedValue({ status: 200, json: {} });
+	});
+
+	// Mirrors initializeLLMService's decision: a misconfigured Azure profile
+	// installs a NullLLMService (never CloudLLMService) → no HTTP path exists.
+	it('missing key+endpoint → invalid profile → NullLLMService returns error, zero Anthropic calls', async () => {
+		const plugin = makePlugin({ azureApiKey: '', azureAIEndpoint: '', azureOpenAIEndpoint: '' });
+		const profile = await resolveProviderProfile(plugin);
+		expect(profile.mode).toBe('azure');
+		expect(profile.valid).toBe(false);
+		expect(profile.error).toBeTruthy();
+
+		const service = new NullLLMService(profile.error!);
+		const r = await service.summarizeText('hello');
+		expect(r.success).toBe(false);
+		expect(r.error).toBe(profile.error);
+
+		// The HTTP boundary: no requestUrl ever hit an Anthropic host.
+		const anthropicCalls = mockRequestUrl.mock.calls.filter(([opts]: [{ url?: string }]) =>
+			typeof opts?.url === 'string' && opts.url.includes('anthropic.com'),
+		);
+		expect(anthropicCalls.length).toBe(0);
+		expect(mockRequestUrl).not.toHaveBeenCalled();
+	});
+
+	it('missing key only → invalid profile (key present check)', async () => {
+		const plugin = makePlugin({ azureApiKey: '' });
+		const profile = await resolveProviderProfile(plugin);
+		expect(profile.valid).toBe(false);
+	});
+
+	it('valid Azure → valid profile with the Azure host', async () => {
+		const plugin = makePlugin();
+		const profile = await resolveProviderProfile(plugin);
+		expect(profile.valid).toBe(true);
+		expect(profile.endpointHost).toBe('my-resource.services.ai.azure.com');
+	});
+
+	it('NullLLMService streaming + multimodal also fail closed with no network', async () => {
+		const service = new NullLLMService('boom');
+		const stream = await service.summarizeTextStream('p', () => { /* no chunks */ });
+		expect(stream.success).toBe(false);
+		const mm = await service.sendMultimodal([{ type: 'text', text: 'p' }]);
+		expect(mm.success).toBe(false);
+		expect(mockRequestUrl).not.toHaveBeenCalled();
 	});
 });
 

@@ -3171,6 +3171,20 @@ export interface Translations {
         slideThumbnails: string; // filmstrip group aria-label
         slideThumbnailItem: string; // per-thumbnail aria-label, `{n}` = 1-based slide number
     };
+    // LLM gateway-lite: provider trust badge, fail-closed notice, run status line.
+    llmGateway: {
+        azureNotConfiguredNotice: string;   // one-time notice on misconfigured Azure
+        badgeAzure: string;                 // template: "Azure {provider}"
+        badgePersonal: string;              // template: "Personal {provider}"
+        badgeLocal: string;                 // "Local"
+        badgeInvalid: string;               // "Azure not configured"
+        badgeTooltip: string;               // template: "Endpoint: {host}"
+        badgeTooltipInvalid: string;        // "Configure Azure in settings"
+        statusRateLimited: string;          // template: "Rate limited — retrying in {seconds}s…"
+        statusCancelled: string;            // "Cancelled"
+        cancelButton: string;               // "Cancel"
+        cancelTooltip: string;              // "Cancel the current build"
+    };
 }
 
 /**

@@ -3267,5 +3267,18 @@ export const en: Translations = {
         openChatPanel: "Open chat",
         slideThumbnails: "Slide thumbnails",
         slideThumbnailItem: "Slide {n}"
+    },
+    llmGateway: {
+        azureNotConfiguredNotice: "Azure is selected but not configured. Add the Azure endpoint and key in settings to enable AI features.",
+        badgeAzure: "Azure {provider}",
+        badgePersonal: "Personal {provider}",
+        badgeLocal: "Local",
+        badgeInvalid: "Azure not configured",
+        badgeTooltip: "Endpoint: {host}",
+        badgeTooltipInvalid: "Configure Azure in settings",
+        statusRateLimited: "Rate limited — retrying in {seconds}s…",
+        statusCancelled: "Cancelled",
+        cancelButton: "Cancel",
+        cancelTooltip: "Cancel the current build"
     }
 };
