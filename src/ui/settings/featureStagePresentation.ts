@@ -26,12 +26,12 @@ const INTEGRATIONS_ICON = 'puzzle';
 export function settingsGroupIcon(group: SettingsGroup): string {
     if (group.groupKind === 'core') return CORE_ICON;
     if (group.groupKind === 'integrations') return INTEGRATIONS_ICON;
-    return STAGE_ICON[group.stage as WorkflowStage];
+    return STAGE_ICON[group.stage];
 }
 
 /** i18n label for a settings group — stage groups share `t.workflowStages.*` with the picker. */
 export function settingsGroupLabel(group: SettingsGroup, t: Translations): string {
     if (group.groupKind === 'core') return t.features.clusters.core;
     if (group.groupKind === 'integrations') return t.features.clusters.integrations;
-    return t.workflowStages[group.stage as WorkflowStage];
+    return t.workflowStages[group.stage];
 }

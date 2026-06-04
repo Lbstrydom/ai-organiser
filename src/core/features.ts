@@ -65,9 +65,9 @@ export interface FeatureDef {
      * Declared trust/setup attributes (v1: `'external-account'` only). The presence of
      * `'external-account'` is the SOLE trigger for the settings "Integrations" float —
      * never an ad-hoc list. A local tool carries no boundary even if it relates to an
-     * external product (Bases, NotebookLM).
+     * external product (Bases, NotebookLM). `readonly` — the registry is frozen (M6).
      */
-    boundary?: FeatureBoundary[];
+    boundary?: readonly FeatureBoundary[];
     /** Features that must also be enabled (transitive). Acyclic — enforced by test. */
     requires: FeatureId[];
     /** Core features can't be disabled (toggle locked + "always on"). */
@@ -87,7 +87,7 @@ function freezeDef(f: FeatureDef): Readonly<FeatureDef> {
     return Object.freeze({
         ...f,
         requires: Object.freeze([...f.requires]) as FeatureId[],
-        boundary: f.boundary ? (Object.freeze([...f.boundary]) as FeatureBoundary[]) : undefined,
+        boundary: f.boundary ? (Object.freeze([...f.boundary]) as readonly FeatureBoundary[]) : undefined,
     });
 }
 

@@ -19,14 +19,16 @@ import type { FeatureDef } from '../core/features';
 import type { WorkflowStage } from '../core/workflowStages';
 import { WORKFLOW_STAGES, type FeatureBoundary } from '../core/workflowStages';
 
-export type SettingsGroupKind = 'core' | 'stage' | 'integrations';
+/**
+ * A settings group — a discriminated union so invalid states are unrepresentable
+ * (a `stage` group ALWAYS carries its stage; core/integrations never do — M8).
+ */
+export type SettingsGroup =
+    | { groupKind: 'core'; features: FeatureDef[] }
+    | { groupKind: 'integrations'; features: FeatureDef[] }
+    | { groupKind: 'stage'; stage: WorkflowStage; features: FeatureDef[] };
 
-export interface SettingsGroup {
-    groupKind: SettingsGroupKind;
-    /** Set iff `groupKind === 'stage'` — which stage this group renders. */
-    stage?: WorkflowStage;
-    features: FeatureDef[];
-}
+export type SettingsGroupKind = SettingsGroup['groupKind'];
 
 const EXTERNAL: FeatureBoundary = 'external-account';
 

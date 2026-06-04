@@ -48,13 +48,21 @@ describe('projectSettingsGroups — settings-surface projection', () => {
     });
 
     it('orders each group defaultOn-first, ties in registry order (stable)', () => {
+        const registryIndex = new Map(FEATURE_REGISTRY.map((f, i) => [f.id, i]));
         for (const g of groups) {
             const flags = g.features.map((f) => f.defaultOn);
-            // No `false` may precede a `true` — defaultOn sorts ahead.
+            // (a) No `false` precedes a `true` — defaultOn sorts ahead.
             const firstFalse = flags.indexOf(false);
             if (firstFalse !== -1) {
                 expect(flags.slice(firstFalse).some((v) => v === true)).toBe(false);
             }
+            // (b) Within each defaultOn tier, registry declaration order is preserved
+            //     (proves the sort is stable, not just partitioned — L3).
+            const onIdx = g.features.filter((f) => f.defaultOn).map((f) => registryIndex.get(f.id)!);
+            const offIdx = g.features.filter((f) => !f.defaultOn).map((f) => registryIndex.get(f.id)!);
+            const ascending = (a: number[]) => a.every((v, i) => i === 0 || v > a[i - 1]);
+            expect(ascending(onIdx), 'defaultOn tier preserves registry order').toBe(true);
+            expect(ascending(offIdx), 'defaultOff tier preserves registry order').toBe(true);
         }
     });
 
