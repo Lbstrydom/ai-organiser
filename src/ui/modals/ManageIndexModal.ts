@@ -1,6 +1,7 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { INDEX_SCHEMA_VERSION } from '../../services/vector/vectorStoreService';
+import { isFeatureEnabled } from '../../services/featureService';
 import { noticeWithSettingsLink } from '../../utils/noticeUtils';
 
 export class ManageIndexModal extends Modal {
@@ -85,7 +86,7 @@ export class ManageIndexModal extends Modal {
     }
 
     private ensureIndexingAvailable(): boolean {
-        if (!this.plugin.settings.enableSemanticSearch) {
+        if (!isFeatureEnabled(this.plugin.settings, 'semantic-search')) {
             noticeWithSettingsLink(this.plugin, this.plugin.t.messages.semanticSearchDisabled);
             return false;
         }

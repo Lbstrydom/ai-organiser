@@ -2848,6 +2848,63 @@ silent-data-loss class (a long async pipeline writing to a stale/changed editor 
 
 **Plan** (completed): [docs/completed/command-layer-hardening.md](docs/completed/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/completed/command-layer-hardening-audit-summary.md`. Cluster C audited GPT-5.4 R1 (only M2 in-scope, documented deviation) + consolidated Gemini gate **R1→R2→R3 APPROVE**.
 
+## Feature Toggles (per-feature on/off gating)
+
+**Status**: ✅ Implemented (June 2026) — Clusters A (read-side gating) + B (toggle UI).
+
+A **Features** settings section lets each feature be turned on/off. OFF ⟹ its commands don't
+register, its settings (sub)section is hidden, its picker leaves are hidden, its owned
+views/gutter/context-menu items are suppressed, its chat-mode entry is dropped, and its
+background services don't init. Default is **Lean** (heavy-use trio chat/research/presentation +
+common writing tools on; most add-ons off). Lifecycle is **reload-to-apply** (FT-5): only enabled
+features register commands/views at load; toggling persists + re-renders settings + shows a
+reload Notice. The gating predicate is the SSOT — `isFeatureEnabled(settings, id)`.
+
+### Core components
+- `src/core/features.ts` — **pure data SSOT** (deep-frozen): `FeatureId` union, `FEATURE_REGISTRY`
+  (`{id, labelKey, descKey, cluster, requires[], core?, defaultOn, absorbsLegacyFlag?}`),
+  `FEATURE_CLUSTERS`, `FEATURE_BY_ID`, + the five ownership maps `SECTION_FEATURE` / `SURFACE_FEATURE`
+  / `CHATMODE_FEATURE` (+ `LEAF_FEATURE` = the picker leaf's `feature` field) + `INFRA_SECTIONS`.
+  Display copy lives ONLY in i18n (`t.features.*`); the registry holds typed paths (L1 dedup).
+- `src/services/featureService.ts` — **pure** flag logic: `isFeatureEnabled` (core OR
+  `(strict-boolean flag ?? defaultOn)` AND all `requires` enabled — fail-CLOSED on unknown id /
+  malformed value / cycle, path-based DFS guard so diamonds resolve), `defaultFeatureFlags`,
+  `resolveEnable` (transitive auto-enable + `also`), `dependentsOf`, `resolveDisable` (refuses core).
+- `src/ui/utils/featureActions.ts` — `filterEnabledActions(actions, settings)` (FT-13): one shared
+  seam for in-app action lists (chat-mode map, `EnhanceNoteModal`); no-`feature` actions are kept.
+- `src/ui/settings/FeaturesSettingsSection.ts` — cluster-grouped toggles, core locked ("always on"),
+  enable shows "also enabled", disable-with-dependents → `FeatureDisableConfirmModal` (FT-8).
+- `src/main.ts` — `applyFeatureFlags` (FT-5): **single-flight**, routes through `saveSettings`,
+  **full-snapshot revert** on failure (cascade-safe), `teardownFeature` on toggle-off (FT-12:
+  semantic-search disposes vector store + nulls refs + detaches related-notes view; newsletter
+  stops scheduler), awaited re-render, reload Notice. First-run intro Notice gated by the persisted
+  `featuresIntroShown` marker (FT-7).
+
+### Six gating sites + the procedural tab
+`registerCommands` loops `REGISTER_BY_FEATURE`; the picker filters leaves by `feature` + suppresses
+empty groups/categories; `main.ts` onload gates views/gutter/context-menu items + background-service
+init; `UnifiedChatModal` builds its handler map from `CHATMODE_FEATURE`; the **settings tab is
+procedural** — every feature-owned child section passes through `renderIfEnabled(sectionId, fn)`
+(the guard IS the consumer; a render-spy reconciles the captured ids against `SECTION_FEATURE ∪
+INFRA_SECTIONS`), and empty umbrellas are removed post-render via `content.children.length === 0`.
+
+### Key patterns
+- **Fail-closed (FT-4)**: an id not in the registry is disabled; a leaf with no `feature` is hidden.
+- **Legacy master absorption (FT-11)**: `enableSemanticSearch`→`semantic-search`,
+  `newsletterEnabled`→`newsletter` are migrated into `featureFlags` (absorb-before-default order)
+  and the flag becomes the **sole** gate — every gating reader was swept to `isFeatureEnabled`.
+- **FT-9b extractions**: `registerMermaidChatCommand`, `registerPresentationCommands`,
+  `registerInsertRelatedNotesCommand` were lifted out of shared/core registrars so a disabled
+  feature's command can't leak into the native palette.
+- **Completeness invariant**: tests assert every non-core feature is referenced by ≥1 ownership
+  map, every picker leaf is tagged, the live section set = `SECTION_FEATURE ∪ INFRA_SECTIONS`, and
+  every `labelKey`/`descKey` resolves in `en`.
+
+### Tests
+`tests/{featureService,featureRegistry,featureServiceGating,featureActions,commandPickerFeatureGating,settingsTabFeatureGating,applyFeatureFlags,featuresSettingsSection}.test.ts`.
+
+**Plan** (completed): [docs/completed/feature-toggles.md](docs/completed/feature-toggles.md) · **Audit summaries** (gitignored): `docs/completed/feature-toggles-audit-summary.md` (+ cluster-A). GPT-5.4 per-cluster audits + consolidated Gemini gate **R1 CONCERNS → R2 APPROVE** over the union diff.
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

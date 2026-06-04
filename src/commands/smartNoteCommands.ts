@@ -22,6 +22,7 @@ import { MermaidBlockPickerModal } from '../ui/modals/MermaidBlockPickerModal';
 import { buildDiagramPrompt, cleanMermaidOutput, wrapInCodeFence } from '../services/prompts/diagramPrompts';
 import { findAllMermaidBlocks } from '../utils/mermaidUtils';
 import { EnhanceNoteModal, EnhanceAction } from '../ui/modals/EnhanceNoteModal';
+import { filterEnabledActions } from '../ui/utils/featureActions';
 import { exportFlashcards } from './flashcardCommands';
 import { SEARCH_TERM_SNIPPET_CHARS } from '../core/constants';
 import { getServiceType, summarizeText, pluginContext } from '../services/llmFacade';
@@ -39,9 +40,16 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
         icon: 'sparkles',
         callback: () => openEnhanceModal(plugin)
     });
+}
 
-    // Command: Edit Mermaid Diagram (conversational chat)
-    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
+/**
+ * Mermaid-chat command — EXTRACTED from registerSmartNoteCommands (FT-9b) so the
+ * `mermaid-chat` feature owns its own register-fn and gates independently. If it rode
+ * inside registerSmartNoteCommands, the command would still register into the native
+ * palette even when `mermaid-chat` is off. Same file area, just a thin feature-keyed fn.
+ * Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById.
+ */
+export function registerMermaidChatCommand(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'edit-mermaid-diagram',
         name: plugin.t.commands.editMermaidDiagram,
@@ -51,6 +59,9 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
 }
 
 function openEnhanceModal(plugin: AIOrganiserPlugin): void {
+    // Each action declares its owning feature (FT-13) so the shared
+    // `filterEnabledActions` helper drops it when that feature is disabled.
+    // "Improve" is the host action (no toggle) and stays ungated.
     const actions: EnhanceAction[] = [
         {
             id: 'improve',
@@ -64,6 +75,7 @@ function openEnhanceModal(plugin: AIOrganiserPlugin): void {
             icon: 'git-branch',
             label: plugin.t.modals.enhance.diagram,
             description: plugin.t.modals.enhance.diagramDesc,
+            feature: 'mermaid-chat',
             onClick: () => executeGenerateMermaidDiagram(plugin)
         },
         {
@@ -71,6 +83,7 @@ function openEnhanceModal(plugin: AIOrganiserPlugin): void {
             icon: 'search',
             label: plugin.t.modals.enhance.resources,
             description: plugin.t.modals.enhance.resourcesDesc,
+            feature: 'research',
             onClick: () => executeFindResources(plugin)
         },
         {
@@ -78,11 +91,12 @@ function openEnhanceModal(plugin: AIOrganiserPlugin): void {
             icon: 'layers',
             label: plugin.t.modals.enhance.flashcards,
             description: plugin.t.modals.enhance.flashcardsDesc,
+            feature: 'flashcards',
             onClick: () => exportFlashcards(plugin)
         }
     ];
 
-    new EnhanceNoteModal(plugin.app, plugin, actions).open();
+    new EnhanceNoteModal(plugin.app, plugin, filterEnabledActions(actions, plugin.settings)).open();
 }
 
 function getActiveMarkdownView(plugin: AIOrganiserPlugin): MarkdownView | null {

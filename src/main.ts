@@ -19,6 +19,8 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
+import { isFeatureEnabled } from './services/featureService';
+import { FEATURE_REGISTRY, type FeatureId } from './core/features';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
@@ -63,7 +65,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private lastEmbeddingConfig = {
         provider: DEFAULT_SETTINGS.embeddingProvider,
         model: DEFAULT_SETTINGS.embeddingModel,
-        enabled: DEFAULT_SETTINGS.enableSemanticSearch
+        enabled: isFeatureEnabled(DEFAULT_SETTINGS, 'semantic-search')
     };
     public llmService: SummarizableLLMService;
     /** Resolved, validated active-provider profile (D1 SSOT). Null pre-init. */
@@ -88,6 +90,12 @@ export default class AIOrganiserPlugin extends Plugin {
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
     public sourcePackService: SourcePackService | null = null;
+    /** The settings tab instance — kept so `applyFeatureFlags` can await a re-render (FT-5). */
+    public settingTab: AIOrganiserSettingTab | null = null;
+    /** Single-flight guard: serialises feature-flag writes so two rapid toggles can't
+     *  interleave saveSettings/teardown/re-render. The in-flight apply re-renders the tab
+     *  at the end, so a dropped concurrent toggle is reflected correctly on that render. */
+    private applyingFeatureFlags = false;
     private readonly eventHandlers: EventHandlers;
     private readonly tagNetworkManager: TagNetworkManager;
     private readonly tagOperations: TagOperations;
@@ -150,13 +158,16 @@ export default class AIOrganiserPlugin extends Plugin {
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,
             model: this.settings.embeddingModel,
-            enabled: this.settings.enableSemanticSearch
+            // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
+            // enableSemanticSearch master) so a feature toggle is detected as a change.
+            enabled: isFeatureEnabled(this.settings, 'semantic-search')
         };
         try {
             this.newsletterLastFetchTime = oldSettings?.[LAST_FETCH_DATA_KEY] ?? 0;
         } catch { /* best-effort */ }
         this.lastNewsletterConfig = {
-            enabled: this.settings.newsletterEnabled,
+            // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
+            enabled: isFeatureEnabled(this.settings, 'newsletter'),
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
@@ -204,10 +215,10 @@ export default class AIOrganiserPlugin extends Plugin {
         const embeddingSettingsChanged =
             this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
             this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
-            this.settings.enableSemanticSearch !== this.lastEmbeddingConfig.enabled;
+            isFeatureEnabled(this.settings, 'semantic-search') !== this.lastEmbeddingConfig.enabled;
 
         const newsletterSettingsChanged =
-            this.settings.newsletterEnabled !== this.lastNewsletterConfig.enabled ||
+            isFeatureEnabled(this.settings, 'newsletter') !== this.lastNewsletterConfig.enabled ||
             this.settings.newsletterAutoFetch !== this.lastNewsletterConfig.autoFetch ||
             this.settings.newsletterAutoFetchIntervalMins !== this.lastNewsletterConfig.intervalMins;
 
@@ -231,17 +242,94 @@ export default class AIOrganiserPlugin extends Plugin {
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,
             model: this.settings.embeddingModel,
-            enabled: this.settings.enableSemanticSearch
+            // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
+            // enableSemanticSearch master) so a feature toggle is detected as a change.
+            enabled: isFeatureEnabled(this.settings, 'semantic-search')
         };
         this.t = getTranslations(this.settings.interfaceLanguage);
         if (newsletterSettingsChanged) {
             this.startNewsletterScheduler();
         }
         this.lastNewsletterConfig = {
-            enabled: this.settings.newsletterEnabled,
+            // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
+            enabled: isFeatureEnabled(this.settings, 'newsletter'),
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
+    }
+
+    /**
+     * Apply a new feature-flag set from the Features settings UI (FT-5/FT-12).
+     *
+     * 1. Persist via the canonical `saveSettings` path (which also re-inits embeddings /
+     *    restarts the newsletter scheduler on the now-changed feature state).
+     * 2. On persistence failure restore the FULL pre-mutation snapshot — a toggle may have
+     *    cascaded dependency changes (auto-enable requires / cascade-disable dependents),
+     *    so reverting one flag would leave the cascade half-applied (Gemini-R9-G3).
+     * 3. Tear down active background work for any feature turned OFF, immediately
+     *    (error-boundaried per FT-12 — a throwing teardown must not block the reload Notice).
+     * 4. `await` the settings re-render (Obsidian `display()` is async — no floating promise)
+     *    then show the reload-to-apply Notice. Command/view registration is a load-time
+     *    snapshot (FT-5) — only a reload fully (un)registers them.
+     */
+    public async applyFeatureFlags(newFlags: Partial<Record<FeatureId, boolean>>): Promise<void> {
+        // Single-flight: ignore a concurrent toggle while a write is in progress — the
+        // in-flight apply re-renders the tab at the end, reflecting the true persisted state.
+        if (this.applyingFeatureFlags) return;
+        this.applyingFeatureFlags = true;
+        try {
+            const prev = { ...this.settings.featureFlags };
+            const turnedOff = FEATURE_REGISTRY.filter((f) =>
+                isFeatureEnabled({ featureFlags: prev }, f.id) && !isFeatureEnabled({ featureFlags: newFlags }, f.id),
+            ).map((f) => f.id);
+
+            this.settings.featureFlags = newFlags;
+            try {
+                await this.saveSettings();
+            } catch (err) {
+                this.settings.featureFlags = prev; // full-snapshot revert (cascade-safe)
+                logger.error('Core', 'Failed to persist feature flags — reverted', err);
+                await this.settingTab?.render();
+                new Notice(this.t.features.saveError, 6000);
+                return;
+            }
+
+            for (const id of turnedOff) {
+                try {
+                    this.teardownFeature(id);
+                } catch (err) {
+                    logger.error('Core', `Feature teardown for '${id}' threw`, err);
+                }
+            }
+
+            await this.settingTab?.render();
+            new Notice(this.t.features.reloadNotice, 8000);
+        } finally {
+            this.applyingFeatureFlags = false;
+        }
+    }
+
+    /**
+     * Stop a feature's ACTIVE background work on toggle-off (FT-12). Only features with a
+     * running service need one: `semantic-search` (vector store + file-event handlers +
+     * related-notes view) and `newsletter` (scheduler interval). The exact inverse of the
+     * feature's `onload` init; nulls the refs so the codebase's null-guards observe the
+     * absence. Commands/views still need a reload to fully unregister (FT-5).
+     */
+    private teardownFeature(id: FeatureId): void {
+        if (id === 'semantic-search') {
+            if (this.vectorStoreService) {
+                void this.vectorStoreService.dispose();
+                this.vectorStore = null;
+                this.vectorStoreService = null;
+            }
+            void this.embeddingService?.dispose();
+            this.embeddingService = null;
+            this.app.workspace.detachLeavesOfType(RELATED_NOTES_VIEW_TYPE);
+        } else if (id === 'newsletter') {
+            this.stopNewsletterScheduler();
+        }
+        // Other features own no active background work → reload-deferred (FT-5).
     }
 
     /**
@@ -252,8 +340,8 @@ export default class AIOrganiserPlugin extends Plugin {
         await this.embeddingService?.dispose();
         this.embeddingService = null;
 
-        // Only create if semantic search is enabled
-        if (this.settings.enableSemanticSearch) {
+        // Only create if the semantic-search feature is enabled (FT-11/FT-12).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
             // Resolve API key from SecretStorage with inheritance chain
             const apiKey = await this.resolveEmbeddingApiKey();
             this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined, this.embeddingCooldown);
@@ -590,8 +678,9 @@ export default class AIOrganiserPlugin extends Plugin {
             cooldown: this.embeddingCooldown,
         });
 
-        // Initialize vector store for semantic search
-        if (this.settings.enableSemanticSearch) {
+        // Initialize vector store for semantic search (gated on the feature — FT-12;
+        // semantic-search absorbed the legacy enableSemanticSearch master switch).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
             try {
                 // Resolve API key from SecretStorage with inheritance chain
                 const embeddingApiKey = await this.resolveEmbeddingApiKey();
@@ -625,8 +714,8 @@ export default class AIOrganiserPlugin extends Plugin {
         // Initialize NotebookLM source pack service
         this.initializeSourcePackService();
 
-        // §4.4.2 Mermaid diagram staleness notification (opt-in)
-        if (this.settings.mermaidChatStalenessNotice) {
+        // §4.4.2 Mermaid diagram staleness notification (opt-in; gated on mermaid-chat)
+        if (this.settings.mermaidChatStalenessNotice && isFeatureEnabled(this.settings, 'mermaid-chat')) {
             this.registerEvent(
                 this.app.metadataCache.on('changed', debounce((file: TFile) => {
                     void this.checkDiagramStaleness(file);
@@ -634,13 +723,14 @@ export default class AIOrganiserPlugin extends Plugin {
             );
         }
 
-        // §4.4.3 Mermaid staleness gutter (opt-in, desktop only)
-        if (this.settings.mermaidChatStalenessGutter && !Platform.isMobile) {
+        // §4.4.3 Mermaid staleness gutter (opt-in, desktop only; gated on mermaid-chat — FT-12)
+        if (this.settings.mermaidChatStalenessGutter && !Platform.isMobile && isFeatureEnabled(this.settings, 'mermaid-chat')) {
             this.registerEditorExtension([mermaidStalenessGutterExtension(this)]);
         }
 
         this.eventHandlers.registerEventHandlers();
-        this.addSettingTab(new AIOrganiserSettingTab(this.app, this));
+        this.settingTab = new AIOrganiserSettingTab(this.app, this);
+        this.addSettingTab(this.settingTab);
         registerCommands(this);
         this.startNewsletterScheduler();
 
@@ -658,8 +748,11 @@ export default class AIOrganiserPlugin extends Plugin {
         // of the plugin functional. (Persona-harness finding 2026-04-21.)
         this.safeRegisterView(TAG_NETWORK_VIEW_TYPE, (leaf) =>
             new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles(), this));
-        this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
-            new RelatedNotesView(leaf, this));
+        // Related-notes view is a semantic-search surface — register only when enabled (FT-12).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
+            this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
+                new RelatedNotesView(leaf, this));
+        }
 
         // Register command picker command
         this.addCommand({
@@ -697,6 +790,16 @@ export default class AIOrganiserPlugin extends Plugin {
             this.t.commands.chatWithAI || 'Chat with AI',
             () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
+
+        // First-run intro (FT-7 / L2): point existing + new users at the new Features
+        // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
+        // immediately so it never re-fires across reloads. Fires after layout settles.
+        if (!this.settings.featuresIntroShown) {
+            this.settings.featuresIntroShown = true;
+            void this.saveData(this.settings).catch((err) =>
+                logger.warn('Core', 'Failed to persist featuresIntroShown marker', err));
+            this.app.workspace.onLayoutReady(() => new Notice(this.t.features.intro, 8000));
+        }
     }
 
     /**
@@ -794,8 +897,9 @@ export default class AIOrganiserPlugin extends Plugin {
     /** Start (or restart) the newsletter auto-fetch scheduler. Call after settings change. */
     public startNewsletterScheduler(): void {
         this.stopNewsletterScheduler();
-        if (!this.settings.newsletterAutoFetch || !this.settings.newsletterEnabled) {
-            logger.debug('Newsletter', `Scheduler skipped: enabled=${this.settings.newsletterEnabled}, autoFetch=${this.settings.newsletterAutoFetch}`);
+        // Gate on the newsletter feature (FT-12; it absorbed the legacy newsletterEnabled master).
+        if (!this.settings.newsletterAutoFetch || !isFeatureEnabled(this.settings, 'newsletter')) {
+            logger.debug('Newsletter', `Scheduler skipped: feature=${isFeatureEnabled(this.settings, 'newsletter')}, autoFetch=${this.settings.newsletterAutoFetch}`);
             return;
         }
         const intervalMs = this.settings.newsletterAutoFetchIntervalMins * 60 * 1000;
@@ -814,8 +918,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
     /** Runs a fetch only if enough time has passed since the last one. */
     private async runScheduledNewsletterFetch(): Promise<void> {
-        if (!this.settings.newsletterEnabled || !this.settings.newsletterScriptUrl?.trim()) {
-            logger.debug('Newsletter', `Scheduled fetch skipped: enabled=${this.settings.newsletterEnabled}, hasUrl=${!!this.settings.newsletterScriptUrl?.trim()}`);
+        if (!isFeatureEnabled(this.settings, 'newsletter') || !this.settings.newsletterScriptUrl?.trim()) {
+            logger.debug('Newsletter', `Scheduled fetch skipped: feature=${isFeatureEnabled(this.settings, 'newsletter')}, hasUrl=${!!this.settings.newsletterScriptUrl?.trim()}`);
             return;
         }
         if (this.newsletterFetching) {

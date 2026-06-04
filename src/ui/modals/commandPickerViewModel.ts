@@ -5,6 +5,40 @@
  */
 
 import type { CommandCategory, PickerCommand } from './CommandPickerModal';
+import type { FeatureId } from '../../core/features';
+
+/** Predicate: is the feature owning a leaf enabled? Supplied by the modal. */
+export type FeatureLeafPredicate = (feature: FeatureId) => boolean;
+
+/**
+ * Drop leaves whose owning feature is disabled, then drop any group/category left
+ * with zero visible leaves (FT-10ii empty-category suppression). Pure — returns a new
+ * tree, never mutates. Fail-closed: a leaf with no `feature` is hidden (an untagged
+ * leaf is a bug the completeness test catches; hiding it can't leak a feature).
+ * Group containers (rows with `subCommands`) carry no `feature` themselves — they
+ * survive iff ≥1 of their children survives.
+ */
+export function filterCategoriesByFeature(
+	categories: CommandCategory[],
+	isEnabled: FeatureLeafPredicate,
+): CommandCategory[] {
+	const keepLeaf = (leaf: PickerCommand): boolean =>
+		leaf.feature !== undefined && isEnabled(leaf.feature);
+	const out: CommandCategory[] = [];
+	for (const cat of categories) {
+		const commands: PickerCommand[] = [];
+		for (const cmd of cat.commands) {
+			if (cmd.subCommands && cmd.subCommands.length > 0) {
+				const subs = cmd.subCommands.filter(keepLeaf);
+				if (subs.length > 0) commands.push({ ...cmd, subCommands: subs });
+			} else if (keepLeaf(cmd)) {
+				commands.push(cmd);
+			}
+		}
+		if (commands.length > 0) out.push({ ...cat, commands });
+	}
+	return out;
+}
 
 export interface VisibleItem {
 	kind: 'group' | 'leaf' | 'sub-leaf' | 'category-header';
@@ -90,11 +124,19 @@ export function buildVisibleItems(
 	expandedGroups: Set<string>,
 	fuzzyMatcher: ((text: string) => { score: number } | null) | null,
 	expandedCategories?: Set<string>,
+	isFeatureLeafEnabled?: FeatureLeafPredicate,
 ): VisibleItem[] {
+	// Feature gating runs FIRST (FT-4) so both browse and search operate on the
+	// same enabled set, and empty groups/categories are suppressed before any
+	// header rows are emitted (FT-10ii). Omitting the predicate = legacy "show all"
+	// (keeps existing pure-view-model tests unchanged).
+	const gated = isFeatureLeafEnabled
+		? filterCategoriesByFeature(categories, isFeatureLeafEnabled)
+		: categories;
 	if (fuzzyMatcher) {
-		return buildSearchResults(categories, fuzzyMatcher);
+		return buildSearchResults(gated, fuzzyMatcher);
 	}
-	return buildBrowseTree(categories, expandedGroups, expandedCategories);
+	return buildBrowseTree(gated, expandedGroups, expandedCategories);
 }
 
 /**

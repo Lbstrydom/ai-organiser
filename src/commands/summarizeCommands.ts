@@ -5,6 +5,7 @@
 
 import { Editor, MarkdownView, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { getPath } from '../utils/desktopRequire';
 import { fetchArticle, openInBrowser, WebContent } from '../services/webContentService';
@@ -2232,7 +2233,7 @@ async function summarizeTextWithLLM(
         let finalPrompt = prompt;
         let ragSources: string[] = [];
 
-        if (useRAG && plugin.vectorStore && plugin.settings.enableSemanticSearch) {
+        if (useRAG && plugin.vectorStore && isFeatureEnabled(plugin.settings, 'semantic-search')) {
             try {
                 // Import RAGService
                 const { RAGService } = await import('../services/ragService');

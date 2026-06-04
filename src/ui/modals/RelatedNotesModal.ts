@@ -2,6 +2,7 @@ import { App, Modal, TFile } from 'obsidian';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
+import { isFeatureEnabled } from '../../services/featureService';
 import { SearchResult } from '../../services/vector/types';
 
 export class RelatedNotesModal extends Modal {
@@ -20,7 +21,7 @@ export class RelatedNotesModal extends Modal {
     }
 
     private initializeRAGService(): void {
-        if (this.plugin.vectorStore && this.plugin.settings.enableSemanticSearch) {
+        if (this.plugin.vectorStore && isFeatureEnabled(this.plugin.settings, 'semantic-search')) {
             this.ragService = new RAGService(
                 this.plugin.vectorStore,
                 this.plugin.settings,
@@ -110,7 +111,7 @@ export class RelatedNotesModal extends Modal {
             this.initializeRAGService();
         }
 
-        if (!this.plugin.settings.enableSemanticSearch) {
+        if (!isFeatureEnabled(this.plugin.settings, 'semantic-search')) {
             this.statusEl.setText(this.plugin.t.messages.semanticSearchDisabled);
             this.listEl.empty();
             return;

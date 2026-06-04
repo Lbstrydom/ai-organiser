@@ -16,6 +16,7 @@ import { dropSelectionToPending } from '../commands/integrationCommands';
 import { quickPeekFromSelection } from '../commands/quickPeekCommands';
 import { cursorInsideMermaidFence } from '../utils/mermaidUtils';
 import { detectEmbeddedContent, getQuickPeekSources } from '../utils/embeddedContentDetector';
+import { isFeatureEnabled } from '../services/featureService';
 
 /** Image extensions for embed detection (without dots) */
 const IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tiff','tif','avif']);
@@ -79,6 +80,7 @@ function addQuickPeekSelectionItem(
     // editor lines are 0-based; detected lineNumbers are 1-based → add 1
     const from = editor.getCursor('from').line + 1;
     const to = editor.getCursor('to').line + 1;
+    if (!isFeatureEnabled(plugin.settings, 'quick-peek')) return;
     const detected = detectEmbeddedContent(plugin.app, editor.getValue(), currentFile ?? undefined);
     const inSelection = getQuickPeekSources(detected).filter(s => s.lineNumber >= from && s.lineNumber <= to);
     if (inSelection.length === 0) return;
@@ -98,6 +100,7 @@ function addQuickPeekCursorItem(
     const currentFile = view instanceof MarkdownView ? view.file : null;
     // editor lines are 0-based; detected lineNumbers are 1-based → add 1
     const cursorLine = editor.getCursor().line + 1;
+    if (!isFeatureEnabled(plugin.settings, 'quick-peek')) return;
     const detected = detectEmbeddedContent(plugin.app, editor.getValue(), currentFile ?? undefined);
     const onLine = getQuickPeekSources(detected).filter(s => s.lineNumber === cursorLine);
     if (onLine.length === 0) return;
@@ -119,21 +122,27 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
             const hasSelection = selection && selection.trim().length > 0;
 
             // ── Guard 1: Selection-based items ───────────────────────
+            // Each contributed item gates inline by its owning feature
+            // (Gemini-G2): the listener stays registered; disabled features
+            // simply drop their item. `Ask AI` rides on core `chat` (ungated).
             if (hasSelection) {
-                menu.addItem((item) => {
-                    item.setTitle(plugin.t.commands.highlightSelection || 'Highlight')
-                        .setIcon('highlighter')
-                        .onClick(() => openHighlightModal(plugin, editor, selection));
-                });
+                // Highlight + remove-highlight are owned by smart-note.
+                if (isFeatureEnabled(plugin.settings, 'smart-note')) {
+                    menu.addItem((item) => {
+                        item.setTitle(plugin.t.commands.highlightSelection || 'Highlight')
+                            .setIcon('highlighter')
+                            .onClick(() => openHighlightModal(plugin, editor, selection));
+                    });
 
-                if (selection.length <= 5000) {
-                    const stripped = stripExistingHighlight(selection);
-                    if (stripped !== selection) {
-                        menu.addItem((item) => {
-                            item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
-                                .setIcon('eraser')
-                                .onClick(() => { editor.replaceSelection(stripped); });
-                        });
+                    if (selection.length <= 5000) {
+                        const stripped = stripExistingHighlight(selection);
+                        if (stripped !== selection) {
+                            menu.addItem((item) => {
+                                item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
+                                    .setIcon('eraser')
+                                    .onClick(() => { editor.replaceSelection(stripped); });
+                            });
+                        }
                     }
                 }
 
@@ -143,27 +152,33 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                         .onClick(() => { openChatWithSelection(plugin, editor); });
                 });
 
-                menu.addItem((item) => {
-                    item.setTitle(plugin.t.contextMenu.translate || 'Translate')
-                        .setIcon('languages')
-                        .onClick(() => { translateSelectionFromMenu(plugin, editor); });
-                });
+                if (isFeatureEnabled(plugin.settings, 'translate')) {
+                    menu.addItem((item) => {
+                        item.setTitle(plugin.t.contextMenu.translate || 'Translate')
+                            .setIcon('languages')
+                            .onClick(() => { translateSelectionFromMenu(plugin, editor); });
+                    });
+                }
 
-                menu.addSeparator();
+                // Add-to-pending is owned by smart-note (the integration flow).
+                if (isFeatureEnabled(plugin.settings, 'smart-note')) {
+                    menu.addSeparator();
+                    menu.addItem((item) => {
+                        item.setTitle(plugin.t.contextMenu.addToPending || 'Add to pending')
+                            .setIcon('inbox')
+                            .onClick(() => { dropSelectionToPending(plugin, editor); });
+                    });
+                }
 
-                menu.addItem((item) => {
-                    item.setTitle(plugin.t.contextMenu.addToPending || 'Add to pending')
-                        .setIcon('inbox')
-                        .onClick(() => { dropSelectionToPending(plugin, editor); });
-                });
-
-                // Guard A: Quick Peek — selection contains links
+                // Guard A: Quick Peek — selection contains links (gated inside helper)
                 addQuickPeekSelectionItem(plugin, editor, view, menu);
             }
 
             // ── Guard 2: Cursor-position items (no selection required) ──
-            const onImage = cursorOnImageEmbed(editor);
-            const onMermaid = cursorInsideMermaidFence(editor.getValue(), editor.getCursor().line);
+            // Per-item feature gating (digitise→digitisation, edit-diagram→mermaid-chat).
+            const onImage = cursorOnImageEmbed(editor) && isFeatureEnabled(plugin.settings, 'digitisation');
+            const onMermaid = cursorInsideMermaidFence(editor.getValue(), editor.getCursor().line)
+                && isFeatureEnabled(plugin.settings, 'mermaid-chat');
 
             if (onImage || onMermaid) {
                 if (hasSelection) menu.addSeparator();

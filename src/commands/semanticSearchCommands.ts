@@ -5,6 +5,7 @@
 
 import { Notice, Modal, App, Platform, ButtonComponent, TFile, Setting } from 'obsidian';
 import AIOrganiserPlugin from '../main';
+import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
@@ -683,7 +684,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
         id: 'semantic-search',
         name: plugin.t.commands.searchSemanticVault,
         callback: () => {
-            if (!plugin.settings.enableSemanticSearch) {
+            if (!isFeatureEnabled(plugin.settings, 'semantic-search')) {
                 noticeWithSettingsLink(plugin, plugin.t.messages.semanticSearchDisabled);
                 return;
             }
@@ -713,7 +714,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
         id: 'find-related',
         name: plugin.t.commands.showRelatedNotes,
         callback: async () => {
-            if (!plugin.settings.enableSemanticSearch) {
+            if (!isFeatureEnabled(plugin.settings, 'semantic-search')) {
                 noticeWithSettingsLink(plugin, plugin.t.messages.semanticSearchDisabled);
                 return;
             }

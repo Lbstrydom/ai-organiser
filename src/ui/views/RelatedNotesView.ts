@@ -8,6 +8,7 @@ import { ItemView, TFile, TFolder, WorkspaceLeaf, Menu, Notice } from 'obsidian'
 import { logger } from '../../utils/logger';
 import AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
+import { isFeatureEnabled } from '../../services/featureService';
 import { SearchResult } from '../../services/vector/types';
 import { FolderScopePickerModal } from '../modals/FolderScopePickerModal';
 
@@ -49,7 +50,7 @@ export class RelatedNotesView extends ItemView {
     }
 
     private initializeRAGService(): void {
-        if (this.plugin.vectorStore && this.plugin.settings.enableSemanticSearch) {
+        if (this.plugin.vectorStore && isFeatureEnabled(this.plugin.settings, 'semantic-search')) {
             this.ragService = new RAGService(
                 this.plugin.vectorStore,
                 this.plugin.settings,
@@ -319,7 +320,7 @@ export class RelatedNotesView extends ItemView {
         }
 
         // Check prerequisites with detailed messages
-        if (!this.plugin.settings.enableSemanticSearch) {
+        if (!isFeatureEnabled(this.plugin.settings, 'semantic-search')) {
             this.renderDisabledState('Semantic search is disabled');
             return;
         }

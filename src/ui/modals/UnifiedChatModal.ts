@@ -28,6 +28,9 @@ import { ProjectTreePickerModal } from './ProjectTreePickerModal';
 import { ChatSearchService } from '../../services/chat/chatSearchService';
 import type { ConversationState } from '../../utils/chatExportUtils';
 import { PresentationLayoutController } from '../controllers/PresentationLayoutController';
+import { CHATMODE_FEATURE, type FeatureId } from '../../core/features';
+import { filterEnabledActions } from '../utils/featureActions';
+import { isFeatureEnabled } from '../../services/featureService';
 
 
 interface ChatMessage {
@@ -69,11 +72,16 @@ export function selectInitialMode(
         if (handler?.isAvailable(ctx)) return ctx.options.initialMode;
     }
 
-    if (ctx.options.editorSelection?.trim()) {
+    // The heuristic 'highlight' picks must route through the SAME availability
+    // contract as every other branch (audit M11) — `isAvailable(ctx)` also covers
+    // the feature gate (when `smart-note` is off the handler isn't in the map, so
+    // `?.isAvailable` is undefined → falls through to a present mode; Gemini-R9-G1).
+    const highlightAvailable = handlers.get('highlight')?.isAvailable(ctx) ?? false;
+    if (ctx.options.editorSelection?.trim() && highlightAvailable) {
         return 'highlight';
     }
 
-    if (ctx.options.noteContent) {
+    if (ctx.options.noteContent && highlightAvailable) {
         const blocks = splitIntoBlocks(ctx.options.noteContent);
         if (blocks.some(b => b.hasHighlight)) return 'highlight';
     }
@@ -196,15 +204,22 @@ export class UnifiedChatModal extends Modal {
             this.freeChatHandler.setEmbeddingService(this.plugin.embeddingService);
         }
         this.freeChatHandler.setProjectService(this.projectService);
-        this.handlers = new Map<ChatMode, ChatModeHandler>([
-            ['note', new NoteModeHandler()],
-            ['vault', new VaultModeHandler()],
-            ['highlight', new HighlightModeHandler(() => this.updateInputAndActions())],
-            ['research', researchHandler],
-            ['free', this.freeChatHandler],
-            ['presentation', new PresentationModeHandler()],
-        ]);
-        this.presentationHandler = this.handlers.get('presentation') as PresentationModeHandler;
+        // Feature-gate the chat-mode entries (FT-2 5th site / R3-H3). Each entry
+        // carries its owning feature from CHATMODE_FEATURE (the SSOT — note/vault/free
+        // are unmapped → always present) and is dropped via the shared
+        // `filterEnabledActions` helper (FT-13) when that feature is disabled.
+        const modeEntries: Array<{ mode: ChatMode; handler: ChatModeHandler; feature?: FeatureId }> = [
+            { mode: 'note', handler: new NoteModeHandler(), feature: CHATMODE_FEATURE['note'] },
+            { mode: 'vault', handler: new VaultModeHandler(), feature: CHATMODE_FEATURE['vault'] },
+            { mode: 'highlight', handler: new HighlightModeHandler(() => this.updateInputAndActions()), feature: CHATMODE_FEATURE['highlight'] },
+            { mode: 'research', handler: researchHandler, feature: CHATMODE_FEATURE['research'] },
+            { mode: 'free', handler: this.freeChatHandler, feature: CHATMODE_FEATURE['free'] },
+            { mode: 'presentation', handler: new PresentationModeHandler(), feature: CHATMODE_FEATURE['presentation'] },
+        ];
+        this.handlers = new Map<ChatMode, ChatModeHandler>(
+            filterEnabledActions(modeEntries, this.plugin.settings).map((e) => [e.mode, e.handler]),
+        );
+        this.presentationHandler = this.handlers.get('presentation') as PresentationModeHandler | undefined;
 
         // Load global memory
         if (this.globalMemoryService) {
@@ -296,7 +311,7 @@ export class UnifiedChatModal extends Modal {
             vaultDocCount: metadata?.totalDocuments ?? 0,
             vaultIndexVersion: metadata?.version ?? 'unknown',
             hasEmbeddingService: !!this.plugin.embeddingService,
-            semanticSearchEnabled: this.plugin.settings.enableSemanticSearch
+            semanticSearchEnabled: isFeatureEnabled(this.plugin.settings, 'semantic-search')
         };
     }
 

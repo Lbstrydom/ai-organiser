@@ -1,6 +1,54 @@
 import type { RefineErrorCode } from '../services/chat/refineDeckIrSelectiveTypes';
 
 export interface Translations {
+    // Features settings section (feature-toggle UI). Per-feature label/desc keyed by
+    // FeatureId — the registry's labelKey/descKey point here (i18n is the SSOT for copy).
+    features: {
+        title: string;
+        desc: string;
+        alwaysOn: string;
+        reloadNotice: string;
+        alsoEnabled: string;            // "Also enabled: {features}"
+        disableConfirmTitle: string;
+        disableConfirmBody: string;     // "...{feature}...{dependents}"
+        disableConfirmConfirm: string;
+        cancel: string;
+        intro: string;
+        saveError: string;
+        clusters: {
+            core: string;
+            create: string;
+            'vault-intel': string;
+            'audio-meetings': string;
+            visualise: string;
+            capture: string;
+            'add-ons': string;
+        };
+        provider: { label: string; desc: string };
+        tagging: { label: string; desc: string };
+        chat: { label: string; desc: string };
+        summarize: { label: string; desc: string };
+        translate: { label: string; desc: string };
+        'smart-note': { label: string; desc: string };
+        presentation: { label: string; desc: string };
+        minutes: { label: string; desc: string };
+        'audio-narration': { label: string; desc: string };
+        'semantic-search': { label: string; desc: string };
+        research: { label: string; desc: string };
+        'web-reader': { label: string; desc: string };
+        'quick-peek': { label: string; desc: string };
+        canvas: { label: string; desc: string };
+        'mermaid-chat': { label: string; desc: string };
+        flashcards: { label: string; desc: string };
+        digitisation: { label: string; desc: string };
+        sketch: { label: string; desc: string };
+        kindle: { label: string; desc: string };
+        newsletter: { label: string; desc: string };
+        notebooklm: { label: string; desc: string };
+        bases: { label: string; desc: string };
+        export: { label: string; desc: string };
+        'embed-scan': { label: string; desc: string };
+    };
     // Settings sections
     settings: {
         llm: {

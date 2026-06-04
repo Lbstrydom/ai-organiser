@@ -4,6 +4,7 @@
  */
 
 import { AIOrganiserSettings } from '../../core/settings';
+import { isFeatureEnabled } from '../featureService';
 import { IEmbeddingService, EmbeddingServiceConfig } from './types';
 import type { EmbeddingCooldown } from './embeddingCooldown';
 import { logger } from '../../utils/logger';
@@ -103,7 +104,8 @@ export async function createEmbeddingServiceFromSettings(
     apiKeyOverride?: string,
     cooldown?: EmbeddingCooldown
 ): Promise<IEmbeddingService | null> {
-    if (!settings.enableSemanticSearch) {
+    // FT-11: gate on the feature (semantic-search absorbed enableSemanticSearch).
+    if (!isFeatureEnabled(settings, 'semantic-search')) {
         return null;
     }
 

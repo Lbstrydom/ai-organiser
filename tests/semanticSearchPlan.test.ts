@@ -9,6 +9,7 @@ vi.mock('../src/services/vector/voyVectorStore', () => ({
 }));
 
 import AIOrganiserPlugin from '../src/main';
+import { isFeatureEnabled } from '../src/services/featureService';
 import { VectorStoreService, INDEX_SCHEMA_VERSION } from '../src/services/vector/vectorStoreService';
 import { INDEX_SCHEMA_VERSION as INDEX_SCHEMA_VERSION_TYPES } from '../src/services/vector/types';
 import { SimpleVectorStore } from '../src/services/vector/simpleVectorStore';
@@ -39,7 +40,9 @@ describe('AIOrganiserPlugin.saveSettings', () => {
         (plugin as any).lastEmbeddingConfig = {
             provider: plugin.settings.embeddingProvider,
             model: plugin.settings.embeddingModel,
-            enabled: plugin.settings.enableSemanticSearch
+            // Mirror production loadSettings: the snapshot tracks the FEATURE state
+            // (FT-11), not the legacy enableSemanticSearch field.
+            enabled: isFeatureEnabled(plugin.settings, 'semantic-search')
         };
 
         plugin.settings.maxTags = plugin.settings.maxTags + 1;

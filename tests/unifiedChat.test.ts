@@ -128,12 +128,13 @@ describe('unified chat helpers', () => {
         expect(selectInitialMode(ctx, handlers)).toBe('vault');
     });
 
-    it('selectInitialMode prefers highlight when selection exists', () => {
+    it('selectInitialMode prefers highlight when selection exists (and highlight is available)', () => {
         const ctx = createMockContext({ options: { editorSelection: 'Selected text' } });
         const handlers = new Map<ChatMode, ChatModeHandler>([
             ['note', createStubHandler(true)],
             ['vault', createStubHandler(true)],
-            ['highlight', createStubHandler(false)]
+            // Highlight available → the heuristic routes through isAvailable (audit M11).
+            ['highlight', createStubHandler(true)]
         ]);
         expect(selectInitialMode(ctx, handlers)).toBe('highlight');
     });
@@ -143,9 +144,20 @@ describe('unified chat helpers', () => {
         const handlers = new Map<ChatMode, ChatModeHandler>([
             ['note', createStubHandler(true)],
             ['vault', createStubHandler(true)],
-            ['highlight', createStubHandler(false)]
+            ['highlight', createStubHandler(true)]
         ]);
         expect(selectInitialMode(ctx, handlers)).toBe('highlight');
+    });
+
+    it('selectInitialMode does NOT pick highlight when its mode is gated out (smart-note off)', () => {
+        // Highlight absent from the map (feature disabled) → selection falls through
+        // to a present mode instead of returning a mode with no handler (Gemini-R9-G1 / M11).
+        const ctx = createMockContext({ options: { editorSelection: 'Selected text' } });
+        const handlers = new Map<ChatMode, ChatModeHandler>([
+            ['note', createStubHandler(true)],
+            ['vault', createStubHandler(true)],
+        ]);
+        expect(selectInitialMode(ctx, handlers)).toBe('vault');
     });
 
     it('selectInitialMode falls back to vault when available', () => {
