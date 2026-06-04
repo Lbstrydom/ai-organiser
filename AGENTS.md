@@ -2818,9 +2818,9 @@ A thin coordination layer over the existing long-lived LLM service — NOT a gat
 
 **Plan**: [docs/completed/llm-gateway-lite.md](docs/completed/llm-gateway-lite.md) · **Audit summary** (gitignored): `docs/completed/llm-gateway-lite-audit-summary.md`.
 
-## Note-Edit Write Seam (command-layer-hardening, Clusters A+B)
+## Note-Edit Write Seam (command-layer-hardening, Clusters A+B+C)
 
-**Status**: ✅ Clusters A+B + D2 (June 2026). Cluster C (multi-source decomposition) pending.
+**Status**: ✅ Complete (June 2026) — Clusters A (write seam) + B (hygiene) + D2 (additive summary) + **C (multi-source decomposition)**.
 
 The command layer mutates notes through **one write seam** instead of scattered
 `editor.setValue`/`replaceSelection`/`replaceRange`/`insertAtCursor` calls — closing a
@@ -2836,10 +2836,17 @@ silent-data-loss class (a long async pipeline writing to a stale/changed editor 
 - **Additive multi-source summary (D2)**: the multi-source summary **appends** + cleans up processed source links (preserving the user's body) rather than replacing the body. Single-source inserts are `cursor-insert`; full-note/multi-source translate rewrites are `full-replace` (baseline-gated).
 - **Cluster B hygiene**: temp `CloudLLMService` (PDF provider override) disposed in `finally` (`pdfTranslationService`, `contentExtractionService`, `summarizeCommands`); chunked map-reduce egress wrapped in `withForeground`; RAG failure logs via `logger`.
 
-### Tests
-`tests/{applyNoteEdit,noteWritePort,noteMutation}.test.ts` (39).
+### Cluster C — multi-source decomposition (`src/services/multiSource/`)
+`handleMultiSourceResult` decomposed into three collaborators; `summarizeCommands` is now a thin adapter (snapshot → flatten sources → orchestrate → format → `applyNoteEdit`):
+- `multiSourceOrchestrator.ts` — `MultiSourceOrchestrator.run(sources, opts)` runs the per-source `detect→extract→transcribe→summarize` pipeline, **error-isolated per source**, returns `Result<BatchResult<SourceOutcome>>` (`BatchResult`/`BatchError` live in `core/result.ts`, D5). Editor-free. Constructed with **narrow function seams** (`summarizeContent`/`summarizePdf`/`extractDocument`) + `plugin` + `notify` + `onAudioCleanup` — a documented deviation from the plan's literal `{facade,pdfService,documentService}` DI that breaks the orchestrator↔command import cycle AND avoids relocating large dependency tails (M2). LLM-summarize egress is gated via the injected seams; `opts.signal` threads into the direct `summarizeText` calls (G1). Cancelled run → `err('aborted')` (no partial write); credential fetch wrapped in `safeFetch` (degrade to null, G3); lazy `initVision()` runs inside `processImage`'s try/catch (G2).
+- `summaryInsertion.ts` — formats the `## Summary` body (single / LLM-synthesis / headers-fallback) + the "Sources Processed" checklist (+ `buildFailureChecklist`); owns `buildSynthesisPrompt`. Pure except the injected synthesize seam; newline-sanitises checklist titles (G3); skips synthesis when 0 summaries (G2).
+- `sourceMetadataWriter.ts` — `deriveCleanupTargets` (which processed links/embeds to strip) + `addSourceReferences` (References contributions). Pure.
+- `summarizeTypes.ts` — `PdfSummarization{Result,Options}` extracted here to break the import cycle.
 
-**Plan**: [docs/plans/command-layer-hardening.md](docs/plans/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/plans/command-layer-hardening-audit-summary.md`. **Remaining**: Cluster C — decompose `handleMultiSourceResult` into `src/services/multiSource/` (`MultiSourceOrchestrator` + `SummaryInsertion` + `SourceMetadataWriter`) with golden-parity fixtures + consolidated Gemini gate.
+### Tests
+`tests/{applyNoteEdit,noteWritePort,noteMutation}.test.ts` (39) + `tests/multiSourceOrchestrator.test.ts` (16: per-source isolation, BatchResult shapes, progress, abort/G1, credential-isolation/G3, vision-isolation/G2, signal-threading) + `tests/summaryParity.test.ts` (golden byte-parity + SummaryInsertion defensive guard) + `tests/fixtures/multiSource/golden-note.md`.
+
+**Plan**: [docs/plans/command-layer-hardening.md](docs/plans/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/plans/command-layer-hardening-audit-summary.md`. Cluster C audited GPT-5.4 R1 (only M2 in-scope, documented deviation) + consolidated Gemini gate **R1→R2→R3 APPROVE**.
 
 ## Documentation
 
