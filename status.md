@@ -1,5 +1,33 @@
 # Project Status Log
 
+## 2026-06-04 — Unified feature taxonomy (one SSOT, two projected surfaces)
+
+Implemented [docs/completed/unified-feature-taxonomy.md](docs/completed/unified-feature-taxonomy.md) end-to-end via an autonomous clustered `/cycle`. Kills the taxonomy-drift class between the **Features settings menu** and the **Command Picker**: both now derive their top-level grouping from ONE shared **workflow-stage** vocabulary (`capture/create/refine/find/maintain`), and `crossSurfaceTaxonomy.test.ts` fails the build if they disagree. Originated from a `/brainstorm --with-gemini` IA-coherence session.
+
+### Changes
+- **Cluster A — SSOT + settings projection**: new `core/workflowStages.ts` (`WorkflowStage` union + `WORKFLOW_STAGES` + `FeatureBoundary='external-account'`, pure — no i18n/Lucide). `core/features.ts` `FeatureDef.cluster`→`stage` + `boundary[]`; all 24 features re-staged; `FeatureCluster`/`FEATURE_CLUSTERS` dropped. New pure `services/featureProjection.ts` (`projectSettingsGroups` — Core→stages→Integrations, structure-only) consumed by both `FeaturesSettingsSection` and the cross-surface test. `ui/settings/featureStagePresentation.ts` holds the Lucide/i18n group mapping. Shared `t.workflowStages.*`; `features.clusters`→`{core, integrations}`.
+- **Cluster B — picker projection + drift-killer**: `PickerCommand.stage` (required on leaves via `cmd()`); `buildCommandCategories` rebuilt onto **Pinned + 5 stages** (Manage retired; web-reader/research→Capture; tag-network/collect/find-embeds→Maintain; quick-peek cross-lists Pinned+Find). `Essentials→Pinned` everywhere (persisted `pickerEssentialsCommandIds`→`pickerPinnedCommandIds` + `migrateOldSettings` copy-forward & category-id remap with dedup; i18n keys; internal consts/class/CSS). New `tests/crossSurfaceTaxonomy.test.ts` enforces the projection contract in CI.
+- **Integrations correctness**: `external-account` boundary = genuine remote-account auth → exactly `{kindle, newsletter}`. Local tools `bases`+`notebooklm` render under Maintain (an audit + Gemini catch — mislabeling would falsely signal vault data leaving the device).
+
+### Files Affected
+- Created: `core/workflowStages.ts`, `services/featureProjection.ts`, `ui/settings/featureStagePresentation.ts`, `tests/{featureProjection,crossSurfaceTaxonomy}.test.ts`.
+- Modified: `core/features.ts`, `core/settings.ts`, `main.ts`, `ui/modals/CommandPickerModal.ts`, `ui/settings/{FeaturesSettingsSection,InterfaceSettingsSection}.ts`, `i18n/{types,en}.ts`, `tests/{featureRegistry,commandPicker,commandPickerFeatureGating,settingsMigration}.test.ts`.
+
+### Decisions Made
+- **Picker stays hand-built; `leaf.stage` is asserted metadata, not a runtime grouping key** — avoided a projection engine that would relocate drift-free icon/alias/legacyHome metadata (right-sizing). The CI invariant is the drift-killer, not a fold.
+- **"No contradictory homes" = no UNDECLARED divergence** — settings Integrations float + per-leaf stage overrides are allowed but must trace to a declared field (`core`/`boundary`/enumerated `leaf.stage`/`pinned`); the test enumerates every override.
+- **`FeatureBoundary` reduced to `external-account` only** (YAGNI — dropped speculative `needs-key`/`vault-wide`/`experimental`).
+
+### Audit
+- `/cycle` autonomous, two clusters. GPT per-cluster + union code audits: all HIGHs triaged as pre-existing whole-repo patterns or repeat false positives (duplicate-import; tsc clean); genuine in-diff findings (discriminated `SettingsGroup`, readonly `boundary`, stronger tie-order test, completed i18n + internal `Essentials→Pinned` rename) fixed.
+- **Consolidated Gemini gate: APPROVE** — architectural coherence "Strong"; `crossSurfaceTaxonomy` called "a brilliant architectural enforcement mechanism"; `projectSettingsGroups`/`resolveEnable` "flawless." Sole LOW (internal naming) fixed before ship.
+- Verification: 5426 unit tests pass, lint 0 errors, tsc clean, `npm run build` OK, `test:auto` 45/45.
+
+### Next Steps
+- None — feature complete. (Future: a 6th "Study" stage for flashcards/narration if that cohort grows; richer enable-friction ordering — both deferred YAGNI.)
+
+---
+
 ## 2026-06-04 — Feature toggles (per-feature on/off gating + Features settings UI)
 
 Implemented [docs/completed/feature-toggles.md](docs/completed/feature-toggles.md) end-to-end via a clustered `/cycle` (A: read-side gating; B: toggle UI). A **Features** settings section turns each feature on/off; OFF hides its commands/settings/picker-leaves/views/chat-mode and skips its background-service init. Default is **Lean**; lifecycle is reload-to-apply.

@@ -2905,6 +2905,33 @@ INFRA_SECTIONS`), and empty umbrellas are removed post-render via `content.child
 
 **Plan** (completed): [docs/completed/feature-toggles.md](docs/completed/feature-toggles.md) · **Audit summaries** (gitignored): `docs/completed/feature-toggles-audit-summary.md` (+ cluster-A). GPT-5.4 per-cluster audits + consolidated Gemini gate **R1 CONCERNS → R2 APPROVE** over the union diff.
 
+## Unified Feature Taxonomy (one SSOT, two projected surfaces)
+
+**Status**: ✅ Implemented (June 2026)
+
+Kills the taxonomy-drift class between the **Features settings menu** and the **Command Picker**: both now derive their top-level grouping from ONE shared vocabulary, and a CI test fails the build if they disagree. Pre-existing feature-toggle ownership maps (`LEAF_FEATURE`, `SECTION_FEATURE`) made this a completion, not a rewrite.
+
+### The SSOT — workflow stages
+- `src/core/workflowStages.ts` (neutral, pure): `WorkflowStage = 'capture'|'create'|'refine'|'find'|'maintain'`, `WORKFLOW_STAGES` (display order), `FeatureBoundary = 'external-account'` (v1, single member). NO i18n labels (live in `t.workflowStages[stage]`), NO Lucide icons (live in `ui`). Stage rule: **capture pulls NEW content in; find operates over EXISTING vault content.**
+- `src/core/features.ts`: `FeatureDef` carries `stage: WorkflowStage` + `boundary?: readonly FeatureBoundary[]` (replaced the old `cluster`/`FeatureCluster`/`FEATURE_CLUSTERS`). All 24 features re-staged.
+
+### Two projections (rhyme, not identical)
+- **Settings** (`src/services/featureProjection.ts` — pure, structure-only, no `t`/icon): `projectSettingsGroups(registry)` folds → Core (the `core` flag wins) → the 5 stages → **Integrations** (features whose `boundary∋'external-account'`), `defaultOn`-first within each group. `FeaturesSettingsSection` renders it; `src/ui/settings/featureStagePresentation.ts` maps group→icon/label (keeps Lucide/i18n out of `services`).
+- **Picker** (`CommandPickerModal.buildCommandCategories` — hand-built): top-level categories are **Pinned + the 5 stages**, labelled from `t.workflowStages.*`. Each leaf declares a `stage` (required on leaves via the `cmd()` helper) that MUST equal its category id. "Manage"/"Essentials" retired (`Essentials→Pinned`, persisted setting `pickerEssentialsCommandIds→pickerPinnedCommandIds` + `migrateOldSettings` copy-forward & category-id remap).
+
+### The drift-killer (the deliverable)
+`tests/crossSurfaceTaxonomy.test.ts` asserts both surfaces are derivable from ONE declared dataset — **no UNDECLARED divergence**: every feature/leaf `stage` ∈ vocab; non-`pinned` category id === stage and every leaf `stage` === its category id; `pinned` holds only genuine cross-listings (real stage + same object in the stage category + `canonicalCategoryId === 'pinned'`); the Integrations float is driven ONLY by `external-account` (kindle/newsletter float; **bases + notebooklm do NOT** — both are LOCAL tools, no remote-account auth); every cross-stage `leaf.stage` is an enumerated declared override; completeness (every non-core feature reachable). Any new feature/leaf placed inconsistently fails CI.
+
+### Key patterns
+- **`stage`/`boundary` are declared data, not runtime grouping** — the picker stays hand-authored (icons/aliases/legacyHomes/sub-groups inline); `leaf.stage` is *assertion metadata*. Avoided a projection engine that would relocate drift-free metadata (right-sizing).
+- **`external-account` = genuinely authenticates/transmits to a remote account** — never "relates to an external product." Mislabeling a local tool would pollute the settings privacy signal.
+- **`stage` optional on the `PickerCommand` type, required on leaves via the test** — parallel to the existing `feature?` convention.
+
+### Tests
+`tests/{featureProjection,featureRegistry,crossSurfaceTaxonomy,commandPicker,commandPickerFeatureGating,settingsMigration}.test.ts`.
+
+**Plan** (completed): [docs/completed/unified-feature-taxonomy.md](docs/completed/unified-feature-taxonomy.md). `/cycle` autonomous: GPT per-cluster audits + consolidated Gemini gate **APPROVE** ("brilliant architectural enforcement mechanism").
+
 ## Documentation
 
 See `docs/` folder for additional documentation:
