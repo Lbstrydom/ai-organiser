@@ -130,6 +130,12 @@ skills.manifest.json
 
 # managed-by:claude-engineering-skills-sync — DO NOT EDIT INSIDE
 scripts/.claude-skills/
+dashboard/index.html
+dashboard/telemetry.html
+.brainstorm/
+.skills-fit-check.json
+logs/mcp-*.log
+logs/mcp-*.log.gz
 # /managed-by:claude-engineering-skills-sync
 
 # Playwright e2e output

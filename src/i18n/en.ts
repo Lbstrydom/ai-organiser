@@ -16,12 +16,7 @@ export const en: Translations = {
         managedInFeatures: 'Turn this feature on or off in settings → Features.',
         clusters: {
             core: 'Core',
-            create: 'Create',
-            'vault-intel': 'Vault intelligence',
-            'audio-meetings': 'Audio & meetings',
-            visualise: 'Visualise',
-            capture: 'Capture',
-            'add-ons': 'Add-ons',
+            integrations: 'Integrations',
         },
         provider: { label: 'AI provider', desc: 'Core LLM provider and API key configuration.' },
         tagging: { label: 'Tagging', desc: 'AI tag generation and the tag network.' },
@@ -47,6 +42,14 @@ export const en: Translations = {
         bases: { label: 'Obsidian Bases', desc: 'Structured metadata and dashboards.' },
         export: { label: 'Document export', desc: 'Export notes as PDF, Word, or PowerPoint.' },
         'embed-scan': { label: 'Find embeds', desc: 'Vault hygiene scan for embedded assets.' },
+    },
+    // Shared workflow-stage labels (unified taxonomy — settings groups + picker categories)
+    workflowStages: {
+        capture: 'Capture',
+        create: 'Create',
+        refine: 'Refine',
+        find: 'Find',
+        maintain: 'Maintain',
     },
     // Common UI strings
     common: {

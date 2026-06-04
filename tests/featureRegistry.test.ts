@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
     FEATURE_REGISTRY,
     FEATURE_BY_ID,
-    FEATURE_CLUSTERS,
     SECTION_FEATURE,
     SURFACE_FEATURE,
     CHATMODE_FEATURE,
     INFRA_SECTIONS,
     type FeatureId,
 } from '../src/core/features';
+import { WORKFLOW_STAGES } from '../src/core/workflowStages';
 import { en } from '../src/i18n/en';
 
 /** Walk a dotted i18n path into a translations object. */
@@ -69,8 +69,15 @@ describe('FEATURE_REGISTRY structural invariants', () => {
         }
     });
 
-    it('every feature belongs to a declared cluster', () => {
-        for (const f of FEATURE_REGISTRY) expect(FEATURE_CLUSTERS).toContain(f.cluster);
+    it('every feature declares a known workflow stage', () => {
+        for (const f of FEATURE_REGISTRY) expect(WORKFLOW_STAGES).toContain(f.stage);
+    });
+
+    it('only genuinely-remote features carry the external-account boundary (Integrations float)', () => {
+        const external = FEATURE_REGISTRY.filter((f) => (f.boundary ?? []).includes('external-account')).map((f) => f.id);
+        // Kindle (Amazon) + Newsletter (Gmail) authenticate to a remote account; local tools
+        // (bases, notebooklm) must NOT — mislabeling would pollute the privacy signal.
+        expect(external.sort()).toEqual(['kindle', 'newsletter']);
     });
 
     it('labelKey/descKey are non-empty i18n paths', () => {

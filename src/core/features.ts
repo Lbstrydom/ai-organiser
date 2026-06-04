@@ -19,6 +19,7 @@
 
 import type { ChatMode } from '../ui/chat/ChatModeHandler';
 import type { AIOrganiserSettings } from './settings';
+import type { WorkflowStage, FeatureBoundary } from './workflowStages';
 
 /** The exhaustive set of gateable features. Fail-closed: an id absent here is disabled. */
 export type FeatureId =
@@ -47,23 +48,26 @@ export type FeatureId =
     | 'export'
     | 'embed-scan';
 
-/** UX grouping for the Features settings section (§6). */
-export type FeatureCluster =
-    | 'core'
-    | 'create'
-    | 'vault-intel'
-    | 'audio-meetings'
-    | 'visualise'
-    | 'capture'
-    | 'add-ons';
-
 export interface FeatureDef {
     id: FeatureId;
     /** i18n path into `t.features.*` — the SSOT for the toggle label (resolved by the Features UI). */
     labelKey: string;
     /** i18n path into `t.features.*` — the one-line "what it does" description. */
     descKey: string;
-    cluster: FeatureCluster;
+    /**
+     * Primary workflow stage (shared taxonomy SSOT — `workflowStages.ts`). Drives the
+     * feature's home for the settings projection (unless `core` wins, or `boundary`
+     * floats it to Integrations). For `core` features the stage only ever feeds the
+     * picker leaves they own (settings groups them under Core via the flag).
+     */
+    stage: WorkflowStage;
+    /**
+     * Declared trust/setup attributes (v1: `'external-account'` only). The presence of
+     * `'external-account'` is the SOLE trigger for the settings "Integrations" float —
+     * never an ad-hoc list. A local tool carries no boundary even if it relates to an
+     * external product (Bases, NotebookLM).
+     */
+    boundary?: FeatureBoundary[];
     /** Features that must also be enabled (transitive). Acyclic — enforced by test. */
     requires: FeatureId[];
     /** Core features can't be disabled (toggle locked + "always on"). */
@@ -78,9 +82,13 @@ export interface FeatureDef {
     absorbsLegacyFlag?: keyof AIOrganiserSettings;
 }
 
-/** Deep-freeze a feature definition (+ its `requires` array) so the SSOT can't be mutated. */
+/** Deep-freeze a feature definition (+ its `requires`/`boundary` arrays) so the SSOT can't be mutated. */
 function freezeDef(f: FeatureDef): Readonly<FeatureDef> {
-    return Object.freeze({ ...f, requires: Object.freeze([...f.requires]) as FeatureId[] });
+    return Object.freeze({
+        ...f,
+        requires: Object.freeze([...f.requires]) as FeatureId[],
+        boundary: f.boundary ? (Object.freeze([...f.boundary]) as FeatureBoundary[]) : undefined,
+    });
 }
 
 /**
@@ -89,43 +97,40 @@ function freezeDef(f: FeatureDef): Readonly<FeatureDef> {
  * Deep-frozen — a static immutable source; no runtime code mutates it.
  */
 export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze(([
-    // ── Core (always on, locked) ──────────────────────────────────────────────
-    { id: 'provider', labelKey: 'features.provider.label', descKey: 'features.provider.desc', cluster: 'core', requires: [], core: true, defaultOn: true },
-    { id: 'tagging', labelKey: 'features.tagging.label', descKey: 'features.tagging.desc', cluster: 'core', requires: [], core: true, defaultOn: true },
-    { id: 'chat', labelKey: 'features.chat.label', descKey: 'features.chat.desc', cluster: 'core', requires: [], core: true, defaultOn: true },
-    // ── Create ────────────────────────────────────────────────────────────────
-    { id: 'summarize', labelKey: 'features.summarize.label', descKey: 'features.summarize.desc', cluster: 'create', requires: ['provider'], defaultOn: true },
-    { id: 'translate', labelKey: 'features.translate.label', descKey: 'features.translate.desc', cluster: 'create', requires: ['provider'], defaultOn: true },
-    { id: 'smart-note', labelKey: 'features.smart-note.label', descKey: 'features.smart-note.desc', cluster: 'create', requires: ['provider'], defaultOn: true },
-    { id: 'presentation', labelKey: 'features.presentation.label', descKey: 'features.presentation.desc', cluster: 'create', requires: ['provider'], defaultOn: true },
-    // ── Audio & meetings ──────────────────────────────────────────────────────
-    { id: 'minutes', labelKey: 'features.minutes.label', descKey: 'features.minutes.desc', cluster: 'audio-meetings', requires: ['provider'], defaultOn: true },
-    { id: 'audio-narration', labelKey: 'features.audio-narration.label', descKey: 'features.audio-narration.desc', cluster: 'audio-meetings', requires: ['provider'], defaultOn: false },
-    // ── Vault intelligence ────────────────────────────────────────────────────
-    { id: 'semantic-search', labelKey: 'features.semantic-search.label', descKey: 'features.semantic-search.desc', cluster: 'vault-intel', requires: ['provider'], defaultOn: true, absorbsLegacyFlag: 'enableSemanticSearch' },
-    { id: 'research', labelKey: 'features.research.label', descKey: 'features.research.desc', cluster: 'vault-intel', requires: ['provider'], defaultOn: true },
-    { id: 'web-reader', labelKey: 'features.web-reader.label', descKey: 'features.web-reader.desc', cluster: 'vault-intel', requires: ['provider'], defaultOn: false },
-    { id: 'quick-peek', labelKey: 'features.quick-peek.label', descKey: 'features.quick-peek.desc', cluster: 'vault-intel', requires: ['provider'], defaultOn: false },
-    // ── Visualise ─────────────────────────────────────────────────────────────
-    { id: 'canvas', labelKey: 'features.canvas.label', descKey: 'features.canvas.desc', cluster: 'visualise', requires: ['provider'], defaultOn: false },
-    { id: 'mermaid-chat', labelKey: 'features.mermaid-chat.label', descKey: 'features.mermaid-chat.desc', cluster: 'visualise', requires: ['provider'], defaultOn: false },
-    { id: 'flashcards', labelKey: 'features.flashcards.label', descKey: 'features.flashcards.desc', cluster: 'visualise', requires: ['provider'], defaultOn: false },
-    // ── Capture ───────────────────────────────────────────────────────────────
-    { id: 'digitisation', labelKey: 'features.digitisation.label', descKey: 'features.digitisation.desc', cluster: 'capture', requires: ['provider'], defaultOn: false },
-    { id: 'sketch', labelKey: 'features.sketch.label', descKey: 'features.sketch.desc', cluster: 'capture', requires: [], defaultOn: false },
-    // ── Add-ons ───────────────────────────────────────────────────────────────
-    { id: 'kindle', labelKey: 'features.kindle.label', descKey: 'features.kindle.desc', cluster: 'add-ons', requires: [], defaultOn: false },
-    { id: 'newsletter', labelKey: 'features.newsletter.label', descKey: 'features.newsletter.desc', cluster: 'add-ons', requires: ['provider'], defaultOn: false, absorbsLegacyFlag: 'newsletterEnabled' },
-    { id: 'notebooklm', labelKey: 'features.notebooklm.label', descKey: 'features.notebooklm.desc', cluster: 'add-ons', requires: [], defaultOn: false },
-    { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', cluster: 'add-ons', requires: [], defaultOn: false },
-    { id: 'export', labelKey: 'features.export.label', descKey: 'features.export.desc', cluster: 'add-ons', requires: [], defaultOn: true },
-    { id: 'embed-scan', labelKey: 'features.embed-scan.label', descKey: 'features.embed-scan.desc', cluster: 'add-ons', requires: [], defaultOn: false },
+    // ── Core (always on, locked — settings groups these under "Core" via the flag; the
+    //    `stage` only feeds the picker leaves they own) ─────────────────────────────────
+    { id: 'provider', labelKey: 'features.provider.label', descKey: 'features.provider.desc', stage: 'maintain', requires: [], core: true, defaultOn: true },
+    { id: 'tagging', labelKey: 'features.tagging.label', descKey: 'features.tagging.desc', stage: 'refine', requires: [], core: true, defaultOn: true },
+    { id: 'chat', labelKey: 'features.chat.label', descKey: 'features.chat.desc', stage: 'find', requires: [], core: true, defaultOn: true },
+    // ── Capture (pull NEW content in) ─────────────────────────────────────────────────
+    { id: 'research', labelKey: 'features.research.label', descKey: 'features.research.desc', stage: 'capture', requires: ['provider'], defaultOn: true },
+    { id: 'web-reader', labelKey: 'features.web-reader.label', descKey: 'features.web-reader.desc', stage: 'capture', requires: ['provider'], defaultOn: false },
+    // ── Create (produce a NEW artifact) ───────────────────────────────────────────────
+    { id: 'summarize', labelKey: 'features.summarize.label', descKey: 'features.summarize.desc', stage: 'create', requires: ['provider'], defaultOn: true },
+    { id: 'translate', labelKey: 'features.translate.label', descKey: 'features.translate.desc', stage: 'create', requires: ['provider'], defaultOn: true },
+    { id: 'presentation', labelKey: 'features.presentation.label', descKey: 'features.presentation.desc', stage: 'create', requires: ['provider'], defaultOn: true },
+    { id: 'minutes', labelKey: 'features.minutes.label', descKey: 'features.minutes.desc', stage: 'create', requires: ['provider'], defaultOn: true },
+    { id: 'audio-narration', labelKey: 'features.audio-narration.label', descKey: 'features.audio-narration.desc', stage: 'create', requires: ['provider'], defaultOn: false },
+    { id: 'canvas', labelKey: 'features.canvas.label', descKey: 'features.canvas.desc', stage: 'create', requires: ['provider'], defaultOn: false },
+    { id: 'mermaid-chat', labelKey: 'features.mermaid-chat.label', descKey: 'features.mermaid-chat.desc', stage: 'create', requires: ['provider'], defaultOn: false },
+    { id: 'flashcards', labelKey: 'features.flashcards.label', descKey: 'features.flashcards.desc', stage: 'create', requires: ['provider'], defaultOn: false },
+    { id: 'sketch', labelKey: 'features.sketch.label', descKey: 'features.sketch.desc', stage: 'create', requires: [], defaultOn: false },
+    { id: 'export', labelKey: 'features.export.label', descKey: 'features.export.desc', stage: 'create', requires: [], defaultOn: true },
+    // ── Refine (mutate an EXISTING note) ──────────────────────────────────────────────
+    { id: 'smart-note', labelKey: 'features.smart-note.label', descKey: 'features.smart-note.desc', stage: 'refine', requires: ['provider'], defaultOn: true },
+    { id: 'digitisation', labelKey: 'features.digitisation.label', descKey: 'features.digitisation.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
+    // ── Find (retrieve / understand existing vault content) ───────────────────────────
+    { id: 'semantic-search', labelKey: 'features.semantic-search.label', descKey: 'features.semantic-search.desc', stage: 'find', requires: ['provider'], defaultOn: true, absorbsLegacyFlag: 'enableSemanticSearch' },
+    { id: 'quick-peek', labelKey: 'features.quick-peek.label', descKey: 'features.quick-peek.desc', stage: 'find', requires: ['provider'], defaultOn: false },
+    // ── Maintain (vault hygiene + admin; local tools, no external account) ────────────
+    { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', stage: 'maintain', requires: [], defaultOn: false },
+    { id: 'notebooklm', labelKey: 'features.notebooklm.label', descKey: 'features.notebooklm.desc', stage: 'maintain', requires: [], defaultOn: false },
+    { id: 'embed-scan', labelKey: 'features.embed-scan.label', descKey: 'features.embed-scan.desc', stage: 'maintain', requires: [], defaultOn: false },
+    // ── Integrations float (external-account boundary → settings "Integrations"; stage
+    //    'capture' keeps them under Capture in the picker — the declared divergence) ─────
+    { id: 'kindle', labelKey: 'features.kindle.label', descKey: 'features.kindle.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
+    { id: 'newsletter', labelKey: 'features.newsletter.label', descKey: 'features.newsletter.desc', stage: 'capture', boundary: ['external-account'], requires: ['provider'], defaultOn: false, absorbsLegacyFlag: 'newsletterEnabled' },
 ] as FeatureDef[]).map(freezeDef));
-
-/** Cluster display order for the Features section (§6). */
-export const FEATURE_CLUSTERS: FeatureCluster[] = [
-    'core', 'create', 'vault-intel', 'audio-meetings', 'visualise', 'capture', 'add-ons',
-];
 
 /** O(1) lookup by id. */
 export const FEATURE_BY_ID: Readonly<Record<FeatureId, FeatureDef>> = Object.freeze(

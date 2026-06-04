@@ -3,11 +3,11 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { FeatureDisableConfirmModal } from '../modals/FeatureDisableConfirmModal';
 import {
     FEATURE_REGISTRY,
-    FEATURE_CLUSTERS,
     FEATURE_BY_ID,
     type FeatureId,
-    type FeatureCluster,
 } from '../../core/features';
+import { projectSettingsGroups } from '../../services/featureProjection';
+import { settingsGroupIcon, settingsGroupLabel } from './featureStagePresentation';
 import {
     isFeatureEnabled,
     resolveEnable,
@@ -15,30 +15,22 @@ import {
     dependentsOf,
 } from '../../services/featureService';
 
-/** Lucide icon per cluster (UX §6 — common-region grouping). */
-const CLUSTER_ICON: Record<FeatureCluster, string> = {
-    core: 'lock',
-    create: 'sparkles',
-    'vault-intel': 'brain',
-    'audio-meetings': 'mic',
-    visualise: 'palette',
-    capture: 'scan',
-    'add-ons': 'puzzle',
-};
-
 /**
  * Features settings section (FT-5/FT-6/FT-8) — the single writer of `featureFlags` and the
- * sole trigger of `applyFeatureFlags`. Grouped by cluster; core toggles are locked ("always
- * on"). Enabling auto-enables transitive `requires` (with an "also enabled" notice);
- * disabling a feature with enabled dependents prompts a cascade-confirm.
+ * sole trigger of `applyFeatureFlags`. Grouped by the unified taxonomy projection
+ * (`projectSettingsGroups`: Core → workflow stages → Integrations); core toggles are locked
+ * ("always on"). Enabling auto-enables transitive `requires` (with an "also enabled"
+ * notice); disabling a feature with enabled dependents prompts a cascade-confirm.
  */
 export class FeaturesSettingsSection extends BaseSettingSection {
     display(): void {
-        for (const cluster of FEATURE_CLUSTERS) {
-            const features = FEATURE_REGISTRY.filter((f) => f.cluster === cluster);
-            if (features.length === 0) continue;
-            this.createSectionHeader(this.plugin.t.features.clusters[cluster], CLUSTER_ICON[cluster], 2);
-            for (const def of features) this.renderToggle(def.id);
+        for (const group of projectSettingsGroups(FEATURE_REGISTRY)) {
+            this.createSectionHeader(
+                settingsGroupLabel(group, this.plugin.t),
+                settingsGroupIcon(group),
+                2,
+            );
+            for (const def of group.features) this.renderToggle(def.id);
         }
     }
 

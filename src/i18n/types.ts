@@ -16,14 +16,10 @@ export interface Translations {
         intro: string;
         saveError: string;
         managedInFeatures: string;      // hint shown inside a feature's own section
+        /** Settings-only group labels (the workflow-stage groups use top-level `workflowStages.*`). */
         clusters: {
             core: string;
-            create: string;
-            'vault-intel': string;
-            'audio-meetings': string;
-            visualise: string;
-            capture: string;
-            'add-ons': string;
+            integrations: string;
         };
         provider: { label: string; desc: string };
         tagging: { label: string; desc: string };
@@ -49,6 +45,15 @@ export interface Translations {
         bases: { label: string; desc: string };
         export: { label: string; desc: string };
         'embed-scan': { label: string; desc: string };
+    };
+    // Shared workflow-stage labels — the unified taxonomy vocabulary used by BOTH the
+    // Features settings groups and the Command Picker top-level categories (one SSOT).
+    workflowStages: {
+        capture: string;
+        create: string;
+        refine: string;
+        find: string;
+        maintain: string;
     };
     // Settings sections
     settings: {
