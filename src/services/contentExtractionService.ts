@@ -454,22 +454,27 @@ export class ContentExtractionService {
                 modelName: this.pdfExtractionConfig.model
             }, this.app);
 
-            const parts = [
-                { type: 'document' as const, data: pdfResult.content.base64Data, mediaType: 'application/pdf' },
-                { type: 'text' as const, text: prompt }
-            ];
-            const response = await cloudService.sendMultimodal(parts, { maxTokens: 4096 });
+            try {
+                const parts = [
+                    { type: 'document' as const, data: pdfResult.content.base64Data, mediaType: 'application/pdf' },
+                    { type: 'text' as const, text: prompt }
+                ];
+                const response = await cloudService.sendMultimodal(parts, { maxTokens: 4096 });
 
-            if (!response.success || !response.content) {
-                logger.debug('Core', 'Multimodal PDF extraction failed, falling back to text extraction');
-                return this.extractPdfAsText(item);
+                if (!response.success || !response.content) {
+                    logger.debug('Core', 'Multimodal PDF extraction failed, falling back to text extraction');
+                    return this.extractPdfAsText(item);
+                }
+
+                return {
+                    source: item,
+                    content: response.content,
+                    success: true
+                };
+            } finally {
+                // Dispose the temp service (clears any in-flight timeout) — H13/M5.
+                await cloudService.dispose();
             }
-
-            return {
-                source: item,
-                content: response.content,
-                success: true
-            };
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.debug('Core', 'Multimodal PDF extraction error, falling back to text extraction:', errorMessage);

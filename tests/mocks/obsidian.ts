@@ -99,6 +99,15 @@ export function clearMockNotices() {
     mockNotices.length = 0;
 }
 
+/** Minimal Editor stub — tests pass duck-typed editor objects; this exists for typing. */
+export class Editor {}
+
+/** Minimal MarkdownView stub so `view instanceof MarkdownView` resolves in tests. */
+export class MarkdownView {
+    file: TFile | null = null;
+    editor: any = null;
+}
+
 export class App {
     keymap = {} as any;
     scope = {} as any;

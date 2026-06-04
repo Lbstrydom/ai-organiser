@@ -2818,6 +2818,29 @@ A thin coordination layer over the existing long-lived LLM service — NOT a gat
 
 **Plan**: [docs/completed/llm-gateway-lite.md](docs/completed/llm-gateway-lite.md) · **Audit summary** (gitignored): `docs/completed/llm-gateway-lite-audit-summary.md`.
 
+## Note-Edit Write Seam (command-layer-hardening, Clusters A+B)
+
+**Status**: ✅ Clusters A+B + D2 (June 2026). Cluster C (multi-source decomposition) pending.
+
+The command layer mutates notes through **one write seam** instead of scattered
+`editor.setValue`/`replaceSelection`/`replaceRange`/`insertAtCursor` calls — closing a
+silent-data-loss class (a long async pipeline writing to a stale/changed editor buffer).
+
+### Core components (`src/services/noteEdit/`)
+- `applyNoteEdit.ts` — `applyNoteEdit(plugin, target, opts): Promise<Result<void>>`, the ONLY way the command layer mutates a note. **Compare-and-commit**: re-resolves the file captured at command start, optionally shows the Reviewed Edits modal, then commits via `NoteWritePort`. `captureSnapshot(view)` / `captureSnapshotFromEditor(app, editor)` snapshot `{filePath, baseline, cursorAnchor, selection}` at command start. `EditTarget` is a discriminated union — `full-replace` (rewrite, **strict baseline gate**: aborts + copies result to clipboard on concurrent edit), `range-replace`/`cursor-insert` (content-anchor relocation, **degrade-to-append** when absent OR ambiguous), `append`, `composite` (additive recompute against live content — **no baseline gate**, so a concurrent keystroke can't discard the result, G2). §5 failure-matrix Notices are i18n'd (`t.messages.note*`).
+- `noteWritePort.ts` — the ONLY module that calls `editor.replaceRange`/`vault.process`/`vault.modify` for command writes. Turns a full candidate into a **minimal common-prefix/suffix diff** (`minimalEdit`) applied as one undo/cursor-safe editor transaction when the note is open in **any** visible leaf (split-pane safe), else `vault.process` (abort-by-**throw** so a rejected write leaves mtime intact; `vault.modify` fallback pre-1.4). Never throws — typed `Result.err` on any failure (incl. a CodeMirror throw).
+- `noteMutation.ts` — pure-string composition (`NoteMutation` fluent builder + `cleanupSourcesText`/`addReferenceText`/`ensureStructureText`/`replaceMainContentText`/`insertBeforeTrailingSectionsText`/`insertAtAnchorText`/`replaceAnchoredSelectionText`). Reuses existing **pure** exports from `noteStructure.ts` (`formatSourceReference`, `findSectionInText`, header constants) + `sourceDetection.removeProcessedSources`. **Body-only** — frontmatter stays on the existing `fileManager.processFrontMatter` path (no hand-rolled YAML).
+
+### Key patterns
+- **ESLint guard** (`eslint.config.mjs`, `no-restricted-syntax`): direct `editor.setValue/replaceSelection/replaceRange`/`insertAtCursor`/`appendAsNewSections`/`vault.modify` are forbidden in `src/commands/{summarize,translate}Commands.ts` + `src/services/multiSource/**` — they must route through `applyNoteEdit`. `src/services/noteEdit/**` owns the commit and is exempt.
+- **Additive multi-source summary (D2)**: the multi-source summary **appends** + cleans up processed source links (preserving the user's body) rather than replacing the body. Single-source inserts are `cursor-insert`; full-note/multi-source translate rewrites are `full-replace` (baseline-gated).
+- **Cluster B hygiene**: temp `CloudLLMService` (PDF provider override) disposed in `finally` (`pdfTranslationService`, `contentExtractionService`, `summarizeCommands`); chunked map-reduce egress wrapped in `withForeground`; RAG failure logs via `logger`.
+
+### Tests
+`tests/{applyNoteEdit,noteWritePort,noteMutation}.test.ts` (39).
+
+**Plan**: [docs/plans/command-layer-hardening.md](docs/plans/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/plans/command-layer-hardening-audit-summary.md`. **Remaining**: Cluster C — decompose `handleMultiSourceResult` into `src/services/multiSource/` (`MultiSourceOrchestrator` + `SummaryInsertion` + `SourceMetadataWriter`) with golden-parity fixtures + consolidated Gemini gate.
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

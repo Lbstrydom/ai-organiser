@@ -1234,6 +1234,12 @@ export const en: Translations = {
         companionCreated: "Study companion note created",
         companionCreateFailed: "Could not create companion note",
         copiedToClipboard: "Copied to clipboard",
+        // Note-edit write seam (applyNoteEdit) — §5 failure matrix
+        noteDeletedEditCancelled: "The note was deleted — edit cancelled.",
+        nothingToInsert: "Nothing to insert.",
+        noteChangedReRun: "Note changed — re-run to apply (result copied).",
+        couldNotWriteNote: "Could not write to the note.",
+        insertionPointMovedAppended: "Insertion point moved — appended at end.",
         summarizingChunk: "Section {current}/{total}...",
         combiningChunks: "Combining...",
         urlValidationError: "Invalid URL",

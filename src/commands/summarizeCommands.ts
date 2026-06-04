@@ -44,47 +44,55 @@ import {
     TranscriptionProvider
 } from '../services/audioTranscriptionService';
 import {
-    addToReferencesSection,
     SourceReference,
     getTodayDate,
-    formatDuration,
-    ensureNoteStructureIfEnabled
+    formatDuration
 } from '../utils/noteStructure';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
-import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey, checkMainProviderConfigured } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
 import { SummaryResultModal, type SummaryResultAction } from '../ui/modals/SummaryResultModal';
+import {
+    applyNoteEdit,
+    captureSnapshot,
+    captureSnapshotFromEditor,
+} from '../services/noteEdit/applyNoteEdit';
+import { NoteMutation } from '../services/noteEdit/noteMutation';
 
 /**
  * Show summary preview modal or insert directly.
  * Returns the user's action when previewing, undefined when inserting directly.
  */
-function showSummaryPreviewOrInsert(
+async function showSummaryPreviewOrInsert(
     plugin: AIOrganiserPlugin,
     output: string,
-    doInsert: () => void,
+    doInsert: () => Promise<boolean>,
     showPreview: boolean,
     noticeMessage?: string
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     if (showPreview) {
-        return new Promise<SummaryResultAction>((resolve) => {
-            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+        return await new Promise<SummaryResultAction>((resolve) => {
+            const modal = new SummaryResultModal(plugin.app, plugin, output, (action) => { void (async () => {
                 if (action === 'cursor') {
-                    doInsert();
-                    new Notice(noticeMessage || plugin.t.messages.summaryInserted);
+                    // doInsert routes through the applyNoteEdit write seam; only fire the
+                    // success notice when the write actually committed (not on a safe abort).
+                    const wrote = await doInsert();
+                    if (wrote) {
+                        new Notice(noticeMessage || plugin.t.messages.summaryInserted);
+                    }
                 } else if (action === 'copy') {
                     void navigator.clipboard.writeText(output);
                     new Notice(plugin.t.messages.copiedToClipboard);
                 }
                 resolve(action);
-            }).open();
+            })(); });
+            modal.open();
         });
     }
-    doInsert();
+    await doInsert();
     return undefined;
 }
 
@@ -311,6 +319,14 @@ async function handleMultiSourceResult(
         personaId: result.personaId
     });
 
+    // Capture the edit context at command start — the write seam re-verifies this
+    // captured file/baseline at commit (data-loss safety) before the long pipeline.
+    const snapshot = captureSnapshot(view);
+    if (!snapshot) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
     // Use persona from modal result, fallback to settings default
     const personaId = result.personaId || plugin.settings.defaultSummaryPersona;
     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(personaId);
@@ -344,7 +360,7 @@ async function handleMultiSourceResult(
                 // was actually inserted — preserves the user's content when the
                 // LLM call fails, config is missing, or user discards the preview.
                 if (outcome.success) {
-                    removeSourceFromEditor(editor, url);
+                    await removeSourceFromEditor(plugin, editor, url);
                 }
             } catch (e) {
                 logger.error('Summary', 'Error in handleUrlSummarization:', e);
@@ -357,7 +373,7 @@ async function handleMultiSourceResult(
             try {
                 await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, personaId);
                 // Remove YouTube URL from note body after processing
-                removeSourceFromEditor(editor, url);
+                await removeSourceFromEditor(plugin, editor, url);
             } catch (e) {
                 logger.error('Summary', 'Error in handleYouTubeSummarization:', e);
                 new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -953,18 +969,22 @@ async function handleMultiSourceResult(
             ];
 
             // Show preview modal — editor mutations deferred to doInsert callback
-            const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, () => {
-                // Previous behaviour: editor.setValue(frontmatter + failureOutput)
-                // — that wiped the entire note body just to render a "no content
-                // could be summarized" checklist. Destructive and surprising
-                // (H7 audit finding 2026-04-23). Now we APPEND the checklist
-                // to the existing body instead so the user's original content
-                // is preserved.
-                let fullContent = editor.getValue();
-                if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
-                    fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
-                }
-                editor.setValue(fullContent.trimEnd() + '\n' + failureOutput);
+            const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, async () => {
+                // Append the "no content could be summarized" checklist to the existing
+                // body (we never wipe it — H7 audit finding 2026-04-23), via the write
+                // seam (SummaryResultModal is the gate, so review:false). Additive →
+                // no baseline gate; recomputed against the live note at commit.
+                const target = {
+                    kind: 'composite' as const,
+                    filePath: snapshot.filePath,
+                    baseline: snapshot.baseline,
+                    recompute: new NoteMutation()
+                        .cleanupSources(urlsToRemove, vaultFilePaths)
+                        .appendToEnd(failureOutput)
+                        .build(),
+                };
+                const r = await applyNoteEdit(plugin, target, { review: false });
+                return r.ok;
             }, true, plugin.t.messages.noContentCouldBeSummarized);
             if (failureAction === 'discard') {
                 new Notice(plugin.t.messages.noContentCouldBeSummarized);
@@ -1058,21 +1078,18 @@ async function handleMultiSourceResult(
     ];
     const vaultFilePaths = new Set<string>(vaultFilePathsList);
 
-    // Show preview modal — all editor mutations deferred to doInsert callback
-    await showSummaryPreviewOrInsert(plugin, combinedOutput, () => {
-        // 1. Remove processed sources
-        let fullContent = editor.getValue();
-        if (urlsToRemove.length > 0 || vaultFilePathsList.length > 0) {
-            fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePathsList);
-        }
-
-        // 2. Replace body with summary (after frontmatter)
-        const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
-        const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
-        const frontmatter = fullContent.substring(0, frontmatterEnd);
-        editor.setValue(frontmatter + combinedOutput.trimStart());
-
-        // 3. Add references for successful sources
+    // Show preview modal — all editor mutations deferred to doInsert callback.
+    // Genuine body rewrite (note becomes the summary) → full-replace with baseline
+    // gate; SummaryResultModal is the preview, so review:false on the seam.
+    await showSummaryPreviewOrInsert(plugin, combinedOutput, async () => {
+        // ADDITIVE (plan D2): strip the processed source links, APPEND the summary
+        // section (preserving the user's body), add references, ensure structure.
+        // Composed as a single additive `composite` edit — NO baseline gate, so a
+        // benign concurrent keystroke during the long LLM op never discards the
+        // result (G2), and the body's folds/cursor survive (G1).
+        const mutation = new NoteMutation()
+            .cleanupSources(urlsToRemove, vaultFilePathsList)
+            .appendSection(combinedOutput);
         for (const source of allSources) {
             if (source.url && source.success) {
                 const refType =
@@ -1091,31 +1108,35 @@ async function handleMultiSourceResult(
                     date: source.date,
                     isInternal
                 };
-                addToReferencesSection(editor, sourceRef);
+                mutation.addReference(sourceRef);
             }
         }
+        mutation.ensureStructure(plugin.settings.autoEnsureNoteStructure);
 
-        // 4. Ensure note structure
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(
+            plugin,
+            { kind: 'composite', filePath: snapshot.filePath, baseline: snapshot.baseline, recompute: mutation.build() },
+            { review: false },
+        );
+        return r.ok;
     }, true, `Summarized ${summaries.length} source(s)`);
 }
 
 /**
- * Remove a single source URL from the editor content
- * Used after processing to move URLs to References section
+ * Remove a single source URL from the note (after processing, before moving it to
+ * References). Routes through the write seam (additive cleanup, no review) so it
+ * targets the editor's actual note and preserves cursor via the minimal-diff write.
  */
-function removeSourceFromEditor(editor: Editor, url: string): void {
-    const fullContent = editor.getValue();
-    const cleanedContent = removeProcessedSources(fullContent, [url]);
-    if (cleanedContent !== fullContent) {
-        const cursor = editor.getCursor();
-        editor.setValue(cleanedContent);
-        // Clamp cursor to document bounds — content removal may shorten the document
-        const lastLine = editor.lastLine();
-        const clampedLine = Math.min(cursor.line, lastLine);
-        const lineLength = editor.getLine(clampedLine).length;
-        editor.setCursor({ line: clampedLine, ch: Math.min(cursor.ch, lineLength) });
-    }
+async function removeSourceFromEditor(plugin: AIOrganiserPlugin, editor: Editor, url: string): Promise<void> {
+    const snapshot = captureSnapshotFromEditor(plugin.app, editor);
+    if (!snapshot) return;
+    const target = {
+        kind: 'composite' as const,
+        filePath: snapshot.filePath,
+        baseline: snapshot.baseline,
+        recompute: new NoteMutation().cleanupSources([url]).build(),
+    };
+    await applyNoteEdit(plugin, target, { review: false });
 }
 
 /**
@@ -2180,7 +2201,9 @@ async function summarizeContentInChunks(
 
     const mapLanguage = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
 
-    const result = await orchestrateChunked(
+    // Hold the foreground gate across the whole map-reduce so background indexing
+    // yields, matching the single-call path's gating (M12/M21).
+    const result = await plugin.withForeground(() => orchestrateChunked(
         content,
         assessment,
         plugin.llmService,
@@ -2222,7 +2245,7 @@ async function summarizeContentInChunks(
                 } catch { /* noop */ }
             },
         },
-    );
+    ));
 
     hideProgress();
 
@@ -2295,10 +2318,9 @@ async function insertAudioSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
         const sourceRef: SourceReference = {
             type: 'audio',
             title: file.basename,
@@ -2307,8 +2329,17 @@ async function insertAudioSummary(
             duration: duration ? formatDuration(duration) : undefined,
             isInternal: true
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -2478,10 +2509,10 @@ async function insertYouTubeSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
+        const mutation = new NoteMutation().insertAtAnchor(snap.cursorAnchor, output);
         if (videoInfo) {
             const sourceRef: SourceReference = {
                 type: 'youtube',
@@ -2491,9 +2522,16 @@ async function insertYouTubeSummary(
                 date: getTodayDate(),
                 isInternal: false
             };
-            addToReferencesSection(editor, sourceRef);
+            mutation.addReference(sourceRef);
         }
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        mutation.ensureStructure(plugin.settings.autoEnsureNoteStructure);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: mutation.build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -2814,8 +2852,9 @@ async function summarizeTextWithLLM(
                     ragSources = context.sources;
                 }
             } catch (ragError) {
-                // Silently fail RAG, continue with regular summary
-                console.debug('[AI Organiser] RAG summarization failed, continuing without context', ragError);
+                // RAG is best-effort — continue with the regular summary, but make the
+                // failure observable through the central logger (M17).
+                logger.warn('Summary', 'RAG summarization failed, continuing without context', ragError);
             }
         }
 
@@ -2891,12 +2930,16 @@ async function summarizePdfWithLLM(
             modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash')
         }, plugin.app);
 
-        const parts = [
-            { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
-            { type: 'text' as const, text: prompt }
-        ];
-        const response = await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
-        return response;
+        try {
+            const parts = [
+                { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
+                { type: 'text' as const, text: prompt }
+            ];
+            return await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
+        } finally {
+            // Dispose the temp PDF service (clears any in-flight timeout) — H13/M5.
+            await pdfCloudService.dispose();
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
@@ -3154,9 +3197,9 @@ async function insertWebSummary(
         }
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
 
         let sourceName = webContent.siteName || 'Source';
         try {
@@ -3173,8 +3216,17 @@ async function insertWebSummary(
             date: webContent.fetchedAt.toISOString().split('T')[0],
             isInternal: false
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -3190,7 +3242,7 @@ function insertTextSummary(
     title: string,
     showPreview: boolean = false,
     noticeMessage?: string
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3199,9 +3251,19 @@ function insertTextSummary(
 
     output += summary;
 
-    const doInsert = () => {
-        editor.replaceRange(output, editor.getCursor());
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview, noticeMessage);
@@ -3248,7 +3310,7 @@ function insertPdfSummary(
     plugin: AIOrganiserPlugin,
     isInternal: boolean,
     showPreview: boolean = false
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3257,9 +3319,9 @@ function insertPdfSummary(
 
     output += summary;
 
-    const doInsert = () => {
-        editor.replaceRange(output, editor.getCursor());
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
         // Add source to References section
         const sourceRef: SourceReference = {
             type: 'pdf',
@@ -3268,8 +3330,17 @@ function insertPdfSummary(
             date: getTodayDate(),
             isInternal: isInternal
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);

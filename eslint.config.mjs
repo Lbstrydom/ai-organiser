@@ -59,6 +59,40 @@ export default defineConfig([
         },
     },
     {
+        // ── Write-seam guard (command-layer-hardening M4) ──────────────
+        // The command layer + multi-source service must mutate notes ONLY through
+        // `applyNoteEdit` (src/services/noteEdit/**). Forbid direct editor / vault
+        // writes here so the capture-then-verify write seam can't silently regress.
+        // `src/services/noteEdit/**` is intentionally NOT in this list (it owns the
+        // commit mechanism).
+        files: [
+            'src/commands/summarizeCommands.ts',
+            'src/commands/translateCommands.ts',
+            'src/services/multiSource/**/*.ts',
+        ],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: "CallExpression[callee.object.name='editor'][callee.property.name=/^(setValue|replaceSelection|replaceRange)$/]",
+                    message: 'Direct editor writes are forbidden here — route note mutations through applyNoteEdit (src/services/noteEdit).',
+                },
+                {
+                    selector: "CallExpression[callee.name='insertAtCursor']",
+                    message: 'insertAtCursor bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+                },
+                {
+                    selector: "CallExpression[callee.name='appendAsNewSections']",
+                    message: 'appendAsNewSections bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+                },
+                {
+                    selector: "CallExpression[callee.property.name='modify'][callee.object.property.name='vault']",
+                    message: 'vault.modify bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+                },
+            ],
+        },
+    },
+    {
         ignores: ['tests/**', 'main.js', 'scripts/**', 'docs/**', '*.config.*'],
     },
 ]);
