@@ -13,6 +13,7 @@ export const en: Translations = {
         cancel: 'Cancel',
         intro: 'New: a Features section in settings lets you turn features on or off.',
         saveError: "Couldn't save feature settings — your change was reverted.",
+        managedInFeatures: 'Turn this feature on or off in settings → Features.',
         clusters: {
             core: 'Core',
             create: 'Create',

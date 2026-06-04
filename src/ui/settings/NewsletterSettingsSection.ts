@@ -81,21 +81,13 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 cls: 'setting-item-description'
             });
         }
-
-        // Enable toggle
-        new Setting(this.containerEl)
-            .setName(nl?.enabled || 'Enable newsletter digest')
-            .setDesc(nl?.enabledDesc || 'Fetch and summarize newsletters from your Gmail')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.newsletterEnabled)
-                .onChange(value => {
-                    this.plugin.settings.newsletterEnabled = value;
-                    void this.plugin.saveSettings();
-                    this.settingTab.display();
-                }));
-
-        // Only show remaining settings when enabled
-        if (!this.plugin.settings.newsletterEnabled) return;
+        // The feature flag (Settings → Features) is the master switch (FT-11). This section
+        // only renders when newsletter is enabled, so it shows configuration only — the
+        // redundant inner enable toggle was removed.
+        this.containerEl.createEl('p', {
+            text: t.features.managedInFeatures,
+            cls: 'setting-item-description'
+        });
 
         // Source dropdown (Apps Script recommended; Gmail API is Tier 2 / not yet implemented)
         new Setting(this.containerEl)

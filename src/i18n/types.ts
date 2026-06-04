@@ -15,6 +15,7 @@ export interface Translations {
         cancel: string;
         intro: string;
         saveError: string;
+        managedInFeatures: string;      // hint shown inside a feature's own section
         clusters: {
             core: string;
             create: string;

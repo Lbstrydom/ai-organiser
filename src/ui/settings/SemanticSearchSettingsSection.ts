@@ -20,41 +20,17 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
 
         // Section header (main h1 section)
         this.createSectionHeader(t.settings.semanticSearch.title, 'brain', 1, sectionEl);
-        sectionEl.createEl('p', { 
+        sectionEl.createEl('p', {
             text: t.settings.semanticSearch.description,
             cls: 'setting-item-description'
         });
-
-        // Master toggle for Semantic Search
-        new Setting(sectionEl)
-            .setName(t.settings.semanticSearch.enableSemanticSearch.name)
-            .setDesc(t.settings.semanticSearch.enableSemanticSearch.description)
-            .addToggle(toggle => toggle
-                .setValue(plugin.settings.enableSemanticSearch)
-                .onChange((value) => {
-                    plugin.settings.enableSemanticSearch = value;
-                    void plugin.saveSettings();
-
-                    // Cleanup vector store if disabled
-                    if (!value && plugin.vectorStoreService) {
-                        void plugin.vectorStoreService.dispose().then(() => {
-                            plugin.vectorStoreService = null;
-                            plugin.vectorStore = null;
-                        });
-                    }
-
-                    // Refresh settings display to show/hide dependent settings
-                    void this.display();
-                }));
-
-        // Only show additional settings if semantic search is enabled
-        if (!plugin.settings.enableSemanticSearch) {
-            sectionEl.createEl('p', {
-                text: t.settings.semanticSearch.enableToConfigureMessage,
-                cls: 'setting-item-description mod-warning'
-            });
-            return;
-        }
+        // The feature flag (Settings → Features) is the master switch (FT-11). This section
+        // only renders when semantic-search is enabled, so it shows configuration only —
+        // the redundant inner enable toggle was removed.
+        sectionEl.createEl('p', {
+            text: t.features.managedInFeatures,
+            cls: 'setting-item-description'
+        });
 
         // Embedding Provider
         // Note: Claude does not offer embedding APIs - use Voyage AI (Anthropic's recommended partner)
