@@ -20,6 +20,7 @@ import type { IEmbeddingService, EmbeddingResult, BatchEmbeddingResult, Embeddin
  * Mock embedding service for testing
  */
 class MockEmbeddingService implements IEmbeddingService {
+    readonly maxBatchSize = 100;
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         return {
             success: true,

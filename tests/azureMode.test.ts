@@ -246,9 +246,10 @@ describe('fail-closed Azure — no personal-Anthropic call (keystone negative te
 		expect(r.error).toBe(profile.error);
 
 		// The HTTP boundary: no requestUrl ever hit an Anthropic host.
-		const anthropicCalls = mockRequestUrl.mock.calls.filter(([opts]: [{ url?: string }]) =>
-			typeof opts?.url === 'string' && opts.url.includes('anthropic.com'),
-		);
+		const anthropicCalls = mockRequestUrl.mock.calls.filter((call) => {
+			const opts = call[0] as { url?: string } | undefined;
+			return typeof opts?.url === 'string' && opts.url.includes('anthropic.com');
+		});
 		expect(anthropicCalls.length).toBe(0);
 		expect(mockRequestUrl).not.toHaveBeenCalled();
 	});

@@ -48,7 +48,7 @@ describe('EmbeddingQueue', () => {
     it('embeds one note in a single request and persists via onBatchSuccess', async () => {
         const svc = mockService(2);
         const { queue } = harness(svc);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         await queue.enqueue([task('a', 0, 'x'), task('a', 1, 'y')], onSuccess);
         expect(svc.batchGenerateEmbeddings).toHaveBeenCalledTimes(1); // 2 chunks, batch 2 → 1 request
         expect(onSuccess).toHaveBeenCalledTimes(1);
@@ -58,7 +58,7 @@ describe('EmbeddingQueue', () => {
     it('splits into exactly maxBatchSize chunks per request (atomic)', async () => {
         const svc = mockService(2);
         const { queue } = harness(svc);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         await queue.enqueue([task('a', 0, 'x'), task('a', 1, 'y'), task('a', 2, 'z')], onSuccess);
         expect(svc.batchGenerateEmbeddings).toHaveBeenCalledTimes(2); // 3 chunks / batch 2 → 2 requests
         expect(svc.batchGenerateEmbeddings.mock.calls[0][0]).toHaveLength(2);
@@ -76,7 +76,7 @@ describe('EmbeddingQueue', () => {
         });
         const h = harness(svc);
         // First call sets a cooldown so the queue waits before retrying.
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         // Pre-arm the cooldown deterministically (first 429 sets it in real code).
         const completion = h.queue.enqueue([task('a', 0, 'x')], onSuccess);
         // emulate the 429 having set the cooldown window
@@ -95,7 +95,7 @@ describe('EmbeddingQueue', () => {
     it('drops + does NOT persist on a permanent error', async () => {
         const svc = mockService(4, async () => ({ success: false, reason: 'error', error: 'boom' }));
         const { queue } = harness(svc);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         await queue.enqueue([task('a', 0, 'x')], onSuccess); // completion still resolves
         expect(onSuccess).not.toHaveBeenCalled();
     });
@@ -106,7 +106,7 @@ describe('EmbeddingQueue', () => {
         let release!: () => void;
         const held = new Promise<void>((r) => { release = r; });
         const op = gate.withForeground(() => held);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         const completion = queue.enqueue([task('a', 0, 'x')], onSuccess);
         await flush();
         expect(svc.batchGenerateEmbeddings).not.toHaveBeenCalled(); // yielded
@@ -123,8 +123,8 @@ describe('EmbeddingQueue', () => {
         let release!: () => void;
         const held = new Promise<void>((r) => { release = r; });
         const op = gate.withForeground(() => held); // hold so nothing drains yet
-        const s1 = vi.fn(async () => { /* persist */ });
-        const s2 = vi.fn(async () => { /* persist */ });
+        const s1 = vi.fn(async (_e: number[][]) => { /* persist */ });
+        const s2 = vi.fn(async (_e: number[][]) => { /* persist */ });
         const c1 = queue.enqueue([task('a', 0, 'old')], s1);
         const c2 = queue.enqueue([task('a', 0, 'new')], s2); // same path → supersedes c1
         await flush();
@@ -138,7 +138,7 @@ describe('EmbeddingQueue', () => {
     it('a thrown batch call drops the batch without stranding the awaiter (H6)', async () => {
         const svc = mockService(4, async () => { throw new Error('network down'); });
         const { queue } = harness(svc);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         // completion still resolves (drop path) — never hangs.
         await queue.enqueue([task('a', 0, 'x')], onSuccess);
         expect(onSuccess).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('EmbeddingQueue', () => {
     it('ignores foreign-path chunks in a single enqueue (M20)', async () => {
         const svc = mockService(4);
         const { queue } = harness(svc);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         // tasks[0].path is 'a'; the 'b' chunk is foreign and dropped.
         await queue.enqueue([task('a', 0, 'x'), task('b', 0, 'y')], onSuccess);
         expect(onSuccess).toHaveBeenCalledTimes(1);
@@ -161,7 +161,7 @@ describe('EmbeddingQueue', () => {
         let release!: () => void;
         const held = new Promise<void>((r) => { release = r; });
         const op = gate.withForeground(() => held);
-        const onSuccess = vi.fn(async () => { /* persist */ });
+        const onSuccess = vi.fn(async (_e: number[][]) => { /* persist */ });
         const completion = queue.enqueue([task('a', 0, 'x')], onSuccess);
         queue.removePath('a');
         await completion; // resolved by removePath

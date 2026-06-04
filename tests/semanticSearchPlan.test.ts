@@ -20,6 +20,7 @@ import type { IEmbeddingService } from '../src/services/embeddings/types';
 /** Minimal mock satisfying IEmbeddingService for constructor calls */
 function mockEmbeddingService(): IEmbeddingService {
     return {
+        maxBatchSize: 100,
         generateEmbedding: vi.fn().mockResolvedValue({ embedding: [], tokens: 0 }),
         batchGenerateEmbeddings: vi.fn().mockResolvedValue({ embeddings: [], totalTokens: 0, errors: [] }),
         getModelDimensions: vi.fn().mockReturnValue(384),

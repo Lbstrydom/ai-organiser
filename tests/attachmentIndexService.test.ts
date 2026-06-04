@@ -13,6 +13,7 @@ vi.mock('obsidian', () => ({
 function makeEmbeddingService(dims = 4): IEmbeddingService {
     const makeVec = (seed: number) => Array.from({ length: dims }, (_, i) => ((i + seed + 1) / dims));
     return {
+        maxBatchSize: 100,
         generateEmbedding: vi.fn().mockImplementation(async (text: string): Promise<EmbeddingResult> => {
             const seed = text.charCodeAt(0) ?? 0;
             return { success: true, embedding: makeVec(seed) };
