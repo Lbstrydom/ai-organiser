@@ -1,6 +1,16 @@
 import { Editor } from 'obsidian';
 
 /**
+ * Low-level editor insertion helpers.
+ *
+ * NOTE: the canonical write seam for the command layer is `applyNoteEdit`
+ * (`src/services/noteEdit/applyNoteEdit.ts`) — capture-then-verify against the
+ * file open at command start, with the Reviewed Edits gate. These primitives remain
+ * for synchronous, in-place callers that have no async gap (e.g. chat / smart-note /
+ * integration insertions). Async command flows MUST use `applyNoteEdit` instead.
+ */
+
+/**
  * Insert content at the editor cursor with consistent padding.
  */
 export function insertAtCursor(editor: Editor, content: string): void {
@@ -10,15 +20,25 @@ export function insertAtCursor(editor: Editor, content: string): void {
 }
 
 /**
+ * Pure SSOT for the append-as-new-sections insert point: the character offset
+ * immediately before the earliest References / Pending Integration section, or the
+ * end of the document when neither exists. Shared so the insert position is decided
+ * in exactly one place (R3-M3).
+ */
+export function findAppendSectionOffset(fullText: string): number {
+    const refMatch = fullText.match(/(?:^|\n)## References\b/);
+    const pendMatch = fullText.match(/(?:^|\n)## Pending Integration\b/);
+    const positions = [refMatch?.index, pendMatch?.index].filter((i): i is number => i != null);
+    return positions.length > 0 ? Math.min(...positions) : fullText.length;
+}
+
+/**
  * Append content as new section(s) at end of main content,
  * before References/Pending sections.
  */
 export function appendAsNewSections(editor: Editor, content: string): void {
     const fullText = editor.getValue();
-    const refMatch = fullText.match(/(?:^|\n)## References\b/);
-    const pendMatch = fullText.match(/(?:^|\n)## Pending Integration\b/);
-    const positions = [refMatch?.index, pendMatch?.index].filter((i): i is number => i != null);
-    const insertPos = positions.length > 0 ? Math.min(...positions) : fullText.length;
+    const insertPos = findAppendSectionOffset(fullText);
     const padded = `\n\n${content}\n`;
     editor.replaceRange(padded, editor.offsetToPos(insertPos));
 }

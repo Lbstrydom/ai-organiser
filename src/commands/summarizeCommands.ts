@@ -44,47 +44,59 @@ import {
     TranscriptionProvider
 } from '../services/audioTranscriptionService';
 import {
-    addToReferencesSection,
     SourceReference,
     getTodayDate,
-    formatDuration,
-    ensureNoteStructureIfEnabled
+    formatDuration
 } from '../utils/noteStructure';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
-import { removeProcessedSources } from '../utils/sourceDetection';
 import { DocumentExtractionService } from '../services/documentExtractionService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey, checkMainProviderConfigured } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
 import { SummaryResultModal, type SummaryResultAction } from '../ui/modals/SummaryResultModal';
+import {
+    applyNoteEdit,
+    captureSnapshot,
+    captureSnapshotFromEditor,
+} from '../services/noteEdit/applyNoteEdit';
+import { NoteMutation } from '../services/noteEdit/noteMutation';
+import { MultiSourceOrchestrator } from '../services/multiSource/multiSourceOrchestrator';
+import { SummaryInsertion, buildFailureChecklist } from '../services/multiSource/summaryInsertion';
+import { deriveCleanupTargets, addSourceReferences } from '../services/multiSource/sourceMetadataWriter';
+import type { ResolvedSource } from '../services/multiSource/multiSourceTypes';
 
 /**
  * Show summary preview modal or insert directly.
  * Returns the user's action when previewing, undefined when inserting directly.
  */
-function showSummaryPreviewOrInsert(
+async function showSummaryPreviewOrInsert(
     plugin: AIOrganiserPlugin,
     output: string,
-    doInsert: () => void,
+    doInsert: () => Promise<boolean>,
     showPreview: boolean,
     noticeMessage?: string
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     if (showPreview) {
-        return new Promise<SummaryResultAction>((resolve) => {
-            new SummaryResultModal(plugin.app, plugin, output, (action) => {
+        return await new Promise<SummaryResultAction>((resolve) => {
+            const modal = new SummaryResultModal(plugin.app, plugin, output, (action) => { void (async () => {
                 if (action === 'cursor') {
-                    doInsert();
-                    new Notice(noticeMessage || plugin.t.messages.summaryInserted);
+                    // doInsert routes through the applyNoteEdit write seam; only fire the
+                    // success notice when the write actually committed (not on a safe abort).
+                    const wrote = await doInsert();
+                    if (wrote) {
+                        new Notice(noticeMessage || plugin.t.messages.summaryInserted);
+                    }
                 } else if (action === 'copy') {
                     void navigator.clipboard.writeText(output);
                     new Notice(plugin.t.messages.copiedToClipboard);
                 }
                 resolve(action);
-            }).open();
+            })(); });
+            modal.open();
         });
     }
-    doInsert();
+    await doInsert();
     return undefined;
 }
 
@@ -311,6 +323,14 @@ async function handleMultiSourceResult(
         personaId: result.personaId
     });
 
+    // Capture the edit context at command start — the write seam re-verifies this
+    // captured file/baseline at commit (data-loss safety) before the long pipeline.
+    const snapshot = captureSnapshot(view);
+    if (!snapshot) {
+        new Notice(plugin.t.messages.openNote);
+        return;
+    }
+
     // Use persona from modal result, fallback to settings default
     const personaId = result.personaId || plugin.settings.defaultSummaryPersona;
     const personaPrompt = await plugin.configService.getSummaryPersonaPrompt(personaId);
@@ -344,7 +364,7 @@ async function handleMultiSourceResult(
                 // was actually inserted — preserves the user's content when the
                 // LLM call fails, config is missing, or user discards the preview.
                 if (outcome.success) {
-                    removeSourceFromEditor(editor, url);
+                    await removeSourceFromEditor(plugin, editor, url);
                 }
             } catch (e) {
                 logger.error('Summary', 'Error in handleUrlSummarization:', e);
@@ -357,7 +377,7 @@ async function handleMultiSourceResult(
             try {
                 await handleYouTubeSummarization(plugin, editor, url, personaPrompt, result.focusContext, personaId);
                 // Remove YouTube URL from note body after processing
-                removeSourceFromEditor(editor, url);
+                await removeSourceFromEditor(plugin, editor, url);
             } catch (e) {
                 logger.error('Summary', 'Error in handleYouTubeSummarization:', e);
                 new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -414,708 +434,153 @@ async function handleMultiSourceResult(
         // (the already-selected file is processed directly, no second picker)
     }
 
-    // Process sources — persistent progress Notice replaces the previous
-    // flash-notice anti-pattern (5-second flashes per source with silent gaps
-    // between). Reporter owns lifecycle so the Notice is always cleaned up,
-    // including on thrown exceptions (prior notice-leak concern).
+    // Flatten the grouped selection into an ordered, editor-free source list (note →
+    // urls → youtube → pdfs → documents → audio → images) for the orchestrator. Order
+    // matches the legacy per-source loops so the checklist + references are identical.
+    const resolved: ResolvedSource[] = [];
+    if (result.summarizeNote && view.file) resolved.push({ kind: 'note', file: view.file });
+    for (const url of result.sources.urls) resolved.push({ kind: 'url', url });
+    for (const url of result.sources.youtube) resolved.push({ kind: 'youtube', url });
+    for (const pdf of result.sources.pdfs) resolved.push({ kind: 'pdf', path: pdf.path, isVaultFile: pdf.isVaultFile });
+    for (const doc of result.sources.documents) resolved.push({ kind: 'document', path: doc.path, isVaultFile: doc.isVaultFile });
+    for (const audio of result.sources.audio) resolved.push({ kind: 'audio', path: audio.path, isVaultFile: audio.isVaultFile });
+    for (const image of result.sources.images) resolved.push({ kind: 'image', path: image.path });
+
+    // Persistent progress Notice (replaces the prior flash-notice anti-pattern); the
+    // orchestrator drives it via onProgress. Hidden on every exit path below.
     const _progressNotice = new Notice(
         plugin.t.messages.processingXSources.replace('{count}', String(totalSources)),
         0,
     );
-    // Ensure cleanup even if something throws unexpectedly below.
     const hideProgress = (): void => { try { _progressNotice.hide(); } catch { /* noop */ } };
 
-    const summaries: string[] = [];
-    const sourceLabels: string[] = [];
+    // Per-source processing is owned by MultiSourceOrchestrator (Cluster C decomposition).
+    // The command adapter keeps the editor/snapshot/write seam; the orchestrator is
+    // editor-free and returns an ordered BatchResult the collaborators format + persist.
+    const orchestrator = new MultiSourceOrchestrator({
+        app: plugin.app,
+        plugin,
+        summarizeContent: (content, persona, focus, isRaw, signal) => callSummarizeService(plugin, content, persona, focus, isRaw, signal),
+        summarizePdf: (path, isVault, options) => summarizePdfWithFullWorkflow(plugin, pdfService, path, isVault, options),
+        extractDocument: (document) => extractDocumentTextForMultiSource(plugin, view, document),
+        notify: (message, timeoutMs) => { new Notice(message, timeoutMs); },
+        onAudioCleanup: async (file, transcriptionResult) => {
+            const { offerPostTranscriptionCleanup } = await import('../services/audioCleanupService');
+            await offerPostTranscriptionCleanup(plugin, { file, transcriptionResult });
+        },
+    });
 
-    // Track source data for References and status checklist
-    interface ProcessedSource {
-        type: 'web' | 'youtube' | 'note' | 'pdf' | 'document' | 'audio' | 'image';
-        url?: string;
-        title: string;
-        date: string;
-        success: boolean;
-        error?: string;
-    }
-    const allSources: ProcessedSource[] = [];
     const today = new Date().toISOString().split('T')[0];
-
-    // Track progress — updates the persistent Notice in place so the user
-    // sees each source transition without flash-notice churn.
-    let processedCount = 0;
-    const showProgress = (): void => {
-        _progressNotice.setMessage(
-            plugin.t.messages.processingSourceXofY
-                .replace('{current}', String(processedCount + 1))
-                .replace('{total}', String(totalSources)),
-        );
-    };
-
-    // Process note content first if selected
-    if (result.summarizeNote && view.file) {
-        showProgress();
-        try {
-            const content = await plugin.app.vault.read(view.file);
-            new Notice(plugin.t.messages.summarizingNoteContent, 5000);
-            const summary = await callSummarizeService(plugin, content, personaPrompt, result.focusContext);
-            if (summary) {
-                summaries.push(summary);
-                sourceLabels.push(`Current Note: ${view.file.basename}`);
-                allSources.push({
-                    type: 'note',
-                    title: view.file.basename,
-                    date: today,
-                    success: true
-                });
-            } else {
-                allSources.push({
-                    type: 'note',
-                    title: view.file.basename,
-                    date: today,
-                    success: false,
-                    error: 'Failed to generate summary'
-                });
-            }
-            processedCount++;
-        } catch (e) {
-            logger.error('Summary', 'Failed to summarize note:', e);
-            allSources.push({
-                type: 'note',
-                title: view.file.basename,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-            processedCount++;
-        }
-    }
-
-    // Process URLs
-    for (const url of result.sources.urls) {
-        showProgress();
-        try {
-            new Notice(plugin.t.messages.fetchingWebPage, 5000);
-            const webResult = await fetchArticle(url);
-            if (webResult.success && webResult.content) {
-                const title = webResult.content.title?.substring(0, 40) || 'web page';
-                new Notice(plugin.t.messages.summarizingTitle.replace('{title}', title), 10000);
-                const summary = await callSummarizeService(plugin, webResult.content.textContent, personaPrompt, result.focusContext);
-                const fullTitle = webResult.content.title || url;
-                if (summary) {
-                    summaries.push(summary);
-                    sourceLabels.push(`URL: ${fullTitle}`);
-                    allSources.push({
-                        type: 'web',
-                        url: url,
-                        title: title,
-                        date: today,
-                        success: true
-                    });
-                } else {
-                    allSources.push({
-                        type: 'web',
-                        url: url,
-                        title: title,
-                        date: today,
-                        success: false,
-                        error: 'Failed to generate summary'
-                    });
-                }
-            } else {
-                allSources.push({
-                    type: 'web',
-                    url: url,
-                    title: url,
-                    date: today,
-                    success: false,
-                    error: webResult.error || 'Could not fetch page (may require login or JavaScript)'
-                });
-            }
-            processedCount++;
-        } catch (e) {
-            logger.error('Summary', `Failed to summarize URL ${url}:`, e);
-            new Notice(plugin.t.messages.failedToFetchUrl.replace('{url}', url));
-            allSources.push({
-                type: 'web',
-                url: url,
-                title: url,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Network error'
-            });
-            processedCount++;
-        }
-    }
-
-    // Process YouTube videos using Gemini-native processing
-    const youtubeGeminiKey = await getYouTubeGeminiApiKey(plugin);
-    for (const url of result.sources.youtube) {
-        showProgress();
-        try {
-            if (youtubeGeminiKey) {
-                // Use Gemini-native YouTube processing (more reliable)
-                new Notice(plugin.t.messages.processingYouTubeWithGemini, 5000);
-
-                // Build prompt for YouTube summarization
-                const promptOptions: SummaryPromptOptions = {
-                    length: plugin.settings.summaryLength,
-                    language: getLanguageNameForPrompt(plugin.settings.summaryLanguage),
-                    personaPrompt: personaPrompt,
-                    userContext: result.focusContext,
-                };
-                const prompt = buildSummaryPrompt(promptOptions);
-
-                const geminiResult = await summarizeYouTubeWithGemini(
-                    url,
-                    youtubeGeminiKey,
-                    prompt,
-                    plugin.settings.youtubeGeminiModel,
-                    plugin.settings.summarizeTimeoutSeconds * 1000
-                );
-
-                const title = geminiResult.videoInfo?.title || url;
-
-                if (geminiResult.success && geminiResult.content) {
-                    new Notice(plugin.t.messages.summarizedTitle.replace('{title}', title.substring(0, 40)), 3000);
-                    summaries.push(geminiResult.content);
-                    sourceLabels.push(`YouTube: ${title}`);
-                    allSources.push({
-                        type: 'youtube',
-                        url: url,
-                        title: title,
-                        date: today,
-                        success: true
-                    });
-                } else {
-                    allSources.push({
-                        type: 'youtube',
-                        url: url,
-                        title: title,
-                        date: today,
-                        success: false,
-                        error: geminiResult.error || 'Gemini failed to process video'
-                    });
-                }
-            } else {
-                // No Gemini key - fail with helpful message
-                allSources.push({
-                    type: 'youtube',
-                    url: url,
-                    title: url,
-                    date: today,
-                    success: false,
-                    error: 'Configure Gemini API key in Settings > YouTube to enable video processing'
-                });
-            }
-            processedCount++;
-        } catch (e) {
-            logger.error('Summary', `Failed to summarize YouTube ${url}:`, e);
-            new Notice(plugin.t.messages.failedToProcessYouTube.replace('{url}', url));
-            allSources.push({
-                type: 'youtube',
-                url: url,
-                title: url,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Could not process video'
-            });
-            processedCount++;
-        }
-    }
-
-    // Process PDFs using unified workflow (handles both vault and external PDFs)
-    for (const pdf of result.sources.pdfs) {
-        showProgress();
-        const pdfTitle = pdf.path.split('/').pop() || pdf.path;
-
-        try {
-            new Notice(plugin.t.messages.readingPdf.replace('{title}', pdfTitle), 3000);
-
-            // Use unified PDF workflow that handles vault/external and file resolution
-            const pdfResult = await summarizePdfWithFullWorkflow(
-                plugin,
-                pdfService,
-                pdf.path,
-                pdf.isVaultFile,
-                {
-                    personaPrompt,
-                    userContext: result.focusContext,
-                    currentFilePath: view.file?.path
-                }
+    const runResult = await orchestrator.run(resolved, {
+        personaPrompt,
+        focusContext: result.focusContext,
+        currentFilePath: view.file?.path,
+        today,
+        onProgress: (done, total) => {
+            _progressNotice.setMessage(
+                plugin.t.messages.processingSourceXofY
+                    .replace('{current}', String(done + 1))
+                    .replace('{total}', String(total)),
             );
+        },
+    });
 
-            if (pdfResult.success && pdfResult.summary) {
-                summaries.push(pdfResult.summary);
-                sourceLabels.push(`PDF: ${pdfTitle}`);
-                allSources.push({
-                    type: 'pdf',
-                    url: pdf.path,
-                    title: pdfTitle,
-                    date: today,
-                    success: true
-                });
-            } else {
-                allSources.push({
-                    type: 'pdf',
-                    url: pdf.path,
-                    title: pdfTitle,
-                    date: today,
-                    success: false,
-                    error: pdfResult.error || 'Failed to summarize PDF'
-                });
-            }
-        } catch (e) {
-            logger.error('Summary', 'Error processing PDF:', e);
-            allSources.push({
-                type: 'pdf',
-                url: pdf.path,
-                title: pdfTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-
-        processedCount++;
-    }
-
-    // Process Documents
-    for (const document of result.sources.documents) {
-        showProgress();
-        const docTitle = document.path.split('/').pop() || document.path;
-
-        try {
-            const extraction = await extractDocumentTextForMultiSource(plugin, view, document);
-            if (extraction.success && extraction.text) {
-                new Notice(plugin.t.messages.summarizingTitle.replace('{title}', docTitle.substring(0, 40)), 5000);
-                const summary = await callSummarizeService(plugin, extraction.text, personaPrompt, result.focusContext);
-                if (summary) {
-                    summaries.push(summary);
-                    sourceLabels.push(`Document: ${docTitle}`);
-                    allSources.push({
-                        type: 'document',
-                        url: document.path,
-                        title: docTitle,
-                        date: today,
-                        success: true
-                    });
-                } else {
-                    allSources.push({
-                        type: 'document',
-                        url: document.path,
-                        title: docTitle,
-                        date: today,
-                        success: false,
-                        error: 'Failed to generate summary'
-                    });
-                }
-            } else {
-                allSources.push({
-                    type: 'document',
-                    url: document.path,
-                    title: docTitle,
-                    date: today,
-                    success: false,
-                    error: extraction.error || 'Failed to extract document text'
-                });
-            }
-        } catch (e) {
-            logger.error('Summary', 'Error processing document:', e);
-            allSources.push({
-                type: 'document',
-                url: document.path,
-                title: docTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-
-        processedCount++;
-    }
-
-    // Process Audio files - transcribe and summarize
-    const audioTranscriptionConfig = await getAudioTranscriptionApiKey(plugin);
-    for (const audio of result.sources.audio) {
-        showProgress();
-        const audioTitle = audio.path.split('/').pop() || audio.path;
-
-        // Check if we have transcription API key
-        if (!audioTranscriptionConfig) {
-            allSources.push({
-                type: 'audio',
-                url: audio.path,
-                title: audioTitle,
-                date: today,
-                success: false,
-                error: 'Audio transcription requires OpenAI or Groq API key. Configure in Settings > Audio Transcription.'
-            });
-            processedCount++;
-            continue;
-        }
-
-        try {
-            // Only vault files are supported in multi-source mode
-            if (!audio.isVaultFile) {
-                allSources.push({
-                    type: 'audio',
-                    url: audio.path,
-                    title: audioTitle,
-                    date: today,
-                    success: false,
-                    error: 'External audio files not supported in multi-source mode'
-                });
-                processedCount++;
-                continue;
-            }
-
-            // Use Obsidian's link resolution (handles short links like [[filename.wav]])
-            const currentFile = view.file;
-            let audioFile = plugin.app.metadataCache.getFirstLinkpathDest(audio.path, currentFile?.path || '');
-
-            // Fallback to direct path lookup if link resolution fails
-            if (!audioFile) {
-                const directFile = plugin.app.vault.getAbstractFileByPath(audio.path);
-                if (directFile instanceof TFile) {
-                    audioFile = directFile;
-                }
-            }
-
-            if (!(audioFile instanceof TFile)) {
-                allSources.push({
-                    type: 'audio',
-                    url: audio.path,
-                    title: audioTitle,
-                    date: today,
-                    success: false,
-                    error: 'Could not find audio file in vault'
-                });
-                processedCount++;
-                continue;
-            }
-
-            // Use unified workflow that handles compression/chunking automatically
-            const transcriptionResult = await withBusyIndicator(plugin, () =>
-                transcribeAudioWithFullWorkflow(
-                    plugin.app,
-                    audioFile,
-                    {
-                        provider: audioTranscriptionConfig.provider,
-                        apiKey: audioTranscriptionConfig.key,
-                        azureEndpoint: audioTranscriptionConfig.azureEndpoint,
-                        language: plugin.settings.summaryLanguage || undefined
-                    },
-                    (progress: AudioWorkflowProgress) => {
-                        // Show progress notices for key stages
-                        if (progress.stage === 'compressing') {
-                            new Notice(plugin.t.messages.compressingAudio || 'Compressing audio...', 2000);
-                        } else if (progress.stage === 'transcribing') {
-                            if (progress.totalChunks && progress.totalChunks > 1) {
-                                new Notice(`Transcribing chunk ${progress.currentChunk}/${progress.totalChunks}...`, 2000);
-                            } else {
-                                new Notice(plugin.t.messages.transcribingAudio || 'Transcribing audio...', 2000);
-                            }
-                        }
-                    }
-                )
-            );
-
-            if (!transcriptionResult.success || !transcriptionResult.transcript) {
-                allSources.push({
-                    type: 'audio',
-                    url: audio.path,
-                    title: audioTitle,
-                    date: today,
-                    success: false,
-                    error: transcriptionResult.error || 'Failed to transcribe audio'
-                });
-                processedCount++;
-                continue;
-            }
-
-            // Post-transcription cleanup: offer keep / compress / delete
-            if (audioFile instanceof TFile) {
-                const { offerPostTranscriptionCleanup } = await import('../services/audioCleanupService');
-                await offerPostTranscriptionCleanup(plugin, { file: audioFile, transcriptionResult });
-            }
-
-            // Summarize the transcript
-            new Notice(plugin.t.messages.summarizingTitle.replace('{title}', audioTitle.substring(0, 40)), 5000);
-            const summary = await callSummarizeService(plugin, transcriptionResult.transcript, personaPrompt, result.focusContext);
-
-            if (summary) {
-                summaries.push(summary);
-                sourceLabels.push(`Audio: ${audioTitle}`);
-                allSources.push({
-                    type: 'audio',
-                    url: audio.path,
-                    title: audioTitle,
-                    date: today,
-                    success: true
-                });
-            } else {
-                allSources.push({
-                    type: 'audio',
-                    url: audio.path,
-                    title: audioTitle,
-                    date: today,
-                    success: false,
-                    error: 'Failed to generate summary from transcript'
-                });
-            }
-        } catch (e) {
-            logger.error('Summary', 'Error processing audio:', e);
-            allSources.push({
-                type: 'audio',
-                url: audio.path,
-                title: audioTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-
-        processedCount++;
-    }
-
-    // ── Images ──────────────────────────────────────────────
-    if (result.sources.images.length > 0) {
-        const { VisionService } = await import('../services/visionService');
-        const { extractImageText } = await import('../utils/digitiseUtils');
-        const visionService = new VisionService(plugin);
-        const canDigitise = visionService.canDigitise();
-
-        for (const image of result.sources.images) {
-            showProgress();
-            const imageTitle = image.path.split('/').pop() || image.path;
-
-            if (!canDigitise.supported) {
-                allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: canDigitise.reason });
-                processedCount++;
-                continue;
-            }
-
-            try {
-                new Notice(plugin.t.messages.summarizingTitle.replace('{title}', imageTitle.substring(0, 40)), 5000);
-                const extracted = await extractImageText(visionService, plugin.app, image.path, view.file?.path);
-                if ('error' in extracted) {
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: extracted.error });
-                    processedCount++;
-                    continue;
-                }
-
-                const summary = await callSummarizeService(plugin, extracted.text, personaPrompt, result.focusContext);
-                if (summary) {
-                    summaries.push(summary);
-                    sourceLabels.push(`Image: ${imageTitle}`);
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: true });
-                } else {
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: 'Failed to summarize digitised content' });
-                }
-            } catch (e) {
-                logger.error('Summary', 'Error processing image:', e);
-                allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: e instanceof Error ? e.message : 'Unknown error' });
-            }
-
-            processedCount++;
-        }
-    }
-
-    // Hide the multi-source progress Notice before showing modals or the
-    // failure path — ensures no dangling toast regardless of outcome.
+    // Hide the multi-source progress Notice before showing modals or the failure path.
     hideProgress();
 
-    // If no summaries but we have sources, show the status checklist
-    if (summaries.length === 0) {
+    if (!runResult.ok) {
+        new Notice(plugin.t.messages.errorGeneric.replace('{error}', 'Could not process sources'), 8000);
+        return;
+    }
+
+    const outcomes = runResult.value.items;
+    const allSources = outcomes.map(o => o.processed);
+    const successes = outcomes.filter(o => o.processed.success);
+    const summaryInsertion = new SummaryInsertion(
+        (prompt, signal) => callSummarizeService(plugin, prompt, '', undefined, true, signal),
+    );
+
+    // If no summaries but we have sources, show the status checklist (or a single notice).
+    if (successes.length === 0) {
         if (allSources.length > 1) {
-            // Build the failure status checklist
-            let failureOutput = '\n\n## Summary\n\n*No content could be summarized.*\n\n### Sources Processed\n\n';
-            for (const source of allSources) {
-                const icon = source.success ? '✓' : '✗';
-                const status = source.success ? '' : ` - *${source.error || 'Failed'}*`;
-                const displayTitle = source.title.length > 60
-                    ? source.title.substring(0, 57) + '...'
-                    : source.title;
-                failureOutput += `- [${icon}] ${displayTitle}${status}\n`;
-            }
-            failureOutput += '\n*0 of ' + allSources.length + ' sources processed successfully. Please try again or process sources individually.*\n';
+            const failureOutput = buildFailureChecklist(outcomes);
+            const { urlsToRemove, vaultFilePaths } = deriveCleanupTargets(outcomes, result.sources);
 
-            // Only remove successfully processed sources (preserve failed ones for retry)
-            const urlsToRemove = allSources
-                .filter((s: ProcessedSource) => s.url && s.type !== 'note' && s.success)
-                .map((s: ProcessedSource) => s.url as string);
-
-            const successfulFailPathUrls = new Set(urlsToRemove);
-            const vaultFilePaths = [
-                ...result.sources.pdfs.filter(p => p.isVaultFile && successfulFailPathUrls.has(p.path)).map(p => p.path),
-                ...result.sources.audio.filter(a => a.isVaultFile && successfulFailPathUrls.has(a.path)).map(a => a.path),
-                ...result.sources.documents.filter(d => d.isVaultFile && successfulFailPathUrls.has(d.path)).map(d => d.path),
-            ];
-
-            // Show preview modal — editor mutations deferred to doInsert callback
-            const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, () => {
-                // Previous behaviour: editor.setValue(frontmatter + failureOutput)
-                // — that wiped the entire note body just to render a "no content
-                // could be summarized" checklist. Destructive and surprising
-                // (H7 audit finding 2026-04-23). Now we APPEND the checklist
-                // to the existing body instead so the user's original content
-                // is preserved.
-                let fullContent = editor.getValue();
-                if (urlsToRemove.length > 0 || vaultFilePaths.length > 0) {
-                    fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePaths);
-                }
-                editor.setValue(fullContent.trimEnd() + '\n' + failureOutput);
+            const failureAction = await showSummaryPreviewOrInsert(plugin, failureOutput, async () => {
+                // Append the failure checklist to the existing body (never wipe it — H7),
+                // via the additive composite write seam (SummaryResultModal is the gate).
+                const target = {
+                    kind: 'composite' as const,
+                    filePath: snapshot.filePath,
+                    baseline: snapshot.baseline,
+                    recompute: new NoteMutation()
+                        .cleanupSources(urlsToRemove, vaultFilePaths)
+                        .appendToEnd(failureOutput)
+                        .build(),
+                };
+                const r = await applyNoteEdit(plugin, target, { review: false });
+                return r.ok;
             }, true, plugin.t.messages.noContentCouldBeSummarized);
             if (failureAction === 'discard') {
                 new Notice(plugin.t.messages.noContentCouldBeSummarized);
             }
         } else {
-            // Single source failure — just show error notice
             const error = allSources[0]?.error || 'Unknown error';
             new Notice(plugin.t.messages.errorGeneric.replace('{error}', error), 8000);
         }
         return;
     }
 
-    // Create combined summary section
-    let combinedOutput = '\n\n## Summary\n\n';
+    // Build the combined summary (synthesis + checklist) via SummaryInsertion.
+    const synthServiceType = plugin.settings.serviceType === 'cloud'
+        ? plugin.settings.cloudServiceType
+        : 'local';
+    const maxSynthesisChars = getMaxContentChars(synthServiceType) - 2000; // prompt overhead
+    const combinedOutput = await summaryInsertion.buildCombinedSummary({
+        outcomes,
+        focusContext: result.focusContext,
+        personaPrompt,
+        maxSynthesisChars,
+    });
 
-    if (summaries.length === 1) {
-        combinedOutput += summaries[0];
-    } else {
-        // Budget guard: proportionally truncate summaries if they exceed provider limits
-        const synthServiceType = plugin.settings.serviceType === 'cloud'
-            ? plugin.settings.cloudServiceType
-            : 'local';
-        const maxSynthesisChars = getMaxContentChars(synthServiceType) - 2000; // prompt overhead
-        const totalSummaryChars = summaries.reduce((sum, s) => sum + s.length, 0);
+    // Compute cleanup targets + show preview; all editor mutations deferred to doInsert.
+    const { urlsToRemove, vaultFilePaths } = deriveCleanupTargets(outcomes, result.sources);
+    const vaultFilePathsSet = new Set<string>(vaultFilePaths);
 
-        let synthSummaries = summaries;
-        if (totalSummaryChars > maxSynthesisChars && maxSynthesisChars > 0) {
-            const ratio = maxSynthesisChars / totalSummaryChars;
-            synthSummaries = summaries.map(s => {
-                const allowedChars = Math.floor(s.length * ratio);
-                return truncateAtBoundary(s, allowedChars, '\n[Summary truncated for synthesis]');
-            });
-        }
+    await showSummaryPreviewOrInsert(plugin, combinedOutput, async () => {
+        // ADDITIVE (plan D2): strip processed source links, APPEND the summary section
+        // (preserving the body), add references, ensure structure — one composite edit
+        // with NO baseline gate (a benign concurrent keystroke never discards it — G2).
+        const mutation = new NoteMutation()
+            .cleanupSources(urlsToRemove, vaultFilePaths)
+            .appendSection(combinedOutput);
+        addSourceReferences(mutation, outcomes, vaultFilePathsSet);
+        mutation.ensureStructure(plugin.settings.autoEnsureNoteStructure);
 
-        // Synthesize multiple summaries
-        const synthesisPrompt = buildSynthesisPrompt(synthSummaries, sourceLabels, result.focusContext, personaPrompt);
-        try {
-            const synthesisResult = await callSummarizeService(plugin, synthesisPrompt, '', undefined, true);
-            if (synthesisResult) {
-                combinedOutput += synthesisResult;
-            } else {
-                // Fallback: just combine with headers
-                for (let i = 0; i < summaries.length; i++) {
-                    combinedOutput += `### ${sourceLabels[i]}\n\n${summaries[i]}\n\n`;
-                }
-            }
-        } catch (e) {
-            logger.error('Summary', 'Failed to synthesize summaries:', e);
-            // Fallback: just combine with headers
-            for (let i = 0; i < summaries.length; i++) {
-                combinedOutput += `### ${sourceLabels[i]}\n\n${summaries[i]}\n\n`;
-            }
-        }
-    }
-
-    // Add source processing status checklist if multiple sources
-    if (allSources.length > 1) {
-        const successCount = allSources.filter(s => s.success).length;
-        const failCount = allSources.length - successCount;
-
-        combinedOutput += '\n\n### Sources Processed\n\n';
-
-        for (const source of allSources) {
-            const icon = source.success ? '✓' : '✗';
-            const status = source.success ? '' : ` - *${source.error || 'Failed'}*`;
-            const displayTitle = source.title.length > 60
-                ? source.title.substring(0, 57) + '...'
-                : source.title;
-            combinedOutput += `- [${icon}] ${displayTitle}${status}\n`;
-        }
-
-        if (failCount > 0) {
-            combinedOutput += `\n*${successCount} of ${allSources.length} sources processed successfully. Failed sources may need to be added manually.*\n`;
-        }
-    }
-
-    // Compute source removal data before showing preview
-    const urlsToRemove = allSources
-        .filter((s: ProcessedSource) => s.url && s.type !== 'note' && s.success)
-        .map((s: ProcessedSource) => s.url as string);
-
-    // Only remove vault files that were successfully processed; images stay as visual embeds
-    const successfulUrls = new Set(
-        allSources.filter(s => s.success && s.url).map(s => s.url!)
-    );
-    const vaultFilePathsList = [
-        ...result.sources.pdfs.filter(p => p.isVaultFile && successfulUrls.has(p.path)).map(p => p.path),
-        ...result.sources.audio.filter(a => a.isVaultFile && successfulUrls.has(a.path)).map(a => a.path),
-        ...result.sources.documents.filter(d => d.isVaultFile && successfulUrls.has(d.path)).map(d => d.path),
-        // Images are NOT removed — they remain useful as visual embeds
-    ];
-    const vaultFilePaths = new Set<string>(vaultFilePathsList);
-
-    // Show preview modal — all editor mutations deferred to doInsert callback
-    await showSummaryPreviewOrInsert(plugin, combinedOutput, () => {
-        // 1. Remove processed sources
-        let fullContent = editor.getValue();
-        if (urlsToRemove.length > 0 || vaultFilePathsList.length > 0) {
-            fullContent = removeProcessedSources(fullContent, urlsToRemove, vaultFilePathsList);
-        }
-
-        // 2. Replace body with summary (after frontmatter)
-        const frontmatterMatch = fullContent.match(/^---\n[\s\S]*?\n---\n?/);
-        const frontmatterEnd = frontmatterMatch ? frontmatterMatch[0].length : 0;
-        const frontmatter = fullContent.substring(0, frontmatterEnd);
-        editor.setValue(frontmatter + combinedOutput.trimStart());
-
-        // 3. Add references for successful sources
-        for (const source of allSources) {
-            if (source.url && source.success) {
-                const refType =
-                    source.type === 'web' ? 'web' as const :
-                    source.type === 'youtube' ? 'youtube' as const :
-                    source.type === 'pdf' ? 'pdf' as const :
-                    source.type === 'audio' ? 'audio' as const :
-                    source.type === 'document' ? 'document' as const :
-                    source.type === 'image' ? 'image' as const :
-                    'note' as const;
-                const isInternal = vaultFilePaths.has(source.url);
-                const sourceRef: SourceReference = {
-                    type: refType,
-                    title: source.title,
-                    link: source.url,
-                    date: source.date,
-                    isInternal
-                };
-                addToReferencesSection(editor, sourceRef);
-            }
-        }
-
-        // 4. Ensure note structure
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
-    }, true, `Summarized ${summaries.length} source(s)`);
+        const r = await applyNoteEdit(
+            plugin,
+            { kind: 'composite', filePath: snapshot.filePath, baseline: snapshot.baseline, recompute: mutation.build() },
+            { review: false },
+        );
+        return r.ok;
+    }, true, `Summarized ${successes.length} source(s)`);
 }
 
 /**
- * Remove a single source URL from the editor content
- * Used after processing to move URLs to References section
+ * Remove a single source URL from the note (after processing, before moving it to
+ * References). Routes through the write seam (additive cleanup, no review) so it
+ * targets the editor's actual note and preserves cursor via the minimal-diff write.
  */
-function removeSourceFromEditor(editor: Editor, url: string): void {
-    const fullContent = editor.getValue();
-    const cleanedContent = removeProcessedSources(fullContent, [url]);
-    if (cleanedContent !== fullContent) {
-        const cursor = editor.getCursor();
-        editor.setValue(cleanedContent);
-        // Clamp cursor to document bounds — content removal may shorten the document
-        const lastLine = editor.lastLine();
-        const clampedLine = Math.min(cursor.line, lastLine);
-        const lineLength = editor.getLine(clampedLine).length;
-        editor.setCursor({ line: clampedLine, ch: Math.min(cursor.ch, lineLength) });
-    }
+async function removeSourceFromEditor(plugin: AIOrganiserPlugin, editor: Editor, url: string): Promise<void> {
+    const snapshot = captureSnapshotFromEditor(plugin.app, editor);
+    if (!snapshot) return;
+    const target = {
+        kind: 'composite' as const,
+        filePath: snapshot.filePath,
+        baseline: snapshot.baseline,
+        recompute: new NoteMutation().cleanupSources([url]).build(),
+    };
+    await applyNoteEdit(plugin, target, { review: false });
 }
 
 /**
@@ -1126,14 +591,16 @@ async function callSummarizeService(
     content: string,
     personaPrompt: string,
     focusContext?: string,
-    isRawPrompt: boolean = false
+    isRawPrompt: boolean = false,
+    signal?: AbortSignal
 ): Promise<string | null> {
     try {
         // Raw prompt (already built upstream — e.g. synthesis prompt): skip
         // quality-threshold auto-chunking. Caller controls prompt size.
         if (isRawPrompt) {
             // D3: hold the foreground gate so background indexing yields.
-            const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), content)));
+            // G1: thread the abort signal so an in-flight summarize can be cancelled.
+            const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), content, { signal })));
             return response.success ? response.content || null : null;
         }
 
@@ -1164,7 +631,7 @@ async function callSummarizeService(
         const prompt = buildSummaryPrompt(promptOptions);
         const finalPrompt = insertContentIntoPrompt(prompt, content);
 
-        const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt)));
+        const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt, { signal })));
         return response.success ? response.content || null : null;
     } catch (e) {
         logger.error('Summary', 'Failed to summarize content:', e);
@@ -1172,43 +639,7 @@ async function callSummarizeService(
     }
 }
 
-/**
- * Build a prompt to synthesize multiple summaries
- */
-function buildSynthesisPrompt(
-    summaries: string[],
-    sourceLabels: string[],
-    focusContext: string | undefined,
-    personaPrompt: string
-): string {
-    let prompt = `<task>
-Synthesize the following ${summaries.length} summaries into a single, coherent summary.
-Combine related information, eliminate redundancy, and organize the content logically.
-${focusContext ? `Focus on: ${focusContext}` : ''}
-</task>
-
-${personaPrompt ? `<persona>${personaPrompt}</persona>` : ''}
-
-<summaries>
-`;
-
-    for (let i = 0; i < summaries.length; i++) {
-        prompt += `\n### Source: ${sourceLabels[i]}\n${summaries[i]}\n`;
-    }
-
-    prompt += `</summaries>
-
-<output_format>
-Provide a unified summary that:
-1. Integrates key points from all sources
-2. Highlights common themes and connections
-3. Notes any contrasting perspectives
-4. Is well-structured with clear organization
-</output_format>`;
-
-    return prompt;
-}
-
+// buildSynthesisPrompt moved to src/services/multiSource/summaryInsertion.ts (Cluster C).
 // Removed dead functions: handleSmartTarget, openSummarizeSourceModal (unused)
 
 async function summarizeCurrentNote(
@@ -2180,7 +1611,9 @@ async function summarizeContentInChunks(
 
     const mapLanguage = getLanguageNameForPrompt(plugin.settings.summaryLanguage);
 
-    const result = await orchestrateChunked(
+    // Hold the foreground gate across the whole map-reduce so background indexing
+    // yields, matching the single-call path's gating (M12/M21).
+    const result = await plugin.withForeground(() => orchestrateChunked(
         content,
         assessment,
         plugin.llmService,
@@ -2222,7 +1655,7 @@ async function summarizeContentInChunks(
                 } catch { /* noop */ }
             },
         },
-    );
+    ));
 
     hideProgress();
 
@@ -2295,10 +1728,9 @@ async function insertAudioSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
         const sourceRef: SourceReference = {
             type: 'audio',
             title: file.basename,
@@ -2307,8 +1739,17 @@ async function insertAudioSummary(
             duration: duration ? formatDuration(duration) : undefined,
             isInternal: true
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -2478,10 +1919,10 @@ async function insertYouTubeSummary(
         output += `\n\n> [!note] Full Transcript\n> [[${transcriptPath}|View full transcript]]\n`;
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
+        const mutation = new NoteMutation().insertAtAnchor(snap.cursorAnchor, output);
         if (videoInfo) {
             const sourceRef: SourceReference = {
                 type: 'youtube',
@@ -2491,9 +1932,16 @@ async function insertYouTubeSummary(
                 date: getTodayDate(),
                 isInternal: false
             };
-            addToReferencesSection(editor, sourceRef);
+            mutation.addReference(sourceRef);
         }
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        mutation.ensureStructure(plugin.settings.autoEnsureNoteStructure);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: mutation.build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -2814,8 +2262,9 @@ async function summarizeTextWithLLM(
                     ragSources = context.sources;
                 }
             } catch (ragError) {
-                // Silently fail RAG, continue with regular summary
-                console.debug('[AI Organiser] RAG summarization failed, continuing without context', ragError);
+                // RAG is best-effort — continue with the regular summary, but make the
+                // failure observable through the central logger (M17).
+                logger.warn('Summary', 'RAG summarization failed, continuing without context', ragError);
             }
         }
 
@@ -2891,12 +2340,16 @@ async function summarizePdfWithLLM(
             modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash')
         }, plugin.app);
 
-        const parts = [
-            { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
-            { type: 'text' as const, text: prompt }
-        ];
-        const response = await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
-        return response;
+        try {
+            const parts = [
+                { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
+                { type: 'text' as const, text: prompt }
+            ];
+            return await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
+        } finally {
+            // Dispose the temp PDF service (clears any in-flight timeout) — H13/M5.
+            await pdfCloudService.dispose();
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };
@@ -2991,22 +2444,11 @@ async function summarizePdfByTextFallback(
 /**
  * Result from unified PDF summarization
  */
-export interface PdfSummarizationResult {
-    success: boolean;
-    summary?: string;
-    pdfContent?: PdfContent;
-    error?: string;
-}
-
-/**
- * Options for PDF summarization
- */
-export interface PdfSummarizationOptions {
-    personaPrompt: string;
-    userContext?: string;
-    /** Current file for resolving vault links */
-    currentFilePath?: string;
-}
+// PdfSummarizationResult / PdfSummarizationOptions now live in ./summarizeTypes
+// (extracted to break the import cycle with src/services/multiSource/**). Imported +
+// re-exported here for backward compatibility with existing import sites.
+import type { PdfSummarizationResult, PdfSummarizationOptions } from './summarizeTypes';
+export type { PdfSummarizationResult, PdfSummarizationOptions };
 
 /**
  * Unified PDF summarization workflow that handles both vault and external PDFs.
@@ -3154,9 +2596,9 @@ async function insertWebSummary(
         }
     }
 
-    const doInsert = () => {
-        const cursor = editor.getCursor();
-        editor.replaceRange(output, cursor);
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
 
         let sourceName = webContent.siteName || 'Source';
         try {
@@ -3173,8 +2615,17 @@ async function insertWebSummary(
             date: webContent.fetchedAt.toISOString().split('T')[0],
             isInternal: false
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);
@@ -3190,7 +2641,7 @@ function insertTextSummary(
     title: string,
     showPreview: boolean = false,
     noticeMessage?: string
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3199,9 +2650,19 @@ function insertTextSummary(
 
     output += summary;
 
-    const doInsert = () => {
-        editor.replaceRange(output, editor.getCursor());
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview, noticeMessage);
@@ -3248,7 +2709,7 @@ function insertPdfSummary(
     plugin: AIOrganiserPlugin,
     isInternal: boolean,
     showPreview: boolean = false
-): Promise<SummaryResultAction> | undefined {
+): Promise<SummaryResultAction | undefined> {
     let output = '';
 
     if (plugin.settings.includeSummaryMetadata) {
@@ -3257,9 +2718,9 @@ function insertPdfSummary(
 
     output += summary;
 
-    const doInsert = () => {
-        editor.replaceRange(output, editor.getCursor());
-
+    const doInsert = async (): Promise<boolean> => {
+        const snap = captureSnapshotFromEditor(plugin.app, editor);
+        if (!snap) { new Notice(plugin.t.messages.openNote); return false; }
         // Add source to References section
         const sourceRef: SourceReference = {
             type: 'pdf',
@@ -3268,8 +2729,17 @@ function insertPdfSummary(
             date: getTodayDate(),
             isInternal: isInternal
         };
-        addToReferencesSection(editor, sourceRef);
-        ensureNoteStructureIfEnabled(editor, plugin.settings);
+        const r = await applyNoteEdit(plugin, {
+            kind: 'composite',
+            filePath: snap.filePath,
+            baseline: snap.baseline,
+            recompute: new NoteMutation()
+                .insertAtAnchor(snap.cursorAnchor, output)
+                .addReference(sourceRef)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        }, { review: false });
+        return r.ok;
     };
 
     return showSummaryPreviewOrInsert(plugin, output, doInsert, showPreview);

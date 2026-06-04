@@ -1229,6 +1229,12 @@ export interface Translations {
         companionCreated: string;
         companionCreateFailed: string;
         copiedToClipboard: string;
+        // Note-edit write seam (applyNoteEdit) — §5 failure matrix
+        noteDeletedEditCancelled: string;
+        nothingToInsert: string;
+        noteChangedReRun: string;
+        couldNotWriteNote: string;
+        insertionPointMovedAppended: string;
         summarizingChunk: string;
         combiningChunks: string;
         urlValidationError: string;

@@ -177,12 +177,17 @@ export async function translatePdfWithLLM(
             modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash')
         }, plugin.app);
 
-        const parts = [
-            { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
-            { type: 'text' as const, text: prompt }
-        ];
-        const response = await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
-        return response;
+        try {
+            const parts = [
+                { type: 'document' as const, data: pdfContent.base64Data, mediaType: 'application/pdf' },
+                { type: 'text' as const, text: prompt }
+            ];
+            return await pdfCloudService.sendMultimodal(parts, { maxTokens: 4096 });
+        } finally {
+            // Dispose the temp service so any in-flight request timeout is cleared
+            // and aborted (H13/M5) — it is not the long-lived plugin.llmService.
+            await pdfCloudService.dispose();
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: errorMessage };

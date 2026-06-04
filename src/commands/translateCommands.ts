@@ -10,20 +10,29 @@ import { TranslateModal } from '../ui/modals/TranslateModal';
 import { MultiSourceModal, MultiSourceModalResult } from '../ui/modals/MultiSourceModal';
 import { buildTranslatePrompt, insertContentIntoTranslatePrompt, buildTitleTranslationPrompt } from '../services/prompts/translatePrompts';
 import { markNoteProcessed } from '../services/metadataPostOp';
-import { insertAtCursor } from '../utils/editorUtils';
-import { showReviewOrApply } from '../utils/reviewEditsHelper';
 import {
-    replaceMainContent,
-    ensureNoteStructureIfEnabled,
-    addToReferencesSection,
     stripTrailingSections,
     SourceReference,
     NoteSourceType,
     getTodayDate
 } from '../utils/noteStructure';
+import {
+    applyNoteEdit,
+    captureSnapshot,
+    type EditSnapshot,
+    type EditTarget,
+} from '../services/noteEdit/applyNoteEdit';
+import {
+    NoteMutation,
+    replaceMainContentText,
+    ensureStructureText,
+    insertBeforeTrailingSectionsText,
+    cleanupSourcesText,
+    addReferenceText,
+} from '../services/noteEdit/noteMutation';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 import { withBusyIndicator } from '../utils/busyIndicator';
-import { detectSourcesFromContent, hasAnySources, removeProcessedSources } from '../utils/sourceDetection';
+import { detectSourcesFromContent, hasAnySources } from '../utils/sourceDetection';
 import { fetchArticle, chunkContent } from '../services/webContentService';
 import { getTranslationChunkChars } from '../services/tokenLimits';
 import { ensurePrivacyConsent } from '../services/privacyNotice';
@@ -72,11 +81,18 @@ export function translateSelectionFromMenu(plugin: AIOrganiserPlugin, editor: Ed
         return;
     }
 
+    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+    const snapshot = view ? captureSnapshot(view) : null;
+    if (!snapshot?.selection) {
+        new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
+        return;
+    }
+
     const modal = new TranslateModal(
         plugin.app,
         plugin.t,
         (result) => { void (async () => {
-            await translateSelection(plugin, editor, selection, result.targetLanguageName);
+            await translateSelection(plugin, snapshot, result.targetLanguageName);
         })(); }
     );
     modal.open();
@@ -105,13 +121,25 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
+            // Capture the edit context at command start — the write seam re-verifies
+            // this captured file/baseline at commit (data-loss safety).
+            const snapshot = captureSnapshot(view);
+            if (!snapshot) {
+                new Notice(plugin.t.messages.openNote);
+                return;
+            }
+
             if (hasSelection) {
+                if (!snapshot.selection) {
+                    new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
+                    return;
+                }
                 // Selection present → simple TranslateModal → translateSelection
                 const modal = new TranslateModal(
                     plugin.app,
                     plugin.t,
                     (result) => { void (async () => {
-                        await translateSelection(plugin, editor, selection, result.targetLanguageName);
+                        await translateSelection(plugin, snapshot, result.targetLanguageName);
                     })(); }
                 );
                 modal.open();
@@ -129,12 +157,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                     content,
                     (result: MultiSourceModalResult) => { void (async () => {
                         try {
-                            const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-                            if (!activeView) {
-                                new Notice(plugin.t.messages.openNote);
-                                return;
-                            }
-                            await handleMultiSourceTranslate(plugin, editor, activeView, result);
+                            await handleMultiSourceTranslate(plugin, snapshot, view, result);
                         } catch (e) {
                             logger.error('Summary', 'Error in handleMultiSourceTranslate:', e);
                             new Notice(plugin.t.messages.errorGeneric.replace('{error}', e instanceof Error ? e.message : 'Unknown error'));
@@ -157,7 +180,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
                     (result) => { void (async () => {
                         await translateNote(
                             plugin,
-                            editor,
+                            snapshot,
                             content,
                             result.targetLanguageName,
                             plugin.t.messages.translatingFullNote,
@@ -176,7 +199,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
  */
 async function translateNote(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
+    snapshot: EditSnapshot,
     content: string,
     targetLanguage: string,
     noticeMessage?: string,
@@ -191,31 +214,41 @@ async function translateNote(
     try {
         const translated = await translateSourceContent(plugin, content, targetLanguage, serviceType);
 
-        if (translated) {
-            if (useInsertAtCursor) {
-                insertAtCursor(editor, translated);
-                ensureNoteStructureIfEnabled(editor, plugin.settings);
-                new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
-            } else {
-                // Strip frontmatter and trailing sections so the diff matches
-                // what replaceMainContent actually replaces (it preserves those sections)
-                const fmMatch = /^(---\n[\s\S]*?\n---\n?)/.exec(content);
-                const bodyOnly = fmMatch ? content.slice(fmMatch[1].length) : content;
-                const mainBody = stripTrailingSections(bodyOnly);
-
-                await showReviewOrApply(
-                    plugin,
-                    mainBody,
-                    translated,
-                    () => {
-                        replaceMainContent(editor, translated);
-                        ensureNoteStructureIfEnabled(editor, plugin.settings);
-                        new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
-                    }
-                );
-            }
-        } else {
+        if (!translated) {
             new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
+            return;
+        }
+
+        const structureEnabled = plugin.settings.autoEnsureNoteStructure;
+        let target: EditTarget;
+        if (useInsertAtCursor) {
+            // Insert at the captured cursor anchor (padding matches the legacy insertAtCursor).
+            target = {
+                kind: 'composite',
+                filePath: snapshot.filePath,
+                baseline: snapshot.baseline,
+                recompute: new NoteMutation()
+                    .insertAtAnchor(snapshot.cursorAnchor, `\n\n${translated}\n`)
+                    .ensureStructure(structureEnabled)
+                    .build(),
+            };
+        } else {
+            // Genuine whole-note rewrite — replace main content (preserving trailing
+            // sections), with a strict baseline gate (abort + preserve on concurrent edit).
+            target = {
+                kind: 'full-replace',
+                filePath: snapshot.filePath,
+                baseline: snapshot.baseline,
+                nextContent: ensureStructureText(
+                    replaceMainContentText(snapshot.baseline, translated),
+                    structureEnabled,
+                ),
+            };
+        }
+
+        const r = await applyNoteEdit(plugin, target, { review: true });
+        if (r.ok) {
+            new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
@@ -228,10 +261,13 @@ async function translateNote(
  */
 async function translateSelection(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
-    selection: string,
+    snapshot: EditSnapshot,
     targetLanguage: string
 ): Promise<void> {
+    if (!snapshot.selection) {
+        new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
+        return;
+    }
     new Notice(plugin.t.messages.translating);
 
     const serviceType = plugin.settings.serviceType === 'cloud'
@@ -239,15 +275,27 @@ async function translateSelection(
         : 'local';
 
     try {
-        const translated = await translateSourceContent(plugin, selection, targetLanguage, serviceType);
+        const translated = await translateSourceContent(plugin, snapshot.selection.selected, targetLanguage, serviceType);
 
-        if (translated) {
-            // Replace selection with translated content
-            editor.replaceSelection(translated);
-            ensureNoteStructureIfEnabled(editor, plugin.settings);
-            new Notice(plugin.t.messages.selectionTranslatedSuccess, 3000);
-        } else {
+        if (!translated) {
             new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
+            return;
+        }
+
+        // Replace the captured selection (re-located by its anchors at commit), then
+        // ensure structure — one composed, reviewed mutation.
+        const target: EditTarget = {
+            kind: 'composite',
+            filePath: snapshot.filePath,
+            baseline: snapshot.baseline,
+            recompute: new NoteMutation()
+                .replaceSelection(snapshot.selection, translated)
+                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                .build(),
+        };
+        const r = await applyNoteEdit(plugin, target, { review: true });
+        if (r.ok) {
+            new Notice(plugin.t.messages.selectionTranslatedSuccess, 3000);
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
@@ -275,10 +323,12 @@ async function translateWithLLM(
  */
 async function handleMultiSourceTranslate(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
+    snapshot: EditSnapshot,
     view: MarkdownView,
     result: MultiSourceModalResult
 ): Promise<void> {
+    // `snapshot` is the captured write target (data-loss-safe commit); `view` is used
+    // read-only for source extraction (note basename + relative path resolution).
     const targetLanguage = result.targetLanguageName || 'English';
 
     // Count total sources
@@ -298,8 +348,8 @@ async function handleMultiSourceTranslate(
 
     // Single-source optimization: note-only → use existing translateNote()
     if (totalSources === 1 && result.summarizeNote) {
-        const content = stripTrailingSections(editor.getValue());
-        await translateNote(plugin, editor, content, targetLanguage, plugin.t.messages.translatingFullNote);
+        const content = stripTrailingSections(snapshot.baseline);
+        await translateNote(plugin, snapshot, content, targetLanguage, plugin.t.messages.translatingFullNote);
         return;
     }
 
@@ -358,9 +408,9 @@ async function handleMultiSourceTranslate(
     if (result.summarizeNote && view.file) {
         showProgress(view.file.basename);
         try {
-            // Use editor buffer (not vault.read) to capture unsaved edits
-            // Strip References/Pending sections to prevent duplication via replaceMainContent
-            const noteContent = stripTrailingSections(editor.getValue());
+            // Use the content captured at command start to capture unsaved edits
+            // Strip References/Pending sections to prevent duplication via the main-content replace
+            const noteContent = stripTrailingSections(snapshot.baseline);
             new Notice(plugin.t.messages.translatingFullNote || 'Translating note...', 5000);
             const translated = await translateSourceContent(plugin, noteContent, targetLanguage, serviceType);
             allSources.push({
@@ -536,7 +586,7 @@ async function handleMultiSourceTranslate(
 
     // ── Assemble output ──
     hideProgress();
-    await assembleTranslatedOutput(plugin, editor, view, result, allSources, targetLanguage);
+    await assembleTranslatedOutput(plugin, snapshot, result, allSources, targetLanguage);
 }
 
 // ─── Source Extraction + Translation Functions ──────────────────────
@@ -1168,8 +1218,7 @@ async function extractAndTranslateAudio(
  */
 async function assembleTranslatedOutput(
     plugin: AIOrganiserPlugin,
-    editor: Editor,
-    view: MarkdownView,
+    snapshot: EditSnapshot,
     result: MultiSourceModalResult,
     allSources: TranslatedSource[],
     targetLanguage: string
@@ -1192,12 +1241,19 @@ async function assembleTranslatedOutput(
     const noteSource = allSources.find(s => s.type === 'note');
     const externalSources = allSources.filter(s => s.type !== 'note');
 
-    // Step 1: Replace note content if note was translated
+    // This rebuilds the whole note (note rewrite + appended sources + cleanup + refs),
+    // so it composes ONE full-replace candidate from the captured baseline and routes
+    // through the write seam (single review, capture-then-verify). Compose the steps
+    // as pure transforms in the same order the legacy editor mutations ran.
+    let next = snapshot.baseline;
+
+    // Step 1: Replace note content if note was translated.
     if (noteSource?.success && noteSource.translation) {
-        replaceMainContent(editor, noteSource.translation);
+        next = replaceMainContentText(next, noteSource.translation);
     }
 
-    // Step 2: Append translated external source sections
+    // Step 2: Append translated external source sections (title translation is async,
+    // so it runs before composing the pure candidate).
     const successfulExternal = externalSources.filter(s => s.success && s.translation);
     if (successfulExternal.length > 0) {
         // Translate each source's title in parallel — cache + graceful fallback (FIX-03).
@@ -1213,25 +1269,7 @@ async function assembleTranslatedOutput(
             const heading = titleResults[i].translatedTitle;
             appendContent += `\n\n## Translated: ${heading}\n\n${source.translation}`;
         }
-
-        // Insert before References section (or at end of main content)
-        const fullContent = editor.getValue();
-        const refIndex = fullContent.indexOf('\n## References');
-        const pendingIndex = fullContent.indexOf('\n## Pending Integration');
-
-        // Find the earliest structural section to insert before
-        let insertIndex = fullContent.length;
-        if (refIndex > -1 && refIndex < insertIndex) insertIndex = refIndex;
-        if (pendingIndex > -1 && pendingIndex < insertIndex) insertIndex = pendingIndex;
-
-        // Check for horizontal rule before References
-        const hrBeforeRef = fullContent.lastIndexOf('\n---\n', insertIndex);
-        if (hrBeforeRef > -1 && insertIndex - hrBeforeRef < 10) {
-            insertIndex = hrBeforeRef;
-        }
-
-        const newContent = fullContent.substring(0, insertIndex) + appendContent + fullContent.substring(insertIndex);
-        editor.setValue(newContent);
+        next = insertBeforeTrailingSectionsText(next, appendContent);
     }
 
     // Step 3: Remove processed source URLs and vault wikilinks from note body
@@ -1252,16 +1290,9 @@ async function assembleTranslatedOutput(
         .filter(s => s.url && s.type !== 'note' && s.success)
         .map(s => s.url as string);
 
-    if (urlsToRemove.length > 0 || vaultFilePathsList.length > 0) {
-        const currentContent = editor.getValue();
-        const cleanedContent = removeProcessedSources(currentContent, urlsToRemove, vaultFilePathsList);
-        if (cleanedContent !== currentContent) {
-            editor.setValue(cleanedContent);
-        }
-    }
+    next = cleanupSourcesText(next, urlsToRemove, vaultFilePathsList);
 
     // Step 4: Add references for each successful source
-
     for (const source of allSources) {
         if (source.url && source.success && source.type !== 'note') {
             // Map TranslatedSource.type to NoteSourceType properly
@@ -1284,17 +1315,27 @@ async function assembleTranslatedOutput(
                 date: source.date,
                 isInternal
             };
-            addToReferencesSection(editor, sourceRef);
+            next = addReferenceText(next, sourceRef);
         }
     }
 
     // Step 5: Ensure note structure
-    ensureNoteStructureIfEnabled(editor, plugin.settings);
+    next = ensureStructureText(next, plugin.settings.autoEnsureNoteStructure);
+
+    // Commit the composed note via the write seam (re-verifies the captured file).
+    const writeResult = await applyNoteEdit(
+        plugin,
+        { kind: 'full-replace', filePath: snapshot.filePath, baseline: snapshot.baseline, nextContent: next },
+        { review: true },
+    );
+    if (!writeResult.ok) {
+        return; // Notice already surfaced by applyNoteEdit (e.g. baseline-changed).
+    }
 
     // Step 6: Post-op metadata refresh (FIX-04 status flip + FIX-05 word_count)
-    // Editor buffer is the source of truth — vault may not be flushed yet.
-    if (view.file) {
-        await markNoteProcessed(plugin, view.file, {}, { contentForWordCount: editor.getValue() });
+    const file = plugin.app.vault.getAbstractFileByPath(snapshot.filePath);
+    if (file instanceof TFile) {
+        await markNoteProcessed(plugin, file, {}, { contentForWordCount: next });
     }
 
     // Step 7: Show completion notice
