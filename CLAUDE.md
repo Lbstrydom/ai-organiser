@@ -2846,7 +2846,7 @@ silent-data-loss class (a long async pipeline writing to a stale/changed editor 
 ### Tests
 `tests/{applyNoteEdit,noteWritePort,noteMutation}.test.ts` (39) + `tests/multiSourceOrchestrator.test.ts` (16: per-source isolation, BatchResult shapes, progress, abort/G1, credential-isolation/G3, vision-isolation/G2, signal-threading) + `tests/summaryParity.test.ts` (golden byte-parity + SummaryInsertion defensive guard) + `tests/fixtures/multiSource/golden-note.md`.
 
-**Plan**: [docs/plans/command-layer-hardening.md](docs/plans/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/plans/command-layer-hardening-audit-summary.md`. Cluster C audited GPT-5.4 R1 (only M2 in-scope, documented deviation) + consolidated Gemini gate **R1→R2→R3 APPROVE**.
+**Plan** (completed): [docs/completed/command-layer-hardening.md](docs/completed/command-layer-hardening.md) · **Audit summary** (gitignored): `docs/completed/command-layer-hardening-audit-summary.md`. Cluster C audited GPT-5.4 R1 (only M2 in-scope, documented deviation) + consolidated Gemini gate **R1→R2→R3 APPROVE**.
 
 ## Documentation
 
