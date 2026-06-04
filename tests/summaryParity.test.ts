@@ -144,8 +144,12 @@ describe('multi-source summary parity (golden)', () => {
             fs.mkdirSync(path.dirname(GOLDEN_PATH), { recursive: true });
             fs.writeFileSync(GOLDEN_PATH, actual, 'utf8');
         }
+        // Normalise EOLs: git autocrlf may rewrite the committed golden to CRLF on
+        // checkout, while the in-memory candidate is always LF. The note CONTENT is the
+        // contract, not the platform line ending.
+        const norm = (s: string): string => s.replace(/\r\n/g, '\n');
         const golden = fs.readFileSync(GOLDEN_PATH, 'utf8');
-        expect(actual).toBe(golden);
+        expect(norm(actual)).toBe(norm(golden));
     });
 
     it('is deterministic across runs', async () => {
