@@ -2816,7 +2816,7 @@ A thin coordination layer over the existing long-lived LLM service — NOT a gat
 ### Tests
 `tests/providerProfile.test.ts`, `tests/foregroundGate.test.ts`, `tests/embeddingCooldown.test.ts`, `tests/embeddingQueue.test.ts`, `tests/providerBadge.test.ts`, `tests/abortableSleep.test.ts`, extended `tests/azureMode.test.ts` (keystone negative test) + `tests/openaiEmbeddingService.test.ts` (cooldown short-circuit + Retry-After + maxBatchSize).
 
-**Plan**: [docs/plans/llm-gateway-lite.md](docs/plans/llm-gateway-lite.md) · **Audit summary** (gitignored): `docs/plans/llm-gateway-lite-audit-summary.md`.
+**Plan**: [docs/completed/llm-gateway-lite.md](docs/completed/llm-gateway-lite.md) · **Audit summary** (gitignored): `docs/completed/llm-gateway-lite-audit-summary.md`.
 
 ## Documentation
 

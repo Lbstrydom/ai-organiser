@@ -2,7 +2,7 @@
 
 ## 2026-06-04 — LLM gateway-lite (fail-closed profile + observability + contention-safe indexing)
 
-Implemented [docs/plans/llm-gateway-lite.md](docs/plans/llm-gateway-lite.md) end-to-end via a clustered autonomous `/cycle` (3 clusters, GPT-audited per cluster + a consolidated Gemini gate — **architectural coherence Strong**). A thin coordination layer over the existing long-lived LLM service fixes three live-session failures: an Azure routing leak, a background-indexer 429 storm, and invisible call fan-out.
+Implemented [docs/completed/llm-gateway-lite.md](docs/completed/llm-gateway-lite.md) end-to-end via a clustered autonomous `/cycle` (3 clusters, GPT-audited per cluster + a consolidated Gemini gate — **architectural coherence Strong**). A thin coordination layer over the existing long-lived LLM service fixes three live-session failures: an Azure routing leak, a background-indexer 429 storm, and invisible call fan-out.
 
 ### Changes
 - **Fail-closed provider profile (Phase 1)**: `resolveProviderProfile` SSOT + `NullLLMService` (separate class, no network path). Removed the `|| cloudApiKey` Azure personal-key fallback in `main.ts`; a misconfigured Azure setup now installs `NullLLMService` + one Notice. Keystone negative test: misconfigured Azure ⇒ **zero** `requestUrl` calls to any anthropic.com host.
