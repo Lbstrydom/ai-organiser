@@ -9,6 +9,20 @@ import {
     INFRA_SECTIONS,
     type FeatureId,
 } from '../src/core/features';
+import { en } from '../src/i18n/en';
+
+/** Walk a dotted i18n path into a translations object. */
+function resolvePath(root: unknown, path: string): unknown {
+    let cur: unknown = root;
+    for (const p of path.split('.')) {
+        if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
+            cur = (cur as Record<string, unknown>)[p];
+        } else {
+            return undefined;
+        }
+    }
+    return cur;
+}
 
 const IDS = new Set<string>(FEATURE_REGISTRY.map((f) => f.id));
 
@@ -63,6 +77,17 @@ describe('FEATURE_REGISTRY structural invariants', () => {
         for (const f of FEATURE_REGISTRY) {
             expect(f.labelKey).toMatch(/^features\./);
             expect(f.descKey).toMatch(/^features\./);
+        }
+    });
+
+    it('every labelKey/descKey resolves to a non-empty string in en (i18n SSOT — FT-1)', () => {
+        for (const f of FEATURE_REGISTRY) {
+            const label = resolvePath(en, f.labelKey);
+            const desc = resolvePath(en, f.descKey);
+            expect(typeof label, `missing/!string ${f.labelKey}`).toBe('string');
+            expect((label as string).length, `empty ${f.labelKey}`).toBeGreaterThan(0);
+            expect(typeof desc, `missing/!string ${f.descKey}`).toBe('string');
+            expect((desc as string).length, `empty ${f.descKey}`).toBeGreaterThan(0);
         }
     });
 });

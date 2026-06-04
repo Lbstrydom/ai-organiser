@@ -363,12 +363,17 @@ class MockToggle {
     private _value: boolean = false;
     private _onChange?: (value: boolean) => void;
 
+    private _disabled = false;
+
     setValue(value: boolean) {
         this._value = value;
         return this;
     }
 
     getValue() { return this._value; }
+
+    setDisabled(disabled: boolean) { this._disabled = disabled; return this; }
+    get disabled() { return this._disabled; }
 
     onChange(cb: (value: boolean) => void) {
         this._onChange = cb;

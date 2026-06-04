@@ -11,9 +11,10 @@
  * Pure data module: no Obsidian/runtime imports beyond the `ChatMode` type. Gating
  * logic lives in `services/featureService.ts`.
  *
- * NOTE (Cluster A scope): `teardown` (FT-12 stop-on-toggle-off) is intentionally NOT
- * declared here yet — it is invoked only by `applyFeatureFlags` (Phase 3 / Cluster B),
- * so the teardown wiring lands with that write-side. Cluster A is the read-side gating.
+ * NOTE: `teardown` (FT-12 stop-on-toggle-off) is intentionally NOT a registry field — it
+ * would couple this pure data module to the plugin runtime. It lives as `teardownFeature`
+ * on `AIOrganiserPlugin`, invoked by `applyFeatureFlags` on toggle-off (Cluster B), mirroring
+ * how command/surface wiring lives in sibling maps (REGISTER_BY_FEATURE) rather than here.
  */
 
 import type { ChatMode } from '../ui/chat/ChatModeHandler';

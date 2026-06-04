@@ -20,6 +20,7 @@ import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUti
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
 import { isFeatureEnabled } from './services/featureService';
+import { FEATURE_REGISTRY, type FeatureId } from './core/features';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
@@ -89,6 +90,8 @@ export default class AIOrganiserPlugin extends Plugin {
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
     public sourcePackService: SourcePackService | null = null;
+    /** The settings tab instance — kept so `applyFeatureFlags` can await a re-render (FT-5). */
+    public settingTab: AIOrganiserSettingTab | null = null;
     private readonly eventHandlers: EventHandlers;
     private readonly tagNetworkManager: TagNetworkManager;
     private readonly tagOperations: TagOperations;
@@ -249,6 +252,72 @@ export default class AIOrganiserPlugin extends Plugin {
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
+    }
+
+    /**
+     * Apply a new feature-flag set from the Features settings UI (FT-5/FT-12).
+     *
+     * 1. Persist via the canonical `saveSettings` path (which also re-inits embeddings /
+     *    restarts the newsletter scheduler on the now-changed feature state).
+     * 2. On persistence failure restore the FULL pre-mutation snapshot — a toggle may have
+     *    cascaded dependency changes (auto-enable requires / cascade-disable dependents),
+     *    so reverting one flag would leave the cascade half-applied (Gemini-R9-G3).
+     * 3. Tear down active background work for any feature turned OFF, immediately
+     *    (error-boundaried per FT-12 — a throwing teardown must not block the reload Notice).
+     * 4. `await` the settings re-render (Obsidian `display()` is async — no floating promise)
+     *    then show the reload-to-apply Notice. Command/view registration is a load-time
+     *    snapshot (FT-5) — only a reload fully (un)registers them.
+     */
+    public async applyFeatureFlags(newFlags: Partial<Record<FeatureId, boolean>>): Promise<void> {
+        const prev = { ...this.settings.featureFlags };
+        const turnedOff = FEATURE_REGISTRY.filter((f) =>
+            isFeatureEnabled({ featureFlags: prev }, f.id) && !isFeatureEnabled({ featureFlags: newFlags }, f.id),
+        ).map((f) => f.id);
+
+        this.settings.featureFlags = newFlags;
+        try {
+            await this.saveSettings();
+        } catch (err) {
+            this.settings.featureFlags = prev; // full-snapshot revert (cascade-safe)
+            logger.error('Core', 'Failed to persist feature flags — reverted', err);
+            await this.settingTab?.render();
+            new Notice(this.t.features.saveError, 6000);
+            return;
+        }
+
+        for (const id of turnedOff) {
+            try {
+                this.teardownFeature(id);
+            } catch (err) {
+                logger.error('Core', `Feature teardown for '${id}' threw`, err);
+            }
+        }
+
+        await this.settingTab?.render();
+        new Notice(this.t.features.reloadNotice, 8000);
+    }
+
+    /**
+     * Stop a feature's ACTIVE background work on toggle-off (FT-12). Only features with a
+     * running service need one: `semantic-search` (vector store + file-event handlers +
+     * related-notes view) and `newsletter` (scheduler interval). The exact inverse of the
+     * feature's `onload` init; nulls the refs so the codebase's null-guards observe the
+     * absence. Commands/views still need a reload to fully unregister (FT-5).
+     */
+    private teardownFeature(id: FeatureId): void {
+        if (id === 'semantic-search') {
+            if (this.vectorStoreService) {
+                void this.vectorStoreService.dispose();
+                this.vectorStore = null;
+                this.vectorStoreService = null;
+            }
+            void this.embeddingService?.dispose();
+            this.embeddingService = null;
+            this.app.workspace.detachLeavesOfType(RELATED_NOTES_VIEW_TYPE);
+        } else if (id === 'newsletter') {
+            this.stopNewsletterScheduler();
+        }
+        // Other features own no active background work → reload-deferred (FT-5).
     }
 
     /**
@@ -648,7 +717,8 @@ export default class AIOrganiserPlugin extends Plugin {
         }
 
         this.eventHandlers.registerEventHandlers();
-        this.addSettingTab(new AIOrganiserSettingTab(this.app, this));
+        this.settingTab = new AIOrganiserSettingTab(this.app, this);
+        this.addSettingTab(this.settingTab);
         registerCommands(this);
         this.startNewsletterScheduler();
 
@@ -708,6 +778,16 @@ export default class AIOrganiserPlugin extends Plugin {
             this.t.commands.chatWithAI || 'Chat with AI',
             () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
+
+        // First-run intro (FT-7 / L2): point existing + new users at the new Features
+        // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
+        // immediately so it never re-fires across reloads. Fires after layout settles.
+        if (!this.settings.featuresIntroShown) {
+            this.settings.featuresIntroShown = true;
+            void this.saveData(this.settings).catch((err) =>
+                logger.warn('Core', 'Failed to persist featuresIntroShown marker', err));
+            this.app.workspace.onLayoutReady(() => new Notice(this.t.features.intro, 8000));
+        }
     }
 
     /**

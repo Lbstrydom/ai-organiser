@@ -23,12 +23,13 @@ import { ResearchSettingsSection } from './ResearchSettingsSection';
 import { MermaidChatSettingsSection } from './MermaidChatSettingsSection';
 import { AIChatSettingsSection } from './AIChatSettingsSection';
 import { BrandSettingsSection } from './BrandSettingsSection';
+import { FeaturesSettingsSection } from './FeaturesSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
-    private expandedSections = new Set<string>(['ai-provider']);
+    private expandedSections = new Set<string>(['features', 'ai-provider']);
 
     /** Sub-section id to scroll into view after the next display() — set
      *  by `revealSubSection()` and consumed once. */
@@ -154,6 +155,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     }
 
     display(): void { void this.displayAsync(); }
+
+    /** Awaitable re-render — used by `applyFeatureFlags` so the flag write can await the
+     *  tab refresh (Obsidian's `display()` is fire-and-forget; this exposes the promise). */
+    render(): Promise<void> { return this.displayAsync(); }
+
     private async displayAsync(): Promise<void> {
         const { containerEl } = this;
         containerEl.empty();
@@ -162,11 +168,16 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         const t = this.plugin.t.settings;
         const d = t.sectionDescriptions;
 
-        // NOTE (Cluster A): every feature-owned child section is wrapped in
-        // `renderIfEnabled` (the FT-4 guard / render-spy). The Features-toggle
-        // UI itself (`FeaturesSettingsSection`, rendered first) lands in Cluster B
-        // (Phase 3) — Cluster A is the read-side gating; flags are seeded by
-        // `migrateOldSettings` so the gating is live even before the toggle UI exists.
+        // Features control panel — ALWAYS first, never gated (it IS the gate). Renders the
+        // grouped feature toggles; writes route through plugin.applyFeatureFlags (FT-5).
+        {
+            const ft = this.plugin.t.features;
+            const content = this.createCollapsibleSection('features', ft.title, 'sliders-horizontal', ft.desc);
+            new FeaturesSettingsSection(this.plugin, content, this).display();
+        }
+
+        // Every feature-owned child section below is wrapped in `renderIfEnabled` (the FT-4
+        // guard / render-spy); infra children render unconditionally.
 
         // 1. AI Provider (open by default) — provider (core)
         await this.renderIfEnabled('ai-provider', () => {
