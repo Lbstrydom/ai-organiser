@@ -1,5 +1,30 @@
 # Project Status Log
 
+## 2026-06-04 — Feature toggles (per-feature on/off gating + Features settings UI)
+
+Implemented [docs/completed/feature-toggles.md](docs/completed/feature-toggles.md) end-to-end via a clustered `/cycle` (A: read-side gating; B: toggle UI). A **Features** settings section turns each feature on/off; OFF hides its commands/settings/picker-leaves/views/chat-mode and skips its background-service init. Default is **Lean**; lifecycle is reload-to-apply.
+
+### Changes
+- **SSOT (Phase 1)**: `core/features.ts` (deep-frozen `FEATURE_REGISTRY` + `FeatureId` + five ownership maps) + pure `services/featureService.ts` (`isFeatureEnabled` fail-closed on unknown/malformed/cycle; `resolveEnable`/`resolveDisable`/`dependentsOf`; `defaultFeatureFlags`). `migrateOldSettings` seeds the Lean set + absorbs legacy masters (`enableSemanticSearch`→`semantic-search`, `newsletterEnabled`→`newsletter`).
+- **Gating (Phase 2)**: six sites — `registerCommands` loop (`REGISTER_BY_FEATURE`), picker leaf `feature` filter + empty group/category suppression, `main.ts` views/gutter/context-menu + bg-service init, `UnifiedChatModal` handler map (`CHATMODE_FEATURE`), procedural settings tab via `renderIfEnabled` + render-spy + empty-umbrella removal. FT-11 sweep migrated all gating readers off the legacy flags; FT-9b extracted `registerMermaidChatCommand`/`registerPresentationCommands`/`registerInsertRelatedNotesCommand` so disabled features don't leak into the native palette. `filterEnabledActions` (FT-13) gates in-app action lists.
+- **Toggle UI (Phase 3)**: `FeaturesSettingsSection` (cluster-grouped, core locked, dependency cascade-confirm) + `applyFeatureFlags` (single-flight, full-snapshot revert, `teardownFeature` on toggle-off, awaited re-render, reload Notice) + first-run intro Notice + `t.features.*` i18n.
+
+### Files Affected
+- Created: `core/features.ts`, `services/featureService.ts`, `ui/utils/featureActions.ts`, `ui/settings/FeaturesSettingsSection.ts`, `ui/modals/FeatureDisableConfirmModal.ts` + 8 test files.
+- Modified: `commands/index.ts`, `commands/{chatCommands,smartNoteCommands}.ts`, `main.ts`, `core/settings.ts`, `ui/settings/AIOrganiserSettingTab.ts`, `ui/modals/{CommandPickerModal,commandPickerViewModel,UnifiedChatModal,EnhanceNoteModal}.ts`, `ui/contextMenu.ts`, `i18n/{types,en}.ts`, + 11 files swept for legacy-flag gating reads.
+
+### Decisions Made
+- Teardown lives as a plugin method (`teardownFeature`), not a registry field — keeps `core/features.ts` a pure data module (mirrors the sibling-map pattern).
+- `presentation` gained a real register-fn (FT-9b) despite the plan modelling it as command-less — live code registered `presentation-chat`/`select-presentation-slide` under core `chat`.
+
+### Audit
+- Cluster A: GPT-5.4 R1→R2→R3 + Gemini gate **APPROVE**. Cluster B: GPT audit (single-flight/frozen-registry/extracted-modal; dismissed a duplicate-import false positive). Consolidated Gemini gate over the union: **R1 CONCERNS** (`removeUmbrellaIfEmpty` selector fragility) → fixed → **R2 APPROVE**. 5404 unit tests · tsc 0 · lint 0 errors.
+
+### Next Steps
+- None — feature complete and shipped. Inner legacy `enableSemanticSearch`/`newsletterEnabled` settings toggles are now vestigial (the feature flag is the master); removing those UI controls is a clean future tidy.
+
+---
+
 ## 2026-06-04 — LLM gateway-lite (fail-closed profile + observability + contention-safe indexing)
 
 Implemented [docs/completed/llm-gateway-lite.md](docs/completed/llm-gateway-lite.md) end-to-end via a clustered autonomous `/cycle` (3 clusters, GPT-audited per cluster + a consolidated Gemini gate — **architectural coherence Strong**). A thin coordination layer over the existing long-lived LLM service fixes three live-session failures: an Azure routing leak, a background-indexer 429 storm, and invisible call fan-out.
