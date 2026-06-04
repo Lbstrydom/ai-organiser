@@ -44,6 +44,15 @@ describe('isFeatureEnabled', () => {
     it('fails closed for an unknown id', () => {
         expect(isFeatureEnabled(host({}), 'does-not-exist' as FeatureId)).toBe(false);
     });
+
+    it('fails closed for a present-but-non-boolean flag (corruption), not coerced to defaultOn', () => {
+        // summarize is defaultOn=true — a malformed persisted value must NOT keep it on.
+        expect(isFeatureEnabled(host({ summarize: 'yes' as unknown as boolean }), 'summarize')).toBe(false);
+        expect(isFeatureEnabled(host({ summarize: 1 as unknown as boolean }), 'summarize')).toBe(false);
+        expect(isFeatureEnabled(host({ summarize: null as unknown as boolean }), 'summarize')).toBe(false);
+        // but a genuinely ABSENT flag still coalesces to the registry default.
+        expect(isFeatureEnabled(host({}), 'summarize')).toBe(true);
+    });
 });
 
 describe('defaultFeatureFlags', () => {

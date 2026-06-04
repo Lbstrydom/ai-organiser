@@ -26,18 +26,29 @@ export function isFeatureEnabled(settings: FeatureFlagsHost, id: FeatureId, _see
     const def = FEATURE_BY_ID[id];
     if (!def) return false; // fail-closed: unknown id
     if (def.core) return true;
-    // Fail-closed input validation: `featureFlags` is user-editable JSON — accept ONLY
-    // a strict boolean; any other value (string, number, null) coalesces to the registry
-    // default rather than being treated as truthy/falsy. Pairs with the Gemini-G4 coalesce.
+    // Fail-closed input validation (`featureFlags` is user-editable JSON):
+    //   • ABSENT (undefined)        → registry default — a feature added in a later
+    //                                 release appears per its declared default (Gemini-G4).
+    //   • explicit boolean          → honoured.
+    //   • PRESENT but non-boolean   → corruption — fail CLOSED (disabled), never coerce a
+    //                                 default-on feature to stay on from a malformed value.
     const raw = settings.featureFlags?.[id];
-    const self = typeof raw === 'boolean' ? raw : def.defaultOn;
+    let self: boolean;
+    if (raw === undefined) self = def.defaultOn;
+    else if (typeof raw === 'boolean') self = raw;
+    else return false;
     if (!self) return false;
-    // Cycle guard: the registry is acyclic by test, but a future edit could introduce a
-    // cycle; fail CLOSED on revisit instead of recursing without bound (stack overflow).
+    // Path-based cycle guard: `seen` tracks the CURRENT dependency path (DFS stack), not
+    // all-visited — a node is removed on the way back up so a valid diamond (A→B, A→C,
+    // B→D, C→D) isn't mis-flagged as a cycle. A true cycle (a node already on the path)
+    // fails CLOSED instead of recursing without bound. Registry is acyclic by test; this
+    // is defence in depth against a future edit.
     const seen = _seen ?? new Set<FeatureId>();
     if (seen.has(id)) return false;
     seen.add(id);
-    return def.requires.every((dep) => isFeatureEnabled(settings, dep, seen));
+    const ok = def.requires.every((dep) => isFeatureEnabled(settings, dep, seen));
+    seen.delete(id);
+    return ok;
 }
 
 /**

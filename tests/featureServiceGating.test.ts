@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { isFeatureEnabled } from '../src/services/featureService';
 import {
     FEATURE_REGISTRY,
+    FEATURE_BY_ID,
     SECTION_FEATURE,
     SURFACE_FEATURE,
     CHATMODE_FEATURE,
     type FeatureId,
 } from '../src/core/features';
 import { buildCommandCategories, type CommandCategory } from '../src/ui/modals/CommandPickerModal';
+import { REGISTER_BY_FEATURE } from '../src/commands/index';
 import { en } from '../src/i18n/en';
 
 const noop = (): void => {};
@@ -45,8 +47,9 @@ describe('legacy-master orthogonality (FT-11 outer-gate short-circuit)', () => {
 });
 
 describe('FT-4 completeness — every non-core feature is referenced by ≥1 ownership map', () => {
-    it('no non-core feature is orphaned across SECTION/SURFACE/CHATMODE/LEAF maps', () => {
+    it('no non-core feature is orphaned across all five ownership maps (incl. REGISTER_BY_FEATURE)', () => {
         const referenced = new Set<string>([
+            ...Object.keys(REGISTER_BY_FEATURE),
             ...Object.values(SECTION_FEATURE),
             ...Object.values(SURFACE_FEATURE),
             ...Object.values(CHATMODE_FEATURE),
@@ -57,5 +60,11 @@ describe('FT-4 completeness — every non-core feature is referenced by ≥1 own
             .map((f) => f.id)
             .filter((id) => !referenced.has(id));
         expect(orphans, `orphaned features: ${orphans.join(', ')}`).toEqual([]);
+    });
+
+    it('every REGISTER_BY_FEATURE key is a known FeatureId (M3/M12 — native command ownership)', () => {
+        for (const id of Object.keys(REGISTER_BY_FEATURE)) {
+            expect(FEATURE_BY_ID[id as FeatureId], `register-fn map key '${id}' ∉ registry`).toBeDefined();
+        }
     });
 });
