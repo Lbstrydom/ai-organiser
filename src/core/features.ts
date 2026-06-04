@@ -78,11 +78,17 @@ export interface FeatureDef {
     absorbsLegacyFlag?: keyof AIOrganiserSettings;
 }
 
+/** Deep-freeze a feature definition (+ its `requires` array) so the SSOT can't be mutated. */
+function freezeDef(f: FeatureDef): Readonly<FeatureDef> {
+    return Object.freeze({ ...f, requires: Object.freeze([...f.requires]) as FeatureId[] });
+}
+
 /**
  * The registry (SSOT). Order within a cluster is the display order (heavy-use trio —
  * chat/research/presentation — sit first in their groups per §6, surfaced by the UI).
+ * Deep-frozen — a static immutable source; no runtime code mutates it.
  */
-export const FEATURE_REGISTRY: FeatureDef[] = [
+export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze(([
     // ── Core (always on, locked) ──────────────────────────────────────────────
     { id: 'provider', labelKey: 'features.provider.label', descKey: 'features.provider.desc', cluster: 'core', requires: [], core: true, defaultOn: true },
     { id: 'tagging', labelKey: 'features.tagging.label', descKey: 'features.tagging.desc', cluster: 'core', requires: [], core: true, defaultOn: true },
@@ -114,7 +120,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
     { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', cluster: 'add-ons', requires: [], defaultOn: false },
     { id: 'export', labelKey: 'features.export.label', descKey: 'features.export.desc', cluster: 'add-ons', requires: [], defaultOn: true },
     { id: 'embed-scan', labelKey: 'features.embed-scan.label', descKey: 'features.embed-scan.desc', cluster: 'add-ons', requires: [], defaultOn: false },
-];
+] as FeatureDef[]).map(freezeDef));
 
 /** Cluster display order for the Features section (§6). */
 export const FEATURE_CLUSTERS: FeatureCluster[] = [

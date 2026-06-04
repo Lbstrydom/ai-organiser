@@ -1,5 +1,6 @@
-import { App, Modal, Notice, Setting, ToggleComponent } from 'obsidian';
+import { Notice, Setting, ToggleComponent } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { FeatureDisableConfirmModal } from '../modals/FeatureDisableConfirmModal';
 import {
     FEATURE_REGISTRY,
     FEATURE_CLUSTERS,
@@ -112,46 +113,5 @@ export class FeaturesSettingsSection extends BaseSettingSection {
             }
         }
         return typeof cur === 'string' ? cur : path;
-    }
-}
-
-interface ConfirmOptions {
-    title: string;
-    body: string;
-    confirmText: string;
-    cancelText: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-}
-
-/** Minimal cascade-disable confirm. Default close (Esc / X) is treated as cancel. */
-class FeatureDisableConfirmModal extends Modal {
-    private readonly opts: ConfirmOptions;
-    private decided = false;
-
-    constructor(app: App, opts: ConfirmOptions) {
-        super(app);
-        this.opts = opts;
-    }
-
-    onOpen(): void {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl('h3', { text: this.opts.title });
-        contentEl.createEl('p', { text: this.opts.body });
-        new Setting(contentEl)
-            .addButton((b) => b
-                .setButtonText(this.opts.cancelText)
-                .onClick(() => this.close()))
-            .addButton((b) => b
-                .setButtonText(this.opts.confirmText)
-                .setWarning()
-                .onClick(() => { this.decided = true; this.opts.onConfirm(); this.close(); }));
-    }
-
-    onClose(): void {
-        // Esc / X / cancel button → revert. The confirm button sets `decided` first.
-        if (!this.decided) this.opts.onCancel();
-        this.contentEl.empty();
     }
 }

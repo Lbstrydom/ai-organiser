@@ -92,6 +92,10 @@ export default class AIOrganiserPlugin extends Plugin {
     public sourcePackService: SourcePackService | null = null;
     /** The settings tab instance — kept so `applyFeatureFlags` can await a re-render (FT-5). */
     public settingTab: AIOrganiserSettingTab | null = null;
+    /** Single-flight guard: serialises feature-flag writes so two rapid toggles can't
+     *  interleave saveSettings/teardown/re-render. The in-flight apply re-renders the tab
+     *  at the end, so a dropped concurrent toggle is reflected correctly on that render. */
+    private applyingFeatureFlags = false;
     private readonly eventHandlers: EventHandlers;
     private readonly tagNetworkManager: TagNetworkManager;
     private readonly tagOperations: TagOperations;
@@ -269,32 +273,40 @@ export default class AIOrganiserPlugin extends Plugin {
      *    snapshot (FT-5) — only a reload fully (un)registers them.
      */
     public async applyFeatureFlags(newFlags: Partial<Record<FeatureId, boolean>>): Promise<void> {
-        const prev = { ...this.settings.featureFlags };
-        const turnedOff = FEATURE_REGISTRY.filter((f) =>
-            isFeatureEnabled({ featureFlags: prev }, f.id) && !isFeatureEnabled({ featureFlags: newFlags }, f.id),
-        ).map((f) => f.id);
-
-        this.settings.featureFlags = newFlags;
+        // Single-flight: ignore a concurrent toggle while a write is in progress — the
+        // in-flight apply re-renders the tab at the end, reflecting the true persisted state.
+        if (this.applyingFeatureFlags) return;
+        this.applyingFeatureFlags = true;
         try {
-            await this.saveSettings();
-        } catch (err) {
-            this.settings.featureFlags = prev; // full-snapshot revert (cascade-safe)
-            logger.error('Core', 'Failed to persist feature flags — reverted', err);
-            await this.settingTab?.render();
-            new Notice(this.t.features.saveError, 6000);
-            return;
-        }
+            const prev = { ...this.settings.featureFlags };
+            const turnedOff = FEATURE_REGISTRY.filter((f) =>
+                isFeatureEnabled({ featureFlags: prev }, f.id) && !isFeatureEnabled({ featureFlags: newFlags }, f.id),
+            ).map((f) => f.id);
 
-        for (const id of turnedOff) {
+            this.settings.featureFlags = newFlags;
             try {
-                this.teardownFeature(id);
+                await this.saveSettings();
             } catch (err) {
-                logger.error('Core', `Feature teardown for '${id}' threw`, err);
+                this.settings.featureFlags = prev; // full-snapshot revert (cascade-safe)
+                logger.error('Core', 'Failed to persist feature flags — reverted', err);
+                await this.settingTab?.render();
+                new Notice(this.t.features.saveError, 6000);
+                return;
             }
-        }
 
-        await this.settingTab?.render();
-        new Notice(this.t.features.reloadNotice, 8000);
+            for (const id of turnedOff) {
+                try {
+                    this.teardownFeature(id);
+                } catch (err) {
+                    logger.error('Core', `Feature teardown for '${id}' threw`, err);
+                }
+            }
+
+            await this.settingTab?.render();
+            new Notice(this.t.features.reloadNotice, 8000);
+        } finally {
+            this.applyingFeatureFlags = false;
+        }
     }
 
     /**
