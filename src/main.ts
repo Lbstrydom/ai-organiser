@@ -19,6 +19,7 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
+import { isFeatureEnabled } from './services/featureService';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
@@ -590,8 +591,9 @@ export default class AIOrganiserPlugin extends Plugin {
             cooldown: this.embeddingCooldown,
         });
 
-        // Initialize vector store for semantic search
-        if (this.settings.enableSemanticSearch) {
+        // Initialize vector store for semantic search (gated on the feature — FT-12;
+        // semantic-search absorbed the legacy enableSemanticSearch master switch).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
             try {
                 // Resolve API key from SecretStorage with inheritance chain
                 const embeddingApiKey = await this.resolveEmbeddingApiKey();
@@ -625,8 +627,8 @@ export default class AIOrganiserPlugin extends Plugin {
         // Initialize NotebookLM source pack service
         this.initializeSourcePackService();
 
-        // §4.4.2 Mermaid diagram staleness notification (opt-in)
-        if (this.settings.mermaidChatStalenessNotice) {
+        // §4.4.2 Mermaid diagram staleness notification (opt-in; gated on mermaid-chat)
+        if (this.settings.mermaidChatStalenessNotice && isFeatureEnabled(this.settings, 'mermaid-chat')) {
             this.registerEvent(
                 this.app.metadataCache.on('changed', debounce((file: TFile) => {
                     void this.checkDiagramStaleness(file);
@@ -634,8 +636,8 @@ export default class AIOrganiserPlugin extends Plugin {
             );
         }
 
-        // §4.4.3 Mermaid staleness gutter (opt-in, desktop only)
-        if (this.settings.mermaidChatStalenessGutter && !Platform.isMobile) {
+        // §4.4.3 Mermaid staleness gutter (opt-in, desktop only; gated on mermaid-chat — FT-12)
+        if (this.settings.mermaidChatStalenessGutter && !Platform.isMobile && isFeatureEnabled(this.settings, 'mermaid-chat')) {
             this.registerEditorExtension([mermaidStalenessGutterExtension(this)]);
         }
 
@@ -658,8 +660,11 @@ export default class AIOrganiserPlugin extends Plugin {
         // of the plugin functional. (Persona-harness finding 2026-04-21.)
         this.safeRegisterView(TAG_NETWORK_VIEW_TYPE, (leaf) =>
             new TagNetworkView(leaf, this.tagNetworkManager, () => this.getNonExcludedMarkdownFiles(), this));
-        this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
-            new RelatedNotesView(leaf, this));
+        // Related-notes view is a semantic-search surface — register only when enabled (FT-12).
+        if (isFeatureEnabled(this.settings, 'semantic-search')) {
+            this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
+                new RelatedNotesView(leaf, this));
+        }
 
         // Register command picker command
         this.addCommand({
@@ -794,8 +799,9 @@ export default class AIOrganiserPlugin extends Plugin {
     /** Start (or restart) the newsletter auto-fetch scheduler. Call after settings change. */
     public startNewsletterScheduler(): void {
         this.stopNewsletterScheduler();
-        if (!this.settings.newsletterAutoFetch || !this.settings.newsletterEnabled) {
-            logger.debug('Newsletter', `Scheduler skipped: enabled=${this.settings.newsletterEnabled}, autoFetch=${this.settings.newsletterAutoFetch}`);
+        // Gate on the newsletter feature (FT-12; it absorbed the legacy newsletterEnabled master).
+        if (!this.settings.newsletterAutoFetch || !isFeatureEnabled(this.settings, 'newsletter')) {
+            logger.debug('Newsletter', `Scheduler skipped: feature=${isFeatureEnabled(this.settings, 'newsletter')}, autoFetch=${this.settings.newsletterAutoFetch}`);
             return;
         }
         const intervalMs = this.settings.newsletterAutoFetchIntervalMins * 60 * 1000;
@@ -814,8 +820,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
     /** Runs a fetch only if enough time has passed since the last one. */
     private async runScheduledNewsletterFetch(): Promise<void> {
-        if (!this.settings.newsletterEnabled || !this.settings.newsletterScriptUrl?.trim()) {
-            logger.debug('Newsletter', `Scheduled fetch skipped: enabled=${this.settings.newsletterEnabled}, hasUrl=${!!this.settings.newsletterScriptUrl?.trim()}`);
+        if (!isFeatureEnabled(this.settings, 'newsletter') || !this.settings.newsletterScriptUrl?.trim()) {
+            logger.debug('Newsletter', `Scheduled fetch skipped: feature=${isFeatureEnabled(this.settings, 'newsletter')}, hasUrl=${!!this.settings.newsletterScriptUrl?.trim()}`);
             return;
         }
         if (this.newsletterFetching) {

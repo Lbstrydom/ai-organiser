@@ -39,9 +39,16 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
         icon: 'sparkles',
         callback: () => openEnhanceModal(plugin)
     });
+}
 
-    // Command: Edit Mermaid Diagram (conversational chat)
-    // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
+/**
+ * Mermaid-chat command — EXTRACTED from registerSmartNoteCommands (FT-9b) so the
+ * `mermaid-chat` feature owns its own register-fn and gates independently. If it rode
+ * inside registerSmartNoteCommands, the command would still register into the native
+ * palette even when `mermaid-chat` is off. Same file area, just a thin feature-keyed fn.
+ * Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById.
+ */
+export function registerMermaidChatCommand(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'edit-mermaid-diagram',
         name: plugin.t.commands.editMermaidDiagram,

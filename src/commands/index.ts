@@ -5,7 +5,7 @@ import { registerSummarizeCommands } from './summarizeCommands';
 import { registerMinutesCommands } from './minutesCommands';
 import { registerTranscribeCommands } from './transcribeCommands';
 import { registerTranslateCommands } from './translateCommands';
-import { registerSmartNoteCommands } from './smartNoteCommands';
+import { registerSmartNoteCommands, registerMermaidChatCommand } from './smartNoteCommands';
 import { registerIntegrationCommands } from './integrationCommands';
 import { registerHighlightCommands } from './highlightCommands';
 import { registerSemanticSearchCommands } from './semanticSearchCommands';
@@ -27,34 +27,55 @@ import { registerNewsletterCommands } from './newsletterCommands';
 import { registerAudioNarrationCommands } from './audioNarrationCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
+import { isFeatureEnabled } from '../services/featureService';
+import type { FeatureId } from '../core/features';
 
+type RegisterFn = (plugin: AIOrganiserPlugin) => void;
+
+/**
+ * FeatureId → its command register-fn(s) (FT-4). Array-valued: a feature owns 1-to-many
+ * register-fns (`tagging`→generate/clear/utility, `minutes`→minutes/transcribe,
+ * `bases`→migration/dashboard, `smart-note`→smartNote/integration/highlight). Partial —
+ * features with no own register-fn are absent: `provider` (core, no commands) and
+ * `presentation` (a chat mode, no addCommand) gate via other maps (FT-9). `mermaid-chat`
+ * is the extracted `registerMermaidChatCommand` (FT-9b). `registerContextMenu` is NOT
+ * here — it stays unconditionally registered with per-item gating (Gemini-G2).
+ */
+export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
+    tagging: [registerGenerateCommands, registerClearCommands, registerUtilityCommands],
+    summarize: [registerSummarizeCommands],
+    minutes: [registerMinutesCommands, registerTranscribeCommands],
+    translate: [registerTranslateCommands],
+    'smart-note': [registerSmartNoteCommands, registerIntegrationCommands, registerHighlightCommands],
+    'semantic-search': [registerSemanticSearchCommands],
+    chat: [registerChatCommands],
+    bases: [registerMigrationCommands, registerDashboardCommands],
+    notebooklm: [registerNotebookLMCommands],
+    export: [registerExportCommands],
+    canvas: [registerCanvasCommands],
+    'web-reader': [registerWebReaderCommands],
+    kindle: [registerKindleCommands],
+    digitisation: [registerDigitisationCommands],
+    sketch: [registerSketchCommands],
+    flashcards: [registerFlashcardCommands],
+    research: [registerResearchCommands],
+    'embed-scan': [registerEmbedScanCommands],
+    'quick-peek': [registerQuickPeekCommands],
+    newsletter: [registerNewsletterCommands],
+    'audio-narration': [registerAudioNarrationCommands],
+    'mermaid-chat': [registerMermaidChatCommand],
+};
+
+/**
+ * Register commands for ENABLED features only (FT-5: load-time snapshot — Obsidian can't
+ * cleanly runtime-unregister, so disabled features simply never register; toggling needs
+ * a reload). The context-menu listener is registered unconditionally (cross-cutting; its
+ * per-item contributions gate inline — Gemini-G2).
+ */
 export function registerCommands(plugin: AIOrganiserPlugin) {
-    registerGenerateCommands(plugin);
-    registerClearCommands(plugin);
-    registerUtilityCommands(plugin);
-    registerSummarizeCommands(plugin);
-    registerMinutesCommands(plugin);
-    registerTranscribeCommands(plugin);
-    registerTranslateCommands(plugin);
-    registerSmartNoteCommands(plugin);
-    registerIntegrationCommands(plugin);
-    registerHighlightCommands(plugin);
-    registerSemanticSearchCommands(plugin);
-    registerChatCommands(plugin);
-    registerMigrationCommands(plugin);
-    registerDashboardCommands(plugin);
-    registerNotebookLMCommands(plugin);
-    registerExportCommands(plugin);
-    registerCanvasCommands(plugin);
-    registerWebReaderCommands(plugin);
-    registerKindleCommands(plugin);
-    registerDigitisationCommands(plugin);
-    registerSketchCommands(plugin);
-    registerFlashcardCommands(plugin);
-    registerResearchCommands(plugin);
-    registerEmbedScanCommands(plugin);
-    registerQuickPeekCommands(plugin);
-    registerNewsletterCommands(plugin);
-    registerAudioNarrationCommands(plugin);
+    for (const [id, fns] of Object.entries(REGISTER_BY_FEATURE) as [FeatureId, RegisterFn[]][]) {
+        if (!isFeatureEnabled(plugin.settings, id)) continue;
+        for (const fn of fns) fn(plugin);
+    }
     registerContextMenu(plugin);
 }

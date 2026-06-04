@@ -3,6 +3,7 @@ import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
 import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior, MinutesStyle, DEFAULT_MINUTES_STYLE, MEDIA_SIZE_WARN_BYTES, DEFAULT_RECORDING_FOLDER } from './constants';
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
+import { FEATURE_REGISTRY, type FeatureId } from './features';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -321,6 +322,12 @@ export interface AIOrganiserSettings {
     // === CLAUDE THINKING MODE ===
     // Controls adaptive thinking for Claude Opus 4.6
     claudeThinkingMode: 'standard' | 'adaptive';  // standard = no thinking, adaptive = Claude decides when to think
+
+    // === FEATURE TOGGLES (outer feature flags — distinct from inner enable* configs) ===
+    /** Per-feature on/off. Absent/undefined entries resolve to the registry's defaultOn (FT-3 coalesce). */
+    featureFlags: Partial<Record<FeatureId, boolean>>;
+    /** Once-only marker for the first-run "new Features section" Notice (L2). */
+    featuresIntroShown: boolean;
 
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
@@ -658,6 +665,11 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // Claude Thinking Mode Defaults
     claudeThinkingMode: 'adaptive' as const,            // Adaptive thinking for Opus 4.6
+
+    // Feature toggles — empty map; isFeatureEnabled coalesces unset → registry.defaultOn
+    // (fresh installs get the Lean set via the coalesce; migration seeds explicit flags).
+    featureFlags: {},
+    featuresIntroShown: false,
 
     // Newsletter Digest Defaults
     newsletterEnabled: false,
@@ -1011,8 +1023,47 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
+    migrateFeatureFlags(oldSettings);
 
     return oldSettings;
+}
+
+/**
+ * Feature-flag migration (FT-11) — ABSORB-before-DEFAULT order is load-bearing.
+ *
+ * (1) Absorb each legacy master switch (`enableSemanticSearch`→`semantic-search`,
+ *     `newsletterEnabled`→`newsletter`) into `featureFlags[id]` when that flag is unset
+ *     — so a user who had `newsletterEnabled:true` keeps the feature ON.
+ * (2) Then seed the Lean defaults (`defaultOn`) for any STILL-unset non-core flags.
+ *
+ * If (2) ran first, `defaultFeatureFlags()` (newsletter=off) would pre-fill the flag and
+ * the legacy `true` would be silently dropped (Gemini-R6-G1). An explicit saved flag
+ * always wins over both. Idempotent + preserves saved flags; the legacy `enable*` fields
+ * are left intact (back-compat read only — no longer the gating switch).
+ */
+function migrateFeatureFlags(s: Record<string, unknown>): void {
+    const existing = (typeof s.featureFlags === 'object' && s.featureFlags !== null)
+        ? (s.featureFlags as Record<string, unknown>)
+        : {};
+    const flags: Partial<Record<FeatureId, boolean>> = {};
+    for (const [k, v] of Object.entries(existing)) {
+        if (typeof v === 'boolean') flags[k as FeatureId] = v;
+    }
+
+    // (1) Absorb legacy masters BEFORE seeding defaults.
+    for (const f of FEATURE_REGISTRY) {
+        if (!f.absorbsLegacyFlag || f.id in flags) continue;
+        const legacy = s[f.absorbsLegacyFlag as string];
+        if (typeof legacy === 'boolean') flags[f.id] = legacy;
+    }
+    // (2) Seed Lean defaults for still-unset non-core flags.
+    for (const f of FEATURE_REGISTRY) {
+        if (f.core || f.id in flags) continue;
+        flags[f.id] = f.defaultOn;
+    }
+
+    s.featureFlags = flags;
+    if (typeof s.featuresIntroShown !== 'boolean') s.featuresIntroShown = false;
 }
 
 /**
