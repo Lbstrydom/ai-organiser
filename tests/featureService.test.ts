@@ -34,11 +34,14 @@ describe('isFeatureEnabled', () => {
         expect(isFeatureEnabled(host({ canvas: true }), 'canvas')).toBe(true);
     });
 
-    it('is disabled when a required dependency is disabled (transitive)', () => {
-        // research requires provider (core, always on) → enabled
+    it('honours requires + explicit flag (resolves on its core dep; explicit OFF short-circuits)', () => {
+        // research requires provider (core, always on) → enabled when its own flag is on.
         expect(isFeatureEnabled(host({ research: true }), 'research')).toBe(true);
-        // a hypothetical: disable a required non-core dep cascades. summarize requires provider (core),
-        // so use a chain via explicit off of a required dep is covered by resolveDisable cascade tests.
+        // an explicit OFF disables it BEFORE the requires walk (self short-circuit).
+        expect(isFeatureEnabled(host({ research: false }), 'research')).toBe(false);
+        // NOTE: the registry is star-shaped (every non-core feature requires only the core
+        // `provider`), so a non-core→non-core transitive DISABLE isn't representable here;
+        // requires-edge integrity (acyclic, ∈ FeatureId) is covered by featureRegistry.test.ts.
     });
 
     it('fails closed for an unknown id', () => {
