@@ -1,5 +1,31 @@
 # Project Status Log
 
+## 2026-06-04 — LLM gateway-lite (fail-closed profile + observability + contention-safe indexing)
+
+Implemented [docs/plans/llm-gateway-lite.md](docs/plans/llm-gateway-lite.md) end-to-end via a clustered autonomous `/cycle` (3 clusters, GPT-audited per cluster + a consolidated Gemini gate — **architectural coherence Strong**). A thin coordination layer over the existing long-lived LLM service fixes three live-session failures: an Azure routing leak, a background-indexer 429 storm, and invisible call fan-out.
+
+### Changes
+- **Fail-closed provider profile (Phase 1)**: `resolveProviderProfile` SSOT + `NullLLMService` (separate class, no network path). Removed the `|| cloudApiKey` Azure personal-key fallback in `main.ts`; a misconfigured Azure setup now installs `NullLLMService` + one Notice. Keystone negative test: misconfigured Azure ⇒ **zero** `requestUrl` calls to any anthropic.com host.
+- **Observability (Phase 2)**: provider trust badge in the chat mode-bar (`🏢 Azure` / `👤 Personal` / `💻 Local` / `⚠ not configured`), per-call attribution debug line + logical-call counter in `CloudLLMService`.
+- **Contention (Phase 3)**: `ForegroundGate` (ref-counted leak-safe `withForeground` + `onIdle`), `EmbeddingCooldown` (Retry-After + escalating backoff, clamped to 10 min), `EmbeddingQueue` (cap-1 atomic drain — one `maxBatchSize`-chunk request/iteration, no double-billing; typed re-enqueue; 90s timeout; foreground-yield; path-dedup; per-batch completion). `IEmbeddingService` gains typed `reason` + `maxBatchSize`. User-entry flows wrap in `withForeground`.
+- **UX (Phase 4)**: `abortableSleep` makes `postWithRetry` backoff cancellable; an aborted op returns a clean `'Aborted'`; a 429 surfaces "retrying in Ns" in the presentation thinking sink.
+
+### Files Affected
+- Created: `src/services/providerProfile.ts`, `src/services/llm/nullLLMService.ts`, `src/services/foregroundGate.ts`, `src/services/embeddings/embeddingCooldown.ts`, `src/services/vector/embeddingQueue.ts`, `src/ui/components/providerBadge.ts`, `src/utils/abortableSleep.ts` (+ 7 test files).
+- Modified: `src/main.ts` (gate/cooldown/queue lifecycle + fail-closed swap), `src/services/cloudService.ts`, `src/services/llmFacade.ts`, `src/services/types.ts`, `src/services/embeddings/{types,embeddingServiceFactory,openaiEmbeddingService,+5 providers}.ts`, `src/services/vector/vectorStoreService.ts`, `src/services/chat/presentationHtmlService.ts`, `src/ui/chat/PresentationModeHandler.ts`, `src/ui/modals/{UnifiedChatModal,MinutesCreationModal}.ts`, `src/commands/{summarize,translate}Commands.ts`, `src/i18n/{en,types}.ts`, `styles.css`.
+
+### Decisions Made
+- **NullLLMService over a flag**: a separate fail-closed class means no method can "forget" the guard — the negative test holds structurally.
+- **Cap-1 serializer is the real thundering-herd fix** (not the cooldown alone): the first 429 sets the cooldown before the next request fires.
+- **Queue is plugin-scoped** (constructed `onload`, disposed only `onunload`) — `vectorStoreService.dispose()` (settings re-init) must NOT kill it.
+- **withForeground wraps at user-entry points**, never inside the embedding/provider services (layering).
+- **Consolidated Gemini G1 (silent-truncation HIGH) rebutted as a verified false premise** — `batchGenerateEmbeddings` sizes output to the full input length and loops over all inputs; its fail-fast fix would have regressed the bulk path. Made the contract explicit via a doc comment instead.
+
+### Verification
+5283 unit tests pass (274 files). Production build (full tsc incl. tests + 45 integration checks) green. Lint 0 errors. Bundle deployed to vault + `docs/mobile/` + OneDrive Basket.
+
+---
+
 ## 2026-06-03 — Presentation web-search grounding (Option A) + feature-toggles plan audit
 
 Two pieces of work. **(1)** Implemented + code-audited **Option A**: presentation `web-search` sources are now LLM-grounded in the deck's attached notes + prompt before dispatch, instead of running the user's literal query verbatim. **(2)** Authored + audited the **feature-toggles plan** (`docs/plans/feature-toggles.md`, gitignored) to implementation-ready (GPT R1–R3 + Gemini ×9 → Strong coherence) — implementation deferred per the agreed sequencing.

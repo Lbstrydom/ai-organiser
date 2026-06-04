@@ -2785,6 +2785,39 @@ Makes presentation (PPTX) + DOCX exports on-brand and **template-ready**: a vaul
 ### Tests
 `tests/brandThemeService.test.ts`, `tests/brandExportTheme.test.ts`, `tests/brandAssets.test.ts`, `tests/brandRenderContext.test.ts`, `tests/deckIconConcepts.test.ts`, `tests/irToPptxBrand.test.ts`, `tests/markdownDocxBrand.test.ts`, `tests/settingsMigration.test.ts` (brand migration). Plans (gitignored): `docs/plans/sync/brand-fidelity.md` (+ audit summary).
 
+## LLM Gateway-Lite (fail-closed profile + observability + contention-safe indexing)
+
+**Status**: ✅ Implemented (June 2026)
+
+A thin coordination layer over the existing long-lived LLM service — NOT a gateway rewrite. Three plugin-scoped SSOTs the rest of the code reads, fixing three live-session failures (Azure routing leak, background-indexer 429 storm, invisible call fan-out).
+
+### Core components
+- `src/services/providerProfile.ts` — `resolveProviderProfile(plugin): ProviderProfile` (D1 SSOT): `{ valid, mode: 'azure'|'personal'|'local', provider, providerLabel, endpointHost, model, keySource, error? }`. Composes `isAzureMode`/`resolveEndpoint`/`getAzureApiKey`/`getProviderKey`; never throws (secret lookups wrapped); Azure validity requires a well-formed **HTTPS** endpoint + non-blank key.
+- `src/services/llm/nullLLMService.ts` — `NullLLMService` (D2): a SEPARATE fail-closed class (not a flag) implementing `MultimodalLLMService` whose every method returns `{ success:false, error }` with **no network path**. Installed by `initializeLLMService` when `mode==='azure' && !valid` + one Notice. The structural reason the negative test holds.
+- `src/services/foregroundGate.ts` — `ForegroundGate` (D3): ref-counted boolean mutex. `isActive()`, `withForeground<T>(fn)` (acquire→`try/finally` release — leak-safe, the ONLY access), `onIdle(listener)` (fires on end→idle, returns unsubscribe). Constructed ONCE in `onload`.
+- `src/services/embeddings/embeddingCooldown.ts` — `EmbeddingCooldown` (D4.2): `note429(retryAfterHeader)` sets `max(Retry-After, escalating backoff)` clamped to a **10-min ceiling**; `isCoolingDown()`/`remainingMs()`/`reset()`. `parseRetryAfter` handles delta-seconds + HTTP-date. Injectable clock for tests.
+- `src/services/vector/embeddingQueue.ts` — `EmbeddingQueue` (D4.4): plugin-scoped cap-1 serializer. One enqueue = one note (`ChunkTask[]` + `onBatchSuccess`). The drain dequeues exactly `maxBatchSize` **chunks**/iteration so one iteration = one request (no double-billing on partial failure). Typed re-enqueue on `cooldown`/`rate-limit`; drop+settle on `error`/throw; **90s per-request timeout** (cap-1 liveness); foreground-yield via one-shot `onIdle`; path-dedup/supersede; per-batch completion promise. **Disposed only in `onunload`** (NOT `vectorStoreService.dispose()`, which runs on settings re-init).
+- `src/ui/components/providerBadge.ts` — pure `renderProviderBadge(container, profile, t)`: `🏢 Azure`/`👤 Personal`/`💻 Local`/`⚠ not configured` pill, `role="img"` + `aria-label`, host tooltip. Warns for ANY invalid profile.
+- `src/utils/abortableSleep.ts` — `abortableSleep(ms, signal)`: resolves early on abort, clears timer, never rejects.
+
+### Key wiring
+- `main.ts`: constructs `foregroundGate`/`embeddingCooldown`/`embeddingQueue` ONCE in `onload`; `initializeLLMService` resolves+caches `providerProfile` (init-epoch guard so the latest init wins), installs `NullLLMService` on invalid Azure, wires the `onCall` counter + `onProfileChange` listener set. Plugin contract gains `providerProfile`, `foregroundGate`, `withForeground`, `onProfileChange`, `llmCallCounter`, `embeddingQueue`, `embeddingCooldown`.
+- `IEmbeddingService` (`embeddings/types.ts`) gains a typed failure `reason: 'cooldown'|'rate-limit'|'error'` + `readonly maxBatchSize` (implemented on all 6 providers). Only network providers set cooldown/rate-limit. `openaiEmbeddingService` short-circuits on cooldown, uses `requestUrl({throw:false})`, reads `Retry-After`. The shared cooldown is injected via `createEmbeddingServiceFromSettings(settings, key, cooldown)`.
+- `vectorStoreService`: splits notes → `ChunkTask` → `embeddingQueue.enqueue`; `indexNote` is fire-and-forget, `rebuildVault`/`indexAllNotes` `await` the per-batch completion (truthful "rebuild complete"); `removePath` on delete/rename. `batchGenerateEmbeddings` CONTRACT: any-size input → multi-request → strict 1:1 output (the queue passes ≤`maxBatchSize`; bulk callers rely on the split loop).
+- `CloudLLMService`: per-call attribution `logger.debug('LLM', …)` + injected `onCall()` counter + `options.label`; `postWithRetry` threads `signal` + `onRetryStatus`, uses `abortableSleep` (Cancel interrupts a 429 stall), an aborted op throws `'Aborted'` (not the last 429 response). `summarizeTextStream` gains a trailing `options` param; the facade merges options into the stream→non-stream fallback.
+- `withForeground` wraps user-entry flows: chat send (`UnifiedChatModal.handleSend`), presentation build/polish/brand-audit (`PresentationModeHandler`), `summarize`/`translate`/`minutes` (the minutes wrap is in `MinutesCreationModal` — the real LLM call site). Tagging + newsletter deferred (graceful, additive).
+
+### Patterns
+- **NullLLMService over a flag**: no two-mode service, no method can forget the guard. Negative test (`azureMode.test.ts`): misconfigured Azure ⇒ `NullLLMService` ⇒ zero `requestUrl` calls to any `anthropic.com` host.
+- **Cap-1 serializer is the real thundering-herd fix** (not the cooldown alone): the first 429 sets the cooldown before the next request fires.
+- **Queue reaches the CURRENT embedding service indirectly** (`getEmbeddingService()` accessor) so a settings-driven swap doesn't leave a stale instance.
+- **i18n**: `t.llmGateway.*` (badge labels, status line, retry/cancel, Azure-misconfig notice).
+
+### Tests
+`tests/providerProfile.test.ts`, `tests/foregroundGate.test.ts`, `tests/embeddingCooldown.test.ts`, `tests/embeddingQueue.test.ts`, `tests/providerBadge.test.ts`, `tests/abortableSleep.test.ts`, extended `tests/azureMode.test.ts` (keystone negative test) + `tests/openaiEmbeddingService.test.ts` (cooldown short-circuit + Retry-After + maxBatchSize).
+
+**Plan**: [docs/plans/llm-gateway-lite.md](docs/plans/llm-gateway-lite.md) · **Audit summary** (gitignored): `docs/plans/llm-gateway-lite-audit-summary.md`.
+
 ## Documentation
 
 See `docs/` folder for additional documentation:
