@@ -45,6 +45,11 @@ export class CohereEmbeddingService implements IEmbeddingService {
         this.dimensions = COHERE_DIMENSIONS[this.model] || COHERE_DIMENSIONS['default'];
     }
 
+    /** Max chunks per single network request (D4.4 — queue dequeue size). */
+    get maxBatchSize(): number {
+        return 96;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {

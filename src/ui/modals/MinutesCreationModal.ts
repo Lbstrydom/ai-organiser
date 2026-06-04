@@ -998,7 +998,8 @@ export class MinutesCreationModal extends Modal {
                 return;
             }
 
-            const result = await this.minutesService.generateMinutes({
+            // D3: hold the foreground gate so background indexing yields during generation.
+            const result = await this.plugin.withForeground(() => this.minutesService.generateMinutes({
                 metadata,
                 participantsRaw: this.state.participants,
                 transcript: effectiveGeneralTranscript,
@@ -1039,7 +1040,7 @@ export class MinutesCreationModal extends Modal {
                         6000,
                     );
                 },
-            });
+            }));
 
             this.close();
             new Notice(`${this.plugin.t.minutes?.saved || 'Minutes saved'}: ${result.filePath}`, 4000);

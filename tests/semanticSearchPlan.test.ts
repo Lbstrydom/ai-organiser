@@ -278,7 +278,9 @@ describe('VectorStoreService rebuildVault', () => {
         file2.path = 'note2.md';
         app.vault.getMarkdownFiles = vi.fn().mockReturnValue([file1, file2]);
 
-        const indexSpy = vi.spyOn(service, 'indexNote').mockResolvedValue(true);
+        // rebuild routes through indexNoteInternal(file, awaitCompletion=true)
+        // so it can await the queue's per-batch completion (D4.4 / R3-H2).
+        const indexSpy = vi.spyOn(service as any, 'indexNoteInternal').mockResolvedValue(true);
 
         const result = await service.rebuildVault();
 

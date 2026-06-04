@@ -13,6 +13,9 @@ import { logger } from '../utils/logger';
 export class CloudLLMService extends BaseLLMService implements MultimodalLLMService {
     private adapter: BaseAdapter;
     private readonly adapterType: AdapterType;
+    /** Injected by the plugin (D5) — bumps the logical LLM-call counter once per
+     *  user-facing summarize/stream call (NOT per HTTP retry or chunk). */
+    private onCall?: () => void;
     private readonly MAX_CONTENT_LENGTH = 4000; // Reasonable limit for most APIs
     private readonly MAX_RETRIES = 3;
     private readonly RETRY_DELAY = 1000; // 1 second base for exponential backoff
@@ -51,6 +54,30 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             language: config.language,
             thinkingMode: config.thinkingMode
         });
+    }
+
+    /** Inject the plugin's call counter hook (D5). */
+    setOnCall(cb: () => void): void {
+        this.onCall = cb;
+    }
+
+    /** Host of the active endpoint, for the attribution log line. */
+    private endpointHost(): string {
+        try {
+            return new URL(this.adapter.getEndpoint()).host;
+        } catch {
+            return 'unknown';
+        }
+    }
+
+    /** Emit one attribution debug line + bump the logical call counter (D5). */
+    private noteCall(label: string): void {
+        logger.debug('LLM', `${label} -> ${this.adapterType} host=${this.endpointHost()} model=${this.adapter['config']?.modelName ?? this.modelName}`);
+        try {
+            this.onCall?.();
+        } catch {
+            // A counter hook must never break an LLM call.
+        }
     }
 
     private validateCloudConfig(): string | null {
@@ -407,6 +434,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @returns Promise resolving to summarization result
      */
     async summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }> {
+        this.noteCall(options?.label ?? 'chat');
         try {
             const content = await this.sendSummarizeRequest(prompt, options);
             return { success: true, content };
@@ -807,8 +835,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     async summarizeTextStream(
         prompt: string,
         onChunk: (chunk: string) => void,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        options?: SummarizeOptions
     ): Promise<{ success: boolean; content?: string; error?: string }> {
+        this.noteCall(options?.label ?? 'chat');
         // Check adapter streaming support
         if (!this.adapter.supportsStreaming?.()) {
             throw new Error('Streaming not supported by this adapter');

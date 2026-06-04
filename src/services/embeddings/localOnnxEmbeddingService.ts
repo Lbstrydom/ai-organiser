@@ -16,6 +16,11 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         this.modelId = modelId;
     }
 
+    /** Max chunks per single network request (D4.4 — queue dequeue size). */
+    get maxBatchSize(): number {
+        return 32;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             const pipe = await this.getPipeline();

@@ -11,6 +11,7 @@ import {
     EmbeddingModelInfo,
     getEmbeddingDimensions
 } from './types';
+import { EmbeddingCooldown } from './embeddingCooldown';
 import { logger } from '../../utils/logger';
 
 /**
@@ -26,6 +27,12 @@ export interface OpenAIEmbeddingConfig {
      * 'api-key' / 'azure' → `api-key` header (Azure OpenAI embeddings).
      */
     authHeaderType?: 'bearer' | 'api-key' | 'azure';
+    /**
+     * Shared cooldown circuit breaker (D4.2). Injected by the factory. When
+     * cooling, calls short-circuit without a network request; a real 429 sets
+     * the window. Optional — absent in tests / non-coordinated callers.
+     */
+    cooldown?: EmbeddingCooldown;
 }
 
 /**
@@ -44,6 +51,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     private endpoint: string;
     private dimensions: number;
     private authHeaderType: 'bearer' | 'api-key' | 'azure';
+    private readonly cooldown?: EmbeddingCooldown;
     // OpenAI embedding models support 8191 tokens max
     // Using ~4 chars/token as conservative estimate, with safety margin
     private static readonly MAX_CHARS = 30000; // ~7500 tokens
@@ -55,6 +63,40 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         this.dimensions = getEmbeddingDimensions(this.model);
         // Default 'bearer' preserves OpenAI-direct behaviour; Azure callers pass 'api-key'.
         this.authHeaderType = config.authHeaderType ?? 'bearer';
+        this.cooldown = config.cooldown;
+    }
+
+    /**
+     * Max chunks per single network request (D4.4). Must equal the internal
+     * per-request slice size below so the queue's one-iteration-one-request
+     * invariant holds.
+     */
+    get maxBatchSize(): number {
+        return this.isAzure ? AZURE_EMBEDDING_BATCH_SIZE : 100;
+    }
+
+    /** Case-insensitive header read (`requestUrl` lowercases keys, but be safe). */
+    private readHeader(headers: Record<string, string> | undefined, name: string): string | undefined {
+        if (!headers) return undefined;
+        const lower = name.toLowerCase();
+        const key = Object.keys(headers).find(k => k.toLowerCase() === lower);
+        return key ? headers[key] : undefined;
+    }
+
+    /**
+     * Classify a non-2xx response into a typed failure, feeding the cooldown on
+     * a 429 (D4.2). `requestUrl` THROWS on ≥400 unless `{throw:false}` is set —
+     * callers MUST use throw:false so the 429 + its Retry-After reach here.
+     */
+    private classifyHttpFailure(
+        response: { status: number; headers?: Record<string, string>; json?: { error?: { message?: string } } },
+    ): { success: false; error: string; reason: 'rate-limit' | 'error' } {
+        if (response.status === 429) {
+            this.cooldown?.note429(this.readHeader(response.headers, 'retry-after'));
+            return { success: false, error: 'Rate limited (429)', reason: 'rate-limit' };
+        }
+        const error = response.json?.error?.message || `HTTP ${response.status}`;
+        return { success: false, error, reason: 'error' };
     }
 
     /** Build auth + content-type headers per configured auth style. */
@@ -91,7 +133,13 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {
-                return { success: false, error: 'Empty text provided' };
+                return { success: false, error: 'Empty text provided', reason: 'error' };
+            }
+
+            // Cooldown short-circuit (D4.2 / Gemini-R6-G2 — query-time too): no
+            // network while cooling so a 429 storm can't be re-triggered.
+            if (this.cooldown?.isCoolingDown()) {
+                return { success: false, error: 'Embedding cooldown active', reason: 'cooldown' };
             }
 
             // Truncate text to prevent 400 errors from exceeding token limits
@@ -101,6 +149,9 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                 url: this.endpoint,
                 method: 'POST',
                 headers: this.buildHeaders(),
+                // throw:false so a 429 + Retry-After reach classifyHttpFailure
+                // instead of requestUrl throwing past the status check.
+                throw: false,
                 body: JSON.stringify({
                     model: this.model,
                     input: processedText,
@@ -111,13 +162,12 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
             const response = await requestUrl(requestParams);
 
             if (response.status !== 200) {
-                const error = response.json?.error?.message || `HTTP ${response.status}`;
-                return { success: false, error };
+                return this.classifyHttpFailure(response);
             }
 
             const data = response.json;
             if (!data.data || !data.data[0] || !data.data[0].embedding) {
-                return { success: false, error: 'Invalid response format' };
+                return { success: false, error: 'Invalid response format', reason: 'error' };
             }
 
             const embedding: number[] = data.data[0].embedding;
@@ -134,12 +184,17 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error('Search', 'OpenAI embedding error:', errorMessage);
-            return { success: false, error: errorMessage };
+            return { success: false, error: errorMessage, reason: 'error' };
         }
     }
 
     async batchGenerateEmbeddings(texts: string[]): Promise<BatchEmbeddingResult> {
         try {
+            // Cooldown short-circuit (D4.2): no network while cooling.
+            if (this.cooldown?.isCoolingDown()) {
+                return { success: false, error: 'Embedding cooldown active', reason: 'cooldown' };
+            }
+
             // Preserve original indices: empty/whitespace entries are skipped from
             // the provider call but still occupy their slot in the output (filled
             // with a zero-vector) so callers zipping with `texts` stay aligned.
@@ -155,7 +210,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
             const result: number[][] = texts.map(() => zeroVector());
 
             if (nonEmpty.length === 0) {
-                return { success: false, error: 'No valid texts provided' };
+                return { success: false, error: 'No valid texts provided', reason: 'error' };
             }
 
             // OpenAI supports batch embedding up to 2048 inputs; Azure caps far
@@ -169,6 +224,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                     url: this.endpoint,
                     method: 'POST',
                     headers: this.buildHeaders(),
+                    throw: false,
                     body: JSON.stringify({
                         model: this.model,
                         input: slice.map(s => s.text),
@@ -179,13 +235,15 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                 const response = await requestUrl(requestParams);
 
                 if (response.status !== 200) {
-                    const error = response.json?.error?.message || `HTTP ${response.status}`;
-                    return { success: false, error };
+                    // Stop on first non-2xx (incl. 429 → cooldown set). The queue
+                    // gives exactly maxBatchSize chunks, so this loop runs once —
+                    // no completed-slice is ever discarded (no double-billing).
+                    return this.classifyHttpFailure(response);
                 }
 
                 const data = response.json;
                 if (!data.data || !Array.isArray(data.data)) {
-                    return { success: false, error: 'Invalid response format' };
+                    return { success: false, error: 'Invalid response format', reason: 'error' };
                 }
 
                 // Validate coverage: every slice position must be filled by exactly
@@ -196,23 +254,23 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
                 for (const item of data.data) {
                     const idx: number = (item as { index: number }).index;
                     if (!Number.isInteger(idx) || idx < 0 || idx >= slice.length) {
-                        return { success: false, error: `Batch embedding index out of range (expected 0..${slice.length - 1})` };
+                        return { success: false, error: `Batch embedding index out of range (expected 0..${slice.length - 1})`, reason: "error" };
                     }
                     if (covered[idx]) {
-                        return { success: false, error: 'Batch embedding returned a duplicate index' };
+                        return { success: false, error: 'Batch embedding returned a duplicate index', reason: 'error' };
                     }
                     covered[idx] = true;
 
                     const embedding: number[] = (item as { embedding: number[] }).embedding;
                     if (embedding.length !== this.dimensions) {
                         logger.warn('Search', `Batch embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length} (model ${this.model})`);
-                        return { success: false, error: `Embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length}` };
+                        return { success: false, error: `Embedding dimension mismatch: expected ${this.dimensions}, got ${embedding.length}`, reason: "error" };
                     }
                     result[slice[idx].originalIndex] = embedding;
                 }
 
                 if (covered.some((c) => !c)) {
-                    return { success: false, error: 'Batch embedding response missing one or more inputs' };
+                    return { success: false, error: 'Batch embedding response missing one or more inputs', reason: 'error' };
                 }
 
                 if (data.usage?.total_tokens) {
@@ -228,7 +286,7 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error('Search', 'OpenAI batch embedding error:', errorMessage);
-            return { success: false, error: errorMessage };
+            return { success: false, error: errorMessage, reason: 'error' };
         }
     }
 

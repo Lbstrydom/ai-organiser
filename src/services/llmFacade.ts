@@ -66,7 +66,8 @@ export async function summarizeTextStream(
     context: LLMFacadeContext,
     prompt: string,
     onChunk: (chunk: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    options?: SummarizeOptions
 ): Promise<LLMCallResult> {
     const service = context.llmService;
 
@@ -83,7 +84,7 @@ export async function summarizeTextStream(
     // Check if streaming is supported at runtime
     if ('summarizeTextStream' in service && typeof service.summarizeTextStream === 'function') {
         try {
-            return await service.summarizeTextStream(prompt, wrappedOnChunk, signal);
+            return await service.summarizeTextStream(prompt, wrappedOnChunk, signal, options);
         } catch (e) {
             // If aborted, propagate — do NOT fall back to a non-stream request
             if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
@@ -106,7 +107,9 @@ export async function summarizeTextStream(
     // Gemini-gate G1 (2026-04-20): pass the abort signal down so Cancel
     // works on the fallback path — without this, a stream-failed service
     // becomes unabortable and the Cancel button spins silently.
-    const result = await summarizeText(context, prompt, { signal });
+    // Gemini-R5-G3: MERGE options so a rate-limited fallback keeps its
+    // retry-status callback + label.
+    const result = await summarizeText(context, prompt, { ...options, signal });
     if (result.success && result.content) {
         onChunk(result.content);
     }

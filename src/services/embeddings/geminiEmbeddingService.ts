@@ -43,6 +43,11 @@ export class GeminiEmbeddingService implements IEmbeddingService {
         this.dimensions = GEMINI_DIMENSIONS[this.model] || GEMINI_DIMENSIONS['default'];
     }
 
+    /** Max chunks per single network request (D4.4 — queue dequeue size). */
+    get maxBatchSize(): number {
+        return 1;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {

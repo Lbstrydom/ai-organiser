@@ -27,7 +27,7 @@ describe('summarizeTextStream facade', () => {
         const chunks: string[] = [];
         const result = await summarizeTextStream(makeContext(service), 'prompt', (c) => chunks.push(c));
 
-        expect(service.summarizeTextStream).toHaveBeenCalledWith('prompt', expect.any(Function), undefined);
+        expect(service.summarizeTextStream).toHaveBeenCalledWith('prompt', expect.any(Function), undefined, undefined);
         expect(result).toEqual({ success: true, content: 'streamed' });
     });
 
@@ -40,7 +40,7 @@ describe('summarizeTextStream facade', () => {
 
         await summarizeTextStream(makeContext(service), 'prompt', () => {}, controller.signal);
 
-        expect(service.summarizeTextStream).toHaveBeenCalledWith('prompt', expect.any(Function), controller.signal);
+        expect(service.summarizeTextStream).toHaveBeenCalledWith('prompt', expect.any(Function), controller.signal, undefined);
     });
 
     it('falls back to summarizeText when service lacks summarizeTextStream', async () => {

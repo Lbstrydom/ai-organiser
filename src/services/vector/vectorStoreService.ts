@@ -10,6 +10,7 @@ import { SimpleVectorStore } from './simpleVectorStore';
 import { AIOrganiserSettings, getPluginManagedFolders } from '../../core/settings';
 import { createContentHash } from './hashUtils';
 import type { IEmbeddingService } from '../embeddings/types';
+import type { EmbeddingQueue, ChunkTask } from './embeddingQueue';
 import { getTranslations } from '../../i18n';
 import { logger } from '../../utils/logger';
 import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
@@ -126,15 +127,21 @@ export class VectorStoreService {
     private pendingRenames: Array<{ oldPath: string; newPath: string }> = [];
     private renameTimer: ReturnType<typeof setTimeout> | null = null;
     private hasWarnedIndexVersion = false;
+    /** Plugin-scoped serializer (D4.4). When present, all embedding work routes
+     *  through it (cap-1 + cooldown + foreground-gated). Optional for legacy
+     *  callers / tests, which fall back to direct embedding. */
+    private embeddingQueue: EmbeddingQueue | null;
 
     constructor(
         app: App,
         settings: AIOrganiserSettings,
-        embeddingService: IEmbeddingService | null
+        embeddingService: IEmbeddingService | null,
+        embeddingQueue: EmbeddingQueue | null = null
     ) {
         this.app = app;
         this.settings = settings;
         this.embeddingService = embeddingService;
+        this.embeddingQueue = embeddingQueue;
     }
 
     /**
@@ -234,6 +241,17 @@ export class VectorStoreService {
      * Index a single note (file)
      */
     public async indexNote(file: TFile): Promise<boolean> {
+        // File-event path: fire-and-forget (the queue drains in the background).
+        return this.indexNoteInternal(file, false);
+    }
+
+    /**
+     * Shared index implementation. `awaitCompletion=true` (rebuild/indexAllNotes)
+     * resolves only after the queue finishes draining THIS note's batch, so the
+     * UI can truthfully report "rebuild complete" (D4.4 / R3-H2). `false`
+     * (file events) returns as soon as the work is enqueued.
+     */
+    private async indexNoteInternal(file: TFile, awaitCompletion: boolean): Promise<boolean> {
         try {
             if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
                 return false;
@@ -303,6 +321,40 @@ export class VectorStoreService {
                 });
             }
 
+            // Persistence step (shared by the queue path and the direct
+            // fallback): assign embeddings, swap old docs for new, update the
+            // note hash + cache. Runs only AFTER a successful embed so a failed
+            // embed never marks the note up-to-date.
+            const persist = async (embeddings: number[][]): Promise<void> => {
+                if (!this.vectorStore) return;
+                for (let i = 0; i < documents.length; i++) {
+                    documents[i].embedding = embeddings[i] || [];
+                }
+                const oldDocs = await this.vectorStore.getDocumentsByFile(file.path);
+                if (oldDocs.length > 0) {
+                    await this.vectorStore.remove(oldDocs.map(d => d.id));
+                }
+                if (documents.length > 0) {
+                    await this.vectorStore.upsert(documents);
+                    changeTracker?.updateHash(file.path, contentHash);
+                    this.searchCache.invalidateForFile(file.path);
+                }
+            };
+
+            // Queue path (D4.4): split into chunk tasks and enqueue. One note =
+            // one batch; the queue serializes + cooldown/foreground-gates it.
+            if (this.embeddingQueue) {
+                const tasks: ChunkTask[] = documents.map((doc, i) => ({
+                    path: file.path,
+                    chunkIndex: i,
+                    text: metadataPrefix + doc.content,
+                }));
+                const completion = this.embeddingQueue.enqueue(tasks, persist);
+                if (awaitCompletion) await completion;
+                return true;
+            }
+
+            // Direct fallback (no queue — legacy callers / tests).
             const embeddingResult = await this.embeddingService.batchGenerateEmbeddings(
                 documents.map(doc => metadataPrefix + doc.content)
             );
@@ -316,24 +368,7 @@ export class VectorStoreService {
                 logger.warn('Search', `Embedding count mismatch for note ${file.path}`);
             }
 
-            for (let i = 0; i < documents.length; i++) {
-                documents[i].embedding = embeddingResult.embeddings[i] || [];
-            }
-
-            // Remove old documents and upsert new ones
-            const oldDocs = await this.vectorStore.getDocumentsByFile(file.path);
-            if (oldDocs.length > 0) {
-                await this.vectorStore.remove(oldDocs.map(d => d.id));
-            }
-
-            if (documents.length > 0) {
-                await this.vectorStore.upsert(documents);
-                changeTracker?.updateHash(file.path, contentHash);
-                // Invalidate search cache when content changes
-                this.searchCache.invalidateForFile(file.path);
-                return true;
-            }
-
+            await persist(embeddingResult.embeddings);
             return true;
         } catch (error) {
             logger.error('Search', `Error indexing note ${file.path}`, error);
@@ -350,7 +385,9 @@ export class VectorStoreService {
         let indexed = 0, failed = 0;
         for (const file of files) {
             if (excludedFolders.some((folder: string) => file.path.startsWith(folder))) continue;
-            const success = await this.indexNote(file);
+            // Await the queue's per-batch completion (R3-H2) so a rebuild only
+            // reports done once every note has actually drained.
+            const success = await this.indexNoteInternal(file, true);
             if (success) indexed++; else failed++;
         }
         return { indexed, failed };
@@ -411,6 +448,9 @@ export class VectorStoreService {
      * Remove note from index
      */
     public async removeNote(file: TFile): Promise<void> {
+        // Drop any in-flight queued chunks for this path (R2-M1) so a deleted
+        // note isn't embedded + re-persisted after removal.
+        this.embeddingQueue?.removePath(file.path);
         if (this.vectorStore) {
             await this.ensureIndexLoaded();
             await this.vectorStore.removeFile(file.path);
@@ -428,6 +468,8 @@ export class VectorStoreService {
         await this.ensureIndexLoaded();
 
         if (this.embeddingService) {
+            // Cancel any queued chunks under the OLD path (R2-M1) before re-indexing.
+            this.embeddingQueue?.removePath(oldPath);
             await this.vectorStore.removeFile(oldPath);
             const file = this.app.vault.getFileByPath(newPath);
             if (file instanceof TFile) {
@@ -582,6 +624,9 @@ export class VectorStoreService {
      * Cleanup and dispose resources
      */
     public async dispose(): Promise<void> {
+        // NOTE: the embeddingQueue is a plugin-scoped singleton (D4.4) — it is
+        // disposed ONLY from the plugin's onunload, never here (this dispose
+        // runs on settings re-init and would permanently kill the queue).
         this.unregisterFileEventHandlers();
         this.searchCache.clear();
         this.isIndexing = false;

@@ -1132,7 +1132,8 @@ async function callSummarizeService(
         // Raw prompt (already built upstream — e.g. synthesis prompt): skip
         // quality-threshold auto-chunking. Caller controls prompt size.
         if (isRawPrompt) {
-            const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), content));
+            // D3: hold the foreground gate so background indexing yields.
+            const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), content)));
             return response.success ? response.content || null : null;
         }
 
@@ -1163,7 +1164,7 @@ async function callSummarizeService(
         const prompt = buildSummaryPrompt(promptOptions);
         const finalPrompt = insertContentIntoPrompt(prompt, content);
 
-        const response = await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt));
+        const response = await plugin.withForeground(() => withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), finalPrompt)));
         return response.success ? response.content || null : null;
     } catch (e) {
         logger.error('Summary', 'Failed to summarize content:', e);
@@ -2818,7 +2819,8 @@ async function summarizeTextWithLLM(
             }
         }
 
-        const response = await summarizeText(pluginContext(plugin), finalPrompt);
+        // D3: hold the foreground gate so background indexing yields.
+        const response = await plugin.withForeground(() => summarizeText(pluginContext(plugin), finalPrompt));
 
         // Append sources if RAG was used
         if (useRAG && ragSources.length > 0 && response.success && response.content) {

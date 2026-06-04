@@ -38,6 +38,9 @@ import { getAzureApiKey, resolveEndpoint } from './services/apiKeyHelpers';
 import { isAzureMode } from './services/azure/endpointResolver';
 import { ProviderProfile, resolveProviderProfile } from './services/providerProfile';
 import { NullLLMService } from './services/llm/nullLLMService';
+import { ForegroundGate } from './services/foregroundGate';
+import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
+import { EmbeddingQueue } from './services/vector/embeddingQueue';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -71,6 +74,13 @@ export default class AIOrganiserPlugin extends Plugin {
     private azureMisconfigNoticeShown = false;
     /** Monotonic init epoch — overlapping initializeLLMService calls: latest wins (H5). */
     private llmInitEpoch = 0;
+    /** Long-lived coordination SSOTs (D0/D3/D4) — constructed once, live for the
+     *  plugin lifetime. NEVER reconstructed in initializeLLMService. */
+    public readonly foregroundGate = new ForegroundGate();
+    public readonly embeddingCooldown = new EmbeddingCooldown();
+    public embeddingQueue: EmbeddingQueue | null = null;
+    /** Logical user-facing LLM call count (D5), bumped via CloudLLMService.onCall. */
+    public llmCallCounter = 0;
     public configService: ConfigurationService;
     public secretStorageService: SecretStorageService;
     public basesService: BasesService;
@@ -246,7 +256,7 @@ export default class AIOrganiserPlugin extends Plugin {
         if (this.settings.enableSemanticSearch) {
             // Resolve API key from SecretStorage with inheritance chain
             const apiKey = await this.resolveEmbeddingApiKey();
-            this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined);
+            this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined, this.embeddingCooldown);
 
             // Update vector store service with new embedding service
             if (this.vectorStoreService) {
@@ -481,11 +491,23 @@ export default class AIOrganiserPlugin extends Plugin {
 
         this.llmService.setDebugMode(this.settings.debugMode);
         this.llmService.setSummarizeTimeout(this.settings.summarizeTimeoutSeconds);
+        // D5: wire the logical-call counter. Only CloudLLMService emits onCall.
+        if (this.llmService instanceof CloudLLMService) {
+            this.llmService.setOnCall(() => { this.llmCallCounter++; });
+        }
         setGlobalDebugMode(this.settings.debugMode);
         logger.setDebugMode(this.settings.debugMode);
 
         // Notify subscribers (badge) that the profile may have changed.
         this.fireProfileChange();
+    }
+
+    /**
+     * Run a user-initiated LLM op while the foreground gate is held (D3) so
+     * background indexing yields. Leak-safe (the gate releases in finally).
+     */
+    public withForeground<T>(fn: () => Promise<T>): Promise<T> {
+        return this.foregroundGate.withForeground(fn);
     }
 
     /**
@@ -559,18 +581,28 @@ export default class AIOrganiserPlugin extends Plugin {
             this.updateNotebookLMStatus();
         }
 
+        // Construct the plugin-scoped embedding queue ONCE (D0/D4.4) — it reaches
+        // the CURRENT embedding service indirectly so a settings swap never leaves
+        // it holding a stale instance. Disposed only in onunload.
+        this.embeddingQueue = new EmbeddingQueue({
+            getEmbeddingService: () => this.embeddingService,
+            foregroundGate: this.foregroundGate,
+            cooldown: this.embeddingCooldown,
+        });
+
         // Initialize vector store for semantic search
         if (this.settings.enableSemanticSearch) {
             try {
                 // Resolve API key from SecretStorage with inheritance chain
                 const embeddingApiKey = await this.resolveEmbeddingApiKey();
-                this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, embeddingApiKey || undefined);
+                this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, embeddingApiKey || undefined, this.embeddingCooldown);
 
                 // Create vector store service
                 this.vectorStoreService = new VectorStoreService(
                     this.app,
                     this.settings,
-                    this.embeddingService
+                    this.embeddingService,
+                    this.embeddingQueue
                 );
                 this.vectorStore = await this.vectorStoreService.createVectorStore();
 
@@ -830,6 +862,9 @@ export default class AIOrganiserPlugin extends Plugin {
     public onunload(): void {
         this.stopNewsletterScheduler();
         this.narrationJobs.abortAll();
+        // D4.4: the queue is plugin-scoped — disposed only here (symmetric with onload).
+        this.embeddingQueue?.dispose();
+        this.embeddingQueue = null;
         void this.llmService?.dispose();
         void this.embeddingService?.dispose();
         if (this.vectorStoreService) {

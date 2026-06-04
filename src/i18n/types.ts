@@ -3178,6 +3178,7 @@ export interface Translations {
         badgePersonal: string;              // template: "Personal {provider}"
         badgeLocal: string;                 // "Local"
         badgeInvalid: string;               // "Azure not configured"
+        badgeNotConfigured: string;         // template: "{provider} not configured" (personal/local)
         badgeTooltip: string;               // template: "Endpoint: {host}"
         badgeTooltipInvalid: string;        // "Configure Azure in settings"
         statusRateLimited: string;          // template: "Rate limited — retrying in {seconds}s…"

@@ -3274,6 +3274,7 @@ export const en: Translations = {
         badgePersonal: "Personal {provider}",
         badgeLocal: "Local",
         badgeInvalid: "Azure not configured",
+        badgeNotConfigured: "{provider} not configured",
         badgeTooltip: "Endpoint: {host}",
         badgeTooltipInvalid: "Configure Azure in settings",
         statusRateLimited: "Rate limited — retrying in {seconds}s…",

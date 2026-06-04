@@ -74,7 +74,7 @@ function makeSettings(extra: Record<string, unknown> = {}) {
 function makeCtx(settings = makeSettings()) {
     const llmService = { summarizeText: vi.fn() };
     const plugin = { t: en, settings, llmService };
-    const fullPlugin = { t: en, settings, llmService };
+    const fullPlugin = { t: en, settings, llmService, withForeground: (fn: () => unknown) => fn() };
     return { app: new App(), plugin, fullPlugin, options: {} } as never;
 }
 

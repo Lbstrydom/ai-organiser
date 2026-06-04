@@ -4,6 +4,16 @@
  */
 
 /**
+ * Structured failure reason on embedding results (D4.2).
+ * - `cooldown`  — short-circuited (no network) because a prior 429 set a cooldown window.
+ * - `rate-limit` — a real 429 from the provider this call.
+ * - `error`     — any other failure (network/parse/dimension/etc.).
+ * Only network providers ever set `cooldown`/`rate-limit`. The queue maps
+ * `{cooldown, rate-limit} → re-enqueue` (transient) and `error → drop+log`.
+ */
+export type EmbeddingFailureReason = 'cooldown' | 'rate-limit' | 'error';
+
+/**
  * Result from generating a single embedding
  */
 export interface EmbeddingResult {
@@ -11,6 +21,8 @@ export interface EmbeddingResult {
     embedding?: number[];
     tokenCount?: number;
     error?: string;
+    /** Set on failure to classify retry semantics (D4.2). */
+    reason?: EmbeddingFailureReason;
 }
 
 /**
@@ -21,6 +33,8 @@ export interface BatchEmbeddingResult {
     embeddings?: number[][];
     totalTokens?: number;
     error?: string;
+    /** Set on failure to classify retry semantics (D4.2). */
+    reason?: EmbeddingFailureReason;
 }
 
 /**
@@ -38,6 +52,14 @@ export interface EmbeddingModelInfo {
  * All embedding providers must implement this interface
  */
 export interface IEmbeddingService {
+    /**
+     * Max chunks per single network request (D4.4). The embedding queue
+     * dequeues exactly this many chunks per drain iteration so one iteration =
+     * exactly one provider request — a partial failure can never re-embed
+     * already-completed chunks (no double-billing).
+     */
+    readonly maxBatchSize: number;
+
     /**
      * Generate embedding for a single text
      */
@@ -88,6 +110,8 @@ export interface EmbeddingServiceConfig {
      * an Azure endpoint + 'api-key' auth.
      */
     authHeaderType?: 'bearer' | 'api-key' | 'azure';
+    /** Shared cooldown circuit breaker (D4.2), injected for network providers. */
+    cooldown?: import('./embeddingCooldown').EmbeddingCooldown;
 }
 
 /**

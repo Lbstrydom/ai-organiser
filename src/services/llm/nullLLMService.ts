@@ -44,6 +44,7 @@ export class NullLLMService implements MultimodalLLMService {
         _prompt: string,
         _onChunk: (chunk: string) => void,
         _signal?: AbortSignal,
+        _options?: SummarizeOptions,
     ): Promise<{ success: boolean; content?: string; error?: string }> {
         return Promise.resolve(this.fail());
     }

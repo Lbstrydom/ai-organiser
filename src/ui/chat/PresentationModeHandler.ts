@@ -1204,6 +1204,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async handleBrandAudit(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (!this.deck.html || !this.brandEnabled || this.run.isLocked()) return;
+        const deckHtml = this.deck.html; // guarded non-null above
         // Abort any prior in-flight op BEFORE begin() mints the new controller,
         // so the cancel can't abort our own fresh signal.
         this.cancelActiveOperation();
@@ -1211,11 +1212,13 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.setPhase('auditing');
         callbacks.rerenderActions();
 
+        // D3: hold the foreground gate so background indexing yields during the build.
+        await ctx.fullPlugin.withForeground(async () => {
         try {
             const llmCtx = this.getLLMContext(ctx);
             const theme = await this.getTheme(ctx);
 
-            const result = await runBrandAudit(llmCtx, this.deck.html, theme, abort.signal);
+            const result = await runBrandAudit(llmCtx, deckHtml, theme, abort.signal);
             if (abort.signal.aborted) return;
 
             if (result.ok && result.value.violations.length > 0) {
@@ -1245,6 +1248,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
+        });
     }
 
     private async runAudit(llmCtx: LLMFacadeContext, theme: BrandTheme, signal: AbortSignal): Promise<void> {
@@ -1323,6 +1327,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.setPhase('refining');
         callbacks.rerenderActions();
 
+        // D3: hold the foreground gate so background indexing yields during the build.
+        await ctx.fullPlugin.withForeground(async () => {
         try {
             const llmCtx = this.getLLMContext(ctx);
             const theme = await this.getTheme(ctx);
@@ -1358,6 +1364,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
+        });
     }
 
     /** Open the per-slide polish selector for a multi-slide IR deck. The modal

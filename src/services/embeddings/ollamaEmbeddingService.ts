@@ -36,6 +36,11 @@ export class OllamaEmbeddingService implements IEmbeddingService {
         this.dimensions = getEmbeddingDimensions(this.model);
     }
 
+    /** Max chunks per single network request (D4.4 — queue dequeue size). */
+    get maxBatchSize(): number {
+        return 5;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {

@@ -48,6 +48,11 @@ export class VoyageEmbeddingService implements IEmbeddingService {
         this.dimensions = VOYAGE_DIMENSIONS[this.model] || VOYAGE_DIMENSIONS['default'];
     }
 
+    /** Max chunks per single network request (D4.4 — queue dequeue size). */
+    get maxBatchSize(): number {
+        return 128;
+    }
+
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
         try {
             if (!text.trim()) {

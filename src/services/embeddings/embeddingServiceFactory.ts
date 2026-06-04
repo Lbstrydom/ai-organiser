@@ -5,6 +5,7 @@
 
 import { AIOrganiserSettings } from '../../core/settings';
 import { IEmbeddingService, EmbeddingServiceConfig } from './types';
+import type { EmbeddingCooldown } from './embeddingCooldown';
 import { logger } from '../../utils/logger';
 import { EMBEDDING_DEFAULT_MODEL, EMBEDDING_MODELS, EmbeddingProvider } from './embeddingRegistry';
 import { OpenAIEmbeddingService } from './openaiEmbeddingService';
@@ -30,7 +31,8 @@ export async function createEmbeddingService(config: EmbeddingServiceConfig): Pr
                 apiKey: config.apiKey,
                 model: config.model,
                 endpoint: config.endpoint,
-                authHeaderType: config.authHeaderType
+                authHeaderType: config.authHeaderType,
+                cooldown: config.cooldown
             });
 
         case 'ollama':
@@ -74,7 +76,8 @@ export async function createEmbeddingService(config: EmbeddingServiceConfig): Pr
             return new OpenAIEmbeddingService({
                 apiKey: config.apiKey,
                 model: config.model || 'openai/text-embedding-3-small',
-                endpoint: 'https://openrouter.ai/api/v1/embeddings'
+                endpoint: 'https://openrouter.ai/api/v1/embeddings',
+                cooldown: config.cooldown
             });
 
         case 'local-onnx': {
@@ -93,10 +96,12 @@ export async function createEmbeddingService(config: EmbeddingServiceConfig): Pr
  *
  * @param settings - Plugin settings
  * @param apiKeyOverride - Optional API key from SecretStorage (takes precedence over settings)
+ * @param cooldown - Optional shared cooldown circuit breaker (D4.2), injected into network providers
  */
 export async function createEmbeddingServiceFromSettings(
     settings: AIOrganiserSettings,
-    apiKeyOverride?: string
+    apiKeyOverride?: string,
+    cooldown?: EmbeddingCooldown
 ): Promise<IEmbeddingService | null> {
     if (!settings.enableSemanticSearch) {
         return null;
@@ -147,7 +152,8 @@ export async function createEmbeddingServiceFromSettings(
                 model: settings.embeddingModel,
                 apiKey: azureKey,
                 endpoint: azureEndpoint,
-                authHeaderType: 'api-key'
+                authHeaderType: 'api-key',
+                cooldown
             });
         }
 
@@ -164,7 +170,8 @@ export async function createEmbeddingServiceFromSettings(
             provider,
             model: settings.embeddingModel,
             apiKey,
-            endpoint
+            endpoint,
+            cooldown
         });
     } catch (error) {
         logger.error('Search', 'Failed to create embedding service:', error);

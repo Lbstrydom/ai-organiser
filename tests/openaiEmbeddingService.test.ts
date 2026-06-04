@@ -181,3 +181,60 @@ describe('OpenAIEmbeddingService.generateEmbedding dimension validation', () => 
 		expect(result.embedding!.length).toBe(SMALL_DIMS);
 	});
 });
+
+import { EmbeddingCooldown } from '../src/services/embeddings/embeddingCooldown';
+
+describe('OpenAIEmbeddingService — cooldown + Retry-After + maxBatchSize (D4.2/D4.4)', () => {
+	beforeEach(() => requestUrlMock.mockReset());
+
+	it('maxBatchSize is 100 for OpenAI-direct, 16 for Azure (api-key auth)', () => {
+		expect(new OpenAIEmbeddingService({ apiKey: 'k' }).maxBatchSize).toBe(100);
+		expect(new OpenAIEmbeddingService({ apiKey: 'k', authHeaderType: 'api-key' }).maxBatchSize).toBe(16);
+	});
+
+	it('short-circuits batch with reason:cooldown while cooling — no network', async () => {
+		let now = 1000;
+		const cooldown = new EmbeddingCooldown(() => now);
+		cooldown.note429('5'); // window = 5s
+		const svc = new OpenAIEmbeddingService({ apiKey: 'k', cooldown });
+		const r = await svc.batchGenerateEmbeddings(['a', 'b']);
+		expect(r.success).toBe(false);
+		expect(r.reason).toBe('cooldown');
+		expect(requestUrlMock).not.toHaveBeenCalled();
+	});
+
+	it('short-circuits single generateEmbedding while cooling (query-time, Gemini-R6-G2)', async () => {
+		const cooldown = new EmbeddingCooldown(() => 0);
+		cooldown.note429('5');
+		const svc = new OpenAIEmbeddingService({ apiKey: 'k', cooldown });
+		const r = await svc.generateEmbedding('a');
+		expect(r.success).toBe(false);
+		expect(r.reason).toBe('cooldown');
+		expect(requestUrlMock).not.toHaveBeenCalled();
+	});
+
+	it('a 429 sets the cooldown from Retry-After and returns reason:rate-limit (throw:false)', async () => {
+		let now = 0;
+		const cooldown = new EmbeddingCooldown(() => now);
+		requestUrlMock.mockResolvedValueOnce({ status: 429, headers: { 'retry-after': '7' }, json: {} });
+		const svc = new OpenAIEmbeddingService({ apiKey: 'k', cooldown });
+		const r = await svc.batchGenerateEmbeddings(['a']);
+		expect(r.success).toBe(false);
+		expect(r.reason).toBe('rate-limit');
+		// throw:false was passed so the 429 reached the status check.
+		expect(requestUrlMock.mock.calls[0][0].throw).toBe(false);
+		// Retry-After 7s drove the window.
+		expect(cooldown.isCoolingDown()).toBe(true);
+		expect(cooldown.remainingMs()).toBe(7000);
+	});
+
+	it('a non-429 error returns reason:error (no cooldown set)', async () => {
+		const cooldown = new EmbeddingCooldown(() => 0);
+		requestUrlMock.mockResolvedValueOnce({ status: 500, headers: {}, json: { error: { message: 'boom' } } });
+		const svc = new OpenAIEmbeddingService({ apiKey: 'k', cooldown });
+		const r = await svc.batchGenerateEmbeddings(['a']);
+		expect(r.success).toBe(false);
+		expect(r.reason).toBe('error');
+		expect(cooldown.isCoolingDown()).toBe(false);
+	});
+});

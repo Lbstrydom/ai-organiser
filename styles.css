@@ -2304,6 +2304,37 @@
     cursor: not-allowed;
 }
 
+/* Provider trust badge (LLM gateway-lite UX §3) */
+.ai-organiser-provider-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-s);
+    font-size: var(--font-ui-smaller);
+    white-space: nowrap;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    color: var(--text-muted);
+}
+.ai-organiser-provider-badge.is-azure {
+    color: var(--text-normal);
+    background: color-mix(in srgb, var(--color-blue) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-blue) 30%, transparent);
+}
+.ai-organiser-provider-badge.is-personal {
+    color: var(--text-normal);
+    background: color-mix(in srgb, var(--color-green) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-green) 30%, transparent);
+}
+.ai-organiser-provider-badge.is-local {
+    color: var(--text-normal);
+    background: var(--background-secondary);
+}
+.ai-organiser-provider-badge.is-invalid {
+    color: var(--text-normal);
+    background: color-mix(in srgb, var(--color-orange) 15%, transparent);
+    border-color: color-mix(in srgb, var(--color-orange) 40%, transparent);
+}
+
 .ai-organiser-chat-context {
     padding: var(--size-4-2);
     border-radius: var(--radius-m);

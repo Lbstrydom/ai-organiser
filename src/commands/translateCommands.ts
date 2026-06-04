@@ -262,7 +262,9 @@ async function translateWithLLM(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    return await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
+    // D3: hold the foreground gate so background indexing yields during translation.
+    return await plugin.withForeground(() =>
+        withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt)));
 }
 
 // ─── Multi-Source Translation ───────────────────────────────────────

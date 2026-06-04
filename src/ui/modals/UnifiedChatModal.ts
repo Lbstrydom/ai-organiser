@@ -1,6 +1,7 @@
 import { App, ButtonComponent, Component, Editor, MarkdownRenderer, Modal, Notice, TFile, TextAreaComponent, setIcon } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { enableAutoExpand } from '../../utils/uiUtils';
+import { renderProviderBadge } from '../components/providerBadge';
 import { ensureNoteStructureIfEnabled } from '../../utils/noteStructure';
 import { formatConversationHistory, formatExportMarkdown } from '../../utils/chatExportUtils';
 import { getChatExportFullPath, resolveOutputPath } from '../../core/settings';
@@ -132,6 +133,8 @@ export class UnifiedChatModal extends Modal {
     private presentationHandler?: PresentationModeHandler;
     /** User-defined conversation title — overrides auto-derived first-message title. */
     private customTitle?: string;
+    /** Unsubscribe from provider-profile changes (badge re-render, R2-M4). */
+    private profileChangeUnsub?: () => void;
 
     constructor(app: App, plugin: ChatPluginContext, options: UnifiedChatOptions) {
         super(app);
@@ -255,9 +258,16 @@ export class UnifiedChatModal extends Modal {
         this.ensureIntroMessage(initialMode);
         this.renderShell();
         this.renderAll();
+
+        // Re-render the mode-bar (incl. the trust badge) when the provider
+        // profile changes while the modal is open (R2-M4).
+        const fullPlugin = this.plugin as unknown as import('../../main').default;
+        this.profileChangeUnsub = fullPlugin.onProfileChange(() => this.renderModeBar());
     }
 
     onClose(): void {
+        this.profileChangeUnsub?.();
+        this.profileChangeUnsub = undefined;
         if (this.plugin.settings.enableChatPersistence && this.persistenceService) {
             void this.persistenceService.saveNow(this.buildConversationState());
         }
@@ -389,6 +399,10 @@ export class UnifiedChatModal extends Modal {
         });
         setIcon(searchBtn, 'search');
         searchBtn.addEventListener('click', () => this.openChatSearch());
+
+        // Provider trust badge (UX §3) — derived from the resolved profile.
+        const fullPlugin = this.plugin as unknown as import('../../main').default;
+        renderProviderBadge(this.modeBarEl, fullPlugin.providerProfile, this.plugin.t);
     }
 
     private openChatSearch(): void {
@@ -870,6 +884,10 @@ export class UnifiedChatModal extends Modal {
             history = formatConversationHistory(this.getActiveHistory());
         }
 
+        // D3: hold the foreground gate for the whole send so background indexing
+        // yields while the user's LLM op is in flight (covers all text modes).
+        const fullPlugin = this.plugin as unknown as import('../../main').default;
+        await fullPlugin.withForeground(async () => {
         try {
             const result = await this.getActiveHandler().buildPrompt(query, history, this.ctx);
 
@@ -962,6 +980,7 @@ export class UnifiedChatModal extends Modal {
                 this.renderContextPanel();
             }
         }
+        });
     }
 
     private async handleStreamingResult(

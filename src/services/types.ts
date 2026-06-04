@@ -121,17 +121,26 @@ export interface SummarizeOptions {
      * content via `stablePrefix` — never embed the prefix inside `prompt`.
      */
     stablePrefix?: string;
+    /** Logical call label for per-call attribution (D5). Default `'chat'`. */
+    label?: string;
+    /**
+     * Foreground 429 surfacing (D6). Called with the seconds the service is
+     * about to back off so the UI can show "Rate limited — retrying in {n}s…".
+     */
+    onRetryStatus?: (seconds: number) => void;
 }
 
 export interface SummarizableLLMService extends LLMService {
     summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }>;
 
     /** Optional streaming synthesis. Implementations that don't support streaming
-     *  should NOT implement this method — the facade handles fallback. */
+     *  should NOT implement this method — the facade handles fallback.
+     *  The trailing `options` threads label + onRetryStatus (D5/D6). */
     summarizeTextStream?(
         prompt: string,
         onChunk: (chunk: string) => void,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        options?: SummarizeOptions
     ): Promise<{ success: boolean; content?: string; error?: string }>;
 }
 

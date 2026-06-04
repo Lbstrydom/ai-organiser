@@ -26,7 +26,7 @@ vi.mock('../src/utils/busyIndicator', () => ({
 import { translateTitleSafely, TitleTranslationResult } from '../src/commands/translateCommands';
 
 function makePlugin() {
-    return { settings: {}, app: {} } as never;
+    return { settings: {}, app: {}, withForeground: (fn: () => unknown) => fn() } as never;
 }
 
 describe('translateTitleSafely', () => {
