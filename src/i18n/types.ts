@@ -199,14 +199,14 @@ export interface Translations {
             outputLanguage: string;
             outputLanguageDesc: string;
             // Command picker — Essentials customisation (added 2026-05-02)
-            essentialsTitle: string;
-            essentialsDesc: string;
-            essentialsAddButton: string;
-            essentialsRemoveAria: string;
-            essentialsLimitNotice: string;
-            essentialsResetButton: string;
-            essentialsPickerPlaceholder: string;
-            essentialsEmpty: string;
+            pinnedTitle: string;
+            pinnedDesc: string;
+            pinnedAddButton: string;
+            pinnedRemoveAria: string;
+            pinnedLimitNotice: string;
+            pinnedResetButton: string;
+            pinnedPickerPlaceholder: string;
+            pinnedEmpty: string;
         };
         summarization: {
             title: string;

@@ -206,14 +206,14 @@ export const en: Translations = {
             languageDesc: "Plugin interface language",
             outputLanguage: "AI output",
             outputLanguageDesc: "Language for AI-generated content",
-            essentialsTitle: "Quick commands",
-            essentialsDesc: "Pin up to 5 commands to the top of the picker. Empty list keeps the default picks.",
-            essentialsAddButton: "+ add command",
-            essentialsRemoveAria: "Remove from essentials",
-            essentialsLimitNotice: "Maximum 5 essentials",
-            essentialsResetButton: "Reset to defaults",
-            essentialsPickerPlaceholder: "Search commands to pin...",
-            essentialsEmpty: "Using default pinned commands (chat / search / quick peek)."
+            pinnedTitle: "Quick commands",
+            pinnedDesc: "Pin up to 5 commands to the top of the picker. Empty list keeps the default picks.",
+            pinnedAddButton: "+ add command",
+            pinnedRemoveAria: "Remove from essentials",
+            pinnedLimitNotice: "Maximum 5 essentials",
+            pinnedResetButton: "Reset to defaults",
+            pinnedPickerPlaceholder: "Search commands to pin...",
+            pinnedEmpty: "Using default pinned commands (chat / search / quick peek)."
         },
         summarization: {
             title: "Summarization",

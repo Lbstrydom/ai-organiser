@@ -104,11 +104,11 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
     private renderQuickCommandsSection(): void {
         const t = this.plugin.t.settings.interface;
-        this.createSectionHeader(t.essentialsTitle, 'star', 2);
+        this.createSectionHeader(t.pinnedTitle, 'star', 2);
 
         new Setting(this.containerEl)
-            .setName(t.essentialsTitle)
-            .setDesc(t.essentialsDesc);
+            .setName(t.pinnedTitle)
+            .setDesc(t.pinnedDesc);
 
         const listHost = this.containerEl.createDiv({ cls: 'ai-organiser-essentials-list' });
         this.renderEssentialsList(listHost);
@@ -126,7 +126,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
 
         // Render current pinned commands
         if (ids.length === 0) {
-            host.createDiv({ cls: 'ai-organiser-essentials-empty', text: t.essentialsEmpty });
+            host.createDiv({ cls: 'ai-organiser-essentials-empty', text: t.pinnedEmpty });
         } else {
             const rows = host.createDiv({ cls: 'ai-organiser-essentials-rows' });
             ids.forEach((id, idx) => {
@@ -137,7 +137,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
                 const removeBtn = row.createEl('button', {
                     cls: 'ai-organiser-essentials-row-remove',
                     text: '×',
-                    attr: { type: 'button', 'aria-label': t.essentialsRemoveAria },
+                    attr: { type: 'button', 'aria-label': t.pinnedRemoveAria },
                 });
                 removeBtn.addEventListener('click', () => {
                     const next = ids.filter((_, i) => i !== idx);
@@ -151,7 +151,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
         // Action row
         const actions = host.createDiv({ cls: 'ai-organiser-essentials-actions' });
         const addBtn = new ButtonComponent(actions);
-        addBtn.setButtonText(t.essentialsAddButton);
+        addBtn.setButtonText(t.pinnedAddButton);
         addBtn.onClick(() => {
             if (ids.length >= ESSENTIALS_MAX) return;
             const used = new Set(ids);
@@ -159,7 +159,7 @@ export class InterfaceSettingsSection extends BaseSettingSection {
             const modal = new EssentialsPickerModal(
                 this.plugin.app,
                 candidates,
-                t.essentialsPickerPlaceholder,
+                t.pinnedPickerPlaceholder,
                 (picked) => {
                     const next = [...ids, picked.id].slice(0, ESSENTIALS_MAX);
                     this.plugin.settings.pickerPinnedCommandIds = next;
@@ -171,12 +171,12 @@ export class InterfaceSettingsSection extends BaseSettingSection {
         });
         if (ids.length >= ESSENTIALS_MAX) {
             addBtn.setDisabled(true);
-            addBtn.setTooltip(t.essentialsLimitNotice);
+            addBtn.setTooltip(t.pinnedLimitNotice);
         }
 
         if (ids.length > 0) {
             new ButtonComponent(actions)
-                .setButtonText(t.essentialsResetButton)
+                .setButtonText(t.pinnedResetButton)
                 .onClick(() => {
                     this.plugin.settings.pickerPinnedCommandIds = [];
                     void this.plugin.saveSettings();
