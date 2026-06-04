@@ -188,6 +188,15 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
         }
     }
 
+    /**
+     * Embed a batch of texts. CONTRACT: handles arrays of ANY size — inputs
+     * beyond `maxBatchSize` are split into multiple sequential requests, never
+     * truncated — and the returned `embeddings` is ALWAYS exactly `texts.length`
+     * (empty/whitespace slots are zero-vectors), so callers always get a strict
+     * 1:1 mapping. The EmbeddingQueue additionally passes exactly `maxBatchSize`
+     * chunks so each call = one request, but bulk callers (the direct-fallback
+     * index path) legitimately pass larger arrays and rely on the split loop.
+     */
     async batchGenerateEmbeddings(texts: string[]): Promise<BatchEmbeddingResult> {
         try {
             // Cooldown short-circuit (D4.2): no network while cooling.
