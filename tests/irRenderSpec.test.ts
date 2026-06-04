@@ -21,15 +21,23 @@ describe('ptToPx / inToPx bridges', () => {
 });
 
 describe('IR_RENDER_SPEC.font — typography SSOT', () => {
-    it('exposes the fixed-role pt constants', () => {
+    it('exposes the fixed pt constants (title/chevron — no floor)', () => {
         expect(IR_RENDER_SPEC.font.heroTitlePt).toBe(40);
+        expect(IR_RENDER_SPEC.font.sectionTitlePt).toBe(34);
         expect(IR_RENDER_SPEC.font.heroSubtitlePt).toBe(18);
         expect(IR_RENDER_SPEC.font.slideTitlePt).toBe(24);
-        expect(IR_RENDER_SPEC.font.statLabelPt).toBe(11);
-        expect(IR_RENDER_SPEC.font.processStepPt).toBe(11);
+        expect(IR_RENDER_SPEC.font.placeholderTitlePt).toBe(16);
+        expect(IR_RENDER_SPEC.font.placeholderInlinePt).toBe(12);
         expect(IR_RENDER_SPEC.font.chevronPt).toBe(18);
-        expect(IR_RENDER_SPEC.font.barLabelPt).toBe(11);
-        expect(IR_RENDER_SPEC.font.barPctPt).toBe(10);
+    });
+    it('structural fonts apply the role floor (constant when non-brand)', () => {
+        expect(IR_RENDER_SPEC.font.statLabelPt(theme)).toBe(11);
+        expect(IR_RENDER_SPEC.font.processStepPt(theme)).toBe(11);
+        expect(IR_RENDER_SPEC.font.barLabelPt(theme)).toBe(11);
+        expect(IR_RENDER_SPEC.font.barPctPt(theme)).toBe(10);
+        // Brand floors clamp up: caption floor 14 > 11, footer floor 11 > 10.
+        expect(IR_RENDER_SPEC.font.statLabelPt(brand)).toBe(14);
+        expect(IR_RENDER_SPEC.font.barPctPt(brand)).toBe(11);
     });
     it('headingPt maps the zod-validated 1|2|3 levels exhaustively', () => {
         expect(IR_RENDER_SPEC.font.headingPt(1)).toBe(22);

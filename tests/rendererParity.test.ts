@@ -165,3 +165,55 @@ describe('parity #2 — accent motif is an underline, not a top bar', () => {
         expect(rects.some(r => Math.abs(r.w - CANVAS.w) < 0.01 && r.y === 0)).toBe(false);
     });
 });
+
+// ── Phase 2 (renderer-fidelity): typography + geometry SSOT parity ───────────
+// Both renderers derive every font/geometry value from IR_RENDER_SPEC, so a
+// drift is a failing assertion. HTML px == ptToPx/inToPx(spec) == PPTX value.
+import { ptToPx, inToPx } from '../src/services/presentationIr/irRenderSpec';
+
+function fontSizesOf(s: CapSlide): number[] {
+    return s.calls
+        .filter(c => c.method === 'addText')
+        .map(c => (c.args[1] as { fontSize?: number })?.fontSize)
+        .filter((n): n is number => typeof n === 'number');
+}
+
+describe('parity — typography SSOT (font sizes match across preview/export)', () => {
+    it('hero title: HTML px == ptToPx(heroTitlePt) and PPTX pt == heroTitlePt', async () => {
+        const d = deck([{ id: 's1', type: 'title', title: 'Hero', blocks: [] }]);
+        expect(html(d)).toContain(`font-size:${ptToPx(IR_RENDER_SPEC.font.heroTitlePt)}px`);
+        const [s] = await pptxSlides(d);
+        expect(fontSizesOf(s)).toContain(IR_RENDER_SPEC.font.heroTitlePt);
+    });
+    it('section title uses sectionTitlePt in both', async () => {
+        const d = deck([{ id: 's1', type: 'section', title: 'Sec', blocks: [] }]);
+        expect(html(d)).toContain(`font-size:${ptToPx(IR_RENDER_SPEC.font.sectionTitlePt)}px`);
+        const [s] = await pptxSlides(d);
+        expect(fontSizesOf(s)).toContain(IR_RENDER_SPEC.font.sectionTitlePt);
+    });
+    it('content title: HTML px == ptToPx(slideTitlePt) and PPTX pt == slideTitlePt', async () => {
+        const d = deck([{ id: 's1', type: 'content', title: 'Titled', blocks: [{ kind: 'paragraph', text: 'x' }] }]);
+        expect(html(d)).toContain(`font-size:${ptToPx(IR_RENDER_SPEC.font.slideTitlePt)}px`);
+        const [s] = await pptxSlides(d);
+        expect(fontSizesOf(s)).toContain(IR_RENDER_SPEC.font.slideTitlePt);
+    });
+    it('stat label (floored structural font): HTML px == ptToPx(statLabelPt) and PPTX pt matches', async () => {
+        const d = deck([{ id: 's1', type: 'content', blocks: [{ kind: 'stat-grid', cards: [{ value: '9', label: 'L' }] }] }]);
+        const pt = IR_RENDER_SPEC.font.statLabelPt(theme);
+        expect(html(d)).toContain(`font-size:${ptToPx(pt)}px`);
+        const [s] = await pptxSlides(d);
+        expect(fontSizesOf(s)).toContain(pt);
+    });
+});
+
+describe('parity — geometry SSOT (radii match across preview/export)', () => {
+    it('stat card radius: HTML px == inToPx(cardRadiusIn) and PPTX in == cardRadiusIn', async () => {
+        const d = deck([{ id: 's1', type: 'content', blocks: [{ kind: 'stat-grid', cards: [{ value: '9', label: 'L' }] }] }]);
+        expect(html(d)).toContain(`border-radius:${inToPx(IR_RENDER_SPEC.geometry.cardRadiusIn)}px`);
+        const [s] = await pptxSlides(d);
+        const radii = s.calls
+            .filter(c => c.method === 'addShape' && c.args[0] === 'roundRect')
+            .map(c => (c.args[1] as { rectRadius?: number }).rectRadius);
+        expect(radii).toContain(IR_RENDER_SPEC.geometry.cardRadiusIn);
+    });
+});

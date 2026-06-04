@@ -23,8 +23,8 @@ import type { ExportTheme } from '../export/exportTheme';
 import { sanitizeSvgMarkup, stripDangerousHtml } from '../../utils/svgSanitize';
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor, stripBulletPrefix } from './slideIr';
-import { IR_RENDER_SPEC, PX_PER_IN } from './irRenderSpec';
-import { SLIDE_W, SLIDE_H } from './irLayout';
+import { IR_RENDER_SPEC, PX_PER_IN, ptToPx, inToPx } from './irRenderSpec';
+import { SLIDE_W, SLIDE_H, COL_GAP, CONTENT_WIDTH } from './irLayout';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
@@ -127,8 +127,9 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
         parts.push(slideOpen(index,
             `background:${bg};color:${fg};font-family:${font};display:flex;flex-direction:column;`
             + `justify-content:center;align-items:flex-start;padding:120px 140px;`));
-        if (slide.title) parts.push(`<h1 style="font-size:84px;font-weight:800;color:${fg};line-height:1.1;margin:0;">${esc(slide.title)}</h1>`);
-        if (slide.subtitle) parts.push(`<p style="font-size:38px;color:${fg};opacity:0.85;margin:28px 0 0 0;font-weight:300;">${esc(slide.subtitle)}</p>`);
+        const heroTitlePx = ptToPx(slide.type === 'title' ? IR_RENDER_SPEC.font.heroTitlePt : IR_RENDER_SPEC.font.sectionTitlePt);
+        if (slide.title) parts.push(`<h1 style="font-size:${heroTitlePx}px;font-weight:800;color:${fg};line-height:1.1;margin:0;">${esc(slide.title)}</h1>`);
+        if (slide.subtitle) parts.push(`<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.heroSubtitlePt)}px;color:${fg};opacity:0.85;margin:28px 0 0 0;font-weight:300;">${esc(slide.subtitle)}</p>`);
     } else {
         const bg = slide.background ? hx(slide.background) : '#ffffff';
         const titleColor = slide.background ? hx(contrastTextColor(slide.background)) : hx(theme.primaryColor);
@@ -136,12 +137,12 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
         parts.push(slideOpen(index,
             `background:${bg};color:${bodyColor};font-family:${font};display:flex;flex-direction:column;padding:90px 110px;`));
         if (slide.title) {
-            parts.push(`<h1 style="font-size:54px;font-weight:800;color:${titleColor};line-height:1.15;margin:0;">${esc(slide.title)}</h1>`);
+            parts.push(`<h1 style="font-size:${ptToPx(IR_RENDER_SPEC.font.slideTitlePt)}px;font-weight:800;color:${titleColor};line-height:1.15;margin:0;">${esc(slide.title)}</h1>`);
             const u = IR_RENDER_SPEC.accentUnderline;   // #2 — same motif/geometry as PPTX
             parts.push(`<div style="width:${Math.round(u.widthIn * PX_PER_IN)}px;height:${Math.round(u.heightIn * PX_PER_IN)}px;background:${hx(theme.accentColor)};border-radius:4px;margin:${Math.round(u.gapBelowTitleIn * PX_PER_IN)}px 0 0 0;"></div>`);
         }
-        if (slide.subtitle) parts.push(`<p style="font-size:32px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
-        parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:28px;min-height:0;">');
+        if (slide.subtitle) parts.push(`<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.heroSubtitlePt)}px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
+        parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">');
         for (const block of slide.blocks) parts.push(renderBlockSafe(block, index, theme, notices));
         parts.push('</div>');
     }
@@ -170,30 +171,30 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
 
     switch (block.kind) {
         case 'heading': {
-            const size = block.level === 1 ? 48 : block.level === 2 ? 40 : 32;
+            const size = ptToPx(IR_RENDER_SPEC.font.headingPt(block.level));
             return `<h${block.level} style="font-size:${size}px;font-weight:700;color:${primary};margin:0;">${esc(block.text)}</h${block.level}>`;
         }
         case 'paragraph':
-            return `<p style="font-size:30px;line-height:1.45;color:${body};margin:0;">${block.emphasis ? `<strong style="color:${primary};">${esc(block.text)}</strong>` : esc(block.text)}</p>`;
+            return `<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.paragraphPt(theme))}px;line-height:1.45;color:${body};margin:0;">${block.emphasis ? `<strong style="color:${primary};">${esc(block.text)}</strong>` : esc(block.text)}</p>`;
         case 'bullets': {
             const tag = block.ordered ? 'ol' : 'ul';
-            const items = block.items.map(it => `<li style="font-size:30px;line-height:1.4;color:${body};margin-bottom:14px;">${esc(stripBulletPrefix(it))}</li>`).join('');
-            return `<${tag} style="margin:0;padding-left:48px;">${items}</${tag}>`;
+            const items = block.items.map(it => `<li style="font-size:${ptToPx(IR_RENDER_SPEC.font.paragraphPt(theme))}px;line-height:1.4;color:${body};margin-bottom:14px;">${esc(stripBulletPrefix(it))}</li>`).join('');
+            return `<${tag} style="margin:0;padding-left:${inToPx(IR_RENDER_SPEC.geometry.bulletIndentIn)}px;">${items}</${tag}>`;
         }
         case 'caption':
-            return `<div style="font-size:24px;color:${body};opacity:0.65;">${esc(block.text)}</div>`;
+            return `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.65;">${esc(block.text)}</div>`;
         case 'callout':
             return `<div style="background:${tint(theme.accentColor)};border-left:${Math.round(IR_RENDER_SPEC.calloutStripe.widthIn * PX_PER_IN)}px solid ${accent};border-radius:0 12px 12px 0;padding:28px 36px;">`
-                + `<p style="font-size:30px;line-height:1.4;color:${body};margin:0;">${esc(block.text)}</p>`
-                + (block.cite ? `<div style="font-size:24px;color:${body};opacity:0.7;margin-top:10px;">— ${esc(block.cite)}</div>` : '')
+                + `<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.paragraphPt(theme))}px;line-height:1.4;color:${body};margin:0;">${esc(block.text)}</p>`
+                + (block.cite ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.7;margin-top:10px;">— ${esc(block.cite)}</div>` : '')
                 + '</div>';
         case 'stat-grid': {
             const iconPx = Math.round(IR_RENDER_SPEC.icon.statCardSizeIn * PX_PER_IN);
             const cards = block.cards.map(c =>
-                `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:18px;padding:40px 28px;text-align:center;">`
+                `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:${inToPx(IR_RENDER_SPEC.geometry.cardRadiusIn)}px;padding:40px 28px;text-align:center;">`
                 + iconHtml(c.icon, theme, iconPx)
-                + `<div style="font-size:64px;font-weight:800;color:${primary};line-height:1.05;">${esc(c.value)}</div>`
-                + `<div style="font-size:26px;color:${body};opacity:0.85;margin-top:14px;line-height:1.3;">${esc(c.label)}</div></div>`,
+                + `<div style="font-size:${ptToPx(IR_RENDER_SPEC.statValueFontPt(block.cards.length))}px;font-weight:800;color:${primary};line-height:1.05;">${esc(c.value)}</div>`
+                + `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.statLabelPt(theme))}px;color:${body};opacity:0.85;margin-top:14px;line-height:1.3;">${esc(c.label)}</div></div>`,
             ).join('');
             return `<div style="display:flex;gap:32px;">${cards}</div>`;
         }
@@ -203,47 +204,47 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
                 const fill = bar.color ? hx(bar.color) : accent;
                 const w = (bar.pct / max) * 100;
                 return `<div style="display:flex;align-items:center;gap:24px;">`
-                    + `<div style="width:200px;font-size:30px;font-weight:600;color:${primary};text-align:right;">${esc(bar.label)}</div>`
+                    + `<div style="width:200px;font-size:${ptToPx(IR_RENDER_SPEC.font.barLabelPt(theme))}px;font-weight:600;color:${primary};text-align:right;">${esc(bar.label)}</div>`
                     + `<div style="flex:1;background:#eef0f2;border-radius:8px;height:56px;display:flex;align-items:center;">`
                     + `<div style="width:${w}%;min-width:64px;background:${fill};height:100%;border-radius:8px;display:flex;align-items:center;padding-left:20px;box-sizing:border-box;">`
-                    + `<span style="font-size:26px;font-weight:700;color:#fff;">${bar.pct}%</span></div></div></div>`;
+                    + `<span style="font-size:${ptToPx(IR_RENDER_SPEC.font.barPctPt(theme))}px;font-weight:700;color:#fff;">${bar.pct}%</span></div></div></div>`;
             }).join('');
-            const cap = block.caption ? `<div style="font-size:24px;color:${body};opacity:0.65;margin-top:6px;">${esc(block.caption)}</div>` : '';
+            const cap = block.caption ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.65;margin-top:6px;">${esc(block.caption)}</div>` : '';
             return `<div style="display:flex;flex-direction:column;gap:20px;">${rows}${cap}</div>`;
         }
         case 'process-flow': {
             const stepIconPx = Math.round(IR_RENDER_SPEC.icon.processStepSizeIn * PX_PER_IN);
             const steps = block.steps.map((s, i) =>
-                `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:14px;padding:28px 18px;text-align:center;">`
+                `<div style="flex:1;background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:${inToPx(IR_RENDER_SPEC.geometry.stepRadiusIn)}px;padding:28px 18px;text-align:center;">`
                 + iconHtml(s.icon, theme, stepIconPx)
-                + `<div style="font-size:30px;font-weight:700;color:${primary};">${esc(s.title)}</div>`
-                + (s.sub ? `<div style="font-size:23px;color:${body};opacity:0.8;margin-top:8px;line-height:1.3;">${esc(s.sub)}</div>` : '')
+                + `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.processStepPt(theme))}px;font-weight:700;color:${primary};">${esc(s.title)}</div>`
+                + (s.sub ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.processStepPt(theme))}px;color:${body};opacity:0.8;margin-top:8px;line-height:1.3;">${esc(s.sub)}</div>` : '')
                 + '</div>'
-                + (i < block.steps.length - 1 ? `<div style="display:flex;align-items:center;font-size:36px;color:${accent};">&#9654;</div>` : ''),
+                + (i < block.steps.length - 1 ? `<div style="display:flex;align-items:center;font-size:${ptToPx(IR_RENDER_SPEC.font.chevronPt)}px;color:${accent};">&#9654;</div>` : ''),
             ).join('');
             return `<div style="display:flex;gap:14px;align-items:stretch;">${steps}</div>`;
         }
         case 'table': {
             const headerFill = hx(IR_RENDER_SPEC.tableHeaderFill(theme));   // #1 — same fill as PPTX
-            const head = `<thead><tr>${block.headers.map(h => `<th style="background:${headerFill};color:#fff;padding:18px 24px;text-align:left;font-size:28px;font-weight:700;">${esc(h)}</th>`).join('')}</tr></thead>`;
-            const rowsHtml = block.rows.map((r, ri) => `<tr style="background:${ri % 2 ? '#f6f8fa' : '#fff'};">${r.map(c => `<td style="padding:16px 24px;border-bottom:1px solid #e2e8f0;font-size:28px;color:${body};">${esc(c)}</td>`).join('')}</tr>`).join('');
-            const cap = block.caption ? `<div style="font-size:24px;color:${body};opacity:0.65;margin-bottom:10px;">${esc(block.caption)}</div>` : '';
+            const head = `<thead><tr>${block.headers.map(h => `<th style="background:${headerFill};color:#fff;padding:18px 24px;text-align:left;font-size:${ptToPx(IR_RENDER_SPEC.font.tablePt(theme))}px;font-weight:700;">${esc(h)}</th>`).join('')}</tr></thead>`;
+            const rowsHtml = block.rows.map((r, ri) => `<tr style="background:${ri % 2 ? '#f6f8fa' : '#fff'};">${r.map(c => `<td style="padding:16px 24px;border-bottom:1px solid #e2e8f0;font-size:${ptToPx(IR_RENDER_SPEC.font.tablePt(theme))}px;color:${body};">${esc(c)}</td>`).join('')}</tr>`).join('');
+            const cap = block.caption ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.65;margin-bottom:10px;">${esc(block.caption)}</div>` : '';
             return `${cap}<table style="width:100%;border-collapse:collapse;">${head}<tbody>${rowsHtml}</tbody></table>`;
         }
         case 'image':
-            return `<div style="display:flex;justify-content:center;"><img src="${esc(block.dataUri)}" alt="${esc(block.alt ?? '')}" style="max-width:100%;max-height:560px;" /></div>`;
+            return `<div style="display:flex;justify-content:center;"><img src="${esc(block.dataUri)}" alt="${esc(block.alt ?? '')}" style="max-width:100%;max-height:${inToPx(CONTENT_WIDTH * IR_RENDER_SPEC.geometry.media.imageAspect)}px;" /></div>`;
         case 'svg': {
             const clean = sanitizeSvgMarkup(block.svg);
             if (!clean) {
                 notices.push({ slideIndex, blockKind: 'svg', severity: 'substantive', description: 'SVG could not be sanitized; omitted from HTML.' });
                 return `<div style="font-size:28px;color:${body};opacity:0.6;">${esc(block.alt ?? 'Diagram')}</div>`;
             }
-            return `<div style="display:flex;justify-content:center;max-height:600px;">${clean}</div>`;
+            return `<div style="display:flex;justify-content:center;max-height:${inToPx(CONTENT_WIDTH * IR_RENDER_SPEC.geometry.media.svgAspect)}px;">${clean}</div>`;
         }
         case 'two-column': {
             const col = (blocks: LeafBlock[]): string =>
-                `<div class="ir-col" style="flex:1;display:flex;flex-direction:column;gap:24px;min-width:0;">${blocks.map(b => renderBlockSafe(b, slideIndex, theme, notices)).join('')}</div>`;
-            return `<div class="ir-cols" style="display:flex;gap:56px;flex:1;min-height:0;">${col(block.left)}${col(block.right)}</div>`;
+                `<div class="ir-col" style="flex:1;display:flex;flex-direction:column;gap:${inToPx(IR_RENDER_SPEC.geometry.colSubGapIn)}px;min-width:0;">${blocks.map(b => renderBlockSafe(b, slideIndex, theme, notices)).join('')}</div>`;
+            return `<div class="ir-cols" style="display:flex;gap:${inToPx(COL_GAP)}px;flex:1;min-height:0;">${col(block.left)}${col(block.right)}</div>`;
         }
         case 'custom': {
             // Precedence IDENTICAL to PPTX (plan G3): image wins; else inline sanitized html.

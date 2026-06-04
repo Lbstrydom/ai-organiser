@@ -26,6 +26,7 @@ import {
 import type { Block, FidelityNotice, LeafBlock, SlideDeckIr, SlideIr } from './slideIr';
 import { contrastTextColor, stripBulletPrefix } from './slideIr';
 import { IR_RENDER_SPEC } from './irRenderSpec';
+import { fontFloor } from './fontFloor';
 import { resolvePresentationIcon } from './iconRegistry';
 import {
     createSvgAssetCache, gradientSvgMarkup, renderIconSvgMarkup, addSvgImageSafe,
@@ -146,25 +147,9 @@ function drawIcon(
     addSvgImageSafe(s, renderIconSvgMarkup(iconName, iconColor(st.theme)), rect, onFail, st.svgCache);
 }
 
-// ── Min-font floor (plan §5 H4 / §5a precision) ──────────────────────────────
-// `theme.minFont` is present only for brand exports. When absent, every helper
-// below is a pass-through → byte-identical output to a non-brand export.
-type MinFontRole = 'body' | 'caption' | 'table' | 'footer';
-
-/** Clamp a FIXED-SIZE structural font UP to its role floor (footer/caption/
- *  table literals). No floor set → the literal is returned unchanged. */
-function clampFixedFont(theme: ExportTheme, role: MinFontRole, intended: number): number {
-    const floor = theme.minFont?.[role];
-    return floor === undefined ? intended : Math.max(floor, intended);
-}
-
-/** Lower-bound for a SHRINK-TO-FIT font at its role floor. No floor set →
- *  `-Infinity` so an existing shrink computation is unaffected. The caller still
- *  keeps its own overflow/truncation behaviour once it bottoms out (no new
- *  clipping — plan §5a). */
-function fontFloor(theme: ExportTheme, role: MinFontRole): number {
-    return theme.minFont?.[role] ?? -Infinity;
-}
+// Min-font floor helpers (`clampFixedFont`/`fontFloor`/`MinFontRole`) now live in
+// `./fontFloor` — the shared home so the spec + both renderers apply identical
+// floors (renderer-fidelity Phase 2). Imported above.
 
 // ── Safe-area geometry (plan §7) ─────────────────────────────────────────────
 // When `theme.safeArea` is present (brand exports), the content layout rectangle
@@ -306,13 +291,13 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
         const heroAlign = IR_RENDER_SPEC.titleLayout.align;   // #3 — left (matches HTML hero)
         s.addText(slide.title ?? '', {
             x: geom.left, y: CANVAS.h / 2 - 1, w: geom.width, h: 1.4,
-            fontFace: theme.fontFace, fontSize: slide.type === 'title' ? 40 : 34,
+            fontFace: theme.fontFace, fontSize: slide.type === 'title' ? IR_RENDER_SPEC.font.heroTitlePt : IR_RENDER_SPEC.font.sectionTitlePt,
             color: fg, bold: true, align: heroAlign, valign: 'middle',
         });
         if (slide.subtitle) {
             s.addText(slide.subtitle, {
                 x: geom.left, y: CANVAS.h / 2 + 0.5, w: geom.width, h: 0.9,
-                fontFace: theme.fontFace, fontSize: 18, color: fg, align: heroAlign, valign: 'middle',
+                fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.heroSubtitlePt, color: fg, align: heroAlign, valign: 'middle',
             });
         }
         if (slide.notes) s.addNotes(slide.notes);
@@ -323,7 +308,7 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
     // (The old full-width top bar was a PPTX-only motif that diverged from the
     // preview; both now draw a short underline beneath the title.)
     if (slide.title) {
-        s.addText(slide.title, { x: geom.left, y: 0.35, w: geom.width, h: 0.6, fontFace: theme.fontFace, fontSize: 24, bold: true, color: hx(theme.primaryColor) });
+        s.addText(slide.title, { x: geom.left, y: 0.35, w: geom.width, h: 0.6, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.slideTitlePt, bold: true, color: hx(theme.primaryColor) });
         const u = IR_RENDER_SPEC.accentUnderline;
         s.addShape('rect', { x: geom.left, y: 0.35 + 0.6 + u.gapBelowTitleIn * 0.5, w: u.widthIn, h: u.heightIn, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
     }
@@ -336,8 +321,8 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
 function buildPptxPlaceholder(s: SlideLike, st: RenderState): void {
     const { theme } = st;
     s.background = { color: 'FFFFFF' };
-    s.addShape('roundRect', { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, rectRadius: 0.1, fill: { color: 'F1F5F9' }, line: { color: hx(theme.bodyColor), width: 0.5, dashType: 'dash' } });
-    s.addText(st.placeholderLabel, { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, fontFace: theme.fontFace, fontSize: 16, italic: true, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
+    s.addShape('roundRect', { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, rectRadius: IR_RENDER_SPEC.geometry.placeholderRadiusIn, fill: { color: 'F1F5F9' }, line: { color: hx(theme.bodyColor), width: 0.5, dashType: 'dash' } });
+    s.addText(st.placeholderLabel, { x: 1.5, y: 2.75, w: CANVAS.w - 3, h: 2, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.placeholderTitlePt, italic: true, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
 }
 
 /** Place blocks top-to-bottom within a column box, advancing a y cursor. */
@@ -349,7 +334,7 @@ async function flowBlocks(s: SlideLike, blocks: Block[], box: Box, slideIndex: n
             continue;
         }
         try {
-            y += await renderBlock(s, block, { x: box.x, y, w: box.w }, slideIndex, st) + 0.12;
+            y += await renderBlock(s, block, { x: box.x, y, w: box.w }, slideIndex, st) + IR_RENDER_SPEC.geometry.blockGapIn;
         } catch (e) {
             st.notices.push({ slideIndex, blockKind: block.kind, severity: 'substantive', description: `block "${block.kind}" failed: ${msg(e)}` });
         }
@@ -372,19 +357,20 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
     const { theme } = st;
     switch (block.kind) {
         case 'heading': {
-            const size = block.level === 1 ? 22 : block.level === 2 ? 18 : 15;
+            const size = IR_RENDER_SPEC.font.headingPt(block.level);
             const h = clampH(estimateTextHeight(block.text, box.w, size), box, block.kind, slideIndex, st);
             s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: size, bold: true, color: hx(theme.primaryColor), valign: 'top' });
             return h;
         }
         case 'paragraph': {
-            const h = clampH(estimateTextHeight(block.text, box.w, theme.fontSize), box, block.kind, slideIndex, st);
-            s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: theme.fontSize, bold: Boolean(block.emphasis), color: hx(theme.bodyColor), valign: 'top' });
+            const para = IR_RENDER_SPEC.font.paragraphPt(theme);
+            const h = clampH(estimateTextHeight(block.text, box.w, para), box, block.kind, slideIndex, st);
+            s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: para, bold: Boolean(block.emphasis), color: hx(theme.bodyColor), valign: 'top' });
             return h;
         }
         case 'caption': {
             // Shrink-to-fit derivation (body − 2), lower-bounded at the caption floor.
-            const captionSize = Math.max(fontFloor(theme, 'caption'), theme.fontSize - 2);
+            const captionSize = IR_RENDER_SPEC.font.captionPt(theme);
             const h = clampH(estimateTextHeight(block.text, box.w, captionSize), box, block.kind, slideIndex, st);
             s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: captionSize, italic: true, color: hx(theme.bodyColor), valign: 'top' });
             return h;
@@ -395,7 +381,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             // long multi-line bullet otherwise under-measures, so the next block
             // (or the footer) overlaps the overflow. Bullet glyph + indent ≈ 0.3".
             const natural = block.items.reduce(
-                (acc, it) => acc + estimateTextHeight(stripBulletPrefix(it), Math.max(0.5, box.w - 0.3), theme.fontSize) + 0.04,
+                (acc, it) => acc + estimateTextHeight(stripBulletPrefix(it), Math.max(0.5, box.w - IR_RENDER_SPEC.geometry.bulletIndentIn), theme.fontSize) + 0.04,
                 0.1);
             const h = clampH(Math.max(0.4, natural), box, block.kind, slideIndex, st);
             s.addText(lines, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: theme.fontSize, color: hx(theme.bodyColor), valign: 'top' });
@@ -412,7 +398,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         case 'stat-grid': {
             const cols = gridColumns(block.cards.length);
             const scale = box.w / CONTENT_WIDTH;
-            const labelFont = clampFixedFont(theme, 'caption', 11);
+            const labelFont = IR_RENDER_SPEC.font.statLabelPt(theme);
             // Region above the label (icon + value). Card height GROWS to fit the
             // tallest wrapped label instead of a fixed 1.3" that clipped long
             // labels and made the next block overlap the overflow.
@@ -431,7 +417,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                 const col = cols[i];
                 const x = box.x + (col.x - MARGIN) * scale;
                 const w = col.w * scale;
-                s.addShape('roundRect', { x, y: box.y, w, h, rectRadius: 0.08, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
+                s.addShape('roundRect', { x, y: box.y, w, h, rectRadius: IR_RENDER_SPEC.geometry.cardRadiusIn, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
                 // #5 — vector icon above the value (resolved symmetrically with HTML);
                 // value carries NO emoji. #6 — value font shrinks as the row crowds.
                 const ic = resolvePresentationIcon(card.icon);
@@ -457,7 +443,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             // Widened from 0.15 → 0.28 to fit a chevron in each inter-step gap.
             const gap = 0.28;
             const stepW = (box.w - gap * (n - 1)) / n;
-            const stepFont = clampFixedFont(theme, 'caption', 11);
+            const stepFont = IR_RENDER_SPEC.font.processStepPt(theme);
             const iconH = block.steps.some(st2 => resolvePresentationIcon(st2.icon).kind === 'svg')
                 ? IR_RENDER_SPEC.icon.processStepSizeIn + 0.12 : 0;
             // Card height grows to fit the tallest step text (title + sub) instead
@@ -474,7 +460,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             const chevW = 0.28;
             block.steps.forEach((step, i) => {
                 const x = box.x + i * (stepW + gap);
-                s.addShape('roundRect', { x, y: box.y, w: stepW, h, rectRadius: 0.06, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
+                s.addShape('roundRect', { x, y: box.y, w: stepW, h, rectRadius: IR_RENDER_SPEC.geometry.stepRadiusIn, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
                 // #5 — vector icon at the top of the step (resolved symmetrically with HTML).
                 const ic = resolvePresentationIcon(step.icon);
                 let textY = box.y; let textH = h; let textValign: 'top' | 'middle' = 'middle';
@@ -491,7 +477,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
                         x: x + stepW + (gap - chevW) / 2,
                         y: box.y + (h - 0.4) / 2,
                         w: chevW, h: 0.4,
-                        fontFace: theme.fontFace, fontSize: 18, bold: true,
+                        fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.chevronPt, bold: true,
                         color: hx(theme.accentColor), align: 'center', valign: 'middle',
                     });
                 }
@@ -501,7 +487,7 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         case 'table':
             return renderTable(s, block, box, slideIndex, st);
         case 'image': {
-            const h = Math.min(st.footerY - box.y, box.w * 0.5);
+            const h = Math.min(st.footerY - box.y, box.w * IR_RENDER_SPEC.geometry.media.imageAspect);
             s.addImage({ data: block.dataUri, x: box.x, y: box.y, w: box.w, h });
             return h;
         }
@@ -531,7 +517,7 @@ async function renderColumn(s: SlideLike, blocks: LeafBlock[], box: Box, slideIn
             continue;
         }
         try {
-            y += await renderBlock(s, block, { x: box.x, y, w: box.w }, slideIndex, st) + 0.1;
+            y += await renderBlock(s, block, { x: box.x, y, w: box.w }, slideIndex, st) + IR_RENDER_SPEC.geometry.colSubGapIn;
         } catch (e) {
             st.notices.push({ slideIndex, blockKind: block.kind, severity: 'substantive', description: `column block "${block.kind}" failed: ${msg(e)}` });
         }
@@ -573,12 +559,12 @@ function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' 
     const labelW = 1.2;
     block.bars.forEach((bar, i) => {
         const y = box.y + i * (rowH + 0.06);
-        s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'caption', 11), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
+        s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barLabelPt(theme), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
         const trackX = box.x + labelW + 0.1;
         const trackW = box.w - labelW - 0.1;
         s.addShape('rect', { x: trackX, y, w: trackW, h: rowH, fill: { color: 'EEEEEE' }, line: { width: 0 } });
         s.addShape('rect', { x: trackX, y, w: Math.max(0.02, trackW * (bar.pct / 100)), h: rowH, fill: { color: bar.color ? hx(bar.color) : hx(theme.accentColor) }, line: { width: 0 } });
-        s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: clampFixedFont(theme, 'footer', 10), bold: true, color: 'FFFFFF', valign: 'middle' });
+        s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barPctPt(theme), bold: true, color: 'FFFFFF', valign: 'middle' });
     });
     return h;
 }
@@ -602,14 +588,14 @@ function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box
     s.addTable([header, ...body], {
         x: box.x, y: box.y, w: box.w, colW,
         // Shrink-to-fit (body − 3, hard floor 9), lower-bounded at the table floor.
-        fontFace: theme.fontFace, fontSize: Math.max(fontFloor(theme, 'table'), 9, theme.fontSize - 3),
+        fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.tablePt(theme),
         border: { type: 'solid', pt: 0.5, color: 'DDDDDD' }, autoPage: false, valign: 'middle',
     });
     return h;
 }
 
 async function renderSvg(s: SlideLike, block: Extract<Block, { kind: 'svg' }>, box: Box, slideIndex: number, st: RenderState): Promise<number> {
-    const h = Math.min(st.footerY - box.y, box.w * 0.45);
+    const h = Math.min(st.footerY - box.y, box.w * IR_RENDER_SPEC.geometry.media.svgAspect);
     const clean = sanitizeSvgMarkup(block.svg);
     // Proactively validate root attrs (G2) — pptxgenjs won't throw on a bad
     // base64 SVG, so we decide up-front whether to embed or fall back.
@@ -629,7 +615,7 @@ async function renderSvg(s: SlideLike, block: Extract<Block, { kind: 'svg' }>, b
 }
 
 async function renderCustom(s: SlideLike, block: Extract<Block, { kind: 'custom' }>, box: Box, slideIndex: number, st: RenderState): Promise<number> {
-    const h = Math.min(st.footerY - box.y, box.w * 0.45);
+    const h = Math.min(st.footerY - box.y, box.w * IR_RENDER_SPEC.geometry.media.svgAspect);
     // Precedence IDENTICAL to HTML (plan G3): image wins.
     if (block.image) {
         s.addImage({ data: block.image, x: box.x, y: box.y, w: box.w, h });
@@ -659,8 +645,8 @@ async function tryRasterize(st: RenderState, input: { html?: string; svg?: strin
 }
 
 function placeholder(s: SlideLike, label: string, box: Box, h: number, theme: ExportTheme): void {
-    s.addShape('roundRect', { x: box.x, y: box.y, w: box.w, h, rectRadius: 0.06, fill: { color: 'F1F5F9' }, line: { color: hx(theme.bodyColor), width: 0.5, dashType: 'dash' } });
-    s.addText(label, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: 12, italic: true, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
+    s.addShape('roundRect', { x: box.x, y: box.y, w: box.w, h, rectRadius: IR_RENDER_SPEC.geometry.stepRadiusIn, fill: { color: 'F1F5F9' }, line: { color: hx(theme.bodyColor), width: 0.5, dashType: 'dash' } });
+    s.addText(label, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.placeholderInlinePt, italic: true, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
 }
 
 function lighten(hex: string): string {

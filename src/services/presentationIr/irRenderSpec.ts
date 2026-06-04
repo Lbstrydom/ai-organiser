@@ -86,14 +86,21 @@ export const IR_RENDER_SPEC = {
      */
     font: {
         heroTitlePt: 40,
+        sectionTitlePt: 34,
         heroSubtitlePt: 18,
         slideTitlePt: 24,
+        placeholderTitlePt: 16,
+        placeholderInlinePt: 12,
         headingPt: (level: 1 | 2 | 3): number => (level === 1 ? 22 : level === 2 ? 18 : 15),
         chevronPt: 18,
-        statLabelPt: 11,
-        processStepPt: 11,
-        barLabelPt: 11,
-        barPctPt: 10,
+        // Fixed STRUCTURAL fonts — clamped UP to their role floor (so brand
+        // min-fonts apply identically in preview + export). Non-brand = the
+        // literal unchanged. Functions, not constants, so HTML applies the same
+        // floor via ptToPx(fn(theme)).
+        statLabelPt: (t: ExportTheme): number => clampFixedFont(t, 'caption', 11),
+        processStepPt: (t: ExportTheme): number => clampFixedFont(t, 'caption', 11),
+        barLabelPt: (t: ExportTheme): number => clampFixedFont(t, 'caption', 11),
+        barPctPt: (t: ExportTheme): number => clampFixedFont(t, 'footer', 10),
         footerPt: (t: ExportTheme): number => clampFixedFont(t, 'footer', 10),
         // Paragraph/body text uses the user's chosen size RAW — no floor (matches
         // the PPTX paragraph path's bare `theme.fontSize`). The `'body'` min-font
