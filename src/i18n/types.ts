@@ -1109,6 +1109,16 @@ export interface Translations {
     };
 
     // Canvas
+    presentationModels: {
+        settingsTitle: string;
+        settingsDescription: string;
+        mainOption: string;
+        generatorName: string;
+        generatorDesc: string;
+        criticName: string;
+        criticDesc: string;
+        noKeyWarning: string;
+    };
     canvas: {
         settingsTitle: string;
         settingsDescription: string;

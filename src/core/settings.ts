@@ -127,6 +127,10 @@ export interface AIOrganiserSettings {
     presentationGroundWebSearch: boolean; // LLM-ground presentation web-search queries in attached notes + prompt (sends note-derived terms to the search provider)
     presentationConsultantMode: boolean; // Consultant-quality pipeline: write a grounded storyline (ghost deck) BEFORE designing slides (action titles, MECE, evidence-bound visuals)
     presentationStorylineGate: 'review' | 'auto-build'; // When consultant mode is on: 'review' writes the dot-dash storyline note for sign-off first; 'auto-build' goes straight to slides
+    // Per-role model selection for the consultant pipeline (plan Cluster B). Each value is a
+    // provider id (CloudServiceType) or null = "Main" (use the configured main provider). The
+    // concrete model resolves via the capability resolver + latest-* sentinel (so it can't rot).
+    presentationModelRoles: { storyboardGenerator: string | null; independentCritic: string | null };
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
     presentationBrandGuidelinesPath: string; // DEPRECATED (Plan B): read-only migration source for brandFolderPath; no UI
     // === BRAND FIDELITY (Plan B) ===
@@ -504,6 +508,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     presentationGroundWebSearch: true,   // Automatic per user request; toggle gives privacy-conscious users an off switch
     presentationConsultantMode: false,   // Opt-in: default off preserves the existing one-shot deck flow byte-for-byte
     presentationStorylineGate: 'review', // When consultant mode is on, default to the storyline sign-off step (the consulting workflow)
+    presentationModelRoles: { storyboardGenerator: null, independentCritic: null }, // null = "Main" for both roles
     presentationOutputFolder: 'Presentations',
     presentationBrandGuidelinesPath: '',
     // Brand fidelity (Plan B)
@@ -987,6 +992,17 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         && oldSettings.presentationStorylineGate !== 'review'
         && oldSettings.presentationStorylineGate !== 'auto-build') {
         oldSettings.presentationStorylineGate = 'review';
+    }
+
+    // Per-role model selection (plan Cluster B): ensure the object + both keys exist
+    // (default null = "Main"). Coerce a malformed stored value to the safe default.
+    const roles = oldSettings.presentationModelRoles;
+    if (!roles || typeof roles !== 'object') {
+        oldSettings.presentationModelRoles = { storyboardGenerator: null, independentCritic: null };
+    } else {
+        const r = roles as Record<string, unknown>;
+        if (typeof r.storyboardGenerator !== 'string') r.storyboardGenerator = null;
+        if (typeof r.independentCritic !== 'string') r.independentCritic = null;
     }
 
     // Migrate summary length: brief|detailed|comprehensive → brief|standard|detailed

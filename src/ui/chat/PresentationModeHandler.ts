@@ -35,6 +35,11 @@ import type { EvidenceSpan } from '../../services/presentationIr/consultantStory
 import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
 import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
 import { markdownToStoryboard } from '../../services/presentationIr/dotDashParser';
+import { resolvePresentationRole } from '../../services/presentationIr/presentationModelResolver';
+import { resolveProviderProfile } from '../../services/providerProfile';
+import { CloudLLMService } from '../../services/cloudService';
+import { PROVIDER_ENDPOINT } from '../../services/adapters/providerRegistry';
+import type { AdapterType } from '../../services/adapters';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
@@ -529,7 +534,33 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    // ── Consultant-quality pipeline (plan Cluster A) ─────────────────────────
+    // ── Consultant-quality pipeline (plan Cluster A + B) ─────────────────────
+
+    /**
+     * Resolve the storyboard-generator role (plan Cluster B) to the LLM context +
+     * model to run it on. Default ("Main") → the modal's main context, no override.
+     * A same-provider override switches the model via `modelOverride`; a cross-provider
+     * choice builds a specialist `CloudLLMService`. Any gap (no key / local / missing
+     * endpoint) degrades gracefully to Main. Never throws.
+     */
+    private async resolveGeneratorRun(r: RunContext): Promise<{ context: LLMFacadeContext; modelOverride: string }> {
+        const plugin = r.ctx.fullPlugin;
+        const s = plugin.settings;
+        const hasKey = (p: AdapterType) => !!(s.providerSettings?.[p]?.apiKey || (s.cloudServiceType === p && s.cloudApiKey));
+        const profile = await resolveProviderProfile(plugin);
+        const resolved = resolvePresentationRole('storyboard_generator', { profile, roles: s.presentationModelRoles, hasKey });
+        if (!resolved.ok) return { context: r.llmCtx, modelOverride: '' };
+        const role = resolved.value;
+        if (role.warning) logger.warn('Presentation', `storyboard generator role: ${role.warning}`);
+        if (!role.crossProvider) return { context: r.llmCtx, modelOverride: role.modelOverride };
+        if (role.provider === 'local') return { context: r.llmCtx, modelOverride: '' };
+        const apiKey = s.providerSettings?.[role.provider]?.apiKey || (s.cloudServiceType === role.provider ? s.cloudApiKey : '') || '';
+        if (!apiKey) return { context: r.llmCtx, modelOverride: '' };
+        const endpoint = PROVIDER_ENDPOINT[role.provider] || '';
+        const service = new CloudLLMService({ type: role.provider, apiKey, modelName: role.resolvedModel, endpoint }, r.ctx.app);
+        if (s.debugMode) service.setDebugMode(true);
+        return { context: { llmService: service, settings: s }, modelOverride: '' };
+    }
 
     /**
      * Run the storyboard stage: build the evidence catalog from the resolved
@@ -547,11 +578,13 @@ export class PresentationModeHandler implements ChatModeHandler {
             ...(r.noteContent ? [{ ref: 'active note', content: r.noteContent }] : []),
             ...sources.map((s) => ({ ref: s.ref, content: s.content })),
         ], { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) });
-        const stage = await runStoryboardStage(r.llmCtx, r.effectiveQuery, catalog, {
+        const gen = await this.resolveGeneratorRun(r);
+        const stage = await runStoryboardStage(gen.context, r.effectiveQuery, catalog, {
             outputLanguage: settings.summaryLanguage,
             targetLength: this.creationConfig.length,
             signal: r.abort.signal,
             deckName: r.originalQuery,
+            modelOverride: gen.modelOverride,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
             ),
@@ -605,10 +638,12 @@ export class PresentationModeHandler implements ChatModeHandler {
         // rewrite the note in place, and stay in review for the next turn.
         const parsed = markdownToStoryboard(md);
         if (!parsed.ok) return { early: t.storylineReviseFailed.replace('{error}', parsed.error) };
-        const revised = await reviseStoryboard(r.llmCtx, parsed.value.storyboard, request, parsed.value.comments, pending.catalog, {
+        const gen = await this.resolveGeneratorRun(r);
+        const revised = await reviseStoryboard(gen.context, parsed.value.storyboard, request, parsed.value.comments, pending.catalog, {
             outputLanguage: r.ctx.fullPlugin.settings.summaryLanguage,
             deckName: pending.deckName,
             signal: r.abort.signal,
+            modelOverride: gen.modelOverride,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
             ),

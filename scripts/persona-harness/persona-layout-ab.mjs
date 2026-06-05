@@ -120,11 +120,18 @@ async function judgeLive(b64, prompt) {
         return res.success ? (res.content || '') : ('judge-error: ' + (res.error || ''));
     }, { img: b64, p: prompt });
 }
-// model defaults use rolling/latest aliases where the provider offers one.
+// SSOT for the per-family vision-judge model — ONE place to bump when the frontier
+// moves (plan M4/M9 — no per-call literal; the radar was pinned to legacy 'gpt-4o').
+// Override any single run with RADAR_JUDGE_MODEL or --judge-model.
+const LATEST_BY_FAMILY = {
+    openai: process.env.RADAR_JUDGE_MODEL || 'gpt-5.3',           // latest omni (was the legacy gpt-4o)
+    gemini: process.env.RADAR_JUDGE_MODEL || 'gemini-flash-latest',
+    anthropic: process.env.RADAR_JUDGE_MODEL || 'claude-opus-4-6',
+};
 const VISION_JUDGES = {
-    openai: { family: 'openai', model: 'gpt-4o', keyEnv: 'OPENAI_API_KEY', call: judgeOpenAI },
-    gemini: { family: 'google', model: 'gemini-flash-latest', keyEnv: 'GEMINI_API_KEY', call: judgeGemini },
-    claude: { family: 'anthropic', model: 'claude-opus-4-6', keyEnv: 'ANTHROPIC_API_KEY', call: judgeClaude },
+    openai: { family: 'openai', model: LATEST_BY_FAMILY.openai, keyEnv: 'OPENAI_API_KEY', call: judgeOpenAI },
+    gemini: { family: 'google', model: LATEST_BY_FAMILY.gemini, keyEnv: 'GEMINI_API_KEY', call: judgeGemini },
+    claude: { family: 'anthropic', model: LATEST_BY_FAMILY.anthropic, keyEnv: 'ANTHROPIC_API_KEY', call: judgeClaude },
     live: { family: 'live', model: 'main-LLM (Azure Opus 4.6 in Azure mode)', keyEnv: null, call: (b64, prompt) => judgeLive(b64, prompt) },
 };
 function resolveJudge() {

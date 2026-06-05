@@ -1112,6 +1112,16 @@ export const en: Translations = {
         quickPeek: "Quick peek",
     },
 
+    presentationModels: {
+        settingsTitle: "Presentation models",
+        settingsDescription: "Choose which provider runs each role of the consultant-quality pipeline. \"Main\" uses your configured provider. For the most independent review, set the critic to a different model family from the generator.",
+        mainOption: "Main (configured provider)",
+        generatorName: "Storyboard generator",
+        generatorDesc: "The model that writes the storyline and slides. The disambiguator and repair steps follow it.",
+        criticName: "Independent critic",
+        criticDesc: "The model that reviews the storyline and layout. A different model family gives a more independent check.",
+        noKeyWarning: "No API key configured for {provider} — it falls back to your main provider until you add one.",
+    },
     canvas: {
         settingsTitle: "Canvas boards",
         settingsDescription: "Create visual canvases from note context, related notes, and tag clusters.",

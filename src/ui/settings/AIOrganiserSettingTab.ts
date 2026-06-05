@@ -22,6 +22,7 @@ import { SketchSettingsSection } from './SketchSettingsSection';
 import { ResearchSettingsSection } from './ResearchSettingsSection';
 import { MermaidChatSettingsSection } from './MermaidChatSettingsSection';
 import { AIChatSettingsSection } from './AIChatSettingsSection';
+import { PresentationModelsSettingsSection } from './PresentationModelsSettingsSection';
 import { BrandSettingsSection } from './BrandSettingsSection';
 import { FeaturesSettingsSection } from './FeaturesSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
@@ -289,6 +290,9 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
                 'Conversation persistence, projects, and global memory',
             );
             await new AIChatSettingsSection(this.plugin, content, this).display();
+            // Per-role model selection for the consultant-quality presentation pipeline (Cluster B).
+            const presModels = this.createSubCollapsibleSection(content, 'sub-pres-models', this.plugin.t.presentationModels?.settingsTitle || 'Presentation models', 'sparkles');
+            new PresentationModelsSettingsSection(this.plugin, presModels, this).display();
         });
 
         // 9. Integrations (Bases, NotebookLM, Newsletter, Export, Brand)

@@ -26,6 +26,8 @@ export interface GenerateStoryboardOptions {
     timeoutMs?: number;
     signal?: AbortSignal;
     onRetryStatus?: (seconds: number) => void;
+    /** Model override for a SAME-provider role (Cluster B); '' / undefined = configured main model. */
+    modelOverride?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -35,6 +37,7 @@ interface StoryboardCallOpts {
     signal?: AbortSignal;
     label: string;
     onRetryStatus?: (seconds: number) => void;
+    modelOverride?: string;
 }
 
 /** Shared LLM-call: send the prompt → parse → 1 repair on validation failure. */
@@ -68,6 +71,7 @@ function toCallOpts(label: string, options: GenerateStoryboardOptions): Storyboa
         signal: options.signal,
         label,
         onRetryStatus: options.onRetryStatus,
+        ...(options.modelOverride ? { modelOverride: options.modelOverride } : {}),
     };
 }
 
