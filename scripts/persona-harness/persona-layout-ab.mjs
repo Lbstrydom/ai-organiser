@@ -47,18 +47,67 @@ const QUESTIONS = [
     { id: 'balanced', critical: false, q: 'Is the content reasonably balanced — not all crammed into one corner, not overflowing the slide?' },
 ];
 
+// ── Independent vision judge ──────────────────────────────────────────────────
+// Auto-pick a vision model from a DIFFERENT family than the plugin's main LLM, so
+// the grader is independent of the system under test. Main=Claude → GPT/Gemini;
+// main=GPT → Claude/Gemini; main=Gemini → GPT/Claude. Azure (anthropic family) →
+// GPT/Gemini if an independent key exists, else any available (lean on geometry).
+// Overridable: --judge-provider <openai|gemini|claude>, --judge-model <id>.
+function readMainProvider() {
+    const candidates = [
+        'C:/obsidian/Second Brain/.obsidian/plugins/ai-organiser/data.json',
+        join(process.env.USERPROFILE || process.env.HOME || '', 'obsidian', 'Second Brain', '.obsidian', 'plugins', 'ai-organiser', 'data.json'),
+    ];
+    for (const p of candidates) { try { const d = JSON.parse(readFileSync(p, 'utf8')); if (d.cloudServiceType) return d.cloudServiceType; } catch { /* next */ } }
+    return null;
+}
+function providerFamily(p) {
+    if (!p) return 'unknown';
+    if (/claude|anthropic/i.test(p)) return 'anthropic';
+    if (/openai|gpt/i.test(p)) return 'openai';
+    if (/gemini|google/i.test(p)) return 'google';
+    return 'unknown';
+}
+async function judgeOpenAI(b64, prompt, model) {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${readKey('OPENAI_API_KEY')}` }, body: JSON.stringify({ model, temperature: 0, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } }] }] }) });
+    const j = await res.json(); if (j.error) throw new Error(j.error.message);
+    return j.choices?.[0]?.message?.content || '';
+}
+async function judgeGemini(b64, prompt, model) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${readKey('GEMINI_API_KEY')}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: b64 } }] }], generationConfig: { temperature: 0 } }) });
+    const j = await res.json(); if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+    return j.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+}
+async function judgeClaude(b64, prompt, model) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': readKey('ANTHROPIC_API_KEY'), 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model, max_tokens: 1024, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } }] }] }) });
+    const j = await res.json(); if (j.error) throw new Error(j.error.message);
+    return j.content?.map(c => c.text || '').join('') || '';
+}
+// model defaults use rolling/latest aliases where the provider offers one.
+const VISION_JUDGES = {
+    openai: { family: 'openai', model: 'gpt-4o', keyEnv: 'OPENAI_API_KEY', call: judgeOpenAI },
+    gemini: { family: 'google', model: 'gemini-flash-latest', keyEnv: 'GEMINI_API_KEY', call: judgeGemini },
+    claude: { family: 'anthropic', model: 'claude-opus-4-6', keyEnv: 'ANTHROPIC_API_KEY', call: judgeClaude },
+};
+function resolveJudge() {
+    const main = readMainProvider();
+    const mainFam = providerFamily(main);
+    const override = argVal('--judge-provider');
+    const modelOverride = argVal('--judge-model');
+    const mk = (id, reason) => ({ id, ...VISION_JUDGES[id], model: modelOverride || VISION_JUDGES[id].model, main, mainFam, reason });
+    if (override && VISION_JUDGES[override]) return mk(override, 'cli override');
+    for (const id of Object.keys(VISION_JUDGES)) if (VISION_JUDGES[id].family !== mainFam && readKey(VISION_JUDGES[id].keyEnv)) return mk(id, `independent of main family '${mainFam}' (main=${main})`);
+    for (const id of Object.keys(VISION_JUDGES)) if (readKey(VISION_JUDGES[id].keyEnv)) return mk(id, `NOT independent (only '${id}' key available; geometry gate carries) — main=${main}`);
+    return null; // deterministic-only
+}
+const JUDGE = resolveJudge();
+
 async function judgeSlide(pngBuf) {
-    const key = readKey('OPENAI_API_KEY');
-    if (!key) throw new Error('OPENAI_API_KEY not found');
+    if (!JUDGE) return { answers: {}, notes: 'no vision-judge key available — geometry-only' };
     const b64 = pngBuf.toString('base64');
     const prompt = 'You are a strict slide-LAYOUT inspector. Look ONLY at layout/rendering, NOT wording or taste. Answer each question with "yes" or "no" and a 6-word reason. Return ONLY JSON: {"answers":{"' + QUESTIONS.map(q => q.id).join('":"...","') + '":"..."},"notes":"..."}\n\n' + QUESTIONS.map((q, i) => `${i + 1}. [${q.id}] ${q.q}`).join('\n');
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model: 'gpt-4o', temperature: 0, messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } }] }] }),
-    });
-    const j = await res.json();
-    if (j.error) throw new Error(j.error.message);
-    const txt = j.choices?.[0]?.message?.content || '';
+    let txt = '';
+    try { txt = await JUDGE.call(b64, prompt, JUDGE.model); } catch (e) { return { answers: {}, notes: 'judge-error: ' + String(e.message || e).slice(0, 120) }; }
     const m = txt.slice(txt.indexOf('{'), txt.lastIndexOf('}') + 1);
     try { return JSON.parse(m); } catch { return { answers: {}, notes: 'parse-failed: ' + txt.slice(0, 120) }; }
 }
@@ -98,6 +147,7 @@ if (!DECK || !existsSync(DECK)) {
     console.error('Usage: node persona-layout-ab.mjs --deck <path/to/deck.html> [--label NAME] [--bless]');
     process.exit(1);
 }
+console.log(JUDGE ? `[radar] vision judge: ${JUDGE.id} (${JUDGE.model}) — ${JUDGE.reason}` : '[radar] vision judge: NONE — geometry-only (no judge key found)');
 console.log(`[radar] rendering "${LABEL}" from ${DECK}`);
 const rendered = await renderSlides(DECK);
 console.log(`[radar] ${rendered.length} slides → deterministic geometry checks + structural vision judge …`);
