@@ -130,31 +130,32 @@ export function classifyTpm(errorBody: string | undefined, info: AzureRateLimitI
 const CHARS_PER_TOKEN_LB = 5;
 
 /**
- * Conservative LOWER bound on tokens a request will consume = input-lower-bound +
- * the requested OUTPUT budget parsed from the body (audit R2-H4): a tiny prompt
- * with `max_tokens: 64000` must still be flagged >TPM. Best-effort JSON parse;
- * missing output budget → input-only.
+ * Conservative LOWER bound on the tokens a request MUST consume = the INPUT only.
+ *
+ * The minimum a request processes is its input (always read) + 0 output (a
+ * generation may be empty). `max_tokens` is a CEILING, not committed usage — a tiny
+ * prompt with `max_tokens: 64000` (e.g. adaptive thinking) actually generates a
+ * handful of tokens and fits comfortably under a low TPM. Counting that ceiling
+ * (the old audit-R2-H4 behaviour) hard-failed small requests that would have
+ * succeeded on retry — proven live: a tiny Mermaid prompt fail-fasted as "~64k
+ * tokens" under a 10k TPM. So the lower bound is input-only: the >TPM fail-fast
+ * fires ONLY when the INPUT alone can never fit the per-minute budget (a genuinely
+ * huge document); everything else retries (and a real >TPM still surfaces via the
+ * exhausted-retry path). Errs toward retrying.
  */
 export function estimateMinProcessedTokens(body: string): number {
-    const inputLB = Math.floor((body?.length ?? 0) / CHARS_PER_TOKEN_LB);
-    let output = 0;
-    try {
-        const j = JSON.parse(body) as Record<string, unknown>;
-        const cand = [j['max_tokens'], j['max_completion_tokens'], j['maxTokens']].find(v => typeof v === 'number');
-        if (typeof cand === 'number' && Number.isFinite(cand)) output = Math.max(0, Math.floor(cand));
-    } catch { /* non-JSON body → input-only */ }
-    return inputLB + output;
+    return Math.floor((body?.length ?? 0) / CHARS_PER_TOKEN_LB);
 }
 
 /**
- * Conservative LOWER bound on tokens for a MULTIMODAL call (azure-throttle-coverage).
- * A base64 PDF/image body is NOT char≈token — counting body length would over-estimate
- * wildly (base64 inflation; images are tile-priced), so we use ONLY the requested
- * OUTPUT budget. This never false-flags a retriable RPM 429 as >TPM; a genuinely-
- * too-big request still surfaces via the exhausted-retry path. Non-finite → 0.
+ * MULTIMODAL has NO reliable client-side lower bound (a base64 PDF/image body is not
+ * char≈token — images are tile-priced — and `max_tokens` is only a ceiling). So there
+ * is nothing safe to pre-emptively fail-fast on: return 0 → `classifyTpm` never fires
+ * for multimodal, every 429 retries, and a genuine >TPM surfaces via the exhausted-
+ * retry path (the actionable `AzureRateLimitError`). Kept as a named seam for clarity.
  */
-export function estimateMultimodalMinTokens(maxTokens?: number): number {
-    return typeof maxTokens === 'number' && Number.isFinite(maxTokens) ? Math.max(0, Math.floor(maxTokens)) : 0;
+export function estimateMultimodalMinTokens(_maxTokens?: number): number {
+    return 0;
 }
 
 /** Debug-log the ALLOWLISTED numeric rate-limit headers (never auth/body). */

@@ -1,5 +1,22 @@
 # Project Status Log
 
+## 2026-06-05 — Azure-mode feature sweep (live CDP) + >TPM fail-fast fix
+
+Live Electron/CDP sweep of the core Azure-routed features against the real Azure-mode vault (`azure-claude`, `swedencentral`), with real test materials. **All 6 features verified working**: summarize note, generate tags, ingest PDF (multimodal), digitise image (multimodal), Mermaid diagram, translate. Harness: `scripts/persona-harness/azure-feature-sweep.mjs`.
+
+### Bug found + fixed: the >TPM fail-fast over-counted `max_tokens`
+The sweep caught a real code bug: a tiny Mermaid request **hard-failed** with ">TPM: ~64k tokens" at a 10k TPM. Root cause: `estimateMinProcessedTokens` added the requested `max_tokens` (the **64000 adaptive-thinking ceiling**) to the lower-bound estimate, so any small text request that hit a token-dim 429 was killed instead of retried — even though it would succeed (translate, same path, recovered via retry).
+- Fix (`azureRateLimitHeaders.ts`): the text estimate is now **INPUT-ONLY** (`len/5`) — `max_tokens` is a ceiling, not committed usage, so the true minimum is input + 0 output. Fail-fast fires only when the INPUT alone can never fit; everything else retries. Multimodal now never pre-emptively fail-fasts (`estimateMultimodalMinTokens` → 0; no reliable client-side estimate) and relies on the exhausted-retry error.
+- Verified live: post-fix, Mermaid generates a proper flowchart (retries instead of hard-failing). Reverses an over-cautious first-pass audit decision on empirical evidence.
+
+### Test-methodology note (digitise image)
+The sweep's first image attempt sent the **raw 657KB full-res** image and failed on TPM — but the real digitise feature **resizes via `ImageProcessorService`** first. With a production-style resize (1024px JPEG, ~98KB) the image passes cleanly and reads the infographic accurately. The harness image step now resizes to mirror production.
+
+### Files Affected
+- `src/services/azure/azureRateLimitHeaders.ts` (input-only estimate), `tests/{azureRateLimitHeaders,cloudServiceAzureThrottle}.test.ts` (updated), `scripts/persona-harness/azure-feature-sweep.mjs` (harness), `AGENTS.md` (estimate note).
+
+---
+
 ## 2026-06-05 — Slides preview fidelity fix + live Electron/CDP E2E verification
 
 ### Live E2E (Playwright CDP → real Obsidian Electron, Azure-mode vault)

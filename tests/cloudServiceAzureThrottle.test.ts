@@ -74,17 +74,18 @@ describe('CloudLLMService Azure throttle', () => {
 describe('sendMultimodal Azure throttle (azure-throttle-coverage)', () => {
     const pdfPart = () => [{ type: 'document' as const, mediaType: 'application/pdf', data: 'JVBERi'.repeat(20_000) }];
 
-    it('token-dim 429 + max_tokens > limit ⇒ >TPM fail-fast, NO retry', async () => {
+    it('a token-dim 429 with a huge max_tokens RETRIES — multimodal never pre-emptively fail-fasts', async () => {
+        // max_tokens is a ceiling, not committed usage, and a base64 body has no reliable
+        // token estimate — so multimodal must NOT pre-empt; it retries (and the exhausted
+        // path below surfaces a genuine >TPM). Live-proven: pre-empting hard-failed real work.
         mockRequestUrl.mockResolvedValue({
             status: 429,
             headers: { 'x-ratelimit-limit-tokens': '10000' },
             json: { error: { message: 'Rate limit exceeded for ...Tokens' } },
             text: 'tokens',
         });
-        const r = await azureClaude().sendMultimodal(pdfPart(), { maxTokens: 64000 });
-        expect(r.success).toBe(false);
-        expect(r.error).toMatch(/per-minute token limit/i);
-        expect(mockRequestUrl).toHaveBeenCalledTimes(1); // fail-fast — the huge base64 body did NOT need char counting
+        await azureClaude().sendMultimodal(pdfPart(), { maxTokens: 64000 });
+        expect(mockRequestUrl).toHaveBeenCalledTimes(3); // retried to exhaustion, NOT a 1-call fail-fast
     });
 
     it('a base64-heavy RPM 429 (request dim) does NOT false-fail-fast — it retries', async () => {

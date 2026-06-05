@@ -4,14 +4,11 @@ import {
     estimateMultimodalMinTokens,
 } from '../src/services/azure/azureRateLimitHeaders';
 
-describe('estimateMultimodalMinTokens (output-budget-only — audit R2-H4)', () => {
-    it('returns the requested output budget, NOT inflated by a base64 body', () => {
-        expect(estimateMultimodalMinTokens(64000)).toBe(64000);
-    });
-    it('undefined / non-finite → 0 (errs toward retrying, not false >TPM)', () => {
+describe('estimateMultimodalMinTokens — always 0 (no reliable multimodal lower bound)', () => {
+    it('returns 0 regardless of max_tokens (a ceiling is not committed usage; multimodal always retries)', () => {
+        expect(estimateMultimodalMinTokens(64000)).toBe(0);
+        expect(estimateMultimodalMinTokens(1024)).toBe(0);
         expect(estimateMultimodalMinTokens(undefined)).toBe(0);
-        expect(estimateMultimodalMinTokens(Number.NaN)).toBe(0);
-        expect(estimateMultimodalMinTokens(-5)).toBe(0);
     });
 });
 
@@ -89,15 +86,17 @@ describe('classifyTpm + estimateMinProcessedTokens (audit H3/R2-H4)', () => {
         expect(classifyTpm('Rate limit exceeded for ...Tokens', info, 5000)).toBe(false);    // fits
         expect(classifyTpm('tokens', {}, 12000)).toBe(false);                                // limit unknown
     });
-    it('estimate INCLUDES the requested output budget (R2-H4)', () => {
-        // tiny prompt, huge max_tokens → must exceed a 10k limit.
+    it('estimate is INPUT-ONLY — a tiny prompt with a huge max_tokens does NOT fail-fast', () => {
+        // The ceiling is not committed usage; this request fits + must retry, not hard-fail
+        // (live-proven: a tiny Mermaid prompt was mis-flagged "~64k tokens" at a 10k TPM).
         const body = JSON.stringify({ messages: [{ content: 'hi' }], max_tokens: 64000 });
         const est = estimateMinProcessedTokens(body);
-        expect(est).toBeGreaterThan(60000);
-        expect(classifyTpm('...Tokens...', { limitTokens: 10000 }, est)).toBe(true);
+        expect(est).toBeLessThan(1000);                                       // input is what counts
+        expect(classifyTpm('...Tokens...', { limitTokens: 10000 }, est)).toBe(false); // → retry
     });
-    it('handles max_completion_tokens + non-JSON body', () => {
-        expect(estimateMinProcessedTokens(JSON.stringify({ max_completion_tokens: 8000 }))).toBeGreaterThanOrEqual(8000);
-        expect(estimateMinProcessedTokens('not json' + 'x'.repeat(100))).toBeGreaterThan(0);
+    it('fail-fasts only when the INPUT genuinely exceeds the limit', () => {
+        const bigInput = estimateMinProcessedTokens('x'.repeat(60_000));      // ~12k tokens
+        expect(bigInput).toBeGreaterThan(10000);
+        expect(classifyTpm('...Tokens...', { limitTokens: 10000 }, bigInput)).toBe(true);
     });
 });
