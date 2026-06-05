@@ -145,6 +145,18 @@ describe('sanitizePresentation — CSS property/value allowlist', () => {
         expect(r.status).toBe('sanitized');
         expect(r.removed.attrs).toBeGreaterThanOrEqual(1);
     });
+    it('keeps flex-grow (the CSSOM expansion of `flex:1`) so grow-sized layouts survive', () => {
+        // Regression: the sanitizer enumerates CSSOM longhands; `flex:1` expands to
+        // flex-grow/shrink/basis. Without those allowlisted, bar-chart tracks collapse.
+        const r = sanitizePresentation('<div class="slide" style="flex:1">x</div>');
+        expect(r.html).toMatch(/flex-grow:\s*1/);
+    });
+    it('keeps per-side border longhands (the CSSOM expansion of `border:2px solid`)', () => {
+        const r = sanitizePresentation('<div class="slide" style="border:2px solid #1a3a5c">x</div>');
+        // At least the per-side width/color survive so cards keep their border.
+        expect(r.html).toMatch(/border-top-(width|color|style)/);
+        expect(r.html).not.toMatch(/javascript:/i);
+    });
 });
 
 // ── SVG paint url() (audit H1) ──────────────────────────────────────────────

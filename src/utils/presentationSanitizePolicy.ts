@@ -114,8 +114,21 @@ export const ALLOWED_CSS_PROPERTIES: ReadonlySet<string> = new Set([
     'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
     'border', 'border-radius', 'border-color', 'border-width', 'border-style',
+    // Per-side border longhands: the sanitizer enumerates CSSOM `style.item(i)`,
+    // which expands the `border: 2px solid X` shorthand into these — without them
+    // the allowlist drops every shorthand border (cards render border-less in the
+    // preview while the PPTX export keeps them). Pure layout; value-guarded.
+    'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-top-width', 'border-top-style', 'border-top-color',
+    'border-right-width', 'border-right-style', 'border-right-color',
+    'border-bottom-width', 'border-bottom-style', 'border-bottom-color',
+    'border-left-width', 'border-left-style', 'border-left-color',
     'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
-    'display', 'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'gap',
+    // `flex: 1` expands (via CSSOM) to these longhands; `flex` alone never matches
+    // `style.item(i)`, so without them flex-grow is stripped and grow-sized layouts
+    // (bar-chart tracks) collapse in the preview. Pure layout.
+    'display', 'flex', 'flex-grow', 'flex-shrink', 'flex-basis', 'flex-direction', 'flex-wrap',
+    'justify-content', 'align-items', 'gap',
     'grid-template-columns', 'grid-template-rows', 'grid-gap',
     'position', 'top', 'right', 'bottom', 'left', 'z-index',
     'box-sizing',
