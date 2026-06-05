@@ -142,6 +142,10 @@ export interface Translations {
                 gptModel: string;
                 gptModelDesc: string;
                 gptModelPlaceholder: string;
+                maxConcurrent: string;
+                maxConcurrentDesc: string;
+                maxRpm: string;
+                maxRpmDesc: string;
                 routingMode: string;
                 routingModeDesc: string;
                 routingModel: string;
@@ -3128,6 +3132,10 @@ export interface Translations {
         postRecordingKeepOriginal: string;
         postRecordingKeepCompressed: string;
         postRecordingDelete: string;
+    };
+    azureRateLimit: {
+        tpmExceeded: string;
+        queueFull: string;
     };
     embedScan: {
         // Scope modal

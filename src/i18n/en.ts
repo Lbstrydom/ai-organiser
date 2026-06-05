@@ -150,6 +150,10 @@ export const en: Translations = {
                 gptModel: "GPT model",
                 gptModelDesc: "Azure OpenAI chat model used for GPT tasks and the live test (e.g. gpt-5.3-chat).",
                 gptModelPlaceholder: "gpt-5.3-chat",
+                maxConcurrent: "Max concurrent requests",
+                maxConcurrentDesc: "How many Azure requests run at once (1–10). Lower if you hit 429 rate-limit errors on a low-quota deployment.",
+                maxRpm: "Max requests per minute",
+                maxRpmDesc: "Caps Azure request starts per rolling 60s (1–600). Azure's default quota is often ~10/min — keep at or below your deployment's RPM limit.",
                 routingMode: "Routing mode",
                 routingModeDesc: "Model-based uses the new /openai/v1 paths. Deployment-based targets named deployments.",
                 routingModel: "Model-based (recommended)",
@@ -3104,6 +3108,10 @@ export const en: Translations = {
         postRecordingKeepOriginal: "Keep original",
         postRecordingKeepCompressed: "Keep compressed (mp3)",
         postRecordingDelete: "Delete audio"
+    },
+    azureRateLimit: {
+        tpmExceeded: "This request (~{est} tokens) exceeds your Azure deployment's per-minute token limit (~{limit}). Raise the TPM quota for this deployment, or split the input.",
+        queueFull: "Too many Azure requests are queued. Pausing to stay under the rate limit — try again in a moment."
     },
     embedScan: {
         // Scope modal

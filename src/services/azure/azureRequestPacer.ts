@@ -1,0 +1,236 @@
+/**
+ * Azure request pacer (azure-429-throttling) — ONE self-contained, bounded-FIFO,
+ * two-gate scheduler that paces outbound Azure requests under the deployment's
+ * low RPM cap. NOT a concurrency semaphore alone: a concurrency cap of 2 still
+ * starts hundreds of req/min if calls are fast, so this ALSO enforces a rolling
+ * 60s request-START window (max-RPM admission).
+ *
+ * Scheduler invariant: a waiter is granted in FIFO order only when, atomically,
+ * `active < maxConcurrent` AND `(starts in last 60s) < maxRpm`. The start
+ * timestamp + `active++` are recorded AT THE GRANT. No permit/RPM-slot is held
+ * while merely waiting for the window. Cancellation is first-class: an abort while
+ * QUEUED removes the waiter from the FIFO and rejects.
+ *
+ * Per-deployment registry (Azure quotas are per-deployment). Injectable clock for
+ * deterministic tests (no real 60s waits).
+ */
+
+import { AzureRateLimitError } from './azureRateLimitError';
+
+export interface RateLimitLease {
+    release(): void;
+}
+
+export interface PacerPolicy {
+    maxConcurrent: number;
+    maxRpm: number;
+    maxQueue: number;
+}
+
+/** Injectable time source so the rolling window + pump timer are fake-time testable. */
+export interface PacerClock {
+    now(): number;
+    setTimeout(fn: () => void, ms: number): unknown;
+    clearTimeout(handle: unknown): void;
+}
+
+const REAL_CLOCK: PacerClock = {
+    now: () => Date.now(),
+    setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
+    clearTimeout: (h) => globalThis.clearTimeout(h as ReturnType<typeof globalThis.setTimeout>),
+};
+
+const WINDOW_MS = 60_000;
+
+/** DoS backstop on the FIFO depth (audit R2-L1). Not user-configurable. */
+export const AZURE_PACER_MAX_QUEUE = 256;
+
+/** Abort rejection with `name === 'AbortError'` so cloudService/timeout layers
+ *  classify it as a cancellation, not a network error (audit M4/M24). */
+function abortError(): Error {
+    const e = new Error('Aborted');
+    e.name = 'AbortError';
+    return e;
+}
+
+/** Normalize a policy: finite, integer, clamped (audit M8/M21 — `Math.max(1, NaN)`
+ *  is `NaN`; reject non-finite + `Infinity`). */
+function normalizePolicy(p: Partial<PacerPolicy>, base: PacerPolicy): PacerPolicy {
+    const pick = (v: unknown, fallback: number): number => {
+        const n = Math.floor(Number(v));
+        return Number.isFinite(n) && n >= 1 ? n : fallback;
+    };
+    return {
+        maxConcurrent: pick(p.maxConcurrent, base.maxConcurrent),
+        maxRpm: pick(p.maxRpm, base.maxRpm),
+        maxQueue: pick(p.maxQueue, base.maxQueue),
+    };
+}
+
+interface Waiter {
+    resolve: (lease: RateLimitLease) => void;
+    reject: (err: Error) => void;
+    signal?: AbortSignal;
+    onAbort?: () => void;
+}
+
+export class AzureRequestPacer {
+    private active = 0;
+    /** Grant timestamps within the rolling window (ascending). */
+    private starts: number[] = [];
+    private readonly waiters: Waiter[] = [];
+    private pumpTimer: unknown = null;
+
+    constructor(policy: PacerPolicy, private readonly clock: PacerClock = REAL_CLOCK) {
+        this.policy = normalizePolicy(policy, { maxConcurrent: 2, maxRpm: 10, maxQueue: AZURE_PACER_MAX_QUEUE });
+    }
+    private policy: PacerPolicy;
+
+    private prune(): void {
+        const cutoff = this.clock.now() - WINDOW_MS;
+        while (this.starts.length > 0 && this.starts[0] <= cutoff) this.starts.shift();
+    }
+
+    private windowOpen(): boolean {
+        this.prune();
+        return this.starts.length < this.policy.maxRpm;
+    }
+
+    private canGrant(): boolean {
+        return this.active < this.policy.maxConcurrent && this.windowOpen();
+    }
+
+    private grant(): RateLimitLease {
+        this.active++;
+        this.starts.push(this.clock.now());
+        let released = false;
+        return {
+            release: () => {
+                if (released) return;
+                released = true;
+                this.active--;
+                this.pump();
+            },
+        };
+    }
+
+    private detach(w: Waiter): void {
+        if (w.signal && w.onAbort) w.signal.removeEventListener('abort', w.onAbort);
+    }
+
+    private removeWaiter(w: Waiter): void {
+        const i = this.waiters.indexOf(w);
+        if (i >= 0) this.waiters.splice(i, 1);
+    }
+
+    /** Acquire a lease, waiting for BOTH gates. Abort-while-queued rejects cleanly. */
+    acquire(signal?: AbortSignal): Promise<RateLimitLease> {
+        if (signal?.aborted) return Promise.reject(abortError());
+        // FIFO fairness (audit H2): grant immediately ONLY when nobody is already
+        // queued — otherwise a new arrival could jump a waiter blocked by the RPM
+        // window. With waiters present, enqueue and let `pump()` grant in order.
+        if (this.waiters.length === 0 && this.canGrant()) return Promise.resolve(this.grant());
+        if (this.waiters.length >= this.policy.maxQueue) {
+            return Promise.reject(new AzureRateLimitError('queue-full'));
+        }
+        return new Promise<RateLimitLease>((resolve, reject) => {
+            const waiter: Waiter = { resolve, reject, signal };
+            waiter.onAbort = () => {
+                this.removeWaiter(waiter);
+                this.detach(waiter);
+                reject(abortError());
+            };
+            signal?.addEventListener('abort', waiter.onAbort, { once: true });
+            this.waiters.push(waiter);
+            this.schedulePump();
+        });
+    }
+
+    /** Drain the FIFO while the invariant holds; then (re)arm the RPM timer if needed. */
+    private pump(): void {
+        while (this.waiters.length > 0 && this.canGrant()) {
+            const w = this.waiters.shift() as Waiter;
+            this.detach(w);
+            w.resolve(this.grant());
+        }
+        this.schedulePump();
+    }
+
+    /** Arm a single timer to re-pump when the RPM window next frees a slot (only
+     *  if the FIFO is blocked specifically by the window, not by concurrency). */
+    private schedulePump(): void {
+        if (this.pumpTimer != null) return;
+        if (this.waiters.length === 0) return;
+        if (this.active >= this.policy.maxConcurrent) return; // concurrency-blocked → pump on release
+        this.prune();
+        if (this.starts.length < this.policy.maxRpm) return; // window open → pump would have granted
+        const wait = Math.max(1, this.starts[0] + WINDOW_MS - this.clock.now() + 1);
+        this.pumpTimer = this.clock.setTimeout(() => {
+            this.pumpTimer = null;
+            this.pump();
+        }, wait);
+    }
+
+    /** In-place policy update — PRESERVES active count, rolling window, and FIFO
+     *  (audit R2-M1: never recreate; recreation would reset rate history). */
+    setPolicy(policy: Partial<PacerPolicy>): void {
+        this.policy = normalizePolicy(policy, this.policy);
+        this.pump();
+    }
+
+    dispose(): void {
+        if (this.pumpTimer != null) {
+            this.clock.clearTimeout(this.pumpTimer);
+            this.pumpTimer = null;
+        }
+        for (const w of this.waiters.splice(0)) {
+            this.detach(w);
+            // name 'AbortError' so a pending waiter rejected at teardown is classified
+            // as a cancellation, not an unexpected error (audit M4).
+            const e = new Error('Azure pacer disposed');
+            e.name = 'AbortError';
+            w.reject(e);
+        }
+    }
+
+    // ── Diagnostics (tests) ──
+    get activeCount(): number { return this.active; }
+    get queueLength(): number { return this.waiters.length; }
+    get recentStarts(): number { this.prune(); return this.starts.length; }
+}
+
+// ── Per-deployment registry + global policy ──────────────────────────────────
+
+let globalPolicy: PacerPolicy = { maxConcurrent: 2, maxRpm: 10, maxQueue: AZURE_PACER_MAX_QUEUE };
+const registry = new Map<string, AzureRequestPacer>();
+
+/** Normalized per-deployment key from the canonical resolved target (audit R2-H3):
+ *  adapter type + resource host + the concrete deployment/model id in the URL —
+ *  NOT a display model name. */
+export function azureRateLimitKey(adapterType: string, resolvedEndpoint: string, deploymentId: string): string {
+    let host = (resolvedEndpoint ?? '').trim().toLowerCase();
+    try { host = new URL(resolvedEndpoint).host; } catch { /* not a full URL — use raw */ }
+    return `${adapterType}|${host}|${(deploymentId ?? '').trim().toLowerCase()}`;
+}
+
+/** The shared pacer for a deployment key (created lazily with the current policy). */
+export function getAzurePacer(key: string): AzureRequestPacer {
+    let p = registry.get(key);
+    if (!p) {
+        p = new AzureRequestPacer(globalPolicy);
+        registry.set(key, p);
+    }
+    return p;
+}
+
+/** Set the global policy AND update every live pacer in place (audit R2-M1). */
+export function setAzurePacerPolicy(p: Partial<PacerPolicy>): void {
+    globalPolicy = normalizePolicy(p, globalPolicy);
+    for (const pacer of registry.values()) pacer.setPolicy(globalPolicy);
+}
+
+/** Dispose + clear the registry (plugin onunload + test teardown). */
+export function disposeAzurePacers(): void {
+    for (const p of registry.values()) p.dispose();
+    registry.clear();
+}

@@ -1,5 +1,29 @@
 # Project Status Log
 
+## 2026-06-05 — Azure 429 rate-limit throttling (RPM pacing + Azure-aware retry)
+
+Paces outbound Azure requests under the low Azure RPM cap (~10/min) and adds Azure-aware retry, so batch tagging / index rebuilds no longer 429-storm. Full `/plan` → `/audit-plan` (GPT R1-R2 + Gemini) → `/cycle --autonomous` flow.
+
+### Changes
+- **`AzureRequestPacer`** (`src/services/azure/azureRequestPacer.ts`): a self-contained, bounded-FIFO, **two-gate** scheduler — (a) max-concurrency + (b) a rolling-60s **RPM admission window** (a concurrency cap alone is NOT rate pacing). Abortable leases (cancel-while-queued), per-deployment registry, in-place `setPolicy`, injectable clock. `AZURE_PACER_MAX_QUEUE=256`.
+- **Pure header/timing helpers** (`azureRateLimitHeaders.ts`): parse both Azure header shapes + `retry-after-ms`/`x-ms-retry-after-ms`; **dimension-aware backoff** (wait for the exhausted dimension's reset, MAX-not-min, authoritative resets honoured uncapped); **evidence-based >TPM fail-fast** = token-dim 429 body AND a conservative lower-bound estimate **incl. the requested output budget** (`max_tokens`) > limit.
+- **Typed `AzureRateLimitError`** + shared `formatAzureRateLimitNotice` i18n mapper (`t.azureRateLimit.*`).
+- **Wired into `cloudService`** (`postWithRetry` + `makeRequestWithRetry`, Azure-gated via `isAzureAdapter`): per-attempt lease acquire/release (held only for the in-flight HTTP — released before backoff, so no pool stall), Azure backoff, >TPM fail-fast, header logging. **Non-Azure path byte-identical.**
+- **`main.ts`**: `setAzurePacerPolicy` from settings on init + settings-change; `disposeAzurePacers` on unload. **Settings**: `azureMaxConcurrentRequests` (default 2) + `azureMaxRpm` (default 10) + migration + `LLMSettingsSection` controls + i18n.
+
+### Decisions / deviations
+- The pacer is a unified two-gate FIFO that **supersedes** the standalone (previously-unused) `SimpleSemaphore` for the Azure path — a fixed-size semaphore queue can't express a dual gate, and in-place policy needs a resizable counter.
+- The ~20 i18n-god-file audit findings (`en.ts` placeholder/pluralization/taxonomy) are **pre-existing architecture**, deferred (a separate project; flagged only because `en.ts` was touched).
+- Known minor (non-blocking, Gemini-APPROVE): `makeRequest` maps an unload-time pacer AbortError to "timed out" — rare; the signal-bearing summarize path is correct.
+
+### Files Affected
+- New: `src/services/azure/{azureRequestPacer,azureRateLimitHeaders,azureRateLimitError,formatAzureRateLimitNotice}.ts`. Modified: `cloudService.ts`, `main.ts`, `core/settings.ts`, `ui/settings/LLMSettingsSection.ts`, `i18n/{en,types}.ts`.
+
+### Verification
+- 5523 unit tests pass (+35 Azure incl. FIFO/RPM-window/abort/deadlock/NaN/backoff/TPM), type-check clean, lint 0 errors, build deployed. GPT plan R1-R2 + Gemini APPROVE; GPT code audit + consolidated Gemini APPROVE.
+
+---
+
 ## 2026-06-05 — Presentation quality fixes (#1 vertical layout, #3 chart credibility, #4 emphasis)
 
 Three deterministic presentation-render/prompt fixes from the slide-deck critique (the remaining items after font embedding + 429 retry).

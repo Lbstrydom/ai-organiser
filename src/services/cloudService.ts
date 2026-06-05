@@ -10,6 +10,9 @@ import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
 import { abortableSleep } from '../utils/abortableSleep';
+import { getAzurePacer, azureRateLimitKey } from './azure/azureRequestPacer';
+import { parseAzureRateLimitHeaders, computeAzureBackoffMs, classifyTpm, estimateMinProcessedTokens, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
+import { AzureRateLimitError } from './azure/azureRateLimitError';
 
 export class CloudLLMService extends BaseLLMService implements MultimodalLLMService {
     private adapter: BaseAdapter;
@@ -98,16 +101,13 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 throw new Error(validationError);
             }
 
-            const response = await this.requestWithTimeout(
-                requestUrl({
-                    url: this.adapter.getEndpoint(),
-                    method: 'POST',
-                    headers: this.adapter.getHeaders(),
-                    body: JSON.stringify(this.adapter.formatRequest(prompt)),
-                    throw: false
-                }),
-                timeoutMs
-            );
+            const response = await this.pacedRequestUrl({
+                url: this.adapter.getEndpoint(),
+                method: 'POST',
+                headers: this.adapter.getHeaders(),
+                body: JSON.stringify(this.adapter.formatRequest(prompt)),
+                throw: false
+            }, timeoutMs);
             return response;
 
         } catch (error) {
@@ -115,6 +115,70 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 throw new Error('Request timed out');
             }
             throw error;
+        }
+    }
+
+    // ── Azure rate-limit pacing (azure-429-throttling) ───────────────────────
+    // Gate ONLY the Azure path; non-Azure is byte-identical.
+
+    private isAzureAdapter(): boolean {
+        return this.adapterType.startsWith('azure');
+    }
+
+    /** Per-deployment pacer key from the canonical resolved endpoint + the CONCRETE
+     *  model the adapter actually sends (not a `latest-*` sentinel) — audit H6. */
+    private azurePacerKey(): string {
+        const model = (this.adapter['config'] as { modelName?: string } | undefined)?.modelName || this.modelName;
+        return azureRateLimitKey(this.adapterType, this.adapter.getEndpoint(), model);
+    }
+
+    /** Run a `requestUrl` through the Azure pacer (concurrency + rolling-RPM) when
+     *  on Azure — the lease is held ONLY for the in-flight HTTP (released before any
+     *  backoff), so a backing-off request never stalls the pool. Logs the Azure
+     *  rate-limit headers (debug). Non-Azure: a plain timed request.
+     *
+     *  `signal` propagation (audit H5): the summarize path threads the caller's
+     *  AbortSignal here so a queued acquire is cancellable. The tagging path
+     *  (`makeRequest`) has no caller signal today (tagging is not user-cancellable),
+     *  so it passes none — queued waiters are never permanently stranded: they drain
+     *  as the RPM window opens, and are rejected on `disposeAzurePacers()` at unload. */
+    private async pacedRequestUrl(
+        opts: Parameters<typeof requestUrl>[0],
+        timeoutMs: number,
+        signal?: AbortSignal,
+    ): Promise<import('obsidian').RequestUrlResponse> {
+        if (!this.isAzureAdapter()) {
+            return this.requestWithTimeout(requestUrl(opts), timeoutMs);
+        }
+        const lease = await getAzurePacer(this.azurePacerKey()).acquire(signal);
+        try {
+            const r = await this.requestWithTimeout(requestUrl(opts), timeoutMs);
+            logAzureRateLimitHeaders(parseAzureRateLimitHeaders(r.headers), this.adapterType);
+            return r;
+        } finally {
+            lease.release();
+        }
+    }
+
+    /** Azure-aware backoff for a retriable response (exhausted-dimension reset →
+     *  max-reset → exponential); falls back to the generic path off-Azure. */
+    private azureBackoffMs(response: import('obsidian').RequestUrlResponse, attempt: number): number {
+        return computeAzureBackoffMs(parseAzureRateLimitHeaders(response.headers), attempt);
+    }
+
+    /** Evidence-based >TPM fail-fast: throw a typed error (no further retry) when a
+     *  429 names a token dimension AND a conservative estimate exceeds the TPM limit. */
+    private azureTpmFailFast(response: import('obsidian').RequestUrlResponse, body: string): void {
+        if (!this.isAzureAdapter() || response.status !== 429) return;
+        const info = parseAzureRateLimitHeaders(response.headers);
+        const errBody = response.json?.error?.message ?? response.text ?? '';
+        const est = estimateMinProcessedTokens(body);
+        if (classifyTpm(errBody, info, est)) {
+            const k = (n?: number): string => (n == null ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+            throw new AzureRateLimitError('tpm-exceeded', {
+                limitTokens: info.limitTokens, estTokens: est,
+                message: `This request (~${k(est)} tokens) exceeds your Azure deployment's per-minute token limit (~${k(info.limitTokens)}). Raise the TPM quota for this deployment, or split the input.`,
+            });
         }
     }
 
@@ -169,12 +233,19 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         if (response.status === 401 || response.status === 403) return false;
         if (!this.RETRIABLE_STATUSES.has(response.status)) return false;
         if (attempt >= this.MAX_RETRIES - 1) return false;
-        const headerMs = this.parseRetryAfterMs(this.getHeader(response.headers, 'retry-after'));
-        const fallbackMs = Math.min(
-            this.RETRY_DELAY * Math.pow(2, attempt) * (0.5 + Math.random()),
-            this.MAX_RETRY_DELAY_MS
-        );
-        const waitMs = headerMs > 0 ? headerMs : fallbackMs;
+        // Azure: use dimension-aware backoff (exhausted-dimension reset → max-reset
+        // → exponential). Non-Azure keeps the existing Retry-After-or-exponential.
+        let waitMs: number;
+        if (this.isAzureAdapter()) {
+            waitMs = this.azureBackoffMs(response, attempt);
+        } else {
+            const headerMs = this.parseRetryAfterMs(this.getHeader(response.headers, 'retry-after'));
+            const fallbackMs = Math.min(
+                this.RETRY_DELAY * Math.pow(2, attempt) * (0.5 + Math.random()),
+                this.MAX_RETRY_DELAY_MS
+            );
+            waitMs = headerMs > 0 ? headerMs : fallbackMs;
+        }
         const seconds = Math.round(waitMs / 1000);
         // D6: surface the 429 retry state to the UI, then back off abortably.
         onRetryStatus?.(seconds);
@@ -205,16 +276,21 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // not a network-error phase.
             if (signal?.aborted) throw new Error('Aborted');
             try {
-                lastResponse = await this.requestWithTimeout(
-                    requestUrl({ url, method: 'POST', headers, body, throw: false }),
-                    timeoutMs
-                );
+                lastResponse = await this.pacedRequestUrl({ url, method: 'POST', headers, body, throw: false }, timeoutMs, signal);
             } catch (networkErr) {
+                // A pacer queued-abort rejects with name 'AbortError' — treat as a
+                // clean cancellation, not a retriable network error.
+                if (signal?.aborted || (networkErr instanceof Error && networkErr.name === 'AbortError')) {
+                    throw new Error('Aborted');
+                }
                 if (!await this.retryOnNetworkError(attempt, signal, onRetryStatus)) throw networkErr;
                 if (signal?.aborted) throw new Error('Aborted');
                 continue;
             }
             if (lastResponse.status >= 200 && lastResponse.status < 300) break;
+            // Azure >TPM fail-fast: a token-dimension 429 too big for the per-minute
+            // budget can never succeed — throw (no further retry) instead of looping.
+            this.azureTpmFailFast(lastResponse, body);
             if (!await this.retryOnHttpStatus(lastResponse, attempt, signal, onRetryStatus)) break;
             if (signal?.aborted) throw new Error('Aborted');
         }
@@ -254,6 +330,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      *  verbatim so the loop can exit immediately, otherwise the outer
      *  exponential-backoff path takes over. */
     private isNonRetriableError(error: unknown): boolean {
+        if (error instanceof AzureRateLimitError) return true; // >TPM / queue-full never retried
         if (!(error instanceof Error)) return false;
         if (error.message.includes('Invalid API key')) return true;
         return /HTTP error 40[134]\b/.test(error.message);
@@ -283,7 +360,14 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             }
 
             if (response.status === 429) {
-                const waitMs = this.rateLimitBackoffMs(response, attempt);
+                // Azure >TPM fail-fast (throws AzureRateLimitError → propagated as
+                // non-retriable below) + dimension-aware backoff.
+                if (this.isAzureAdapter()) {
+                    this.azureTpmFailFast(response, JSON.stringify(this.adapter.formatRequest(prompt)));
+                }
+                const waitMs = this.isAzureAdapter()
+                    ? this.azureBackoffMs(response, attempt)
+                    : this.rateLimitBackoffMs(response, attempt);
                 if (attempt < this.MAX_RETRIES - 1) {
                     await new Promise(resolve => setTimeout(resolve, waitMs));
                 }

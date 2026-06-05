@@ -247,6 +247,31 @@ export class LLMSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
+        // Rate-limit pacing — Azure deployments ship with very low default quotas
+        // (~10 RPM / 10k TPM). Pace request starts to stay under them.
+        new Setting(this.containerEl)
+            .setName(az.maxConcurrent)
+            .setDesc(az.maxConcurrentDesc)
+            .addText(text => text
+                .setPlaceholder('2')
+                .setValue(String(this.plugin.settings.azureMaxConcurrentRequests))
+                .onChange((value) => {
+                    const n = Math.floor(Number(value));
+                    this.plugin.settings.azureMaxConcurrentRequests = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 2;
+                    void this.plugin.saveSettings();
+                }));
+        new Setting(this.containerEl)
+            .setName(az.maxRpm)
+            .setDesc(az.maxRpmDesc)
+            .addText(text => text
+                .setPlaceholder('10')
+                .setValue(String(this.plugin.settings.azureMaxRpm))
+                .onChange((value) => {
+                    const n = Math.floor(Number(value));
+                    this.plugin.settings.azureMaxRpm = Number.isFinite(n) ? Math.min(600, Math.max(1, n)) : 10;
+                    void this.plugin.saveSettings();
+                }));
+
         // Routing mode — deployment-based reveals named deployment fields.
         new Setting(this.containerEl)
             .setName(az.routingMode)

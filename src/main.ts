@@ -43,6 +43,7 @@ import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue } from './services/vector/embeddingQueue';
+import { setAzurePacerPolicy, disposeAzurePacers } from './services/azure/azureRequestPacer';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -550,6 +551,13 @@ export default class AIOrganiserPlugin extends Plugin {
         if (myEpoch !== this.llmInitEpoch) return;
         this.providerProfile = profile;
 
+        // Azure rate-limit pacing: push the current cap/RPM into the shared pacer
+        // policy (set once here; runs on load + every saveSettings re-init).
+        setAzurePacerPolicy({
+            maxConcurrent: this.settings.azureMaxConcurrentRequests,
+            maxRpm: this.settings.azureMaxRpm,
+        });
+
         // D2: fail closed. A misconfigured Azure setup gets a NullLLMService —
         // no network path can fire — plus one actionable Notice per misconfig
         // episode (re-armed once the profile becomes valid again).
@@ -969,6 +977,8 @@ export default class AIOrganiserPlugin extends Plugin {
         // D4.4: the queue is plugin-scoped — disposed only here (symmetric with onload).
         this.embeddingQueue?.dispose();
         this.embeddingQueue = null;
+        // Azure rate-limit pacers are module-scoped — clear on unload.
+        disposeAzurePacers();
         void this.llmService?.dispose();
         void this.embeddingService?.dispose();
         if (this.vectorStoreService) {
