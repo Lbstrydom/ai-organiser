@@ -409,6 +409,33 @@ describe('ClaudeWebSearchAdapter', () => {
             expect(body.tools[0].type).toBe('web_search_20250305');
         });
 
+        it('routes Claude 4.6 web search through Azure Foundry with the dynamic tool + beta header', async () => {
+            // Per the Azure-web-search spec: the Foundry passthrough accepts the
+            // SAME body/headers as direct Anthropic — including the dynamic
+            // web_search_20260209 tool and the code-execution-web-tools beta. The
+            // only differences are the host/path and Bearer (not x-api-key) auth.
+            const azureAdapter = new ClaudeWebSearchAdapter(mockGetApiKey, {
+                model: 'claude-sonnet-4-6',
+                useDynamicFiltering: true,
+                azureEndpointBase: 'https://my-resource.services.ai.azure.com',
+            });
+
+            mockRequestUrl.mockResolvedValue({
+                status: 200,
+                json: buildMockResponse(),
+            });
+
+            await azureAdapter.searchAndSynthesize('test');
+
+            const call = mockRequestUrl.mock.calls[0][0];
+            const body = JSON.parse(call.body);
+            expect(call.url).toBe('https://my-resource.services.ai.azure.com/anthropic/v1/messages');
+            expect(call.headers['Authorization']).toBe('Bearer test-claude-key');
+            expect(call.headers['x-api-key']).toBeUndefined();
+            expect(body.tools[0].type).toBe('web_search_20260209');
+            expect(call.headers['anthropic-beta']).toBe('code-execution-web-tools-2026-02-09');
+        });
+
         it('throws on missing API key', async () => {
             mockGetApiKey.mockResolvedValue(null);
             await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('Claude API key not configured');

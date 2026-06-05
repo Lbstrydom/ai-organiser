@@ -3,6 +3,7 @@ import process from "process";
 import builtins from "builtin-modules";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +80,41 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
+// ── Auto-deploy ──────────────────────────────────────────────────────────────
+// After a successful build, copy the plugin artifacts to the local Obsidian
+// vault AND the OneDrive-synced `mobile` folder so both stay current without a
+// manual copy. Each target is independently guarded: if its PARENT directory
+// doesn't exist (another machine, CI), it's skipped silently — never a build
+// failure. Override with AIORG_DEPLOY_TARGETS (a `;`-separated list of dirs).
+const DEFAULT_DEPLOY_TARGETS = [
+  "C:\\obsidian\\Second Brain\\.obsidian\\plugins\\ai-organiser",
+  "C:\\Users\\User\\OneDrive\\Across Devices\\mobile",
+];
+const DEPLOY_TARGETS = (process.env.AIORG_DEPLOY_TARGETS
+  ? process.env.AIORG_DEPLOY_TARGETS.split(";").map(s => s.trim()).filter(Boolean)
+  : DEFAULT_DEPLOY_TARGETS);
+// The three Obsidian plugin files. styles.css is optional — copied when present.
+const DEPLOY_ARTIFACTS = ["main.js", "manifest.json", "styles.css"];
+
+function deployArtifacts() {
+  for (const target of DEPLOY_TARGETS) {
+    // Only deploy where the parent already exists — avoids creating stray
+    // folders on machines that don't have this vault / OneDrive layout.
+    if (!fs.existsSync(path.dirname(target))) continue;
+    try {
+      fs.mkdirSync(target, { recursive: true });
+      for (const file of DEPLOY_ARTIFACTS) {
+        const src = path.join(__dirname, file);
+        if (!fs.existsSync(src)) continue;
+        fs.copyFileSync(src, path.join(target, file));
+      }
+      console.log(`Deployed plugin → ${target}`);
+    } catch (err) {
+      console.warn(`Deploy skipped for ${target}: ${err.message}`);
+    }
+  }
+}
+
 esbuild.build({
   banner: {
     js: banner,
@@ -135,7 +171,6 @@ esbuild.build({
     ".wasm": "binary",
     ".md": "text"
   }
+}).then(() => {
+  deployArtifacts();
 }).catch(() => process.exit(1));
-if (!prod) {
-  console.log("Watching for changes...");
-}

@@ -442,6 +442,18 @@ export async function getQuickPeekProviderConfig(
 export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<string | null> {
     const secretStorage = plugin.secretStorageService;
 
+    // AZURE FIRST (plan AD-8): under azure-claude the web-search request is
+    // Bearer-authed to the Foundry passthrough. A dedicated research key is for
+    // the DIRECT Anthropic transport (x-api-key) — Bearer-sending it to Azure
+    // 401s ("invalid subscription key"). So on Azure, always reuse the Foundry
+    // key and NEVER honour a (possibly stale / direct-Anthropic) dedicated key.
+    // Verified against the live Foundry endpoint 2026-06: the Foundry key 200s
+    // for both basic + dynamic web_search; a leftover sk-ant dedicated key 401s.
+    // Never a silent cross-boundary fallback to a personal Anthropic key.
+    if (plugin.settings.cloudServiceType === 'azure-claude') {
+        return await getAzureApiKey(plugin, 'azure-claude');
+    }
+
     const dedicated = await secretStorage.getSecret(
         PLUGIN_SECRET_IDS.RESEARCH_CLAUDE_WEB_SEARCH_KEY,
     );
@@ -451,13 +463,6 @@ export async function getClaudeWebSearchKey(plugin: AIOrganiserPlugin): Promise<
         const mainKey = await secretStorage.getSecret('anthropic-api-key');
         if (mainKey) return mainKey;
         return plugin.settings.cloudApiKey || null;
-    }
-
-    // AZURE (plan AD-8): the shared Foundry key serves web search, but ONLY when
-    // the user has actually selected the Azure Claude provider — never a silent
-    // cross-boundary fallback to a personal Anthropic key.
-    if (plugin.settings.cloudServiceType === 'azure-claude') {
-        return await getAzureApiKey(plugin, 'azure-claude');
     }
     // Azure transport (base + Bearer auth + dynamic-filtering `anthropic-beta`
     // header) is wired in `claudeWebSearchAdapter` via the `azureEndpointBase`

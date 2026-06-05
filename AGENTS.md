@@ -563,6 +563,8 @@ See `docs/usertest.md` for manual testing checklist.
 
 ## Deployment Verification ⚠️ CRITICAL
 
+**Auto-deploy (since June 2026)**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to BOTH the Second Brain vault plugin folder AND `C:\Users\User\OneDrive\Across Devices\mobile` after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path) and overridable via `AIORG_DEPLOY_TARGETS` (`;`-separated dirs). The manual steps below remain a fallback / for other machines.
+
 **Always verify deployment after building.** Stale builds in the Obsidian vault cause confusion when changes appear not to work.
 
 ### Deploy Path
@@ -603,7 +605,7 @@ npm run build && cp main.js manifest.json styles.css "<vault>/.obsidian/plugins/
 ```
 
 ### Mobile Deploy Staging
-After every build, also copy to `docs/mobile/` and the OneDrive **mobile** folder so the latest artifacts are easily accessible for manual transfer to mobile devices (Obsidian Sync does not sync plugin files):
+The OneDrive **mobile** folder (`C:\Users\User\OneDrive\Across Devices\mobile\`) is now populated **automatically** by the post-build deploy in `esbuild.config.mjs` (see Auto-deploy above) — no manual copy needed; files sync to phone/tablet via the OneDrive app. To also stage into the gitignored `docs/mobile/` (optional, manual):
 ```bash
 cp main.js manifest.json styles.css docs/mobile/
 cp main.js manifest.json styles.css "C:/Users/User/OneDrive/Across Devices/mobile/"
@@ -1744,7 +1746,7 @@ Alternative research provider using Anthropic's native web search tool. Replaces
 
 ### Key Decisions
 
-- **API Key Reuse** (AD-4): 3-level fallback — dedicated research key → SecretStorage anthropic key → main `cloudApiKey`
+- **API Key Reuse** (AD-4): resolution is **provider-gated** (`getClaudeWebSearchKey`, `apiKeyHelpers.ts`). Under `azure-claude` the **Azure Foundry key wins** and any dedicated research key is IGNORED — a dedicated key is a DIRECT-Anthropic (`x-api-key`) credential, so Bearer-sending it to the Foundry passthrough 401s ("invalid subscription key"). For non-Azure providers: dedicated research key → main SecretStorage anthropic key → `cloudApiKey`. So Azure overrides while it's the selected provider; private keys reactivate when Azure is off. (Order is Azure-first by design — verified live against the Foundry endpoint June 2026; the old dedicated-first order was the root cause of a web-search 401.)
 - **Domain Filtering** (AD-5): `researchExcludedSites` → `blocked_domains`; academic mode → `allowed_domains` for academic sites
 - **Cost Tracking** (AD-6): `$0.01/search` via `usage.server_tool_use.web_search_requests` count
 - **Dynamic Filtering** (AD-7): Auto-detect based on model prefix (`claude-opus-4-6`/`claude-sonnet-4-6`)

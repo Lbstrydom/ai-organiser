@@ -394,6 +394,11 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
+            // Without this, Obsidian's requestUrl throws a bare "Request failed,
+            // status <n>" on any 4xx/5xx BEFORE we can read the provider's real
+            // error body — making the status check below dead code. Opt out so we
+            // surface Anthropic/Azure's actual message (e.g. the 401 reason).
+            throw: false,
         });
 
         if (response.status !== 200) {
@@ -418,6 +423,10 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         // hardcoded static registry as fallback.
         const requested = this.options.model || 'latest-sonnet';
         const model = resolveLatestSonnetSentinel(requested);
+        // Dynamic filtering (web_search_20260209 + the code-execution-web-tools
+        // beta header) works identically on the Azure Foundry passthrough and on
+        // direct Anthropic — Azure proxies the same body/headers. So the only
+        // gate is the model + the user's useDynamicFiltering toggle.
         const useDynamic = this.options.useDynamicFiltering !== false
             && claudeSupportsDynamicWebSearch(model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;

@@ -1,5 +1,31 @@
 # Project Status Log
 
+## 2026-06-05 — Fix: Azure Foundry web-search 401 (provider-gated key resolution) + build auto-deploy
+
+Presentation web search returned HTTP 401 ("Access denied due to invalid subscription key") on Azure AI Foundry. Investigated **live** by attaching to the running Obsidian Electron renderer over CDP (Playwright `connectOverCDP` on `--remote-debugging-port=9222`) and firing the real request in-process.
+
+### Changes
+- **Root cause**: `getClaudeWebSearchKey` (`src/services/apiKeyHelpers.ts`) checked the dedicated `RESEARCH_CLAUDE_WEB_SEARCH_KEY` BEFORE the provider. A private direct-Anthropic (`sk-ant`) key was stored, so under `azure-claude` it was Bearer-sent to the Foundry passthrough → 401. Fix: resolve **Azure-first** — under `azure-claude` the Foundry key wins and the dedicated key is ignored (it's an `x-api-key` direct-Anthropic credential); non-Azure providers still use the dedicated/private key. Azure overrides while selected; private keys reactivate when Azure is off.
+- **Reverted a wrong intermediate fix** in `claudeWebSearchAdapter.ts` (had forced the basic tool on Azure — proven live that the dynamic `web_search_20260209` tool + `code-execution-web-tools` beta header work fine on Foundry). Kept the `throw: false` on `requestUrl` so the adapter surfaces the provider's real error body instead of a bare "Request failed, status N".
+- **Build auto-deploy**: `esbuild.config.mjs` now copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder AND `C:\Users\User\OneDrive\Across Devices\mobile` after every build (parent-guarded; `AIORG_DEPLOY_TARGETS` override).
+
+### Files Affected
+- Modified: `src/services/apiKeyHelpers.ts` (Azure-first resolver), `src/services/research/adapters/claudeWebSearchAdapter.ts` (revert + `throw:false`), `esbuild.config.mjs` (post-build auto-deploy), `tests/claudeWebSearchAdapter.test.ts` (Azure dynamic-tool path test).
+- Created: `tests/apiKeyHelpersClaudeWebSearch.test.ts` (key-source precedence: Azure-on override, non-Azure dedicated, direct-claude main).
+
+### Verification
+- Live (CDP-attached Obsidian): **both modes → HTTP 200** with web results. `azure-claude` → Foundry key → Azure endpoint (Bearer); `claude` (Azure off) → dedicated private key → `api.anthropic.com` (x-api-key). Setting flipped + restored in-memory, never persisted.
+- 5430 unit tests pass, tsc clean, lint 0 errors.
+
+### Decisions Made
+- Key resolution is **provider-gated, not key-presence-gated** — a dedicated key must never be Bearer-sent to Azure. Matches the documented intent (dedicated key = non-Azure transport only).
+- Build auto-deploy targets vault + OneDrive only (per user request); `docs/mobile/` staging stays manual/optional.
+
+### Next Steps
+- None. (Outside the repo: restart Obsidian to drop the `--remote-debugging-port=9222` used for investigation; rotate the Azure key shared during debugging.)
+
+---
+
 ## 2026-06-04 — Unified feature taxonomy (one SSOT, two projected surfaces)
 
 Implemented [docs/completed/unified-feature-taxonomy.md](docs/completed/unified-feature-taxonomy.md) end-to-end via an autonomous clustered `/cycle`. Kills the taxonomy-drift class between the **Features settings menu** and the **Command Picker**: both now derive their top-level grouping from ONE shared **workflow-stage** vocabulary (`capture/create/refine/find/maintain`), and `crossSurfaceTaxonomy.test.ts` fails the build if they disagree. Originated from a `/brainstorm --with-gemini` IA-coherence session.
