@@ -5,6 +5,9 @@
 
 import { App, TFile, Platform, requestUrl } from 'obsidian';
 import { getFs, getPath } from '../utils/desktopRequire';
+import { withAzureLease, buildAzureOpenAIDeploymentKey, isAzureHost } from './azure/azureRequestPacer';
+import { parseAzureRateLimitHeaders, computeAzureBackoffMs, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
+import { abortableSleep } from '../utils/abortableSleep';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
 
@@ -196,15 +199,12 @@ export async function transcribeAudio(
             boundary
         );
 
-        // Make the API request with 10 minute timeout
-        // (Whisper API typically returns within 1-2 minutes for 25MB files)
+        // Make the API request with a 10-minute timeout (Whisper typically returns
+        // in 1-2 min for 25MB). The timeout + abort + lease cleanup live INSIDE
+        // pacedWhisperRequest — no leaked timer, no zombie retry loop on timeout.
         const timeoutMs = 600000; // 10 minutes
 
-        const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
-        });
-
-        const requestPromise = requestUrl({
+        const response = await pacedWhisperRequest(endpoint, {
             url: endpoint,
             method: 'POST',
             headers: {
@@ -213,9 +213,7 @@ export async function transcribeAudio(
             },
             body: formData,
             throw: false
-        });
-
-        const response = await Promise.race([requestPromise, timeoutPromise]);
+        }, timeoutMs);
 
         if (response.status !== 200) {
             const errorText = typeof response.json === 'object'
@@ -288,7 +286,7 @@ export async function transcribeAudioFromData(
             setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
         });
 
-        const requestPromise = requestUrl({
+        const requestPromise = pacedWhisperRequest(endpoint, {
             url: endpoint,
             method: 'POST',
             headers: {
@@ -342,6 +340,81 @@ function getWhisperEndpoint(options: TranscriptionOptions): string {
         return options.azureEndpoint;
     }
     return WHISPER_ENDPOINT[options.provider] || WHISPER_ENDPOINT.openai;
+}
+
+const WHISPER_MAX_RETRIES = 3;
+
+/** Extract the deployment id from an Azure Whisper URL, else the literal 'whisper'
+ *  (the bucket id only needs to be stable per deployment). */
+function extractWhisperDeployment(endpoint: string): string {
+    const m = /\/openai\/deployments\/([^/]+)\//i.exec(endpoint);
+    return m ? m[1] : 'whisper';
+}
+
+/** SELF-DETECT the Azure Whisper pacer key from the resolved endpoint (azure-throttle-
+ *  coverage) — `null` (un-paced) for any non-Azure Whisper host. No settings/options
+ *  needed: the endpoint already carries everything. Exported for behavioral tests. */
+export function resolveWhisperPacingKey(endpoint: string): string | null {
+    return isAzureHost(endpoint)
+        ? buildAzureOpenAIDeploymentKey(endpoint, extractWhisperDeployment(endpoint))
+        : null;
+}
+
+/**
+ * Run a Whisper `requestUrl` through the Azure pacer when the endpoint is an Azure
+ * host (chunked audio = many calls = RPM burst). Per-attempt lease + Azure backoff
+ * on 429/5xx; the lease releases (withAzureLease `finally`) BEFORE the backoff sleep
+ * (deadlock-safe). Non-Azure: a plain `requestUrl` (byte-identical). The request
+ * param MUST set `throw:false` so a 429 status is readable here.
+ *
+ * Owns the request timeout (when `timeoutMs` is given) via an internal
+ * AbortController so a timeout (a) clears its own timer — no leak, and (b) aborts
+ * the retry loop + frees any queued pacer lease, rather than leaving a zombie
+ * retry/backoff loop running in the background (audit consolidated-R1 H1). Obsidian's
+ * `requestUrl` itself can't be cancelled, so at most ONE in-flight request dangles
+ * (its lease releases on completion); no FURTHER attempts or leases occur.
+ */
+export async function pacedWhisperRequest(
+    endpoint: string,
+    param: Parameters<typeof requestUrl>[0],
+    timeoutMs?: number,
+    signal?: AbortSignal,
+): Promise<import('obsidian').RequestUrlResponse> {
+    const key = resolveWhisperPacingKey(endpoint);
+    const controller = new AbortController();
+    const onParentAbort = (): void => controller.abort();
+    if (signal) {
+        if (signal.aborted) controller.abort();
+        else signal.addEventListener('abort', onParentAbort, { once: true });
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = timeoutMs != null
+        ? new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+                controller.abort();
+                reject(new Error(`Transcription request timeout (${Math.round(timeoutMs / 60000)} minutes)`));
+            }, timeoutMs);
+        })
+        : null;
+    const race = <T>(p: Promise<T>): Promise<T> => (timeout ? Promise.race([p, timeout]) : p);
+
+    try {
+        if (!key) return await race(requestUrl(param)); // non-Azure: single call + timeout (byte-identical)
+        let last!: import('obsidian').RequestUrlResponse;
+        for (let attempt = 0; attempt < WHISPER_MAX_RETRIES; attempt++) {
+            if (controller.signal.aborted) throw new Error('Aborted');
+            last = await race(withAzureLease(key, controller.signal, () => requestUrl(param)));
+            const info = parseAzureRateLimitHeaders(last.headers);
+            logAzureRateLimitHeaders(info, 'azure-whisper');
+            const retriable = last.status === 429 || (last.status >= 500 && last.status < 600);
+            if (!retriable || attempt >= WHISPER_MAX_RETRIES - 1) return last;
+            await abortableSleep(computeAzureBackoffMs(info, attempt), controller.signal);
+        }
+        return last;
+    } finally {
+        if (timer) clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onParentAbort);
+    }
 }
 
 /**
@@ -530,15 +603,17 @@ export async function transcribeExternalAudio(
             boundary
         );
 
-        // Make the API request
-        const response = await requestUrl({
+        // Make the API request (Azure-paced when the endpoint is an Azure host;
+        // `throw:false` so the pacer can read a 429 status and retry).
+        const response = await pacedWhisperRequest(endpoint, {
             url: endpoint,
             method: 'POST',
             headers: {
                 ...getTranscriptionAuthHeaders(options),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
-            body: formData
+            body: formData,
+            throw: false
         });
 
         if (response.status !== 200) {

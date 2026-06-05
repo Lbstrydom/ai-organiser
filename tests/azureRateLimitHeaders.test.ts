@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import {
     parseAzureRateLimitHeaders, computeAzureBackoffMs, classifyTpm, estimateMinProcessedTokens,
+    estimateMultimodalMinTokens,
 } from '../src/services/azure/azureRateLimitHeaders';
+
+describe('estimateMultimodalMinTokens (output-budget-only — audit R2-H4)', () => {
+    it('returns the requested output budget, NOT inflated by a base64 body', () => {
+        expect(estimateMultimodalMinTokens(64000)).toBe(64000);
+    });
+    it('undefined / non-finite → 0 (errs toward retrying, not false >TPM)', () => {
+        expect(estimateMultimodalMinTokens(undefined)).toBe(0);
+        expect(estimateMultimodalMinTokens(Number.NaN)).toBe(0);
+        expect(estimateMultimodalMinTokens(-5)).toBe(0);
+    });
+});
 
 describe('parseAzureRateLimitHeaders', () => {
     it('parses the OpenAI shape (case-insensitive) + retry-after secs', () => {

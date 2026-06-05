@@ -1,5 +1,27 @@
 # Project Status Log
 
+## 2026-06-05 — Azure throttle coverage (pace ALL Azure egress, not just text)
+
+The first Azure-429 pass only paced 2 of cloudService's egress primitives. This closes the **4 remaining Azure Foundry egress gaps** so batch/parallel work through them no longer 429-storms. Full `/plan` → `/audit-plan` (GPT R1-R2 + Gemini, REJECT was a pure plan-audit category-error) → `/cycle --autonomous` (2 clusters + code audit + consolidated Gemini APPROVE).
+
+### Changes
+- **Shared lease + SSOT keys** (`azureRequestPacer.ts`): `withAzureLease(key,signal,fn)` (the one lease wrapper for fetch/cross-module egress); `normalizeAzureEndpointToHost` (ONE canonical host normalizer, no raw fallback) + `buildAzureClaudeDeploymentKey`/`buildAzureOpenAIDeploymentKey` (SSOT key builders, host+model canonicalized) + `isAzureHost`. Removed the now-dead, divergent `azureRateLimitKey`.
+- **Multimodal estimate** (`azureRateLimitHeaders.ts`): `estimateMultimodalMinTokens` = output-budget-only (a base64 PDF/image body is not char≈token → never false-flags an RPM 429 as >TPM).
+- **cloudService** (`cloudService.ts`): `sendMultimodal` (PDF/image) now paced + retried + conservative >TPM fail-fast + exhausted-token-429 → actionable error; `summarizeTextStream` gets an **admission-only** lease (covers just the initial fetch+status, releases before the SSE body streams — never ties a slot up for the stream's life) + initial-429 retry; `azurePacerKey()` onto the SSOT builders; `pacedRequestUrl` refactored onto `withAzureLease`.
+- **Web-search** (`claudeWebSearchAdapter.ts`): `sendNonStreaming` (per-attempt) + `runStreamLoop` (admission-only) acquire a lease on the **SAME** azure-claude bucket the text path uses → text + research share ONE RPM budget.
+- **Audio/Whisper** (`audioTranscriptionService.ts`): `pacedWhisperRequest` **self-detects** Azure from the resolved endpoint (`resolveWhisperPacingKey`) — no `TranscriptionOptions` change, no edits to the 9 call sites. Owns its timeout via an internal AbortController (clears the timer + aborts the retry loop on timeout — no zombie). Embeddings untouched (already cap-1 queued).
+
+### Coverage now
+PDF/image, streaming, audio/Whisper, web-search RPM, tagging, summarize/chat/minutes — all Azure-paced. Embeddings via `embeddingQueue` (separate). Non-Azure paths byte-identical.
+
+### Verification
+5547 unit tests pass (+24), tsc clean, lint 0 errors, build deployed. Consolidated Gemini APPROVE.
+
+### Files Affected
+- `src/services/azure/{azureRequestPacer,azureRateLimitHeaders}.ts`, `src/services/cloudService.ts`, `src/services/research/adapters/claudeWebSearchAdapter.ts`, `src/services/audioTranscriptionService.ts`. Tests: `withAzureLease`, `cloudServiceAzureThrottle` (extended), `claudeWebSearchPacing`, `audioTranscriptionPacing`, `azureRateLimitHeaders` (extended), `azureThrottleWiring` (updated).
+
+---
+
 ## 2026-06-05 — Polish no longer deletes load-bearing content (#2)
 
 The per-slide polish (`refineDeckIrSelective`) optimised for word-count under "concision" with no guardrail, so it deleted load-bearing content (e.g. cut a 6-step process-flow to 4, dropping the "Clean Grid" payoff; removed chart framing + summary bullets).

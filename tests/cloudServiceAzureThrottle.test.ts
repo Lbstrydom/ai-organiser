@@ -70,3 +70,55 @@ describe('CloudLLMService Azure throttle', () => {
         expect(mockRequestUrl).toHaveBeenCalledTimes(2);
     });
 });
+
+describe('sendMultimodal Azure throttle (azure-throttle-coverage)', () => {
+    const pdfPart = () => [{ type: 'document' as const, mimeType: 'application/pdf', data: 'JVBERi'.repeat(20_000) }];
+
+    it('token-dim 429 + max_tokens > limit ⇒ >TPM fail-fast, NO retry', async () => {
+        mockRequestUrl.mockResolvedValue({
+            status: 429,
+            headers: { 'x-ratelimit-limit-tokens': '10000' },
+            json: { error: { message: 'Rate limit exceeded for ...Tokens' } },
+            text: 'tokens',
+        });
+        const r = await azureClaude().sendMultimodal(pdfPart(), { maxTokens: 64000 });
+        expect(r.success).toBe(false);
+        expect(r.error).toMatch(/per-minute token limit/i);
+        expect(mockRequestUrl).toHaveBeenCalledTimes(1); // fail-fast — the huge base64 body did NOT need char counting
+    });
+
+    it('a base64-heavy RPM 429 (request dim) does NOT false-fail-fast — it retries', async () => {
+        mockRequestUrl
+            .mockResolvedValueOnce({
+                status: 429,
+                headers: { 'x-ratelimit-remaining-requests': '0', 'x-ratelimit-reset-requests': '1' },
+                json: { error: { message: 'Rate limit exceeded for requests' } },
+                text: 'requests',
+            })
+            .mockResolvedValueOnce({ status: 200, text: JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }) });
+        const r = await azureClaude().sendMultimodal(pdfPart(), { maxTokens: 1024 });
+        expect(r.success).toBe(true);
+        expect(mockRequestUrl).toHaveBeenCalledTimes(2); // retried, not fail-fast (no token dim in the body)
+    });
+
+    it('exhausted token-dim 429 ⇒ AzureRateLimitError (audit M4)', async () => {
+        // Every attempt 429s on the token dimension, but max_tokens is small so the
+        // conservative est can't pre-empt — the exhausted path still surfaces >TPM.
+        mockRequestUrl.mockResolvedValue({
+            status: 429,
+            headers: { 'x-ratelimit-limit-tokens': '10000' },
+            json: { error: { message: 'Rate limit exceeded for ...Tokens' } },
+            text: 'tokens',
+        });
+        const r = await azureClaude().sendMultimodal(pdfPart(), { maxTokens: 100 });
+        expect(r.success).toBe(false);
+        expect(r.error).toMatch(/per-minute token limit/i);
+        expect(mockRequestUrl).toHaveBeenCalledTimes(3); // retried to exhaustion, THEN the actionable error
+    });
+
+    it('non-Azure multimodal makes a single un-paced call', async () => {
+        mockRequestUrl.mockResolvedValue({ status: 200, json: { content: [{ type: 'text', text: 'hi' }] }, text: '' });
+        await plainClaude().sendMultimodal(pdfPart(), { maxTokens: 1024 });
+        expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+    });
+});

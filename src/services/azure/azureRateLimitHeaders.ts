@@ -6,8 +6,9 @@
  *  - Azure OpenAI (`/openai/v1/…`, `api-key`): `x-ratelimit-limit-tokens`,
  *    `-remaining-tokens`, `-limit-requests`, `-remaining-requests`, `retry-after`.
  *  - Foundry Claude (`/anthropic/v1/messages`, `Bearer`): same `x-ratelimit-*`
- *    PLUS `x-ratelimit-renewalperiod-*` (window secs) + `x-ratelimit-reset-*`
- *    (secs until reset).
+ *    PLUS `x-ratelimit-reset-*` (secs until reset). The `x-ratelimit-renewalperiod-*`
+ *    headers (window length) are intentionally NOT parsed — `reset-*` already gives
+ *    the wait-until time the backoff needs; renewal period adds nothing actionable.
  * Plus the common ms variants `retry-after-ms` / `x-ms-retry-after-ms` (audit R2-M3).
  */
 
@@ -143,6 +144,17 @@ export function estimateMinProcessedTokens(body: string): number {
         if (typeof cand === 'number' && Number.isFinite(cand)) output = Math.max(0, Math.floor(cand));
     } catch { /* non-JSON body → input-only */ }
     return inputLB + output;
+}
+
+/**
+ * Conservative LOWER bound on tokens for a MULTIMODAL call (azure-throttle-coverage).
+ * A base64 PDF/image body is NOT char≈token — counting body length would over-estimate
+ * wildly (base64 inflation; images are tile-priced), so we use ONLY the requested
+ * OUTPUT budget. This never false-flags a retriable RPM 429 as >TPM; a genuinely-
+ * too-big request still surfaces via the exhausted-retry path. Non-finite → 0.
+ */
+export function estimateMultimodalMinTokens(maxTokens?: number): number {
+    return typeof maxTokens === 'number' && Number.isFinite(maxTokens) ? Math.max(0, Math.floor(maxTokens)) : 0;
 }
 
 /** Debug-log the ALLOWLISTED numeric rate-limit headers (never auth/body). */

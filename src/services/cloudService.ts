@@ -10,8 +10,8 @@ import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
 import { abortableSleep } from '../utils/abortableSleep';
-import { getAzurePacer, azureRateLimitKey } from './azure/azureRequestPacer';
-import { parseAzureRateLimitHeaders, computeAzureBackoffMs, classifyTpm, estimateMinProcessedTokens, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
+import { withAzureLease, buildAzureClaudeDeploymentKey, buildAzureOpenAIDeploymentKey } from './azure/azureRequestPacer';
+import { parseAzureRateLimitHeaders, computeAzureBackoffMs, classifyTpm, estimateMinProcessedTokens, estimateMultimodalMinTokens, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
 import { AzureRateLimitError } from './azure/azureRateLimitError';
 
 export class CloudLLMService extends BaseLLMService implements MultimodalLLMService {
@@ -125,11 +125,17 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return this.adapterType.startsWith('azure');
     }
 
-    /** Per-deployment pacer key from the canonical resolved endpoint + the CONCRETE
-     *  model the adapter actually sends (not a `latest-*` sentinel) — audit H6. */
+    /** Per-deployment pacer key via the SSOT builders (azure-throttle-coverage):
+     *  Claude vs OpenAI Foundry deployments get distinct, host+model-normalized
+     *  buckets. Uses the CONCRETE model the adapter sends (never a `latest-*`
+     *  sentinel) so the bucket matches the web-search adapter's for the same
+     *  deployment (shared RPM budget). */
     private azurePacerKey(): string {
         const model = (this.adapter['config'] as { modelName?: string } | undefined)?.modelName || this.modelName;
-        return azureRateLimitKey(this.adapterType, this.adapter.getEndpoint(), model);
+        const endpoint = this.adapter.getEndpoint();
+        return this.adapterType === 'azure-claude'
+            ? buildAzureClaudeDeploymentKey(endpoint, model)
+            : buildAzureOpenAIDeploymentKey(endpoint, model);
     }
 
     /** Run a `requestUrl` through the Azure pacer (concurrency + rolling-RPM) when
@@ -150,14 +156,13 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         if (!this.isAzureAdapter()) {
             return this.requestWithTimeout(requestUrl(opts), timeoutMs);
         }
-        const lease = await getAzurePacer(this.azurePacerKey()).acquire(signal);
-        try {
+        // Reuse the shared lease wrapper (azure-throttle-coverage audit M4) — one
+        // acquire/finally-release lifecycle for every Azure egress, no duplication.
+        return withAzureLease(this.azurePacerKey(), signal, async () => {
             const r = await this.requestWithTimeout(requestUrl(opts), timeoutMs);
             logAzureRateLimitHeaders(parseAzureRateLimitHeaders(r.headers), this.adapterType);
             return r;
-        } finally {
-            lease.release();
-        }
+        });
     }
 
     /** Azure-aware backoff for a retriable response (exhausted-dimension reset →
@@ -878,17 +883,20 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
             // Use adapter's formatMultimodalRequest method
             const requestBody = this.adapter.formatMultimodalRequest(parts, options);
+            const opts = {
+                url: this.adapter.getEndpoint(),
+                method: 'POST' as const,
+                headers: this.adapter.getHeaders(),
+                body: JSON.stringify(requestBody),
+                throw: false,
+            };
+            const timeoutMs = this.getSummarizeTimeoutMs(); // configurable summarize timeout for multimodal
 
-            const response = await this.requestWithTimeout(
-                requestUrl({
-                    url: this.adapter.getEndpoint(),
-                    method: 'POST',
-                    headers: this.adapter.getHeaders(),
-                    body: JSON.stringify(requestBody),
-                    throw: false
-                }),
-                this.getSummarizeTimeoutMs() // Use configurable summarize timeout for multimodal content
-            );
+            // Non-Azure: the existing single call (byte-identical). Azure: paced +
+            // retried + conservative >TPM fail-fast (PDF is the high-TPM workload).
+            const response = this.isAzureAdapter()
+                ? await this.sendMultimodalAzure(opts, timeoutMs, options?.maxTokens)
+                : await this.requestWithTimeout(requestUrl(opts), timeoutMs);
 
             if (response.status < 200 || response.status >= 300) {
                 const responseText = response.text;
@@ -921,6 +929,51 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         }
     }
 
+    /** Build the actionable >TPM error (multimodal uses an output-budget-only est). */
+    private azureTpmError(limitTokens: number | undefined, est: number): AzureRateLimitError {
+        const k = (n?: number): string => (n == null ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+        return new AzureRateLimitError('tpm-exceeded', {
+            limitTokens, estTokens: est,
+            message: `This request (~${k(est)} tokens) exceeds your Azure deployment's per-minute token limit (~${k(limitTokens)}). Raise the TPM quota for this deployment, or split the input.`,
+        });
+    }
+
+    /** Azure multimodal egress: paced per-attempt + Azure backoff + a multimodal
+     *  >TPM fail-fast (output-budget-only est — a base64 PDF/image body is not
+     *  char≈token). Throws `AzureRateLimitError` on a genuine >TPM (immediate or on
+     *  an exhausted token-dim 429); otherwise returns the last response for the
+     *  caller's normal status handling. */
+    private async sendMultimodalAzure(
+        opts: Parameters<typeof requestUrl>[0],
+        timeoutMs: number,
+        maxTokens?: number,
+    ): Promise<import('obsidian').RequestUrlResponse> {
+        let last!: import('obsidian').RequestUrlResponse;
+        for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
+            last = await this.pacedRequestUrl(opts, timeoutMs);
+            if (last.status >= 200 && last.status < 300) return last;
+
+            const info = parseAzureRateLimitHeaders(last.headers);
+            const errBody = last.json?.error?.message ?? last.text ?? '';
+            if (last.status === 429) {
+                const est = estimateMultimodalMinTokens(maxTokens);
+                if (classifyTpm(errBody, info, est)) throw this.azureTpmError(info.limitTokens, est); // immediate >TPM
+                if (attempt < this.MAX_RETRIES - 1) {
+                    await abortableSleep(computeAzureBackoffMs(info, attempt));
+                    continue;
+                }
+                // Exhausted on a token-dimension 429 (the conservative est couldn't
+                // pre-empt) → still surface the actionable >TPM error (audit M4).
+                if (info.limitTokens != null && /token/i.test(errBody)) throw this.azureTpmError(info.limitTokens, est);
+            } else if (this.RETRIABLE_STATUSES.has(last.status) && attempt < this.MAX_RETRIES - 1) {
+                await abortableSleep(computeAzureBackoffMs(info, attempt));
+                continue;
+            }
+            return last; // non-retriable, or exhausted non-token-429 → caller formats it
+        }
+        return last;
+    }
+
     /**
      * Get the multimodal capability of the current adapter
      * Allows callers to check capability before attempting multimodal operations
@@ -950,12 +1003,40 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const { url, headers, body } = this.adapter.formatStreamingRequest!(prompt);
 
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await globalThis.fetch(url, {
+        const doFetch = (): Promise<Response> => globalThis.fetch(url, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
             signal,
         });
+
+        let response: Response;
+        if (!this.isAzureAdapter()) {
+            response = await doFetch(); // non-Azure: byte-identical
+        } else {
+            // Admission-ONLY lease (azure-throttle-coverage): the lease covers only
+            // the initial fetch + status read so the RPM start is counted, then it
+            // releases — the multi-minute stream body is consumed UN-leased (never
+            // ties up a concurrency slot). Initial-429 retries OUTSIDE the lease.
+            const key = this.azurePacerKey();
+            const toObj = (h: Headers): Record<string, string> => {
+                const o: Record<string, string> = {};
+                h.forEach((v, k) => { o[k] = v; });
+                return o;
+            };
+            for (let attempt = 0; ; attempt++) {
+                if (signal?.aborted) throw new Error('Aborted');
+                response = await withAzureLease(key, signal, doFetch);
+                const info = parseAzureRateLimitHeaders(toObj(response.headers));
+                logAzureRateLimitHeaders(info, 'azure-stream');
+                if (response.ok) break;
+                if (response.status === 429 && attempt < this.MAX_RETRIES - 1) {
+                    await abortableSleep(computeAzureBackoffMs(info, attempt), signal);
+                    continue;
+                }
+                return { success: false, error: `HTTP ${response.status}` };
+            }
+        }
 
         if (!response.ok) {
             return { success: false, error: `HTTP ${response.status}` };

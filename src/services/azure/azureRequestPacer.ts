@@ -204,14 +204,10 @@ export class AzureRequestPacer {
 let globalPolicy: PacerPolicy = { maxConcurrent: 2, maxRpm: 10, maxQueue: AZURE_PACER_MAX_QUEUE };
 const registry = new Map<string, AzureRequestPacer>();
 
-/** Normalized per-deployment key from the canonical resolved target (audit R2-H3):
- *  adapter type + resource host + the concrete deployment/model id in the URL —
- *  NOT a display model name. */
-export function azureRateLimitKey(adapterType: string, resolvedEndpoint: string, deploymentId: string): string {
-    let host = (resolvedEndpoint ?? '').trim().toLowerCase();
-    try { host = new URL(resolvedEndpoint).host; } catch { /* not a full URL — use raw */ }
-    return `${adapterType}|${host}|${(deploymentId ?? '').trim().toLowerCase()}`;
-}
+// Per-deployment keys are built ONLY via the SSOT builders below
+// (`buildAzureClaudeDeploymentKey` / `buildAzureOpenAIDeploymentKey`) — the old
+// `azureRateLimitKey` was removed (azure-throttle-coverage audit M2) because its
+// raw-fallback normalization diverged from the canonical `normalizeAzureEndpointToHost`.
 
 /** The shared pacer for a deployment key (created lazily with the current policy). */
 export function getAzurePacer(key: string): AzureRequestPacer {
@@ -233,4 +229,69 @@ export function setAzurePacerPolicy(p: Partial<PacerPolicy>): void {
 export function disposeAzurePacers(): void {
     for (const p of registry.values()) p.dispose();
     registry.clear();
+}
+
+// ── Shared lease + SSOT key builders (azure-throttle-coverage) ────────────────
+
+/**
+ * The ONE lease wrapper for `fetch` + cross-module Azure egress (multimodal,
+ * streaming, web-search, audio). Acquires a pacer lease, runs `fn`, releases in
+ * `finally` — so the slot frees on success AND throw. Cross-module callers use
+ * this instead of touching `cloudService` internals.
+ */
+export async function withAzureLease<T>(
+    key: string,
+    signal: AbortSignal | undefined,
+    fn: () => Promise<T>,
+): Promise<T> {
+    const lease = await getAzurePacer(key).acquire(signal);
+    try {
+        return await fn();
+    } finally {
+        lease.release();
+    }
+}
+
+/**
+ * ONE canonical endpoint → host normalizer (audit R2-H1). Both key builders +
+ * `isAzureHost` route through it so the same Azure resource ALWAYS yields the same
+ * bucket key regardless of scheme/case/path/trailing-slash. Throws on a
+ * non-parseable input — a malformed endpoint must NOT silently produce a divergent
+ * key (the caller already validated the Azure config).
+ */
+export function normalizeAzureEndpointToHost(raw: string): string {
+    const t = (raw ?? '').trim().toLowerCase();
+    if (!t) throw new Error('Azure endpoint is empty');
+    const withScheme = /^https?:\/\//.test(t) ? t : `https://${t}`;
+    return new URL(withScheme).host; // throws on garbage — intentional
+}
+
+/** Canonicalize the model/deployment identity component (audit R2-M3). */
+function canonicalIdentity(id: string): string {
+    return (id ?? '').trim().toLowerCase();
+}
+
+/**
+ * SSOT key builder for the Azure Claude (Foundry) deployment. BOTH the text path
+ * (`cloudService`) and the web-search adapter call this with the SAME concrete
+ * resolved model id → they share ONE RPM bucket. `model` MUST be the resolved
+ * model the adapter actually sends (never a `latest-*` sentinel / alias).
+ */
+export function buildAzureClaudeDeploymentKey(endpointOrBase: string, model: string): string {
+    return `azure-claude|${normalizeAzureEndpointToHost(endpointOrBase)}|${canonicalIdentity(model)}`;
+}
+
+/** SSOT key builder for an Azure OpenAI deployment (Whisper / GPT / embeddings). */
+export function buildAzureOpenAIDeploymentKey(endpointOrBase: string, deployment: string): string {
+    return `azure-openai|${normalizeAzureEndpointToHost(endpointOrBase)}|${canonicalIdentity(deployment)}`;
+}
+
+/** True when the URL host is an Azure Foundry / Azure OpenAI host (audio self-detect). */
+export function isAzureHost(url: string): boolean {
+    try {
+        const host = normalizeAzureEndpointToHost(url);
+        return host.endsWith('.openai.azure.com') || host.endsWith('.services.ai.azure.com');
+    } catch {
+        return false;
+    }
 }

@@ -18,6 +18,8 @@ import { PROVIDER_MODELS } from '../../adapters/modelRegistry';
 import { getCachedModels } from '../../adapters/dynamicModelService';
 import { logger } from '../../../utils/logger';
 import { abortableSleep } from '../../../utils/abortableSleep';
+import { withAzureLease, buildAzureClaudeDeploymentKey } from '../../azure/azureRequestPacer';
+import { parseAzureRateLimitHeaders, logAzureRateLimitHeaders } from '../../azure/azureRateLimitHeaders';
 
 /** Internal state tracked during SSE stream parsing. */
 interface StreamState {
@@ -117,6 +119,18 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
     /** Whether this adapter is configured to route through Azure. */
     private get isAzure(): boolean {
         return !!this.options.azureEndpointBase;
+    }
+
+    /** The concrete resolved Claude model this adapter sends (mirrors buildRequestParts). */
+    private get resolvedModel(): string {
+        return resolveLatestSonnetSentinel(this.options.model || 'latest-sonnet');
+    }
+
+    /** The shared azure-claude pacer bucket key (azure-throttle-coverage) — built via
+     *  the SAME SSOT builder + resolved model the text path uses, so web-search and
+     *  text/summarize share ONE RPM budget for the deployment. `null` off-Azure. */
+    private azureClaudeKey(): string | null {
+        return this.isAzure ? buildAzureClaudeDeploymentKey(this.options.azureEndpointBase!, this.resolvedModel) : null;
     }
 
     async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
@@ -421,9 +435,10 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
     ): Promise<ClaudeWebSearchResponse> {
         let lastStatus = 0;
         let lastErrMsg = '';
+        const pacerKey = this.azureClaudeKey();
         for (let attempt = 0; attempt < WS_MAX_RETRIES; attempt++) {
             if (signal?.aborted) throw new Error(`${errorPrefix}: aborted`);
-            const response = await requestUrl({
+            const doRequest = (): Promise<import('obsidian').RequestUrlResponse> => requestUrl({
                 url: this.messagesUrl,
                 method: 'POST',
                 headers,
@@ -434,6 +449,12 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
                 // surface Anthropic/Azure's actual message (e.g. the 401 reason).
                 throw: false,
             });
+            // Azure: admission-pace each attempt on the SHARED claude bucket, released
+            // before the WS backoff below (deadlock-safe). Non-Azure: direct request.
+            const response = pacerKey
+                ? await withAzureLease(pacerKey, signal, doRequest)
+                : await doRequest();
+            if (pacerKey) logAzureRateLimitHeaders(parseAzureRateLimitHeaders(response.headers), 'azure-web-search');
 
             if (response.status === 200) {
                 return this.parseResponse(response.json);
@@ -545,12 +566,17 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await globalThis.fetch(this.messagesUrl, {
+        const doFetch = (): Promise<Response> => globalThis.fetch(this.messagesUrl, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
             signal,
         });
+        // Azure: admission-ONLY lease — covers just the initial fetch + status read so
+        // the RPM start is counted, then it releases; the SSE body streams un-leased
+        // (never ties up a concurrency slot for the stream's life).
+        const pacerKey = this.azureClaudeKey();
+        const response = pacerKey ? await withAzureLease(pacerKey, signal, doFetch) : await doFetch();
 
         if (!response.ok) {
             throw new Error(`Claude Web Search streaming failed: HTTP ${response.status}`);

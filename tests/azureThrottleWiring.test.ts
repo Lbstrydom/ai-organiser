@@ -12,9 +12,9 @@ describe('Azure throttle wiring', () => {
 
     it('cloudService imports + uses the Azure request pacer', () => {
         expect(cloudService).toMatch(/from '\.\/azure\/azureRequestPacer'/);
-        expect(cloudService).toContain('getAzurePacer(');
-        expect(cloudService).toContain('.acquire(');
-        expect(cloudService).toContain('.release()');
+        // The lease lifecycle is now centralized in the shared withAzureLease wrapper
+        // (azure-throttle-coverage audit M4) rather than manual acquire/release.
+        expect(cloudService).toContain('withAzureLease(');
     });
 
     it('the pacer is Azure-gated (isAzureAdapter), not applied to all providers', () => {
