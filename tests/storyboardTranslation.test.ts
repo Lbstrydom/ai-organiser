@@ -71,6 +71,17 @@ describe('visualDataToBlock', () => {
         if (block?.kind === 'table') expect(block.rows[0]).toEqual(['Option A', '●●●●', '●○○○']);
     });
 
+    it('harvey with >7 columns keeps headers and rating cells the same width (audit M5)', () => {
+        const cols = Array.from({ length: 10 }, (_, i) => `C${i}`);
+        const v: VisualData = { type: 'harvey', columns: cols, rows: [{ label: 'A', ratings: cols.map(() => 3) }] };
+        const block = visualDataToBlock(v);
+        expect(block?.kind).toBe('table');
+        if (block?.kind === 'table') {
+            expect(block.headers).toHaveLength(8); // '' + 7 capped columns
+            expect(block.rows[0]).toHaveLength(block.headers.length); // aligned — no overflow cells
+        }
+    });
+
     it('prose visuals → null (carried by the core_message paragraph)', () => {
         expect(visualDataToBlock({ type: 'bullets' })).toBeNull();
         expect(visualDataToBlock({ type: 'none' })).toBeNull();

@@ -50,7 +50,10 @@ export function buildStoryboardPrompt(
 ): string {
     const langLine = options.outputLanguage && options.outputLanguage !== 'en'
         ? `\nWrite all text in ${neutralise(options.outputLanguage)}.` : '';
-    const countLine = options.targetLength ? `\nProduce about ${options.targetLength} content slides.` : '';
+    // Clamp the target to a sane range (audit M8/M14) so a bad config can't ask for
+    // 0 or thousands of slides.
+    const targetLen = options.targetLength ? Math.max(1, Math.min(40, Math.round(options.targetLength))) : 0;
+    const countLine = targetLen ? `\nProduce about ${targetLen} content slides.` : '';
     const catalogBlock = formatCatalog(catalog);
 
     return `You are a top-tier management consultant (McKinsey/BCG/Bain) writing the STORYLINE of a deck BEFORE any slides are designed.${langLine}${countLine}

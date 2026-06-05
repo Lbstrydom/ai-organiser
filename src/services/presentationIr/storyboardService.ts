@@ -182,17 +182,21 @@ export function visualDataToBlock(v: VisualData): Block | null {
             return {
                 kind: 'table',
                 headers: ['Item', `${v.y_axis.label} / ${v.x_axis.label}`],
-                rows: v.items.slice(0, 12).map((it) => [it.label, quadrantLabel(it.quadrant, v)]),
+                rows: capWarn(v.items, MAX_TABLE_ROWS_OUT, '2x2 items').map((it) => [it.label, quadrantLabel(it.quadrant, v)]),
             };
         case 'pyramid':
             // Fallback (no native pyramid until Cluster C): ordered bullets top→bottom.
-            return { kind: 'bullets', ordered: true, items: v.levels.map((l) => (l.detail ? `${l.label} — ${l.detail}` : l.label)) };
-        case 'harvey':
+            return { kind: 'bullets', ordered: true, items: capWarn(v.levels, MAX_BARS, 'pyramid levels').map((l) => (l.detail ? `${l.label} — ${l.detail}` : l.label)) };
+        case 'harvey': {
+            // Cap columns ONCE so headers and every row's rating cells stay the same
+            // width (audit M5 — was headers→7 but ratings→columns.length).
+            const cols = v.columns.slice(0, 7);
             return {
                 kind: 'table',
-                headers: ['', ...v.columns.slice(0, 7)],
-                rows: v.rows.slice(0, 12).map((row) => [row.label, ...row.ratings.slice(0, v.columns.length).map(harveyGlyphs)]),
+                headers: ['', ...cols],
+                rows: capWarn(v.rows, MAX_TABLE_ROWS_OUT, 'harvey rows').map((row) => [row.label, ...row.ratings.slice(0, cols.length).map(harveyGlyphs)]),
             };
+        }
         default:
             return null; // 'bullets' | 'stat-grid' | 'process-flow' | 'none' → carried by core_message paragraph
     }
