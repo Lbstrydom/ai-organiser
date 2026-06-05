@@ -599,7 +599,13 @@ export class MinutesCreationModal extends Modal {
                 text.inputEl.rows = 8;
                 text.inputEl.spellcheck = true;
                 text.setValue(sanitizeTranscriptPaste(this.state.transcript));
-                text.onChange(value => this.state.transcript = sanitizeTranscriptPaste(value));
+                text.onChange(value => {
+                    this.state.transcript = sanitizeTranscriptPaste(value);
+                    // Re-evaluate the "Create Minutes" CTA gate: typing/pasting a
+                    // transcript (no audio) must enable it. Without this the button
+                    // stayed greyed for the paste-transcript path (live-caught).
+                    this.refreshSubmitButtonGate();
+                });
                 text.inputEl.addClass('ai-organiser-minutes-textarea');
                 enableAutoExpand(text.inputEl, 300);
                 // Intercept paste to strip Word/Office HTML artifacts that
@@ -619,6 +625,7 @@ export class MinutesCreationModal extends Modal {
                     el.value = el.value.slice(0, start) + cleaned + el.value.slice(end);
                     el.selectionStart = el.selectionEnd = start + cleaned.length;
                     this.state.transcript = el.value;
+                    this.refreshSubmitButtonGate(); // enable the CTA on paste (live-caught)
                 });
                 this.transcriptTextArea = text.inputEl;
             });

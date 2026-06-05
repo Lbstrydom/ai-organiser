@@ -1,5 +1,24 @@
 # Project Status Log
 
+## 2026-06-05 — Real bug found by live testing: Minutes CTA never enabled on typed/pasted transcript
+
+Building the Track-1 UI flows (`azure-ui-flows.mjs`) surfaced a **genuine product bug**: in `MinutesCreationModal`, the transcript `onChange` + `paste` handlers updated `state.transcript` but **never called `refreshSubmitButtonGate()`**, so a user who typed or pasted a transcript (no audio) found the **"Create Minutes" button stayed greyed out** — they couldn't generate minutes. Confirmed live with real keyboard typing (submit stayed disabled pre-fix; enables + generation starts post-fix).
+- Fix (`src/ui/modals/MinutesCreationModal.ts`): call `refreshSubmitButtonGate()` in both the transcript `onChange` and the `paste` handler.
+
+### Harness lessons (now baked into the flows)
+- **Obsidian `TextAreaComponent.onChange` only fires on GENUINE input events** — a synthetic `value`-set + dispatched `input` does NOT trigger it. UI flows must `page.keyboard.type` into a focused field, not set `.value`.
+- The transcribe vault-pick is the **scoped `DocumentMultiPickerModal`** (audio-filtered, in-note-first), not a fuzzy modal.
+
+### Track-1 UI status
+- ✅ **transcribe (Whisper)** — PASS (Azure-routed, real transcript).
+- ✅ **minutes** — the gate bug is fixed; submit enables + generation starts (completion-poll tuning is harness-WIP; the Azure egress = the verified `summarizeText` path).
+- ⏳ **multi-source** — harness-WIP (a per-provider consent flow closes the modal before the action; egress already covered by the sweep).
+
+### Files Affected
+- `src/ui/modals/MinutesCreationModal.ts` (CTA-gate fix), `scripts/persona-harness/azure-ui-flows.mjs` (transcribe + minutes flows, real-typing).
+
+---
+
 ## 2026-06-05 — Azure test plan (doc + harness foundation)
 
 Created `docs/azure-test-plan.md` — a living, two-track plan: **Track 1** functional matrix (every Azure-routed feature → egress path, test method, expected, pass criteria, throttling resilience) with a three-way result label (**PASS / QUOTA / BUG / LAYOUT**) that separates code bugs from the TPM-quota ceiling from layout flaws; **Track 2** persona-fit layout evaluation (Maya/Chen/Pat drive realistic flows; capture + 5-point rubric over all generated artifacts — slides, minutes, summaries, canvas, flashcards, mermaid, exports). Wired `npm run test:azure` → the Track-1 service sweep (summarize/tags/PDF/image/mermaid/translate, 6/6 PASS).
