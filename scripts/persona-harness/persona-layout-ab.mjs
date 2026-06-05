@@ -28,7 +28,16 @@ const args = process.argv.slice(2);
 const argVal = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
 const BLESS = args.includes('--bless');
 const DECK = argVal('--deck');
-const LABEL = argVal('--label') || (DECK ? basename(dirname(DECK)) + '-' + basename(DECK, '.html') : 'deck');
+const PERSONA = argVal('--persona');
+const LABEL = argVal('--label') || (PERSONA ? `persona-${PERSONA}` : (DECK ? basename(dirname(DECK)) + '-' + basename(DECK, '.html') : 'deck'));
+
+// Each persona drives a realistic, LAYOUT-HEAVY deck (charts + tables + tiles +
+// flows) so the radar's structural checks have something to bite on.
+const PERSONAS = [
+    { id: 'pat', label: 'Pat — director', prompt: 'Create a 6-slide executive board briefing on Q3 performance: a title slide; a market-scale slide with four key metric tiles; a bar chart of revenue by region (five regions with clearly different values); the go-to-market plan as a left-to-right process flow; key risks in a two-column layout; and a closing takeaway slide.' },
+    { id: 'chen', label: 'Dr. Chen — researcher', prompt: 'Create a 6-slide research summary on transformer attention mechanisms: a title slide; the core problem; a comparison table of three approaches (RNN, CNN, self-attention) across three criteria; a labelled diagram of the architecture; key benchmark results as a bar chart; and a conclusions slide.' },
+    { id: 'maya', label: 'Maya — student', prompt: 'Create a 6-slide study deck on the three stages of memory (sensory, short-term, long-term): a title slide; an overview of the three stages as a process flow; a comparison table of capacity and duration; key terms as cards; a bar chart comparing the durations; and a summary slide.' },
+];
 
 function readKey(name) {
     for (const f of ['.env', `${process.env.USERPROFILE || process.env.HOME}/.audit-loop.env`]) {
@@ -167,14 +176,59 @@ async function renderSlides(deckHtmlPath) {
     return out;
 }
 
+// ── Per-persona deck generation (live presentation UI) ────────────────────────
+// Drives the real presentation-chat → new deck → type the persona prompt → poll
+// the preview iframe srcdoc until stable → capture deck.html. Reuses the proven
+// flow from pres-websearch-throttle.mjs (sans the web-search source).
+async function generatePersonaDeck(personaId) {
+    const persona = PERSONAS.find(p => p.id === personaId);
+    if (!persona) throw new Error(`unknown persona '${personaId}' (have: ${PERSONAS.map(p => p.id).join(', ')})`);
+    const drv = await import('./driver.mjs');
+    const { page } = await getLivePage();
+    const closeAll = async () => { for (let i = 0; i < 6; i++) { const c = await page.evaluate(() => { const b = document.querySelector('.modal-container .modal .modal-close-button'); if (b) { b.click(); return true; } return false; }); if (!c) await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(300); if (await page.$$eval('.modal-container .modal', e => e.length).catch(() => 0) === 0) return; } };
+    const dismiss = () => page.evaluate(() => { const top = Array.from(document.querySelectorAll('.modal-container .modal')).filter(m => !m.classList.contains('ai-organiser-chat-modal')).pop(); if (!top) return false; const cta = top.querySelector('button.mod-cta') || Array.from(top.querySelectorAll('button')).find(b => /proceed|continue|ok|allow|accept|create|got it/i.test(b.textContent || '')); if (cta) { cta.click(); return true; } return false; });
+
+    console.log(`[radar] generating ${persona.label} deck via the presentation UI …`);
+    await closeAll();
+    await drv.runCommand(page, 'ai-organiser:presentation-chat');
+    await page.waitForSelector('.ai-organiser-resume-picker-modal, .modal-container .modal.ai-organiser-chat-modal', { timeout: 8000 });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { const rows = Array.from(document.querySelectorAll('.ai-organiser-resume-action-row')); const t = rows.find(r => /new presentation/i.test(r.textContent || '')) || rows.find(r => /new conversation/i.test(r.textContent || '')); if (t) t.click(); });
+    await page.waitForTimeout(2500);
+    for (let i = 0; i < 3; i++) { if (!await dismiss()) break; await page.waitForTimeout(800); }
+    await page.evaluate(() => { const m = document.querySelector('.modal-container .modal.ai-organiser-chat-modal'); const d = Array.from(m?.querySelectorAll('button') || []).find(b => /^discard$/i.test((b.textContent || '').trim())); if (d && !d.disabled) d.click(); });
+    await page.waitForTimeout(1000);
+    await page.evaluate((p) => { const m = document.querySelector('.modal-container .modal.ai-organiser-chat-modal'); const ta = m?.querySelector('textarea[placeholder*="resentation"], textarea'); const s = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; s.call(ta, p); ta.dispatchEvent(new Event('input', { bubbles: true })); }, persona.prompt);
+    await page.waitForTimeout(400);
+    await page.evaluate(() => { const m = document.querySelector('.modal-container .modal.ai-organiser-chat-modal'); let b = m?.querySelector('button.mod-cta svg.lucide-arrow-up')?.closest('button'); if (!b) b = Array.from(m?.querySelectorAll('button.mod-cta') || []).find(x => x.querySelector('svg')); if (b && !b.disabled) { b.click(); return; } const ta = m?.querySelector('textarea'); if (ta) ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })); });
+    await page.waitForTimeout(2000);
+    console.log('[radar] deck generating (Azure Opus, up to 6 min) …');
+    const started = Date.now(); let stable = 0, lastLen = 0;
+    while (Date.now() - started < 360000) {
+        const s = await page.evaluate(() => { const m = document.querySelector('.modal-container .modal.ai-organiser-chat-modal'); const ifr = m?.querySelector('.ai-organiser-pres-preview-container iframe'); const sd = ifr ? (ifr.srcdoc || '') : ''; const thinking = !!m?.querySelector('.ai-organiser-chat-thinking'); const sec = Array.from(document.querySelectorAll('.modal-container .modal')).filter(x => !x.classList.contains('ai-organiser-chat-modal')).length; return { len: sd.length, thinking, sec }; });
+        if (s.sec > 0) { await dismiss(); await page.waitForTimeout(700); }
+        if (s.len > 1000 && !s.thinking) { if (s.len === lastLen) { stable++; if (stable >= 2) break; } else stable = 0; }
+        lastLen = s.len;
+        await page.waitForTimeout(4000);
+    }
+    const deckHtml = await page.evaluate(() => { const ifr = document.querySelector('.ai-organiser-pres-preview-container iframe'); return ifr ? (ifr.srcdoc || '') : ''; });
+    if (!deckHtml || deckHtml.length < 1000) throw new Error('deck generation produced no slides (srcdoc empty)');
+    const out = join(OUT, `persona-${personaId}-deck.html`);
+    writeFileSync(out, deckHtml);
+    console.log(`[radar] ${persona.label} deck generated (${deckHtml.length} bytes) → ${out}`);
+    return out;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
-if (!DECK || !existsSync(DECK)) {
-    console.error('Usage: node persona-layout-ab.mjs --deck <path/to/deck.html> [--label NAME] [--bless]');
+let deckPath = DECK;
+if (PERSONA) deckPath = await generatePersonaDeck(PERSONA);
+if (!deckPath || !existsSync(deckPath)) {
+    console.error('Usage: node persona-layout-ab.mjs (--deck <deck.html> | --persona <pat|chen|maya>) [--label NAME] [--bless] [--judge-provider live]');
     process.exit(1);
 }
 console.log(JUDGE ? `[radar] vision judge: ${JUDGE.id} (${JUDGE.model}) — ${JUDGE.reason}` : '[radar] vision judge: NONE — geometry-only (no judge key found)');
-console.log(`[radar] rendering "${LABEL}" from ${DECK}`);
-const rendered = await renderSlides(DECK);
+console.log(`[radar] rendering "${LABEL}" from ${deckPath}`);
+const rendered = await renderSlides(deckPath);
 console.log(`[radar] ${rendered.length} slides → deterministic geometry checks + structural vision judge …`);
 
 const slideResults = [];
@@ -191,7 +245,7 @@ for (let i = 0; i < rendered.length; i++) {
 
 const totalFlaws = slideResults.reduce((n, s) => n + s.flaws.length, 0);
 const passed = totalFlaws === 0;
-const report = { label: LABEL, deck: DECK, slides: rendered.length, totalCriticalFlaws: totalFlaws, verdict: passed ? 'LAYOUT-OK' : 'LAYOUT-FLAWS', slideResults };
+const report = { label: LABEL, deck: deckPath, persona: PERSONA || null, slides: rendered.length, totalCriticalFlaws: totalFlaws, verdict: passed ? 'LAYOUT-OK' : 'LAYOUT-FLAWS', slideResults };
 writeFileSync(join(OUT, `report-${LABEL}.json`), JSON.stringify(report, null, 2));
 
 console.log(`\n=========== LAYOUT RADAR: ${LABEL} ===========`);
