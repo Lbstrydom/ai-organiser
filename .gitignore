@@ -45,8 +45,11 @@ NESTED_TAGS_IMPLEMENTATION_PLAN_CN.md
 TEST_INSTRUCTIONS.md
 coverage/
 
-# Internal dev tools
-scripts/
+# Internal dev tools — ignore scripts/ contents EXCEPT the build runner (a real
+# clean-clone gate: `npm run build` → test:all → node scripts/automated-tests.js)
+# and the persona-harness (minus its transient session outputs).
+scripts/*
+!scripts/automated-tests.js
 .github/skills/
 .github/appmod/
 .githooks/
