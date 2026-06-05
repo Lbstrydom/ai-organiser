@@ -100,4 +100,11 @@ describe('numeric table cells are grounded (audit H4/H8)', () => {
         const r = selfCheckStoryboard(tableDeck('e1'), wrong);
         expect(r.inferential.some((c) => c.field === 'visual_data')).toBe(true);
     });
+    it('an UNCITED wholly-numeric cell is a blocker; a label cell with a digit ("Q3") is not (audit H10)', () => {
+        const r = selfCheckStoryboard(tableDeck(undefined), cat);
+        // The "1.2" value cell has no citation → ungrounded blocker.
+        expect(r.blockers.some((b) => b.field === 'visual_data')).toBe(true);
+        // The "Q3" label cell must NOT be treated as a number (exactly one visual blocker).
+        expect(r.blockers.filter((b) => b.field === 'visual_data').length).toBe(1);
+    });
 });

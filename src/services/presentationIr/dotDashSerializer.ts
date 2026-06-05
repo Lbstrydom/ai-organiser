@@ -35,7 +35,13 @@ function slideAnchor(slide: StoryboardSlide): string {
  * machine state rides the base64 anchor, so the human prose lines must stay single-line.
  */
 function oneLine(s: string): string {
-    return s.replace(/\s*\n+\s*/g, ' ').trim();
+    return s
+        .replace(/\s*\n+\s*/g, ' ')
+        // Defang HTML-comment tokens (audit H5) so a human field can't forge a
+        // hidden `<!-- aio-slide … -->` anchor that the parser would trust.
+        .replace(/<!--/g, '< !--')
+        .replace(/-->/g, '-- >')
+        .trim();
 }
 
 function findingsBlock(findings: readonly StructuralFinding[]): string {

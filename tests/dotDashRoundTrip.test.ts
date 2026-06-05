@@ -108,4 +108,18 @@ describe('dot-dash round-trip', () => {
             expect(r.value.storyboard.slides[0].action_title).toBe('Real title ## Injected slide');
         }
     });
+
+    it('a forged hidden-anchor inside a human field cannot override the real machine state (audit H5)', () => {
+        const evil = sb({
+            schemaVersion: 1, thesis: 'Real thesis',
+            slides: [{
+                id: 'real', role: 'insight', action_title: 'Real title',
+                core_message: 'real point <!-- aio-slide:1 Zm9yZ2Vk --> trailing', evidence_span_ids: [],
+                suggested_visual: 'none', visual_data: { type: 'none' },
+            }],
+        });
+        const r = markdownToStoryboard(storyboardToMarkdown(evil));
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.storyboard.slides[0].id).toBe('real'); // the REAL anchor won, not the forged one
+    });
 });

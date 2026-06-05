@@ -43,7 +43,7 @@ export function buildStoryboardPrompt(
     options: StoryboardPromptOptions = {},
 ): string {
     const langLine = options.outputLanguage && options.outputLanguage !== 'en'
-        ? `\nWrite all text in ${options.outputLanguage}.` : '';
+        ? `\nWrite all text in ${neutralise(options.outputLanguage)}.` : '';
     const countLine = options.targetLength ? `\nProduce about ${options.targetLength} content slides.` : '';
     const catalogBlock = catalog.map((s) => `[${neutralise(s.id)}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n');
 

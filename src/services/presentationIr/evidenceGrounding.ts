@@ -47,6 +47,10 @@ export interface GroundingReport {
 // tokenises whole and normalises to 0.60 like "60%".
 const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent)?/gi;
 
+// A cell is a NUMBER (not a label-with-a-digit) only when the whole value is
+// numeric — currency prefix + thousands + decimal + optional %/percent (audit H10).
+const NUMERIC_CELL_RE = /^[\s$€£]*-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent)?\s*$/i;
+
 /** Normalise a numeric token to a canonical numeric value for matching:
  *  "60%"→0.6, "60 percent"→0.6, "0.60"→0.6, "1,234"→1234, "64"→64. */
 export function normaliseNumeric(token: string): number | null {
@@ -127,8 +131,8 @@ function visualEvidenceIds(v: VisualData): string[] {
 }
 
 /** Numeric claims carried by a visual_data payload (label + value pairs). */
-function visualNumericClaims(v: VisualData): Array<{ claim: string; spanId: string }> {
-    const out: Array<{ claim: string; spanId: string }> = [];
+function visualNumericClaims(v: VisualData): Array<{ claim: string; spanId?: string }> {
+    const out: Array<{ claim: string; spanId?: string }> = [];
     const push = (label: string, value: number, spanId: string, unit?: string) =>
         out.push({ claim: `${label}: ${value}${unit === '%' ? '%' : unit ? ' ' + unit : ''}`, spanId });
     switch (v.type) {
@@ -136,11 +140,12 @@ function visualNumericClaims(v: VisualData): Array<{ claim: string; spanId: stri
         case 'waterfall': push(v.base.label, v.base.value, v.base.evidence_span_id, v.unit); for (const d of v.deltas) push(d.label, d.value, d.evidence_span_id, v.unit); break;
         case 'line': for (const s of v.series) for (const p of s.points) push(`${s.label} ${p.x}`, p.y, p.evidence_span_id, s.unit); break;
         case 'table':
-            // Numeric table cells are factual claims too (audit H4/H8): a cell with a
-            // number AND a citation is grounded against that cited span.
+            // WHOLLY-numeric table cells are factual claims (audit H4/H8/H10): cited →
+            // grounded against its span; UNCITED → no span → ungrounded blocker. Label
+            // cells that merely contain a digit ("Q3", "FY24") are NOT numbers — skipped.
             for (const row of v.rows) for (const c of row.cells) {
-                const cellText = c.value ?? c.text;
-                if (c.evidence_span_id && /\d/.test(cellText)) out.push({ claim: cellText, spanId: c.evidence_span_id });
+                const cellText = (c.value ?? c.text).trim();
+                if (NUMERIC_CELL_RE.test(cellText)) out.push({ claim: cellText, spanId: c.evidence_span_id });
             }
             break;
         default: break; // 2x2/pyramid/harvey carry categorical/text — grounded as text
@@ -174,7 +179,8 @@ export function selfCheckStoryboard(storyboard: ConsultantStoryboard, catalog: r
         const vIds = visualEvidenceIds(slide.visual_data);
         resolve(vIds); // surfaces dangling visual ids
         for (const vc of visualNumericClaims(slide.visual_data)) {
-            checks.push(checkClaim(vc.claim, resolve([vc.spanId]), { slideId: slide.id, field: 'visual_data' }));
+            // An uncited numeric claim resolves to NO spans → ungrounded (audit H10).
+            checks.push(checkClaim(vc.claim, vc.spanId ? resolve([vc.spanId]) : [], { slideId: slide.id, field: 'visual_data' }));
         }
     }
 
