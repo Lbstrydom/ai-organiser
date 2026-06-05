@@ -30,7 +30,8 @@
     "arch:duplicates": "node scripts/.claude-skills/symbol-index/duplicates.mjs",
     "arch:prune": "node scripts/.claude-skills/symbol-index/prune.mjs",
     "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs",
-    "test:azure": "node scripts/persona-harness/azure-feature-sweep.mjs"
+    "test:azure": "node scripts/persona-harness/azure-feature-sweep.mjs",
+    "test:azure:layout": "node scripts/persona-harness/persona-layout-ab.mjs"
   },
   "keywords": [
     "obsidian",
