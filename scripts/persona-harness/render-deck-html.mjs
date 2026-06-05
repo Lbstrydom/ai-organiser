@@ -1,0 +1,12 @@
+import { chromium } from '@playwright/test';
+import { pathToFileURL } from 'node:url';
+const htmlPath = process.argv[2];
+const OUT = process.argv[3];
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+await page.goto(pathToFileURL(htmlPath).href, { waitUntil: 'networkidle' });
+const slides = await page.$$('.slide');
+console.log('slides in deck.html:', slides.length);
+for (let i = 0; i < slides.length; i++) await slides[i].screenshot({ path: `${OUT}/html-slide-${i + 1}.png` });
+console.log('rendered', slides.length, 'PNGs');
+await browser.close();

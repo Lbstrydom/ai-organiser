@@ -1,5 +1,22 @@
 # Project Status Log
 
+## 2026-06-05 — Slides preview fidelity fix + live Electron/CDP E2E verification
+
+### Live E2E (Playwright CDP → real Obsidian Electron, Azure-mode vault)
+Drove the actual app via `--remote-debugging-port` + `connectOverCDP` to make a slide deck **with a web-search source** and prove slides + web search work in Azure mode **without throttling**. A real Azure 429 on the web-search call (`Rate limit … wait 37 seconds`) was caught and **retried to success** with the 37s Azure backoff — zero hard failures, 8 slides generated, PPTX exported. Confirms the Azure pacing/retry coverage end-to-end.
+
+### Sanitizer CSS-allowlist fix (preview fidelity)
+Comparing the exported PPTX→PDF against the HTML preview surfaced two real **preview-only** bugs (the PPTX export was always correct): bar-chart bars collapsed (didn't scale) and stat/process **card borders disappeared**. Root cause: `presentationSanitizer` enumerates CSSOM **longhands** via `style.item(i)`, but `ALLOWED_CSS_PROPERTIES` only had the `flex` and `border` **shorthands** — the CSSOM expands `flex:1`→`flex-grow/shrink/basis` and `border:2px solid`→per-side longhands, which were then dropped, collapsing flex-grow tracks + erasing borders.
+- Fix: added the flex + per-side-border longhands to `ALLOWED_CSS_PROPERTIES` (`src/utils/presentationSanitizePolicy.ts`). Pure layout, still value-guarded — no security change. Re-rendered deck confirms bars now scale (Brazil 95% → Honduras 11%), matching the PPTX.
+
+### Polish-in-the-wild check (#2 fix)
+The user's polished export merged two "Consumer Trends" table slides into one bullet slide (all 5 trends + numbers preserved) **and added** the missing "Bottom Line" closing slide — condensed without deleting substance, exactly as the preservation guardrail intends.
+
+### Files Affected
+- `src/utils/presentationSanitizePolicy.ts` (allowlist longhands), `tests/presentationSanitizer.test.ts` (+2 regression tests). Harness (committed, exception to the persona-harness gitignore): `scripts/persona-harness/{driver,pres-websearch-throttle,render-deck-html}.mjs`.
+
+---
+
 ## 2026-06-05 — Azure throttle coverage (pace ALL Azure egress, not just text)
 
 The first Azure-429 pass only paced 2 of cloudService's egress primitives. This closes the **4 remaining Azure Foundry egress gaps** so batch/parallel work through them no longer 429-storms. Full `/plan` → `/audit-plan` (GPT R1-R2 + Gemini, REJECT was a pure plan-audit category-error) → `/cycle --autonomous` (2 clusters + code audit + consolidated Gemini APPROVE).

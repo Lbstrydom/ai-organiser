@@ -409,6 +409,7 @@ At narrow modal widths the chat rail docks off-canvas as a **bottom-sheet** (`Pr
 - `src/utils/svgSanitize.ts` — DOMParser allowlist walk for embedded SVG; derives tags+attrs from the policy.
 
 ### Key patterns
+- **CSS allowlist enumerates CSSOM LONGHANDS** (`style.item(i)`), so a shorthand in `ALLOWED_CSS_PROPERTIES` is dead unless its expanded longhands are ALSO listed. `flex:1`→`flex-grow/shrink/basis`, `border:2px solid X`→per-side `border-{side}-{width,style,color}` — all must be allowlisted (they are, since June 2026), else flex-grow tracks collapse + card borders vanish in the preview while the PPTX export (drawn directly) stays correct. `gap`/`margin`/`padding`/`background` already had their longhands.
 - **DOMPurify config strict**: `ALLOW_DATA_ATTR:false` + `ALLOW_ARIA_ATTR:false` — only the enumerated data-*/aria- in the policy survive.
 - **URL validation in hooks** (parsed node, not re-parsed string); per-element matrix. `a@href` = https/#/mailto; `use@href` = `#frag`; `img@src` + CSS `url()` = data:image raster only; SVG paint `fill`/`stroke` url() = `#frag`/data-raster.
 - **Fail-closed CSS url() extraction**: `extractCssUrls` reports `clean:false` when `url(` count ≠ parsed-token count → caller drops the declaration (no fail-open on crafted `url("…)…")`).
