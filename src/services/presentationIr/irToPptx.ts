@@ -558,7 +558,10 @@ function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' 
     if (!drawn) {
         // Deterministic manual bars (also the native-fallback target).
         const rowH = Math.min(0.36, (h - 0.1) / block.bars.length);
-        const labelW = 1.2;
+        // Wider label column so long category labels ("Short-Term Memory",
+        // "Transformer (Big)") don't wrap + crowd the bars. Parity with the HTML
+        // renderer's 280px (≈1.9"). Radar-caught on the Chen/Maya persona decks.
+        const labelW = 1.9;
         block.bars.forEach((bar, i) => {
             const y = box.y + i * (rowH + 0.06);
             s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barLabelPt(theme), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });

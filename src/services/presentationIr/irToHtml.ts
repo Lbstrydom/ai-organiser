@@ -210,7 +210,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
                 const fill = bar.color ? hx(bar.color) : accent;
                 const w = (bar.pct / max) * 100;
                 return `<div style="display:flex;align-items:center;gap:24px;">`
-                    + `<div style="width:200px;font-size:${ptToPx(IR_RENDER_SPEC.font.barLabelPt(theme))}px;font-weight:600;color:${primary};text-align:right;">${esc(bar.label)}</div>`
+                    + `<div style="width:280px;font-size:${ptToPx(IR_RENDER_SPEC.font.barLabelPt(theme))}px;font-weight:600;color:${primary};text-align:right;line-height:1.25;">${esc(bar.label)}</div>`
                     + `<div style="flex:1;background:#eef0f2;border-radius:8px;height:56px;display:flex;align-items:center;">`
                     + `<div style="width:${w}%;min-width:64px;background:${fill};height:100%;border-radius:8px;display:flex;align-items:center;padding-left:20px;box-sizing:border-box;">`
                     + `<span style="font-size:${ptToPx(IR_RENDER_SPEC.font.barPctPt(theme))}px;font-weight:700;color:#fff;">${bar.pct}%</span></div></div></div>`;

@@ -105,6 +105,10 @@ async function getLivePage() {
     let { browser, page } = await drv.launchOrAttach();
     page = await drv.ensureVaultOpen(browser, page, 'Second Brain');
     await drv.waitForPluginReady(page);
+    // Hot-reload so the live page picks up the freshly deployed main.js.
+    await page.evaluate(async () => { const a = globalThis.app; await a.plugins.disablePlugin('ai-organiser'); await new Promise(r => setTimeout(r, 500)); await a.plugins.enablePlugin('ai-organiser'); });
+    await page.waitForTimeout(1500);
+    await drv.waitForPluginReady(page);
     _live = { browser, page };
     return _live;
 }
