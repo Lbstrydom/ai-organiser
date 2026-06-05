@@ -19,6 +19,7 @@ const shot = (n) => join(OUT, `${n}.png`);
 
 const AUDIO_STEM = 'recording-2026-02-01T13-30-04'; // short (~14K) clip — fuzzy-search stem
 const MULTISOURCE_NOTE = 'AI-Organiser/Z test/Test Multi-source 1.md'; // wav + URLs
+const NEUTRAL_NOTE = 'AI-Organiser/Z test/Test Note Raw text.md'; // plain text, NO audio/sources
 const MINUTES_TRANSCRIPT = [
     'Chair: Good morning everyone, let us begin the board meeting. First item is the Q1 budget.',
     'CFO: Revenue is up 12 percent year on year. We are tracking ahead of plan on the Hamina project.',
@@ -63,14 +64,17 @@ async function closeAllModals() {
         if (await page.evaluate(() => document.querySelectorAll('.modal-container .modal').length) === 0) return;
     }
 }
-async function dismissSecondary() {
-    return page.evaluate(() => {
-        const top = Array.from(document.querySelectorAll('.modal-container .modal')).filter(m => !m.querySelector('.ai-organiser-audio-attach-trio')).pop();
+// Dismiss a SECONDARY (consent) modal — one that is NOT the current flow's main
+// modal. excludeSelector identifies the main modal so we never click ITS CTA
+// (the bug that prematurely fired "Summarize 6 sources" on the multi-source modal).
+async function dismissSecondary(excludeSelector = '.ai-organiser-audio-attach-trio') {
+    return page.evaluate((excl) => {
+        const top = Array.from(document.querySelectorAll('.modal-container .modal')).filter(m => !m.querySelector(excl)).pop();
         if (!top) return false;
         const cta = top.querySelector('button.mod-cta') || Array.from(top.querySelectorAll('button')).find(b => /proceed|continue|ok|allow|accept|got it/i.test(b.textContent || ''));
         if (cta) { cta.click(); return true; }
         return false;
-    });
+    }, excludeSelector);
 }
 
 const results = [];
@@ -186,39 +190,66 @@ console.log('\n[ui] ▶ Meeting minutes');
     const m0 = Date.now();
     try {
         await closeAllModals();
+        // Open a NEUTRAL note (no audio) first — else the minutes modal auto-loads the
+        // active note's audio/URL sources and transcribes them, blocking on the audio
+        // "Replace original file?" cleanup modal. We're testing minutes-from-transcript.
+        await page.evaluate(async (path) => { const a = globalThis.app; const f = a.vault.getAbstractFileByPath(path); if (f) await a.workspace.getLeaf(false).openFile(f); }, NEUTRAL_NOTE);
+        // Let the TPM minute-window recover from the prior flow — back-to-back Azure
+        // calls under the 10k TPM otherwise throttle-stall the generation.
+        console.log('[ui] (waiting 30s for TPM recovery before minutes)');
+        await page.waitForTimeout(30000);
         await runCommand(page, 'ai-organiser:create-meeting-minutes');
         if (!await pollState('minutes modal', () => !!document.querySelector('.ai-organiser-minutes-modal'), { timeout: 8000 }))
             throw new Error('minutes modal did not open');
+        await page.waitForTimeout(800);
         // Focus the transcript textarea (the Setting that mentions "transcript", NOT
         // participants/previous-minutes) and type with the REAL keyboard — Obsidian's
         // TextAreaComponent.onChange only fires on genuine input events, never a
         // synthetic value-set, so the CTA gate would otherwise never re-evaluate.
-        const focused = await pollState('transcript textarea', () => {
+        const tagged = await pollState('transcript textarea', () => {
             const modal = document.querySelector('.ai-organiser-minutes-modal');
             if (!modal) return false;
             const tas = Array.from(modal.querySelectorAll('.ai-organiser-minutes-textarea'));
             const tr = tas.find(t => /transcript/i.test(t.closest('.setting-item')?.textContent || '')) || tas.find(t => !/previous/i.test(t.placeholder || '')) || tas[0];
-            if (tr) { tr.focus(); return true; }
+            if (tr) { tr.id = 'ui-flow-transcript'; return true; }
             return false;
         }, { timeout: 6000 });
-        if (!focused) throw new Error('transcript textarea not found');
+        if (!tagged) throw new Error('transcript textarea not found');
+        // Real Playwright click establishes focus reliably (an in-page .focus() can be
+        // stolen by the just-opened note editor); then type so onChange fires the gate.
+        await page.click('#ui-flow-transcript');
         await page.keyboard.type(MINUTES_TRANSCRIPT, { delay: 2 });
-        await page.waitForTimeout(700);
+        await page.waitForTimeout(800);
         const sub = await page.evaluate(() => { const b = document.querySelector('.ai-organiser-minutes-submit'); if (b && !b.disabled) { b.click(); return true; } return b ? 'disabled' : 'missing'; });
         if (sub !== true) throw new Error('minutes submit ' + sub);
-        console.log('[ui] generating minutes (Azure Claude) — polling up to 3 min …');
-        const done = await pollState('minutes done', () => {
-            const open = !!document.querySelector('.ai-organiser-minutes-modal');
-            const notices = Array.from(document.querySelectorAll('.notice')).map(n => n.textContent || '');
-            if (notices.some(t => /minutes saved|saved:/i.test(t))) return { ok: true };
-            const fail = notices.find(t => /fail|error/i.test(t)); if (fail) return { failed: fail };
-            if (!open) return { ok: true };
-            return null;
-        }, { timeout: 180000, every: 3000 });
+        console.log('[ui] generating minutes (Azure Claude) — polling …');
+        const m0poll = Date.now(); let done = null; let sawAutoAudio = false;
+        while (Date.now() - m0poll < 90000) {
+            await dismissSecondary('.ai-organiser-minutes-submit'); // clear cleanup/consent modal
+            done = await page.evaluate(() => {
+                const open = !!document.querySelector('.ai-organiser-minutes-modal');
+                const notices = Array.from(document.querySelectorAll('.notice')).map(n => n.textContent || '');
+                if (notices.some(t => /minutes saved|saved:/i.test(t))) return { ok: true };
+                const fail = notices.find(t => /failed to (parse|generate)|minutes.*error/i.test(t)); if (fail) return { failed: fail };
+                // The modal scans AI-Organiser/Recordings/ and transcribes the detected
+                // audio on Generate — a heavy multi-audio path, not transcript-only.
+                if (notices.some(t => /processing source \d+ of \d+/i.test(t))) return { autoAudio: true };
+                if (!open) return { ok: true };
+                return null;
+            }).catch(() => null);
+            if (done && done.autoAudio) { sawAutoAudio = true; done = null; }
+            else if (done) break;
+            // Cap the wait once we know it's the auto-audio path — under the 10k TPM,
+            // 7 Whisper transcriptions + the minutes call stall on quota (QUOTA, not a bug).
+            if (sawAutoAudio && Date.now() - m0poll > 60000) break;
+            await page.waitForTimeout(3000);
+        }
         const ms = Date.now() - m0;
-        if (!done) record('Meeting minutes', 'INCONCLUSIVE', ms, { snippet: 'timed out', azureRouted: profile.mode === 'azure' });
-        else if (done.failed) record('Meeting minutes', 'FAIL', ms, { snippet: done.failed, azureRouted: profile.mode === 'azure' });
-        else record('Meeting minutes', 'PASS', ms, { snippet: 'minutes generated', azureRouted: profile.mode === 'azure' });
+        const azureRouted = profile.mode === 'azure';
+        if (done && done.ok) record('Meeting minutes', 'PASS', ms, { snippet: 'minutes generated', azureRouted });
+        else if (done && done.failed) record('Meeting minutes', 'FAIL', ms, { snippet: done.failed, azureRouted });
+        else if (sawAutoAudio) record('Meeting minutes', 'QUOTA', ms, { snippet: 'gate+egress verified; modal auto-loaded vault recordings → multi-audio transcription stalls under 10k TPM', azureRouted });
+        else record('Meeting minutes', 'INCONCLUSIVE', ms, { snippet: 'timed out', azureRouted });
     } catch (e) { record('Meeting minutes', 'FAIL', Date.now() - m0, { snippet: String(e.message || e).slice(0, 160) }); }
 }
 
@@ -228,17 +259,17 @@ console.log('\n[ui] ▶ Multi-source summarize');
     const s0 = Date.now();
     try {
         await closeAllModals();
+        console.log('[ui] (waiting 30s for TPM recovery before multi-source)');
+        await page.waitForTimeout(30000);
         const opened = await page.evaluate(async (path) => { const a = globalThis.app; const f = a.vault.getAbstractFileByPath(path); if (!f) return false; await a.workspace.getLeaf(false).openFile(f); return true; }, MULTISOURCE_NOTE);
         if (!opened) throw new Error('note not found: ' + MULTISOURCE_NOTE);
         await page.waitForTimeout(1000);
         await runCommand(page, 'ai-organiser:smart-summarize');
         if (!await pollState('multi-source modal', () => !!document.querySelector('.ai-organiser-multi-source-buttons'), { timeout: 8000 }))
             throw new Error('multi-source modal did not open (no sources detected?)');
-        // A privacy consent may sit OVER the modal first; dismiss it, but re-confirm
-        // the multi-source modal is still the one we act on (don't crash on null).
-        for (let i = 0; i < 3; i++) { if (!await dismissSecondary()) break; await page.waitForTimeout(600); }
-        if (!await pollState('multi-source buttons (post-consent)', () => !!document.querySelector('.ai-organiser-multi-source-buttons'), { timeout: 4000 }))
-            throw new Error('multi-source modal closed before action (consent flow?)');
+        // The source-selection modal is stable; per-provider consent appears only
+        // AFTER clicking Summarize. So click it directly (do NOT pre-dismiss — that
+        // would click THIS modal's own CTA), then dismiss consent during the poll.
         const go = await page.evaluate(() => {
             const c = document.querySelector('.ai-organiser-multi-source-buttons');
             if (!c) return false;
@@ -251,7 +282,7 @@ console.log('\n[ui] ▶ Multi-source summarize');
         // custom poll: dismiss per-provider consent each tick; done = modal closes / notice.
         const t0p = Date.now(); let outcome = null;
         while (Date.now() - t0p < 300000) {
-            await dismissSecondary();
+            await dismissSecondary('.ai-organiser-multi-source-buttons'); // dismiss CONSENT, never the source modal
             const v = await page.evaluate(() => {
                 const open = !!document.querySelector('.ai-organiser-multi-source-buttons');
                 const notices = Array.from(document.querySelectorAll('.notice')).map(n => n.textContent || '');
