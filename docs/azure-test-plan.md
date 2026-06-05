@@ -108,16 +108,44 @@ For each persona × artifact: capture the rendered output, run the 5-point rubri
 
 ---
 
-## 3. Harness architecture (`npm run test:azure`)
+## 2c. Track 3 — Baseline & regression (GATED)
+
+The baseline is the long-term trust engine: once the layout is *known-good*, every future build is auto-A/B'd against it so a regression (the bar-chart-class bug) is caught the moment it lands. **Three rules make this effective instead of noise:**
+
+1. **Blessed-good, never current-state.** The baseline is created **only after** Track 2 feedback + fixes — never an auto-snapshot of whatever renders (that would lock in the flaw). Sequence: `persona run → flaws → fix → bless`.
+2. **Gated by a human command, not automatic.** Promoting captures to baseline is a deliberate `npm run test:azure -- --bless` (mirrors Playwright `--update-snapshots` / Percy). Capture + diff are automated; *blessing* is your judgment.
+3. **Layout-INVARIANT granularity, not pixels/text.** LLM outputs vary every run, so a pixel/text baseline regresses on every run and gets ignored. The baseline asserts **structural invariants** (robust to content) + keeps **curated reference renders** for human eyeballing:
+   - bar/column chart bars **scale** with value (no collapsed tracks)
+   - no overflow / clipping; content fits the slide bounds
+   - card/table **borders render**; tables align
+   - **export == preview** (PPTX/DOCX matches the HTML render — the fidelity diff)
+   - no dropped load-bearing content (process-flow endpoints, conclusions, framing, ≥N slides/sections)
+   - heading hierarchy + emphasis present
+
+Flow:
+```
+Track 2 run ──► candidate renders + flaws ──► (you review + FIX)
+        └────────────────────────────────► npm run test:azure -- --bless
+                                              ├─ promotes good renders → baseline/<artifact>.png
+                                              └─ locks the invariant set → baseline/invariants.json
+every future run ──► auto-diff renders + re-check invariants ──► flag LAYOUT regressions only
+```
+
+`baseline/` is committed (small PNGs + JSON) so regressions are caught in CI/local; the bless step is the only path that writes it.
+
+---
+
+## 3. Harness architecture (`npm run test:azure`) + design decisions
 
 ```
 scripts/persona-harness/
   driver.mjs                 # launch/attach (CDP), ensureVaultOpen, waitForPluginReady, runCommand
   azure-feature-sweep.mjs    # Track 1 service-layer sweep (summarize/tags/PDF/image/mermaid/translate)
   azure-ui-flows.mjs         # Track 1 UI flows (transcribe, minutes, multi-source, presentation) — TODO
-  persona-layout-ab.mjs      # Track 2 persona-fit capture + rubric — TODO
+  persona-layout-ab.mjs      # Track 2 persona-fit capture + rubric (+ --bless) — TODO
   render-deck-html.mjs       # rasterize deck.html slides for fidelity diff
   sessions/<run>/            # report.json + screenshots + rendered PNGs (gitignored)
+  baseline/                  # Track 3: blessed reference PNGs + invariants.json (COMMITTED)
 ```
 
 - **Service-layer where reliable** (summarize/tags/multimodal/mermaid/translate) — calls the exact production methods (`llmService.*`), fast + deterministic.
@@ -125,6 +153,14 @@ scripts/persona-harness/
 - **Result labelling** — each test emits `{ feature, result: PASS|QUOTA|BUG|LAYOUT, ms, throttle429, azureRouted, snippet }`.
 - **Console/Notice monitoring** — captures `[rate-limit]`, real 429s, `AzureRateLimitError`, page errors throughout.
 - `npm run test:azure` → runs the suite, writes a per-run `report.json` + a one-screen pass/fail matrix.
+
+### Design decisions (build it reliably, not flakily)
+1. **Modal-driving = poll-on-state, never fixed sleeps.** UI flows wait for a *state predicate* (transcript text present, deck `srcdoc` grown + stable, save button enabled) with a timeout, not `waitForTimeout`. A timeout → label the row **inconclusive**, never a false **BUG**. (A flaky false-fail is worse than a skip — it's the exact thing eroding trust.)
+2. **QUOTA vs BUG is computed, not guessed.** A failure is **QUOTA** iff the captured console shows a token/RPM 429 (or `AzureRateLimitError`) AND routing was Azure; otherwise **BUG**. The label is derived from evidence, so "it failed on Azure" always resolves to one of the four.
+3. **Service-layer where the call *is* the feature; UI where the flow matters.** summarize/tags/multimodal/mermaid/translate call `llmService.*` directly (deterministic, the same code the UI runs). transcribe/minutes/presentation/canvas drive the real modal (the transport isn't reachable standalone + the *flow* is the thing under test).
+4. **LLM-judge rubric is structural-first.** Layout scoring asks the judge yes/no structural questions on the rendered PNG ("do the bars have different lengths?", "is any text clipped at the slide edge?", "does the export match the preview?") — not "is this a good deck?". Structural questions are reproducible; taste questions aren't. Human spot-check stays in the loop for taste.
+5. **Image/audio realism.** Image flows **resize** (mirror `ImageProcessorService`) before send; audio flows use the **short** `recording-*.m4a` clips by default (the 20-min file is opt-in) so a run doesn't gratuitously exhaust the 10k TPM.
+6. **One Obsidian, owned.** The harness closes Obsidian, spawns it with the CDP port, hot-reloads the plugin to pick up the current `main.js`. Never assume an attachable instance.
 
 ---
 
@@ -148,4 +184,4 @@ scripts/persona-harness/
 ---
 
 ## 6. Status log
-- **2026-06-05** — Plan created. Track-1 service sweep live (summarize/tags/PDF/image/mermaid/translate → 6/6 PASS in Azure mode after the input-only >TPM fix). Track-1 UI flows (transcribe/minutes/multi-source/presentation) + Track-2 persona-layout A/B: **TODO** (next build).
+- **2026-06-05** — Plan created. Track-1 service sweep live (summarize/tags/PDF/image/mermaid/translate → 6/6 PASS in Azure mode after the input-only >TPM fix). Added **Track 3 — Baseline & regression (gated)** + harness design decisions. Decided **not** to run the production `/plan`→`/audit-plan`→`/cycle` on the harness (test tooling; this doc is the design — right-sized). Track-1 UI flows (transcribe/minutes/multi-source/presentation) + Track-2 persona-layout A/B + Track-3 bless mechanism: **TODO** (next build, in order: transcribe → minutes/multi-source → persona-layout A/B → baseline).
