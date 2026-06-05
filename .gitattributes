@@ -8,3 +8,23 @@ docs/consistency-contract.md text eol=lf
 scripts/.sync-manifest.json text eol=lf
 .audit-loop/migrations/** text eol=lf
 # /managed-by:claude-engineering-skills-sync
+
+# ── Repo-wide line-ending normalization ──────────────────────────────────────
+# core.autocrlf=true on Windows otherwise rewrites committed LF files to CRLF in
+# the working tree → phantom "modified" churn plus CRLF-sensitive tooling bugs.
+# text=auto detects text vs binary; eol=lf forces LF in the working tree on every
+# platform. LF is valid for manifest.json / versions.json / styles.css and is the
+# Obsidian-conventional default — no impact on the community plugin review.
+* text=auto eol=lf
+
+# Keep genuine binaries untouched (no eol munging, no diff).
+*.wasm binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
