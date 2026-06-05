@@ -17,7 +17,8 @@ import type { SlideDeckIr, SlideIr, Block } from './slideIr';
 import { validateDeckIr } from './slideIr';
 import type { ConsultantStoryboard, EvidenceSpan, StoryboardSlide, VisualData } from './consultantStoryboard';
 import { parseStoryboardFromResponse } from './consultantStoryboard';
-import { buildStoryboardPrompt, buildStoryboardRepairPrompt } from './storyboardPrompts';
+import { buildStoryboardPrompt, buildStoryboardRepairPrompt, buildStoryboardRevisionPrompt } from './storyboardPrompts';
+import type { StorylineComment } from './storyboardPrompts';
 
 export interface GenerateStoryboardOptions {
     outputLanguage?: string;
@@ -28,6 +29,47 @@ export interface GenerateStoryboardOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 180_000;
+
+interface StoryboardCallOpts {
+    timeoutMs: number;
+    signal?: AbortSignal;
+    label: string;
+    onRetryStatus?: (seconds: number) => void;
+}
+
+/** Shared LLM-call: send the prompt → parse → 1 repair on validation failure. */
+async function runStoryboardLLM(
+    context: LLMFacadeContext,
+    systemPrompt: string,
+    callOpts: StoryboardCallOpts,
+): Promise<Result<ConsultantStoryboard>> {
+    try {
+        const first = await summarizeText(context, systemPrompt, callOpts);
+        if (callOpts.signal?.aborted) return err('Aborted');
+        if (!first.success || !first.content) return err(first.error || 'storyboard: empty LLM response');
+
+        const parsed = parseStoryboardFromResponse(first.content);
+        if (parsed.ok) return parsed;
+
+        if (callOpts.signal?.aborted) return err('Aborted');
+        logger.warn('Presentation', `storyboard validation failed, repairing: ${parsed.error}`);
+        const retry = await summarizeText(context, `${systemPrompt}\n\n${buildStoryboardRepairPrompt(first.content, parsed.error)}`, callOpts);
+        if (callOpts.signal?.aborted) return err('Aborted');
+        if (!retry.success || !retry.content) return err(parsed.error);
+        return parseStoryboardFromResponse(retry.content);
+    } catch (e) {
+        return err(e instanceof Error ? e.message : 'storyboard: unknown error');
+    }
+}
+
+function toCallOpts(label: string, options: GenerateStoryboardOptions): StoryboardCallOpts {
+    return {
+        timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        signal: options.signal,
+        label,
+        onRetryStatus: options.onRetryStatus,
+    };
+}
 
 /**
  * Generate a ConsultantStoryboard from the user's brief + the evidence catalog.
@@ -43,29 +85,25 @@ export async function generateStoryboard(
         outputLanguage: options.outputLanguage,
         targetLength: options.targetLength,
     });
-    const callOpts = {
-        timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        signal: options.signal,
-        label: 'presentation-storyboard',
-        onRetryStatus: options.onRetryStatus,
-    };
-    try {
-        const first = await summarizeText(context, systemPrompt, callOpts);
-        if (options.signal?.aborted) return err('Aborted');
-        if (!first.success || !first.content) return err(first.error || 'storyboard: empty LLM response');
+    return runStoryboardLLM(context, systemPrompt, toCallOpts('presentation-storyboard', options));
+}
 
-        const parsed = parseStoryboardFromResponse(first.content);
-        if (parsed.ok) return parsed;
-
-        if (options.signal?.aborted) return err('Aborted');
-        logger.warn('Presentation', `storyboard validation failed, repairing: ${parsed.error}`);
-        const retry = await summarizeText(context, `${systemPrompt}\n\n${buildStoryboardRepairPrompt(first.content, parsed.error)}`, callOpts);
-        if (options.signal?.aborted) return err('Aborted');
-        if (!retry.success || !retry.content) return err(parsed.error);
-        return parseStoryboardFromResponse(retry.content);
-    } catch (e) {
-        return err(e instanceof Error ? e.message : 'storyboard: unknown error');
-    }
+/**
+ * Conversationally revise the CURRENT storyboard with the user's request + any
+ * reviewer comments, re-supplying the catalog so revisions stay grounded.
+ */
+export async function generateRevisedStoryboard(
+    context: LLMFacadeContext,
+    current: ConsultantStoryboard,
+    request: string,
+    comments: readonly StorylineComment[],
+    catalog: readonly EvidenceSpan[],
+    options: GenerateStoryboardOptions = {},
+): Promise<Result<ConsultantStoryboard>> {
+    const systemPrompt = buildStoryboardRevisionPrompt(JSON.stringify(current), request, comments, catalog, {
+        outputLanguage: options.outputLanguage,
+    });
+    return runStoryboardLLM(context, systemPrompt, toCallOpts('presentation-storyboard-revise', options));
 }
 
 // ── Deterministic translation: visual_data -> IR Block ───────────────────────

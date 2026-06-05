@@ -33,7 +33,8 @@ import { validateDeckIr } from '../../services/presentationIr/slideIr';
 import type { Result } from '../../core/result';
 import type { EvidenceSpan } from '../../services/presentationIr/consultantStoryboard';
 import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
-import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline } from '../../services/chat/consultantStoryboardPipeline';
+import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
+import { markdownToStoryboard } from '../../services/presentationIr/dotDashParser';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
@@ -143,11 +144,11 @@ export class PresentationModeHandler implements ChatModeHandler {
     private readonly exporter = new PresentationExporter();
     /**
      * Consultant mode (review gate): after the storyline note is written, the
-     * catalog + note path are held here so the NEXT send re-reads the (possibly
-     * edited) storyline and builds the deck — without re-resolving sources or
-     * re-running any web search. Cleared once the deck is built.
+     * catalog + note path + deck name are held here so each subsequent send either
+     * REVISES the storyline (chat request / doc comments) or BUILDS the deck — all
+     * without re-resolving sources or re-running any web search. Cleared on build.
      */
-    private pendingStoryline: { catalog: EvidenceSpan[]; notePath: string } | null = null;
+    private pendingStoryline: { catalog: EvidenceSpan[]; notePath: string; deckName: string } | null = null;
     private readonly editScope = new EditScopeController({
         getOperation: () => this.deriveOperation(),
         isLocked: () => this.run.isLocked(),
@@ -426,9 +427,12 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             let irResult: Result<SlideDeckIr>;
             if (this.pendingStoryline) {
-                // Consultant review gate — BUILD step: re-read the (possibly edited)
-                // storyline note + translate. No source re-resolution / web search.
-                irResult = await this.buildPendingStorylineDeck(r);
+                // Consultant review gate: each send either revises the storyline (and
+                // returns early, staying in review) or builds the deck. No source
+                // re-resolution / web search.
+                const res = await this.handlePendingStoryline(r);
+                if ('early' in res) return { finalContent: res.early };
+                irResult = res;
             } else {
                 // Resolve attached sources (notes / web-search / folders) — this is
                 // what actually runs the web search — and thread them into generation.
@@ -557,7 +561,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (settings.presentationStorylineGate === 'review') {
             try {
                 const notePath = await this.writeStorylineNote(r.ctx, stage.value.storylineMarkdown, r.originalQuery);
-                this.pendingStoryline = { catalog, notePath };
+                this.pendingStoryline = { catalog, notePath, deckName: r.originalQuery };
                 const name = notePath.split('/').pop() ?? notePath;
                 return { early: t.storylineReady.replace('{name}', name) };
             } catch (e) {
@@ -571,25 +575,49 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /**
-     * Review-gate BUILD step: consume the pending storyline, re-read the (possibly
-     * edited) note, and deterministically translate it to a deck IR. One-shot —
-     * the pending state is cleared whether it succeeds or fails (a failure routes
-     * the user back to generating a fresh storyline).
+     * Review-gate iteration: each send while a storyline is pending either BUILDS
+     * the deck (a clear build/approval command) or REVISES the storyline (any other
+     * message + the doc's reviewer comments) and stays in review. Builds clear the
+     * pending state; revisions and failures keep it so the user can keep iterating
+     * or fix the doc. `{ early }` = return this chat message now (no deck this turn).
      */
-    private async buildPendingStorylineDeck(r: RunContext): Promise<Result<SlideDeckIr>> {
+    private async handlePendingStoryline(r: RunContext): Promise<{ early: string } | Result<SlideDeckIr>> {
         const pending = this.pendingStoryline;
-        this.pendingStoryline = null;
+        const t = r.ctx.plugin.t.modals.unifiedChat;
         if (!pending) return err('no pending storyline');
         const file = r.ctx.app.vault.getAbstractFileByPath(pending.notePath);
         if (!(file instanceof TFile)) {
-            return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', 'the storyline note was moved or deleted'));
+            this.pendingStoryline = null;
+            return err(t.storylineBuildFailed.replace('{error}', 'the storyline note was moved or deleted'));
         }
         const md = await r.ctx.app.vault.read(file);
-        const built = buildDeckFromStoryline(md, pending.catalog, r.ctx.fullPlugin.settings.summaryLanguage);
-        if (!built.ok) {
-            return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', built.error));
+        const request = r.originalQuery;
+
+        if (looksLikeBuildCommand(request)) {
+            // BUILD: re-read + re-ground the (possibly edited) note, then translate.
+            const built = buildDeckFromStoryline(md, pending.catalog, r.ctx.fullPlugin.settings.summaryLanguage);
+            if (!built.ok) return err(t.storylineBuildFailed.replace('{error}', built.error));
+            this.pendingStoryline = null;
+            return ok(built.value.deck);
         }
-        return ok(built.value.deck);
+
+        // REVISE: apply the request + any reviewer comments, re-ground/audit,
+        // rewrite the note in place, and stay in review for the next turn.
+        const parsed = markdownToStoryboard(md);
+        if (!parsed.ok) return { early: t.storylineReviseFailed.replace('{error}', parsed.error) };
+        const revised = await reviseStoryboard(r.llmCtx, parsed.value.storyboard, request, parsed.value.comments, pending.catalog, {
+            outputLanguage: r.ctx.fullPlugin.settings.summaryLanguage,
+            deckName: pending.deckName,
+            signal: r.abort.signal,
+            onRetryStatus: (seconds) => this.run.setThinking(
+                r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
+            ),
+        });
+        if (r.abort.signal.aborted) return { early: t.generationCancelled };
+        if (!revised.ok) return { early: t.storylineReviseFailed.replace('{error}', revised.error) };
+        await r.ctx.app.vault.modify(file, revised.value.storylineMarkdown);
+        const name = pending.notePath.split('/').pop() ?? pending.notePath;
+        return { early: t.storylineRevised.replace('{name}', name) };
     }
 
     /** Write the dot-dash storyline `.md` to the presentation output folder + open it. */

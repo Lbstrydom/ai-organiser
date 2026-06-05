@@ -2349,8 +2349,10 @@ export interface Translations {
             slideRefineNoDeck: string;              // "No presentation to refine."
             slideGenerateFailed: string;            // "Failed to generate: {error}"
             storylineReady: string;                 // consultant mode: storyline note written for review
+            storylineRevised: string;               // consultant mode: storyline revised, still in review
             storylineWriteFailed: string;           // consultant mode: storyline note write failed
             storylineBuildFailed: string;           // consultant mode: build-from-storyline failed
+            storylineReviseFailed: string;          // consultant mode: storyline revision failed
             slidePreviewEmpty: string;              // "No deck yet — generate slides to see a preview here."
             slideDiffDriftAdvisory: string;         // "Accepting will also apply changes to {n} unselected slide{s}…"
             // Phase labels (previously hardcoded in PresentationModeHandler) —

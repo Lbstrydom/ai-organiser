@@ -5,13 +5,13 @@ import { consultantStoryboardSchema } from '../src/services/presentationIr/consu
 import type { ConsultantStoryboard, EvidenceSpan } from '../src/services/presentationIr/consultantStoryboard';
 import { storyboardToMarkdown } from '../src/services/presentationIr/dotDashSerializer';
 
-// Mock only the LLM-calling generateStoryboard; keep the real deterministic translate.
+// Mock the LLM-calling generators; keep the real deterministic translate/audit/ground.
 vi.mock('../src/services/presentationIr/storyboardService', async (importActual) => {
     const actual = await importActual<typeof import('../src/services/presentationIr/storyboardService')>();
-    return { ...actual, generateStoryboard: vi.fn() };
+    return { ...actual, generateStoryboard: vi.fn(), generateRevisedStoryboard: vi.fn() };
 });
-import { generateStoryboard } from '../src/services/presentationIr/storyboardService';
-import { runStoryboardStage, buildDeckFromStoryline, buildDeckFromStoryboard } from '../src/services/chat/consultantStoryboardPipeline';
+import { generateStoryboard, generateRevisedStoryboard } from '../src/services/presentationIr/storyboardService';
+import { runStoryboardStage, buildDeckFromStoryline, buildDeckFromStoryboard, reviseStoryboard, looksLikeBuildCommand } from '../src/services/chat/consultantStoryboardPipeline';
 
 function sb(obj: unknown): ConsultantStoryboard {
     const r = consultantStoryboardSchema.safeParse(obj);
@@ -93,5 +93,48 @@ describe('buildDeckFromStoryline (review path)', () => {
         const r = buildDeckFromStoryline(md, catalog);
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value.comments[0]).toEqual({ slideId: 's1', comment: 'add YoY' });
+    });
+});
+
+describe('looksLikeBuildCommand', () => {
+    it('matches clear build/approval commands', () => {
+        for (const m of ['build', 'build it', 'Build the slides', 'generate deck', 'create the presentation', 'go', 'go ahead', 'looks good', 'proceed', 'approve', 'ship it', 'perfect', 'yes', 'OK']) {
+            expect(looksLikeBuildCommand(m)).toBe(true);
+        }
+    });
+    it('treats change requests as NOT build (→ revise)', () => {
+        for (const m of ['make slide 2 a 2x2', 'sharpen the thesis', 'add a slide on risks', 'build a stronger argument for EMEA', 'tighten slide 3']) {
+            expect(looksLikeBuildCommand(m)).toBe(false);
+        }
+    });
+});
+
+describe('reviseStoryboard', () => {
+    beforeEach(() => vi.mocked(generateRevisedStoryboard).mockReset());
+
+    it('revises → re-grounds → re-audits → re-renders the storyline markdown', async () => {
+        const revised = sb({
+            schemaVersion: 1, thesis: 'Growth was regionally concentrated',
+            slides: [{
+                id: 's1', role: 'insight', action_title: 'EMEA drove 60% of Q3 growth — double down',
+                core_message: 'EMEA led every region', evidence_span_ids: ['e1'], suggested_visual: 'bar',
+                visual_data: { type: 'bar', unit: '%', items: [{ label: 'EMEA', value: 60, evidence_span_id: 'e1' }, { label: 'APAC', value: 30, evidence_span_id: 'e1' }] },
+            }],
+        });
+        vi.mocked(generateRevisedStoryboard).mockResolvedValue(ok(revised));
+        const r = await reviseStoryboard(ctx, storyboard, 'sharpen the title', [], catalog, { deckName: 'Q3' });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(generateRevisedStoryboard).toHaveBeenCalledOnce();
+            expect(r.value.storylineMarkdown).toContain('double down');
+            expect(r.value.grounding.danglingSpanIds).toHaveLength(0);
+        }
+    });
+
+    it('propagates a revision failure as err', async () => {
+        vi.mocked(generateRevisedStoryboard).mockResolvedValue(err('LLM offline'));
+        const r = await reviseStoryboard(ctx, storyboard, 'change it', [], catalog);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toBe('LLM offline');
     });
 });

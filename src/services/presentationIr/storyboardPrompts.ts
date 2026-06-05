@@ -37,6 +37,12 @@ const VISUAL_GUIDE = `Choose suggested_visual by the DATA SHAPE, and emit the ma
 - otherwise prose -> "bullets" | "stat-grid" | "process-flow" | "none" : {type:"<that>"}
 EVERY numeric value MUST carry an evidence_span_id citing a span that contains that number.`;
 
+/** Format the evidence catalog for a prompt (all untrusted fields neutralised). */
+function formatCatalog(catalog: readonly EvidenceSpan[]): string {
+    return catalog.map((s) => `[${neutralise(s.id)}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n')
+        || '(no sources provided — write a qualitative storyline with NO fabricated numbers)';
+}
+
 export function buildStoryboardPrompt(
     userBrief: string,
     catalog: readonly EvidenceSpan[],
@@ -45,7 +51,7 @@ export function buildStoryboardPrompt(
     const langLine = options.outputLanguage && options.outputLanguage !== 'en'
         ? `\nWrite all text in ${neutralise(options.outputLanguage)}.` : '';
     const countLine = options.targetLength ? `\nProduce about ${options.targetLength} content slides.` : '';
-    const catalogBlock = catalog.map((s) => `[${neutralise(s.id)}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n');
+    const catalogBlock = formatCatalog(catalog);
 
     return `You are a top-tier management consultant (McKinsey/BCG/Bain) writing the STORYLINE of a deck BEFORE any slides are designed.${langLine}${countLine}
 
@@ -61,7 +67,7 @@ Write a "ghost deck": a tight, MECE storyline where every slide's title states t
 </requirements>
 
 <evidence_catalog>
-${catalogBlock || '(no sources provided — write a qualitative storyline with NO fabricated numbers)'}
+${catalogBlock}
 </evidence_catalog>
 
 <user_brief>
@@ -83,4 +89,55 @@ Previous output:
 ${neutralise(badOutput.slice(0, 4000))}
 
 Return the COMPLETE corrected ConsultantStoryboard as ONE JSON object conforming to the schema (schemaVersion ${STORYBOARD_SCHEMA_VERSION}). suggested_visual MUST equal visual_data.type; every numeric value needs an evidence_span_id from the catalog. No prose, no markdown fences.`;
+}
+
+export interface StorylineComment { slideId: string; comment: string; }
+
+/**
+ * Conversational revision: apply the user's requested change (+ any reviewer
+ * comments left in the storyline doc) to the CURRENT storyboard, keeping
+ * everything else unchanged. The full current storyboard JSON is included
+ * (NOT truncated — it's schema-bounded, audit H7) and the evidence catalog is
+ * re-supplied so revisions stay grounded. All untrusted slots are neutralised.
+ */
+export function buildStoryboardRevisionPrompt(
+    currentStoryboardJson: string,
+    request: string,
+    comments: readonly StorylineComment[],
+    catalog: readonly EvidenceSpan[],
+    options: StoryboardPromptOptions = {},
+): string {
+    const langLine = options.outputLanguage && options.outputLanguage !== 'en'
+        ? `\nWrite all text in ${neutralise(options.outputLanguage)}.` : '';
+    const commentLines = comments.length
+        ? '\nReviewer comments left on specific slides:\n' + comments.map((c) => `- slide ${neutralise(c.slideId)}: ${neutralise(c.comment)}`).join('\n')
+        : '';
+
+    return `You are revising an EXISTING ConsultantStoryboard. Apply ONLY the requested changes; keep every other slide unchanged and preserve the slide ids you are not changing.${langLine}
+
+<task>
+Update the storyboard per the requested changes below. Output ONE JSON object — the COMPLETE updated ConsultantStoryboard — and nothing else.
+</task>
+
+<requested_changes>
+${neutralise(request) || '(see reviewer comments)'}${commentLines}
+</requested_changes>
+
+<requirements>
+- Action titles state the SO-WHAT (not labels); one message per slide; slides ladder to the thesis.
+- GROUNDING: every number in a title or visual_data MUST cite an evidence_span_id from the catalog. Do NOT invent numbers — use a qualitative so-what if the data isn't cited.
+- ${VISUAL_GUIDE}
+</requirements>
+
+<evidence_catalog>
+${formatCatalog(catalog)}
+</evidence_catalog>
+
+<current_storyboard>
+${neutralise(currentStoryboardJson)}
+</current_storyboard>
+
+<output_format>
+Return the COMPLETE updated ConsultantStoryboard as ONE JSON object (schemaVersion ${STORYBOARD_SCHEMA_VERSION}). suggested_visual MUST equal visual_data.type; preserve unchanged slide ids. No prose, no markdown fences.
+</output_format>`;
 }

@@ -19,8 +19,9 @@ import type { SlideDeckIr } from '../presentationIr/slideIr';
 import type { ConsultantStoryboard, EvidenceSpan } from '../presentationIr/consultantStoryboard';
 import type { GroundingReport } from '../presentationIr/evidenceGrounding';
 import { selfCheckStoryboard } from '../presentationIr/evidenceGrounding';
-import { generateStoryboard, translateStoryboardToIr } from '../presentationIr/storyboardService';
+import { generateStoryboard, generateRevisedStoryboard, translateStoryboardToIr } from '../presentationIr/storyboardService';
 import type { GenerateStoryboardOptions } from '../presentationIr/storyboardService';
+import type { StorylineComment } from '../presentationIr/storyboardPrompts';
 import { storyboardToMarkdown } from '../presentationIr/dotDashSerializer';
 import { markdownToStoryboard } from '../presentationIr/dotDashParser';
 import type { StructuralAuditResult, StoryboardJudge } from './consultantAuditService';
@@ -89,4 +90,37 @@ export function buildDeckFromStoryline(
 /** auto-build path: storyboard → IR directly (no markdown round-trip). */
 export function buildDeckFromStoryboard(storyboard: ConsultantStoryboard): Result<SlideDeckIr> {
     return translateStoryboardToIr(storyboard);
+}
+
+/**
+ * Conversational revision step: apply the user's request (+ reviewer comments) to
+ * the current storyboard, then re-ground + re-audit + re-render the storyline. The
+ * caller writes the new markdown back to the note and stays in review. Same
+ * `StoryboardStageResult` shape as `runStoryboardStage`.
+ */
+export async function reviseStoryboard(
+    context: LLMFacadeContext,
+    current: ConsultantStoryboard,
+    request: string,
+    comments: readonly StorylineComment[],
+    catalog: readonly EvidenceSpan[],
+    options: StoryboardStageOptions = {},
+): Promise<Result<StoryboardStageResult>> {
+    const revised = await generateRevisedStoryboard(context, current, request, comments, catalog, options);
+    if (!revised.ok) return revised;
+    const grounding = selfCheckStoryboard(revised.value, catalog);
+    const audit = await auditStoryboardWithJudge(revised.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
+    const storylineMarkdown = storyboardToMarkdown(revised.value, { bySlide: audit.bySlide, deckName: options.deckName });
+    return ok({ storyboard: revised.value, grounding, audit, storylineMarkdown });
+}
+
+// Bare approval / build commands → commit to slides. Anything else (incl. a
+// change request like "make slide 2 a 2x2") → revise the storyline.
+const BUILD_SLIDES_RE = /^(build|generate|create)\s+(the\s+)?(slides?|deck|presentation)$/;
+const BUILD_APPROVE_RE = /^(build|go|proceed|done|approve|ship it|go ahead|looks good|perfect|yes|ok|okay)( it)?$/;
+
+/** True when the message is a clear "build the slides now" / approval (not a revision request). */
+export function looksLikeBuildCommand(message: string): boolean {
+    const m = message.trim().toLowerCase().replace(/[.!]+$/, '').replace(/\s+/g, ' ');
+    return BUILD_SLIDES_RE.test(m) || BUILD_APPROVE_RE.test(m);
 }
