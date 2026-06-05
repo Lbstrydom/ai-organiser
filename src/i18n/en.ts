@@ -2313,6 +2313,7 @@ export const en: Translations = {
             slideCreateSourceFailureFolderNotFound: 'Folder not found: {ref}',
             slideCreateSourceFailureFolderEmpty: 'Folder has no markdown files: {ref}',
             slideCreateSourceFailureWebSearchFailed: 'Web search failed for: {query}',
+            slideCreateSourceFailureWebSearchRateLimited: 'Web search rate-limited for: {query} — try again in a minute',
             slideCreateSourceFailureWebSearchNoResults: 'No results for: {query}',
             slideCreateSourceFailureWebSearchNotConfigured: 'No research provider configured — open the AI Organiser settings to set one up.',
             slideEditFailed: 'Failed to apply scoped edit: {error}',

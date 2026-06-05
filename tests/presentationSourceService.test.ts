@@ -169,6 +169,28 @@ describe('PresentationSourceService.resolve — web-search kind', () => {
         expect(r.failures[0].code).toBe('web-search-failed');
     });
 
+    it('reports web-search-rate-limited when dispatcher throws an adapter-tagged 429', async () => {
+        // The adapter tags exhausted rate-limit failures with `rate-limited`.
+        const dispatcher: WebSearchDispatcher = {
+            search: async () => { throw new Error('Claude Web Search failed: rate-limited: Rate limit of 10000 per 60s exceeded'); },
+        };
+        const app = buildApp(new Map(), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        const r = await svc.resolve([{ kind: 'web-search', ref: 'q' }]);
+        expect(r.usable).toHaveLength(0);
+        expect(r.failures[0].code).toBe('web-search-rate-limited');
+    });
+
+    it('reports web-search-rate-limited for a raw provider rate-limit phrasing', async () => {
+        const dispatcher: WebSearchDispatcher = {
+            search: async () => { throw new Error('429 Too Many Requests'); },
+        };
+        const app = buildApp(new Map(), new Map());
+        const svc = new PresentationSourceService(app, dispatcher);
+        const r = await svc.resolve([{ kind: 'web-search', ref: 'q' }]);
+        expect(r.failures[0].code).toBe('web-search-rate-limited');
+    });
+
     it('reports web-search-no-results for empty dispatcher response', async () => {
         const dispatcher: WebSearchDispatcher = { search: async () => '   ' };
         const app = buildApp(new Map(), new Map());

@@ -16,6 +16,8 @@ import { ACADEMIC_DOMAINS } from '../academicUtils';
 import { claudeSupportsDynamicWebSearch, resolveLatestModel } from '../../adapters/modelCapabilities';
 import { PROVIDER_MODELS } from '../../adapters/modelRegistry';
 import { getCachedModels } from '../../adapters/dynamicModelService';
+import { logger } from '../../../utils/logger';
+import { abortableSleep } from '../../../utils/abortableSleep';
 
 /** Internal state tracked during SSE stream parsing. */
 interface StreamState {
@@ -43,6 +45,8 @@ export type ClaudeWebSearchOptions = SearchOptions & {
     maxTokens?: number;
     perspectiveMode?: boolean;
     perspectives?: string[];
+    /** Abort signal — makes the rate-limit backoff between retries interruptible. */
+    signal?: AbortSignal;
 };
 
 const CLAUDE_API_BASE = 'https://api.anthropic.com';
@@ -53,6 +57,23 @@ const MAX_CONTINUATIONS = 3;
 
 /** Default max output tokens for Claude Web Search responses. */
 const CLAUDE_WS_DEFAULT_MAX_TOKENS = 16384;
+
+/** Retry policy for the non-streaming web-search call. Mirrors
+ *  CloudLLMService.postWithRetry so the web-search path is as resilient to
+ *  rate-limits / transient overload as the main LLM path. */
+const WS_MAX_RETRIES = 3;
+const WS_RETRY_BASE_DELAY_MS = 1000;
+/** Cap on the FALLBACK exponential backoff only — an explicit Retry-After is honoured in full. */
+const WS_MAX_RETRY_DELAY_MS = 60_000;
+/** 429 rate-limit, Anthropic/Azure 529 overload, standard 5xx transients. */
+const WS_RETRIABLE_STATUSES = new Set([429, 502, 503, 504, 529]);
+/** Stable marker prefixed onto an exhausted rate-limit / overload error so the
+ *  presentation source layer can map it to a "try again shortly" message
+ *  instead of a generic failure. Matched case-insensitively by callers.
+ *  Exported so callers classify the failure as transient/retry-later rather
+ *  than a hard configuration error. */
+export const WEB_SEARCH_RATE_LIMITED_MARKER = 'rate-limited';
+const WS_RATE_LIMIT_MARKER = WEB_SEARCH_RATE_LIMITED_MARKER;
 
 /** Resolve a `latest-*` Claude sentinel to a concrete model id Anthropic will
  *  actually accept. Mirrors the resolver in CloudLLMService (cloudService.ts:34-45)
@@ -121,7 +142,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
     ): Promise<ClaudeWebSearchResponse> {
         const { headers, body } = await this.buildRequestParts(options);
         body.messages = [{ role: 'user', content: question }];
-        return this.sendNonStreaming(headers, body, 'Claude Web Search failed');
+        return this.sendNonStreaming(headers, body, 'Claude Web Search failed', options?.signal);
     }
 
     /**
@@ -139,7 +160,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
             { role: 'assistant', content: pausedContent },
             { role: 'user', content: 'Please continue.' },
         ];
-        return this.sendNonStreaming(headers, body, 'Claude Web Search continuation failed');
+        return this.sendNonStreaming(headers, body, 'Claude Web Search continuation failed', options?.signal);
     }
 
     /**
@@ -190,7 +211,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
     ): Promise<ClaudeWebSearchResponse> {
         const { headers, body } = await this.buildRequestParts(options);
         body.messages = messages;
-        return this.sendNonStreaming(headers, body, 'Claude Web Search multi-turn failed');
+        return this.sendNonStreaming(headers, body, 'Claude Web Search multi-turn failed', options?.signal);
     }
 
     /**
@@ -383,30 +404,91 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
 
     // ═══ STREAMING INTERNALS ═══
 
-    /** Send a non-streaming request and parse the response. */
+    /** Send a non-streaming request and parse the response.
+     *
+     *  Retries 429 rate-limit / 529 overload / transient 5xx with backoff
+     *  (honouring an explicit `Retry-After`), mirroring CloudLLMService so the
+     *  web-search path is as resilient as the main LLM path. On a single
+     *  transient 429 the source no longer drops instantly. When retries are
+     *  exhausted on a rate-limit/overload, the thrown message is tagged with
+     *  `WEB_SEARCH_RATE_LIMITED_MARKER` so callers can surface a
+     *  "try again shortly" message rather than a generic failure. */
     private async sendNonStreaming(
         headers: Record<string, string>,
         body: Record<string, unknown>,
         errorPrefix: string,
+        signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
-        const response = await requestUrl({
-            url: this.messagesUrl,
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-            // Without this, Obsidian's requestUrl throws a bare "Request failed,
-            // status <n>" on any 4xx/5xx BEFORE we can read the provider's real
-            // error body — making the status check below dead code. Opt out so we
-            // surface Anthropic/Azure's actual message (e.g. the 401 reason).
-            throw: false,
-        });
+        let lastStatus = 0;
+        let lastErrMsg = '';
+        for (let attempt = 0; attempt < WS_MAX_RETRIES; attempt++) {
+            if (signal?.aborted) throw new Error(`${errorPrefix}: aborted`);
+            const response = await requestUrl({
+                url: this.messagesUrl,
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                // Without this, Obsidian's requestUrl throws a bare "Request failed,
+                // status <n>" on any 4xx/5xx BEFORE we can read the provider's real
+                // error body — making the status check below dead code. Opt out so we
+                // surface Anthropic/Azure's actual message (e.g. the 401 reason).
+                throw: false,
+            });
 
-        if (response.status !== 200) {
-            const errMsg = response.json?.error?.message || `HTTP ${response.status}`;
-            throw new Error(`${errorPrefix}: ${errMsg}`);
+            if (response.status === 200) {
+                return this.parseResponse(response.json);
+            }
+
+            lastStatus = response.status;
+            lastErrMsg = response.json?.error?.message || `HTTP ${response.status}`;
+
+            if (WS_RETRIABLE_STATUSES.has(response.status) && attempt < WS_MAX_RETRIES - 1) {
+                const waitMs = this.computeBackoffMs(response, attempt);
+                logger.warn(
+                    'ClaudeWebSearch',
+                    `HTTP ${response.status} (${lastErrMsg}). Retrying in ${Math.round(waitMs / 1000)}s (attempt ${attempt + 1}/${WS_MAX_RETRIES})`,
+                );
+                await abortableSleep(waitMs, signal);
+                continue;
+            }
+            break; // non-retriable, or retries exhausted
         }
 
-        return this.parseResponse(response.json);
+        // Rate-limit (429) / overload (529) exhaustion → tag so the UI can say
+        // "try again shortly" instead of "web search failed".
+        if (lastStatus === 429 || lastStatus === 529) {
+            throw new Error(`${errorPrefix}: ${WS_RATE_LIMIT_MARKER}: ${lastErrMsg}`);
+        }
+        throw new Error(`${errorPrefix}: ${lastErrMsg}`);
+    }
+
+    /** Backoff for a retriable response: honour an explicit `Retry-After` in
+     *  full, else fall back to capped jittered exponential backoff. */
+    private computeBackoffMs(response: { headers?: Record<string, string> }, attempt: number): number {
+        const headerMs = this.parseRetryAfterMs(this.getHeaderCaseInsensitive(response.headers, 'retry-after'));
+        if (headerMs > 0) return headerMs;
+        return Math.min(
+            WS_RETRY_BASE_DELAY_MS * Math.pow(2, attempt) * (0.5 + Math.random()),
+            WS_MAX_RETRY_DELAY_MS,
+        );
+    }
+
+    /** Parse `Retry-After` (delta-seconds or HTTP-date) → milliseconds, 0 if absent/unparseable. */
+    private parseRetryAfterMs(header: string | undefined): number {
+        if (!header) return 0;
+        const secs = Number.parseInt(header, 10);
+        if (!Number.isNaN(secs) && secs > 0) return secs * 1000;
+        const dateMs = Date.parse(header);
+        if (!Number.isNaN(dateMs)) return Math.max(0, dateMs - Date.now());
+        return 0;
+    }
+
+    /** Case-insensitive header lookup — requestUrl lowercases header keys, but be defensive. */
+    private getHeaderCaseInsensitive(headers: Record<string, string> | undefined, name: string): string | undefined {
+        if (!headers) return undefined;
+        const lower = name.toLowerCase();
+        const key = Object.keys(headers).find(k => k.toLowerCase() === lower);
+        return key ? headers[key] : undefined;
     }
 
     /** Build shared request parts (headers, body without messages) for both streaming and non-streaming. */

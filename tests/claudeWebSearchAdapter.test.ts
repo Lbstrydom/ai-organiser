@@ -14,8 +14,13 @@ vi.mock('obsidian', async () => {
     };
 });
 
+// Make the rate-limit backoff instant so retry tests don't wait out real timers.
+vi.mock('../src/utils/abortableSleep', () => ({
+    abortableSleep: vi.fn(async () => {}),
+}));
+
 import { requestUrl } from 'obsidian';
-import { ClaudeWebSearchAdapter } from '../src/services/research/adapters/claudeWebSearchAdapter';
+import { ClaudeWebSearchAdapter, WEB_SEARCH_RATE_LIMITED_MARKER } from '../src/services/research/adapters/claudeWebSearchAdapter';
 import { claudeSupportsDynamicWebSearch } from '../src/services/adapters/modelCapabilities';
 
 const mockRequestUrl = requestUrl as unknown as ReturnType<typeof vi.fn>;
@@ -448,6 +453,52 @@ describe('ClaudeWebSearchAdapter', () => {
             });
 
             await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('Claude Web Search failed: Invalid request');
+        });
+
+        it('does NOT retry a non-retriable 4xx (400)', async () => {
+            mockRequestUrl.mockResolvedValue({
+                status: 400,
+                json: { error: { message: 'Invalid request' } },
+            });
+            await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('Invalid request');
+            expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+        });
+
+        it('retries on 429 and succeeds on a later attempt', async () => {
+            mockRequestUrl
+                .mockResolvedValueOnce({
+                    status: 429,
+                    headers: { 'retry-after': '1' },
+                    json: { error: { message: 'Rate limit of 10000 per 60s exceeded' } },
+                })
+                .mockResolvedValueOnce({ status: 200, json: buildMockResponse() });
+
+            const result = await adapter.searchAndSynthesize('test');
+            expect(result.searchResults.length).toBeGreaterThan(0);
+            expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+        });
+
+        it('exhausts retries on persistent 429 and throws a rate-limited-tagged error', async () => {
+            mockRequestUrl.mockResolvedValue({
+                status: 429,
+                headers: { 'retry-after': '1' },
+                json: { error: { message: 'Rate limit of 10000 per 60s exceeded' } },
+            });
+
+            await expect(adapter.searchAndSynthesize('test'))
+                .rejects.toThrow(WEB_SEARCH_RATE_LIMITED_MARKER);
+            // MAX_RETRIES = 3 → three attempts total before giving up.
+            expect(mockRequestUrl).toHaveBeenCalledTimes(3);
+        });
+
+        it('retries transient 5xx (503) without the rate-limited tag', async () => {
+            mockRequestUrl
+                .mockResolvedValueOnce({ status: 503, json: { error: { message: 'Service Unavailable' } } })
+                .mockResolvedValueOnce({ status: 200, json: buildMockResponse() });
+
+            const result = await adapter.searchAndSynthesize('test');
+            expect(result.searchResults.length).toBeGreaterThan(0);
+            expect(mockRequestUrl).toHaveBeenCalledTimes(2);
         });
 
         it('maps excluded sites to blocked_domains', async () => {

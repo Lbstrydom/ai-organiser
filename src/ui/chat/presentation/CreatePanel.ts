@@ -45,7 +45,8 @@ export type CreatePanelT = Pick<
     | 'slideCreateSourceFailureNoteNotFound' | 'slideCreateSourceFailureNoteEmpty'
     | 'slideCreateSourceFailureNoteReadFailed'
     | 'slideCreateSourceFailureFolderNotFound' | 'slideCreateSourceFailureFolderEmpty'
-    | 'slideCreateSourceFailureWebSearchFailed' | 'slideCreateSourceFailureWebSearchNoResults'
+    | 'slideCreateSourceFailureWebSearchFailed' | 'slideCreateSourceFailureWebSearchRateLimited'
+    | 'slideCreateSourceFailureWebSearchNoResults'
     | 'slideCreateSourceFailureWebSearchNotConfigured'
 >;
 
@@ -465,6 +466,7 @@ function describeFailure(
         case 'folder-not-found':       return t.slideCreateSourceFailureFolderNotFound.replace('{ref}', ref);
         case 'folder-empty':           return t.slideCreateSourceFailureFolderEmpty.replace('{ref}', ref);
         case 'web-search-failed':      return t.slideCreateSourceFailureWebSearchFailed.replace('{query}', ref);
+        case 'web-search-rate-limited': return t.slideCreateSourceFailureWebSearchRateLimited.replace('{query}', ref);
         case 'web-search-no-results':  return t.slideCreateSourceFailureWebSearchNoResults.replace('{query}', ref);
         case 'web-search-not-configured': return t.slideCreateSourceFailureWebSearchNotConfigured;
         case 'unsupported-kind':       return null;

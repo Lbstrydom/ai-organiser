@@ -340,6 +340,7 @@ export type SourceFailureCode =
     | 'folder-not-found'
     | 'folder-empty'
     | 'web-search-failed'
+    | 'web-search-rate-limited'
     | 'web-search-no-results'
     | 'web-search-not-configured'
     | 'unsupported-kind';

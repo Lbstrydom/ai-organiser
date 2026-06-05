@@ -348,6 +348,18 @@ export class PresentationSourceService {
             //    resolution returned null — typically because cloudServiceType
             //    isn't 'claude' so the main-key fallback didn't fire)
             const isUnconfigured = /no search provider configured|api key not configured/i.test(msg);
+            // Rate-limit / overload exhaustion (the adapter retried + gave up).
+            // Tagged by the adapter with `rate-limited`; also match the raw
+            // provider phrasing so a 429 bubbling from any layer is caught. This
+            // is transient — the user should just try again shortly, NOT a
+            // configuration error pointing them at Settings.
+            const isRateLimited = !isUnconfigured
+                && /rate[- ]?limit|rate_limit_error|429|too many requests|overloaded/i.test(msg);
+            const code: SourceFailureCode = isUnconfigured
+                ? 'web-search-not-configured'
+                : isRateLimited
+                    ? 'web-search-rate-limited'
+                    : 'web-search-failed';
             // Logger surfaces the real failure to the console — silently
             // swallowing into the UI made this class of bug invisible. Uses
             // `error` so it logs regardless of debugMode (warn is gated). The
@@ -355,11 +367,11 @@ export class PresentationSourceService {
             // via the failureCode.
             logger.error(
                 'PresentationSourceService',
-                `web-search failed for "${src.ref}" → code=${isUnconfigured ? 'web-search-not-configured' : 'web-search-failed'}: ${msg}`,
+                `web-search failed for "${src.ref}" → code=${code}: ${msg}`,
             );
             failures.push({
                 selected: src,
-                code: isUnconfigured ? 'web-search-not-configured' : 'web-search-failed',
+                code,
                 debugMessage: msg,
             });
         }

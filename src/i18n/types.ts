@@ -2328,6 +2328,7 @@ export interface Translations {
             slideCreateSourceFailureFolderNotFound: string;
             slideCreateSourceFailureFolderEmpty: string;
             slideCreateSourceFailureWebSearchFailed: string;
+            slideCreateSourceFailureWebSearchRateLimited: string;
             slideCreateSourceFailureWebSearchNoResults: string;
             slideCreateSourceFailureWebSearchNotConfigured: string;
             // Assistant-message + advisory strings — moved out of hardcoded
