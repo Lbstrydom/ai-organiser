@@ -81,18 +81,36 @@ if you want to view the source, please visit the github repository of this plugi
 const prod = process.argv[2] === "production";
 
 // ── Auto-deploy ──────────────────────────────────────────────────────────────
-// After a successful build, copy the plugin artifacts to the local Obsidian
-// vault AND the OneDrive-synced `mobile` folder so both stay current without a
-// manual copy. Each target is independently guarded: if its PARENT directory
-// doesn't exist (another machine, CI), it's skipped silently — never a build
-// failure. Override with AIORG_DEPLOY_TARGETS (a `;`-separated list of dirs).
-const DEFAULT_DEPLOY_TARGETS = [
-  "C:\\obsidian\\Second Brain\\.obsidian\\plugins\\ai-organiser",
-  "C:\\Users\\User\\OneDrive\\Across Devices\\mobile",
-];
-const DEPLOY_TARGETS = (process.env.AIORG_DEPLOY_TARGETS
-  ? process.env.AIORG_DEPLOY_TARGETS.split(";").map(s => s.trim()).filter(Boolean)
-  : DEFAULT_DEPLOY_TARGETS);
+// After a successful build, copy the plugin artifacts to per-machine target
+// folders (the local Obsidian vault, a cloud-synced mobile folder, etc.). These
+// paths are MACHINE-SPECIFIC and must never be committed — this repo is public,
+// so a hardcoded vault path would leak the vault name and wouldn't match another
+// machine (e.g. a work box deploying to SharePoint instead of OneDrive).
+// Resolution precedence:
+//   1. deploy.local.json  →  { "targets": ["<dir>", ...] }   (gitignored)
+//   2. AIORG_DEPLOY_TARGETS env  (`;`-separated)             — CI / one-off
+//   3. none  →  the deploy step is a silent no-op
+// See deploy.local.example.json for the format. Each target is still guarded
+// below: if its PARENT directory doesn't exist, it's skipped silently.
+function loadDeployTargets() {
+  const localFile = path.join(__dirname, "deploy.local.json");
+  if (fs.existsSync(localFile)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(localFile, "utf8"));
+      if (Array.isArray(parsed?.targets)) {
+        return parsed.targets.map(s => String(s).trim()).filter(Boolean);
+      }
+      console.warn('deploy.local.json present but has no "targets" array — ignoring.');
+    } catch (err) {
+      console.warn(`deploy.local.json unreadable (${err.message}) — ignoring.`);
+    }
+  }
+  if (process.env.AIORG_DEPLOY_TARGETS) {
+    return process.env.AIORG_DEPLOY_TARGETS.split(";").map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+const DEPLOY_TARGETS = loadDeployTargets();
 // The three Obsidian plugin files. styles.css is optional — copied when present.
 const DEPLOY_ARTIFACTS = ["main.js", "manifest.json", "styles.css"];
 

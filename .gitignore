@@ -141,3 +141,6 @@ logs/mcp-*.log.gz
 # Playwright e2e output
 test-results/
 playwright-report/
+
+# Per-machine plugin deploy targets (see deploy.local.example.json)
+deploy.local.json

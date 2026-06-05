@@ -1,0 +1,7 @@
+{
+  "//": "Per-machine plugin deploy targets. Copy to deploy.local.json (gitignored) and edit for THIS machine. After a build, main.js/manifest.json/styles.css are copied into each dir. A target whose PARENT directory does not exist is skipped silently. Use double backslashes in Windows paths.",
+  "targets": [
+    "C:\\obsidian\\Second Brain\\.obsidian\\plugins\\ai-organiser",
+    "C:\\Users\\<you>\\OneDrive\\Across Devices\\mobile"
+  ]
+}
