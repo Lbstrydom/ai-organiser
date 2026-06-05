@@ -43,7 +43,9 @@ export interface GroundingReport {
     readonly inferential: readonly ClaimCheck[]; // tier === 'inferential' (→ LLM)
 }
 
-const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*%?/g;
+// Captures a trailing "%" OR the word "percent" (audit M6/M12) so "60 percent"
+// tokenises whole and normalises to 0.60 like "60%".
+const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent)?/gi;
 
 /** Normalise a numeric token to a canonical numeric value for matching:
  *  "60%"→0.6, "60 percent"→0.6, "0.60"→0.6, "1,234"→1234, "64"→64. */
@@ -133,7 +135,15 @@ function visualNumericClaims(v: VisualData): Array<{ claim: string; spanId: stri
         case 'bar': for (const i of v.items) push(i.label, i.value, i.evidence_span_id, v.unit); break;
         case 'waterfall': push(v.base.label, v.base.value, v.base.evidence_span_id, v.unit); for (const d of v.deltas) push(d.label, d.value, d.evidence_span_id, v.unit); break;
         case 'line': for (const s of v.series) for (const p of s.points) push(`${s.label} ${p.x}`, p.y, p.evidence_span_id, s.unit); break;
-        default: break; // 2x2/pyramid/harvey/table carry categorical/text — grounded as text
+        case 'table':
+            // Numeric table cells are factual claims too (audit H4/H8): a cell with a
+            // number AND a citation is grounded against that cited span.
+            for (const row of v.rows) for (const c of row.cells) {
+                const cellText = c.value ?? c.text;
+                if (c.evidence_span_id && /\d/.test(cellText)) out.push({ claim: cellText, spanId: c.evidence_span_id });
+            }
+            break;
+        default: break; // 2x2/pyramid/harvey carry categorical/text — grounded as text
     }
     return out;
 }
@@ -184,6 +194,10 @@ export function buildGroundingAuditPayload(check: ClaimCheck, catalog: readonly 
 
 /** A slide is shippable when no rendered number is a blocker. */
 export function slideIsGrounded(report: GroundingReport, slide: StoryboardSlide): boolean {
+    // Conservative (audit H3/H6 — no fail-open): grounded only when the slide has no
+    // blocker, no dangling ref, AND no INFERENTIAL (cited-but-unverified) number — an
+    // inferential claim needs the LLM judge's verdict before it can be called grounded.
     return !report.blockers.some((b) => b.slideId === slide.id)
+        && !report.inferential.some((c) => c.slideId === slide.id)
         && !report.danglingSpanIds.length; // dangling anywhere is a contract break
 }

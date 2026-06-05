@@ -45,7 +45,7 @@ export function buildStoryboardPrompt(
     const langLine = options.outputLanguage && options.outputLanguage !== 'en'
         ? `\nWrite all text in ${options.outputLanguage}.` : '';
     const countLine = options.targetLength ? `\nProduce about ${options.targetLength} content slides.` : '';
-    const catalogBlock = catalog.map((s) => `[${s.id}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n');
+    const catalogBlock = catalog.map((s) => `[${neutralise(s.id)}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n');
 
     return `You are a top-tier management consultant (McKinsey/BCG/Bain) writing the STORYLINE of a deck BEFORE any slides are designed.${langLine}${countLine}
 

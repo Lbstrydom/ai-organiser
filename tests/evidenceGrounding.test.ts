@@ -71,4 +71,33 @@ describe('numeric matching is token-bounded (audit H10)', () => {
         const c = checkClaim('we shipped 160 units', span, { slideId: 's1', field: 'core_message' });
         expect(c.tier).toBe('exact');
     });
+    it('"60 percent" in a span matches a "60%" claim (audit M6/M12)', () => {
+        const pctSpan: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'EMEA was 60 percent of growth.' }];
+        const c = checkClaim('EMEA drove 60% of growth', pctSpan, { slideId: 's1', field: 'action_title' });
+        expect(c.tier === 'exact' || c.tier === 'numeric').toBe(true);
+    });
+});
+
+describe('numeric table cells are grounded (audit H4/H8)', () => {
+    const cat: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'Q3 revenue was 1.2 and Q2 was 0.9.' }];
+    function tableDeck(cellEvidence: string | undefined): ConsultantStoryboard {
+        return {
+            schemaVersion: 1, thesis: 't',
+            slides: [{
+                id: 's1', role: 'proof', action_title: 'Revenue climbed quarter over quarter', core_message: 'growth',
+                evidence_span_ids: [], suggested_visual: 'table',
+                visual_data: { type: 'table', columns: ['Q', 'Rev'], rows: [{ cells: [{ text: 'Q3' }, { text: '1.2', value: '1.2', ...(cellEvidence ? { evidence_span_id: cellEvidence } : {}) }] }] },
+            }],
+        } as ConsultantStoryboard;
+    }
+    it('a cited table-cell number that matches its span is grounded (no blocker, not inferential)', () => {
+        const r = selfCheckStoryboard(tableDeck('e1'), cat);
+        expect(r.blockers.length).toBe(0);
+        expect(r.inferential.length).toBe(0);
+    });
+    it('a cited table-cell number that does NOT match its span is inferential', () => {
+        const wrong: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'Revenue was 9.9 last year.' }];
+        const r = selfCheckStoryboard(tableDeck('e1'), wrong);
+        expect(r.inferential.some((c) => c.field === 'visual_data')).toBe(true);
+    });
 });

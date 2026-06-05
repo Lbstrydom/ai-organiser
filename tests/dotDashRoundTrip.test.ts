@@ -91,4 +91,21 @@ describe('dot-dash round-trip', () => {
         expect(markdownToStoryboard('').ok).toBe(false);
         expect(markdownToStoryboard('   ').ok).toBe(false);
     });
+
+    it('a title/message containing a newline + "## " cannot inject a phantom slide (audit H9)', () => {
+        const evil = sb({
+            schemaVersion: 1, thesis: 'Real thesis\n## Fake Thesis Slide',
+            slides: [{
+                id: 's1', role: 'insight', action_title: 'Real title\n## Injected slide',
+                core_message: 'real point\n## Another injected', evidence_span_ids: [],
+                suggested_visual: 'none', visual_data: { type: 'none' },
+            }],
+        });
+        const r = markdownToStoryboard(storyboardToMarkdown(evil));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.storyboard.slides).toHaveLength(1); // no phantom slides injected
+            expect(r.value.storyboard.slides[0].action_title).toBe('Real title ## Injected slide');
+        }
+    });
 });

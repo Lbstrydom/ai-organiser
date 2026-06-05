@@ -29,9 +29,18 @@ function slideAnchor(slide: StoryboardSlide): string {
     });
 }
 
+/**
+ * Collapse newlines to spaces so a title / message / finding can't inject a new
+ * `##` heading or `>`/`-` line that the parser would mis-split (audit H9). The
+ * machine state rides the base64 anchor, so the human prose lines must stay single-line.
+ */
+function oneLine(s: string): string {
+    return s.replace(/\s*\n+\s*/g, ' ').trim();
+}
+
 function findingsBlock(findings: readonly StructuralFinding[]): string {
     if (findings.length === 0) return '> ⚠ Storyline check: ✓ no issues';
-    const lines = findings.map((f) => `>   - [${f.severity}/${f.dimension}] ${f.message}`);
+    const lines = findings.map((f) => `>   - [${f.severity}/${f.dimension}] ${oneLine(f.message)}`);
     return ['> ⚠ Storyline check:', ...lines].join('\n');
 }
 
@@ -48,9 +57,9 @@ export interface SerializeOptions {
  */
 export function storyboardToMarkdown(storyboard: ConsultantStoryboard, options: SerializeOptions = {}): string {
     const out: string[] = [];
-    out.push(`# ${options.deckName ?? 'Storyline'}`);
+    out.push(`# ${oneLine(options.deckName ?? 'Storyline')}`);
     out.push('');
-    out.push(`> **Thesis:** ${storyboard.thesis}`);
+    out.push(`> **Thesis:** ${oneLine(storyboard.thesis)}`);
     out.push('');
     out.push('_Review the storyline below. Edit the titles + supporting points directly, or leave `<!-- comment: … -->` notes, then run **Build slides from this storyline**. The hidden anchors carry the chart data — leave them in place._');
     out.push('');
@@ -62,10 +71,10 @@ export function storyboardToMarkdown(storyboard: ConsultantStoryboard, options: 
     }
 
     for (const slide of storyboard.slides) {
-        out.push(`## ${slide.action_title}`);
+        out.push(`## ${oneLine(slide.action_title)}`);
         out.push(slideAnchor(slide));
         out.push('');
-        out.push(`- ${slide.core_message}`);
+        out.push(`- ${oneLine(slide.core_message)}`);
         out.push(`> visual: ${slide.suggested_visual}`);
         const f = options.bySlide?.get(slide.id) ?? [];
         out.push(findingsBlock(f));

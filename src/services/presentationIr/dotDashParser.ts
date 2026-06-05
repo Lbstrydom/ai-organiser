@@ -12,7 +12,7 @@
 import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { ConsultantStoryboard } from './consultantStoryboard';
-import { consultantStoryboardSchema } from './consultantStoryboard';
+import { consultantStoryboardSchema, STORYBOARD_SCHEMA_VERSION } from './consultantStoryboard';
 import { findAndDecodeAnchor } from './dotDashAnchor';
 
 export interface SlideComment { readonly slideId: string; readonly comment: string; }
@@ -84,7 +84,7 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
         slides.push({ id, role, action_title: title, core_message, evidence_span_ids, suggested_visual, visual_data });
     }
 
-    const candidate = { schemaVersion: 1, thesis, slides };
+    const candidate = { schemaVersion: STORYBOARD_SCHEMA_VERSION, thesis, slides };
     const parsed = consultantStoryboardSchema.safeParse(candidate);
     if (!parsed.success) {
         const f = parsed.error.issues[0];
