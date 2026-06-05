@@ -59,3 +59,16 @@ describe('selfCheckStoryboard', () => {
         expect(r.danglingSpanIds).toContain('nope');
     });
 });
+
+describe('numeric matching is token-bounded (audit H10)', () => {
+    const span: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'We shipped 160 widgets.' }];
+    it('a claim of "6" does NOT match the "160" in a cited span', () => {
+        const c = checkClaim('we saw 6 issues', span, { slideId: 's1', field: 'core_message' });
+        expect(c.tier).not.toBe('exact');
+        expect(c.tier).not.toBe('numeric');
+    });
+    it('a verbatim numeric token still matches', () => {
+        const c = checkClaim('we shipped 160 units', span, { slideId: 's1', field: 'core_message' });
+        expect(c.tier).toBe('exact');
+    });
+});

@@ -13,7 +13,7 @@ import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { ConsultantStoryboard } from './consultantStoryboard';
 import { consultantStoryboardSchema } from './consultantStoryboard';
-import { SLIDE_ANCHOR } from './dotDashSerializer';
+import { findAndDecodeAnchor } from './dotDashAnchor';
 
 export interface SlideComment { readonly slideId: string; readonly comment: string; }
 export interface ParsedStoryline {
@@ -23,7 +23,6 @@ export interface ParsedStoryline {
 }
 
 const THESIS_RE = /^>\s*\*\*Thesis:\*\*\s*(.+)$/m;
-const ANCHOR_RE = new RegExp(`<!--\\s*${SLIDE_ANCHOR}\\s*([\\s\\S]*?)-->`);
 const COMMENT_RE = /<!--\s*comment:\s*([\s\S]*?)-->/gi;
 
 /** Split markdown into `## `-delimited sections (the text BEFORE the first `## ` is the header). */
@@ -52,25 +51,24 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
         const body = firstNewline === -1 ? '' : section.slice(firstNewline + 1);
 
         // Machine state from the hidden anchor (restores id/role/visual/evidence).
-        let id = `s${idx + 1}`;
+        // A fresh id uses the section number so reordered unanchored slides get
+        // distinct ids; the schema superRefine still rejects any genuine collision.
+        let id = `new-${idx + 1}`;
         let role = 'insight';
         let suggested_visual = 'none';
         let visual_data: unknown = { type: 'none' };
         let evidence_span_ids: string[] = [];
-        const anchorM = body.match(ANCHOR_RE);
-        if (anchorM) {
-            try {
-                const state = JSON.parse(anchorM[1].trim()) as Record<string, unknown>;
-                if (state && typeof state === 'object') {
-                    id = typeof state.id === 'string' ? state.id : id;
-                    role = typeof state.role === 'string' ? state.role : role;
-                    suggested_visual = typeof state.suggested_visual === 'string' ? state.suggested_visual : suggested_visual;
-                    visual_data = state.visual_data ?? visual_data;
-                    evidence_span_ids = Array.isArray(state.evidence_span_ids) ? state.evidence_span_ids : [];
-                }
-            } catch {
-                return err(`storyline: slide "${title}" has a corrupt hidden anchor — fix or remove the <!-- aio-slide … --> line`);
-            }
+        const decoded = findAndDecodeAnchor(body);
+        if (decoded && !decoded.ok) {
+            return err(`storyline: slide "${title}" has a corrupt hidden anchor — fix or remove the <!-- aio-slide … --> line`);
+        }
+        if (decoded?.ok) {
+            const state = decoded.state;
+            id = typeof state.id === 'string' ? state.id : id;
+            role = typeof state.role === 'string' ? state.role : role;
+            suggested_visual = typeof state.suggested_visual === 'string' ? state.suggested_visual : suggested_visual;
+            visual_data = state.visual_data ?? visual_data;
+            evidence_span_ids = Array.isArray(state.evidence_span_ids) ? state.evidence_span_ids : [];
         }
 
         // Supporting prose = the first `- ` bullet (the human-editable dot-dash).

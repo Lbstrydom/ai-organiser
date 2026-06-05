@@ -11,26 +11,27 @@
  * the audit findings inline so the user reviews WITH the checks visible.
  */
 import type { ConsultantStoryboard, StoryboardSlide } from './consultantStoryboard';
-import type { StructuralFinding } from '../chat/consultantAuditService';
-
-const SLIDE_ANCHOR = 'aio-slide:';
+// Neutral, same-layer type import (audit M16 — no upward dependency on chat/).
+import type { StructuralFinding } from './structuralAuditTypes';
+import { DECK_LEVEL_KEY } from './structuralAuditTypes';
+import { encodeAnchor, SLIDE_ANCHOR } from './dotDashAnchor';
 
 function slideAnchor(slide: StoryboardSlide): string {
     // Compact machine state — id/role/visual + the full visual_data + evidence ids.
-    const state = {
+    // base64-encoded by encodeAnchor so a value containing `-->` can't break the
+    // comment fence (audit H5/H9).
+    return encodeAnchor({
         id: slide.id,
         role: slide.role,
         suggested_visual: slide.suggested_visual,
         evidence_span_ids: slide.evidence_span_ids,
         visual_data: slide.visual_data,
-    };
-    return `<!-- ${SLIDE_ANCHOR} ${JSON.stringify(state)} -->`;
+    });
 }
 
 function findingsBlock(findings: readonly StructuralFinding[]): string {
-    const relevant = findings.filter((f) => f.severity !== 'minor' || true); // show all
-    if (relevant.length === 0) return '> ⚠ Storyline check: ✓ no issues';
-    const lines = relevant.map((f) => `>   - [${f.severity}/${f.dimension}] ${f.message}`);
+    if (findings.length === 0) return '> ⚠ Storyline check: ✓ no issues';
+    const lines = findings.map((f) => `>   - [${f.severity}/${f.dimension}] ${f.message}`);
     return ['> ⚠ Storyline check:', ...lines].join('\n');
 }
 
@@ -54,7 +55,7 @@ export function storyboardToMarkdown(storyboard: ConsultantStoryboard, options: 
     out.push('_Review the storyline below. Edit the titles + supporting points directly, or leave `<!-- comment: … -->` notes, then run **Build slides from this storyline**. The hidden anchors carry the chart data — leave them in place._');
     out.push('');
 
-    const deckFindings = options.bySlide?.get('') ?? [];
+    const deckFindings = options.bySlide?.get(DECK_LEVEL_KEY) ?? [];
     if (deckFindings.length) {
         out.push(findingsBlock(deckFindings));
         out.push('');

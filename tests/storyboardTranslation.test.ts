@@ -22,7 +22,8 @@ describe('visualDataToBlock', () => {
         const block = visualDataToBlock(barSlide.visual_data as VisualData);
         expect(block?.kind).toBe('bar-chart');
         if (block?.kind === 'bar-chart') {
-            expect(block.bars).toEqual([{ label: 'EMEA', pct: 100 }, { label: 'APAC', pct: 50 }]);
+            // Labels keep the raw value (+ unit) so the number isn't dropped (H8).
+            expect(block.bars).toEqual([{ label: 'EMEA (60%)', pct: 100 }, { label: 'APAC (30%)', pct: 50 }]);
             expect(block.axisLabel).toBe('%');
         }
     });
@@ -44,7 +45,10 @@ describe('visualDataToBlock', () => {
         const v: VisualData = { type: 'waterfall', unit: '€m', base: { label: 'Start', value: 100, evidence_span_id: 'e1' }, deltas: [{ label: 'EMEA', value: 20, evidence_span_id: 'e2' }] };
         const block = visualDataToBlock(v);
         expect(block?.kind).toBe('bar-chart');
-        if (block?.kind === 'bar-chart') expect(block.bars[0]).toEqual({ label: 'Start', pct: 100 });
+        if (block?.kind === 'bar-chart') {
+            expect(block.bars[0]).toEqual({ label: 'Start (100 €m)', pct: 100 });
+            expect(block.bars[1].label).toBe('EMEA (+20 €m)'); // signed delta preserved (H11)
+        }
     });
 
     it('2x2 → table fallback (item × quadrant)', () => {

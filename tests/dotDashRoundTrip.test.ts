@@ -68,7 +68,8 @@ describe('dot-dash round-trip', () => {
     });
 
     it('a corrupt anchor aborts the parse with a typed error', () => {
-        const md = storyboardToMarkdown(storyboard).replace(/(<!-- aio-slide: )\{/, '$1{not json');
+        // Replace the base64 payload with valid-base64 that decodes to non-JSON ("garbage").
+        const md = storyboardToMarkdown(storyboard).replace(/(aio-slide:1 )[A-Za-z0-9+/=]+/, '$1Z2FyYmFnZQ==');
         const r = markdownToStoryboard(md);
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error).toMatch(/corrupt hidden anchor/);

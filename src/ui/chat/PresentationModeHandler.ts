@@ -536,10 +536,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runConsultantStage(r: RunContext, sources: PromptSource[]): Promise<{ early: string } | Result<SlideDeckIr>> {
         const settings = r.ctx.fullPlugin.settings;
         const t = r.ctx.plugin.t.modals.unifiedChat;
+        // Model-aware char budget so the catalog (and thus the prompt) stays bounded
+        // for the configured model / Azure TPM, instead of an unbounded injection (audit H12).
+        const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
         const catalog = buildEvidenceCatalog([
             ...(r.noteContent ? [{ ref: 'active note', content: r.noteContent }] : []),
             ...sources.map((s) => ({ ref: s.ref, content: s.content })),
-        ]);
+        ], { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) });
         const stage = await runStoryboardStage(r.llmCtx, r.effectiveQuery, catalog, {
             outputLanguage: settings.summaryLanguage,
             targetLength: this.creationConfig.length,
@@ -582,7 +585,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', 'the storyline note was moved or deleted'));
         }
         const md = await r.ctx.app.vault.read(file);
-        const built = buildDeckFromStoryline(md, pending.catalog);
+        const built = buildDeckFromStoryline(md, pending.catalog, r.ctx.fullPlugin.settings.summaryLanguage);
         if (!built.ok) {
             return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', built.error));
         }

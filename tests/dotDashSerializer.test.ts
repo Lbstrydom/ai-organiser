@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { consultantStoryboardSchema } from '../src/services/presentationIr/consultantStoryboard';
 import type { ConsultantStoryboard } from '../src/services/presentationIr/consultantStoryboard';
 import { storyboardToMarkdown, SLIDE_ANCHOR } from '../src/services/presentationIr/dotDashSerializer';
-import type { StructuralFinding } from '../src/services/chat/consultantAuditService';
+import { findAndDecodeAnchor } from '../src/services/presentationIr/dotDashAnchor';
+import type { StructuralFinding } from '../src/services/presentationIr/structuralAuditTypes';
 
 function sb(obj: unknown): ConsultantStoryboard {
     const r = consultantStoryboardSchema.safeParse(obj);
@@ -37,12 +38,17 @@ describe('storyboardToMarkdown', () => {
         expect(md).toContain('> visual: bar');
     });
 
-    it('the anchor carries the full visual_data + evidence ids (round-trippable)', () => {
+    it('the anchor carries the full visual_data + evidence ids (base64-encoded, round-trippable)', () => {
         const md = storyboardToMarkdown(storyboard);
         const anchorLine = md.split('\n').find((l) => l.includes(SLIDE_ANCHOR));
         expect(anchorLine).toBeTruthy();
-        expect(anchorLine).toContain('"visual_data"');
-        expect(anchorLine).toContain('"evidence_span_ids":["e1"]');
+        // Payload is base64 (audit H5/H9) — decode to verify it carries the state.
+        const decoded = findAndDecodeAnchor(anchorLine || '');
+        expect(decoded?.ok).toBe(true);
+        if (decoded?.ok) {
+            expect(decoded.state.visual_data).toEqual(storyboard.slides[0].visual_data);
+            expect(decoded.state.evidence_span_ids).toEqual(['e1']);
+        }
     });
 
     it('shows ✓ no issues when a slide is clean', () => {

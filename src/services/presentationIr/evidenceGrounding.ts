@@ -62,22 +62,27 @@ function spanText(span: EvidenceSpan): string {
     return (span.text + ' ' + (span.value ?? '')).toLowerCase();
 }
 
-/** Does a normalised numeric appear in any cited span (verbatim or normalised)? */
+/**
+ * Does a numeric appear in any cited span? TOKEN-based (audit H10): the claim token
+ * is matched against each span's tokenized numbers, NOT by substring — so "60" no
+ * longer falsely matches "160". `exact` = a verbatim numeric token; `numeric` = a
+ * normalised-value match (60% ≡ 0.60).
+ */
 function numericInSpans(rawToken: string, spans: readonly EvidenceSpan[]): 'exact' | 'numeric' | null {
-    const raw = rawToken.trim().toLowerCase().replace(/\s+/g, '');
-    for (const s of spans) {
-        if (spanText(s).replace(/\s+/g, '').includes(raw)) return 'exact';
-    }
+    const rawNorm = rawToken.trim().toLowerCase().replace(/\s+/g, '');
     const target = normaliseNumeric(rawToken);
-    if (target === null) return null;
+    let numericHit = false;
     for (const s of spans) {
         const toks = spanText(s).match(NUMERIC_RE) || [];
         for (const tk of toks) {
-            const v = normaliseNumeric(tk);
-            if (v !== null && Math.abs(v - target) < 1e-9) return 'numeric';
+            if (tk.trim().toLowerCase().replace(/\s+/g, '') === rawNorm) return 'exact'; // verbatim token (bounded)
+            if (target !== null) {
+                const v = normaliseNumeric(tk);
+                if (v !== null && Math.abs(v - target) < 1e-9) numericHit = true;
+            }
         }
     }
-    return null;
+    return numericHit ? 'numeric' : null;
 }
 
 /** Check one textual claim against its cited spans. */

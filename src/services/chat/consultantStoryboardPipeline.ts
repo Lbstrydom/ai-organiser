@@ -54,7 +54,7 @@ export async function runStoryboardStage(
     const generated = await generateStoryboard(context, brief, catalog, options);
     if (!generated.ok) return generated;
     const grounding = selfCheckStoryboard(generated.value, catalog);
-    const audit = await auditStoryboardWithJudge(generated.value, grounding, options.judge);
+    const audit = await auditStoryboardWithJudge(generated.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
     const storylineMarkdown = storyboardToMarkdown(generated.value, { bySlide: audit.bySlide, deckName: options.deckName });
     return ok({ storyboard: generated.value, grounding, audit, storylineMarkdown });
 }
@@ -75,11 +75,12 @@ export interface DeckFromStorylineResult {
 export function buildDeckFromStoryline(
     storylineMarkdown: string,
     catalog: readonly EvidenceSpan[],
+    outputLanguage?: string,
 ): Result<DeckFromStorylineResult> {
     const parsed = markdownToStoryboard(storylineMarkdown);
     if (!parsed.ok) return parsed;
     const grounding = selfCheckStoryboard(parsed.value.storyboard, catalog);
-    const audit = auditStoryboard(parsed.value.storyboard, grounding);
+    const audit = auditStoryboard(parsed.value.storyboard, grounding, { outputLanguage });
     const deck = translateStoryboardToIr(parsed.value.storyboard);
     if (!deck.ok) return deck;
     return ok({ deck: deck.value, grounding, audit, comments: parsed.value.comments });

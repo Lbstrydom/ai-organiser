@@ -14,6 +14,18 @@ export interface StoryboardPromptOptions {
     targetLength?: number;
 }
 
+/**
+ * Break XML-ish envelope markers in untrusted content (audit H6/M20). A user
+ * brief / evidence span / prior model output containing `</requirements>` etc.
+ * could otherwise close a prompt section early and inject instructions. Inserting
+ * a zero-width space after every `<` defangs the tag while staying human-readable
+ * (mirrors `audioNarration`'s `neutraliseEnvelopeMarkers`).
+ */
+const ZWSP = '​';
+function neutralise(s: string): string {
+    return s.replace(/</g, `<${ZWSP}`);
+}
+
 const VISUAL_GUIDE = `Choose suggested_visual by the DATA SHAPE, and emit the matching visual_data:
 - trend over time -> "line"      : {type:"line", series:[{label,unit?,points:[{x,y,evidence_span_id}]}]}
 - a bridge / build-up (cost, margin, headcount) -> "waterfall" : {type:"waterfall", unit?, base:{label,value,evidence_span_id}, deltas:[{label,value,evidence_span_id}], total?:{label}}
@@ -33,7 +45,7 @@ export function buildStoryboardPrompt(
     const langLine = options.outputLanguage && options.outputLanguage !== 'en'
         ? `\nWrite all text in ${options.outputLanguage}.` : '';
     const countLine = options.targetLength ? `\nProduce about ${options.targetLength} content slides.` : '';
-    const catalogBlock = catalog.map((s) => `[${s.id}] (${s.source_ref}) ${s.text}`).join('\n');
+    const catalogBlock = catalog.map((s) => `[${s.id}] (${neutralise(s.source_ref)}) ${neutralise(s.text)}`).join('\n');
 
     return `You are a top-tier management consultant (McKinsey/BCG/Bain) writing the STORYLINE of a deck BEFORE any slides are designed.${langLine}${countLine}
 
@@ -53,7 +65,7 @@ ${catalogBlock || '(no sources provided — write a qualitative storyline with N
 </evidence_catalog>
 
 <user_brief>
-${userBrief}
+${neutralise(userBrief)}
 </user_brief>
 
 <output_format>
@@ -68,27 +80,7 @@ export function buildStoryboardRepairPrompt(badOutput: string, validationError: 
     return `Your previous storyboard JSON was invalid: ${validationError}
 
 Previous output:
-${badOutput.slice(0, 4000)}
+${neutralise(badOutput.slice(0, 4000))}
 
 Return the COMPLETE corrected ConsultantStoryboard as ONE JSON object conforming to the schema (schemaVersion ${STORYBOARD_SCHEMA_VERSION}). suggested_visual MUST equal visual_data.type; every numeric value needs an evidence_span_id from the catalog. No prose, no markdown fences.`;
-}
-
-/**
- * Targeted-revision prompt: the user left comments on specific slides in the
- * dot-dash review. Revise ONLY those slides; keep all others byte-identical.
- */
-export function buildStoryboardCommentRevisionPrompt(
-    currentStoryboardJson: string,
-    comments: ReadonlyArray<{ slideId: string; comment: string }>,
-): string {
-    const list = comments.map((c) => `- slide ${c.slideId}: ${c.comment}`).join('\n');
-    return `Revise ONLY the commented slides of this storyboard; keep every other slide byte-identical. Do not invent numbers — keep grounding to the cited spans.
-
-Comments:
-${list}
-
-Current storyboard:
-${currentStoryboardJson.slice(0, 8000)}
-
-Return the COMPLETE updated ConsultantStoryboard as ONE JSON object. No prose, no markdown fences.`;
 }

@@ -19,7 +19,7 @@ function sb(obj: unknown): ConsultantStoryboard {
     return r.data as ConsultantStoryboard;
 }
 
-const catalog: EvidenceSpan[] = [{ id: 'e1', source_ref: 'q3.md', text: 'EMEA was 60% of growth in Q3.' }];
+const catalog: EvidenceSpan[] = [{ id: 'e1', source_ref: 'q3.md', text: 'EMEA was 60% and APAC 30% of growth in Q3.' }];
 const storyboard = sb({
     schemaVersion: 1,
     thesis: 'Growth was regionally concentrated',

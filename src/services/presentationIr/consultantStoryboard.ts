@@ -146,7 +146,19 @@ export const consultantStoryboardSchema = z.object({
     thesis: text,
     sections: z.array(z.object({ label: text, slide_ids: z.array(z.string()).min(1) }).strict()).optional(),
     slides: z.array(storyboardSlideSchema).min(1).max(MAX_SLIDES),
-}).strict();
+}).strict().superRefine((sb, ctx) => {
+    // M4/M15: slide ids must be unique, and every section slide_id must exist.
+    const ids = new Set<string>();
+    sb.slides.forEach((s, i) => {
+        if (ids.has(s.id)) ctx.addIssue({ code: 'custom', message: `duplicate slide id "${s.id}"`, path: ['slides', i, 'id'] });
+        ids.add(s.id);
+    });
+    sb.sections?.forEach((sec, si) => {
+        sec.slide_ids.forEach((id, idi) => {
+            if (!ids.has(id)) ctx.addIssue({ code: 'custom', message: `section references unknown slide id "${id}"`, path: ['sections', si, 'slide_ids', idi] });
+        });
+    });
+});
 export type ConsultantStoryboard = z.infer<typeof consultantStoryboardSchema>;
 
 /**
