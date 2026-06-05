@@ -72,7 +72,7 @@ describe('CloudLLMService Azure throttle', () => {
 });
 
 describe('sendMultimodal Azure throttle (azure-throttle-coverage)', () => {
-    const pdfPart = () => [{ type: 'document' as const, mimeType: 'application/pdf', data: 'JVBERi'.repeat(20_000) }];
+    const pdfPart = () => [{ type: 'document' as const, mediaType: 'application/pdf', data: 'JVBERi'.repeat(20_000) }];
 
     it('token-dim 429 + max_tokens > limit ⇒ >TPM fail-fast, NO retry', async () => {
         mockRequestUrl.mockResolvedValue({
