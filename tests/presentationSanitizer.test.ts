@@ -157,6 +157,15 @@ describe('sanitizePresentation — CSS property/value allowlist', () => {
         expect(r.html).toMatch(/border-top-(width|color|style)/);
         expect(r.html).not.toMatch(/javascript:/i);
     });
+    it('keeps flex `gap` so items get spacing (real Chromium expands it to row-gap/column-gap)', () => {
+        // Regression: `gap` is a shorthand. happy-dom keeps it verbatim, but REAL Chromium
+        // (the deck preview) enumerates it as the longhands row-gap/column-gap — without
+        // those allowlisted the gap is stripped and flex items collapse together (bar-chart
+        // labels touched the bars). Accept either form; the longhand path is locked by the
+        // live render measurement. matches `gap:`, `row-gap:`, or `column-gap:`.
+        const r = sanitizePresentation('<div class="slide" style="display:flex;gap:24px">x</div>');
+        expect(r.html).toMatch(/gap:\s*24px/);
+    });
 });
 
 // ── SVG paint url() (audit H1) ──────────────────────────────────────────────

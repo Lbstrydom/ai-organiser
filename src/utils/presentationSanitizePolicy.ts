@@ -128,7 +128,10 @@ export const ALLOWED_CSS_PROPERTIES: ReadonlySet<string> = new Set([
     // `style.item(i)`, so without them flex-grow is stripped and grow-sized layouts
     // (bar-chart tracks) collapse in the preview. Pure layout.
     'display', 'flex', 'flex-grow', 'flex-shrink', 'flex-basis', 'flex-direction', 'flex-wrap',
-    'justify-content', 'align-items', 'gap',
+    // `gap`/`grid-gap` are SHORTHANDS — the CSSOM expands them to `row-gap` +
+    // `column-gap`, so without the longhands every flex/grid gap is stripped and
+    // items collapse against each other (bar-chart labels touched the bars).
+    'justify-content', 'align-items', 'gap', 'row-gap', 'column-gap',
     'grid-template-columns', 'grid-template-rows', 'grid-gap',
     'position', 'top', 'right', 'bottom', 'left', 'z-index',
     'box-sizing',
