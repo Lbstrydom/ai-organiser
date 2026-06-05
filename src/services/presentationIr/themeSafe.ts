@@ -131,6 +131,16 @@ export function coerceFontStyle(s: unknown): 'normal' | 'italic' | 'oblique' {
     return s === 'italic' || s === 'oblique' ? s : 'normal';
 }
 
+/** Sane bounds for a body font size in points. Below ~6pt is illegible; above
+ *  ~96pt overflows the slide. A non-finite/out-of-range value → 14 (the default). */
+export const MIN_BODY_FONT_PT = 6;
+export const MAX_BODY_FONT_PT = 96;
+export function coerceBodyFontSize(pt: unknown): number {
+    const n = Number(pt);
+    if (!Number.isFinite(n)) return 14;
+    return Math.min(MAX_BODY_FONT_PT, Math.max(MIN_BODY_FONT_PT, n));
+}
+
 /**
  * Normalise an `ExportTheme` ONCE at a renderer's entry so every downstream
  * colour/font interpolation is already validated (the theme comes from settings
@@ -168,5 +178,6 @@ export function sanitizeExportTheme(theme: ExportTheme, onInvalid?: (field: stri
         bodyColor: fix('bodyColor', theme.bodyColor, '2D4A5A'),
         fontFace,
         fontStack,
+        fontSize: coerceBodyFontSize(theme.fontSize),
     };
 }

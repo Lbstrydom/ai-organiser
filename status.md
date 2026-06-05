@@ -1,5 +1,26 @@
 # Project Status Log
 
+## 2026-06-05 — Brand-asset robustness hardening (follow-up to font embedding)
+
+Addressed the pre-existing brand-asset robustness gaps surfaced by the font-embedding code audit (`task_fb71daa0`). Right-sized: did the concrete fixes; skipped the over-engineered refactors (per-context service instances) where Obsidian's single-app model makes them unnecessary.
+
+### Changes
+- **Bounded icon concurrency** (M10/M14): extracted `mapWithConcurrency` to `src/utils/mapWithConcurrency.ts` (shared with `llmMarkdownEnhancer`); `resolveBrandRenderContext` now resolves icons through it (cap 6) instead of an unbounded `Promise.all`.
+- **Transient-vs-durable cache** (M3): `getLogo`/`getBrandIcon` no longer cache a *transient* raster failure (no DOM / load / timeout / taint) — only durable outcomes (success, or absent/oversize/unsafe). A later attempt with a DOM can succeed.
+- **Post-read size recheck** (M4): SVG (decoded chars), PNG + font (`buf.byteLength`) re-checked against caps after read, not just `stat.size`.
+- **PNG signature validation** (H2): `getLogo` validates the 8-byte PNG magic (parallel to the woff2 `wOF2` check); shared `hasMagic` helper.
+- **Manifest cache keyed by path+mtime** (M11): two brand folders' `icons/manifest.json` no longer collide.
+- **Removed `brandFolderPath` cast shim** (M9/M16): it is now a first-class typed `AIOrganiserSettings` field.
+- **Font-size bounds** (M12): `sanitizeExportTheme` clamps `fontSize` to [6, 96] pt (`coerceBodyFontSize`). `slide.background` is already Zod-validated (6-hex) — no change needed.
+
+### Files Affected
+- `src/utils/mapWithConcurrency.ts` (new), `src/services/audioNarration/llmMarkdownEnhancer.ts`, `src/services/export/brand/{brandAssets,brandRenderContext}.ts`, `src/services/presentationIr/themeSafe.ts`, tests (`brandAssets`, `themeSafe`, `mapWithConcurrency`).
+
+### Verification
+- 5484 unit tests pass (+13 new), type-check clean, lint 0 errors, build deployed.
+
+---
+
 ## 2026-06-05 — Brand font embedding (preview/PDF render true brand fonts) + web-search 429 retry
 
 Two presentation fixes. (1) Claude web-search 429 rate-limit no longer drops a slide source on the first hit. (2) On-brand decks can now embed `woff2` fonts so the preview + PDF render the true brand face (e.g. Noto Sans) instead of a system fallback.

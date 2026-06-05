@@ -67,14 +67,11 @@ const MAX_FONT_CSS_CACHE_ENTRIES = 4;
 const WOFF2_MAGIC = [0x77, 0x4f, 0x46, 0x32] as const;
 
 /**
- * Resolve the brand folder path. The `brandFolderPath` settings field is added
- * by the SETTINGS task — referenced defensively here with a fallback so this
- * module compiles + works before that lands.
- *
- * NOTE: brandFolderPath added by settings task.
+ * Resolve the brand folder path from the first-class `brandFolderPath` setting,
+ * defaulting to `999_Brand`.
  */
 export function getBrandFolder(settings: AIOrganiserSettings): string {
-    const raw = (settings as AIOrganiserSettings & { brandFolderPath?: string }).brandFolderPath;
+    const raw = settings.brandFolderPath;
     const trimmed = (typeof raw === 'string' && raw.trim()) ? raw.trim() : DEFAULT_BRAND_FOLDER;
     // Folder-path invariant (audit M22): convert Windows backslashes to forward
     // slashes and strip leading/trailing slashes before `normalizePath`, so a
@@ -159,6 +156,16 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     return btoa(binary);
 }
 
+/** True when the first `magic.length` bytes match — shared by PNG + woff2 checks. */
+function hasMagic(buffer: ArrayBuffer, magic: readonly number[]): boolean {
+    if (buffer.byteLength < magic.length) return false;
+    const b = new Uint8Array(buffer, 0, magic.length);
+    return magic.every((m, i) => b[i] === m);
+}
+
+/** PNG 8-byte signature. */
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
+
 /** Read + sanitize an SVG file → sanitized markup, or null (absent/oversize/unsafe). */
 async function readSanitizedSvg(app: App, file: TFile): Promise<string | null> {
     if (file.stat.size > MAX_SVG_BYTES) {
@@ -170,6 +177,12 @@ async function readSanitizedSvg(app: App, file: TFile): Promise<string | null> {
         raw = await app.vault.cachedRead(file);
     } catch (e) {
         logger.warn('BrandAssets', `SVG read failed: ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+        return null;
+    }
+    // Post-read size recheck (audit M4): `stat.size` is a pre-read hint and can be
+    // stale; the actual decoded string is what we sanitize/raster, so cap on it too.
+    if (raw.length > MAX_SVG_BYTES) {
+        logger.warn('BrandAssets', `SVG "${file.name}" decoded to ${raw.length} chars (> ${MAX_SVG_BYTES}) — dropped`);
         return null;
     }
     let clean: string;
@@ -320,19 +333,28 @@ export async function getLogo(
         const cached = cacheGet(key);
         if (cached) return cached.dataUri;
         let dataUri: string | null = null;
+        let durable = true; // a read error is transient → don't cache it (audit M3)
         // Size cap (audit H2): refuse oversized PNGs before readBinary + base64.
         if (pngFile.stat.size > MAX_PNG_BYTES) {
             logger.warn('Brand', `logo PNG "${pngFile.name}" exceeds ${MAX_PNG_BYTES} bytes — dropped`);
         } else {
             try {
                 const buf = await app.vault.readBinary(pngFile);
-                dataUri = pngDataUri(arrayBufferToBase64(buf));
+                if (buf.byteLength > MAX_PNG_BYTES) {
+                    // Post-read size recheck (audit M4).
+                    logger.warn('Brand', `logo PNG "${pngFile.name}" read ${buf.byteLength} bytes (> ${MAX_PNG_BYTES}) — dropped`);
+                } else if (!hasMagic(buf, PNG_MAGIC)) {
+                    // PNG signature validation (audit H2) — parallel to the woff2 magic check.
+                    logger.warn('Brand', `logo PNG "${pngFile.name}" is not a valid PNG (bad signature) — dropped`);
+                } else {
+                    dataUri = pngDataUri(arrayBufferToBase64(buf));
+                }
             } catch (e) {
                 logger.warn('Brand', `logo PNG read failed for "${pngFile.name}"`, e);
-                dataUri = null;
+                durable = false;
             }
         }
-        cacheSet(key, { dataUri });
+        if (durable) cacheSet(key, { dataUri });
         return dataUri;
     }
 
@@ -343,8 +365,12 @@ export async function getLogo(
         if (cached) return cached.dataUri;
         const clean = await readSanitizedSvg(app, svgFile);
         // Logos are multi-colour brand marks — rasterized as-is (no recolour).
+        // A null from `readSanitizedSvg` is DURABLE (absent/oversize/unsafe); a null
+        // from the raster is TRANSIENT (no DOM / load / timeout / taint) → don't
+        // cache it so a later attempt with a DOM can succeed (audit M3).
         const dataUri = clean ? await svgToImageDataUri(clean, svgFile.name) : null;
-        cacheSet(key, { dataUri });
+        const durable = clean === null || dataUri !== null;
+        if (durable) cacheSet(key, { dataUri });
         return dataUri;
     }
 
@@ -355,13 +381,17 @@ export async function getLogo(
 
 interface IconManifest { [concept: string]: string }
 
-let manifestCache: { mtime: number; map: IconManifest } | null = null;
+// Keyed by the manifest's FULL path + mtime (audit M11): two brand folders' icon
+// manifests must not collide, and an edit must invalidate.
+let manifestCache: { path: string; mtime: number; map: IconManifest } | null = null;
 
 /** Load the optional `999_Brand/icons/manifest.json` (`{concept: file}`). */
 async function loadManifest(app: App, folder: string): Promise<IconManifest> {
     const file = getFileAt(app, `${folder}/${ICONS_DIR}/manifest.json`);
     if (!file) { manifestCache = null; return {}; }
-    if (manifestCache && manifestCache.mtime === file.stat.mtime) return manifestCache.map;
+    if (manifestCache && manifestCache.path === file.path && manifestCache.mtime === file.stat.mtime) {
+        return manifestCache.map;
+    }
     try {
         const raw = await app.vault.cachedRead(file);
         const parsed = JSON.parse(raw) as unknown;
@@ -371,7 +401,7 @@ async function loadManifest(app: App, folder: string): Promise<IconManifest> {
                 if (typeof v === 'string') map[normalizeBrandConcept(k)] = v;
             }
         }
-        manifestCache = { mtime: file.stat.mtime, map };
+        manifestCache = { path: file.path, mtime: file.stat.mtime, map };
         return map;
     } catch (e) {
         logger.warn('BrandAssets', `icon manifest parse failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -416,8 +446,12 @@ export async function getBrandIcon(
 
     const clean = await readSanitizedSvg(app, file);
     // Recolour the single-colour glyph for the slide-background variant, then raster.
+    // Don't cache a transient raster failure (no DOM / load / timeout / taint) so a
+    // later attempt with a DOM can succeed (audit M3); a durable null (absent/
+    // oversize/unsafe → clean===null) is cached.
     const dataUri = clean ? await svgToImageDataUri(recolourIconSvg(clean, variant), file.name) : null;
-    cacheSet(cKey, { dataUri });
+    const durable = clean === null || dataUri !== null;
+    if (durable) cacheSet(cKey, { dataUri });
     return dataUri;
 }
 
@@ -501,9 +535,7 @@ function parseFaceFromName(name: string): { weight: number; style: 'normal' | 'i
 }
 
 function hasWoff2Magic(buffer: ArrayBuffer): boolean {
-    if (buffer.byteLength < 4) return false;
-    const b = new Uint8Array(buffer, 0, 4);
-    return WOFF2_MAGIC.every((m, i) => b[i] === m);
+    return hasMagic(buffer, WOFF2_MAGIC);
 }
 
 /**
@@ -590,6 +622,13 @@ export async function getBrandFonts(
             logger.warn('BrandAssets', `font read failed for "${file.name}"`, e);
             continue;
         }
+        // Post-read size recheck (audit M4): `stat.size` is a pre-read hint; cap on
+        // the actual bytes (also re-checks the running total against the real size).
+        if (buf.byteLength > MAX_FONT_BYTES || total + buf.byteLength > MAX_TOTAL_FONT_BYTES) {
+            skipped.push(file.name);
+            logger.warn('BrandAssets', `font "${file.name}" read ${buf.byteLength} bytes — over per-file/total budget; dropped`);
+            continue;
+        }
         if (!hasWoff2Magic(buf)) {
             skipped.push(file.name);
             logger.warn('BrandAssets', `font "${file.name}" is not a valid woff2 (bad magic) — dropped`);
@@ -597,7 +636,7 @@ export async function getBrandFonts(
         }
         const { weight, style } = parseFaceFromName(file.name);
         const b64 = arrayBufferToBase64(buf);
-        total += file.stat.size;
+        total += buf.byteLength;
         faces.push(
             `@font-face{font-family:${cssFamily};font-weight:${weight};font-style:${coerceFontStyle(style)};`
             + `font-display:swap;src:url(data:font/woff2;base64,${b64}) format('woff2');}`,

@@ -68,10 +68,16 @@ describe('getBrandFolder', () => {
 });
 
 describe('getLogo', () => {
-    it('returns a png data-uri when logo-light.png exists', async () => {
-        const app = makeApp({ '999_Brand/logo-light.png': { binary: new Uint8Array([1, 2, 3]).buffer } });
+    it('returns a png data-uri when logo-light.png exists (valid PNG signature)', async () => {
+        // PNG 8-byte signature + a little payload — passes the magic check (audit H2).
+        const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).buffer;
+        const app = makeApp({ '999_Brand/logo-light.png': { binary: png } });
         const uri = await getLogo(app, SETTINGS, 'light');
         expect(uri).toMatch(/^data:image\/png;base64,/);
+    });
+    it('rejects a PNG with a bad signature (audit H2)', async () => {
+        const app = makeApp({ '999_Brand/logo-light.png': { binary: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer } });
+        expect(await getLogo(app, SETTINGS, 'light')).toBeNull();
     });
     it('rasterizes to a png when only svg exists', async () => {
         const app = makeApp({ '999_Brand/logo-dark.svg': { content: '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>' } });
@@ -182,9 +188,10 @@ describe('getBrandIcon', () => {
 
 // ── Font embedding (brand-font-embedding) ────────────────────────────────────
 
-/** Bytes with a valid `wOF2` magic header + padding (passes magic; opaque). */
-function woff2Bytes(extra = 16): ArrayBuffer {
-    const b = new Uint8Array(4 + extra);
+/** Bytes with a valid `wOF2` magic header + padding (passes magic; opaque).
+ *  `total` = the real byte length (so post-read size checks see the true size). */
+function woff2Bytes(total = 20): ArrayBuffer {
+    const b = new Uint8Array(Math.max(4, total));
     b.set([0x77, 0x4f, 0x46, 0x32], 0); // 'wOF2'
     return b.buffer;
 }
@@ -271,9 +278,10 @@ describe('getBrandFonts', () => {
     });
 
     it('enforces the total-byte budget (drops later fonts)', async () => {
-        // Each file is under the 2MB per-file cap; cumulatively the 5th crosses 8MB.
+        // Each file is a REAL 1.9MB buffer (under the 2MB per-file cap); cumulatively
+        // the 5th crosses the 8MB total — verified on actual bytes (audit M4).
         const files: Record<string, { binary: ArrayBuffer; size: number }> = {};
-        for (let i = 1; i <= 5; i++) files[`f${i}-400.woff2`] = { binary: woff2Bytes(), size: 1_900_000 };
+        for (let i = 1; i <= 5; i++) files[`f${i}-400.woff2`] = { binary: woff2Bytes(1_900_000), size: 1_900_000 };
         const r = await getBrandFonts(makeFontApp(files), SETTINGS, 'Noto Sans');
         expect(r.count).toBe(4); // 4 × 1.9MB = 7.6MB; 5th → 9.5MB > 8MB → dropped
         expect(r.skipped).toEqual(['f5-400.woff2']);
@@ -305,5 +313,23 @@ describe('getBrandFonts', () => {
         const app1 = makeFontApp({ 'x-400.woff2': { binary: woff2Bytes(), mtime: 1 } });
         const app2 = makeFontApp({ 'x-400.woff2': { binary: woff2Bytes(), mtime: 9 } });
         expect(brandFontsSignature(app1, SETTINGS)).not.toBe(brandFontsSignature(app2, SETTINGS));
+    });
+});
+
+describe('getLogo SVG — transient raster failure is NOT cached (audit M3)', () => {
+    beforeEach(() => clearBrandAssetCache());
+    it('a raster failure does not poison the cache — a later attempt can succeed', async () => {
+        const app = makeApp({ '999_Brand/logo-light.svg': { content: '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>', mtime: 5 } });
+        // First: rasterizer fails (transient) → null, must NOT be cached.
+        setBrandSvgRasterizer(async () => null);
+        expect(await getLogo(app, SETTINGS, 'light')).toBeNull();
+        // Second: rasterizer works → success (proves the null wasn't cached).
+        setBrandSvgRasterizer(async (svg) => `data:image/png;base64,${Buffer.from(svg, 'utf-8').toString('base64')}`);
+        expect(await getLogo(app, SETTINGS, 'light')).toMatch(/^data:image\/png;base64,/);
+    });
+    it('a DURABLE null (oversize SVG) IS cached', async () => {
+        const big = '<svg>' + 'x'.repeat(300 * 1024) + '</svg>';
+        const app = makeApp({ '999_Brand/logo-light.svg': { content: big, size: 300 * 1024, mtime: 5 } });
+        expect(await getLogo(app, SETTINGS, 'light')).toBeNull(); // durable: oversize
     });
 });

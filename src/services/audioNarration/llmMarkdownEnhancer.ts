@@ -14,6 +14,7 @@
 import { err, ok, type Result } from '../../core/result';
 import { logger } from '../../utils/logger';
 import { retryWithBackoff, DEFAULT_TTS_RETRY, type RetryPolicy } from '../tts/ttsRetry';
+import { mapWithConcurrency } from '../../utils/mapWithConcurrency';
 import type { App } from 'obsidian';
 import type { EnhancementContext } from './llmEnhancerPrompts';
 import type {
@@ -127,30 +128,6 @@ function extractH1(rawMarkdown: string): string {
     const stripped = stripFrontmatter(rawMarkdown);
     const m = stripped.match(/^#\s+(.+?)$/m);
     return m ? m[1].trim() : 'Note';
-}
-
-/** Run up to `limit` thunks concurrently while preserving result order.
- *  Audit-code H7: workers check the abort signal BEFORE picking up the next
- *  chunk, so a mid-run abort stops queued work promptly. */
-async function mapWithConcurrency<TItem, TResult>(
-    items: TItem[],
-    limit: number,
-    fn: (item: TItem, index: number) => Promise<TResult>,
-    signal?: AbortSignal,
-): Promise<TResult[]> {
-    const results: TResult[] = new Array(items.length);
-    let next = 0;
-    async function worker(): Promise<void> {
-        while (true) {
-            if (signal?.aborted) return; // H7 — drop queued chunks on abort
-            const i = next++;
-            if (i >= items.length) return;
-            results[i] = await fn(items[i], i);
-        }
-    }
-    const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-    await Promise.all(workers);
-    return results;
 }
 
 /**

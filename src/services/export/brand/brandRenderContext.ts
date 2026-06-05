@@ -19,6 +19,11 @@ import { loadBrandTheme } from '../../chat/brandThemeService';
 import { toExportTheme } from './brandExportTheme';
 import { exampleBrandTheme } from './exampleBrandTheme';
 import { getBrandIcon, getBrandFonts, normalizeBrandConcept } from './brandAssets';
+import { mapWithConcurrency } from '../../../utils/mapWithConcurrency';
+
+/** Bound on concurrent brand-icon resolution (each concept = 2 file reads +
+ *  rasters). Caps simultaneous vault I/O + offscreen raster work (audit M10/M14). */
+const ICON_RESOLVE_CONCURRENCY = 6;
 
 export interface ResolvedBrandAssets {
     logoLightPng?: string;
@@ -106,11 +111,13 @@ export async function resolveBrandRenderContext(
         // Logo DRAWING is deferred (no renderer consumer yet), so we do NOT resolve
         // + raster the logos here — that work would be wasted (audit M4).
 
-        // Resolve icons for the used concepts only — light + dark each.
+        // Resolve icons for the used concepts only — light + dark each — with
+        // bounded concurrency so a concept-heavy deck doesn't fan out unbounded
+        // vault reads + offscreen rasters (audit M10/M14).
         const uniqueConcepts = Array.from(
             new Set(usedConcepts.map(normalizeBrandConcept).filter((c) => c.length > 0)),
         );
-        await Promise.all(uniqueConcepts.map(async (concept) => {
+        await mapWithConcurrency(uniqueConcepts, ICON_RESOLVE_CONCURRENCY, async (concept) => {
             const [lightPng, darkPng] = await Promise.all([
                 getBrandIcon(app, settings, concept, 'light'),
                 getBrandIcon(app, settings, concept, 'dark'),
@@ -121,7 +128,7 @@ export async function resolveBrandRenderContext(
                     ...(darkPng ? { darkPng } : {}),
                 });
             }
-        }));
+        });
     } catch (e) {
         warnings.push(`brand asset resolution degraded: ${e instanceof Error ? e.message : String(e)}`);
     }

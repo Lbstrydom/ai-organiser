@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     safeHex, safeFont, sanitizeExportTheme,
     sanitizeCssFontFamily, serializeCssFontFamily, sanitizeCssFontFamilyList,
-    firstCssFontFamily, coerceFontWeight, coerceFontStyle,
+    firstCssFontFamily, coerceFontWeight, coerceFontStyle, coerceBodyFontSize,
 } from '../src/services/presentationIr/themeSafe';
 import { resolveTheme } from '../src/services/export/exportTheme';
 import type { ExportTheme } from '../src/services/export/exportTheme';
@@ -198,5 +198,20 @@ describe('sanitizeExportTheme — font invariant (Gemini-R1-H1)', () => {
     it('prefers an explicit brand fontStack when present', () => {
         const t = sanitizeExportTheme({ ...base, fontFace: 'Noto Sans', fontStack: "'Noto Sans', system-ui, sans-serif" });
         expect(t.fontStack).toBe("'Noto Sans', system-ui, sans-serif");
+    });
+});
+
+describe('coerceBodyFontSize (audit M12 — sane bounds)', () => {
+    it('clamps below 6pt up and above 96pt down; non-finite → 14', () => {
+        expect(coerceBodyFontSize(14)).toBe(14);
+        expect(coerceBodyFontSize(2)).toBe(6);
+        expect(coerceBodyFontSize(500)).toBe(96);
+        expect(coerceBodyFontSize(NaN)).toBe(14);
+        expect(coerceBodyFontSize('abc')).toBe(14);
+        expect(coerceBodyFontSize(-10)).toBe(6);
+    });
+    it('sanitizeExportTheme clamps an out-of-range fontSize', () => {
+        const base = { primaryColor: '1A3A5C', accentColor: 'F5C842', sectionBg: '1D6B4A', bodyColor: '2D4A5A', fontFace: 'Noto Sans', fontSize: 9999 };
+        expect(sanitizeExportTheme(base).fontSize).toBe(96);
     });
 });
