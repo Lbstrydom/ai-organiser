@@ -152,9 +152,17 @@ const GEOMETRY_FN = `(slideEl) => {
     const flaws = [];
     const labels = Array.from(slideEl.querySelectorAll('*')).filter(e => e.children.length === 0 && /^\\d{1,3}%$/.test((e.textContent||'').trim()));
     if (labels.length >= 3) {
-        const widths = labels.map(l => { let bar = l; for (let i=0;i<4 && bar.parentElement;i++){ bar = bar.parentElement; const bg = getComputedStyle(bar).backgroundColor; if (bg && bg !== 'rgba(0, 0, 0, 0)' && !/255,\\s*255,\\s*255/.test(bg)) break; } return bar.offsetWidth; });
-        const max = Math.max(...widths), min = Math.min(...widths);
-        if (max > 0 && (max - min) / max < 0.25) flaws.push('bar-chart-collapsed');
+        const data = labels.map(l => { const val = parseInt((l.textContent||'').trim(), 10); let bar = l; for (let i=0;i<4 && bar.parentElement;i++){ bar = bar.parentElement; const bg = getComputedStyle(bar).backgroundColor; if (bg && bg !== 'rgba(0, 0, 0, 0)' && !/255,\\s*255,\\s*255/.test(bg)) break; } return { val, w: bar.offsetWidth }; });
+        const vals = data.map(d=>d.val).filter(v=>v>0), ws = data.map(d=>d.w).filter(w=>w>0);
+        if (vals.length >= 3 && ws.length >= 3) {
+            const valRatio = Math.max(...vals) / Math.max(1, Math.min(...vals));
+            const wRatio = Math.max(...ws) / Math.max(1, Math.min(...ws));
+            // COLLAPSED = values vary meaningfully (>=1.5x) yet bar widths are flat
+            // (<1.2x) — the bars don't track their values. Narrow-range charts (e.g.
+            // 84-100%) are NOT flagged: their small width spread is correct, not a
+            // collapse. (Live-caught false positive on Chen's benchmark chart.)
+            if (valRatio >= 1.5 && wRatio < 1.2) flaws.push('bar-chart-collapsed');
+        }
     }
     const sb = slideEl.getBoundingClientRect();
     for (const el of slideEl.querySelectorAll('*')) { const r = el.getBoundingClientRect(); if (r.width && (r.right > sb.right + 6 || r.bottom > sb.bottom + 6)) { flaws.push('overflow'); break; } }
