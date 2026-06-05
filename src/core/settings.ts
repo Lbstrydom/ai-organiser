@@ -125,6 +125,8 @@ export interface AIOrganiserSettings {
     aichatRefinementPasses: 1 | 2;       // Number of refinement passes in presentation build
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationGroundWebSearch: boolean; // LLM-ground presentation web-search queries in attached notes + prompt (sends note-derived terms to the search provider)
+    presentationConsultantMode: boolean; // Consultant-quality pipeline: write a grounded storyline (ghost deck) BEFORE designing slides (action titles, MECE, evidence-bound visuals)
+    presentationStorylineGate: 'review' | 'auto-build'; // When consultant mode is on: 'review' writes the dot-dash storyline note for sign-off first; 'auto-build' goes straight to slides
     presentationOutputFolder: string;    // Subfolder under pluginFolder for presentation exports (HTML/PPTX)
     presentationBrandGuidelinesPath: string; // DEPRECATED (Plan B): read-only migration source for brandFolderPath; no UI
     // === BRAND FIDELITY (Plan B) ===
@@ -500,6 +502,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aichatRefinementPasses: 1,
     aichatBrandToggleDefault: false,
     presentationGroundWebSearch: true,   // Automatic per user request; toggle gives privacy-conscious users an off switch
+    presentationConsultantMode: false,   // Opt-in: default off preserves the existing one-shot deck flow byte-for-byte
+    presentationStorylineGate: 'review', // When consultant mode is on, default to the storyline sign-off step (the consulting workflow)
     presentationOutputFolder: 'Presentations',
     presentationBrandGuidelinesPath: '',
     // Brand fidelity (Plan B)
@@ -975,6 +979,14 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     // path, so coerce any stored 'html-legacy' choice (2026-06 retirement).
     if (oldSettings.presentationExportEngine === 'html-legacy') {
         oldSettings.presentationExportEngine = 'structured-ir';
+    }
+
+    // Consultant-quality storyline gate: coerce any out-of-range stored value to
+    // the safe default ('review' = storyline sign-off first). Absent → DEFAULT_SETTINGS fills it.
+    if (oldSettings.presentationStorylineGate !== undefined
+        && oldSettings.presentationStorylineGate !== 'review'
+        && oldSettings.presentationStorylineGate !== 'auto-build') {
+        oldSettings.presentationStorylineGate = 'review';
     }
 
     // Migrate summary length: brief|detailed|comprehensive → brief|standard|detailed

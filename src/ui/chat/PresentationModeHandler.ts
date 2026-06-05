@@ -12,7 +12,7 @@
  *                any → empty (discard / clear)
  */
 
-import { Notice } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import type {
     ChatModeHandler, ChatMode, ModalContext, SendResult,
@@ -30,6 +30,10 @@ import {
 import { runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from '../../services/chat/presentationHtmlService';
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
+import type { Result } from '../../core/result';
+import type { EvidenceSpan } from '../../services/presentationIr/consultantStoryboard';
+import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
+import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline } from '../../services/chat/consultantStoryboardPipeline';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { PolishSelectorModal, type PolishSubmit } from '../modals/PolishSelectorModal';
 import { refineDeckIrSelective, parseRefineErrorCode } from '../../services/chat/refineDeckIrSelective';
@@ -137,6 +141,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     private readonly run = new PresentationRunController();
     private readonly themeResolver = new PresentationThemeResolver();
     private readonly exporter = new PresentationExporter();
+    /**
+     * Consultant mode (review gate): after the storyline note is written, the
+     * catalog + note path are held here so the NEXT send re-reads the (possibly
+     * edited) storyline and builds the deck — without re-resolving sources or
+     * re-running any web search. Cleared once the deck is built.
+     */
+    private pendingStoryline: { catalog: EvidenceSpan[]; notePath: string } | null = null;
     private readonly editScope = new EditScopeController({
         getOperation: () => this.deriveOperation(),
         isLocked: () => this.run.isLocked(),
@@ -411,47 +422,58 @@ export class PresentationModeHandler implements ChatModeHandler {
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
             const exportTheme = await this.themeResolver.resolve(r.ctx, this.brandEnabled);
-            // Resolve attached sources (notes / web-search / folders) — this is
-            // what actually runs the web search — and thread them into the IR
-            // prompt so all create-panel inputs reach generation.
-            let sources: PromptSource[] = [];
-            if (this.sourceController) {
-                // Model-aware budget so substantial sources (a full meeting note
-                // + a full web result) reach generation untruncated on cloud
-                // models, instead of the old flat 40K-char cap.
-                const s = r.ctx.fullPlugin.settings;
-                const provider = s.serviceType === 'local' ? 'local' : s.cloudServiceType;
-                const totalBudgetChars = computeSourceBudgetChars(provider, s.cloudModel);
-                // Option A: ground any web-search query in the deck's attached
-                // notes + prompt before dispatching the search. Gated by setting
-                // (default on) so privacy-conscious users can keep searches to
-                // their exact query — grounding sends note-derived terms to the
-                // search provider (audit H1/H3).
-                const groundWebSearchQuery = s.presentationGroundWebSearch
-                    ? this.buildWebSearchGrounder(r.llmCtx)
-                    : undefined;
-                const resolved = await this.sourceController.resolveForSubmit({
-                    signal: r.abort.signal,
-                    totalBudgetChars,
-                    groundWebSearchQuery,
-                    deckDescription: r.originalQuery,
-                });
-                if (resolved.ok) sources = resolved.value.usable;
+            const settings = r.ctx.fullPlugin.settings;
+
+            let irResult: Result<SlideDeckIr>;
+            if (this.pendingStoryline) {
+                // Consultant review gate — BUILD step: re-read the (possibly edited)
+                // storyline note + translate. No source re-resolution / web search.
+                irResult = await this.buildPendingStorylineDeck(r);
+            } else {
+                // Resolve attached sources (notes / web-search / folders) — this is
+                // what actually runs the web search — and thread them into generation.
+                let sources: PromptSource[] = [];
+                if (this.sourceController) {
+                    // Model-aware budget so substantial sources reach generation
+                    // untruncated on cloud models, instead of a flat 40K-char cap.
+                    const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
+                    const totalBudgetChars = computeSourceBudgetChars(provider, settings.cloudModel);
+                    // Option A: ground any web-search query in the deck's attached
+                    // notes + prompt before dispatching (gated; default on).
+                    const groundWebSearchQuery = settings.presentationGroundWebSearch
+                        ? this.buildWebSearchGrounder(r.llmCtx)
+                        : undefined;
+                    const resolved = await this.sourceController.resolveForSubmit({
+                        signal: r.abort.signal,
+                        totalBudgetChars,
+                        groundWebSearchQuery,
+                        deckDescription: r.originalQuery,
+                    });
+                    if (resolved.ok) sources = resolved.value.usable;
+                }
+                if (settings.presentationConsultantMode) {
+                    // Consultant pipeline: write a grounded storyline (ghost deck)
+                    // first; gate='review' opens it for sign-off and returns early.
+                    const consultant = await this.runConsultantStage(r, sources);
+                    if ('early' in consultant) return { finalContent: consultant.early };
+                    irResult = consultant;
+                } else {
+                    irResult = await generateDeckIr(r.llmCtx, {
+                        userQuery: r.effectiveQuery,
+                        noteContent: r.noteContent,
+                        conversationHistory: r.history,
+                        outputLanguage: settings.summaryLanguage,
+                        targetLength: this.creationConfig.length,
+                        audience: this.creationConfig.audience,
+                        sources,
+                        signal: r.abort.signal,
+                        // D6: a 429 backoff surfaces as a status line in the thinking sink.
+                        onRetryStatus: (seconds) => this.run.setThinking(
+                            r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
+                        ),
+                    });
+                }
             }
-            const irResult = await generateDeckIr(r.llmCtx, {
-                userQuery: r.effectiveQuery,
-                noteContent: r.noteContent,
-                conversationHistory: r.history,
-                outputLanguage: r.ctx.plugin.settings.summaryLanguage,
-                targetLength: this.creationConfig.length,
-                audience: this.creationConfig.audience,
-                sources,
-                signal: r.abort.signal,
-                // D6: a 429 backoff surfaces as a status line in the thinking sink.
-                onRetryStatus: (seconds) => this.run.setThinking(
-                    r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
-                ),
-            });
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
             if (!irResult.ok) {
                 logger.error('Presentation', `[IR-gen] generation failed: ${irResult.error}`);
@@ -501,6 +523,85 @@ export class PresentationModeHandler implements ChatModeHandler {
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
         }
+    }
+
+    // ── Consultant-quality pipeline (plan Cluster A) ─────────────────────────
+
+    /**
+     * Run the storyboard stage: build the evidence catalog from the resolved
+     * sources, generate a grounded + audited storyboard, then either (review gate)
+     * write the dot-dash storyline note for sign-off and signal an early return,
+     * or (auto-build) translate straight to a deck IR. Never throws.
+     */
+    private async runConsultantStage(r: RunContext, sources: PromptSource[]): Promise<{ early: string } | Result<SlideDeckIr>> {
+        const settings = r.ctx.fullPlugin.settings;
+        const t = r.ctx.plugin.t.modals.unifiedChat;
+        const catalog = buildEvidenceCatalog([
+            ...(r.noteContent ? [{ ref: 'active note', content: r.noteContent }] : []),
+            ...sources.map((s) => ({ ref: s.ref, content: s.content })),
+        ]);
+        const stage = await runStoryboardStage(r.llmCtx, r.effectiveQuery, catalog, {
+            outputLanguage: settings.summaryLanguage,
+            targetLength: this.creationConfig.length,
+            signal: r.abort.signal,
+            deckName: r.originalQuery,
+            onRetryStatus: (seconds) => this.run.setThinking(
+                r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
+            ),
+        });
+        if (!stage.ok) return err(stage.error);
+
+        if (settings.presentationStorylineGate === 'review') {
+            try {
+                const notePath = await this.writeStorylineNote(r.ctx, stage.value.storylineMarkdown, r.originalQuery);
+                this.pendingStoryline = { catalog, notePath };
+                const name = notePath.split('/').pop() ?? notePath;
+                return { early: t.storylineReady.replace('{name}', name) };
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                logger.error('Presentation', `[storyline] note write failed: ${msg}`);
+                return { early: t.storylineWriteFailed.replace('{error}', msg) };
+            }
+        }
+        // auto-build: storyboard → IR directly (no markdown round-trip).
+        return buildDeckFromStoryboard(stage.value.storyboard);
+    }
+
+    /**
+     * Review-gate BUILD step: consume the pending storyline, re-read the (possibly
+     * edited) note, and deterministically translate it to a deck IR. One-shot —
+     * the pending state is cleared whether it succeeds or fails (a failure routes
+     * the user back to generating a fresh storyline).
+     */
+    private async buildPendingStorylineDeck(r: RunContext): Promise<Result<SlideDeckIr>> {
+        const pending = this.pendingStoryline;
+        this.pendingStoryline = null;
+        if (!pending) return err('no pending storyline');
+        const file = r.ctx.app.vault.getAbstractFileByPath(pending.notePath);
+        if (!(file instanceof TFile)) {
+            return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', 'the storyline note was moved or deleted'));
+        }
+        const md = await r.ctx.app.vault.read(file);
+        const built = buildDeckFromStoryline(md, pending.catalog);
+        if (!built.ok) {
+            return err(r.ctx.plugin.t.modals.unifiedChat.storylineBuildFailed.replace('{error}', built.error));
+        }
+        return ok(built.value.deck);
+    }
+
+    /** Write the dot-dash storyline `.md` to the presentation output folder + open it. */
+    private async writeStorylineNote(ctx: ModalContext, markdown: string, title: string): Promise<string> {
+        const sub = ctx.plugin.settings.presentationOutputFolder || 'Presentations';
+        const folder = `${ctx.plugin.settings.pluginFolder}/${sub}`;
+        if (!ctx.app.vault.getAbstractFileByPath(folder)) await ctx.app.vault.createFolder(folder);
+        const safe = (title || 'Storyline').replace(/[\\/:*?"<>|#^[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Storyline';
+        let path = `${folder}/${safe} — storyline.md`;
+        for (let i = 1; ctx.app.vault.getAbstractFileByPath(path) && i <= 999; i++) {
+            path = `${folder}/${safe} — storyline ${i}.md`;
+        }
+        const file = await ctx.app.vault.create(path, markdown);
+        await ctx.app.workspace.getLeaf(true).openFile(file);
+        return path;
     }
 
     /** Polish an IR-backed deck by refining the IR (keeps it canonical). */
