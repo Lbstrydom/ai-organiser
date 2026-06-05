@@ -323,4 +323,14 @@ describe('buildSelectivePrompt', () => {
         const without = buildSelectivePrompt(coffeeDeckIr, [{ slideIndex: 0, instruction: '' }], []);
         expect(without).toContain('(none)');
     });
+
+    it('#2: instructs to PRESERVE load-bearing content (no deleting the flow endpoint / conclusion / framing)', () => {
+        const prompt = buildSelectivePrompt(coffeeDeckIr, [{ slideIndex: 0, instruction: '' }], []);
+        expect(prompt).toMatch(/PRESERVE load-bearing/i);
+        expect(prompt).toMatch(/FINAL\/payoff step/i);   // process-flow endpoint
+        expect(prompt).toMatch(/frames a chart|units\/context/i); // chart framing
+        expect(prompt).toMatch(/SPLIT .* rather than delete/i);   // split over delete
+        // The default (no-instruction) line no longer leads with bare "concision".
+        expect(prompt).toMatch(/WITHOUT dropping substance/i);
+    });
 });

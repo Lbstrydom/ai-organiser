@@ -1,5 +1,18 @@
 # Project Status Log
 
+## 2026-06-05 — Polish no longer deletes load-bearing content (#2)
+
+The per-slide polish (`refineDeckIrSelective`) optimised for word-count under "concision" with no guardrail, so it deleted load-bearing content (e.g. cut a 6-step process-flow to 4, dropping the "Clean Grid" payoff; removed chart framing + summary bullets).
+
+### Changes
+- `buildSelectivePrompt` (`refineDeckIrSelective.ts`): added a **PRESERVE load-bearing content** requirement — cut only filler/redundancy; keep the FINAL/payoff step of any process-flow (the conclusion), the slide's thesis sentence, any sentence that frames a chart/gives units, and takeaway bullets; **split rather than delete** when content won't fit. Default no-instruction text softened from "concision" to "tighten wording WITHOUT dropping substance".
+
+### Verification
+- Hermetic prompt-invariant test (`refineDeckIrSelective.test.ts`).
+- **Live LLM check** (`tests/live/polishPreservesContent.live.test.ts`, gated `LIVE_LLM=1`, skipped in CI): under the exact "this slide is too dense — reduce the text" pressure, the fixed prompt preserved all 6 flow steps (incl. "Clean Grid") + the chart axisLabel + takeaways. Honest caveat: the control (guidance-stripped) run with gpt-4o also kept content on a single run — the original deletion was model-specific (Azure Claude) / nondeterministic, so this is a likelihood-reducing hardening, not a provable before/after.
+
+---
+
 ## 2026-06-05 — Azure 429 rate-limit throttling (RPM pacing + Azure-aware retry)
 
 Paces outbound Azure requests under the low Azure RPM cap (~10/min) and adds Azure-aware retry, so batch tagging / index rebuilds no longer 429-storm. Full `/plan` → `/audit-plan` (GPT R1-R2 + Gemini) → `/cycle --autonomous` flow.

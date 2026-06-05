@@ -327,7 +327,7 @@ export function buildSelectivePrompt(
     const selectedBlocks = selections.map(sel => {
         const slide = deck.slides[sel.slideIndex];
         const label = `Slide ${sel.slideIndex + 1}: ${slide?.title ?? '(untitled)'}`;
-        const instruction = sel.instruction.trim() || '(no specific instruction — improve clarity, hierarchy, and concision)';
+        const instruction = sel.instruction.trim() || '(no specific instruction — improve clarity and visual hierarchy; tighten wording WITHOUT dropping substance)';
         return `slideIndex: ${sel.slideIndex}    (${label})\nInstruction:\n${instruction}`;
     }).join('\n\n');
 
@@ -341,6 +341,7 @@ Polish specific slides in a presentation deck while preserving the rest of the d
 - Output a single JSON object with one top-level field "slices", an array of { "slideIndex": number, "slides": [ Slide, ... ] }.
 - Return EXACTLY one entry per requested slideIndex (${selections.length} entries total) — no extra indices, no missing indices, no duplicates.
 - Each entry's "slides" array normally holds ONE replacement slide (an in-place polish). Return MORE than one ONLY when the slide is genuinely overloaded and the instruction asks to split it — then divide its content across 2-3 well-balanced slides (max ${MAX_SLIDES_PER_SPLIT}). Do not split unnecessarily; prefer condensing for minor overflow.
+- PRESERVE load-bearing content when tightening. Cut ONLY filler, redundancy, and weak modifiers — NEVER the substance. Specifically: keep the FINAL/payoff step of any process-flow or sequence (the last step is the conclusion — dropping it breaks the argument); keep the slide's concluding or thesis sentence; keep any sentence that frames a chart/number or gives it units/context; keep summary bullets that state the takeaway. Reducing word-count must not remove the argument's structure, its conclusion, or the data's interpretation. If content genuinely won't fit, SPLIT (per the rule above) rather than delete.
 - Every replacement slide MUST conform to the SlideIr schema (same Slide shape described above).
 - Do NOT wrap the output in code fences. Do NOT include explanatory prose before or after the JSON.
 ${deckWideNote}
