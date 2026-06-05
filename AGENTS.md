@@ -603,12 +603,12 @@ npm run build && cp main.js manifest.json styles.css "<vault>/.obsidian/plugins/
 ```
 
 ### Mobile Deploy Staging
-After every build, also copy to `docs/mobile/` and the OneDrive Basket so the latest artifacts are easily accessible for manual transfer to mobile devices (Obsidian Sync does not sync plugin files):
+After every build, also copy to `docs/mobile/` and the OneDrive **mobile** folder so the latest artifacts are easily accessible for manual transfer to mobile devices (Obsidian Sync does not sync plugin files):
 ```bash
 cp main.js manifest.json styles.css docs/mobile/
-cp main.js manifest.json styles.css "C:/Users/User/OneDrive/Across Devices/Basket/"
+cp main.js manifest.json styles.css "C:/Users/User/OneDrive/Across Devices/mobile/"
 ```
-The `docs/mobile/` folder is gitignored. The OneDrive Basket (`C:\Users\User\OneDrive\Across Devices\Basket\`) syncs automatically — files appear on phone/tablet via the OneDrive app. Copy these 3 files to `<vault>/.obsidian/plugins/ai-organiser/` on each mobile device.
+The `docs/mobile/` folder is gitignored. The OneDrive folder (`C:\Users\User\OneDrive\Across Devices\mobile\`) syncs automatically — files appear on phone/tablet via the OneDrive app. Copy these 3 files to `<vault>/.obsidian/plugins/ai-organiser/` on each mobile device.
 
 ## Code Organization Principles
 
