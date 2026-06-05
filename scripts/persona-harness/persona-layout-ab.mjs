@@ -83,11 +83,36 @@ async function judgeClaude(b64, prompt, model) {
     const j = await res.json(); if (j.error) throw new Error(j.error.message);
     return j.content?.map(c => c.text || '').join('') || '';
 }
+// Live judge: route through the RUNNING plugin's sendMultimodal — i.e. the main
+// LLM (Azure Opus 4.6 in Azure mode, whose key lives in SecretStorage and isn't
+// reachable standalone). NOT independent of the system under test, but the most
+// capable option when no independent .env key exists. Verified: Azure Opus 4.6
+// correctly distinguishes collapsed vs scaling bars (better than gpt-4o here).
+// Opt-in via --judge-provider live.
+let _live = null;
+async function getLivePage() {
+    if (_live) return _live;
+    const drv = await import('./driver.mjs');
+    let { browser, page } = await drv.launchOrAttach();
+    page = await drv.ensureVaultOpen(browser, page, 'Second Brain');
+    await drv.waitForPluginReady(page);
+    _live = { browser, page };
+    return _live;
+}
+async function judgeLive(b64, prompt) {
+    const { page } = await getLivePage();
+    return page.evaluate(async ({ img, p }) => {
+        const plugin = globalThis.app.plugins.plugins['ai-organiser'];
+        const res = await plugin.llmService.sendMultimodal([{ type: 'image', mediaType: 'image/png', data: img }, { type: 'text', text: p }], { maxTokens: 512 });
+        return res.success ? (res.content || '') : ('judge-error: ' + (res.error || ''));
+    }, { img: b64, p: prompt });
+}
 // model defaults use rolling/latest aliases where the provider offers one.
 const VISION_JUDGES = {
     openai: { family: 'openai', model: 'gpt-4o', keyEnv: 'OPENAI_API_KEY', call: judgeOpenAI },
     gemini: { family: 'google', model: 'gemini-flash-latest', keyEnv: 'GEMINI_API_KEY', call: judgeGemini },
     claude: { family: 'anthropic', model: 'claude-opus-4-6', keyEnv: 'ANTHROPIC_API_KEY', call: judgeClaude },
+    live: { family: 'live', model: 'main-LLM (Azure Opus 4.6 in Azure mode)', keyEnv: null, call: (b64, prompt) => judgeLive(b64, prompt) },
 };
 function resolveJudge() {
     const main = readMainProvider();
@@ -184,4 +209,5 @@ if (BLESS) {
     for (let i = 0; i < rendered.length; i++) writeFileSync(join(BASELINE, `${LABEL}-slide-${i + 1}.png`), rendered[i].png);
     console.log(`[radar] BLESSED ${LABEL} → baseline/ (${rendered.length} renders + invariants). Future runs A/B against this.`);
 }
+if (_live) await _live.browser.close().catch(() => {});
 console.log(`[radar] done. Artifacts: ${OUT}`);
