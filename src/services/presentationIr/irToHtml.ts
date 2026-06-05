@@ -145,7 +145,10 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
             parts.push(`<div style="width:${Math.round(u.widthIn * PX_PER_IN)}px;height:${Math.round(u.heightIn * PX_PER_IN)}px;background:${hx(theme.accentColor)};border-radius:4px;margin:${Math.round(u.gapBelowTitleIn * PX_PER_IN)}px 0 0 0;"></div>`);
         }
         if (slide.subtitle) parts.push(`<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.heroSubtitlePt)}px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
-        parts.push(`<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">`);
+        // #1 vertical fill: centre the body block-group in the available area so a
+        // sparse slide doesn't leave the bottom half empty. `safe center` falls back
+        // to top-alignment when content overflows, so tall slides never clip the top.
+        parts.push(`<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;justify-content:safe center;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">`);
         for (const block of slide.blocks) parts.push(renderBlockSafe(block, index, theme, notices));
         parts.push('</div>');
     }
@@ -212,8 +215,13 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
                     + `<div style="width:${w}%;min-width:64px;background:${fill};height:100%;border-radius:8px;display:flex;align-items:center;padding-left:20px;box-sizing:border-box;">`
                     + `<span style="font-size:${ptToPx(IR_RENDER_SPEC.font.barPctPt(theme))}px;font-weight:700;color:#fff;">${bar.pct}%</span></div></div></div>`;
             }).join('');
-            const cap = block.caption ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.65;margin-top:6px;">${esc(block.caption)}</div>` : '';
-            return `<div style="display:flex;flex-direction:column;gap:20px;">${rows}${cap}</div>`;
+            // #3 chart credibility: axis label/units + source footnote so an index
+            // chart isn't an unlabelled set of bars.
+            const capPx = ptToPx(IR_RENDER_SPEC.font.captionPt(theme));
+            const axis = block.axisLabel ? `<div style="font-size:${capPx}px;color:${body};opacity:0.75;margin-top:4px;">${esc(block.axisLabel)}</div>` : '';
+            const src = block.source ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.footerPt(theme))}px;color:${body};opacity:0.55;margin-top:2px;font-style:italic;">${esc(block.source)}</div>` : '';
+            const cap = block.caption ? `<div style="font-size:${capPx}px;color:${body};opacity:0.65;margin-top:6px;">${esc(block.caption)}</div>` : '';
+            return `<div style="display:flex;flex-direction:column;gap:20px;">${rows}${axis}${cap}${src}</div>`;
         }
         case 'process-flow': {
             const stepIconPx = Math.round(IR_RENDER_SPEC.icon.processStepSizeIn * PX_PER_IN);

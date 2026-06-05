@@ -150,4 +150,11 @@ describe('validateDeckIr — rejection', () => {
         ] }]));
         expect(r.ok).toBe(true);
     });
+
+    it('#3: accepts optional bar-chart axisLabel + source', () => {
+        const r = validateDeckIr(baseDeck([{ id: 'a', type: 'content', blocks: [
+            { kind: 'bar-chart', bars: [{ label: 'x', pct: 10 }], axisLabel: 'CO2 per kWh (diesel = 100)', source: 'IEA 2024' },
+        ] }]));
+        expect(r.ok).toBe(true);
+    });
 });

@@ -527,6 +527,7 @@ async function renderColumn(s: SlideLike, blocks: LeafBlock[], box: Box, slideIn
 function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' }>, box: Box, slideIndex: number, st: RenderState): number {
     const { theme } = st;
     const h = Math.min(st.footerY - box.y, Math.max(1.5, block.bars.length * 0.45));
+    let drawn = false;
     if (st.barStyle === 'native') {
         try {
             // PPT bar charts (horizontal `barDir: 'bar'`) plot the first label
@@ -548,25 +549,37 @@ function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' 
                 // to match the reversed labels/values above.
                 chartColors: orderedBars.map(b => (b.color ? hx(b.color) : hx(theme.accentColor))),
             });
-            return h;
+            drawn = true;
         } catch (e) {
             st.downgrades.push(`bar-chart native→bars fallback: ${msg(e)}`);
             st.notices.push({ slideIndex, blockKind: 'bar-chart', severity: 'info', description: 'native chart unavailable; rendered as shapes.' });
         }
     }
-    // Deterministic manual bars (also the native-fallback target).
-    const rowH = Math.min(0.36, (h - 0.1) / block.bars.length);
-    const labelW = 1.2;
-    block.bars.forEach((bar, i) => {
-        const y = box.y + i * (rowH + 0.06);
-        s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barLabelPt(theme), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
-        const trackX = box.x + labelW + 0.1;
-        const trackW = box.w - labelW - 0.1;
-        s.addShape('rect', { x: trackX, y, w: trackW, h: rowH, fill: { color: 'EEEEEE' }, line: { width: 0 } });
-        s.addShape('rect', { x: trackX, y, w: Math.max(0.02, trackW * (bar.pct / 100)), h: rowH, fill: { color: bar.color ? hx(bar.color) : hx(theme.accentColor) }, line: { width: 0 } });
-        s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barPctPt(theme), bold: true, color: 'FFFFFF', valign: 'middle' });
-    });
-    return h;
+    if (!drawn) {
+        // Deterministic manual bars (also the native-fallback target).
+        const rowH = Math.min(0.36, (h - 0.1) / block.bars.length);
+        const labelW = 1.2;
+        block.bars.forEach((bar, i) => {
+            const y = box.y + i * (rowH + 0.06);
+            s.addText(bar.label, { x: box.x, y, w: labelW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barLabelPt(theme), bold: true, color: hx(theme.primaryColor), align: 'right', valign: 'middle' });
+            const trackX = box.x + labelW + 0.1;
+            const trackW = box.w - labelW - 0.1;
+            s.addShape('rect', { x: trackX, y, w: trackW, h: rowH, fill: { color: 'EEEEEE' }, line: { width: 0 } });
+            s.addShape('rect', { x: trackX, y, w: Math.max(0.02, trackW * (bar.pct / 100)), h: rowH, fill: { color: bar.color ? hx(bar.color) : hx(theme.accentColor) }, line: { width: 0 } });
+            s.addText(`${bar.pct}%`, { x: trackX + 0.05, y, w: trackW, h: rowH, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.barPctPt(theme), bold: true, color: 'FFFFFF', valign: 'middle' });
+        });
+    }
+    // #3 chart credibility: axis-label/units + source footnote below the chart.
+    let extra = 0;
+    if (block.axisLabel) {
+        s.addText(block.axisLabel, { x: box.x, y: box.y + h + extra, w: box.w, h: 0.3, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.captionPt(theme), color: hx(theme.bodyColor), valign: 'top' });
+        extra += 0.3;
+    }
+    if (block.source) {
+        s.addText(block.source, { x: box.x, y: box.y + h + extra, w: box.w, h: 0.25, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.footerPt(theme), italic: true, color: hx(theme.bodyColor), valign: 'top' });
+        extra += 0.25;
+    }
+    return h + extra;
 }
 
 const TABLE_ROW_H = 0.35;

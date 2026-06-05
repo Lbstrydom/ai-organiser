@@ -66,10 +66,10 @@ Slide = { "id": "unique-string", "type": "title"|"section"|"content"|"closing",
 
 Block (discriminated by "kind"):
 - { "kind": "heading", "text": string, "level": 1|2|3 }
-- { "kind": "paragraph", "text": string, "emphasis"?: boolean }
+- { "kind": "paragraph", "text": string, "emphasis"?: boolean }   // emphasis BOLDS the WHOLE paragraph — use ONLY for a single short key sentence, never a multi-line passage
 - { "kind": "bullets", "items": string[], "ordered"?: boolean }    // 1–12 items
 - { "kind": "stat-grid", "cards": [ { "value": string, "label": string, "icon"?: "trending-up" } ] }   // 1–6 cards; icon = a NAME from <icons>
-- { "kind": "bar-chart", "bars": [ { "label": string, "pct": number, "color"?: "RRGGBB" } ], "caption"?: string }  // pct 0–100, 1–12 bars
+- { "kind": "bar-chart", "bars": [ { "label": string, "pct": number, "color"?: "RRGGBB" } ], "axisLabel"?: string, "source"?: string, "caption"?: string }  // pct 0–100, 1–12 bars. ALWAYS set "axisLabel" with the metric + unit (e.g. "Relative CO₂ per kWh (diesel = 100)") so an index chart is interpretable; add "source" when the data has a provenance.
 - { "kind": "process-flow", "steps": [ { "title": string, "sub"?: string, "icon"?: "rocket" } ] }  // 2–8 steps; icon = a NAME from <icons>
 - { "kind": "two-column", "left": Block[], "right": Block[] }   // ONE level only — no nested two-column
 - { "kind": "table", "headers": string[], "rows": string[][] }  // every row length === headers length
@@ -79,6 +79,7 @@ Block (discriminated by "kind"):
 
 <requirements>
 - Use the RIGHT block for the data: numbers → stat-grid or bar-chart; steps/pipeline → process-flow; comparisons → table or two-column. Avoid walls of bullets.
+- Every bar-chart MUST carry an "axisLabel" naming the metric + unit (charts with bare numbers are uninterpretable); cite a "source" when the figures have a provenance. Reserve paragraph "emphasis" for ONE short key sentence — never bold a whole multi-line passage.
 - Add a relevant "icon" NAME (chosen from the <icons> list below) on stat-grid cards and process-flow steps where it aids scanning. Use ONLY names from that list — never emoji or freeform text. Use them tastefully; most cards/steps should have one.
 - ${len ? `Produce EXACTLY ${len} slides total (title + content + closing) — match this count precisely.` : '6–10 slides for a normal deck unless the user asks for a specific count.'} One idea per slide.
 - "color" must be a 6-digit hex WITHOUT '#'. No extra/unknown JSON keys (they are rejected).

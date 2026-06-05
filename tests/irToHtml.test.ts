@@ -43,6 +43,35 @@ describe('renderDeckToHtml', () => {
         expect((r.value.html.match(/>37%</g) ?? []).length).toBe(1);
     });
 
+    it('#1: content slides vertically centre the body block-group (safe center)', () => {
+        const deck: SlideDeckIr = {
+            schemaVersion: IR_SCHEMA_VERSION, title: 'T',
+            slides: [{ id: 'c', type: 'content', title: 'Sparse', blocks: [{ kind: 'paragraph', text: 'one line' }] }],
+        };
+        const r = renderDeckToHtml(deck, theme);
+        if (!r.ok) throw new Error('expected ok');
+        expect(r.value.html).toContain('justify-content:safe center');
+    });
+
+    it('#3: bar-chart renders the axisLabel + source footnote when provided', () => {
+        const deck: SlideDeckIr = {
+            schemaVersion: IR_SCHEMA_VERSION, title: 'T',
+            slides: [{
+                id: 'c', type: 'content', title: 'Chart',
+                blocks: [{
+                    kind: 'bar-chart',
+                    bars: [{ label: 'Diesel', pct: 100 }, { label: 'Gas', pct: 63 }],
+                    axisLabel: 'Relative CO2 per kWh (diesel = 100)',
+                    source: 'Source: IEA, 2024',
+                }],
+            }],
+        };
+        const r = renderDeckToHtml(deck, theme);
+        if (!r.ok) throw new Error('expected ok');
+        expect(r.value.html).toContain('Relative CO2 per kWh (diesel = 100)');
+        expect(r.value.html).toContain('Source: IEA, 2024');
+    });
+
     it('renders VECTOR icons (names + curated legacy emoji), never raw emoji', () => {
         const deck: SlideDeckIr = {
             schemaVersion: IR_SCHEMA_VERSION,

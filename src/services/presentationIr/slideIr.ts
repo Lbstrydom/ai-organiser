@@ -91,6 +91,11 @@ const barChartBlock = z.object({
         pct: z.number().min(0).max(100),
         color: z.string().regex(HEX_COLOR, 'color must be a 6-digit hex').optional(),
     }).strict()).min(1).max(12),
+    /** What the bar values represent + their unit, e.g. "Relative CO₂ per kWh (diesel = 100)".
+     *  Without it an index chart is uninterpretable — strongly encouraged for credibility. */
+    axisLabel: text.optional(),
+    /** Provenance footnote, e.g. "Source: IEA, 2024". */
+    source: text.optional(),
     caption: text.optional(),
 }).strict();
 

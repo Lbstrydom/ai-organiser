@@ -1,5 +1,23 @@
 # Project Status Log
 
+## 2026-06-05 — Presentation quality fixes (#1 vertical layout, #3 chart credibility, #4 emphasis)
+
+Three deterministic presentation-render/prompt fixes from the slide-deck critique (the remaining items after font embedding + 429 retry).
+
+### Changes
+- **#1 vertical layout**: content slides were top-anchored with ~45% empty bottom. The body block-group now uses `justify-content: safe center` (`irToHtml`) — centres sparse content in the body area; `safe` falls back to top-align on overflow so tall slides never clip. (Also fixed the dead `gap:${…}` single-quoted-string interpolation earlier in the font cycle.) **Affects existing decks on re-render** (pure render change).
+- **#3 chart credibility**: `bar-chart` IR gains optional `axisLabel` (metric + unit) + `source` (provenance) — `slideIr` schema + `irToHtml` (renders below the bars) + `irToPptx` (annotations below the chart, height-adjusted) + `irPrompts` (LLM now told to ALWAYS set `axisLabel` + cite `source`). Needs a new generation to populate.
+- **#4 typography/emphasis**: prompt now restricts paragraph `emphasis` to a single short key sentence (was bolding whole multi-line passages). Body size stays user-configurable (Settings → Export → font size).
+
+### Files Affected
+- `src/services/presentationIr/{irToHtml,irToPptx,slideIr,irPrompts}.ts`; tests (`irToHtml`, `slideIr`, `irPrompts`).
+
+### Notes
+- #3/#4 are prompt-driven → take effect on the next deck generation; #1 is render-side → visible on re-render of existing decks.
+- Remaining: polish-deletes-content (#2) still needs live regen to verify (blocked until Azure TPM quota raised). The **Azure 429 RPM throttling brief** is recommended for `/plan` + `/audit-plan` (shared-transport, high blast radius, 4+ existing scattered 429 mechanisms).
+
+---
+
 ## 2026-06-05 — Brand-asset robustness hardening (follow-up to font embedding)
 
 Addressed the pre-existing brand-asset robustness gaps surfaced by the font-embedding code audit (`task_fb71daa0`). Right-sized: did the concrete fixes; skipped the over-engineered refactors (per-context service instances) where Obsidian's single-app model makes them unnecessary.
