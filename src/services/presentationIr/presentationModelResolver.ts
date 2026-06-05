@@ -15,8 +15,8 @@ import { ok } from '../../core/result';
 import type { AdapterType } from '../adapters';
 import type { ProviderProfile } from '../providerProfile';
 import { resolveForProvider } from '../specialistModelResolver';
-import { PROVIDER_DEFAULT_MODEL } from '../adapters/providerRegistry';
-import { parseClaudeModel, parseGeminiModel } from '../adapters/modelCapabilities';
+import { PROVIDER_DEFAULT_MODEL, ALL_ADAPTERS } from '../adapters/providerRegistry';
+import { parseClaudeModel, parseGeminiModel, parseOpenAIModel } from '../adapters/modelCapabilities';
 
 export type PresentationRole =
     | 'storyboard_generator' | 'storyboard_disambiguator' | 'storyboard_repair'
@@ -67,6 +67,20 @@ export function providerFamily(provider: AdapterType | 'local'): ProviderFamily 
     return 'other'; // local / bedrock / vertex / groq / … (multi-family or unknown)
 }
 
+/**
+ * Family of a resolved role — refines an ambiguous multi-family gateway (OpenRouter,
+ * Bedrock, Vertex, Groq, …) by parsing its concrete MODEL id (audit M10/M14), so a
+ * gateway running Claude is recognised as the 'claude' family for the independence check.
+ */
+export function familyOf(provider: AdapterType | 'local', model: string): ProviderFamily {
+    const byProvider = providerFamily(provider);
+    if (byProvider !== 'other') return byProvider;
+    if (parseClaudeModel(model)) return 'claude';
+    if (parseGeminiModel(model)) return 'gemini';
+    if (parseOpenAIModel(model)) return 'openai';
+    return 'other';
+}
+
 /** Light competence heuristic — flag obviously weak tiers for a reasoning/critic role. */
 function isWeakTier(provider: AdapterType | 'local', model: string): boolean {
     if (provider === 'claude' || provider === 'azure-claude') return parseClaudeModel(model)?.tier === 'haiku';
@@ -83,7 +97,7 @@ function mainResolution(profile: ProviderProfile, warning?: string): ResolvedRol
         resolvedModel: profile.model,
         modelOverride: '',
         crossProvider: false,
-        family: providerFamily(profile.provider),
+        family: familyOf(profile.provider, profile.model),
         ...(warning ? { warning } : {}),
     };
 }
@@ -99,6 +113,11 @@ export function resolvePresentationRole(role: PresentationRole, ctx: RoleResolve
 
     if (!chosen) return ok(mainResolution(ctx.profile)); // "Main"
 
+    // Validate the persisted provider string before casting (audit H4/M6) — an
+    // unknown/corrupt value falls back to Main instead of resolving garbage.
+    if (!(ALL_ADAPTERS as readonly string[]).includes(chosen)) {
+        return ok(mainResolution(ctx.profile, `Unknown provider "${chosen}" for this role — using the main provider instead.`));
+    }
     const provider = chosen as AdapterType;
     const isMain = provider === ctx.profile.provider;
     if (!isMain && !ctx.hasKey(provider)) {
@@ -114,7 +133,7 @@ export function resolvePresentationRole(role: PresentationRole, ctx: RoleResolve
         // switched by modelOverride alone).
         modelOverride: isMain ? resolvedModel : '',
         crossProvider: !isMain,
-        family: providerFamily(provider),
+        family: familyOf(provider, resolvedModel),
     };
 
     const warnings: string[] = [];

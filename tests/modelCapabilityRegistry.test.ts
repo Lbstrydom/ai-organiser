@@ -6,7 +6,7 @@ import type { AdapterType } from '../src/services/adapters';
 vi.mock('../src/services/specialistModelResolver', () => ({ resolveForProvider: vi.fn() }));
 import { resolveForProvider } from '../src/services/specialistModelResolver';
 import {
-    resolvePresentationRole, settingForRole, providerFamily,
+    resolvePresentationRole, settingForRole, providerFamily, familyOf,
     type RoleResolveContext, type PresentationModelRoles,
 } from '../src/services/presentationIr/presentationModelResolver';
 
@@ -85,5 +85,37 @@ describe('resolvePresentationRole', () => {
         const r = resolvePresentationRole('structural_critic', ctx('openai', { storyboardGenerator: null, independentCritic: 'claude' }, ['claude']));
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value.warning).toMatch(/low tier/);
+    });
+
+    it('an unknown/corrupt provider string falls back to Main (audit H4/M6)', () => {
+        const r = resolvePresentationRole('storyboard_generator', ctx('claude', { storyboardGenerator: 'totally-bogus', independentCritic: null }));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.provider).toBe('claude');
+            expect(r.value.crossProvider).toBe(false);
+            expect(r.value.warning).toMatch(/Unknown provider/);
+        }
+    });
+
+    it('a multi-family gateway is classed by its resolved MODEL, not just the provider (audit M10/M14)', () => {
+        // openrouter is an ambiguous gateway → provider-only would be 'other'; the
+        // model id reveals the real family for the independence check.
+        vi.mocked(resolveForProvider).mockReturnValue('claude-opus-4-6');
+        const r = resolvePresentationRole('structural_critic', ctx('claude', { storyboardGenerator: null, independentCritic: 'openrouter' }, ['openrouter']));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.family).toBe('claude');                 // refined from the model
+            expect(r.value.warning).toMatch(/shares the generator's claude/); // now correctly flagged
+        }
+    });
+});
+
+describe('familyOf', () => {
+    it('refines an ambiguous gateway by its model, keeps unambiguous providers', () => {
+        expect(familyOf('groq', 'llama-3.3-70b')).toBe('other');
+        expect(familyOf('openrouter', 'claude-opus-4-6')).toBe('claude');
+        expect(familyOf('bedrock', 'gpt-5.3')).toBe('openai');
+        expect(familyOf('vertex', 'gemini-2.5-pro')).toBe('gemini');
+        expect(familyOf('claude', 'anything')).toBe('claude'); // provider wins for unambiguous
     });
 });
