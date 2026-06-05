@@ -29,7 +29,8 @@
     "arch:drift": "node scripts/.claude-skills/symbol-index/drift.mjs",
     "arch:duplicates": "node scripts/.claude-skills/symbol-index/duplicates.mjs",
     "arch:prune": "node scripts/.claude-skills/symbol-index/prune.mjs",
-    "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs"
+    "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs",
+    "test:azure": "node scripts/persona-harness/azure-feature-sweep.mjs"
   },
   "keywords": [
     "obsidian",

@@ -1,5 +1,16 @@
 # Project Status Log
 
+## 2026-06-05 — Azure test plan (doc + harness foundation)
+
+Created `docs/azure-test-plan.md` — a living, two-track plan: **Track 1** functional matrix (every Azure-routed feature → egress path, test method, expected, pass criteria, throttling resilience) with a three-way result label (**PASS / QUOTA / BUG / LAYOUT**) that separates code bugs from the TPM-quota ceiling from layout flaws; **Track 2** persona-fit layout evaluation (Maya/Chen/Pat drive realistic flows; capture + 5-point rubric over all generated artifacts — slides, minutes, summaries, canvas, flashcards, mermaid, exports). Wired `npm run test:azure` → the Track-1 service sweep (summarize/tags/PDF/image/mermaid/translate, 6/6 PASS).
+
+**Next build (TODO in the plan):** Track-1 UI flows (`azure-ui-flows.mjs` — transcribe/Whisper, minutes, multi-source, presentation) + Track-2 persona-layout A/B (`persona-layout-ab.mjs`).
+
+### Files Affected
+- `docs/azure-test-plan.md` (new), `package.json` (`test:azure`).
+
+---
+
 ## 2026-06-05 — Azure-mode feature sweep (live CDP) + >TPM fail-fast fix
 
 Live Electron/CDP sweep of the core Azure-routed features against the real Azure-mode vault (`azure-claude`, `swedencentral`), with real test materials. **All 6 features verified working**: summarize note, generate tags, ingest PDF (multimodal), digitise image (multimodal), Mermaid diagram, translate. Harness: `scripts/persona-harness/azure-feature-sweep.mjs`.
