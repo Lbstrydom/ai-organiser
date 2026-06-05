@@ -202,6 +202,12 @@ console.log('\n[ui] ▶ Meeting minutes');
         if (!await pollState('minutes modal', () => !!document.querySelector('.ai-organiser-minutes-modal'), { timeout: 8000 }))
             throw new Error('minutes modal did not open');
         await page.waitForTimeout(800);
+        // Fill the required meeting TITLE — the CTA gate only checks the transcript,
+        // but handleSubmit's validateRequiredFields() blocks generation without a
+        // title (real keyboard input so its onChange updates state.title).
+        await page.evaluate(() => { const m = document.querySelector('.ai-organiser-minutes-modal'); const ti = m.querySelector('input[type="text"]'); if (ti) ti.id = 'ui-flow-title'; });
+        await page.click('#ui-flow-title').catch(() => {});
+        await page.keyboard.type('Test Board Meeting', { delay: 3 });
         // Focus the transcript textarea (the Setting that mentions "transcript", NOT
         // participants/previous-minutes) and type with the REAL keyboard — Obsidian's
         // TextAreaComponent.onChange only fires on genuine input events, never a
