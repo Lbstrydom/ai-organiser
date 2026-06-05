@@ -466,6 +466,8 @@ export const en: Translations = {
             checkLogoMissing: "Logo missing",
             checkIcons: "{count} icons found",
             checkIconsMissing: "Icons missing",
+            checkFonts: "{count} candidate font file(s)",
+            checkFontsMissing: "No fonts — using named font + fallback",
             usingExample: "The public example brand is used until you add a brand-guidelines.md file.",
             minFontHeading: "Minimum font sizes",
             minFontDesc: "The minimum content font sizes (pt) enforced on every export. A brand-guidelines.md file can override these per role. The footer (slide-number strip) is auto-placed and is the one exception.",

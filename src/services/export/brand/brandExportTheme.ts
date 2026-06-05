@@ -12,7 +12,7 @@
 
 import type { BrandTheme } from '../../chat/brandThemeService';
 import type { ExportTheme, ExportMinFont, ExportSafeArea } from '../exportTheme';
-import { safeHex } from '../../presentationIr/themeSafe';
+import { safeHex, sanitizeCssFontFamilyList, firstCssFontFamily } from '../../presentationIr/themeSafe';
 import { EXAMPLE_EXPORT_FALLBACK } from './exampleBrandTheme';
 
 /** Re-exported shapes (plan §3 asks brandExportTheme to export these names). */
@@ -28,17 +28,17 @@ function safeColor(hex: string, fallback: string): string {
     return safeHex(hex, fallback).hex;
 }
 
-/** Take the FIRST declared family of a (possibly CSS-list) brand font
- *  ("Noto Sans, Inter, sans-serif" → "Noto Sans"). Strips CSS quotes so a quoted
- *  stack ("'Inter', sans-serif" → "Inter", not "'Inter'") yields a bare family
- *  name (audit M18). Empty → empty (the renderer's `safeFont` supplies a system
- *  fallback). */
-function firstFontFamily(font: string): string {
-    return (font ?? '')
-        .split(',')[0]
-        .trim()
-        .replace(/^['"]+|['"]+$/g, '')
-        .trim();
+/**
+ * Compose the CSS-ready `fontStack` from a brand's SEPARATE `font` + `fontFallback`
+ * fields, LEADING with the embedded primary (brand-font-embedding M1 — `fontFace`
+ * alone would name only the fallback and never use the embedded face). The primary
+ * (first family of `brand.font`) comes first, then the rest of `brand.font` (it may
+ * itself be a list), then `brand.fontFallback`. `sanitizeCssFontFamilyList` then
+ * dedupes, validates, quotes-once, and ensures a trailing generic.
+ */
+function composeFontStack(brand: BrandTheme): string {
+    const raw = [brand.font, brand.fontFallback].filter(s => s && s.trim()).join(', ');
+    return sanitizeCssFontFamilyList(raw);
 }
 
 /** Build the `SafeArea` shape from the brand's parsed layout zones. */
@@ -73,10 +73,11 @@ export function toExportTheme(brand: BrandTheme): ExportTheme {
         accentColor: safeColor(brand.colors.accent, EXAMPLE_EXPORT_FALLBACK.accent),
         sectionBg: safeColor(brand.colors.secondary, EXAMPLE_EXPORT_FALLBACK.sectionBg),
         bodyColor: safeColor(brand.colors.text, EXAMPLE_EXPORT_FALLBACK.bodyColor),
-        // ExportTheme carries the bare/FIRST family — a brand file may declare a
-        // CSS stack ("Noto Sans, Inter, sans-serif"); take the first (audit M15).
-        // The renderers still run it through `safeFont`, which tolerates a stack.
-        fontFace: firstFontFamily(brand.font),
+        // `fontFace` = bare FIRST family (PPTX single name). `fontStack` leads with
+        // that same primary then the fallbacks (M1) — so HTML actually uses the
+        // embedded face, not just the fallback.
+        fontFace: firstCssFontFamily(brand.font),
+        fontStack: composeFontStack(brand),
         // fontSize is the NOMINAL body size, NOT the floor (audit M19): use the
         // brand's parsed `bodyFontPt`, then clamp UP to the min-body floor so text
         // is never set below it. The floor stays separate in `minFont.body`.

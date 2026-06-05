@@ -2,9 +2,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     normalizeBrandConcept, getBrandFolder, getLogo, getBrandIcon, clearBrandAssetCache,
-    setBrandSvgRasterizer,
+    setBrandSvgRasterizer, getBrandFonts, inspectBrandFontCandidates, brandFontsSignature,
 } from '../src/services/export/brand/brandAssets';
-import { createTFile } from './mocks/obsidian';
+import { createTFile, createTFolder } from './mocks/obsidian';
 import type { App } from 'obsidian';
 import type { AIOrganiserSettings } from '../src/core/settings';
 
@@ -177,5 +177,133 @@ describe('getBrandIcon', () => {
         // Changed mtime → bypasses cache → empty content sanitizes to null.
         const appChanged = makeApp({ '999_Brand/icons/c.svg': { content: '', mtime: 20 } });
         expect(await getBrandIcon(appChanged, SETTINGS, 'c', 'light')).toBeNull();
+    });
+});
+
+// ── Font embedding (brand-font-embedding) ────────────────────────────────────
+
+/** Bytes with a valid `wOF2` magic header + padding (passes magic; opaque). */
+function woff2Bytes(extra = 16): ArrayBuffer {
+    const b = new Uint8Array(4 + extra);
+    b.set([0x77, 0x4f, 0x46, 0x32], 0); // 'wOF2'
+    return b.buffer;
+}
+/** Bytes with a WRONG magic (fail-closed). */
+function badMagicBytes(): ArrayBuffer {
+    return new Uint8Array([0x00, 0x01, 0x02, 0x03, 0x04]).buffer;
+}
+
+/** App whose vault serves a `999_Brand/fonts` TFolder with the given woff2 files. */
+function makeFontApp(files: Record<string, { binary: ArrayBuffer; mtime?: number; size?: number }>): App {
+    const folder = createTFolder('999_Brand/fonts');
+    const byPath = new Map<string, unknown>();
+    for (const [name, spec] of Object.entries(files)) {
+        const path = `999_Brand/fonts/${name}`;
+        const f = createTFile(path);
+        f.stat = { mtime: spec.mtime ?? 1, ctime: 1, size: spec.size ?? spec.binary.byteLength };
+        folder.children.push(f);
+        byPath.set(path, f);
+    }
+    byPath.set('999_Brand/fonts', folder);
+    return {
+        vault: {
+            getAbstractFileByPath: (p: string) => byPath.get(p) ?? null,
+            readBinary: async (f: { path: string }) => files[f.path.split('/').pop() as string]?.binary ?? new ArrayBuffer(4),
+        },
+    } as unknown as App;
+}
+
+describe('inspectBrandFontCandidates (sync, stat-only)', () => {
+    it('reports absent when no fonts folder', () => {
+        const app = { vault: { getAbstractFileByPath: () => null } } as unknown as App;
+        expect(inspectBrandFontCandidates(app, SETTINGS)).toEqual({ folderState: 'absent', count: 0, skipped: [] });
+    });
+    it('reports empty for a folder with no woff2', () => {
+        const app = makeFontApp({});
+        expect(inspectBrandFontCandidates(app, SETTINGS).folderState).toBe('empty');
+    });
+    it('counts in-budget candidates and skips oversize (no readBinary)', () => {
+        const app = makeFontApp({
+            'noto-sans-400.woff2': { binary: woff2Bytes(), size: 1000 },
+            'noto-sans-700.woff2': { binary: woff2Bytes(), size: 2000 },
+            'huge.woff2': { binary: woff2Bytes(), size: 9_000_000 },
+        });
+        const r = inspectBrandFontCandidates(app, SETTINGS);
+        expect(r.folderState).toBe('present');
+        expect(r.count).toBe(2);
+        expect(r.skipped).toEqual(['huge.woff2']);
+    });
+});
+
+describe('getBrandFonts', () => {
+    beforeEach(() => clearBrandAssetCache());
+
+    it('returns empty when the fonts folder is absent', async () => {
+        const app = { vault: { getAbstractFileByPath: () => null } } as unknown as App;
+        expect(await getBrandFonts(app, SETTINGS, 'Noto Sans')).toEqual({ faceCss: '', count: 0, skipped: [] });
+    });
+
+    it('emits one @font-face per valid woff2, family quoted-once, weight/style from filename', async () => {
+        const app = makeFontApp({
+            'noto-sans-400.woff2': { binary: woff2Bytes() },
+            'noto-sans-700.woff2': { binary: woff2Bytes() },
+            'noto-sans-400-italic.woff2': { binary: woff2Bytes() },
+        });
+        const r = await getBrandFonts(app, SETTINGS, 'Noto Sans');
+        expect(r.count).toBe(3);
+        expect(r.faceCss).toContain("font-family:'Noto Sans'");
+        expect(r.faceCss).not.toContain("''Noto Sans''"); // R3-H1: no double-quote
+        expect(r.faceCss).toContain('font-weight:400');
+        expect(r.faceCss).toContain('font-weight:700');
+        expect(r.faceCss).toContain('font-style:italic');
+        expect(r.faceCss).toContain('src:url(data:font/woff2;base64,');
+        expect(r.faceCss).toContain("format('woff2')");
+    });
+
+    it('drops files with bad woff2 magic (fail-closed) and records skipped', async () => {
+        const app = makeFontApp({
+            'good-400.woff2': { binary: woff2Bytes() },
+            'fake-700.woff2': { binary: badMagicBytes() },
+        });
+        const r = await getBrandFonts(app, SETTINGS, 'Noto Sans');
+        expect(r.count).toBe(1);
+        expect(r.skipped).toEqual(['fake-700.woff2']);
+    });
+
+    it('enforces the total-byte budget (drops later fonts)', async () => {
+        // Each file is under the 2MB per-file cap; cumulatively the 5th crosses 8MB.
+        const files: Record<string, { binary: ArrayBuffer; size: number }> = {};
+        for (let i = 1; i <= 5; i++) files[`f${i}-400.woff2`] = { binary: woff2Bytes(), size: 1_900_000 };
+        const r = await getBrandFonts(makeFontApp(files), SETTINGS, 'Noto Sans');
+        expect(r.count).toBe(4); // 4 × 1.9MB = 7.6MB; 5th → 9.5MB > 8MB → dropped
+        expect(r.skipped).toEqual(['f5-400.woff2']);
+    });
+
+    it('is deterministic — faces ordered by path regardless of insertion order', async () => {
+        const app = makeFontApp({
+            'noto-sans-700.woff2': { binary: woff2Bytes() },
+            'noto-sans-400.woff2': { binary: woff2Bytes() },
+        });
+        const css = (await getBrandFonts(app, SETTINGS, 'Noto Sans')).faceCss;
+        expect(css.indexOf('font-weight:400')).toBeLessThan(css.indexOf('font-weight:700'));
+    });
+
+    it('caches by file signature and busts on mtime change', async () => {
+        // Identical (path, mtime, size) → cache hit; only the bytes differ, so a hit
+        // returns the stale result without re-reading. Pin size so the signature matches.
+        const app1 = makeFontApp({ 'x-400.woff2': { binary: woff2Bytes(), mtime: 1, size: 32 } });
+        const a = await getBrandFonts(app1, SETTINGS, 'Noto Sans');
+        expect(a.count).toBe(1);
+        const app1b = makeFontApp({ 'x-400.woff2': { binary: badMagicBytes(), mtime: 1, size: 32 } });
+        expect((await getBrandFonts(app1b, SETTINGS, 'Noto Sans')).count).toBe(1); // stale cache hit
+        // Changed mtime → re-read → bad magic now drops it.
+        const app2 = makeFontApp({ 'x-400.woff2': { binary: badMagicBytes(), mtime: 2, size: 32 } });
+        expect((await getBrandFonts(app2, SETTINGS, 'Noto Sans')).count).toBe(0);
+    });
+
+    it('brandFontsSignature changes when a font file changes', () => {
+        const app1 = makeFontApp({ 'x-400.woff2': { binary: woff2Bytes(), mtime: 1 } });
+        const app2 = makeFontApp({ 'x-400.woff2': { binary: woff2Bytes(), mtime: 9 } });
+        expect(brandFontsSignature(app1, SETTINGS)).not.toBe(brandFontsSignature(app2, SETTINGS));
     });
 });

@@ -104,3 +104,21 @@ describe('getSafeArea', () => {
         });
     });
 });
+
+describe('composeFontStack (M1 — fontStack leads with the embedded primary)', () => {
+    it('leads fontStack with the brand primary, then fallbacks, ending in a generic', () => {
+        const t = toExportTheme(makeBrand({ font: 'Noto Sans', fontFallback: 'Inter' }));
+        expect(t.fontStack).toBe("'Noto Sans', 'Inter', sans-serif");
+        expect(t.fontStack!.startsWith("'Noto Sans'")).toBe(true); // NOT the fallback first
+        expect(t.fontFace).toBe('Noto Sans'); // bare first family for PPTX
+    });
+    it('does not drop the primary when fontFallback is a generic-only string', () => {
+        const t = toExportTheme(makeBrand({ font: 'Noto Sans', fontFallback: 'system-ui, sans-serif' }));
+        expect(t.fontStack).toBe("'Noto Sans', system-ui, sans-serif");
+    });
+    it('quotes the embedded family exactly once (no double-quote, R3-H1)', () => {
+        const t = toExportTheme(makeBrand({ font: "'Noto Sans'", fontFallback: 'sans-serif' }));
+        expect(t.fontStack).not.toContain("''");
+        expect(t.fontStack).toContain("'Noto Sans'");
+    });
+});

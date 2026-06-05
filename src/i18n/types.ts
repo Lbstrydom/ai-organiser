@@ -459,6 +459,8 @@ export interface Translations {
             checkLogoMissing: string;
             checkIcons: string;
             checkIconsMissing: string;
+            checkFonts: string;
+            checkFontsMissing: string;
             usingExample: string;
             minFontHeading: string;
             minFontDesc: string;

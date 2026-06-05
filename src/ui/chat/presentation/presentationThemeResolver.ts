@@ -15,7 +15,7 @@ import { TFile } from 'obsidian';
 import type { ModalContext } from '../ChatModeHandler';
 import type { ExportTheme } from '../../../services/export/exportTheme';
 // Single shared brand-folder resolver + guidelines filename (audit M4/M9/M10).
-import { getBrandFolder, BRAND_GUIDELINES_FILE } from '../../../services/export/brand/brandAssets';
+import { getBrandFolder, BRAND_GUIDELINES_FILE, brandFontsSignature, getBrandFonts } from '../../../services/export/brand/brandAssets';
 
 export class PresentationThemeResolver {
     private cache: { sig: string; theme: ExportTheme } | null = null;
@@ -42,8 +42,10 @@ export class PresentationThemeResolver {
             ? ctx.app.vault.getAbstractFileByPath(`${folderPath}/${BRAND_GUIDELINES_FILE}`)
             : null;
         const brandMtime = folderFile instanceof TFile ? folderFile.stat.mtime : 0;
+        // Embedded-font fingerprint busts the memo when a brand font is added/edited.
+        const fontsSig = (brandEnabled && ctx.app?.vault) ? brandFontsSignature(ctx.app, s) : '';
         const sig = [
-            String(brandEnabled), folderPath, String(brandMtime),
+            String(brandEnabled), folderPath, String(brandMtime), fontsSig,
             s.exportColorScheme, s.exportPrimaryColor, s.exportAccentColor,
             s.exportFontFace, String(s.exportFontSize),
             String(s.exportMinFontBody), String(s.exportMinFontCaption), String(s.exportMinFontTable),
@@ -69,6 +71,12 @@ export class PresentationThemeResolver {
                 const { exampleBrandTheme } = await import('../../../services/export/brand/exampleBrandTheme');
                 theme = toExportTheme(exampleBrandTheme);
             }
+            // Embed brand woff2 fonts (bound to the bare primary family) so the
+            // preview/PDF render the true brand face. Absent fonts → undefined →
+            // named-font + fallback (graceful). The real example theme has no
+            // vault fonts, so this is a no-op there.
+            const fonts = await getBrandFonts(ctx.app, s, theme.fontFace);
+            if (fonts.faceCss) theme = { ...theme, fontFaceCss: fonts.faceCss };
             this.cache = { sig, theme };
             return theme;
         }

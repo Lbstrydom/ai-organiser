@@ -108,10 +108,47 @@ Add an `icons/` subfolder with one `.svg` per concept, plus a
 }
 ```
 
+## 4b. Optional: embedded fonts
+
+By default your brand font is only **named** in CSS — so the slide preview and the
+exported PDF render it correctly only on machines where that font is installed (e.g.
+Windows has no Noto Sans). Drop the font files into a `fonts/` subfolder to **embed**
+the real face so it renders identically everywhere.
+
+```
+999_Brand/
+  fonts/
+    noto-sans-400.woff2
+    noto-sans-700.woff2
+```
+
+- **Format: `woff2` only** (smallest format; the only one read).
+- **Filename: `<slug>-<weight>[-italic].woff2`** — weight + style come from the name:
+  `noto-sans-400.woff2` → 400 normal; `noto-sans-700.woff2` → 700; `noto-sans-400-italic.woff2`
+  → 400 italic. No parseable weight → 400 / normal.
+- The faces bind to your brand's **primary font family** (the first family of the
+  `Font:` line). Make sure the files actually are that family.
+- **Limits:** 2 MB per file, 8 MB total; oversized files are skipped (the deck still
+  renders with the named font + fallback).
+
+**Where it applies:** live preview ✅ and exported **PDF** ✅. PowerPoint (`.pptx`) names
+the font (renders true only where it's installed). Filmstrip thumbnails + the dom-to-pptx
+raster fallback show the fallback face — a known v1 limitation (those rasterise the slide
+as an SVG `<img>`, which can't see the embedded `@font-face`).
+
+**Installing Noto Sans:** source the OFL woff2 files (e.g. from `@fontsource/noto-sans`'s
+`files/` dir, or Google Fonts) and copy `noto-sans-400.woff2` + `noto-sans-700.woff2`
+into `999_Brand/fonts/`. Font files live in the **vault** (Obsidian-Sync-distributable),
+not the plugin bundle.
+
+**Security:** embedded fonts are inlined as `data:` URIs in the preview iframe, authorised
+by a `font-src data:` CSP directive. The CSP stays `data:`-only (no network fonts) and
+scripts remain blocked.
+
 ## 5. Turn it on
 
 1. Settings → AI Organiser → Brand → set **Brand folder path** to your folder.
-2. The **Detected** block confirms what was found (guidelines / logo / icons).
+2. The **Detected** block confirms what was found (guidelines / logo / icons / fonts).
 3. Toggle **On-brand by default** to apply it to new decks automatically, or
    tick **On-brand** per deck when generating.
 

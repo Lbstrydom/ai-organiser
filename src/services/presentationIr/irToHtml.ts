@@ -28,7 +28,7 @@ import { SLIDE_W, SLIDE_H, COL_GAP, CONTENT_WIDTH } from './irLayout';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
-import { sanitizeExportTheme } from './themeSafe';
+import { sanitizeExportTheme, serializeCssFontFamily } from './themeSafe';
 
 export interface RenderHtmlOptions {
     /** Localised label for a slide that fails to render (caller injects via
@@ -55,6 +55,9 @@ const esc = (s: string): string =>
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const hx = (hex: string): string => `#${hex.replace('#', '')}`;
+/** CSS `font-family` value for the deck: the always-populated quoted `fontStack`,
+ *  or a serialized bare `fontFace` as a defensive fallback (brand-font-embedding). */
+const cssFont = (theme: ExportTheme): string => theme.fontStack ?? serializeCssFontFamily(theme.fontFace);
 /** 8-digit hex tint (alpha) for light card/callout fills over a white slide. */
 const tint = (hex: string, alpha = '22'): string => `${hx(hex)}${alpha}`;
 
@@ -99,7 +102,7 @@ export function renderDeckToHtml(deck: SlideDeckIr, rawTheme: ExportTheme, opts:
 /** User-visible placeholder section for a slide that failed to build (D1). */
 function placeholderSection(index: number, theme: ExportTheme, label: string): string {
     const body = hx(theme.bodyColor);
-    return slideOpen(index, `background:#ffffff;color:${body};font-family:${theme.fontFace};display:flex;align-items:center;justify-content:center;padding:90px 110px;`)
+    return slideOpen(index, `background:#ffffff;color:${body};font-family:${cssFont(theme)};display:flex;align-items:center;justify-content:center;padding:90px 110px;`)
         + `<div style="border:2px dashed ${body}66;border-radius:16px;padding:60px;font-size:32px;font-style:italic;color:${body};opacity:0.7;text-align:center;max-width:60%;">${esc(label)}</div>`
         + '</section>';
 }
@@ -113,7 +116,7 @@ function slideOpen(index: number, inlineExtra: string): string {
 }
 
 function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices: FidelityNotice[]): string {
-    const font = theme.fontFace;
+    const font = cssFont(theme);
     const parts: string[] = [];
 
     if (slide.type === 'title' || slide.type === 'section' || slide.type === 'closing') {
@@ -142,7 +145,7 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
             parts.push(`<div style="width:${Math.round(u.widthIn * PX_PER_IN)}px;height:${Math.round(u.heightIn * PX_PER_IN)}px;background:${hx(theme.accentColor)};border-radius:4px;margin:${Math.round(u.gapBelowTitleIn * PX_PER_IN)}px 0 0 0;"></div>`);
         }
         if (slide.subtitle) parts.push(`<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.heroSubtitlePt)}px;color:${bodyColor};opacity:0.8;margin:18px 0 0 0;">${esc(slide.subtitle)}</p>`);
-        parts.push('<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">');
+        parts.push(`<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">`);
         for (const block of slide.blocks) parts.push(renderBlockSafe(block, index, theme, notices));
         parts.push('</div>');
     }
@@ -167,7 +170,7 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
     const primary = hx(theme.primaryColor);
     const accent = hx(theme.accentColor);
     const body = hx(theme.bodyColor);
-    const font = theme.fontFace;
+    const font = cssFont(theme);
 
     switch (block.kind) {
         case 'heading': {

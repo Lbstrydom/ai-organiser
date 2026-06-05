@@ -140,7 +140,12 @@ export function buildHtmlFromDeckIr(
     if (!sanitized.hasDeckRoot) return err('IR→HTML: missing .deck root element');
     if (!sanitized.hasSlides) return err('IR→HTML: no .slide elements found');
 
-    const wrapped = wrapInDocument(sanitized.html, brandCss, language);
+    // Brand-font-embedding: the resolved @font-face block (data: woff2) rides the
+    // existing brandCss head seam — injected AFTER sanitize (so DOMPurify never
+    // strips it) and authorized by the `font-src data:` CSP added in injectCSP.
+    // It is OUR string built from validated data-URIs (no LLM/user HTML).
+    const headCss = exportTheme.fontFaceCss ? `${exportTheme.fontFaceCss}\n${brandCss}` : brandCss;
+    const wrapped = wrapInDocument(sanitized.html, headCss, language);
     return ok(injectCSP(wrapped));
 }
 

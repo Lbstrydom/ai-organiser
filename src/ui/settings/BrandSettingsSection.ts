@@ -9,6 +9,7 @@ import { logger } from '../../utils/logger';
 // so the settings detection matches `brandAssets` resolution exactly.
 import {
     getBrandFolder, BRAND_GUIDELINES_FILE, LOGO_LIGHT, LOGO_DARK, ICONS_DIR,
+    inspectBrandFontCandidates,
 } from '../../services/export/brand/brandAssets';
 
 /**
@@ -157,7 +158,7 @@ export class BrandSettingsSection extends BaseSettingSection {
     }
 
     /** Structural detection of the brand pack files inside the brand folder. */
-    private detectAssets(): { guidelines: boolean; logo: boolean; icons: number } {
+    private detectAssets(): { guidelines: boolean; logo: boolean; icons: number; fontCount: number } {
         const { app } = this.plugin;
         const folder = this.brandFolder();
 
@@ -179,7 +180,10 @@ export class BrandSettingsSection extends BaseSettingSection {
             }
         }
 
-        return { guidelines, logo: logoLight || logoDark, icons };
+        // Embedded-font candidates (sync, stat-only — no base64).
+        const fontCount = inspectBrandFontCandidates(this.plugin.app, this.plugin.settings).count;
+
+        return { guidelines, logo: logoLight || logoDark, icons, fontCount };
     }
 
     private async revalidate(): Promise<void> {
@@ -188,7 +192,7 @@ export class BrandSettingsSection extends BaseSettingSection {
         // DOM if this is still the latest run AND the section wasn't re-rendered /
         // disposed (audit M12).
         const seq = ++this.validationSeq;
-        const { guidelines, logo, icons } = this.detectAssets();
+        const { guidelines, logo, icons, fontCount } = this.detectAssets();
 
         // Resolved font + min-font readout (only meaningful when guidelines load).
         const brand = await loadBrandTheme(this.plugin.app, this.plugin.settings);
@@ -254,6 +258,14 @@ export class BrandSettingsSection extends BaseSettingSection {
             icons > 0 ? '✓' : '⚠',
             icons > 0 ? t.checkIcons.replace('{count}', String(icons)) : t.checkIconsMissing,
             icons > 0 ? undefined : 'ai-organiser-text-warning',
+        );
+        // Embedded-font candidates — "○" (neutral, optional) when none, since the
+        // named font + fallback still renders.
+        this.renderStatusLine(
+            this.statusEl,
+            fontCount > 0 ? '✓' : '○',
+            fontCount > 0 ? t.checkFonts.replace('{count}', String(fontCount)) : t.checkFontsMissing,
+            fontCount > 0 ? undefined : 'ai-organiser-text-muted',
         );
         for (const w of warnings) {
             this.renderStatusLine(this.statusEl, '⚠', w, 'ai-organiser-text-warning');

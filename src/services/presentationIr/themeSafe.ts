@@ -46,6 +46,91 @@ export function safeFont(name: string): string {
     return cleaned.length > 0 ? cleaned : 'sans-serif';
 }
 
+// ── CSS font-family sanitize / serialize (brand-font-embedding H3 + R3-H1) ──
+//
+// TWO DISTINCT operations on a family name — never conflated (audit R3-H1):
+//  · sanitizeCssFontFamily  → VALIDATION: a bare, unquoted, raw single family.
+//  · serializeCssFontFamily → RENDER: a CSS token (bare generic, else quoted-once).
+// Quoting happens EXACTLY ONCE, in serialize, so `fontFace` stays bare for PPTX
+// while CSS gets a correctly-quoted token — no `''Noto Sans''`.
+
+/** CSS generic font keywords — emitted BARE (quoting one would make it a literal
+ *  family name, not the generic). Everything else is single-quoted on serialize. */
+const GENERIC_FONT_KEYWORDS = new Set([
+    'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui',
+    'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji', 'fangsong',
+]);
+
+/** Max chars for a single family name — bounds the emitted CSS. */
+const MAX_FONT_FAMILY_CHARS = 64;
+
+/**
+ * Validate ONE family name → a bare, unquoted, raw name (or `''` if nothing
+ * usable). Allowlist = Unicode letters/marks/numbers + space/`_`/`-` — so
+ * international family names (CJK, accented, etc.) survive — while every CSS-
+ * injection vector (comma/quote/brace/`;`/`<>`/`()`/backslash/controls) is
+ * stripped. Whitespace collapsed; length-capped. This is what `ExportTheme.fontFace`
+ * stores (PPTX needs the bare name — no quotes).
+ */
+export function sanitizeCssFontFamily(name: string): string {
+    const cleaned = (name ?? '')
+        .replace(/[^\p{L}\p{M}\p{N} _-]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_FONT_FAMILY_CHARS)
+        .trim();
+    return cleaned;
+}
+
+/**
+ * Serialize ONE family name → a CSS `font-family` token. Generics stay bare; every
+ * other (already-sanitized) name is wrapped in single quotes (the sanitizer has
+ * stripped quotes/backslashes, so the result can't break out). Empty → `''`.
+ */
+export function serializeCssFontFamily(rawName: string): string {
+    const s = sanitizeCssFontFamily(rawName);
+    if (!s) return '';
+    if (GENERIC_FONT_KEYWORDS.has(s.toLowerCase())) return s;
+    return `'${s}'`;
+}
+
+/**
+ * Sanitize + serialize a comma-separated family LIST → CSS-ready text
+ * (`'Noto Sans', system-ui, sans-serif`). Each family validated + serialized +
+ * de-duped (case-insensitive); a trailing generic (`sans-serif`) is ensured.
+ * Empty/garbage → `sans-serif`. This is the value stored on `ExportTheme.fontStack`.
+ */
+export function sanitizeCssFontFamilyList(raw: string): string {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const part of (raw ?? '').split(',')) {
+        const fam = sanitizeCssFontFamily(part);
+        if (!fam) continue;
+        const key = fam.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(serializeCssFontFamily(fam));
+    }
+    if (!out.some(t => GENERIC_FONT_KEYWORDS.has(t.toLowerCase()))) out.push('sans-serif');
+    return out.length > 0 ? out.join(', ') : 'sans-serif';
+}
+
+/** First family of a (possibly list) raw value → bare sanitized name for PPTX. */
+export function firstCssFontFamily(raw: string): string {
+    return sanitizeCssFontFamily((raw ?? '').split(',')[0]) || 'sans-serif';
+}
+
+/** Coerce a font weight to an int in [1,1000]; invalid → 400. */
+export function coerceFontWeight(w: unknown): number {
+    const n = Math.round(Number(w));
+    return Number.isFinite(n) && n >= 1 && n <= 1000 ? n : 400;
+}
+
+/** Coerce a font style to the CSS enum; anything else → `normal`. */
+export function coerceFontStyle(s: unknown): 'normal' | 'italic' | 'oblique' {
+    return s === 'italic' || s === 'oblique' ? s : 'normal';
+}
+
 /**
  * Normalise an `ExportTheme` ONCE at a renderer's entry so every downstream
  * colour/font interpolation is already validated (the theme comes from settings
@@ -53,6 +138,13 @@ export function safeFont(name: string): string {
  * the navy-gold defaults; `onInvalid(field)` fires per bad field so the caller
  * can record a notice. Colours stay in the `ExportTheme` convention (6-hex, no
  * `#`). `slide.background` is already schema-validated, so it is not touched here.
+ *
+ * FONT INVARIANT (brand-font-embedding Gemini-R1-H1): `fontStack` is ALWAYS
+ * populated from the raw incoming value via the LIST sanitizer (off-brand
+ * `fontFace` may itself be a stack like `Inter, sans-serif` — running the single-
+ * family sanitizer on it would strip the comma and corrupt it). `fontFace` is set
+ * to the first sanitized BARE family (for PPTX). `fontFaceCss` is passed through
+ * unchanged (it is built by the brand loader from already-validated data-URIs).
  */
 export function sanitizeExportTheme(theme: ExportTheme, onInvalid?: (field: string) => void): ExportTheme {
     const fix = (field: string, val: string, fb: string): string => {
@@ -60,22 +152,21 @@ export function sanitizeExportTheme(theme: ExportTheme, onInvalid?: (field: stri
         if (!r.ok) onInvalid?.(field);
         return r.hex;
     };
+    const rawStack = theme.fontStack ?? theme.fontFace;
+    const fontStack = sanitizeCssFontFamilyList(rawStack);
+    const fontFace = firstCssFontFamily(theme.fontFace);
+    // Observability parity with colour fallback (audit M8): fire when the source
+    // contained an INJECTION-class char the family sanitizer strips — i.e. anything
+    // outside the sanitizer allowlist plus the benign list separators (comma) and
+    // quotes. Uses the SAME allowlist the output is built from, so it can't misfire.
+    if (/[^\p{L}\p{M}\p{N} ,_'"-]/u.test(theme.fontFace ?? '')) onInvalid?.('fontFace');
     return {
         ...theme,
         primaryColor: fix('primaryColor', theme.primaryColor, '1A3A5C'),
         accentColor: fix('accentColor', theme.accentColor, 'F5C842'),
         sectionBg: fix('sectionBg', theme.sectionBg, '1D6B4A'),
         bodyColor: fix('bodyColor', theme.bodyColor, '2D4A5A'),
-        fontFace: fixFont(theme.fontFace, onInvalid),
+        fontFace,
+        fontStack,
     };
-}
-
-/** safeFont + observability — fires `onInvalid('fontFace')` when DANGEROUS chars
- *  were stripped (not merely whitespace normalised), so font sanitisation is as
- *  visible as colour fallback (audit M8). */
-function fixFont(raw: string, onInvalid?: (field: string) => void): string {
-    const clean = safeFont(raw);
-    const wsNormalised = (raw ?? '').replace(/\s+/g, ' ').trim();
-    if (clean !== wsNormalised) onInvalid?.('fontFace');
-    return clean;
 }

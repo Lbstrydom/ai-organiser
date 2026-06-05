@@ -18,7 +18,7 @@ import type { ExportTheme } from '../exportTheme';
 import { loadBrandTheme } from '../../chat/brandThemeService';
 import { toExportTheme } from './brandExportTheme';
 import { exampleBrandTheme } from './exampleBrandTheme';
-import { getBrandIcon, normalizeBrandConcept } from './brandAssets';
+import { getBrandIcon, getBrandFonts, normalizeBrandConcept } from './brandAssets';
 
 export interface ResolvedBrandAssets {
     logoLightPng?: string;
@@ -86,33 +86,49 @@ export async function resolveBrandRenderContext(
 
     const brand = loaded.value;
     const warnings = [...brand.warnings];
-
-    // Logo DRAWING is deferred (no renderer consumer yet), so we do NOT resolve +
-    // raster the logos here — that work would be wasted (audit M4). The
-    // `ResolvedBrandAssets.logoLightPng/logoDarkPng` fields stay optional +
-    // undefined so the type is ready when the draw lands.
-
-    // Resolve icons for the used concepts only — light + dark each.
+    const theme = toExportTheme(brand);
     const icons = new Map<string, { lightPng?: string; darkPng?: string }>();
-    const uniqueConcepts = Array.from(
-        new Set(usedConcepts.map(normalizeBrandConcept).filter((c) => c.length > 0)),
-    );
-    await Promise.all(uniqueConcepts.map(async (concept) => {
-        const [lightPng, darkPng] = await Promise.all([
-            getBrandIcon(app, settings, concept, 'light'),
-            getBrandIcon(app, settings, concept, 'dark'),
-        ]);
-        if (lightPng || darkPng) {
-            icons.set(concept, {
-                ...(lightPng ? { lightPng } : {}),
-                ...(darkPng ? { darkPng } : {}),
-            });
+
+    // Brand asset I/O (font embed + icon raster) is wrapped so this service
+    // boundary honours its "never throws" contract (audit H1/H3): an asset failure
+    // degrades to a warning + the named-font/no-icon fallback, never an escaped
+    // rejection. (The individual loaders are already fail-closed; this is a
+    // belt-and-braces boundary so a future throwing dependency can't break it.)
+    try {
+        // Embed brand fonts (woff2 → @font-face) so the preview/PDF render the true
+        // brand face. Bind to the bare primary family (`theme.fontFace`).
+        const fonts = await getBrandFonts(app, settings, theme.fontFace);
+        if (fonts.faceCss) theme.fontFaceCss = fonts.faceCss;
+        if (fonts.count === 0 && fonts.skipped.length > 0) {
+            warnings.push(`brand fonts present but none embedded (${fonts.skipped.length} skipped); using named font + fallback`);
         }
-    }));
+
+        // Logo DRAWING is deferred (no renderer consumer yet), so we do NOT resolve
+        // + raster the logos here — that work would be wasted (audit M4).
+
+        // Resolve icons for the used concepts only — light + dark each.
+        const uniqueConcepts = Array.from(
+            new Set(usedConcepts.map(normalizeBrandConcept).filter((c) => c.length > 0)),
+        );
+        await Promise.all(uniqueConcepts.map(async (concept) => {
+            const [lightPng, darkPng] = await Promise.all([
+                getBrandIcon(app, settings, concept, 'light'),
+                getBrandIcon(app, settings, concept, 'dark'),
+            ]);
+            if (lightPng || darkPng) {
+                icons.set(concept, {
+                    ...(lightPng ? { lightPng } : {}),
+                    ...(darkPng ? { darkPng } : {}),
+                });
+            }
+        }));
+    } catch (e) {
+        warnings.push(`brand asset resolution degraded: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     return ok({
         enabled: true,
-        theme: toExportTheme(brand),
+        theme,
         // logoLightPng/logoDarkPng intentionally absent — logo draw deferred (M4).
         assets: { icons },
         source: 'brand',

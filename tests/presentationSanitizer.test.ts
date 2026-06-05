@@ -252,6 +252,14 @@ describe('injectCSP', () => {
         const once = injectCSP('<html><head></head><body>x</body></html>');
         expect(injectCSP(once)).toBe(once);
     });
+    it('authorizes data: fonts (font-src data:) without relaxing scripts (brand-font-embedding)', () => {
+        const out = injectCSP('<html><head></head><body>x</body></html>');
+        expect(out).toMatch(/font-src data:/);          // embedded @font-face authorized
+        expect(out).toMatch(/default-src 'none'/);      // scripts still blocked (no script-src)
+        expect(out).not.toMatch(/script-src/);
+        expect(out).toMatch(/img-src data:/);           // unchanged
+        expect(out).not.toMatch(/font-src[^;]*https/);  // data: only, no network fonts
+    });
 });
 
 // ── Policy unit tests ──────────────────────────────────────────────────────────

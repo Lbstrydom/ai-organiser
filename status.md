@@ -1,5 +1,34 @@
 # Project Status Log
 
+## 2026-06-05 — Brand font embedding (preview/PDF render true brand fonts) + web-search 429 retry
+
+Two presentation fixes. (1) Claude web-search 429 rate-limit no longer drops a slide source on the first hit. (2) On-brand decks can now embed `woff2` fonts so the preview + PDF render the true brand face (e.g. Noto Sans) instead of a system fallback.
+
+### Changes
+- **Web-search 429 retry** (committed `3cb3ee0`): `claudeWebSearchAdapter.sendNonStreaming` now retries 429 / 529 / transient 5xx with `Retry-After`-honouring backoff (mirrors `CloudLLMService`); on exhaustion the error is tagged so `presentationSourceService` classifies it as `web-search-rate-limited` and shows "try again in a minute" rather than a generic failure. The Azure 10K-TPM quota itself is an IT action (separate).
+- **Brand font embedding**: drop `woff2` into `<brandFolder>/fonts/` (default `999_Brand/fonts/`, mirrors `icons/`) → embedded `@font-face` in the preview/PDF.
+  - `brandAssets.getBrandFonts` (magic-validate → base64 → `@font-face` bound to the serialized primary family, 2 MB/8 MB caps, byte-bounded LRU, fail-closed) + sync `inspectBrandFontCandidates` (settings status) + `brandFontsSignature` (memo-bust).
+  - `themeSafe`: `sanitizeCssFontFamily` (Unicode-aware, injection-safe) **vs** `serializeCssFontFamily` (quoted-once) split; `sanitizeExportTheme` always populates `fontStack` (fixes off-brand stack comma-strip).
+  - `brandExportTheme.composeFontStack` leads the stack with the embedded primary (was naming only the fallback).
+  - `ExportTheme.fontStack?`/`fontFaceCss?` (optional → PPTX/non-brand byte-identical); injected via the existing `brandCss` head seam in `presentationHtmlService.buildHtmlFromDeckIr`; authorized by `font-src data:` added to `presentationSanitizer.CSP_META`.
+  - Settings: "N candidate font file(s)" status line; docs in `docs/brand-setup.md` §4b.
+
+### Decisions Made
+- **PPTX + filmstrip/dom-to-pptx raster render the fallback face** — documented v1 limitation (SVG-as-`<img>` can't see host `@font-face`; pptxgenjs can't embed). Live preview + printed PDF are correct.
+- Pre-existing brand-asset robustness gaps surfaced by the code audit (unbounded icon concurrency, cache-state modeling, post-read size recheck, PNG-signature validation, module-mutable state) deferred as tracked debt (`task_fb71daa0`) — they predate this feature.
+
+### Process
+- `/audit-plan` (GPT R1-R3 + Gemini gate) on the plan — caught 5 would-ship bugs (fontStack naming only the fallback; sanitize/serialize quoting conflict; off-brand stack comma-strip; over-claimed PDF/raster coverage; CSS injection). `/cycle --autonomous` implemented + audited both clusters; consolidated Gemini gate APPROVE. 5471 unit tests + e2e CSP spec (real Chromium) pass; lint 0 errors.
+
+### Files Affected
+- `src/services/export/brand/{brandAssets,brandExportTheme,brandRenderContext}.ts`, `src/services/export/exportTheme.ts`, `src/services/presentationIr/{themeSafe,irToHtml}.ts`, `src/services/chat/{presentationHtmlService,presentationSanitizer}.ts`, `src/ui/chat/presentation/presentationThemeResolver.ts`, `src/ui/settings/BrandSettingsSection.ts`, `src/i18n/{en,types}.ts`, `docs/brand-setup.md`, `AGENTS.md`.
+
+### Next Steps
+- IT: raise the Azure Foundry Claude deployment TPM quota (10K → ≥200K) — separate from this code.
+- Remaining presentation-quality fixes still queued: vertical layout/whitespace (#1), chart axis/units (#3), typography emphasis (#4), polish-deletes-content (#2).
+
+---
+
 ## 2026-06-05 — Fix: Azure Foundry web-search 401 (provider-gated key resolution) + build auto-deploy
 
 Presentation web search returned HTTP 401 ("Access denied due to invalid subscription key") on Azure AI Foundry. Investigated **live** by attaching to the running Obsidian Electron renderer over CDP (Playwright `connectOverCDP` on `--remote-debugging-port=9222`) and firing the real request in-process.

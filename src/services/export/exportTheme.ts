@@ -39,6 +39,14 @@ export interface ExportTheme {
     bodyColor: string;     // Body text color
     fontFace: string;
     fontSize: number;      // Body font size in points
+    /** CSS-ready quoted family list for the HTML preview (e.g. `'Noto Sans',
+     *  system-ui, sans-serif`). Always populated by `sanitizeExportTheme`;
+     *  the HTML renderer prefers it. PPTX ignores it (uses bare `fontFace`). */
+    fontStack?: string;
+    /** Assembled `@font-face` rules (data: woff2) injected into the preview/PDF
+     *  `<head>` via the brand CSS. Brand-with-embedded-fonts only; absent → no
+     *  embed. PPTX ignores it (cannot embed). */
+    fontFaceCss?: string;
     /** Min-font floor per role (brand exports only; absent → no floor). */
     minFont?: ExportMinFont;
     /** Safe-area zones (brand exports only; absent → current layout). */

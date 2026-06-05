@@ -388,7 +388,10 @@ export function sanitizePresentation(rawHtml: string): SanitizeResult {
 
 // ── CSP Injection ──────────────────────────────────────────────────────────
 
-const CSP_META = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:;">';
+// `font-src data:` authorizes brand `@font-face` embeds (data: woff2) injected into
+// the head via brandCss. data:-only keeps the no-network invariant; `default-src
+// 'none'` (no script-src) is untouched, so scripts still cannot execute.
+const CSP_META = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:;">';
 
 /**
  * Inject a Content-Security-Policy meta tag into the <head> of an HTML document.
