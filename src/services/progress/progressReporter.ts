@@ -25,6 +25,7 @@ import type {
     PhaseResolver,
 } from './types';
 import { statusBarBroker, type StatusBarTicket } from './statusBarBroker';
+import { formatElapsed } from './elapsed';
 
 const HEARTBEAT_MS = 30 * 1000;
 const ELAPSED_TICK_MS = 1000;
@@ -309,10 +310,26 @@ export class ProgressReporter<TKey extends string> {
         phaseEl.setAttr('role', 'status');
         phaseEl.setAttr('aria-live', 'polite');
 
+        // Elapsed ticker — gives command-flow Notices the same elapsed-time
+        // feedback the chat indicator + modal-inline surface already show
+        // (waiting-state-ux). aria-hidden so the 1s tick never spams a SR.
+        const elapsedEl = messageEl.createSpan({ cls: 'ai-organiser-progress-elapsed', text: '· 0:00' });
+        elapsedEl.setAttr('aria-hidden', 'true');
+
         const advisoryEl = messageEl.createSpan({ cls: 'ai-organiser-progress-advisory' });
         advisoryEl.setAttr('aria-live', 'polite');
 
         const barEl = this.total !== undefined ? this.buildProgressBar(messageEl) : null;
+
+        // Start the elapsed ticker for the Notice surface (mountInline starts its
+        // own). Idempotent: only one ticker runs at a time.
+        if (!this.elapsedTicker) {
+            this.elapsedTicker = setInterval(() => this.tickElapsed(), ELAPSED_TICK_MS);
+            this.disposables.push(() => {
+                if (this.elapsedTicker) clearInterval(this.elapsedTicker);
+                this.elapsedTicker = null;
+            });
+        }
 
         let cancelBtn: HTMLButtonElement | null = null;
         if (this.abortController) {
@@ -349,7 +366,7 @@ export class ProgressReporter<TKey extends string> {
             this.disposables.push(() => observer.disconnect());
         }
 
-        this.noticeDom = { messageEl, phaseEl, advisoryEl, barEl, cancelBtn };
+        this.noticeDom = { messageEl, phaseEl, elapsedEl, advisoryEl, barEl, cancelBtn };
     }
 
     private mountCancelOnlyNotice(): void {
@@ -445,9 +462,10 @@ export class ProgressReporter<TKey extends string> {
     }
 
     private tickElapsed(): void {
-        if (!this.inlineDom) return;
         const elapsed = Date.now() - this.startedAt;
-        this.inlineDom.elapsedEl.setText(`· ${formatDuration(elapsed)}`);
+        const text = `· ${formatElapsed(elapsed)}`;
+        this.inlineDom?.elapsedEl.setText(text);
+        this.noticeDom?.elapsedEl.setText(text);
     }
 
     private startHeartbeat(): void {
@@ -514,6 +532,7 @@ export class ProgressReporter<TKey extends string> {
 interface StableNoticeDom {
     messageEl: HTMLElement;
     phaseEl: HTMLElement;
+    elapsedEl: HTMLElement;
     advisoryEl: HTMLElement;
     barEl: HTMLElement | null;
     cancelBtn: HTMLButtonElement | null;
@@ -529,11 +548,9 @@ interface StableInlineDom {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Delegates to the shared SSOT formatter (waiting-state-ux). */
 function formatDuration(ms: number): string {
-    const totalSec = Math.max(0, Math.floor(ms / 1000));
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return formatElapsed(ms);
 }
 
 function neverAbortSignal(): AbortSignal {
