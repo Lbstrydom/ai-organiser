@@ -162,36 +162,45 @@ export function visualDataToBlock(v: VisualData): Block | null {
                 headers: v.columns.slice(0, 8),
                 rows: capWarn(v.rows, MAX_TABLE_ROWS_OUT, 'table rows').map((r) => r.cells.slice(0, 8).map((c) => c.value ?? c.text)),
             };
-        case 'waterfall': {
-            // Fallback (no native waterfall until Cluster C): bars for base + deltas.
-            // Bar length is magnitude-only; the label keeps the signed value so a
-            // negative delta isn't rendered as a positive bar (audit H11).
-            const all = capWarn([v.base, ...v.deltas], MAX_BARS, 'waterfall steps');
-            const max = Math.max(1, ...all.map((d) => Math.abs(d.value)));
+        case 'waterfall':
+            // Cluster C: native waterfall block (HTML bridge bars / PPTX shapes).
             return {
-                kind: 'bar-chart',
-                bars: all.map((d, idx) => ({ label: `${d.label} (${fmtValue(d.value, v.unit, idx > 0)})`, pct: clampPct((Math.abs(d.value) / max) * 100) })),
-                ...(v.unit ? { axisLabel: v.unit } : {}),
+                kind: 'waterfall',
+                base: { label: v.base.label, value: v.base.value },
+                deltas: capWarn(v.deltas, 10, 'waterfall deltas').map((d) => ({ label: d.label, value: d.value })),
+                ...(v.total ? { total: { label: v.total.label } } : {}),
+                ...(v.unit ? { unit: v.unit } : {}),
             };
-        }
         case 'line':
-            // Fallback (no native line until Cluster C): a table of points.
+            // Cluster C: native line-chart block (HTML SVG polyline / PPTX line chart).
             return {
-                kind: 'table',
-                headers: ['Series', 'x', 'y'],
-                rows: capWarn(v.series.flatMap((s) => s.points.map((p) => [s.label, p.x, String(p.y)])), MAX_TABLE_ROWS_OUT, 'line points'),
+                kind: 'line-chart',
+                series: capWarn(v.series, 4, 'line series').map((sr) => ({
+                    label: sr.label,
+                    points: capWarn(sr.points, 20, 'line points').map((p) => ({ x: p.x, y: p.y })),
+                })),
+                ...(v.series[0]?.unit ? { unit: v.series[0].unit } : {}),
             };
-        case '2x2':
-            // Cluster C: a styled 2×2 table (renderers honour style; legacy renders plain).
+        case '2x2': {
+            // Cluster C: a 3×3 styled matrix table — header row = x-axis labels, first
+            // column = y-axis labels, the 4 data cells = quadrant regions.
+            const byQuadrant = (q: 'tl' | 'tr' | 'bl' | 'br') => v.items.filter((it) => it.quadrant === q).map((it) => it.label).join(', ') || '—';
             return {
                 kind: 'table',
                 style: 'matrix-2x2',
-                headers: ['Item', `${v.y_axis.label} / ${v.x_axis.label}`],
-                rows: capWarn(v.items, MAX_TABLE_ROWS_OUT, '2x2 items').map((it) => [it.label, quadrantLabel(it.quadrant, v)]),
+                headers: [`${v.y_axis.label} / ${v.x_axis.label}`, v.x_axis.low_label, v.x_axis.high_label],
+                rows: [
+                    [v.y_axis.high_label, byQuadrant('tl'), byQuadrant('tr')],
+                    [v.y_axis.low_label, byQuadrant('bl'), byQuadrant('br')],
+                ],
             };
+        }
         case 'pyramid':
-            // Fallback (no native pyramid until Cluster C): ordered bullets top→bottom.
-            return { kind: 'bullets', ordered: true, items: capWarn(v.levels, MAX_BARS, 'pyramid levels').map((l) => (l.detail ? `${l.label} — ${l.detail}` : l.label)) };
+            // Cluster C: native pyramid block (stacked levels).
+            return {
+                kind: 'pyramid',
+                levels: capWarn(v.levels, 6, 'pyramid levels').map((l) => ({ label: l.label, ...(l.detail ? { detail: l.detail } : {}) })),
+            };
         case 'harvey': {
             // Cap columns ONCE so headers and every row's rating cells stay the same
             // width (audit M5 — was headers→7 but ratings→columns.length).
@@ -208,12 +217,6 @@ export function visualDataToBlock(v: VisualData): Block | null {
         default:
             return null; // 'bullets' | 'stat-grid' | 'process-flow' | 'none' → carried by core_message paragraph
     }
-}
-
-function quadrantLabel(q: 'tl' | 'tr' | 'bl' | 'br', v: Extract<VisualData, { type: '2x2' }>): string {
-    const yHi = q === 'tl' || q === 'tr';
-    const xHi = q === 'tr' || q === 'br';
-    return `${v.y_axis.label}: ${yHi ? v.y_axis.high_label : v.y_axis.low_label}; ${v.x_axis.label}: ${xHi ? v.x_axis.high_label : v.x_axis.low_label}`;
 }
 
 function slideToIr(slide: StoryboardSlide): SlideIr {

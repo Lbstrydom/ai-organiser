@@ -34,34 +34,45 @@ describe('visualDataToBlock', () => {
         expect(block).toEqual({ kind: 'table', headers: ['Metric', 'Q3'], rows: [['Revenue', '1.2M']] });
     });
 
-    it('line → table fallback (no native line until Cluster C)', () => {
-        const v: VisualData = { type: 'line', series: [{ label: 'Rev', points: [{ x: '22', y: 1, evidence_span_id: 'e1' }, { x: '23', y: 2, evidence_span_id: 'e2' }] }] };
+    it('line → native line-chart block (Cluster C)', () => {
+        const v: VisualData = { type: 'line', series: [{ label: 'Rev', unit: '%', points: [{ x: '22', y: 1, evidence_span_id: 'e1' }, { x: '23', y: 2, evidence_span_id: 'e2' }] }] };
         const block = visualDataToBlock(v);
-        expect(block?.kind).toBe('table');
-        if (block?.kind === 'table') expect(block.rows).toEqual([['Rev', '22', '1'], ['Rev', '23', '2']]);
-    });
-
-    it('waterfall → bar-chart fallback over base + deltas', () => {
-        const v: VisualData = { type: 'waterfall', unit: '€m', base: { label: 'Start', value: 100, evidence_span_id: 'e1' }, deltas: [{ label: 'EMEA', value: 20, evidence_span_id: 'e2' }] };
-        const block = visualDataToBlock(v);
-        expect(block?.kind).toBe('bar-chart');
-        if (block?.kind === 'bar-chart') {
-            expect(block.bars[0]).toEqual({ label: 'Start (100 €m)', pct: 100 });
-            expect(block.bars[1].label).toBe('EMEA (+20 €m)'); // signed delta preserved (H11)
+        expect(block?.kind).toBe('line-chart');
+        if (block?.kind === 'line-chart') {
+            expect(block.series[0].points).toEqual([{ x: '22', y: 1 }, { x: '23', y: 2 }]);
+            expect(block.unit).toBe('%');
         }
     });
 
-    it('2x2 → table fallback (item × quadrant)', () => {
+    it('waterfall → native waterfall block over base + deltas (Cluster C)', () => {
+        const v: VisualData = { type: 'waterfall', unit: '€m', base: { label: 'Start', value: 100, evidence_span_id: 'e1' }, deltas: [{ label: 'EMEA', value: 20, evidence_span_id: 'e2' }], total: { label: 'End' } };
+        const block = visualDataToBlock(v);
+        expect(block?.kind).toBe('waterfall');
+        if (block?.kind === 'waterfall') {
+            expect(block.base).toEqual({ label: 'Start', value: 100 });
+            expect(block.deltas[0]).toEqual({ label: 'EMEA', value: 20 });
+            expect(block.total).toEqual({ label: 'End' });
+            expect(block.unit).toBe('€m');
+        }
+    });
+
+    it('2x2 → matrix-2x2 styled 3×3 table (axis labels + quadrant cells) (Cluster C)', () => {
         const v: VisualData = { type: '2x2', x_axis: { label: 'Effort', low_label: 'Low', high_label: 'High' }, y_axis: { label: 'Impact', low_label: 'Low', high_label: 'High' }, items: [{ label: 'A', quadrant: 'tr' }] };
         const block = visualDataToBlock(v);
         expect(block?.kind).toBe('table');
-        if (block?.kind === 'table') expect(block.rows[0][1]).toContain('Impact: High');
+        if (block?.kind === 'table') {
+            expect(block.style).toBe('matrix-2x2');
+            expect(block.headers).toEqual(['Impact / Effort', 'Low', 'High']);
+            // row 0 = y-high; 'A' is top-right (y high, x high) → tr cell.
+            expect(block.rows[0]).toEqual(['High', '—', 'A']);
+            expect(block.rows[1]).toEqual(['Low', '—', '—']);
+        }
     });
 
-    it('pyramid → ordered bullets fallback', () => {
+    it('pyramid → native pyramid block (Cluster C)', () => {
         const v: VisualData = { type: 'pyramid', levels: [{ label: 'Vision' }, { label: 'Strategy', detail: 'the how' }] };
         const block = visualDataToBlock(v);
-        expect(block).toEqual({ kind: 'bullets', ordered: true, items: ['Vision', 'Strategy — the how'] });
+        expect(block).toEqual({ kind: 'pyramid', levels: [{ label: 'Vision' }, { label: 'Strategy', detail: 'the how' }] });
     });
 
     it('harvey → table fallback with filled/empty glyphs', () => {

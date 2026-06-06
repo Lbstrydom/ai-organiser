@@ -158,6 +158,102 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
     return parts.join('\n');
 }
 
+// ── Cluster C visual renderers (2×2 / harvey-rating / waterfall / line / pyramid) ──
+
+const POS_HEX = '#2E7D32';
+const NEG_HEX = '#C62828';
+const capHtml = (caption: string | undefined, theme: ExportTheme): string =>
+    caption ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${hx(theme.bodyColor)};opacity:0.65;margin-top:8px;">${esc(caption)}</div>` : '';
+
+/** A harvey-ball cell: visible glyphs + a CLIP-FREE visually-hidden "N of M" text node
+ *  (aria-* is stripped by the sanitizer — ALLOW_ARIA_ATTR:false; a real hidden text node
+ *  survives and is read by assistive tech). Non-rating cells (labels) pass through. */
+function ratingCellHtml(cell: string): string {
+    const filled = (cell.match(/●/g) || []).length;
+    const total = filled + (cell.match(/○/g) || []).length;
+    if (total === 0) return esc(cell);
+    return `${esc(cell)}<span style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap;">${filled} of ${total}</span>`;
+}
+
+/** 2×2 matrix from a 3×3 styled table: header row = x-axis labels, first column =
+ *  y-axis labels, the 4 data cells = quadrant regions (P1 a11y: real text nodes). */
+function render2x2Html(block: Extract<Block, { kind: 'table' }>, theme: ExportTheme): string {
+    const primary = hx(theme.primaryColor); const body = hx(theme.bodyColor);
+    const [, xLow = '', xHigh = ''] = block.headers;
+    const [yHigh = '', tl = '', tr = ''] = block.rows[0] ?? [];
+    const [yLow = '', bl = '', br = ''] = block.rows[1] ?? [];
+    const axis = (t: string) => `<div style="font-size:24px;font-weight:700;color:${primary};display:flex;align-items:center;justify-content:center;text-align:center;">${esc(t)}</div>`;
+    const quad = (items: string) => `<div data-quadrant="true" style="background:${tint(theme.accentColor)};border:2px solid ${tint(theme.accentColor, '55')};border-radius:10px;padding:24px;font-size:26px;color:${body};display:flex;align-items:center;justify-content:center;text-align:center;">${esc(items)}</div>`;
+    return `<div style="display:grid;grid-template-columns:80px 1fr 1fr;grid-template-rows:50px 1fr 1fr;gap:14px;flex:1;min-height:0;">`
+        + `<div></div>${axis(xLow)}${axis(xHigh)}`
+        + `${axis(yHigh)}${quad(tl)}${quad(tr)}`
+        + `${axis(yLow)}${quad(bl)}${quad(br)}</div>${capHtml(block.caption, theme)}`;
+}
+
+function renderWaterfallHtml(block: Extract<Block, { kind: 'waterfall' }>, theme: ExportTheme): string {
+    const primary = hx(theme.primaryColor); const body = hx(theme.bodyColor);
+    interface Step { label: string; value: number; lo: number; hi: number; isPillar: boolean; }
+    const steps: Step[] = [{ label: block.base.label, value: block.base.value, lo: Math.min(0, block.base.value), hi: Math.max(0, block.base.value), isPillar: true }];
+    let run = block.base.value;
+    for (const d of block.deltas) { const prev = run; run += d.value; steps.push({ label: d.label, value: d.value, lo: Math.min(prev, run), hi: Math.max(prev, run), isPillar: false }); }
+    if (block.total) steps.push({ label: block.total.label, value: run, lo: Math.min(0, run), hi: Math.max(0, run), isPillar: true });
+    const maxV = Math.max(1, ...steps.map(s => s.hi), ...steps.map(s => Math.abs(s.lo)));
+    const chartH = 360;
+    const unit = block.unit ? ` ${esc(block.unit)}` : '';
+    const cols = steps.map(s => {
+        const h = Math.max(2, ((s.hi - s.lo) / maxV) * chartH);
+        const bottom = (s.lo / maxV) * chartH;
+        const fill = s.isPillar ? primary : (s.value >= 0 ? POS_HEX : NEG_HEX);
+        const sign = !s.isPillar && s.value >= 0 ? '+' : '';
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;">`
+            + `<div style="font-size:22px;color:${body};margin-bottom:4px;">${sign}${s.value}${unit}</div>`
+            + `<div style="position:relative;width:100%;height:${chartH}px;">`
+            + `<div style="position:absolute;bottom:${bottom.toFixed(1)}px;left:15%;width:70%;height:${h.toFixed(1)}px;background:${fill};border-radius:4px;"></div></div>`
+            + `<div style="font-size:22px;color:${primary};font-weight:600;margin-top:8px;text-align:center;">${esc(s.label)}</div></div>`;
+    }).join('');
+    return `<div style="display:flex;gap:16px;align-items:flex-end;flex:1;min-height:0;">${cols}</div>${capHtml(block.caption, theme)}`;
+}
+
+function renderLineChartHtml(block: Extract<Block, { kind: 'line-chart' }>, theme: ExportTheme): string {
+    const W = 1200, H = 380, padL = 70, padB = 50, padT = 24, padR = 24;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const allY = block.series.flatMap(s => s.points.map(p => p.y));
+    const minY = Math.min(0, ...allY), maxY = Math.max(...allY, 1);
+    const xs = block.series[0].points.map(p => p.x);
+    const n = xs.length;
+    const xAt = (i: number) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+    const yAt = (v: number) => padT + plotH - ((v - minY) / (maxY - minY || 1)) * plotH;
+    const colors = [theme.accentColor, theme.primaryColor, '2E7D32', 'C62828'].map(c => hx(c));
+    const axisColor = hx(theme.bodyColor);
+    const lines = block.series.map((s, si) => {
+        const col = colors[si % colors.length];
+        const pts = s.points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.y).toFixed(1)}`).join(' ');
+        const dots = s.points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.y).toFixed(1)}" r="4" fill="${col}"></circle>`).join('');
+        return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="3"></polyline>${dots}`;
+    }).join('');
+    const xTicks = xs.map((x, i) => `<text x="${xAt(i).toFixed(1)}" y="${H - padB + 28}" font-size="20" fill="${axisColor}" text-anchor="middle">${esc(x)}</text>`).join('');
+    const legend = block.series.length > 1
+        ? block.series.map((s, si) => `<text x="${padL + si * 220}" y="14" font-size="20" fill="${colors[si % colors.length]}">${esc(s.label)}</text>`).join('') : '';
+    const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">`
+        + `<line x1="${padL}" y1="${padT + plotH}" x2="${W - padR}" y2="${padT + plotH}" stroke="${axisColor}" stroke-width="1"></line>`
+        + `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="${axisColor}" stroke-width="1"></line>`
+        + `${lines}${xTicks}${legend}</svg>`;
+    return `<div style="flex:1;display:flex;flex-direction:column;justify-content:center;">${svg}${capHtml(block.caption, theme)}</div>`;
+}
+
+function renderPyramidHtml(block: Extract<Block, { kind: 'pyramid' }>, theme: ExportTheme): string {
+    const accent = hx(theme.accentColor);
+    const n = block.levels.length;
+    const rows = block.levels.map((l, i) => {
+        const widthPct = Math.round(45 + (i / Math.max(1, n - 1)) * 55);
+        return `<div style="width:${widthPct}%;margin:0 auto 10px;background:${accent};color:#fff;padding:18px 24px;text-align:center;border-radius:6px;">`
+            + `<div style="font-size:28px;font-weight:700;">${esc(l.label)}</div>`
+            + (l.detail ? `<div style="font-size:22px;opacity:0.9;margin-top:4px;">${esc(l.detail)}</div>` : '')
+            + '</div>';
+    }).join('');
+    return `<div style="display:flex;flex-direction:column;flex:1;justify-content:center;min-height:0;">${rows}${capHtml(block.caption, theme)}</div>`;
+}
+
 /** Per-block isolation (audit M6) — a single throwing block is dropped + noticed
  *  instead of sinking the whole slide, matching the PPTX `flowBlocks` contract. */
 function renderBlockSafe(block: Block, slideIndex: number, theme: ExportTheme, notices: FidelityNotice[]): string {
@@ -236,12 +332,20 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
             return `<div style="display:flex;gap:14px;align-items:stretch;">${steps}</div>`;
         }
         case 'table': {
+            if (block.style === 'matrix-2x2') return render2x2Html(block, theme);
+            const isRating = block.style === 'rating';
             const headerFill = hx(IR_RENDER_SPEC.tableHeaderFill(theme));   // #1 — same fill as PPTX
             const head = `<thead><tr>${block.headers.map(h => `<th style="background:${headerFill};color:#fff;padding:18px 24px;text-align:left;font-size:${ptToPx(IR_RENDER_SPEC.font.tablePt(theme))}px;font-weight:700;">${esc(h)}</th>`).join('')}</tr></thead>`;
-            const rowsHtml = block.rows.map((r, ri) => `<tr style="background:${ri % 2 ? '#f6f8fa' : '#fff'};">${r.map(c => `<td style="padding:16px 24px;border-bottom:1px solid #e2e8f0;font-size:${ptToPx(IR_RENDER_SPEC.font.tablePt(theme))}px;color:${body};">${esc(c)}</td>`).join('')}</tr>`).join('');
+            const rowsHtml = block.rows.map((r, ri) => `<tr style="background:${ri % 2 ? '#f6f8fa' : '#fff'};">${r.map(c => `<td style="position:relative;padding:16px 24px;border-bottom:1px solid #e2e8f0;font-size:${ptToPx(IR_RENDER_SPEC.font.tablePt(theme))}px;color:${body};">${isRating ? ratingCellHtml(c) : esc(c)}</td>`).join('')}</tr>`).join('');
             const cap = block.caption ? `<div style="font-size:${ptToPx(IR_RENDER_SPEC.font.captionPt(theme))}px;color:${body};opacity:0.65;margin-bottom:10px;">${esc(block.caption)}</div>` : '';
             return `${cap}<table style="width:100%;border-collapse:collapse;">${head}<tbody>${rowsHtml}</tbody></table>`;
         }
+        case 'waterfall':
+            return renderWaterfallHtml(block, theme);
+        case 'line-chart':
+            return renderLineChartHtml(block, theme);
+        case 'pyramid':
+            return renderPyramidHtml(block, theme);
         case 'image':
             return `<div style="display:flex;justify-content:center;"><img src="${esc(block.dataUri)}" alt="${esc(block.alt ?? '')}" style="max-width:100%;max-height:${inToPx(CONTENT_WIDTH * IR_RENDER_SPEC.geometry.media.imageAspect)}px;" /></div>`;
         case 'svg': {

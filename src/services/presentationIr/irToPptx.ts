@@ -486,6 +486,12 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
         }
         case 'table':
             return renderTable(s, block, box, slideIndex, st);
+        case 'waterfall':
+            return renderWaterfallPptx(s, block, box, st);
+        case 'line-chart':
+            return renderLineChartPptx(s, block, box, slideIndex, st);
+        case 'pyramid':
+            return renderPyramidPptx(s, block, box, st);
         case 'image': {
             const h = Math.min(st.footerY - box.y, box.w * IR_RENDER_SPEC.geometry.media.imageAspect);
             s.addImage({ data: block.dataUri, x: box.x, y: box.y, w: box.w, h });
@@ -588,6 +594,9 @@ function renderBarChart(s: SlideLike, block: Extract<Block, { kind: 'bar-chart' 
 const TABLE_ROW_H = 0.35;
 
 function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box: Box, slideIndex: number, st: RenderState): number {
+    if (block.style === 'matrix-2x2') return render2x2Pptx(s, block, box, st);
+    // 'rating' renders as a normal table — the harvey glyphs are already in the
+    // cells; the a11y visually-hidden text node is an HTML-only concern.
     const theme = st.theme;
     const available = st.footerY - box.y;
     // Slice rows to those that actually fit (G3) — drawing N rows into a
@@ -606,6 +615,90 @@ function renderTable(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box
         // Shrink-to-fit (body − 3, hard floor 9), lower-bounded at the table floor.
         fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.tablePt(theme),
         border: { type: 'solid', pt: 0.5, color: 'DDDDDD' }, autoPage: false, valign: 'middle',
+    });
+    return h;
+}
+
+// ── Cluster C native consultant blocks (PPTX parity with irToHtml) ───────────
+const PPTX_POS = '2E7D32';
+const PPTX_NEG = 'C62828';
+
+/** 2×2 matrix from a 3×3 styled table: 4 quadrant rects + axis labels. */
+function render2x2Pptx(s: SlideLike, block: Extract<Block, { kind: 'table' }>, box: Box, st: RenderState): number {
+    const theme = st.theme;
+    const h = Math.min(st.footerY - box.y, 4.2);
+    const [, xLow = '', xHigh = ''] = block.headers;
+    const [yHigh = '', tl = '', tr = ''] = block.rows[0] ?? [];
+    const [yLow = '', bl = '', br = ''] = block.rows[1] ?? [];
+    const axisW = 0.7, axisH = 0.4;
+    const gridX = box.x + axisW, gridY = box.y + axisH;
+    const cellW = (box.w - axisW) / 2, cellH = (h - axisH) / 2;
+    const ax = (t: string, x: number, y: number, w: number, hh: number) =>
+        s.addText(t, { x, y, w, h: hh, fontFace: theme.fontFace, fontSize: 11, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'middle' });
+    ax(xLow, gridX, box.y, cellW, axisH); ax(xHigh, gridX + cellW, box.y, cellW, axisH);
+    ax(yHigh, box.x, gridY, axisW, cellH); ax(yLow, box.x, gridY + cellH, axisW, cellH);
+    const quad = (t: string, x: number, y: number) => {
+        s.addShape('rect', { x, y, w: cellW - 0.06, h: cellH - 0.06, fill: { color: lighten(theme.accentColor) }, line: { color: hx(theme.accentColor), width: 1 } });
+        s.addText(t, { x, y, w: cellW - 0.06, h: cellH - 0.06, fontFace: theme.fontFace, fontSize: 11, color: hx(theme.bodyColor), align: 'center', valign: 'middle' });
+    };
+    quad(tl, gridX, gridY); quad(tr, gridX + cellW, gridY); quad(bl, gridX, gridY + cellH); quad(br, gridX + cellW, gridY + cellH);
+    return h;
+}
+
+function renderWaterfallPptx(s: SlideLike, block: Extract<Block, { kind: 'waterfall' }>, box: Box, st: RenderState): number {
+    const theme = st.theme;
+    const h = Math.min(st.footerY - box.y, 3.6);
+    interface Step { label: string; value: number; lo: number; hi: number; isPillar: boolean; }
+    const steps: Step[] = [{ label: block.base.label, value: block.base.value, lo: Math.min(0, block.base.value), hi: Math.max(0, block.base.value), isPillar: true }];
+    let run = block.base.value;
+    for (const d of block.deltas) { const prev = run; run += d.value; steps.push({ label: d.label, value: d.value, lo: Math.min(prev, run), hi: Math.max(prev, run), isPillar: false }); }
+    if (block.total) steps.push({ label: block.total.label, value: run, lo: Math.min(0, run), hi: Math.max(0, run), isPillar: true });
+    const maxV = Math.max(1, ...steps.map(x => x.hi), ...steps.map(x => Math.abs(x.lo)));
+    const valueH = 0.25, labelH = 0.3, chartTop = box.y + valueH, chartH = h - valueH - labelH;
+    const n = steps.length, gap = 0.12, colW = (box.w - gap * (n - 1)) / n;
+    steps.forEach((x, i) => {
+        const cx = box.x + i * (colW + gap);
+        const barH = Math.max(0.04, ((x.hi - x.lo) / maxV) * chartH);
+        const barY = chartTop + chartH - (x.hi / maxV) * chartH;
+        const fill = x.isPillar ? hx(theme.primaryColor) : (x.value >= 0 ? PPTX_POS : PPTX_NEG);
+        const sign = !x.isPillar && x.value >= 0 ? '+' : '';
+        s.addText(`${sign}${x.value}`, { x: cx, y: box.y, w: colW, h: valueH, fontFace: theme.fontFace, fontSize: 10, color: hx(theme.bodyColor), align: 'center', valign: 'bottom' });
+        s.addShape('rect', { x: cx + colW * 0.15, y: barY, w: colW * 0.7, h: barH, fill: { color: fill }, line: { width: 0 } });
+        s.addText(x.label, { x: cx, y: chartTop + chartH + 0.02, w: colW, h: labelH, fontFace: theme.fontFace, fontSize: 10, bold: true, color: hx(theme.primaryColor), align: 'center', valign: 'top' });
+    });
+    return h;
+}
+
+function renderLineChartPptx(s: SlideLike, block: Extract<Block, { kind: 'line-chart' }>, box: Box, slideIndex: number, st: RenderState): number {
+    const theme = st.theme;
+    const h = Math.min(st.footerY - box.y, 3.6);
+    try {
+        const labels = block.series[0].points.map(p => p.x);
+        const data = block.series.map(ser => ({ name: ser.label, labels, values: ser.points.map(p => p.y) }));
+        s.addChart('line', data, {
+            x: box.x, y: box.y, w: box.w, h, showLegend: block.series.length > 1, legendPos: 't',
+            lineDataSymbol: 'circle', chartColors: [hx(theme.accentColor), hx(theme.primaryColor), PPTX_POS, PPTX_NEG],
+        });
+    } catch (e) {
+        st.downgrades.push(`line-chart native fallback: ${msg(e)}`);
+        st.notices.push({ slideIndex, blockKind: 'line-chart', severity: 'info', description: 'native line chart unavailable; rendered as a summary.' });
+        const summary = block.series.map(ser => `${ser.label}: ${ser.points.map(p => `${p.x}=${p.y}`).join(', ')}`).join('\n');
+        s.addText(summary, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: IR_RENDER_SPEC.font.tablePt(theme), color: hx(theme.bodyColor), valign: 'top' });
+    }
+    return h;
+}
+
+function renderPyramidPptx(s: SlideLike, block: Extract<Block, { kind: 'pyramid' }>, box: Box, st: RenderState): number {
+    const theme = st.theme;
+    const n = block.levels.length;
+    const rowH = Math.min(0.7, Math.max(0.3, (st.footerY - box.y) / n - 0.08));
+    const h = Math.min(st.footerY - box.y, n * (rowH + 0.08));
+    block.levels.forEach((l, i) => {
+        const lw = box.w * ((45 + (i / Math.max(1, n - 1)) * 55) / 100);
+        const lx = box.x + (box.w - lw) / 2;
+        const ly = box.y + i * (rowH + 0.08);
+        s.addShape('rect', { x: lx, y: ly, w: lw, h: rowH, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
+        s.addText(l.label + (l.detail ? `\n${l.detail}` : ''), { x: lx, y: ly, w: lw, h: rowH, fontFace: theme.fontFace, fontSize: 11, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' });
     });
     return h;
 }

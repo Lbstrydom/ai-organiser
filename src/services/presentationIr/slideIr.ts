@@ -151,11 +151,37 @@ const customBlock = z.object({
     fallbackText: text.optional(),
 }).strict();
 
+// ── Cluster C native consultant blocks (waterfall / line / pyramid) ──────────
+const waterfallBlock = z.object({
+    kind: z.literal('waterfall'),
+    base: z.object({ label: text, value: z.number() }).strict(),
+    deltas: z.array(z.object({ label: text, value: z.number() }).strict()).min(1).max(10),
+    total: z.object({ label: text }).strict().optional(),
+    unit: text.optional(),
+    caption: text.optional(),
+}).strict();
+
+const lineChartBlock = z.object({
+    kind: z.literal('line-chart'),
+    series: z.array(z.object({
+        label: text,
+        points: z.array(z.object({ x: text, y: z.number() }).strict()).min(2).max(20),
+    }).strict()).min(1).max(4),
+    unit: text.optional(),
+    caption: text.optional(),
+}).strict();
+
+const pyramidBlock = z.object({
+    kind: z.literal('pyramid'),
+    levels: z.array(z.object({ label: text, detail: text.optional() }).strict()).min(2).max(6),
+    caption: text.optional(),
+}).strict();
+
 /** Leaf variants — usable inside a two-column block (no nested columns). */
 const LEAF_MEMBERS = [
     headingBlock, paragraphBlock, bulletsBlock, statGridBlock, barChartBlock,
     processFlowBlock, tableBlock, imageBlock, svgBlock, calloutBlock,
-    captionBlock, customBlock,
+    captionBlock, customBlock, waterfallBlock, lineChartBlock, pyramidBlock,
 ] as const;
 
 export const LeafBlockSchema = z.discriminatedUnion('kind', LEAF_MEMBERS);
