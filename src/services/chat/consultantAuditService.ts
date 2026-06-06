@@ -116,7 +116,7 @@ const DIMENSIONS: readonly StructuralDimension[] = ['grounding', 'action-title',
 const SEVERITIES: readonly Severity[] = ['blocker', 'major', 'minor'];
 
 /** Runtime-validate an LLM judge finding (audit M12 — the seam is LLM-fed). */
-function isValidFinding(f: unknown): f is StructuralFinding {
+export function isValidFinding(f: unknown): f is StructuralFinding {
     if (!f || typeof f !== 'object') return false;
     const x = f as Record<string, unknown>;
     return DIMENSIONS.includes(x.dimension as StructuralDimension)
