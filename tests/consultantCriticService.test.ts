@@ -73,6 +73,15 @@ describe('buildStoryboardJudge (independent critic)', () => {
         expect(summarizeText).not.toHaveBeenCalled();
     });
 
+    it('bounds an untrusted runaway message + caps the finding count (audit M16)', async () => {
+        const huge = 'x'.repeat(5000);
+        const many = Array.from({ length: 80 }, () => ({ dimension: 'mece', severity: 'minor', message: huge }));
+        mockResolve(JSON.stringify(many));
+        const verdict = await buildStoryboardJudge(ctx, catalog)(storyboard);
+        expect(verdict.findings.length).toBeLessThanOrEqual(50);
+        expect(verdict.findings[0].message.length).toBe(500);
+    });
+
     it('aborts cleanly mid-call', async () => {
         const controller = new AbortController();
         vi.mocked(summarizeText).mockImplementation(async () => { controller.abort(); return { success: true, content: '[]' } as never; });

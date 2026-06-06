@@ -72,11 +72,14 @@ function parseCriticFindings(content: string): StructuralFinding[] {
     const parsed = tryExtractJson(content);
     const arr = Array.isArray(parsed) ? parsed : [];
     const out: StructuralFinding[] = [];
-    for (const raw of arr) {
+    for (const raw of arr.slice(0, 50)) { // cap the number of untrusted findings
         if (!raw || typeof raw !== 'object') continue;
         const r = raw as Record<string, unknown>;
         const slideId = typeof r.slideId === 'string' && r.slideId && r.slideId !== 'null' ? r.slideId : undefined;
-        const candidate = { slideId, dimension: r.dimension, severity: r.severity, message: r.message };
+        // Bound the untrusted diagnostic message (audit M16) so a runaway LLM
+        // response can't inject a huge string into the audit/UI.
+        const message = typeof r.message === 'string' ? r.message.slice(0, 500) : r.message;
+        const candidate = { slideId, dimension: r.dimension, severity: r.severity, message };
         if (isValidFinding(candidate)) out.push(candidate);
     }
     return out;
