@@ -82,6 +82,12 @@ describe('numeric matching is token-bounded (audit H10)', () => {
         const c = checkClaim('revenue hit 50 billion', src, { slideId: 's1', field: 'action_title' });
         expect(c.tier === 'exact' || c.tier === 'numeric').toBe(true);
     });
+    it('a dot-prefixed decimal (.5%) is treated as a NUMBER, not text (renderer-gate HIGH)', () => {
+        const c = checkClaim('margin improved by .5%', [], { slideId: 's1', field: 'action_title' });
+        expect(c.tier).toBe('ungrounded'); // recognised as a number with no cited span (was silently "grounded-text")
+        const ok = checkClaim('margin improved by .5%', [{ id: 'e1', source_ref: 's', text: 'Margin rose .5% in Q3.' }], { slideId: 's1', field: 'action_title' });
+        expect(ok.tier === 'exact' || ok.tier === 'numeric').toBe(true); // and it matches a verbatim .5% source
+    });
     it('"60 percent" in a span matches a "60%" claim (audit M6/M12)', () => {
         const pctSpan: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'EMEA was 60 percent of growth.' }];
         const c = checkClaim('EMEA drove 60% of growth', pctSpan, { slideId: 's1', field: 'action_title' });

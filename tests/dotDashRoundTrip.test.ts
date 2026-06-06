@@ -54,6 +54,30 @@ describe('dot-dash round-trip', () => {
         }
     });
 
+    it('captures a multi-line (wrapped) bullet, not just its first line (renderer-gate)', () => {
+        let md = storyboardToMarkdown(storyboard);
+        md = md.replace('- EMEA led every region this quarter', '- EMEA led every region this quarter\n  and the trend held into Q4');
+        const r = markdownToStoryboard(md);
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.storyboard.slides[0].core_message).toContain('EMEA led every region');
+            expect(r.value.storyboard.slides[0].core_message).toContain('trend held into Q4');
+        }
+    });
+
+    it('preserves section groupings across the round-trip (renderer-gate)', () => {
+        const withSections = sb({
+            schemaVersion: 1, thesis: 'Growth was regionally concentrated',
+            sections: [{ label: 'The situation', slide_ids: ['s1'] }, { label: 'The ask', slide_ids: ['s2'] }],
+            slides: storyboard.slides,
+        });
+        const r = markdownToStoryboard(storyboardToMarkdown(withSections));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.storyboard.sections).toEqual([{ label: 'The situation', slide_ids: ['s1'] }, { label: 'The ask', slide_ids: ['s2'] }]);
+        }
+    });
+
     it('a user-edited action title survives the round-trip', () => {
         const md = storyboardToMarkdown(storyboard).replace('EMEA drove 60% of Q3 growth', 'EMEA delivered the bulk of Q3 growth');
         const r = markdownToStoryboard(md);

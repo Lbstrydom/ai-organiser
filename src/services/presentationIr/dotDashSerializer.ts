@@ -14,7 +14,7 @@ import type { ConsultantStoryboard, StoryboardSlide } from './consultantStoryboa
 // Neutral, same-layer type import (audit M16 — no upward dependency on chat/).
 import type { StructuralFinding } from './structuralAuditTypes';
 import { DECK_LEVEL_KEY } from './structuralAuditTypes';
-import { encodeAnchor, SLIDE_ANCHOR } from './dotDashAnchor';
+import { encodeAnchor, encodeMetaComment, SLIDE_ANCHOR } from './dotDashAnchor';
 
 function slideAnchor(slide: StoryboardSlide): string {
     // Compact machine state — id/role/visual + the full visual_data + evidence ids.
@@ -66,6 +66,9 @@ export function storyboardToMarkdown(storyboard: ConsultantStoryboard, options: 
     out.push(`# ${oneLine(options.deckName ?? 'Storyline')}`);
     out.push('');
     out.push(`> **Thesis:** ${oneLine(storyboard.thesis)}`);
+    // Preserve the LLM's section groupings across the round-trip (renderer-gate MEDIUM —
+    // they have no visible prose form, so they ride a hidden deck-level meta comment).
+    if (storyboard.sections?.length) out.push(encodeMetaComment('aio-sections', storyboard.sections));
     out.push('');
     out.push('_Review the storyline below. Edit the titles + supporting points directly, or leave `<!-- comment: … -->` notes, then run **Build slides from this storyline**. The hidden anchors carry the chart data — leave them in place. The `> visual:` line is display-only; to change a chart, describe it in chat (e.g. "make slide 3 a 2×2")._');
     out.push('');

@@ -39,6 +39,19 @@ export type DecodedAnchor =
 /** Match an anchor comment in a slide body and decode it. Fail-safe (never throws). */
 const ANCHOR_RE = new RegExp(`<!--\\s*${SLIDE_ANCHOR}:(\\d+)\\s+([A-Za-z0-9+/=]+)\\s*-->`);
 
+/** Generic deck-level base64 meta comment (e.g. `aio-sections`) — same `-->`-safe
+ *  encoding as the slide anchor, for round-tripping storyboard metadata that has no
+ *  visible prose form. */
+export function encodeMetaComment(tag: string, value: unknown): string {
+    return `<!-- ${tag}:${ANCHOR_VERSION} ${utf8ToBase64(JSON.stringify(value))} -->`;
+}
+
+export function decodeMetaComment(tag: string, md: string): unknown {
+    const m = md.match(new RegExp(`<!--\\s*${tag}:\\d+\\s+([A-Za-z0-9+/=]+)\\s*-->`));
+    if (!m) return undefined;
+    try { return JSON.parse(base64ToUtf8(m[1])); } catch { return undefined; }
+}
+
 export function findAndDecodeAnchor(body: string): DecodedAnchor | null {
     const m = body.match(ANCHOR_RE);
     if (!m) return null; // no anchor present (caller treats the slide as fresh)

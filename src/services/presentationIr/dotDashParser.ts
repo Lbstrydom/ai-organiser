@@ -13,7 +13,7 @@ import type { Result } from '../../core/result';
 import { ok, err } from '../../core/result';
 import type { ConsultantStoryboard } from './consultantStoryboard';
 import { consultantStoryboardSchema, STORYBOARD_SCHEMA_VERSION } from './consultantStoryboard';
-import { findAndDecodeAnchor } from './dotDashAnchor';
+import { findAndDecodeAnchor, decodeMetaComment } from './dotDashAnchor';
 
 export interface SlideComment { readonly slideId: string; readonly comment: string; }
 export interface ParsedStoryline {
@@ -71,11 +71,24 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
             evidence_span_ids = Array.isArray(state.evidence_span_ids) ? state.evidence_span_ids : [];
         }
 
-        // Supporting prose = ALL `- ` dot-dash bullets (consolidated gate R2 HIGH —
-        // capturing only the first silently discarded the user's added bullets). The
-        // `>`-prefixed finding lines and the anchor are excluded by the `^\s*-` anchor.
-        const bullets = body.split('\n').filter((l) => /^\s*-\s+/.test(l)).map((l) => l.replace(/^\s*-\s+/, '').trim()).filter(Boolean);
-        const core_message = bullets.length ? bullets.join(' ') : title;
+        // Supporting prose = ALL `- ` dot-dash bullets INCLUDING their wrapped
+        // continuation lines (renderer-gate MEDIUM — a multi-line bullet the user wrote
+        // during review otherwise lost its continuation). A blank line, a `>` finding
+        // line, or a comment ends the current bullet.
+        const bullets: string[] = [];
+        let current: string | null = null;
+        for (const line of body.split('\n')) {
+            if (/^\s*-\s+/.test(line)) {
+                if (current !== null) bullets.push(current);
+                current = line.replace(/^\s*-\s+/, '').trim();
+            } else if (current !== null) {
+                const t = line.trim();
+                if (!t || t.startsWith('>') || t.startsWith('<!--')) { bullets.push(current); current = null; }
+                else current += ' ' + t;
+            }
+        }
+        if (current !== null) bullets.push(current);
+        const core_message = bullets.length ? bullets.join(' ').trim() : title;
 
         // Lift comments in this section.
         for (const m of body.matchAll(COMMENT_RE)) {
@@ -86,7 +99,11 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
         slides.push({ id, role, action_title: title, core_message, evidence_span_ids, suggested_visual, visual_data });
     }
 
-    const candidate = { schemaVersion: STORYBOARD_SCHEMA_VERSION, thesis, slides };
+    // Restore the LLM's section groupings (renderer-gate MEDIUM); omit when absent so
+    // the schema's optional field stays undefined rather than an empty array.
+    const sectionMeta = decodeMetaComment('aio-sections', md);
+    const candidate: Record<string, unknown> = { schemaVersion: STORYBOARD_SCHEMA_VERSION, thesis, slides };
+    if (Array.isArray(sectionMeta)) candidate.sections = sectionMeta;
     const parsed = consultantStoryboardSchema.safeParse(candidate);
     if (!parsed.success) {
         const f = parsed.error.issues[0];

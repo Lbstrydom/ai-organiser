@@ -46,7 +46,9 @@ export interface GroundingReport {
 // Captures a trailing "%" / "percent" (M6/M12) AND a magnitude suffix (k / m / b /
 // t, attached or as a word) so "$50 billion" tokenises WITH its magnitude — the
 // `[kmbt](?![a-z])` guard means "60 models" does NOT capture a spurious "m".
-const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
+// Leading-OR-dot-prefixed decimals (renderer-gate HIGH): ".5" / "-.25" must tokenise
+// as numbers, else a dot-prefixed figure slips through grounding as "text".
+const NUMERIC_RE = /-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
 
 /**
  * Magnitude key of a numeric token (audit, consolidated gate H1): '$50 billion' →
@@ -66,14 +68,14 @@ function magnitudeKey(token: string): string {
 
 // A cell is a NUMBER (not a label-with-a-digit) only when the whole value is
 // numeric — currency prefix + thousands + decimal + optional %/percent (audit H10).
-const NUMERIC_CELL_RE = /^[\s$€£]*-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent)?\s*$/i;
+const NUMERIC_CELL_RE = /^[\s$€£]*-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent)?\s*$/i;
 
 /** Normalise a numeric token to a canonical numeric value for matching:
  *  "60%"→0.6, "60 percent"→0.6, "0.60"→0.6, "1,234"→1234, "64"→64. */
 export function normaliseNumeric(token: string): number | null {
     const t = token.trim().toLowerCase().replace(/,/g, '');
     const pct = /%|percent/.test(t);
-    const m = t.match(/-?\d+(?:\.\d+)?/);
+    const m = t.match(/-?(?:\d+(?:\.\d+)?|\.\d+)/);
     if (!m) return null;
     let n = parseFloat(m[0]);
     if (Number.isNaN(n)) return null;
