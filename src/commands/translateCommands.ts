@@ -31,7 +31,7 @@ import {
     addReferenceText,
 } from '../services/noteEdit/noteMutation';
 import { summarizeText, pluginContext } from '../services/llmFacade';
-import { withBusyIndicator } from '../utils/busyIndicator';
+import { withProgress } from '../services/progress';
 import { detectSourcesFromContent, hasAnySources } from '../utils/sourceDetection';
 import { fetchArticle, chunkContent } from '../services/webContentService';
 import { getTranslationChunkChars } from '../services/tokenLimits';
@@ -205,55 +205,69 @@ async function translateNote(
     noticeMessage?: string,
     useInsertAtCursor = false
 ): Promise<void> {
-    new Notice(noticeMessage || plugin.t.messages.translating);
-
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    try {
-        const translated = await translateSourceContent(plugin, content, targetLanguage, serviceType);
+    // Progress via ProgressReporter — gains the shared elapsed ticker +
+    // status-bar broker + heartbeat (waiting-state-ux Cluster B). Inner catch
+    // disposes (not fail) so it never double-toasts with the specific notice.
+    const phaseText = noticeMessage || plugin.t.messages.translating;
+    type TranslatePhase = 'progress';
+    await withProgress<void, TranslatePhase>(
+        {
+            plugin,
+            initialPhase: { key: 'progress', params: { text: phaseText } },
+            resolvePhase: (p) => (typeof p.params?.text === 'string' ? p.params.text : ''),
+        },
+        async (reporter) => {
+            try {
+                const translated = await translateSourceContent(plugin, content, targetLanguage, serviceType);
 
-        if (!translated) {
-            new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
-            return;
-        }
+                if (!translated) {
+                    reporter.dispose();
+                    new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
+                    return;
+                }
 
-        const structureEnabled = plugin.settings.autoEnsureNoteStructure;
-        let target: EditTarget;
-        if (useInsertAtCursor) {
-            // Insert at the captured cursor anchor (padding matches the legacy insertAtCursor).
-            target = {
-                kind: 'composite',
-                filePath: snapshot.filePath,
-                baseline: snapshot.baseline,
-                recompute: new NoteMutation()
-                    .insertAtAnchor(snapshot.cursorAnchor, `\n\n${translated}\n`)
-                    .ensureStructure(structureEnabled)
-                    .build(),
-            };
-        } else {
-            // Genuine whole-note rewrite — replace main content (preserving trailing
-            // sections), with a strict baseline gate (abort + preserve on concurrent edit).
-            target = {
-                kind: 'full-replace',
-                filePath: snapshot.filePath,
-                baseline: snapshot.baseline,
-                nextContent: ensureStructureText(
-                    replaceMainContentText(snapshot.baseline, translated),
-                    structureEnabled,
-                ),
-            };
-        }
+                const structureEnabled = plugin.settings.autoEnsureNoteStructure;
+                let target: EditTarget;
+                if (useInsertAtCursor) {
+                    // Insert at the captured cursor anchor (padding matches the legacy insertAtCursor).
+                    target = {
+                        kind: 'composite',
+                        filePath: snapshot.filePath,
+                        baseline: snapshot.baseline,
+                        recompute: new NoteMutation()
+                            .insertAtAnchor(snapshot.cursorAnchor, `\n\n${translated}\n`)
+                            .ensureStructure(structureEnabled)
+                            .build(),
+                    };
+                } else {
+                    // Genuine whole-note rewrite — replace main content (preserving trailing
+                    // sections), with a strict baseline gate (abort + preserve on concurrent edit).
+                    target = {
+                        kind: 'full-replace',
+                        filePath: snapshot.filePath,
+                        baseline: snapshot.baseline,
+                        nextContent: ensureStructureText(
+                            replaceMainContentText(snapshot.baseline, translated),
+                            structureEnabled,
+                        ),
+                    };
+                }
 
-        const r = await applyNoteEdit(plugin, target, { review: true });
-        if (r.ok) {
-            new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
-        new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
-    }
+                const r = await applyNoteEdit(plugin, target, { review: true });
+                if (r.ok) {
+                    new Notice(plugin.t.messages.noteTranslatedSuccess, 3000);
+                }
+            } catch (error) {
+                reporter.dispose();
+                const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+                new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
+            }
+        },
+    );
 }
 
 /**
@@ -268,39 +282,56 @@ async function translateSelection(
         new Notice(plugin.t.messages.noSelection || 'Please select text to translate');
         return;
     }
-    new Notice(plugin.t.messages.translating);
 
     const serviceType = plugin.settings.serviceType === 'cloud'
         ? plugin.settings.cloudServiceType
         : 'local';
 
-    try {
-        const translated = await translateSourceContent(plugin, snapshot.selection.selected, targetLanguage, serviceType);
+    // Progress via ProgressReporter — shared elapsed ticker + status-bar broker
+    // + heartbeat (waiting-state-ux Cluster B). Inner catch disposes (not fail)
+    // so it never double-toasts with the specific notice.
+    type TranslatePhase = 'progress';
+    await withProgress<void, TranslatePhase>(
+        {
+            plugin,
+            initialPhase: { key: 'progress', params: { text: plugin.t.messages.translating } },
+            resolvePhase: (p) => (typeof p.params?.text === 'string' ? p.params.text : ''),
+        },
+        async (reporter) => {
+            try {
+                // snapshot.selection is non-null here (guarded above).
+                const selection = snapshot.selection;
+                if (!selection) return;
+                const translated = await translateSourceContent(plugin, selection.selected, targetLanguage, serviceType);
 
-        if (!translated) {
-            new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
-            return;
-        }
+                if (!translated) {
+                    reporter.dispose();
+                    new Notice(`${plugin.t.messages.translationFailed}: ${plugin.t.messages.unknownError}`, 5000);
+                    return;
+                }
 
-        // Replace the captured selection (re-located by its anchors at commit), then
-        // ensure structure — one composed, reviewed mutation.
-        const target: EditTarget = {
-            kind: 'composite',
-            filePath: snapshot.filePath,
-            baseline: snapshot.baseline,
-            recompute: new NoteMutation()
-                .replaceSelection(snapshot.selection, translated)
-                .ensureStructure(plugin.settings.autoEnsureNoteStructure)
-                .build(),
-        };
-        const r = await applyNoteEdit(plugin, target, { review: true });
-        if (r.ok) {
-            new Notice(plugin.t.messages.selectionTranslatedSuccess, 3000);
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
-        new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
-    }
+                // Replace the captured selection (re-located by its anchors at commit), then
+                // ensure structure — one composed, reviewed mutation.
+                const target: EditTarget = {
+                    kind: 'composite',
+                    filePath: snapshot.filePath,
+                    baseline: snapshot.baseline,
+                    recompute: new NoteMutation()
+                        .replaceSelection(selection, translated)
+                        .ensureStructure(plugin.settings.autoEnsureNoteStructure)
+                        .build(),
+                };
+                const r = await applyNoteEdit(plugin, target, { review: true });
+                if (r.ok) {
+                    new Notice(plugin.t.messages.selectionTranslatedSuccess, 3000);
+                }
+            } catch (error) {
+                reporter.dispose();
+                const errorMessage = error instanceof Error ? error.message : plugin.t.messages.unknownError;
+                new Notice(`${plugin.t.messages.translationFailed}: ${errorMessage}`, 5000);
+            }
+        },
+    );
 }
 
 /**
@@ -311,8 +342,9 @@ async function translateWithLLM(
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
     // D3: hold the foreground gate so background indexing yields during translation.
-    return await plugin.withForeground(() =>
-        withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt)));
+    // Status bar is owned by each command's ProgressReporter (waiting-state-ux
+    // Cluster B) — no nested busy indicator here (would fight the broker).
+    return await plugin.withForeground(() => summarizeText(pluginContext(plugin), prompt));
 }
 
 // ─── Multi-Source Translation ───────────────────────────────────────
@@ -372,221 +404,237 @@ async function handleMultiSourceTranslate(
         }
     }
 
-    // Begin multi-source processing — persistent Notice updated per source
-    // (replaces prior flash-notice-per-source anti-pattern).
-    const _progressNotice = new Notice(
-        (plugin.t.messages.translatingMultipleSources || 'Translating {count} sources...')
-            .replace('{count}', String(totalSources)),
-        0,
-    );
-    const hideProgress = (): void => { try { _progressNotice.hide(); } catch { /* noop */ } };
+    // Multi-source processing via ProgressReporter — gains the shared elapsed
+    // ticker + status-bar broker + heartbeat (waiting-state-ux Cluster B). The
+    // reporter spans the FULL operation (per-source work + final assembly) so
+    // the status bar stays up until the command's real end; on any exit the
+    // wrapper tears it down (succeed on return, fail on throw). Per-source
+    // errors are isolated inside the loops, so a throw reaching the wrapper is a
+    // genuinely unexpected failure.
+    type TranslatePhase = 'progress';
+    await withProgress<void, TranslatePhase>(
+        {
+            plugin,
+            initialPhase: {
+                key: 'progress',
+                params: {
+                    text: (plugin.t.messages.translatingMultipleSources || 'Translating {count} sources...')
+                        .replace('{count}', String(totalSources)),
+                },
+            },
+            resolvePhase: (p) => (typeof p.params?.text === 'string' ? p.params.text : ''),
+        },
+        async (reporter) => {
+            const allSources: TranslatedSource[] = [];
+            const today = getTodayDate();
+            let processedCount = 0;
 
-    const allSources: TranslatedSource[] = [];
-    const today = getTodayDate();
-    let processedCount = 0;
+            const showProgress = (name: string): void => {
+                reporter.setPhase({
+                    key: 'progress',
+                    params: {
+                        text: (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}: {name}')
+                            .replace('{current}', String(processedCount + 1))
+                            .replace('{total}', String(totalSources))
+                            .replace('{name}', name),
+                    },
+                });
+            };
 
-    const showProgress = (name: string): void => {
-        _progressNotice.setMessage(
-            (plugin.t.messages.translatingSourceProgress || 'Translating {current}/{total}: {name}')
-                .replace('{current}', String(processedCount + 1))
-                .replace('{total}', String(totalSources))
-                .replace('{name}', name),
-        );
-    };
+            /** Display name for a source — hostname for URLs, basename for paths. */
+            const sourceDisplayName = (raw: string): string => {
+                try {
+                    const u = new URL(raw);
+                    return u.hostname.replace(/^www\./, '');
+                } catch {
+                    return raw.split('/').pop() ?? raw;
+                }
+            };
 
-    /** Display name for a source — hostname for URLs, basename for paths. */
-    const sourceDisplayName = (raw: string): string => {
-        try {
-            const u = new URL(raw);
-            return u.hostname.replace(/^www\./, '');
-        } catch {
-            return raw.split('/').pop() ?? raw;
-        }
-    };
-
-    // ── Process note content first ──
-    if (result.summarizeNote && view.file) {
-        showProgress(view.file.basename);
-        try {
-            // Use the content captured at command start to capture unsaved edits
-            // Strip References/Pending sections to prevent duplication via the main-content replace
-            const noteContent = stripTrailingSections(snapshot.baseline);
-            new Notice(plugin.t.messages.translatingFullNote || 'Translating note...', 5000);
-            const translated = await translateSourceContent(plugin, noteContent, targetLanguage, serviceType);
-            allSources.push({
-                type: 'note',
-                title: view.file.basename,
-                date: today,
-                success: !!translated,
-                translation: translated || undefined,
-                error: translated ? undefined : 'Failed to translate note content'
-            });
-        } catch (e) {
-            logger.error('Summary', 'Failed to translate note:', e);
-            allSources.push({
-                type: 'note',
-                title: view.file.basename,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process URLs ──
-    for (const url of result.sources.urls) {
-        showProgress(sourceDisplayName(url));
-        try {
-            const translated = await extractAndTranslateUrl(plugin, url, targetLanguage, serviceType);
-            allSources.push(translated);
-        } catch (e) {
-            logger.error('Summary', `Failed to translate URL ${url}:`, e);
-            allSources.push({
-                type: 'web',
-                url,
-                title: url,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Network error'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process YouTube videos ──
-    for (const url of result.sources.youtube) {
-        showProgress(sourceDisplayName(url));
-        try {
-            const translated = await extractAndTranslateYouTube(plugin, url, targetLanguage, serviceType);
-            allSources.push(translated);
-        } catch (e) {
-            logger.error('Summary', `Failed to translate YouTube ${url}:`, e);
-            allSources.push({
-                type: 'youtube',
-                url,
-                title: url,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Could not process video'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process PDFs ──
-    const pdfService = new PdfService(plugin.app);
-    for (const pdf of result.sources.pdfs) {
-        const pdfTitle = pdf.path.split('/').pop() || pdf.path;
-        showProgress(pdfTitle);
-        try {
-            const translated = await extractAndTranslatePdf(
-                plugin, pdfService, pdf.path, pdf.isVaultFile, targetLanguage, serviceType, view.file?.path
-            );
-            allSources.push(translated);
-        } catch (e) {
-            logger.error('Summary', 'Error translating PDF:', e);
-            allSources.push({
-                type: 'pdf',
-                url: pdf.path,
-                title: pdfTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process Documents ──
-    for (const doc of result.sources.documents) {
-        const docTitle = doc.path.split('/').pop() || doc.path;
-        showProgress(docTitle);
-        try {
-            const translated = await extractAndTranslateDocument(
-                plugin, view, doc.path, doc.isVaultFile, targetLanguage, serviceType
-            );
-            allSources.push(translated);
-        } catch (e) {
-            logger.error('Summary', 'Error translating document:', e);
-            allSources.push({
-                type: 'document',
-                url: doc.path,
-                title: docTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process Audio files ──
-    const audioTranscriptionConfig = await getAudioTranscriptionApiKey(plugin);
-    for (const audio of result.sources.audio) {
-        const audioTitle = audio.path.split('/').pop() || audio.path;
-        showProgress(audioTitle);
-        try {
-            const translated = await extractAndTranslateAudio(
-                plugin, view, audio.path, audio.isVaultFile, targetLanguage, serviceType, audioTranscriptionConfig
-            );
-            allSources.push(translated);
-        } catch (e) {
-            logger.error('Summary', 'Error translating audio:', e);
-            allSources.push({
-                type: 'audio',
-                url: audio.path,
-                title: audioTitle,
-                date: today,
-                success: false,
-                error: e instanceof Error ? e.message : 'Unknown error'
-            });
-        }
-        processedCount++;
-    }
-
-    // ── Process Images ──
-    if (result.sources.images.length > 0) {
-        const { VisionService } = await import('../services/visionService');
-        const { extractImageText } = await import('../utils/digitiseUtils');
-        const visionService = new VisionService(plugin);
-        const canDigitise = visionService.canDigitise();
-
-        for (const image of result.sources.images) {
-            const imageTitle = image.path.split('/').pop() || image.path;
-            showProgress(imageTitle);
-
-            if (!canDigitise.supported) {
-                allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: canDigitise.reason });
+            // ── Process note content first ──
+            if (result.summarizeNote && view.file) {
+                showProgress(view.file.basename);
+                try {
+                    // Use the content captured at command start to capture unsaved edits
+                    // Strip References/Pending sections to prevent duplication via the main-content replace
+                    const noteContent = stripTrailingSections(snapshot.baseline);
+                    new Notice(plugin.t.messages.translatingFullNote || 'Translating note...', 5000);
+                    const translated = await translateSourceContent(plugin, noteContent, targetLanguage, serviceType);
+                    allSources.push({
+                        type: 'note',
+                        title: view.file.basename,
+                        date: today,
+                        success: !!translated,
+                        translation: translated || undefined,
+                        error: translated ? undefined : 'Failed to translate note content'
+                    });
+                } catch (e) {
+                    logger.error('Summary', 'Failed to translate note:', e);
+                    allSources.push({
+                        type: 'note',
+                        title: view.file.basename,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Unknown error'
+                    });
+                }
                 processedCount++;
-                continue;
             }
 
-            try {
-                const extracted = await extractImageText(visionService, plugin.app, image.path, view.file?.path);
-                if ('error' in extracted) {
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: extracted.error });
+            // ── Process URLs ──
+            for (const url of result.sources.urls) {
+                showProgress(sourceDisplayName(url));
+                try {
+                    const translated = await extractAndTranslateUrl(plugin, url, targetLanguage, serviceType);
+                    allSources.push(translated);
+                } catch (e) {
+                    logger.error('Summary', `Failed to translate URL ${url}:`, e);
+                    allSources.push({
+                        type: 'web',
+                        url,
+                        title: url,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Network error'
+                    });
+                }
+                processedCount++;
+            }
+
+            // ── Process YouTube videos ──
+            for (const url of result.sources.youtube) {
+                showProgress(sourceDisplayName(url));
+                try {
+                    const translated = await extractAndTranslateYouTube(plugin, url, targetLanguage, serviceType);
+                    allSources.push(translated);
+                } catch (e) {
+                    logger.error('Summary', `Failed to translate YouTube ${url}:`, e);
+                    allSources.push({
+                        type: 'youtube',
+                        url,
+                        title: url,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Could not process video'
+                    });
+                }
+                processedCount++;
+            }
+
+            // ── Process PDFs ──
+            const pdfService = new PdfService(plugin.app);
+            for (const pdf of result.sources.pdfs) {
+                const pdfTitle = pdf.path.split('/').pop() || pdf.path;
+                showProgress(pdfTitle);
+                try {
+                    const translated = await extractAndTranslatePdf(
+                        plugin, pdfService, pdf.path, pdf.isVaultFile, targetLanguage, serviceType, view.file?.path
+                    );
+                    allSources.push(translated);
+                } catch (e) {
+                    logger.error('Summary', 'Error translating PDF:', e);
+                    allSources.push({
+                        type: 'pdf',
+                        url: pdf.path,
+                        title: pdfTitle,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Unknown error'
+                    });
+                }
+                processedCount++;
+            }
+
+            // ── Process Documents ──
+            for (const doc of result.sources.documents) {
+                const docTitle = doc.path.split('/').pop() || doc.path;
+                showProgress(docTitle);
+                try {
+                    const translated = await extractAndTranslateDocument(
+                        plugin, view, doc.path, doc.isVaultFile, targetLanguage, serviceType
+                    );
+                    allSources.push(translated);
+                } catch (e) {
+                    logger.error('Summary', 'Error translating document:', e);
+                    allSources.push({
+                        type: 'document',
+                        url: doc.path,
+                        title: docTitle,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Unknown error'
+                    });
+                }
+                processedCount++;
+            }
+
+            // ── Process Audio files ──
+            const audioTranscriptionConfig = await getAudioTranscriptionApiKey(plugin);
+            for (const audio of result.sources.audio) {
+                const audioTitle = audio.path.split('/').pop() || audio.path;
+                showProgress(audioTitle);
+                try {
+                    const translated = await extractAndTranslateAudio(
+                        plugin, view, audio.path, audio.isVaultFile, targetLanguage, serviceType, audioTranscriptionConfig
+                    );
+                    allSources.push(translated);
+                } catch (e) {
+                    logger.error('Summary', 'Error translating audio:', e);
+                    allSources.push({
+                        type: 'audio',
+                        url: audio.path,
+                        title: audioTitle,
+                        date: today,
+                        success: false,
+                        error: e instanceof Error ? e.message : 'Unknown error'
+                    });
+                }
+                processedCount++;
+            }
+
+            // ── Process Images ──
+            if (result.sources.images.length > 0) {
+                const { VisionService } = await import('../services/visionService');
+                const { extractImageText } = await import('../utils/digitiseUtils');
+                const visionService = new VisionService(plugin);
+                const canDigitise = visionService.canDigitise();
+
+                for (const image of result.sources.images) {
+                    const imageTitle = image.path.split('/').pop() || image.path;
+                    showProgress(imageTitle);
+
+                    if (!canDigitise.supported) {
+                        allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: canDigitise.reason });
+                        processedCount++;
+                        continue;
+                    }
+
+                    try {
+                        const extracted = await extractImageText(visionService, plugin.app, image.path, view.file?.path);
+                        if ('error' in extracted) {
+                            allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: extracted.error });
+                            processedCount++;
+                            continue;
+                        }
+
+                        const translation = await translateSourceContent(plugin, extracted.text, targetLanguage, serviceType, 'image', imageTitle);
+                        if (translation) {
+                            allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: true, translation });
+                        } else {
+                            allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: 'Failed to translate digitised content' });
+                        }
+                    } catch (e) {
+                        logger.error('Summary', 'Error translating image:', e);
+                        allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: e instanceof Error ? e.message : 'Unknown error' });
+                    }
                     processedCount++;
-                    continue;
                 }
-
-                const translation = await translateSourceContent(plugin, extracted.text, targetLanguage, serviceType, 'image', imageTitle);
-                if (translation) {
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: true, translation });
-                } else {
-                    allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: 'Failed to translate digitised content' });
-                }
-            } catch (e) {
-                logger.error('Summary', 'Error translating image:', e);
-                allSources.push({ type: 'image', url: image.path, title: imageTitle, date: today, success: false, error: e instanceof Error ? e.message : 'Unknown error' });
             }
-            processedCount++;
-        }
-    }
 
-    // ── Assemble output ──
-    hideProgress();
-    await assembleTranslatedOutput(plugin, snapshot, result, allSources, targetLanguage);
+            // ── Assemble output ──
+            await assembleTranslatedOutput(plugin, snapshot, result, allSources, targetLanguage);
+        },
+    );
 }
 
 // ─── Source Extraction + Translation Functions ──────────────────────
