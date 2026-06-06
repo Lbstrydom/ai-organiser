@@ -93,6 +93,16 @@ describe('numeric matching is token-bounded (audit H10)', () => {
         const c = checkClaim('Q3 results were strong', [], { slideId: 's1', field: 'action_title' });
         expect(c.tier).toBe('grounded-text');
     });
+    it('a negative currency value keeps its sign across the symbol ("-$50" ≠ "$50") (renderer-gate R3)', () => {
+        // "-$50" must NOT false-match a POSITIVE "$50" source (the sign was being dropped at the currency symbol).
+        const pos: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'We booked $50 of revenue.' }];
+        const c = checkClaim('a loss of -$50', pos, { slideId: 's1', field: 'action_title' });
+        expect(c.tier).not.toBe('exact');
+        expect(c.tier).not.toBe('numeric'); // -50 ≠ 50 → routed away from a false match
+        const neg: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'We took a -$50 hit.' }];
+        const ok = checkClaim('a loss of -$50', neg, { slideId: 's1', field: 'action_title' });
+        expect(ok.tier === 'exact' || ok.tier === 'numeric').toBe(true); // matches the same negative value
+    });
     it('"60 percent" in a span matches a "60%" claim (audit M6/M12)', () => {
         const pctSpan: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'EMEA was 60 percent of growth.' }];
         const c = checkClaim('EMEA drove 60% of growth', pctSpan, { slideId: 's1', field: 'action_title' });

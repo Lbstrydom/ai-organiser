@@ -46,10 +46,13 @@ export interface GroundingReport {
 // Captures a trailing "%" / "percent" (M6/M12) AND a magnitude suffix (k / m / b /
 // t, attached or as a word) so "$50 billion" tokenises WITH its magnitude — the
 // `[kmbt](?![a-z])` guard means "60 models" does NOT capture a spurious "m".
-// Leading-OR-dot-prefixed decimals (renderer-gate HIGH): ".5" / "-.25" must tokenise
-// as numbers. The `(?<![a-z])` lookbehind skips letter-prefixed IDENTIFIER digits
-// ("Q3", "FY24", "v2") so they aren't grounded as factual quantities (renderer-gate R2).
-const NUMERIC_RE = /(?<![a-z])-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
+// One number token, robust to the realistic claim formats:
+//  • leading-OR-dot decimals (".5", "-.25") — renderer-gate R1
+//  • a MINUS even when a currency symbol separates it from the digits ("-$50") — R3,
+//    so a negative value keeps its sign and can't false-match a positive source
+//  • a `(?<![a-z])` lookbehind that skips letter-prefixed IDENTIFIERS ("Q3","FY24","v2") — R2
+//  • a trailing %/percent or magnitude word/letter (the magnitudeKey gate) — R1
+const NUMERIC_RE = /(?<![a-z])-?\s*[$€£]?\s*(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
 
 /**
  * Magnitude key of a numeric token (audit, consolidated gate H1): '$50 billion' →
@@ -73,12 +76,15 @@ function magnitudeKey(token: string): string {
 // Deliberately whole-cell: a prose cell ("Loss of $50") or a year ("Q3 2024") is NOT
 // matched — that avoids false-positive grounding nags on identifiers/years (the
 // primary title/visual claims are grounded; a number buried in prose is accepted-gap).
-const NUMERIC_CELL_RE = /^\s*-?\s*[$€£]?\s*(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent)?\s*$/i;
+const NUMERIC_CELL_RE = /^\s*-?\s*[$€£]?\s*(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt])?\s*$/i;
 
 /** Normalise a numeric token to a canonical numeric value for matching:
  *  "60%"→0.6, "60 percent"→0.6, "0.60"→0.6, "1,234"→1234, "64"→64. */
 export function normaliseNumeric(token: string): number | null {
-    const t = token.trim().toLowerCase().replace(/,/g, '');
+    // Strip thousands commas AND the currency symbol so a minus that sits BEFORE the
+    // symbol ("-$50") stays attached to the digits (renderer-gate R3 — else the
+    // sign-less "50" would false-match a positive source).
+    const t = token.trim().toLowerCase().replace(/[,$€£]/g, '');
     const pct = /%|percent/.test(t);
     const m = t.match(/-?(?:\d+(?:\.\d+)?|\.\d+)/);
     if (!m) return null;
