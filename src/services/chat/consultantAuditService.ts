@@ -46,7 +46,7 @@ function visualDataPointCount(slide: StoryboardSlide): number {
         case 'line': return v.series.reduce((n, s) => n + s.points.length, 0);
         case 'waterfall': return 1 + v.deltas.length;
         case '2x2': return v.items.length;
-        case 'harvey': return v.rows.length;
+        case 'harvey': return v.rows.length * v.columns.length; // a matrix: each rating is a data point (renderer-gate R4 — a 1×4 harvey has 4, not 1)
         case 'table': return v.rows.length;
         case 'pyramid': return v.levels.length;
         default: return 0;
