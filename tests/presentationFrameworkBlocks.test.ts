@@ -159,6 +159,14 @@ describe('Cluster C — HTML renders + sanitizer survival', () => {
         expect(clean).toContain('22');         // x-axis tick text
     });
 
+    it('border-radius survives sanitization (gap-class regression — corner longhands allowlisted)', () => {
+        // The CSSOM expands `border-radius` into corner longhands; without them the
+        // sanitizer strips rounded corners from every card/bar/quadrant in the preview.
+        const html = renderHtml({ kind: 'pyramid', levels: [{ label: 'V' }, { label: 'S' }] });
+        const clean = sanitizePresentation(html).html;
+        expect(/border-(top-left-|top-right-|bottom-right-|bottom-left-)?radius/.test(clean)).toBe(true);
+    });
+
     it('pyramid renders ≥3 stacked levels', () => {
         const html = renderHtml({ kind: 'pyramid', levels: [{ label: 'Vision' }, { label: 'Strategy' }, { label: 'Tactics', detail: 'the how' }] });
         expect(html).toContain('Vision');

@@ -114,6 +114,12 @@ export const ALLOWED_CSS_PROPERTIES: ReadonlySet<string> = new Set([
     'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
     'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
     'border', 'border-radius', 'border-color', 'border-width', 'border-style',
+    // `border-radius` is a SHORTHAND — the CSSOM expands `border-radius: 10px` into
+    // these four corner longhands, so without them every rounded corner is stripped
+    // (square cards/bars/quadrants in the PREVIEW; PPTX is unaffected — it draws
+    // `rectRadius` directly). Pre-existing gap-class miss, caught while verifying the
+    // Cluster C renderers. Pure layout; value-guarded.
+    'border-top-left-radius', 'border-top-right-radius', 'border-bottom-right-radius', 'border-bottom-left-radius',
     // Per-side border longhands: the sanitizer enumerates CSSOM `style.item(i)`,
     // which expands the `border: 2px solid X` shorthand into these — without them
     // the allowlist drops every shorthand border (cards render border-less in the
