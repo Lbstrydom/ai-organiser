@@ -34,6 +34,7 @@ import type { Result } from '../../core/result';
 import type { EvidenceSpan } from '../../services/presentationIr/consultantStoryboard';
 import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
 import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
+import { classifyStorylineNote } from '../../services/chat/storylineNote';
 import { markdownToStoryboard } from '../../services/presentationIr/dotDashParser';
 import { resolvePresentationRole, type PresentationRole } from '../../services/presentationIr/presentationModelResolver';
 import { buildStoryboardJudge } from '../../services/chat/consultantCriticService';
@@ -104,6 +105,21 @@ export class PresentationModeHandler implements ChatModeHandler {
     private brandEnabled = false;
     private brandTheme: BrandTheme | null = null;
     private brandAvailable = false;
+    // F7 — live On-brand re-render scheduler (monotonic last-write-wins).
+    // `brandReqId` is bumped on EVERY toggle request (incl. queued) so no stale
+    // in-flight render can commit; `pendingBrand` holds the latest desired state
+    // queued while a mutating op holds the lock or a render is in flight;
+    // `lastRenderedBrandEnabled` is the reconcile baseline (the brand the current
+    // deck.html was actually built with); `brandCheckboxEl` lets the failure
+    // policy reconcile the checkbox from any path (toggle / flush / drain).
+    private brandReqId = 0;
+    private brandRendering = false;
+    private pendingBrand: { brandEnabled: boolean; reqId: number } | null = null;
+    private lastRenderedBrandEnabled = false;
+    private brandCheckboxEl: HTMLInputElement | null = null;
+    /** Latest ModalContext (stashed in renderContextPanel) so the run-controller
+     *  release hook can flush a queued brand re-render without a ctx in scope. */
+    private lastCtx: ModalContext | null = null;
 
     // Concurrency / run lifecycle — the single-flight lock, abort, thinking
     // sink, i18n bundle, and cancel hook now live in PresentationRunController
@@ -221,6 +237,10 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     renderContextPanel(container: HTMLElement, ctx: ModalContext): void {
         const t = ctx.plugin.t.modals.unifiedChat;
+        // Stash the latest ctx + register the lock-release flush so a brand
+        // re-render queued mid-generation drains once the deck is free (F7).
+        this.lastCtx = ctx;
+        this.run.onRelease(() => this.flushPendingBrandRerender());
         // Register as the active target for global commands (e.g. the
         // slide-picker command bound to Mod+Shift+S). The registry tracks all
         // live handlers + unregisters cleanly on dispose (no dangling pointer).
@@ -429,7 +449,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.renderProgress(r.streamCb, t, 0, undefined, 0);
         const elapsedTimer = this.startElapsedTicker(controller, r.streamCb, t, undefined);
         try {
-            const exportTheme = await this.themeResolver.resolve(r.ctx, this.brandEnabled);
+            // Capture brand intent BEFORE any async resolve (Gemini-G1) so the deck
+            // commit records the brand the HTML was actually built with, even if the
+            // user toggles On-brand mid-generation.
+            const requestedBrand = this.brandEnabled;
+            const exportTheme = await this.themeResolver.resolve(r.ctx, requestedBrand);
             const settings = r.ctx.fullPlugin.settings;
 
             let irResult: Result<SlideDeckIr>;
@@ -504,12 +528,12 @@ export class PresentationModeHandler implements ChatModeHandler {
                 return { finalContent: t.slideGenerateFailed.replace('{error}', built.error) };
             }
 
-            this.deck.deckIr = irResult.value;
-            this.deck.html = built.value;
-            this.deck.activeSlideIndex = 0;
-            this.canvas.refreshPreview();
-            this.deck.pushVersion(r.originalQuery);
-            this.updateReliability();
+            this.commitNewDeck({
+                ir: irResult.value,
+                builtHtml: built.value,
+                label: r.originalQuery,
+                renderedBrandEnabled: requestedBrand,
+            });
 
             if (this.brandEnabled && r.theme.auditChecklist.length > 0) {
                 this.setPhase('auditing');
@@ -1401,7 +1425,8 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Brand Audit ─────────────────────────────────────────────────────────
 
     private async handleBrandAudit(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
-        if (!this.deck.html || !this.brandEnabled || this.run.isLocked()) return;
+        if (!this.deck.html || !this.brandEnabled) return;
+        if (!this.assertNotBusy(ctx, callbacks)) return;   // F4: busy feedback (was a silent return)
         const deckHtml = this.deck.html; // guarded non-null above
         // Abort any prior in-flight op BEFORE begin() mints the new controller,
         // so the cancel can't abort our own fresh signal.
@@ -1465,7 +1490,8 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private async handlePolish(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         if (this.activePolish) return;                       // single-flight: modal already open
-        if (!this.deck.html || this.run.isLocked()) return;
+        if (!this.deck.html) return;
+        if (!this.assertNotBusy(ctx, callbacks)) return;     // F4: busy feedback (was a silent return)
 
         // Per-slide polish: a deck with >1 slide opens the selector modal so the
         // user can target specific slides; a single-slide deck polishes whole.
@@ -1748,9 +1774,12 @@ export class PresentationModeHandler implements ChatModeHandler {
             const label = toggle.createEl('label', { cls: 'ai-organiser-pres-brand-label' });
             const checkbox = label.createEl('input', { type: 'checkbox' });
             checkbox.checked = this.brandEnabled;
+            this.brandCheckboxEl = checkbox;
+            // F7: toggling On-brand re-renders the live deck (preserving version +
+            // active slide). handleBrandToggle is fully contained (never rejects),
+            // so the listener can `void` it.
             checkbox.addEventListener('change', () => {
-                this.brandEnabled = checkbox.checked;
-                this.brandTheme = null;
+                void this.handleBrandToggle(ctx, checkbox.checked);
             });
             label.createEl('span', { text: ' On-brand' });
         } else {
@@ -1765,6 +1794,177 @@ export class PresentationModeHandler implements ChatModeHandler {
             const configFolder = ctx.plugin.settings.configFolderPath || 'Config';
             const hint = toggle.createEl('div', { cls: 'ai-organiser-pres-brand-hint' });
             hint.textContent = `Create ${ctx.plugin.settings.pluginFolder}/${configFolder}/brand-guidelines.md to enable`;
+        }
+    }
+
+    // ── Deck commit + brand re-render + busy guard (presentation-demo-fixes) ──
+
+    /**
+     * Shared deck-commit CORE transaction (used by generateIr + buildFromStorylineNote).
+     * Sets the new deck IR + HTML, resets the active slide, refreshes the preview,
+     * pushes a version (which bumps `deckEpoch`), records the brand state the HTML was
+     * built with, and updates reliability. Callers run their own tail (brand audit /
+     * quality-scan ctx) because those differ between generation and storyline rebuild.
+     * `renderedBrandEnabled` MUST be the value captured BEFORE the async theme-resolve
+     * that produced `builtHtml` (Gemini-G1), so `lastRenderedBrandEnabled` always
+     * matches the deck actually rendered.
+     */
+    private commitNewDeck(input: { ir: SlideDeckIr; builtHtml: string; label: string; renderedBrandEnabled: boolean }): void {
+        this.deck.deckIr = input.ir;
+        this.deck.html = input.builtHtml;
+        this.deck.activeSlideIndex = 0;
+        this.canvas.refreshPreview();
+        this.deck.pushVersion(input.label);   // bumps deckEpoch
+        this.lastRenderedBrandEnabled = input.renderedBrandEnabled;
+        this.updateReliability();
+    }
+
+    /** F4 — shared busy guard: notify + return false when a mutating op holds the
+     *  lock, so Polish / Check-Brand report busy consistently with export/save. */
+    private assertNotBusy(ctx: ModalContext, callbacks: ActionCallbacks): boolean {
+        if (this.run.isLocked()) {
+            callbacks.notify(ctx.plugin.t.modals.unifiedChat.presentationBusy);
+            return false;
+        }
+        return true;
+    }
+
+    /** F7 — user toggled On-brand: update intent, drop the cached theme, re-render
+     *  the live deck. Contained (never rejects) so the change listener can `void` it. */
+    private async handleBrandToggle(ctx: ModalContext, checked: boolean): Promise<void> {
+        this.brandEnabled = checked;
+        this.brandTheme = null;
+        await this.executeBrandRerender(ctx, checked);
+    }
+
+    /** Contained wrapper around the scheduler that applies the failure policy on
+     *  EVERY render path (toggle / flush / drain) — never rejects (Gemini/R3-H2). */
+    private async executeBrandRerender(ctx: ModalContext, brandEnabled: boolean): Promise<void> {
+        let outcome: 'applied' | 'queued' | 'skipped-no-deck' | 'error' = 'error';
+        try {
+            outcome = await this.requestBrandRerender(ctx, brandEnabled);
+        } catch (e) {
+            logger.warn('Presentation', `brand re-render threw: ${e instanceof Error ? e.message : String(e)}`);
+            outcome = 'error';
+        }
+        if (outcome === 'error') this.applyBrandFailurePolicy(ctx);
+    }
+
+    /**
+     * F7 scheduler — monotonic last-write-wins brand re-render of the CURRENT deck.
+     * Bumps `brandReqId` on every request (incl. queued) so a stale in-flight render
+     * can never commit; queues (latest-wins) while a mutating op holds the lock or a
+     * render is in flight; preserves the active slide. Pure scheduler — never shows a
+     * Notice (that's `applyBrandFailurePolicy`, via `executeBrandRerender`).
+     */
+    private async requestBrandRerender(ctx: ModalContext, brandEnabled: boolean): Promise<'applied' | 'queued' | 'skipped-no-deck' | 'error'> {
+        const reqId = ++this.brandReqId;
+        // Queue-first (R3-H1): record intent before the no-deck check so a toggle
+        // during the FIRST generation (no deck yet) is honoured on release.
+        if (this.run.isLocked() || this.brandRendering) {
+            this.pendingBrand = { brandEnabled, reqId };
+            return 'queued';
+        }
+        if (!this.deck.deckIr) return 'skipped-no-deck';
+        this.brandRendering = true;
+        const prevSlide = this.deck.activeSlideIndex;
+        try {
+            const exportTheme = await this.themeResolver.resolve(ctx, brandEnabled);
+            const themeCss = (await resolveTheme(ctx.app, ctx.plugin.settings, brandEnabled)).css;
+            // Staleness gate: a newer toggle superseded us while resolving.
+            if (reqId !== this.brandReqId) return 'queued';
+            const built = buildHtmlFromDeckIr(
+                this.deck.deckIr, exportTheme, themeCss,
+                ctx.plugin.settings.summaryLanguage,
+                ctx.plugin.t.progress.presentation.slideRenderFailed,
+            );
+            if (!built.ok) {
+                logger.warn('Presentation', `brand re-render html failed: ${built.error}`);
+                return 'error';
+            }
+            this.deck.html = built.value;
+            this.deck.deckEpoch++;   // re-theme (no version push) — invalidate thumbnails
+            const count = countSlides(built.value);
+            this.deck.activeSlideIndex = Math.min(prevSlide, Math.max(0, count - 1));
+            this.canvas.refreshPreview();
+            this.lastRenderedBrandEnabled = brandEnabled;
+            return 'applied';
+        } finally {
+            this.brandRendering = false;
+            // Drain the latest queued state (older queued states were overwritten).
+            if (this.pendingBrand && !this.run.isLocked()) {
+                const p = this.pendingBrand;
+                this.pendingBrand = null;
+                void this.executeBrandRerender(ctx, p.brandEnabled);
+            }
+        }
+    }
+
+    /** Reconcile UI + notify when a brand re-render fails on ANY path — works
+     *  without a closure because the checkbox ref + baseline are handler state. */
+    private applyBrandFailurePolicy(ctx: ModalContext): void {
+        new Notice(ctx.plugin.t.modals.unifiedChat.brandRerenderFailed);
+        this.brandEnabled = this.lastRenderedBrandEnabled;
+        if (this.brandCheckboxEl) this.brandCheckboxEl.checked = this.lastRenderedBrandEnabled;
+    }
+
+    /** Flush a brand re-render queued while a mutating op held the lock. Wired to
+     *  the run controller's release hook (fires after end()/unlock()). */
+    private flushPendingBrandRerender(): void {
+        if (!this.pendingBrand || this.run.isLocked() || !this.lastCtx) return;
+        const p = this.pendingBrand;
+        this.pendingBrand = null;
+        void this.executeBrandRerender(this.lastCtx, p.brandEnabled);
+    }
+
+    /**
+     * B3 — rebuild a deck from a SAVED consultant storyline note, decoupled from
+     * the in-memory `pendingStoryline` gate (so it survives a modal close / reload /
+     * mode switch). `buildDeckFromStoryline` is deterministic (no LLM) so this is
+     * fast. Fully exception-contained — never rejects; the caller (the modal) `void`s
+     * it and re-renders. The empty catalog means grounding is advisory (the `⚠`
+     * checks were authored into the `.md`). The modal calls `renderAll()` afterwards
+     * to mount the canvas with the new deck.
+     */
+    async buildFromStorylineNote(ctx: ModalContext, notePath: string): Promise<void> {
+        const t = ctx.plugin.t.modals.unifiedChat;
+        try {
+            if (this.run.isLocked()) { new Notice(t.presentationBusy); return; }
+            const file = ctx.app.vault.getAbstractFileByPath(notePath);
+            if (!(file instanceof TFile)) { new Notice(t.storylineNoteRequired); return; }
+            const md = await ctx.app.vault.read(file);
+            const cls = classifyStorylineNote(md);
+            if (cls.kind === 'empty') { new Notice(t.storylineNoteEmpty); return; }
+            if (cls.kind !== 'ok') { new Notice(t.storylineNoteRequired); return; }
+
+            this.run.begin(() => { /* deterministic build — no thinking sink needed */ }, t);
+            try {
+                // Capture brand BEFORE the async theme-resolve (Gemini-G1).
+                const requestedBrand = this.brandEnabled;
+                const built = buildDeckFromStoryline(md, [], ctx.plugin.settings.summaryLanguage);
+                if (!built.ok) { new Notice(t.storylineParseFailed.replace('{error}', built.error)); return; }
+                const exportTheme = await this.themeResolver.resolve(ctx, requestedBrand);
+                const themeCss = (await resolveTheme(ctx.app, ctx.plugin.settings, requestedBrand)).css;
+                const html = buildHtmlFromDeckIr(
+                    built.value.deck, exportTheme, themeCss,
+                    ctx.plugin.settings.summaryLanguage,
+                    ctx.plugin.t.progress.presentation.slideRenderFailed,
+                );
+                if (!html.ok) { new Notice(t.storylineParseFailed.replace('{error}', html.error)); return; }
+                this.commitNewDeck({ ir: built.value.deck, builtHtml: html.value, label: file.basename, renderedBrandEnabled: requestedBrand });
+                this.pendingStoryline = null;   // Gemini-G2: resync the live chat gate
+                this.runQualityCheck();
+                this.setPhase('preview-ready');
+                void this.runBackgroundQualityScan(this.getLLMContext(ctx), this.run.signal ?? new AbortController().signal);
+                new Notice(t.storylineRebuiltFromSavedNote);
+            } finally {
+                this.run.end();
+                this.flushPendingBrandRerender();
+            }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            logger.error('Presentation', `[build-from-storyline] threw: ${msg}`);
+            new Notice(t.buildFromStorylineFailed.replace('{error}', msg));
         }
     }
 

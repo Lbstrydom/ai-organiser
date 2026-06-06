@@ -1094,6 +1094,7 @@ export interface Translations {
         findEmbeds: string;
         editMermaidDiagram: string;
         presentationChat: string;
+        buildFromStoryline: string;
         quickPeek: string;
         quickPeekNoSources: string;
     };
@@ -2373,6 +2374,12 @@ export interface Translations {
             phaseAuditing: string;
             phaseExporting: string;
             presentationBusy: string;
+            brandRerenderFailed: string;
+            storylineNoteRequired: string;
+            storylineNoteEmpty: string;
+            storylineParseFailed: string;
+            storylineRebuiltFromSavedNote: string;
+            buildFromStorylineFailed: string;
             // Research extend-card copy (Phase 3 port of soft/hard budget UX) —
             // reuses the generic extend-card DOM but with research-specific
             // framing.
@@ -2511,6 +2518,7 @@ export interface Translations {
                 digitiseImage: string;
                 editMermaidDiagram: string;
                 presentationChat: string;
+                buildFromStoryline: string;
                 quickPeek: string;
                 pendingGroup: string;
                 ensureNoteStructure: string;

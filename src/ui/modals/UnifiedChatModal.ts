@@ -241,7 +241,10 @@ export class UnifiedChatModal extends Modal {
         // with a concurrent delete of an expired conversation.
         if (prunePromise) await prunePromise;
         let resumedMode: ChatMode | null = null;
-        if (this.persistenceService && this.projectService) {
+        // A direct build-from-storyline action (B3) bypasses the resume picker —
+        // it's a one-shot command that opens straight into presentation mode and
+        // rebuilds the deck, not a resumable session.
+        if (this.persistenceService && this.projectService && !this.options.buildStorylineNotePath) {
             const resumeResult = await this.showResumePicker();
             if (resumeResult?.action === 'resume') {
                 resumedMode = await this.resumeConversation(resumeResult.filePath);
@@ -273,6 +276,14 @@ export class UnifiedChatModal extends Modal {
         this.ensureIntroMessage(initialMode);
         this.renderShell();
         this.renderAll();
+
+        // B3: rebuild a deck from a saved storyline note, then re-render so the
+        // canvas mounts with the new deck. Contained (never rejects).
+        const storylinePath = this.options.buildStorylineNotePath;
+        if (storylinePath && this.activeMode === 'presentation' && this.presentationHandler) {
+            void this.presentationHandler.buildFromStorylineNote(this.ctx, storylinePath)
+                .then(() => this.renderAll());
+        }
 
         // Re-render the mode-bar (incl. the trust badge) when the provider
         // profile changes while the modal is open (R2-M4).

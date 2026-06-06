@@ -23,6 +23,21 @@ export class PresentationRunController {
     private thinkingUpdater: ((msg: string) => void) | null = null;
     private cancelHook: (() => void) | null = null;
     private t: UnifiedChatT | null = null;
+    /** Fired on every lock→unlock transition (end() / unlock()) so the handler
+     *  can flush work that was queued while a mutating op held the lock — e.g. a
+     *  brand re-render requested mid-generation. Registered once; guarded. */
+    private onReleaseFn: (() => void) | null = null;
+
+    /** Register the release listener (idempotent — last registration wins). */
+    onRelease(fn: () => void): void {
+        this.onReleaseFn = fn;
+    }
+
+    /** Fire the release listener on a genuine locked→unlocked transition. */
+    private fireRelease(wasLocked: boolean): void {
+        if (!wasLocked || !this.onReleaseFn) return;
+        try { this.onReleaseFn(); } catch { /* release listener must not throw */ }
+    }
 
     /** True while an operation holds the single-flight lock. */
     isLocked(): boolean {
@@ -44,6 +59,11 @@ export class PresentationRunController {
      *  the thinking sink + i18n. Returns the AbortController so the caller can
      *  pass its signal downstream. */
     begin(thinkingUpdater: (msg: string) => void, t: UnifiedChatT): AbortController {
+        // TODO(presentation): consider asserting `!this.locked` here + in lock()
+        // (re-entrancy guard, Gemini code-gate LOW). Deferred — it's a shared
+        // primitive; all callers pre-check via assertNotBusy()/isLocked(), and a
+        // throw changes the contract for every presentation flow. Address in a
+        // focused follow-up, not the demo-fixes change.
         this.locked = true;
         this.abortController = new AbortController();
         this.thinkingUpdater = thinkingUpdater;
@@ -54,10 +74,12 @@ export class PresentationRunController {
     /** End the operation: release the lock + clear the abort/thinking/i18n
      *  handles. Idempotent. */
     end(): void {
+        const wasLocked = this.locked;
         this.locked = false;
         this.abortController = null;
         this.thinkingUpdater = null;
         this.t = null;
+        this.fireRelease(wasLocked);
     }
 
     /** Lightweight lock for non-streaming operations (export) that need mutual
@@ -67,7 +89,9 @@ export class PresentationRunController {
     }
 
     unlock(): void {
+        const wasLocked = this.locked;
         this.locked = false;
+        this.fireRelease(wasLocked);
     }
 
     /** Bubble a "thinking…" message to the active sink (no-op when idle). */

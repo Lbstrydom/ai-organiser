@@ -33,6 +33,9 @@ export interface UnifiedChatOptions {
     noteFile?: TFile;
     editorSelection?: string;
     initialMode?: ChatMode;
+    /** B3: when set, open in presentation mode and rebuild a deck from this saved
+     *  storyline note (`build-presentation-from-storyline` command). */
+    buildStorylineNotePath?: string;
 }
 
 export interface ChatPluginContext {

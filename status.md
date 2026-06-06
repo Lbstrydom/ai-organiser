@@ -1,5 +1,39 @@
 # Project Status Log
 
+## 2026-06-06 — Presentation reliability fixes (F4/F7/B3): persona sweep → plan → audit → implement → persona-verify
+
+### Changes
+- Ran the **persona sweep** (Playwright-driven, live on **azure-claude**) per the RUNBOOK. Confirmed the consultant slides pipeline, standard slides + side-rail, and brand-at-generation all work on Azure; the LLMs' "429 will crash a chained build" fear did not materialise (the Azure pacer queues + paces). Surfaced 3 real bugs (plus harness false-positives, logged).
+- Fixed all three through the full `/plan → /audit-plan (GPT×3 + Gemini APPROVE) → implement → /audit-code (GPT + Gemini APPROVE)` cycle, then **re-verified live via persona** (both scripts 0 P0 / 0 P1):
+  - **F7** — toggling **On-brand** on an already-built deck now re-renders the live preview. New `rerenderDeckPreview` scheduler: monotonic last-write-wins (`brandReqId`), queue-while-locked + flush on `run.onRelease`, active-slide preserved, typed outcome + Notice/checkbox-reconcile on error. Verified: branded HTML carries real brand tokens (Spark Orange `FF7321`, Midnight Blue `0F172B`, Noto Sans, `@font-face`).
+  - **F4** — Polish / Check-Brand now report **busy** (shared `assertNotBusy`) instead of a silent no-op while a mutating op holds the run lock (parity with export/save).
+  - **B3** — new command **`build-presentation-from-storyline`** rebuilds a deck from a saved consultant storyline `.md`, decoupled from the in-memory `pendingStoryline` gate (survives modal close / reload). Pure `storylineNote` classifier (fence-aware, anchor-under-heading) shared by command preflight + handler. The persona run caught a real wiring bug — the resume picker blocked the auto-build — fixed by bypassing it in `onOpen` for the direct action, then re-verified.
+  - **F1** (storyline-ready chat reply "missing") — code-traced to a harness screenshot-timing artifact; the render path is correct. **No code change.**
+- Extracted shared seams to avoid duplication: `commitNewDeck` (generation + storyline build share one commit transaction), `assertNotBusy`, `rerenderDeckPreview`, `flushPendingBrandRerender`, + `PresentationRunController.onRelease` hook.
+
+### Files Affected
+- `src/ui/chat/PresentationModeHandler.ts` — `assertNotBusy`/`commitNewDeck`/`rerenderDeckPreview`/`flushPendingBrandRerender`/`buildFromStorylineNote`; F4+F7 wiring; G1 brand-capture-before-async
+- `src/ui/chat/presentation/presentationRunController.ts` — `onRelease` lock-release hook
+- `src/services/chat/storylineNote.ts` (new) — pure fence-aware storyline classifier (SSOT)
+- `src/commands/chatCommands.ts` — `build-presentation-from-storyline` command (contained, `instanceof TFile` + `.md` guard)
+- `src/ui/modals/UnifiedChatModal.ts` — `buildStorylineNotePath` opt + resume-picker bypass for the direct build
+- `src/ui/chat/ChatModeHandler.ts` — `buildStorylineNotePath` on `UnifiedChatOptions`
+- `src/ui/modals/CommandPickerModal.ts` — new leaf (presentation/create)
+- `src/i18n/{en,types}.ts` — command name + storyline/brand-rerender notices
+- `tests/{storylineNote,presentationModeHandler.brandRerender,presentationModeHandler.busyGuard,presentationModeHandler.buildFromStoryline}.test.ts` (new, 18 tests) + `tests/commandPicker.test.ts` (new leaf counts)
+- `scripts/persona-harness/*` (gitignored): new `persona-build-from-storyline.mjs` + hardened `sendChat`/polish-modal polling
+
+### Decisions Made
+- One `onRelease` hook on the run controller, not `flushPendingBrandRerender` sprinkled across 7 finally blocks — can't miss a release.
+- F7 re-render and the new-deck commit are TWO seams (re-theme preserves version + active slide; build pushes a version + resets) — conflating them would need behaviour flags.
+- B3 rebuilds with an empty grounding catalog (advisory; the `⚠` checks were authored into the `.md`) — the durable rebuild doesn't need source re-resolution.
+- Code-audit's god-module / typed-i18n findings are **pre-existing systemic debt** surfaced because the diff touches large shared files — logged as out-of-scope, not regressions.
+
+### Next Steps
+- Optional: "waiting-state UX unification" (consistent hourglass + elapsed across all long LLM waits) — overlaps with the i18n/god-module debt the audit surfaced.
+
+---
+
 ## 2026-06-06 — Consultant-quality slides: renderer gate close-out + persona sweep kit
 
 ### Changes

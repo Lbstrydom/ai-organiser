@@ -3,11 +3,12 @@
  * Single unified chat command + related notes insertion
  */
 
-import { Editor, Notice } from 'obsidian';
+import { Editor, Notice, TFile } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
+import { isStorylineNote } from '../services/chat/storylineNote';
 import { getActivePresentationTarget } from '../ui/chat/presentation/presentationCommandRegistry';
 import { SlidePickerModal, parseSlideEntries } from '../ui/modals/SlidePickerModal';
 import { isFeatureEnabled } from '../services/featureService';
@@ -123,6 +124,40 @@ export function registerPresentationCommands(plugin: AIOrganiserPlugin): void {
             }).open();
         },
     });
+
+    // B3 — rebuild a deck from a saved consultant storyline note, even after the
+    // chat modal was closed (the in-memory gate is gone, but the .md persists).
+    plugin.addCommand({
+        id: 'build-presentation-from-storyline',
+        name: plugin.t.commands.buildFromStoryline,
+        icon: 'wand-2',
+        callback: () => { void handleBuildFromStoryline(plugin); },
+    });
+}
+
+/** Contained handler for `build-presentation-from-storyline` — never rejects, so
+ *  the sync command callback can `void` it (Obsidian doesn't observe the promise). */
+async function handleBuildFromStoryline(plugin: AIOrganiserPlugin): Promise<void> {
+    try {
+        const file = plugin.app.workspace.getActiveFile();
+        // Guard the extension too (Gemini gate): never read a large binary
+        // (PDF/video) into a UTF-8 string — a storyline is always markdown.
+        if (!(file instanceof TFile) || file.extension !== 'md') {
+            notify(plugin.t.modals.unifiedChat.storylineNoteRequired);
+            return;
+        }
+        const content = await plugin.app.vault.read(file);
+        if (!isStorylineNote(content)) {
+            notify(plugin.t.modals.unifiedChat.storylineNoteRequired);
+            return;
+        }
+        new UnifiedChatModal(plugin.app, plugin, {
+            initialMode: 'presentation',
+            buildStorylineNotePath: file.path,
+        }).open();
+    } catch (e) {
+        notify(plugin.t.modals.unifiedChat.buildFromStorylineFailed.replace('{error}', e instanceof Error ? e.message : String(e)));
+    }
 }
 
 /**
