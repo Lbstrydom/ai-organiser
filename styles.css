@@ -2720,7 +2720,7 @@
     padding-bottom: var(--size-2-2);
 }
 
-.ai-organiser-chat-thinking {
+.ai-organiser-progress {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -2733,7 +2733,13 @@
     max-width: 100%;
 }
 
-.ai-organiser-chat-thinking-dots {
+/* Live region wrapper (role=status) — transparent to the flex layout so the
+   phase + fragment behave as direct flex children of the indicator row. */
+.ai-organiser-progress-status {
+    display: contents;
+}
+
+.ai-organiser-progress-dots {
     letter-spacing: 2px;
     animation: aioChatDots 1.2s infinite ease-in-out;
 }
@@ -2748,12 +2754,12 @@
 /* Split-DOM progress spans inside the thinking indicator.
    .slide  = live region (role=status, aria-live=polite), mutates only on slide change
    .elapsed = aria-hidden, ticks every 1s */
-.ai-organiser-chat-thinking-slide {
+.ai-organiser-progress-fragment {
     color: var(--text-muted);
     font-style: normal;
 }
 
-.ai-organiser-chat-thinking-elapsed {
+.ai-organiser-progress-elapsed {
     color: var(--text-faint);
     font-style: normal;
     font-variant-numeric: tabular-nums;
@@ -2761,7 +2767,7 @@
 
 /* Inline cancel button in the thinking indicator. Small, unobtrusive,
    destructive tint on hover only. */
-.ai-organiser-chat-thinking-cancel {
+.ai-organiser-progress-cancel {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2778,12 +2784,12 @@
     line-height: 1;
 }
 
-.ai-organiser-chat-thinking-cancel:hover {
+.ai-organiser-progress-cancel:hover {
     background: var(--background-modifier-hover);
     color: var(--text-error);
 }
 
-.ai-organiser-chat-thinking-cancel:disabled {
+.ai-organiser-progress-cancel:disabled {
     opacity: 0.5;
     cursor: default;
 }
@@ -8846,7 +8852,7 @@
 /* ── Reduced Motion ── */
 @media (prefers-reduced-motion: reduce) {
     .ai-organiser-busy-indicator.ai-organiser-busy-active,
-    .ai-organiser-chat-thinking-dots,
+    .ai-organiser-progress-dots,
     .ai-organiser-audio-recorder-recording .ai-organiser-audio-recorder-timer,
     .ai-organiser-pres-build-status-text {
         animation: none;

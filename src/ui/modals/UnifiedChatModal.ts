@@ -7,6 +7,7 @@ import { formatConversationHistory, formatExportMarkdown } from '../../utils/cha
 import { getChatExportFullPath, resolveOutputPath } from '../../core/settings';
 import { ensureFolderExists, getAvailableFilePath } from '../../utils/minutesUtils';
 import { summarizeText, pluginContext } from '../../services/llmFacade';
+import { buildProgressIndicator, type ProgressIndicatorHandle } from '../../services/progress/progressIndicatorDom';
 import { buildInsertSummaryPrompt, HighlightChatMessage } from '../../services/prompts/highlightChatPrompts';
 import { buildChatFileNamePrompt } from '../../services/prompts/chatPrompts';
 import { splitIntoBlocks } from '../../utils/highlightExtractor';
@@ -123,10 +124,9 @@ export class UnifiedChatModal extends Modal {
     private sendButton?: ButtonComponent;
     private actionsEl?: HTMLElement;
     private layoutController?: PresentationLayoutController;
-    private thinkingEl?: HTMLElement;
-    private thinkingSlideEl?: HTMLElement;
-    private thinkingElapsedEl?: HTMLElement;
-    private thinkingCancelBtn?: HTMLButtonElement;
+    /** Shared waiting indicator (waiting-state-ux) — replaces the bespoke
+     *  thinking-indicator DOM with the SSOT builder used by ProgressReporter too. */
+    private thinkingHandle?: ProgressIndicatorHandle;
 
     private component?: Component;
     private cachedEditor?: Editor;
@@ -539,8 +539,10 @@ export class UnifiedChatModal extends Modal {
             });
         }
 
-        if (this.thinkingEl) {
-            this.chatContainer.appendChild(this.thinkingEl);
+        // Re-append the (detached, not destroyed) waiting indicator so it stays
+        // pinned to the bottom after the transcript rebuild.
+        if (this.thinkingHandle) {
+            this.chatContainer.appendChild(this.thinkingHandle.el);
         }
 
         this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
@@ -1342,101 +1344,51 @@ export class UnifiedChatModal extends Modal {
         if (!this.chatContainer) return;
         const text = message || this.plugin.t.modals.unifiedChat.thinking;
 
-        // In-place update — keeps DOM stable so phase-transitions
-        // ("Searching web…" → "Extracting sources…" → "Synthesizing…")
-        // don't recreate the live region.
-        if (this.thinkingEl) {
-            const label = this.thinkingEl.querySelector<HTMLElement>('.ai-organiser-chat-thinking-text');
-            if (label) {
-                label.textContent = text;
-                // Clear the split-DOM slide fragment — when caller uses the
-                // single-string API they're not in presentation-progress mode.
-                this.thinkingSlideEl?.replaceChildren();
-                this.thinkingElapsedEl?.replaceChildren();
-                this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
-                return;
-            }
+        // In-place phase update — keeps DOM stable so phase-transitions
+        // ("Searching web…" → "Extracting sources…" → "Synthesizing…") don't
+        // recreate the live region. Single-string API → clear the split fragments.
+        if (this.thinkingHandle) {
+            this.thinkingHandle.setPhase(text);
+            this.thinkingHandle.setStatusFragment('');
+            this.thinkingHandle.setElapsed('');
+        } else {
+            this.buildThinkingIndicator(text);
         }
-
-        this.thinkingEl?.remove();
-        this.buildThinkingIndicator(text);
-        if (this.chatContainer) this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     }
 
-    /** Build the thinking indicator with the split-DOM layout required by the
-     *  presentation progress UX (plan §3 ARIA):
-     *    - `.text`   — single-string phase label (used by non-presentation modes)
-     *    - `.slide`  — slide-count fragment (role=status, aria-live=polite)
-     *    - `.elapsed`— elapsed timer (aria-hidden=true — silent to SR)
-     *    - `.cancel` — optional cancel button, mounted via setThinkingCancel() */
+    /** Build the shared waiting indicator (waiting-state-ux SSOT) — dots + phase
+     *  + aria-live status fragment + aria-hidden elapsed + (on demand) cancel. */
     private buildThinkingIndicator(text: string): void {
         if (!this.chatContainer) return;
-        this.thinkingEl = this.chatContainer.createDiv({ cls: 'ai-organiser-chat-thinking' });
-        const dots = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-dots' });
-        dots.textContent = '•••';
-        this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-text', text });
-        // Slide-count fragment — live region, mutates only on slide change.
-        this.thinkingSlideEl = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-slide' });
-        this.thinkingSlideEl.setAttribute('role', 'status');
-        this.thinkingSlideEl.setAttribute('aria-live', 'polite');
-        // Elapsed fragment — aria-hidden so SR ignores the 1s ticker.
-        this.thinkingElapsedEl = this.thinkingEl.createSpan({ cls: 'ai-organiser-chat-thinking-elapsed' });
-        this.thinkingElapsedEl.setAttribute('aria-hidden', 'true');
+        this.thinkingHandle = buildProgressIndicator(this.chatContainer, {
+            phaseText: text,
+            cancelLabel: this.plugin.t.modals.unifiedChat.cancelGeneration,
+        });
     }
 
-    /** Split-DOM progress update — writes slide-count and elapsed fragments
-     *  into separate spans. Only mutates the slide span when the text
-     *  actually changes (prevents WCAG 4.1.3 status-message spam). */
+    /** Split progress update — status fragment (slide-count) + elapsed ticker.
+     *  The builder mutates the fragment only on change (keeps the live region
+     *  quiet during 1s ticks); elapsed is aria-hidden so it ticks silently. */
     private updateThinkingProgressSplit(slideFragment: string, elapsedFragment: string): void {
-        if (!this.thinkingEl) {
-            // First call wins a fresh indicator — build with an empty base text.
-            this.buildThinkingIndicator('');
-        }
-        // Mutate slide fragment ONLY when it actually changes — keeps live
-        // region quiet during 1s elapsed ticks.
-        if (this.thinkingSlideEl && this.thinkingSlideEl.textContent !== slideFragment) {
-            this.thinkingSlideEl.textContent = slideFragment;
-        }
-        // Elapsed is aria-hidden — free to tick without SR impact.
-        if (this.thinkingElapsedEl) {
-            this.thinkingElapsedEl.textContent = elapsedFragment;
-        }
+        if (!this.thinkingHandle) this.buildThinkingIndicator('');
+        this.thinkingHandle?.setStatusFragment(slideFragment);
+        this.thinkingHandle?.setElapsed(elapsedFragment);
         if (this.chatContainer) {
             this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
         }
     }
 
-    /** Mount a cancel × button inside the thinking indicator. Idempotent —
-     *  replaces any prior handler so we don't stack listeners. */
+    /** Mount a cancel × button inside the indicator. Idempotent (the builder
+     *  replaces any prior handler). */
     private setThinkingCancel(onCancel: () => void): void {
-        if (!this.thinkingEl) this.buildThinkingIndicator('');
-        if (!this.thinkingEl) return;
-        let btn = this.thinkingEl.querySelector<HTMLButtonElement>('.ai-organiser-chat-thinking-cancel');
-        const t = this.plugin.t.modals.unifiedChat;
-        if (!btn) {
-            btn = this.thinkingEl.createEl('button', {
-                cls: 'ai-organiser-chat-thinking-cancel',
-                attr: { type: 'button', 'aria-label': t.cancelGeneration },
-            });
-            btn.textContent = '✕';
-        }
-        // Replace the listener via cloneNode for idempotency.
-        const fresh = btn.cloneNode(true) as HTMLButtonElement;
-        btn.replaceWith(fresh);
-        this.thinkingCancelBtn = fresh;
-        fresh.addEventListener('click', () => {
-            fresh.disabled = true; // prevent double-click during abort window
-            onCancel();
-        });
+        if (!this.thinkingHandle) this.buildThinkingIndicator('');
+        this.thinkingHandle?.mountCancel(onCancel);
     }
 
     private hideThinkingIndicator(): void {
-        if (!this.thinkingEl) return;
-        this.thinkingEl.remove();
-        this.thinkingEl = undefined;
-        this.thinkingSlideEl = undefined;
-        this.thinkingElapsedEl = undefined;
-        this.thinkingCancelBtn = undefined;
+        this.thinkingHandle?.destroy();
+        this.thinkingHandle = undefined;
     }
 
     // ── Extend-budget card (transient — NOT persisted in historyMap) ────────
@@ -1502,8 +1454,8 @@ export class UnifiedChatModal extends Modal {
 
         // Insert ABOVE the thinking indicator so the thinking row remains the
         // bottom-most chat element.
-        if (this.thinkingEl) {
-            container.insertBefore(card, this.thinkingEl);
+        if (this.thinkingHandle) {
+            container.insertBefore(card, this.thinkingHandle.el);
         } else {
             container.appendChild(card);
         }
