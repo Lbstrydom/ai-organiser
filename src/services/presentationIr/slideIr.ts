@@ -113,6 +113,11 @@ const tableBlock = z.object({
     headers: z.array(text).min(1).max(8),
     rows: z.array(z.array(text)).min(1).max(MAX_TABLE_ROWS),
     caption: text.optional(),
+    /** Render style (Cluster C). 'matrix-2x2' lays the table out as a 2×2 quadrant
+     *  grid; 'rating' renders harvey-ball cells with a visually-hidden text
+     *  alternative. Optional + additive — renderers without the enhancement render a
+     *  plain table (legacy decks never emit it, so SlideIrSchema strict-parse is unaffected). */
+    style: z.union([z.literal('matrix-2x2'), z.literal('rating')]).optional(),
 }).strict();
 
 const imageBlock = z.object({
@@ -177,6 +182,12 @@ export const SlideIrSchema = z.object({
     background: z.string().regex(HEX_COLOR, 'background must be a 6-digit hex').optional(),
     blocks: z.array(BlockSchema).max(MAX_BLOCKS_PER_SLIDE),
     notes: z.string().max(8_192).optional(),
+    /** Provenance (Cluster C, Gemini-G3) — OPTIONAL so the legacy generation path
+     *  (which never emits them) still strict-parses. The consultant translator sets
+     *  them so renderers can surface the action title and audits/repair can trace a
+     *  rendered slide back to its storyboard slide. */
+    action_title: text.optional(),
+    storyboard_slide_id: z.string().min(1).max(64).optional(),
 }).strict();
 
 export const SlideDeckIrSchema = z.object({

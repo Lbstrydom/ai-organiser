@@ -182,9 +182,10 @@ export function visualDataToBlock(v: VisualData): Block | null {
                 rows: capWarn(v.series.flatMap((s) => s.points.map((p) => [s.label, p.x, String(p.y)])), MAX_TABLE_ROWS_OUT, 'line points'),
             };
         case '2x2':
-            // Fallback (no native 2x2 until Cluster C): item × quadrant table.
+            // Cluster C: a styled 2×2 table (renderers honour style; legacy renders plain).
             return {
                 kind: 'table',
+                style: 'matrix-2x2',
                 headers: ['Item', `${v.y_axis.label} / ${v.x_axis.label}`],
                 rows: capWarn(v.items, MAX_TABLE_ROWS_OUT, '2x2 items').map((it) => [it.label, quadrantLabel(it.quadrant, v)]),
             };
@@ -197,7 +198,10 @@ export function visualDataToBlock(v: VisualData): Block | null {
             const cols = v.columns.slice(0, 7);
             return {
                 kind: 'table',
-                headers: ['', ...cols],
+                style: 'rating', // Cluster C: renderers add a visually-hidden a11y text alternative
+                // First header must be non-empty ('text' is min(1), else validateDeckIr
+                // rejects the whole deck — latent since Cluster A, caught by the Cluster C test).
+                headers: ['Option', ...cols],
                 rows: capWarn(v.rows, MAX_TABLE_ROWS_OUT, 'harvey rows').map((row) => [row.label, ...row.ratings.slice(0, cols.length).map(harveyGlyphs)]),
             };
         }
@@ -220,7 +224,9 @@ function slideToIr(slide: StoryboardSlide): SlideIr {
     }
     const visual = visualDataToBlock(slide.visual_data);
     if (visual) blocks.push(visual);
-    return { id: slide.id, type: 'content', title: slide.action_title, blocks };
+    // Provenance (Cluster C): renderers can surface the action title; audits/repair
+    // trace a rendered slide back to its storyboard origin.
+    return { id: slide.id, type: 'content', title: slide.action_title, blocks, action_title: slide.action_title, storyboard_slide_id: slide.id };
 }
 
 /**
