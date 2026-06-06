@@ -1,5 +1,36 @@
 # Project Status Log
 
+## 2026-06-06 — Waiting-state UX Cluster B + completed-plan filing + ship
+
+### Changes
+- **Waiting-state UX Cluster B** — migrated the last 3 ad-hoc progress notices onto `withProgress` (raw-phase pattern), so they gain the shared elapsed ticker + status-bar broker + heartbeat the chat/`withProgress` flows already had:
+  - **integration** resolve+merge: `new Notice('',0)`+`setMessage`+manual `showBusy`/`hideBusy` → `withProgress`; dropped nested `withBusyIndicator` in `callLLMForIntegration`; inner catch `dispose()`s (not `fail()`) to avoid double-toast.
+  - **translate** ×3 (`translateNote`, `translateSelection`, multi-source): one-shot/`new Notice('',0)` → `withProgress`; dropped `withBusyIndicator` from `translateWithLLM` (kept `withForeground`); reporter spans the full multi-source op incl. assembly; `snapshot.selection` re-narrowed inside the async closure.
+  - **Status-bar overlap rule**: removing the nested `withBusyIndicator` was required so the LLM helpers don't fight the reporter's broker ticket over the busy class.
+- **Verification**: tsc + eslint clean, full unit suite green (319 files), `/audit-code` (GPT R1 + **Gemini gate APPROVE** — 0 in-scope defects; all 18 GPT findings pre-existing god-module/architecture debt or invalid), and a **live Playwright persona verify 8/8** on azure-claude (elapsed appears → ticks `0:00…0:06` → clears; single status-bar ticket, no double-up).
+- **Completed-plan filing** — moved 6 finished plans `docs/plans/` → `docs/completed/` (waiting-state-ux, azure-429-throttling, azure-throttle-coverage, brand-font-embedding, presentation-demo-fixes, consultant-quality-slides + their audit summaries); fixed consultant's stale "Approved" header → ✅ Complete; reconciled the 4 `AGENTS.md` `Plan:` links to the new paths. `docs/plans/` now holds only the active `demo-readiness-bugfixes.md`.
+- **F6 (research live verify)** — re-attempted via the harness; reproduced the documented blocker (research mode stacks a second buttonless modal over the chat modal → composer textarea never surfaces). Confirmed **harness automation debt, not a product bug** (config correct, 138 unit tests pass). Recorded the diagnostic in the demo doc; stays a 2-min manual check.
+
+### Files Affected
+- `src/commands/integrationCommands.ts` — integration progress → `withProgress`; `callLLMForIntegration` drops `withBusyIndicator`
+- `src/commands/translateCommands.ts` — 3 translate flows → `withProgress`; `translateWithLLM` drops `withBusyIndicator`
+- `AGENTS.md` — ProgressReporter migrated-flows rows (translate/integration) + waiting-state-ux completion note; 4 completed-plan link paths
+- `status.md` — this entry
+- `docs/completed/*` + `docs/plans/demo-readiness-bugfixes.md` (gitignored) — plan moves, status fixes, F6 diagnostic
+- `scripts/persona-harness/verify-waiting-state-clusterb.mjs` (gitignored, new) — Playwright Cluster B verification
+
+### Decisions Made
+- Used `withProgress` raw-phase pattern (matches `canvasCommands.ts`); no abort/cancel wiring (safe first pass); `ProgressDisplayPolicy` skipped (no sub-second op migrated).
+- Inner catch `dispose()` not `fail()` — preserves each command's specific error message, no double-toast.
+- Kept this repo's inverted CLAUDE↔AGENTS topology (AGENTS.md canonical, CLAUDE.md thin `@import`); did NOT run the generic ship "sync CLAUDE→AGENTS" step (would clobber AGENTS.md).
+
+### Next Steps
+- F6: 2-min manual research smoke test before the Mon 2026-06-08 demo (open chat → Research → ask → confirm synthesis+citations); pre-accept the consent modal once.
+- Operational demo decisions (Azure provider already `azure-claude`; confirm RPM/TPM quota → tune `azureMaxRpm`).
+- After the demo: file `demo-readiness-bugfixes.md` to `docs/completed/`.
+
+---
+
 ## 2026-06-06 — Presentation reliability fixes (F4/F7/B3): persona sweep → plan → audit → implement → persona-verify
 
 ### Changes

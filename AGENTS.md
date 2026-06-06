@@ -813,8 +813,8 @@ use(r.value);
 | Smart note — diagram + improve | [smartNoteCommands.ts:230](src/commands/smartNoteCommands.ts) | `withProgress<Phase>` with phase transitions |
 | Newsletter — fetch + audio regen | [newsletterCommands.ts:43](src/commands/newsletterCommands.ts) | `withProgress` with per-item `triaging` phase |
 | Multi-source summarize | [summarizeCommands.ts:449](src/commands/summarizeCommands.ts) | Persistent Notice + `setMessage` + `hideProgress()` on all exits |
-| Multi-source translate | [translateCommands.ts:322](src/commands/translateCommands.ts) | Same pattern |
-| Integration — resolve + merge | [integrationCommands.ts:148](src/commands/integrationCommands.ts) | Persistent Notice + `setMessage` + finally-hide |
+| Multi-source translate (+ `translateNote`/`translateSelection`) | [translateCommands.ts](src/commands/translateCommands.ts) | **`withProgress` raw-phase** (waiting-state-ux Cluster B, June 2026) — shared elapsed ticker + status-bar broker + heartbeat; reporter spans the full op incl. assembly |
+| Integration — resolve + merge | [integrationCommands.ts](src/commands/integrationCommands.ts) | **`withProgress` raw-phase** (waiting-state-ux Cluster B, June 2026) — replaced ad-hoc Notice + `showBusy`/`hideBusy`; inner catch `dispose()`s (not `fail()`) to avoid double-toast |
 | YouTube summarize (pre-existing) | [summarizeCommands.ts:2277](src/commands/summarizeCommands.ts) | Ad-hoc persistent Notice (fixed April 2026) |
 
 ### Intentionally deferred (plan §11 Out of Scope)
@@ -825,6 +825,10 @@ use(r.value);
 - `ChatModeHandler`/`FreeChatModeHandler` — modal-internal progress already good
 - `embedScanCommands` custom progress-bar DOM — battle-tested
 - Per-flow `ProgressPhase` unions — defined inline at each call site
+
+### Waiting-state UX — shared elapsed indicator (✅ Complete, June 2026)
+
+One visual language for long LLM waits. Cluster A extracted the SSOT `formatElapsed` ([elapsed.ts](src/services/progress/elapsed.ts)) + shared indicator ([progressIndicatorDom.ts](src/services/progress/progressIndicatorDom.ts)), rewired the chat thinking indicator onto it, renamed CSS to `.ai-organiser-progress-*`, and added the elapsed ticker to `ProgressReporter`'s Notice surface. **Cluster B** migrated the last ad-hoc progress notices (translate ×3 + integration resolve/merge) onto `withProgress` (see the two table rows above), dropping the nested `withBusyIndicator` in the LLM helpers (status-bar overlap rule — the broker owns one ticket). Code-audited (GPT + Gemini APPROVE) + live persona-verified (8/8: elapsed appears/ticks/clears, single status-bar ticket). Plan: [docs/completed/waiting-state-ux.md](docs/completed/waiting-state-ux.md).
 
 ### Tests
 
@@ -2808,7 +2812,7 @@ By default a brand font is only **named** in CSS, so the preview/PDF render it o
 - `brandExportTheme.composeFontStack(brand)` — leads the stack with the embedded **primary** then `fontFallback` (NOT `fontFallback` alone — that named only the fallback, never the embedded face).
 - `ExportTheme` gains optional `fontStack?` (HTML, always-populated) + `fontFaceCss?` (the `@font-face` block, brand-with-fonts only); PPTX ignores both → byte-identical.
 - Injection seam: the resolved `@font-face` rides the existing `brandCss` head argument in `presentationHtmlService.buildHtmlFromDeckIr` (injected **after** sanitize → DOMPurify can't strip it) and is authorized by **`font-src data:`** added to `presentationSanitizer.CSP_META` (data:-only; no `script-src` change → scripts still blocked). Real-Chromium proof: `tests/e2e/presentationSanitizerCsp.spec.ts` (data: font allowed, https: blocked, scripts blocked).
-- Tests: `themeSafe.test.ts`, `brandAssets.test.ts`, `brandExportTheme.test.ts`, `brandRenderContext.test.ts`, `presentationSanitizer.test.ts`, `tests/e2e/presentationSanitizerCsp.spec.ts`. **Plan**: [docs/plans/brand-font-embedding.md](docs/plans/brand-font-embedding.md) (GPT R1-R3 + Gemini gate; caught 5 would-ship bugs incl. fontStack-naming-only-fallback, sanitize/serialize quoting conflict, off-brand stack comma-stripping).
+- Tests: `themeSafe.test.ts`, `brandAssets.test.ts`, `brandExportTheme.test.ts`, `brandRenderContext.test.ts`, `presentationSanitizer.test.ts`, `tests/e2e/presentationSanitizerCsp.spec.ts`. **Plan**: [docs/completed/brand-font-embedding.md](docs/completed/brand-font-embedding.md) (GPT R1-R3 + Gemini gate; caught 5 would-ship bugs incl. fontStack-naming-only-fallback, sanitize/serialize quoting conflict, off-brand stack comma-stripping).
 
 ## Consultant-Quality Slides (storyboard → dot-dash storyline → native visuals)
 
@@ -2837,7 +2841,7 @@ A McKinsey/BCG-quality semantic layer ABOVE the existing IR deck: action-titled,
 - **Sanitizer CSSOM-longhand trap**: every new visual's CSS must have its LONGHANDS allowlisted (the targeted renderer gate caught `border-radius` corner longhands being stripped — square corners in preview, PPTX unaffected).
 
 ### Tests
-`tests/{consultantStoryboard,evidenceGrounding,storyboardTranslation,consultantAuditService,consultantCriticService,dotDashRoundTrip,dotDashSerializer,dotDashAnchor,consultantStoryboardPipeline,presentationModelResolver,presentationFrameworkBlocks}.test.ts`. Plan + audit summary gitignored (`docs/plans/consultant-quality-slides*.md`). **Renderer gate** (post-consolidated, 4 rounds → APPROVE) found 7 real renderer/grounding defects the per-cluster + consolidated audits missed (dot-decimal, identifier digits, section-deletion regression, negative-currency sign, harvey count, border-radius, multi-line bullets) — the renderer/sanitizer surface had not been independently reviewed until then.
+`tests/{consultantStoryboard,evidenceGrounding,storyboardTranslation,consultantAuditService,consultantCriticService,dotDashRoundTrip,dotDashSerializer,dotDashAnchor,consultantStoryboardPipeline,presentationModelResolver,presentationFrameworkBlocks}.test.ts`. Plan + audit summary gitignored (`docs/completed/consultant-quality-slides*.md`). **Renderer gate** (post-consolidated, 4 rounds → APPROVE) found 7 real renderer/grounding defects the per-cluster + consolidated audits missed (dot-decimal, identifier digits, section-deletion regression, negative-currency sign, harvey count, border-radius, multi-line bullets) — the renderer/sanitizer surface had not been independently reviewed until then.
 
 ## Azure 429 Rate-Limit Throttling (RPM pacing + Azure-aware retry)
 
@@ -2852,7 +2856,7 @@ Non-Azure byte-identical; embeddings excluded (already cap-1 `embeddingQueue`):
 - **Streaming** (`summarizeTextStream` + web-search `runStreamLoop`): **admission-ONLY** lease — wraps just the initial fetch + status read so the RPM start is counted, then releases; the SSE body streams un-leased (a whole-stream lease would freeze all other Azure calls at `maxConcurrent`). Initial-429 retries outside the lease.
 - **Web-search** (`claudeWebSearchAdapter`): per-attempt admission lease on the **SAME** `buildAzureClaudeDeploymentKey` bucket the text path uses → text + research share ONE deployment RPM budget (released before the WS backoff — deadlock-safe).
 - **Audio/Whisper** (`audioTranscriptionService`): `pacedWhisperRequest` **self-detects** Azure from the resolved endpoint (`resolveWhisperPacingKey` → `extractWhisperDeployment`) — NO `TranscriptionOptions` change, NO edits to the 9 call sites. It OWNS its request timeout via an internal `AbortController` (clears the timer + aborts the retry loop on timeout → no leaked timer, no zombie paced loop; at most one in-flight `requestUrl` dangles since Obsidian can't cancel it).
-- Tests: `withAzureLease.test.ts`, `cloudServiceAzureThrottle.test.ts` (extended), `claudeWebSearchPacing.test.ts`, `audioTranscriptionPacing.test.ts`. **Plan**: [docs/plans/azure-throttle-coverage.md](docs/plans/azure-throttle-coverage.md).
+- Tests: `withAzureLease.test.ts`, `cloudServiceAzureThrottle.test.ts` (extended), `claudeWebSearchPacing.test.ts`, `audioTranscriptionPacing.test.ts`. **Plan**: [docs/completed/azure-throttle-coverage.md](docs/completed/azure-throttle-coverage.md).
 
 ### Pass 1 (text egress) — the pacer core
 - `src/services/azure/azureRequestPacer.ts` — **`AzureRequestPacer`**: a self-contained, bounded-FIFO, two-gate scheduler — (a) max-concurrency + (b) a rolling-60s **request-START window** (max-RPM admission). Single FIFO, atomic dual-gate grant (start ts recorded at grant), **abortable leases** (cancel-while-queued removes the waiter), **in-place `setPolicy`** (preserves window/active/FIFO — no recreation), injectable `{now,setTimeout,clearTimeout}`. Per-deployment registry `getAzurePacer(key)` keyed by the SSOT `buildAzure{Claude,OpenAI}DeploymentKey` builders (see Coverage above); `setAzurePacerPolicy` (global, in-place) + `disposeAzurePacers` (unload). `AZURE_PACER_MAX_QUEUE=256`. **Supersedes** the previously-unused `requestLimiter.SimpleSemaphore` for the Azure path (a fixed-size semaphore queue can't express a dual gate).
@@ -2860,7 +2864,7 @@ Non-Azure byte-identical; embeddings excluded (already cap-1 `embeddingQueue`):
 - `src/services/azure/azureRateLimitError.ts` — typed `AzureRateLimitError{kind:'tpm-exceeded'|'queue-full'}`; `formatAzureRateLimitNotice.ts` — shared i18n mapper (`t.azureRateLimit.*`).
 - `cloudService.ts` — wired into BOTH `postWithRetry` (summarize) + `makeRequestWithRetry`/`tryOneRequest` (tagging) via `pacedRequestUrl`, **Azure-gated** (`isAzureAdapter` = `adapterType.startsWith('azure')`). The lease is held ONLY for the in-flight HTTP (released before backoff → no pool stall — the deadlock crux). >TPM throws `AzureRateLimitError` (non-retriable via `isNonRetriableError`). **Non-Azure path byte-identical.** Summarize path propagates the caller `AbortSignal`; tagging path has no caller signal (pre-existing, not cancellable) → waiters drain via the RPM window + are rejected on dispose.
 - `main.ts` sets the policy from settings on init + change, disposes on unload. Settings: `azureMaxConcurrentRequests` (2) + `azureMaxRpm` (10) + migration + `LLMSettingsSection` controls.
-- Tests: `azureRequestPacer.test.ts` (FIFO/RPM-window/abort/deadlock/NaN/policy/dispose), `azureRateLimitHeaders.test.ts`, `cloudServiceAzureThrottle.test.ts` (>TPM fail-fast, non-Azure-untouched, RPM-retry), `formatAzureRateLimitNotice.test.ts`, `azureThrottleWiring.test.ts`. **Plan**: [docs/plans/azure-429-throttling.md](docs/plans/azure-429-throttling.md) (GPT R1-R2 + Gemini; caught: concurrency≠RPM, output-budget TPM, single-FIFO cancellation, dimension-aware backoff).
+- Tests: `azureRequestPacer.test.ts` (FIFO/RPM-window/abort/deadlock/NaN/policy/dispose), `azureRateLimitHeaders.test.ts`, `cloudServiceAzureThrottle.test.ts` (>TPM fail-fast, non-Azure-untouched, RPM-retry), `formatAzureRateLimitNotice.test.ts`, `azureThrottleWiring.test.ts`. **Plan**: [docs/completed/azure-429-throttling.md](docs/completed/azure-429-throttling.md) (GPT R1-R2 + Gemini; caught: concurrency≠RPM, output-budget TPM, single-FIFO cancellation, dimension-aware backoff).
 
 ## LLM Gateway-Lite (fail-closed profile + observability + contention-safe indexing)
 
