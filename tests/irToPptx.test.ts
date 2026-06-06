@@ -267,3 +267,39 @@ describe('renderDeckToPptx — golden (real pptxgenjs)', () => {
         expect(r.value.slideCount).toBe(coffeeDeckIr.slides.length);
     });
 });
+
+describe('renderDeckToPptx — Cluster C native blocks', () => {
+    const deckWith = (block: unknown): SlideDeckIr =>
+        ({ schemaVersion: IR_SCHEMA_VERSION, slides: [{ id: 's1', type: 'content', title: 'T', blocks: [block] }] } as unknown as SlideDeckIr);
+
+    it('2×2 styled table renders 4 quadrant shapes (not a plain table)', async () => {
+        const { r, slides } = await render(deckWith({ kind: 'table', style: 'matrix-2x2', headers: ['I/E', 'Low', 'High'], rows: [['High', '—', 'Win'], ['Low', 'Avoid', '—']] }));
+        expect(r.ok).toBe(true);
+        expect(slides[0].count('addShape')).toBeGreaterThanOrEqual(4);
+        expect(slides[0].count('addTable')).toBe(0);
+    });
+
+    it('waterfall renders bar shapes + value/label text', async () => {
+        const { r, slides } = await render(deckWith({ kind: 'waterfall', unit: '€m', base: { label: 'S', value: 100 }, deltas: [{ label: 'D', value: 20 }], total: { label: 'End' } }));
+        expect(r.ok).toBe(true);
+        expect(slides[0].count('addShape')).toBeGreaterThanOrEqual(3);
+    });
+
+    it('line-chart uses a native pptx chart', async () => {
+        const { r, slides } = await render(deckWith({ kind: 'line-chart', series: [{ label: 'R', points: [{ x: '1', y: 1 }, { x: '2', y: 2 }] }] }));
+        expect(r.ok).toBe(true);
+        expect(slides[0].count('addChart')).toBe(1);
+    });
+
+    it('line-chart degrades to a text summary when the native chart throws', async () => {
+        const { r, slides } = await render(deckWith({ kind: 'line-chart', series: [{ label: 'R', points: [{ x: '1', y: 1 }, { x: '2', y: 2 }] }] }), { failOn: ['addChart'] });
+        expect(r.ok).toBe(true);
+        expect(slides[0].count('addText')).toBeGreaterThanOrEqual(1);
+    });
+
+    it('pyramid renders one shape per level', async () => {
+        const { r, slides } = await render(deckWith({ kind: 'pyramid', levels: [{ label: 'V' }, { label: 'S' }, { label: 'T' }] }));
+        expect(r.ok).toBe(true);
+        expect(slides[0].count('addShape')).toBeGreaterThanOrEqual(3);
+    });
+});

@@ -152,10 +152,14 @@ const customBlock = z.object({
 }).strict();
 
 // ── Cluster C native consultant blocks (waterfall / line / pyramid) ──────────
+// zod v4's `z.number()` already REJECTS Infinity / NaN by default (audit H3 — the
+// concern that `JSON.parse('1e309')` → Infinity would break renderer math is a
+// non-issue: such a value fails schema validation before any render).
+const chartNum = z.number();
 const waterfallBlock = z.object({
     kind: z.literal('waterfall'),
-    base: z.object({ label: text, value: z.number() }).strict(),
-    deltas: z.array(z.object({ label: text, value: z.number() }).strict()).min(1).max(10),
+    base: z.object({ label: text, value: chartNum }).strict(),
+    deltas: z.array(z.object({ label: text, value: chartNum }).strict()).min(1).max(10),
     total: z.object({ label: text }).strict().optional(),
     unit: text.optional(),
     caption: text.optional(),
@@ -165,7 +169,7 @@ const lineChartBlock = z.object({
     kind: z.literal('line-chart'),
     series: z.array(z.object({
         label: text,
-        points: z.array(z.object({ x: text, y: z.number() }).strict()).min(2).max(20),
+        points: z.array(z.object({ x: text, y: chartNum }).strict()).min(2).max(20),
     }).strict()).min(1).max(4),
     unit: text.optional(),
     caption: text.optional(),

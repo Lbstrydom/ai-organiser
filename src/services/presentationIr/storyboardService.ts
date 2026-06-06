@@ -61,6 +61,8 @@ async function runStoryboardLLM(
         if (!retry.success || !retry.content) return err(parsed.error);
         return parseStoryboardFromResponse(retry.content);
     } catch (e) {
+        // Log the full error for diagnosis; return a clean message at the boundary (audit M10).
+        logger.warn('Presentation', `storyboard LLM call failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
         return err(e instanceof Error ? e.message : 'storyboard: unknown error');
     }
 }
@@ -156,12 +158,18 @@ export function visualDataToBlock(v: VisualData): Block | null {
                 ...(v.unit ? { axisLabel: v.unit } : {}),
             };
         }
-        case 'table':
+        case 'table': {
+            const cols = v.columns.slice(0, 8);
             return {
                 kind: 'table',
-                headers: v.columns.slice(0, 8),
-                rows: capWarn(v.rows, MAX_TABLE_ROWS_OUT, 'table rows').map((r) => r.cells.slice(0, 8).map((c) => c.value ?? c.text)),
+                headers: cols,
+                rows: capWarn(v.rows, MAX_TABLE_ROWS_OUT, 'table rows').map((r) => {
+                    const cells = r.cells.slice(0, cols.length).map((c) => c.value ?? c.text);
+                    while (cells.length < cols.length) cells.push('—'); // pad ragged rows to header count (audit M3)
+                    return cells;
+                }),
             };
+        }
         case 'waterfall':
             // Cluster C: native waterfall block (HTML bridge bars / PPTX shapes).
             return {

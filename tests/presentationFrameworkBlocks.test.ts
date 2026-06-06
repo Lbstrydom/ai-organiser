@@ -61,6 +61,11 @@ describe('Cluster C foundation — table style + provenance (schema)', () => {
         expect(r.success).toBe(true);
     });
 
+    it('rejects a non-finite chart number (audit H3 — 1e309 parses to Infinity)', () => {
+        const r = SlideIrSchema.safeParse({ id: 's1', type: 'content', blocks: [{ kind: 'waterfall', base: { label: 'S', value: 1e309 }, deltas: [{ label: 'D', value: 1 }] }] });
+        expect(r.success).toBe(false);
+    });
+
     it('validateDeckIr accepts a deck using the new fields', () => {
         const deck = {
             schemaVersion: IR_SCHEMA_VERSION,
