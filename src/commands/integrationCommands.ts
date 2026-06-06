@@ -34,7 +34,7 @@ import { ContentExtractionService, ExtractionResult, AudioTranscriptionConfig, P
 import { PersonaSelectModal, createPersonaButton } from '../ui/modals/PersonaSelectModal';
 import type { Persona } from '../services/configurationService';
 import { summarizeText, pluginContext } from '../services/llmFacade';
-import { withBusyIndicator, showBusy, hideBusy } from '../utils/busyIndicator';
+import { withProgress } from '../services/progress';
 import { showErrorNotice, showSuccessNotice } from '../utils/executeWithNotice';
 import { getYouTubeGeminiApiKey, getAudioTranscriptionApiKey, getAuditProviderConfig } from '../services/apiKeyHelpers';
 import { getPdfProviderConfig } from '../services/pdfTranslationService';
@@ -146,167 +146,179 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
                         return;
                     }
 
-                    // Persistent progress Notice replaces flash-notice anti-pattern.
-                    // Reporter's hide-on-any-terminal handles the prior "leak on
-                    // error" + "silent between flashes" concerns.
+                    // Persistent progress via ProgressReporter — gains the shared
+                    // elapsed ticker + status-bar broker + heartbeat (waiting-state-ux
+                    // Cluster B). The reporter owns teardown on every exit path; the
+                    // inner catch disposes (not fail) so it never double-toasts with
+                    // the existing showErrorNotice.
                     const tp = plugin.t.progress;
-                    const progressNotice = new Notice(
-                        tp.integration.resolving
-                            .replace('{current}', '0')
-                            .replace('{total}', '?'),
-                        0,
-                    );
-                    const hideProgress = (): void => { try { progressNotice.hide(); } catch { /* noop */ } };
-
-                    showBusy(plugin);
-                    try {
-                        // Get persona prompt
-                        const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
-
-                        // Resolve embedded content (includes privacy consent)
-                        const resolutionResult = await resolveAllPendingContent(
+                    type IntegrationPhase = 'progress';
+                    await withProgress<void, IntegrationPhase>(
+                        {
                             plugin,
-                            pendingContent,
-                            plugin.app.workspace.getActiveFile() || undefined,
-                            (message, current, total) => {
-                                progressNotice.setMessage(
-                                    tp.integration.resolving
-                                        .replace('{current}', String(current))
-                                        .replace('{total}', String(total))
-                                        + ` — ${message}`
-                                );
-                            }
-                        );
-
-                        progressNotice.setMessage(tp.integration.merging);
-
-                        if (resolutionResult.errors.includes(plugin.t.messages.operationCancelled)) {
-                            new Notice(plugin.t.messages.operationCancelled);
-                            return;
-                        }
-
-                        if (resolutionResult.resolvedCount > 0) {
-                            new Notice(
-                                plugin.t.messages.integrationResolutionComplete
-                                    .replace('{count}', String(resolutionResult.resolvedCount))
-                            );
-                        }
-
-                        let enrichedPending = resolutionResult.enrichedContent;
-
-                        // Apply truncation budget based on provider limits
-                        const serviceType = plugin.settings.serviceType === 'cloud'
-                            ? plugin.settings.cloudServiceType
-                            : 'local';
-                        const truncationResult = truncatePendingContentForIntegration(
-                            enrichedPending,
-                            mainContent,
-                            placement,
-                            serviceType
-                        );
-                        enrichedPending = truncationResult.content;
-                        if (truncationResult.wasTruncated) {
-                            new Notice(plugin.t.messages.integrationContentTruncated);
-                        }
-
-                        // Build the integration prompt with strategy params
-                        const prompt = buildIntegrationPrompt(mainContent, enrichedPending, plugin, personaPrompt, placement, format, detail);
-
-                        // Call the LLM service
-                        const response = await callLLMForIntegration(plugin, prompt);
-
-                        if (!response.success || !response.content) {
-                            const errorMessage = response.error || plugin.t.messages.noResponseFromLlm;
-                            showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
-                            return;
-                        }
-
-                        // Validate LLM output before insertion (Phase 3 deterministic validation)
-                        const validation = validateIntegrationOutput(response.content, {
-                            placement,
-                            format,
-                            originalContent: mainContent,
-                            pendingContent: enrichedPending
-                        });
-                        const contentToInsert = validation.data;
-
-                        if (validation.issues.length > 0) {
-                            logger.debug('Integration', 'Integration validation:', validation.issues);
-                        }
-
-                        const warnings = validation.issues.filter(i => i.severity === 'warning');
-                        if (warnings.length > 0) {
-                            new Notice(plugin.t.messages.integrationValidationWarnings.replace('{count}', String(warnings.length)), 4000);
-                        }
-
-                        // Phase 6: Optional LLM audit for merge/callout (DD-5: fail-open)
-                        if (plugin.settings.enableLLMAudit && plugin.llmService
-                            && (placement === 'merge' || placement === 'callout')) {
+                            initialPhase: {
+                                key: 'progress',
+                                params: {
+                                    text: tp.integration.resolving
+                                        .replace('{current}', '0')
+                                        .replace('{total}', '?'),
+                                },
+                            },
+                            resolvePhase: (p) => (typeof p.params?.text === 'string' ? p.params.text : ''),
+                        },
+                        async (reporter) => {
                             try {
-                                const providerConfig = await getAuditProviderConfig(plugin);
-                                const audit = await auditIntegrationWithLLM(
-                                    contentToInsert, mainContent, enrichedPending,
-                                    placement, format,
-                                    plugin.llmService,
-                                    providerConfig,
-                                    { app: plugin.app }
+                                // Get persona prompt
+                                const personaPrompt = await plugin.configService.getPersonaPrompt(selectedPersona.id);
+
+                                // Resolve embedded content (includes privacy consent)
+                                const resolutionResult = await resolveAllPendingContent(
+                                    plugin,
+                                    pendingContent,
+                                    plugin.app.workspace.getActiveFile() || undefined,
+                                    (message, current, total) => {
+                                        reporter.setPhase({
+                                            key: 'progress',
+                                            params: {
+                                                text: tp.integration.resolving
+                                                    .replace('{current}', String(current))
+                                                    .replace('{total}', String(total))
+                                                    + ` — ${message}`,
+                                            },
+                                        });
+                                    }
                                 );
-                                if (!audit.approved) {
-                                    new Notice(plugin.t.messages.auditFlaggedIntegration.replace('{count}', String(audit.issues.length)), 6000);
+
+                                reporter.setPhase({ key: 'progress', params: { text: tp.integration.merging } });
+
+                                if (resolutionResult.errors.includes(plugin.t.messages.operationCancelled)) {
+                                    new Notice(plugin.t.messages.operationCancelled);
+                                    return;
                                 }
-                                if (audit.issues.length > 0) {
-                                    logger.debug('Integration', 'Integration audit:', audit.issues);
+
+                                if (resolutionResult.resolvedCount > 0) {
+                                    new Notice(
+                                        plugin.t.messages.integrationResolutionComplete
+                                            .replace('{count}', String(resolutionResult.resolvedCount))
+                                    );
                                 }
-                            } catch {
-                                logger.debug('Integration', 'Integration audit skipped (error)');
+
+                                let enrichedPending = resolutionResult.enrichedContent;
+
+                                // Apply truncation budget based on provider limits
+                                const serviceType = plugin.settings.serviceType === 'cloud'
+                                    ? plugin.settings.cloudServiceType
+                                    : 'local';
+                                const truncationResult = truncatePendingContentForIntegration(
+                                    enrichedPending,
+                                    mainContent,
+                                    placement,
+                                    serviceType
+                                );
+                                enrichedPending = truncationResult.content;
+                                if (truncationResult.wasTruncated) {
+                                    new Notice(plugin.t.messages.integrationContentTruncated);
+                                }
+
+                                // Build the integration prompt with strategy params
+                                const prompt = buildIntegrationPrompt(mainContent, enrichedPending, plugin, personaPrompt, placement, format, detail);
+
+                                // Call the LLM service
+                                const response = await callLLMForIntegration(plugin, prompt);
+
+                                if (!response.success || !response.content) {
+                                    const errorMessage = response.error || plugin.t.messages.noResponseFromLlm;
+                                    showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
+                                    return;
+                                }
+
+                                // Validate LLM output before insertion (Phase 3 deterministic validation)
+                                const validation = validateIntegrationOutput(response.content, {
+                                    placement,
+                                    format,
+                                    originalContent: mainContent,
+                                    pendingContent: enrichedPending
+                                });
+                                const contentToInsert = validation.data;
+
+                                if (validation.issues.length > 0) {
+                                    logger.debug('Integration', 'Integration validation:', validation.issues);
+                                }
+
+                                const warnings = validation.issues.filter(i => i.severity === 'warning');
+                                if (warnings.length > 0) {
+                                    new Notice(plugin.t.messages.integrationValidationWarnings.replace('{count}', String(warnings.length)), 4000);
+                                }
+
+                                // Phase 6: Optional LLM audit for merge/callout (DD-5: fail-open)
+                                if (plugin.settings.enableLLMAudit && plugin.llmService
+                                    && (placement === 'merge' || placement === 'callout')) {
+                                    try {
+                                        const providerConfig = await getAuditProviderConfig(plugin);
+                                        const audit = await auditIntegrationWithLLM(
+                                            contentToInsert, mainContent, enrichedPending,
+                                            placement, format,
+                                            plugin.llmService,
+                                            providerConfig,
+                                            { app: plugin.app }
+                                        );
+                                        if (!audit.approved) {
+                                            new Notice(plugin.t.messages.auditFlaggedIntegration.replace('{count}', String(audit.issues.length)), 6000);
+                                        }
+                                        if (audit.issues.length > 0) {
+                                            logger.debug('Integration', 'Integration audit:', audit.issues);
+                                        }
+                                    } catch {
+                                        logger.debug('Integration', 'Integration audit skipped (error)');
+                                    }
+                                }
+
+                                // Apply content based on placement strategy.
+                                // cursor/append write immediately — reviewAction stays 'accept' (no review modal).
+                                let reviewAction: 'accept' | 'copy' | 'reject' = 'accept';
+                                if (placement === 'cursor') {
+                                    insertAtCursor(editor, contentToInsert);
+                                } else if (placement === 'append') {
+                                    appendAsNewSections(editor, contentToInsert);
+                                } else {
+                                    // callout or merge — rewrite main content, with diff review
+                                    reviewAction = await showReviewOrApply(
+                                        plugin,
+                                        mainContent,
+                                        contentToInsert,
+                                        () => replaceMainContent(editor, contentToInsert)
+                                    );
+                                }
+
+                                // Post-processing only when content was actually applied
+                                if (reviewAction === 'accept') {
+                                    movePendingSourcesToReferences(editor, pendingContent);
+                                    clearPendingIntegration(editor);
+
+                                    const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+
+                                    // Post-op metadata refresh (FIX-04 status, FIX-05 word_count).
+                                    // Editor buffer is the source of truth — vault may not be flushed yet.
+                                    if (view?.file) {
+                                        await markNoteProcessed(plugin, view.file, {}, { contentForWordCount: editor.getValue() });
+                                    }
+
+                                    if (autoTag && view?.file) {
+                                        const noteContent = editor.getValue();
+                                        await plugin.analyzeAndTagNote(view.file, noteContent);
+                                    }
+
+                                    showSuccessNotice(plugin.t.messages.contentIntegratedSuccessfully);
+                                }
+                            } catch (error) {
+                                // Dispose (silent teardown) — NOT fail() — so we don't
+                                // double-toast with the specific error notice below.
+                                reporter.dispose();
+                                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                                showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
                             }
-                        }
-
-                        // Apply content based on placement strategy.
-                        // cursor/append write immediately — reviewAction stays 'accept' (no review modal).
-                        let reviewAction: 'accept' | 'copy' | 'reject' = 'accept';
-                        if (placement === 'cursor') {
-                            insertAtCursor(editor, contentToInsert);
-                        } else if (placement === 'append') {
-                            appendAsNewSections(editor, contentToInsert);
-                        } else {
-                            // callout or merge — rewrite main content, with diff review
-                            reviewAction = await showReviewOrApply(
-                                plugin,
-                                mainContent,
-                                contentToInsert,
-                                () => replaceMainContent(editor, contentToInsert)
-                            );
-                        }
-
-                        // Post-processing only when content was actually applied
-                        if (reviewAction === 'accept') {
-                            movePendingSourcesToReferences(editor, pendingContent);
-                            clearPendingIntegration(editor);
-
-                            const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
-
-                            // Post-op metadata refresh (FIX-04 status, FIX-05 word_count).
-                            // Editor buffer is the source of truth — vault may not be flushed yet.
-                            if (view?.file) {
-                                await markNoteProcessed(plugin, view.file, {}, { contentForWordCount: editor.getValue() });
-                            }
-
-                            if (autoTag && view?.file) {
-                                const noteContent = editor.getValue();
-                                await plugin.analyzeAndTagNote(view.file, noteContent);
-                            }
-
-                            showSuccessNotice(plugin.t.messages.contentIntegratedSuccessfully);
-                        }
-
-                    } catch (error) {
-                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                        showErrorNotice(plugin.t.messages.integratingContentFailed.replace('{error}', errorMessage));
-                    } finally {
-                        hideProgress();
-                        hideBusy(plugin);
-                    }
+                        },
+                    );
                 })(); }
             );
             modal.open();
@@ -754,7 +766,9 @@ async function callLLMForIntegration(
     plugin: AIOrganiserPlugin,
     prompt: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
-    return await withBusyIndicator(plugin, () => summarizeText(pluginContext(plugin), prompt));
+    // Status bar is owned by the command's ProgressReporter (waiting-state-ux
+    // Cluster B) — no nested busy indicator here (would fight the broker).
+    return await summarizeText(pluginContext(plugin), prompt);
 }
 
 /**
