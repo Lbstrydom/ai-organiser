@@ -1,5 +1,35 @@
 # Project Status Log
 
+## 2026-06-06 — Consultant-quality slides: renderer gate close-out + persona sweep kit
+
+### Changes
+- **Targeted renderer gate** (post the consolidated A–D Gemini gate) over the renderer + sanitizer + dot-dash surface that the consolidated gate never inlined. 4 rounds → APPROVE; **7 real defects fixed** that the per-cluster GPT + consolidated Gemini audits all missed:
+  - `evidenceGrounding.ts` number-parser: dot-prefixed decimals (`.5%`) were treated as text → now grounded; letter-prefixed identifier digits (`Q3`/`FY24`/`v2`) were grounded as quantities → now skipped via lookbehind; negative-currency sign was dropped at the symbol (`-$50`→`50`, false-matching a positive source) → `NUMERIC_RE` + `normaliseNumeric` now keep the sign; `NUMERIC_CELL_RE` handles `-$50` + magnitude suffixes.
+  - `dotDashParser.ts`/`dotDashSerializer.ts`/`dotDashAnchor.ts`: multi-line (wrapped) bullet continuation was dropped → now captured; storyboard `sections` were lost on round-trip → now ride a base64 `aio-sections` meta comment; a section referencing a user-DELETED slide failed the whole parse → dangling slide_ids dropped pre-validation.
+  - `presentationSanitizePolicy.ts`: `border-radius` corner longhands were stripped by the CSSOM allowlist (square corners in preview; PPTX unaffected) → allowlisted.
+  - `consultantAuditService.ts`: harvey `visualDataPointCount` counted rows not ratings (1×4 = 4) → now `rows × columns`.
+- **Documented** the consultant-quality-slides feature in AGENTS.md (canonical) — it had no section.
+- **Persona sweep kit** (gitignored scratch, to run next session): added the **Marcus** strategy-consultant persona + `persona-lib.mjs` + 3 driver scripts (`persona-consultant-slides`, `persona-pres-polish-brand`, `persona-research`) + `RUNBOOK.md` covering the full "everything recent" surface.
+
+### Files Affected
+- `src/services/presentationIr/evidenceGrounding.ts` — number-parser hardening (sign/decimal/identifier/currency/magnitude)
+- `src/services/presentationIr/dotDash{Parser,Serializer,Anchor}.ts` — bullets + sections round-trip + deletion safety
+- `src/utils/presentationSanitizePolicy.ts` — border-radius corner longhands
+- `src/services/chat/consultantAuditService.ts` — harvey data-point count
+- `tests/{evidenceGrounding,dotDashRoundTrip,presentationFrameworkBlocks}.test.ts` — regression tests for all 7
+- `AGENTS.md` — new "Consultant-Quality Slides" section
+- `scripts/persona-harness/*` — persona kit (gitignored, not pushed)
+
+### Decisions Made
+- The renderer/sanitizer surface deserved an independent gate of its own — the consolidated gate inlined only the 14 core-logic files. Vindicated: 7 real defects, two consequential (grounding sign-loss; a round-trip regression I'd introduced one round earlier).
+- Whole-cell numeric grounding stays conservative (no false positives on years/identifiers) by design.
+- Persona sweep runs in a NEW session (single-instance constraint + live LLM cost).
+
+### Next Steps
+- Run the persona sweep per `scripts/persona-harness/RUNBOOK.md`; triage P0/P1; feed real defects back through a targeted fix.
+
+---
+
 ## 2026-06-05 — Real bug found by live testing: Minutes CTA never enabled on typed/pasted transcript
 
 Building the Track-1 UI flows (`azure-ui-flows.mjs`) surfaced a **genuine product bug**: in `MinutesCreationModal`, the transcript `onChange` + `paste` handlers updated `state.transcript` but **never called `refreshSubmitButtonGate()`**, so a user who typed or pasted a transcript (no audio) found the **"Create Minutes" button stayed greyed out** — they couldn't generate minutes. Confirmed live with real keyboard typing (submit stayed disabled pre-fix; enables + generation starts post-fix).

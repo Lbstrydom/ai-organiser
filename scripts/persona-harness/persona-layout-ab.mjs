@@ -177,6 +177,16 @@ const GEOMETRY_FN = `(slideEl) => {
     }
     const sb = slideEl.getBoundingClientRect();
     for (const el of slideEl.querySelectorAll('*')) { const r = el.getBoundingClientRect(); if (r.width && (r.right > sb.right + 6 || r.bottom > sb.bottom + 6)) { flaws.push('overflow'); break; } }
+    // ── Framework-geometry checks (Cluster D native visuals), conservative ──
+    // 2×2 matrix = a 3-column CSS grid; it must expose >=4 populated regions
+    // (axis labels + the 4 quadrant cells), else the matrix collapsed/empty.
+    for (const g of slideEl.querySelectorAll('div')) {
+        const cs = getComputedStyle(g);
+        if (cs.display === 'grid' && cs.gridTemplateColumns.split(/\\s+/).filter(Boolean).length === 3) {
+            const filled = Array.from(g.children).filter(c => (c.textContent||'').trim().length > 0).length;
+            if (filled < 4) { flaws.push('2x2-missing-regions'); break; }
+        }
+    }
     return flaws;
 }`;
 
