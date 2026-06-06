@@ -264,7 +264,7 @@ Manage       ← Recurring + admin: Kindle, Newsletter, recording, dashboards,
                metadata migration, NotebookLM export
 ```
 
-**User-configurable Essentials** (added 2026-05-02): `settings.pickerEssentialsCommandIds` (max 5). Empty = static defaults. UI in *Settings → Language → Quick commands* — pick from any leaf via FuzzySuggestModal. Selected leaves keep cross-listing identity (same `PickerCommand` object reference), so search dedup still works.
+**User-configurable Essentials** (added 2026-05-02): `settings.pickerEssentialsCommandIds` (max 5). Empty = static defaults. UI in *Settings → Preferences → Quick commands* — its own collapsible sub-section (`QuickCommandsSettingsSection`, `sub-quick-commands` registered in `INFRA_SECTIONS`, extracted from `InterfaceSettingsSection` 2026-06-07) — pick from any leaf via FuzzySuggestModal. Selected leaves keep cross-listing identity (same `PickerCommand` object reference), so search dedup still works.
 
 **Sub-grouping**: only Create + Find. Refine and Manage stay flat (≤ 8 leaves each). Sub-group labels are action-verbs (`Write`, `Visualise`, `Discover`, `Audit vault`) — sub-groups collapse by default; user expands via chevron click.
 
@@ -2579,6 +2579,8 @@ No new commands — opt-in via the existing `ai-organiser:create-meeting-minutes
 
 Strictly additive to the existing `src/services/audioNarration/` module. The LLM pre-stage feeds CLEANED MARKDOWN into the existing deterministic `transformToSpokenProse` transformer — does NOT replace it. The transformer is still the single source of truth for sentence/section boundaries and TTS chunking.
 
+> **Spoken-content modes (wired 2026-06-07)**: `transformToSpokenProse` accepts `codeBlockMode`/`tableMode`/`imageMode`. These are now threaded from settings via `proseOptionsFromSettings(plugin)` at BOTH call sites (`prepareNarration` + the LLM-enhanced path) and exposed as Code blocks / Tables / Images dropdowns in `AudioNarrationSettingsSection`. Defaults equal `DEFAULT_PROSE_OPTIONS` (`placeholder`/`row-prose`/`alt-text`), so a user who never changes them gets byte-identical spokenText and an unchanged narration fingerprint. (Previously the settings existed but were never read — dead config.)
+
 Two-stage flow (R1 H2 fix — no billing before consent):
 ```
 narrate-note command
@@ -2832,7 +2834,7 @@ A McKinsey/BCG-quality semantic layer ABOVE the existing IR deck: action-titled,
 - `consultantStoryboardPipeline.ts` — `runStoryboardStage`/`reviseStoryboard`/`buildDeckFromStoryline`/`buildDeckFromStoryboard`/`looksLikeBuildCommand`.
 
 ### Conversational review loop (`src/ui/chat/PresentationModeHandler.ts`)
-`runConsultantStage` drafts the storyboard → writes a `<title> — storyline.md` to the Presentations folder + opens it (review gate). Each subsequent chat turn while a storyline is pending either **REVISES** it in place (any message + the doc's `<!-- comment: … -->` notes, re-grounded/re-audited) or **BUILDS** the deck (`looksLikeBuildCommand`). `resolveRoleRun(r, role)` builds the per-role specialist service; the background visual scan routes through the `visual_critic` context in consultant mode. Settings: `presentationConsultantMode` (false), `presentationStorylineGate` ('review'), `presentationModelRoles` ({generator,critic}); UI in `PresentationModelsSettingsSection.ts`.
+`runConsultantStage` drafts the storyboard → writes a `<title> — storyline.md` to the Presentations folder + opens it (review gate). Each subsequent chat turn while a storyline is pending either **REVISES** it in place (any message + the doc's `<!-- comment: … -->` notes, re-grounded/re-audited) or **BUILDS** the deck (`looksLikeBuildCommand`). `resolveRoleRun(r, role)` builds the per-role specialist service; the background visual scan routes through the `visual_critic` context in consultant mode. Settings: `presentationConsultantMode` (false), `presentationStorylineGate` ('review'), `presentationModelRoles` ({generator,critic}); UI in `PresentationModelsSettingsSection.ts` — the master *Consultant-quality mode* toggle + *Storyline review* gate dropdown + the per-role model dropdowns (toggle/gate UI added 2026-06-07; previously data.json-only).
 
 ### Key patterns
 - **Deterministic-first**: grounding is pure code; the LLM critic only judges what the deterministic tier marks inferential (blind payload — no fabricated-number rubber-stamp).

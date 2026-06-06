@@ -4,6 +4,7 @@ import { LLMSettingsSection } from './LLMSettingsSection';
 import { SpecialistProvidersSettingsSection } from './SpecialistProvidersSettingsSection';
 import { TaggingSettingsSection } from './TaggingSettingsSection';
 import { InterfaceSettingsSection } from './InterfaceSettingsSection';
+import { QuickCommandsSettingsSection } from './QuickCommandsSettingsSection';
 import { SummarizationSettingsSection } from './SummarizationSettingsSection';
 import { MinutesSettingsSection } from './MinutesSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
@@ -330,6 +331,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
                 'preferences', t.preferences?.title || 'Preferences', 'settings',
                 d?.preferences || 'Language, interface, and mobile platform settings',
             );
+            await this.renderIfEnabled('sub-quick-commands', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-quick-commands', t.interface?.pinnedTitle || 'Quick commands', 'star');
+                new QuickCommandsSettingsSection(this.plugin, sub, this).display();
+            });
             await this.renderIfEnabled('sub-interface', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-interface', t.interface?.title || 'Language & Interface', 'languages');
                 new InterfaceSettingsSection(this.plugin, sub, this).display();

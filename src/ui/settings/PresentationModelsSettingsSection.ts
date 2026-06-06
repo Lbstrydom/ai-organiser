@@ -51,6 +51,31 @@ export class PresentationModelsSettingsSection extends BaseSettingSection {
         this.createSectionHeader(t.presentationModels.settingsTitle, 'sparkles', 2);
         this.containerEl.createEl('p', { text: t.presentationModels.settingsDescription, cls: 'setting-item-description' });
 
+        // Consultant-quality master toggle (opt-in). When off, the per-role model
+        // choices + storyline gate below have no effect (one-shot deck flow runs).
+        new Setting(this.containerEl)
+            .setName(t.presentationModels.consultantModeName)
+            .setDesc(t.presentationModels.consultantModeDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.presentationConsultantMode)
+                .onChange(value => {
+                    this.plugin.settings.presentationConsultantMode = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        // Storyline review gate (applies only when consultant mode is on).
+        new Setting(this.containerEl)
+            .setName(t.presentationModels.storylineGateName)
+            .setDesc(t.presentationModels.storylineGateDesc)
+            .addDropdown(dd => dd
+                .addOption('review', t.presentationModels.storylineGateReview)
+                .addOption('auto-build', t.presentationModels.storylineGateAutoBuild)
+                .setValue(this.plugin.settings.presentationStorylineGate)
+                .onChange(value => {
+                    this.plugin.settings.presentationStorylineGate = value as 'review' | 'auto-build';
+                    void this.plugin.saveSettings();
+                }));
+
         const providerLabels = buildProviderOptions(t.dropdowns);
         const options: Record<string, string> = { main: t.presentationModels.mainOption };
         for (const p of ALL_ADAPTERS) options[p] = providerLabels[p] ?? p;

@@ -735,6 +735,22 @@ export interface Translations {
             embedInNote: string;
             embedInNoteDesc: string;
             infoBox: string;
+            modes: {
+                codeBlockLabel: string;
+                codeBlockDesc: string;
+                codeBlockPlaceholder: string;
+                codeBlockOmit: string;
+                codeBlockReadInline: string;
+                tableLabel: string;
+                tableDesc: string;
+                tableRowProse: string;
+                tableHeaderSummary: string;
+                tableOmit: string;
+                imageLabel: string;
+                imageDesc: string;
+                imageAltText: string;
+                imageOmit: string;
+            };
             notices: {
                 empty: string;
                 noKey: string;
@@ -1113,6 +1129,12 @@ export interface Translations {
     presentationModels: {
         settingsTitle: string;
         settingsDescription: string;
+        consultantModeName: string;
+        consultantModeDesc: string;
+        storylineGateName: string;
+        storylineGateDesc: string;
+        storylineGateReview: string;
+        storylineGateAutoBuild: string;
         mainOption: string;
         generatorName: string;
         generatorDesc: string;

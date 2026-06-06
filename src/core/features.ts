@@ -169,9 +169,10 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
 
 /** Always-rendered, ungated child sections owned by no feature (R3-H4). */
 export const INFRA_SECTIONS: readonly string[] = Object.freeze([
-    'advanced',       // Configuration
-    'sub-interface',  // Language & Interface
-    'sub-mobile',     // Mobile
+    'advanced',           // Configuration
+    'sub-quick-commands', // Quick commands (configurable picker Pinned)
+    'sub-interface',      // Language & Interface
+    'sub-mobile',         // Mobile
 ]);
 
 /**

@@ -8,6 +8,7 @@ vi.mock('../src/ui/settings/LLMSettingsSection', () => ({ LLMSettingsSection: cl
 vi.mock('../src/ui/settings/SpecialistProvidersSettingsSection', () => ({ SpecialistProvidersSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/TaggingSettingsSection', () => ({ TaggingSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/InterfaceSettingsSection', () => ({ InterfaceSettingsSection: class { display() {} } }));
+vi.mock('../src/ui/settings/QuickCommandsSettingsSection', () => ({ QuickCommandsSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/SummarizationSettingsSection', () => ({ SummarizationSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/MinutesSettingsSection', () => ({ MinutesSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/ConfigurationSettingsSection', () => ({ ConfigurationSettingsSection: class { display() {} } }));

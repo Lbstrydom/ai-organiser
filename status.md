@@ -1,5 +1,38 @@
 # Project Status Log
 
+## 2026-06-07 — Settings wiring audit + fixes (unreachable features + dead settings + collapsible quick-commands)
+
+### Changes
+- **Audit** (static + live Playwright/Electron): typecheck/eslint/5722 unit + 45 integration tests all green. Found wiring gaps where fully-implemented features had no UI to reach them, plus dead settings. Cleared several agent false-positives (picker "stage mismatches", legacy-flag "unread" reads, modal-internal listener "leaks" — all by-design).
+- **Quick commands → own collapsible**: extracted the configurable picker-Pinned UI out of `InterfaceSettingsSection` into new `QuickCommandsSettingsSection`, rendered as a `sub-quick-commands` collapsible under Preferences (first, before Language & Interface). Registered in `INFRA_SECTIONS` + render-spy stub so the `crossSurfaceTaxonomy`/`settingsTabFeatureGating` completeness invariants stay exact.
+- **Consultant-slides pipeline reachable**: added *Consultant-quality mode* toggle + *Storyline review* dropdown to `PresentationModelsSettingsSection` (was gated on `presentationConsultantMode`/`presentationStorylineGate` with no UI writer — only data.json-editable). Default stays opt-in (off).
+- **Study companion reachable**: added *Study companion notes* toggle to `SummarizationSettingsSection` (was gated on `enableStudyCompanion` default-false with no settings toggle, so the per-modal companion control could never enable).
+- **Audio-narration modes wired**: `audioNarrationCodeBlockMode`/`TableMode`/`ImageMode` were consumed by `transformToSpokenProse` but never threaded from settings. Added `proseOptionsFromSettings()` at both transform call sites + Code blocks / Tables / Images dropdowns in `AudioNarrationSettingsSection`. Defaults match `DEFAULT_PROSE_OPTIONS`, so default users get byte-identical spokenText (unchanged narration fingerprint/cache).
+- **Dead setting removed**: `aichatDefaultModel` (interface + default; never read anywhere, no refs).
+
+### Files Affected
+- `src/ui/settings/QuickCommandsSettingsSection.ts` (new) — extracted pinned-picker section
+- `src/ui/settings/InterfaceSettingsSection.ts` — removed pinned logic + now-unused imports
+- `src/ui/settings/AIOrganiserSettingTab.ts` — wired `sub-quick-commands` sub-collapsible; import
+- `src/core/features.ts` — `sub-quick-commands` in `INFRA_SECTIONS`
+- `src/ui/settings/PresentationModelsSettingsSection.ts` — consultant toggle + storyline-gate dropdown
+- `src/ui/settings/SummarizationSettingsSection.ts` — study-companion toggle
+- `src/ui/settings/AudioNarrationSettingsSection.ts` — code/table/image mode dropdowns
+- `src/services/audioNarration/audioNarrationService.ts` — thread settings → transformer (both call sites)
+- `src/core/settings.ts` — removed dead `aichatDefaultModel`
+- `src/i18n/{types,en}.ts` — keys for consultant mode/storyline gate + narration modes
+- `tests/settingsTabFeatureGating.test.ts` — stub for new section
+
+### Decisions Made
+- Wired (not deleted) the narration `*Mode` settings — they were dead only because the caller never passed them; the transformer already supported them.
+- Skipped `/cycle` (persona-test/ux-lock/multi-agent) — five small UI-wiring fixes; verified instead with tsc/eslint/full tests + live Electron screenshots of every new control.
+- Consultant mode kept opt-in (default off) — made reachable, not forced on.
+
+### Next Steps
+- None required. Optional: a regression test asserting `prepareNarration` honours the `*Mode` settings.
+
+---
+
 ## 2026-06-06 — Waiting-state UX Cluster B + completed-plan filing + ship
 
 ### Changes

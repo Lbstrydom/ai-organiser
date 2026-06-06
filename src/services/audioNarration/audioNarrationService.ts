@@ -36,6 +36,7 @@ import {
     errFrom,
     makeError,
     type LlmEnhancementIntent,
+    type MarkdownToProseOptions,
     type NarrateOutcome,
     type NarrationPhase,
     type NarrationWarning,
@@ -102,6 +103,17 @@ export function buildOutputPath(
 
 // ── Stage 1: prepareNarration ───────────────────────────────────────────────
 
+/** Spoken-content rendering modes from settings (code/table/image handling).
+ *  Defaults match DEFAULT_PROSE_OPTIONS, so a user who never changes them gets
+ *  byte-identical spokenText (and therefore an unchanged narration fingerprint). */
+function proseOptionsFromSettings(plugin: AIOrganiserPlugin): Partial<MarkdownToProseOptions> {
+    return {
+        codeBlockMode: plugin.settings.audioNarrationCodeBlockMode,
+        tableMode: plugin.settings.audioNarrationTableMode,
+        imageMode: plugin.settings.audioNarrationImageMode,
+    };
+}
+
 export async function prepareNarration(
     plugin: AIOrganiserPlugin,
     file: TFile,
@@ -119,7 +131,7 @@ export async function prepareNarration(
     let stats;
     let warnings: string[];
     try {
-        const result = transformToSpokenProse(raw);
+        const result = transformToSpokenProse(raw, proseOptionsFromSettings(plugin));
         spokenText = result.spokenText;
         stats = result.stats;
         warnings = result.warnings;
@@ -295,7 +307,7 @@ export async function executeNarration(
                         {}, signal,
                     );
                     if (enhanced.ok) {
-                        const enhancedSpokenText = transformToSpokenProse(enhanced.value.enhancedMarkdown).spokenText;
+                        const enhancedSpokenText = transformToSpokenProse(enhanced.value.enhancedMarkdown, proseOptionsFromSettings(plugin)).spokenText;
                         // Hard cap (R3 H4 + Gemini G-H1) — compare to RAW
                         // markdown length, not stripped spokenText. Spike
                         // showed 84-114% ratio; 1.2× headroom + 4 KB floor.

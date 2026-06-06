@@ -121,7 +121,6 @@ export interface AIOrganiserSettings {
 
     // === CHAT EXPORT SETTINGS ===
     chatExportFolder: string;           // Subfolder under pluginFolder for chat exports
-    aichatDefaultModel: string;          // Default model for AI Chat
     aichatRefinementPasses: 1 | 2;       // Number of refinement passes in presentation build
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationGroundWebSearch: boolean; // LLM-ground presentation web-search queries in attached notes + prompt (sends note-derived terms to the search provider)
@@ -502,7 +501,6 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // Chat Export Defaults
     chatExportFolder: 'Chats',
-    aichatDefaultModel: 'latest-sonnet',
     aichatRefinementPasses: 1,
     aichatBrandToggleDefault: false,
     presentationGroundWebSearch: true,   // Automatic per user request; toggle gives privacy-conscious users an off switch

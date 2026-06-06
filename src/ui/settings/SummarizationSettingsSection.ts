@@ -61,6 +61,20 @@ export class SummarizationSettingsSection extends BaseSettingSection {
         });
       });
 
+    // Study companion notes — enables the per-source companion toggle that
+    // appears in the summarize input modals when the study persona is chosen.
+    new Setting(containerEl)
+      .setName(t.enableCompanion || 'Study companion notes')
+      .setDesc(t.enableCompanionDesc || 'When using the study persona, also create a companion note that explains the material in conversational language')
+      .addToggle(toggle =>
+        toggle
+          .setValue(plugin.settings.enableStudyCompanion)
+          .onChange(value => {
+            plugin.settings.enableStudyCompanion = value;
+            void plugin.saveSettings();
+          })
+      );
+
     // Edit summary personas button
     new Setting(containerEl)
       .setName(t.editPersonas || 'Edit summary personas')

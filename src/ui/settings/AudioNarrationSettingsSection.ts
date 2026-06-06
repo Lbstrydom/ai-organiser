@@ -57,6 +57,46 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
+        // Spoken-content modes — how non-vocal constructs are rendered into prose.
+        const m = t.modes;
+        new Setting(this.containerEl)
+            .setName(m.codeBlockLabel)
+            .setDesc(m.codeBlockDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('placeholder', m.codeBlockPlaceholder)
+                .addOption('omit', m.codeBlockOmit)
+                .addOption('read-inline', m.codeBlockReadInline)
+                .setValue(this.plugin.settings.audioNarrationCodeBlockMode)
+                .onChange(value => {
+                    this.plugin.settings.audioNarrationCodeBlockMode = value as 'placeholder' | 'omit' | 'read-inline';
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(m.tableLabel)
+            .setDesc(m.tableDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('row-prose', m.tableRowProse)
+                .addOption('header-summary', m.tableHeaderSummary)
+                .addOption('omit', m.tableOmit)
+                .setValue(this.plugin.settings.audioNarrationTableMode)
+                .onChange(value => {
+                    this.plugin.settings.audioNarrationTableMode = value as 'row-prose' | 'header-summary' | 'omit';
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(m.imageLabel)
+            .setDesc(m.imageDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('alt-text', m.imageAltText)
+                .addOption('omit', m.imageOmit)
+                .setValue(this.plugin.settings.audioNarrationImageMode)
+                .onChange(value => {
+                    this.plugin.settings.audioNarrationImageMode = value as 'alt-text' | 'omit';
+                    void this.plugin.saveSettings();
+                }));
+
         // Info box
         const info = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
         info.createEl('p', { text: t.infoBox });
