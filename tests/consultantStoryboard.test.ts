@@ -75,3 +75,16 @@ describe('parseStoryboardFromResponse', () => {
         if (!r.ok) expect(r.error).toMatch(/schema validation failed/);
     });
 });
+
+describe('column-length invariant (consolidated gate MEDIUM)', () => {
+    it('rejects a harvey row whose ratings count != columns count', () => {
+        const slide = { ...barSlide, suggested_visual: 'harvey', visual_data: { type: 'harvey', columns: ['Cost', 'Speed'], rows: [{ label: 'A', ratings: [4] }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(false);
+    });
+    it('rejects a table row whose cells count != columns count', () => {
+        const slide = { ...barSlide, suggested_visual: 'table', visual_data: { type: 'table', columns: ['A', 'B'], rows: [{ cells: [{ text: 'x' }] }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(false);
+    });
+});

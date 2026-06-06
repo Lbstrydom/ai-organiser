@@ -138,7 +138,20 @@ export const storyboardSlideSchema = z.object({
 }).strict().refine(
     (s) => s.suggested_visual === s.visual_data.type,
     { message: 'suggested_visual must equal visual_data.type', path: ['visual_data'] },
-);
+).superRefine((s, ctx) => {
+    // Table/harvey rows must match their column count (consolidated gate MEDIUM) so a
+    // ragged LLM table is rejected at the storyboard boundary, not silently padded later.
+    const v = s.visual_data;
+    if (v.type === 'table') {
+        v.rows.forEach((r, i) => {
+            if (r.cells.length !== v.columns.length) ctx.addIssue({ code: 'custom', message: `table row ${i} has ${r.cells.length} cells but ${v.columns.length} columns`, path: ['visual_data', 'rows', i] });
+        });
+    } else if (v.type === 'harvey') {
+        v.rows.forEach((r, i) => {
+            if (r.ratings.length !== v.columns.length) ctx.addIssue({ code: 'custom', message: `harvey row ${i} has ${r.ratings.length} ratings but ${v.columns.length} columns`, path: ['visual_data', 'rows', i] });
+        });
+    }
+});
 export type StoryboardSlide = z.infer<typeof storyboardSlideSchema>;
 
 export const consultantStoryboardSchema = z.object({

@@ -43,9 +43,26 @@ export interface GroundingReport {
     readonly inferential: readonly ClaimCheck[]; // tier === 'inferential' (→ LLM)
 }
 
-// Captures a trailing "%" OR the word "percent" (audit M6/M12) so "60 percent"
-// tokenises whole and normalises to 0.60 like "60%".
-const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent)?/gi;
+// Captures a trailing "%" / "percent" (M6/M12) AND a magnitude suffix (k / m / b /
+// t, attached or as a word) so "$50 billion" tokenises WITH its magnitude — the
+// `[kmbt](?![a-z])` guard means "60 models" does NOT capture a spurious "m".
+const NUMERIC_RE = /-?\d[\d,]*(?:\.\d+)?\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
+
+/**
+ * Magnitude key of a numeric token (audit, consolidated gate H1): '$50 billion' →
+ * 'b', '50k' → 'k', '50' → ''. Used as a MATCH GATE — two numbers only match when
+ * their magnitudes agree, so "50 billion" can't falsely match a source's bare "50".
+ * Deliberately NOT multiplied into the value (that risks mis-grounding "60 models");
+ * a magnitude mismatch simply routes the claim to the inferential LLM judge.
+ */
+function magnitudeKey(token: string): string {
+    const t = token.trim().toLowerCase();
+    if (/\bbillion\b|\bbn\b|\d\s*b(?![a-z])/.test(t)) return 'b';
+    if (/\btrillion\b|\d\s*t(?![a-z])/.test(t)) return 't';
+    if (/\bmillion\b|\d\s*m(?![a-z])/.test(t)) return 'm';
+    if (/\bthousand\b|\d\s*k(?![a-z])/.test(t)) return 'k';
+    return '';
+}
 
 // A cell is a NUMBER (not a label-with-a-digit) only when the whole value is
 // numeric — currency prefix + thousands + decimal + optional %/percent (audit H10).
@@ -76,11 +93,13 @@ function spanText(span: EvidenceSpan): string {
  */
 function numericInSpans(rawToken: string, spans: readonly EvidenceSpan[]): 'exact' | 'numeric' | null {
     const rawNorm = rawToken.trim().toLowerCase().replace(/\s+/g, '');
+    const rawMag = magnitudeKey(rawToken);
     const target = normaliseNumeric(rawToken);
     let numericHit = false;
     for (const s of spans) {
         const toks = spanText(s).match(NUMERIC_RE) || [];
         for (const tk of toks) {
+            if (magnitudeKey(tk) !== rawMag) continue; // magnitude/unit must agree (H1: "50 billion" ≠ "50")
             if (tk.trim().toLowerCase().replace(/\s+/g, '') === rawNorm) return 'exact'; // verbatim token (bounded)
             if (target !== null) {
                 const v = normaliseNumeric(tk);
@@ -148,7 +167,17 @@ function visualNumericClaims(v: VisualData): Array<{ claim: string; spanId?: str
                 if (NUMERIC_CELL_RE.test(cellText)) out.push({ claim: cellText, spanId: c.evidence_span_id });
             }
             break;
-        default: break; // 2x2/pyramid/harvey carry categorical/text — grounded as text
+        case '2x2':
+            // A 2×2 item LABEL that carries a number ("$50M revenue") is a factual
+            // claim (consolidated gate H3) — ground it against the item's citation.
+            for (const it of v.items) if (/\d/.test(it.label)) out.push({ claim: it.label, spanId: it.evidence_span_id });
+            break;
+        case 'harvey':
+            // Same for a harvey ROW label that carries a number (the 0-4 ratings are
+            // subjective scores, not source figures — not grounded).
+            for (const r of v.rows) if (/\d/.test(r.label)) out.push({ claim: r.label, spanId: r.evidence_span_id });
+            break;
+        default: break; // pyramid carries concept labels with no citations — grounded as text
     }
     return out;
 }
