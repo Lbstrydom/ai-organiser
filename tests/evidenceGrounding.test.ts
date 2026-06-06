@@ -88,6 +88,11 @@ describe('numeric matching is token-bounded (audit H10)', () => {
         const ok = checkClaim('margin improved by .5%', [{ id: 'e1', source_ref: 's', text: 'Margin rose .5% in Q3.' }], { slideId: 's1', field: 'action_title' });
         expect(ok.tier === 'exact' || ok.tier === 'numeric').toBe(true); // and it matches a verbatim .5% source
     });
+    it('a letter-prefixed identifier digit (Q3, FY24) is NOT grounded as a quantity (renderer-gate R2)', () => {
+        // "Q3 results" with no cited span — the "3" is an identifier, so this is text, not an ungrounded number.
+        const c = checkClaim('Q3 results were strong', [], { slideId: 's1', field: 'action_title' });
+        expect(c.tier).toBe('grounded-text');
+    });
     it('"60 percent" in a span matches a "60%" claim (audit M6/M12)', () => {
         const pctSpan: EvidenceSpan[] = [{ id: 'e1', source_ref: 's', text: 'EMEA was 60 percent of growth.' }];
         const c = checkClaim('EMEA drove 60% of growth', pctSpan, { slideId: 's1', field: 'action_title' });

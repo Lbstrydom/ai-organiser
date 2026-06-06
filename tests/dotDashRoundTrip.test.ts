@@ -78,6 +78,22 @@ describe('dot-dash round-trip', () => {
         }
     });
 
+    it('drops a section reference to a slide the user deleted, without breaking the parse (renderer-gate R2)', () => {
+        const withSections = sb({
+            schemaVersion: 1, thesis: 'Growth was regionally concentrated',
+            sections: [{ label: 'Situation', slide_ids: ['s1'] }, { label: 'Ask', slide_ids: ['s2'] }],
+            slides: storyboard.slides,
+        });
+        // Delete the second slide block (its section ref would otherwise dangle).
+        const md = storyboardToMarkdown(withSections).replace(/## Double down on EMEA in Q4[\s\S]*$/, '');
+        const r = markdownToStoryboard(md);
+        expect(r.ok).toBe(true); // dangling slide_id dropped instead of failing the schema
+        if (r.ok) {
+            expect(r.value.storyboard.slides).toHaveLength(1);
+            expect(r.value.storyboard.sections).toEqual([{ label: 'Situation', slide_ids: ['s1'] }]);
+        }
+    });
+
     it('a user-edited action title survives the round-trip', () => {
         const md = storyboardToMarkdown(storyboard).replace('EMEA drove 60% of Q3 growth', 'EMEA delivered the bulk of Q3 growth');
         const r = markdownToStoryboard(md);

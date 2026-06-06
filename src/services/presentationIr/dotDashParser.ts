@@ -101,9 +101,19 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
 
     // Restore the LLM's section groupings (renderer-gate MEDIUM); omit when absent so
     // the schema's optional field stays undefined rather than an empty array.
+    // Restore section groupings, but DROP references to slides the user deleted during
+    // review (renderer-gate R2 HIGH — a dangling slide_id would fail the schema's
+    // sections-reference superRefine and break the whole parse). Empty sections are dropped.
     const sectionMeta = decodeMetaComment('aio-sections', md);
+    const slideIds = new Set(slides.map((s) => (s as { id?: string }).id));
     const candidate: Record<string, unknown> = { schemaVersion: STORYBOARD_SCHEMA_VERSION, thesis, slides };
-    if (Array.isArray(sectionMeta)) candidate.sections = sectionMeta;
+    if (Array.isArray(sectionMeta)) {
+        const cleaned = sectionMeta
+            .filter((sec): sec is { label: unknown; slide_ids: unknown[] } => !!sec && typeof sec === 'object' && Array.isArray((sec as { slide_ids?: unknown }).slide_ids))
+            .map((sec) => ({ ...sec, slide_ids: sec.slide_ids.filter((id) => typeof id === 'string' && slideIds.has(id)) }))
+            .filter((sec) => sec.slide_ids.length > 0);
+        if (cleaned.length) candidate.sections = cleaned;
+    }
     const parsed = consultantStoryboardSchema.safeParse(candidate);
     if (!parsed.success) {
         const f = parsed.error.issues[0];

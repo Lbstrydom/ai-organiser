@@ -47,8 +47,9 @@ export interface GroundingReport {
 // t, attached or as a word) so "$50 billion" tokenises WITH its magnitude — the
 // `[kmbt](?![a-z])` guard means "60 models" does NOT capture a spurious "m".
 // Leading-OR-dot-prefixed decimals (renderer-gate HIGH): ".5" / "-.25" must tokenise
-// as numbers, else a dot-prefixed figure slips through grounding as "text".
-const NUMERIC_RE = /-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
+// as numbers. The `(?<![a-z])` lookbehind skips letter-prefixed IDENTIFIER digits
+// ("Q3", "FY24", "v2") so they aren't grounded as factual quantities (renderer-gate R2).
+const NUMERIC_RE = /(?<![a-z])-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent|million|billion|trillion|thousand|bn|[kmbt](?![a-z]))?/gi;
 
 /**
  * Magnitude key of a numeric token (audit, consolidated gate H1): '$50 billion' →
@@ -68,7 +69,11 @@ function magnitudeKey(token: string): string {
 
 // A cell is a NUMBER (not a label-with-a-digit) only when the whole value is
 // numeric — currency prefix + thousands + decimal + optional %/percent (audit H10).
-const NUMERIC_CELL_RE = /^[\s$€£]*-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent)?\s*$/i;
+// A WHOLLY-numeric cell, incl. a minus BEFORE the currency ("-$50", renderer-gate R2).
+// Deliberately whole-cell: a prose cell ("Loss of $50") or a year ("Q3 2024") is NOT
+// matched — that avoids false-positive grounding nags on identifiers/years (the
+// primary title/visual claims are grounded; a number buried in prose is accepted-gap).
+const NUMERIC_CELL_RE = /^\s*-?\s*[$€£]?\s*(?:\d[\d,]*(?:\.\d+)?|\.\d+)\s*(?:%|percent)?\s*$/i;
 
 /** Normalise a numeric token to a canonical numeric value for matching:
  *  "60%"→0.6, "60 percent"→0.6, "0.60"→0.6, "1,234"→1234, "64"→64. */
