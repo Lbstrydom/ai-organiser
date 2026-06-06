@@ -28,11 +28,18 @@ function sb(obj: unknown): ConsultantStoryboard {
 // Cluster C — Phase 5 foundation: table `style` + slide provenance (the dual-renderer
 // native rendering of the 3 new block kinds is a separate phase).
 describe('Cluster C foundation — table style + provenance (schema)', () => {
-    it('SlideIrSchema accepts a matrix-2x2 styled table', () => {
+    it('SlideIrSchema accepts a well-formed 3×3 matrix-2x2 styled table', () => {
+        const r = SlideIrSchema.safeParse({
+            id: 's1', type: 'content', blocks: [{ kind: 'table', style: 'matrix-2x2', headers: ['I/E', 'Low', 'High'], rows: [['High', 'a', 'b'], ['Low', 'c', 'd']] }],
+        });
+        expect(r.success).toBe(true);
+    });
+
+    it('rejects a matrix-2x2 table that is NOT a 3×3 grid (audit H4)', () => {
         const r = SlideIrSchema.safeParse({
             id: 's1', type: 'content', blocks: [{ kind: 'table', style: 'matrix-2x2', headers: ['A', 'B'], rows: [['x', 'y']] }],
         });
-        expect(r.success).toBe(true);
+        expect(r.success).toBe(false);
     });
 
     it('SlideIrSchema accepts a rating styled table', () => {
@@ -69,7 +76,7 @@ describe('Cluster C foundation — table style + provenance (schema)', () => {
     it('validateDeckIr accepts a deck using the new fields', () => {
         const deck = {
             schemaVersion: IR_SCHEMA_VERSION,
-            slides: [{ id: 's1', type: 'content', action_title: 'T', storyboard_slide_id: 'sb1', blocks: [{ kind: 'table', style: 'matrix-2x2', headers: ['A', 'B'], rows: [['x', 'y']] }] }],
+            slides: [{ id: 's1', type: 'content', action_title: 'T', storyboard_slide_id: 'sb1', blocks: [{ kind: 'table', style: 'matrix-2x2', headers: ['I/E', 'Low', 'High'], rows: [['High', 'a', 'b'], ['Low', 'c', 'd']] }] }],
         };
         expect(validateDeckIr(deck).ok).toBe(true);
     });

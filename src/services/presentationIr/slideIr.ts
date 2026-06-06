@@ -218,7 +218,16 @@ export const SlideIrSchema = z.object({
      *  rendered slide back to its storyboard slide. */
     action_title: text.optional(),
     storyboard_slide_id: z.string().min(1).max(64).optional(),
-}).strict();
+}).strict().superRefine((slide, ctx) => {
+    // A matrix-2x2 table MUST be a 3×3 grid (audit H4 — the renderer reads headers
+    // [corner,xLow,xHigh] + rows [[yHigh,tl,tr],[yLow,bl,br]]); enforce the shape so
+    // a malformed one fails validation instead of rendering empty quadrant cells.
+    slide.blocks.forEach((b, bi) => {
+        if (b.kind === 'table' && b.style === 'matrix-2x2' && (b.headers.length !== 3 || b.rows.length !== 2 || b.rows.some((r) => r.length !== 3))) {
+            ctx.addIssue({ code: 'custom', message: 'a matrix-2x2 table must be a 3×3 grid (3 headers, 2 rows of 3 cells)', path: ['blocks', bi] });
+        }
+    });
+});
 
 export const SlideDeckIrSchema = z.object({
     schemaVersion: z.literal(IR_SCHEMA_VERSION),
