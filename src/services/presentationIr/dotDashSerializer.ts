@@ -67,7 +67,7 @@ export function storyboardToMarkdown(storyboard: ConsultantStoryboard, options: 
     out.push('');
     out.push(`> **Thesis:** ${oneLine(storyboard.thesis)}`);
     out.push('');
-    out.push('_Review the storyline below. Edit the titles + supporting points directly, or leave `<!-- comment: … -->` notes, then run **Build slides from this storyline**. The hidden anchors carry the chart data — leave them in place._');
+    out.push('_Review the storyline below. Edit the titles + supporting points directly, or leave `<!-- comment: … -->` notes, then run **Build slides from this storyline**. The hidden anchors carry the chart data — leave them in place. The `> visual:` line is display-only; to change a chart, describe it in chat (e.g. "make slide 3 a 2×2")._');
     out.push('');
 
     const deckFindings = options.bySlide?.get(DECK_LEVEL_KEY) ?? [];

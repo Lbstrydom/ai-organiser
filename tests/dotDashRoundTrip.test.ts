@@ -42,6 +42,18 @@ describe('dot-dash round-trip', () => {
         expect(r.value.storyboard.slides[1].role).toBe('recommendation');
     });
 
+    it('captures ALL supporting bullets the user adds, not just the first (consolidated gate R2)', () => {
+        let md = storyboardToMarkdown(storyboard);
+        md = md.replace('- EMEA led every region this quarter', '- EMEA led every region this quarter\n- and APAC recovered\n- while NA was flat');
+        const r = markdownToStoryboard(md);
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.storyboard.slides[0].core_message).toContain('EMEA led every region');
+            expect(r.value.storyboard.slides[0].core_message).toContain('APAC recovered');
+            expect(r.value.storyboard.slides[0].core_message).toContain('NA was flat');
+        }
+    });
+
     it('a user-edited action title survives the round-trip', () => {
         const md = storyboardToMarkdown(storyboard).replace('EMEA drove 60% of Q3 growth', 'EMEA delivered the bulk of Q3 growth');
         const r = markdownToStoryboard(md);

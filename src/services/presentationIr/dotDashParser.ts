@@ -71,9 +71,11 @@ export function markdownToStoryboard(md: string): Result<ParsedStoryline> {
             evidence_span_ids = Array.isArray(state.evidence_span_ids) ? state.evidence_span_ids : [];
         }
 
-        // Supporting prose = the first `- ` bullet (the human-editable dot-dash).
-        const bulletM = body.split('\n').find((l) => /^\s*-\s+/.test(l));
-        const core_message = bulletM ? bulletM.replace(/^\s*-\s+/, '').trim() : title;
+        // Supporting prose = ALL `- ` dot-dash bullets (consolidated gate R2 HIGH —
+        // capturing only the first silently discarded the user's added bullets). The
+        // `>`-prefixed finding lines and the anchor are excluded by the `^\s*-` anchor.
+        const bullets = body.split('\n').filter((l) => /^\s*-\s+/.test(l)).map((l) => l.replace(/^\s*-\s+/, '').trim()).filter(Boolean);
+        const core_message = bullets.length ? bullets.join(' ') : title;
 
         // Lift comments in this section.
         for (const m of body.matchAll(COMMENT_RE)) {
