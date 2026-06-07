@@ -10,6 +10,7 @@ import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { getClaudeWebSearchKey } from '../apiKeyHelpers';
 import { isAzureMode } from '../azure/endpointResolver';
 import { capabilityChoice } from '../azure/resolveAzureCapability';
+import { logger } from '../../utils/logger';
 import type { SearchProvider, SearchProviderType, SearchResult, SearchOptions } from './researchTypes';
 import { TavilyAdapter } from './adapters/tavilyAdapter';
 import { BrightDataSerpAdapter } from './adapters/brightdataSerpAdapter';
@@ -71,14 +72,30 @@ export class ResearchSearchService {
     async search(queries: string[], options?: SearchOptions): Promise<SearchResult[]> {
         this.lastFallbackUsed = null;
 
-        const results = await this.searchWithActiveProvider(queries, options);
+        // Run the primary provider. A THROW (bad credentials, provider outage)
+        // must trigger the fallback path too — not only an empty result set.
+        // Never swallow silently: log the failure, then try the fallback.
+        let results: SearchResult[] = [];
+        let primaryError: unknown = null;
+        try {
+            results = await this.searchWithActiveProvider(queries, options);
+        } catch (e) {
+            primaryError = e;
+            logger.warn('Research', `Primary search provider failed (${e instanceof Error ? e.message : String(e)}) — attempting fallback`);
+        }
 
         // If primary returned results, use them
         if (results.length > 0) return results;
 
-        // Try fallback provider
+        // Try fallback provider (runs when the primary returned empty OR threw)
         const fallback = await this.getFallbackProvider();
-        if (!fallback) return results;
+        if (!fallback) {
+            // No fallback configured. If the primary threw, re-surface the real
+            // failure rather than masquerading as a clean "no results".
+            // (the detailed cause is already logged above)
+            if (primaryError) throw primaryError instanceof Error ? primaryError : new Error('Search provider failed');
+            return results;
+        }
 
         this.lastFallbackUsed = fallback.type;
         return this.searchWithProvider(fallback.provider, queries, options);

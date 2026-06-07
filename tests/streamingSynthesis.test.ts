@@ -224,7 +224,9 @@ describe('P2-8: Search retry logic', () => {
             isConfigured: vi.fn().mockResolvedValue(true),
         };
 
-        (service as any).providers.set('tavily', mockProvider);
+        // Isolate to one provider so the retry-exhausted throw propagates
+        // (no fallback to a real adapter in this unit test).
+        (service as any).providers = new Map([['tavily', mockProvider]]);
 
         await expect(service.search(['test query'])).rejects.toThrow();
         expect(mockProvider.search).toHaveBeenCalledTimes(2);
@@ -246,7 +248,9 @@ describe('P2-8: Search retry logic', () => {
             isConfigured: vi.fn().mockResolvedValue(true),
         };
 
-        (service as any).providers.set('tavily', mockProvider);
+        // Isolate to one provider so the throw propagates (no fallback) — this
+        // asserts the RETRY logic (called once), not fallback-on-throw behaviour.
+        (service as any).providers = new Map([['tavily', mockProvider]]);
 
         await expect(service.search(['test query'])).rejects.toThrow('Invalid API key');
         expect(mockProvider.search).toHaveBeenCalledTimes(1); // no retry

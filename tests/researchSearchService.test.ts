@@ -397,6 +397,25 @@ describe('ResearchSearchService', () => {
             expect(service.fallbackProviderUsed).toBeNull();
         });
 
+        it('falls back when the primary provider THROWS (bad creds / outage), not just on empty', async () => {
+            (primaryProvider.search as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Invalid credentials'));
+            (fallbackProvider.search as ReturnType<typeof vi.fn>).mockResolvedValue([
+                makeResult({ title: 'Fallback after throw', url: 'https://fb.com' }),
+            ]);
+
+            const results = await service.search(['test query']);
+            expect(results).toHaveLength(1);
+            expect(results[0].title).toBe('Fallback after throw');
+            expect(service.fallbackProviderUsed).toBe('claude-web-search');
+        });
+
+        it('re-throws the primary error when it throws AND no fallback is configured (no silent mask)', async () => {
+            (service as any).providers = new Map([['tavily', primaryProvider]]); // no other configured provider
+            (primaryProvider.search as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Provider outage'));
+
+            await expect(service.search(['q'])).rejects.toThrow('Provider outage');
+        });
+
         it('does not fallback when primary returns results', async () => {
             (primaryProvider.search as ReturnType<typeof vi.fn>).mockResolvedValue([
                 makeResult({ title: 'Primary Result', url: 'https://primary.com' }),
