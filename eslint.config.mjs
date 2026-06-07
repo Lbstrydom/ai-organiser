@@ -1,6 +1,10 @@
 import tsparser from '@typescript-eslint/parser';
 import { defineConfig } from 'eslint/config';
-import obsidianmd from 'eslint-plugin-obsidianmd';
+import obsidianmdImport from 'eslint-plugin-obsidianmd';
+
+// eslint-plugin-obsidianmd 0.3.0 moved configs under a `default` export; 0.1.x
+// exposed them at the top level. Support both so a version bump can't break lint.
+const obsidianmd = obsidianmdImport.configs ? obsidianmdImport : obsidianmdImport.default;
 
 export default defineConfig([
     ...obsidianmd.configs.recommendedWithLocalesEn,
@@ -22,6 +26,9 @@ export default defineConfig([
             'obsidianmd/platform': 'warn',
             'obsidianmd/regex-lookbehind': 'error',
             'obsidianmd/no-forbidden-elements': 'error',
+            // Guard against using Obsidian APIs newer than manifest minAppVersion
+            // (the review bot enforces this; keep it green locally too).
+            'obsidianmd/no-unsupported-api': 'error',
             // Use plugin DEFAULTS for sentence-case — no custom brands/acronyms override.
             // Custom overrides cause mismatch with the review bot which uses pure defaults.
             // Domain acronyms (LLM, GTD, PPTX, etc.) are lowercased in en.ts to match.

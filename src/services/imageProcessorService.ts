@@ -290,11 +290,15 @@ export class ImageProcessorService {
     }
 
     /**
-     * Convert HEIC/HEIF to JPEG
+     * Convert HEIC/HEIF to JPEG.
      * Strategy:
      * 1. Try native browser decode (works on macOS, iOS, Windows with HEIC codec)
-     * 2. Try CDN-loaded heic2any library (same pattern as D3.js for tag network)
-     * 3. Throw with actionable guidance
+     * 2. Throw with actionable guidance
+     *
+     * We deliberately do NOT load a converter from a CDN — Obsidian disallows
+     * injecting remote `<script>` code, and bundling a HEIC decoder would bloat
+     * the plugin for a niche format. Users on platforms without a native HEIC
+     * codec get clear guidance to switch their device to a compatible format.
      */
     private async convertHeic(blob: Blob): Promise<Blob> {
         // Attempt 1: Native browser decode (macOS/iOS always, Windows with HEIC Image Extensions)
@@ -305,16 +309,7 @@ export class ImageProcessorService {
                 return await this.convertToJpeg(blob);
             }
         } catch {
-            // Native decode not supported — try library
-        }
-
-        // Attempt 2: CDN-loaded heic2any (runtime fetch, not bundled)
-        try {
-            const heic2any = await this.loadHeicConverter();
-            const result = await heic2any({ blob, toType: 'image/jpeg', quality: DEFAULT_IMAGE_QUALITY });
-            return Array.isArray(result) ? result[0] : result;
-        } catch {
-            // Library load failed
+            // Native decode not supported — fall through to guidance
         }
 
         throw new Error(
@@ -322,42 +317,6 @@ export class ImageProcessorService {
             'On Windows, install "HEIC Image Extensions" from the Microsoft Store (free). ' +
             'On iPhone, go to Settings → Camera → Formats → Most Compatible to use JPEG instead.'
         );
-    }
-
-    /**
-     * Load heic2any library from CDN at runtime (same pattern as D3.js in TagNetworkView)
-     * Library is only loaded when a HEIC file is actually encountered.
-     */
-    private async loadHeicConverter(): Promise<(options: { blob: Blob; toType?: string; quality?: number }) => Promise<Blob>> {
-        const win = globalThis as typeof globalThis & { heic2any?: (options: { blob: Blob; toType?: string; quality?: number }) => Promise<Blob> };
-        if (win.heic2any) return win.heic2any;
-
-        const cdnUrls = [
-            'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
-            'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js'
-        ];
-
-        for (const url of cdnUrls) {
-            try {
-                await this.loadScript(url);
-                if (win.heic2any) return win.heic2any;
-            } catch {
-                continue;
-            }
-        }
-
-        throw new Error('HEIC converter library not available');
-    }
-
-    /** Load an external script by URL (returns when loaded) */
-    private loadScript(url: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error(`Failed to load ${url}`));
-            document.head.appendChild(script);
-        });
     }
 
     /**

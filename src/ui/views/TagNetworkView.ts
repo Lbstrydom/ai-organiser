@@ -1,6 +1,13 @@
 import { ItemView, WorkspaceLeaf, Platform } from 'obsidian';
 import { NetworkData, NetworkNode, NetworkEdge, TagNetworkManager } from '../../utils/tagNetworkUtils';
 import type AIOrganiserPlugin from '../../main';
+// D3 is BUNDLED (specific submodules) — never injected from a CDN <script>
+// (Obsidian disallows loading remote code). The render code below keeps using
+// the loose `D3Lib` shape via the cast at the bottom of this file.
+import { select } from 'd3-selection';
+import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
+import { drag } from 'd3-drag';
+import { zoom, zoomIdentity } from 'd3-zoom';
 
 export const TAG_NETWORK_VIEW_TYPE = 'tag-network-view';
 
@@ -119,11 +126,20 @@ interface D3Lib {
     zoomIdentity: { translate(x: number, y: number): { scale(k: number): unknown } };
 }
 
-declare global {
-    interface Window {
-        d3: D3Lib;
-    }
-}
+// Bundled D3 submodules exposed through the loose `D3Lib` shape the render code
+// expects. Cast through unknown because @types/d3-* are stricter than this
+// hand-rolled fluent interface (runtime behaviour is identical).
+const bundledD3 = {
+    select,
+    forceSimulation,
+    forceLink,
+    forceManyBody,
+    forceCenter,
+    forceCollide,
+    drag,
+    zoom,
+    zoomIdentity,
+} as unknown as D3Lib;
 
 interface SimNode extends NetworkNode {
     x?: number;
@@ -466,55 +482,11 @@ export class TagNetworkView extends ItemView {
     ): Promise<void> {
         const t = this.plugin.t.tagNetwork;
         try {
-            if (!window.d3) {
-                await this.loadD3Script();
-            }
             const handler = this.renderD3Network(container, searchState, tooltip, statusEl);
             onSearchHandlerReady(handler);
         } catch {
             statusEl.setText(t.loadFailed);
         }
-    }
-
-    private loadD3Script(): Promise<void> {
-        const cdnUrls = [
-            'https://d3js.org/d3.v7.min.js',
-            'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js',
-            'https://unpkg.com/d3@7/dist/d3.min.js'
-        ];
-
-        return this.tryLoadFromCDN(cdnUrls, 0);
-    }
-
-    private tryLoadFromCDN(cdnUrls: string[], index: number): Promise<void> {
-        if (index >= cdnUrls.length) {
-            return Promise.reject(new Error('All CDN attempts failed'));
-        }
-
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = cdnUrls[index];
-            script.async = true;
-
-            const handleLoad = () => { cleanup(); resolve(); };
-            const handleError = () => { 
-                cleanup(); 
-                // Try next CDN
-                this.tryLoadFromCDN(cdnUrls, index + 1)
-                    .then(resolve)
-                    .catch(reject);
-            };
-            const cleanup = () => {
-                script.removeEventListener('load', handleLoad);
-                script.removeEventListener('error', handleError);
-            };
-
-            script.addEventListener('load', handleLoad);
-            script.addEventListener('error', handleError);
-            document.head.appendChild(script);
-
-            this.cleanup.push(() => { cleanup(); script.remove(); });
-        });
     }
 
     private renderD3Network(
@@ -524,7 +496,7 @@ export class TagNetworkView extends ItemView {
         statusEl: HTMLElement
     ): () => void {
         const t = this.plugin.t.tagNetwork;
-        const d3 = window.d3;
+        const d3 = bundledD3;
         if (!d3) {
             statusEl.setText(t.loadFailed);
             return () => {};

@@ -2,8 +2,6 @@
 
 **Your notes deserve more than storage.** AI Organiser turns Obsidian into a thinking partner — summarize anything, research the web, build presentations, record meetings, sync Kindle highlights, and let AI tag and connect your knowledge. One plugin, 14 providers, works locally or in the cloud.
 
-<!-- TODO: Add hero GIF/screenshot showing command picker or chat -->
-
 <!-- arch-map-discoverability:start -->
 ## Architecture
 
