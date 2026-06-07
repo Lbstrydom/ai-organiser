@@ -137,6 +137,8 @@ export interface Translations {
                 surfaceOpenAIChat: string;
                 surfaceEmbeddings: string;
                 surfaceWhisper: string;
+                surfaceTts: string;
+                surfaceWebsearch: string;
                 embeddingModel: string;
                 embeddingModelDesc: string;
                 embeddingModelPlaceholder: string;

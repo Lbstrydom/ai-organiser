@@ -16,6 +16,7 @@ import type AIOrganiserPlugin from '../../main';
 import { abortableRequestUrl } from '../../utils/abortableRequestUrl';
 import { logger } from '../../utils/logger';
 import { resolveAzureCapability } from '../azure/resolveAzureCapability';
+import { withAzureLease, buildAzureOpenAIDeploymentKey } from '../azure/azureRequestPacer';
 import { pcmBytesToInt16 } from './pcmUtils';
 import type { TtsEngine } from './ttsEngine';
 
@@ -59,13 +60,17 @@ export class AzureSpeechTtsEngine implements TtsEngine {
             response_format: 'pcm',  // 24 kHz 16-bit signed LE mono → matches the contract
         };
 
-        const response = await abortableRequestUrl({
+        // Pace through the per-deployment Azure RPM/TPM lease (Azure quotas are low).
+        // The lease also drops a queued call on abort; abortableRequestUrl handles
+        // mid-flight abort once the lease is granted.
+        const paceKey = buildAzureOpenAIDeploymentKey(this.endpoint, this.model || 'tts-1');
+        const response = await withAzureLease(paceKey, signal, () => abortableRequestUrl({
             url: this.endpoint,
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'api-key': this.apiKey },
             body: JSON.stringify(body),
             throw: false,
-        }, { signal });
+        }, { signal }));
 
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
         if (response.status !== 200) {

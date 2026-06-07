@@ -14,18 +14,22 @@ import { requestUrl } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
+import { capabilityChoice } from './resolveAzureCapability';
 import {
 	getClaudeMessagesEndpoint,
 	getOpenAIChatEndpoint,
 	getOpenAIEmbeddingsEndpoint,
 	getWhisperEndpoint,
+	getSpeechEndpoint,
 } from './endpointResolver';
 
 export type AzureTestSurface =
 	| 'azure-claude'
 	| 'azure-openai-chat'
 	| 'azure-openai-embeddings'
-	| 'azure-openai-whisper';
+	| 'azure-openai-whisper'
+	| 'azure-tts'
+	| 'azure-websearch';
 
 export interface AzureSurfaceResult {
 	surface: AzureTestSurface;
@@ -284,6 +288,88 @@ async function testWhisperSurface(
 }
 
 /**
+ * TTS (Azure OpenAI Speech) — only when the `tts` capability is set to Azure.
+ * A tiny synthesis round-trip proves the speech deployment exists + key valid.
+ * 200 = synthesized; 400 = reached + authenticated + routed (the tiny input was
+ * rejected) which still proves endpoint + deployment + key (like the Whisper probe).
+ */
+async function testTtsSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	if (!plugin.settings.azureOpenAIEndpoint) return null;
+	if (capabilityChoice(plugin, 'tts').mode !== 'azure') return null;
+	const surface: AzureTestSurface = 'azure-tts';
+	let endpoint: string;
+	try {
+		endpoint = getSpeechEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-openai');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	const model = plugin.settings.azureCapabilities?.tts?.deployment || 'tts-1';
+	const { status } = await probe(
+		endpoint,
+		{ 'Content-Type': 'application/json', 'api-key': key },
+		{ model, input: 'ping', voice: 'alloy', response_format: 'pcm' },
+		signal,
+	);
+	const ok = status === 200 || status === 400;
+	const message =
+		status === 200 ? 'connected'
+			: status === 400 ? 'connected — endpoint, deployment + key valid'
+				: redactedMessage(status);
+	return { surface, ok, status, message };
+}
+
+/**
+ * Web search — only when the `websearch` capability is set to Azure. Runs on the
+ * azure-claude surface; the deployment is the main Claude model (azure-claude
+ * main) or the websearch capability deployment (azure-openai main). A minimal
+ * messages round-trip proves that deployment is reachable + valid (the web_search
+ * server tool itself is available on any real Claude deployment).
+ */
+async function testWebSearchSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	if (capabilityChoice(plugin, 'websearch').mode !== 'azure') return null;
+	const surface: AzureTestSurface = 'azure-websearch';
+	let endpoint: string;
+	try {
+		endpoint = getClaudeMessagesEndpoint(plugin.settings);
+	} catch {
+		return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	}
+	const key = await getAzureApiKey(plugin, 'azure-claude');
+	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	const model =
+		plugin.settings.cloudServiceType === 'azure-claude'
+			? (plugin.settings.cloudModel || DEFAULT_CLAUDE_MODEL)
+			: (plugin.settings.azureCapabilities?.websearch?.deployment || DEFAULT_CLAUDE_MODEL);
+	const { status, raw } = await probe(
+		endpoint,
+		{
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${key}`,
+			'anthropic-version': '2023-06-01',
+		},
+		{ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] },
+		signal,
+	);
+	const hasContent =
+		status === 200 &&
+		!!raw &&
+		typeof raw === 'object' &&
+		Array.isArray((raw as { content?: unknown }).content) &&
+		(raw as { content: unknown[] }).content.length > 0;
+	return { surface, ok: hasContent, status, message: hasContent ? 'connected' : redactedMessage(status) };
+}
+
+/**
  * Run the full Azure live connection test. Pre-flight validation gates the live
  * probes — if config is invalid, we short-circuit and report the validation
  * errors (no network calls). Otherwise each surface is probed independently.
@@ -309,6 +395,13 @@ export async function testAzureConnection(
 	if (embeddings) surfaces.push(embeddings);
 	const whisper = await testWhisperSurface(plugin, signal);
 	if (whisper) surfaces.push(whisper);
+
+	// Per-capability probes (only when the capability is set to Azure) — a green
+	// main chat doesn't prove the speech / web-search deployments exist.
+	const tts = await testTtsSurface(plugin, signal);
+	if (tts) surfaces.push(tts);
+	const websearch = await testWebSearchSurface(plugin, signal);
+	if (websearch) surfaces.push(websearch);
 
 	return { preflightOk: true, preflightErrors: validation.errors, surfaces };
 }

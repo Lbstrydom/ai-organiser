@@ -3,7 +3,7 @@ import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import type { AdapterType } from './adapters';
 import { PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT } from './adapters/providerRegistry';
 import type { AIOrganiserSettings } from '../core/settings';
-import { getOpenAIChatEndpoint, isAzureMode } from './azure/endpointResolver';
+import { getOpenAIChatEndpoint, getClaudeMessagesEndpoint, isAzureMode } from './azure/endpointResolver';
 import { getAzureApiKey } from './azure/azureKey';
 import { resolveAzureCapability, capabilityChoice } from './azure/resolveAzureCapability';
 import type { ResolvedTranscriptionConfig } from './audioTranscriptionService';
@@ -25,8 +25,13 @@ export function resolveEndpoint(provider: AdapterType, plugin: AIOrganiserPlugin
     if (staticEndpoint) return staticEndpoint;
 
     if (provider === 'azure-claude') {
-        const base = (plugin.settings.azureAIEndpoint || '').replace(/\/+$/, '');
-        return base ? `${base}/anthropic/v1/messages` : '';
+        try {
+            // SSOT (G5) — get HTTPS + base-URL validation via normalizeEndpointUrl
+            // instead of manual string concat.
+            return getClaudeMessagesEndpoint(plugin.settings);
+        } catch {
+            return '';
+        }
     }
     if (provider === 'azure-openai') {
         try {

@@ -378,6 +378,8 @@ export class LLMSettingsSection extends BaseSettingSection {
             'azure-openai-chat': az.surfaceOpenAIChat,
             'azure-openai-embeddings': az.surfaceEmbeddings,
             'azure-openai-whisper': az.surfaceWhisper,
+            'azure-tts': az.surfaceTts,
+            'azure-websearch': az.surfaceWebsearch,
         };
         for (const s of report.surfaces) {
             const label = labels[s.surface] ?? s.surface;

@@ -145,6 +145,8 @@ export const en: Translations = {
                 surfaceOpenAIChat: "Azure OpenAI chat",
                 surfaceEmbeddings: "Azure OpenAI embeddings",
                 surfaceWhisper: "Azure OpenAI Whisper",
+                surfaceTts: "Azure OpenAI Speech (TTS)",
+                surfaceWebsearch: "Azure Claude web search",
                 embeddingModel: "Embedding model",
                 embeddingModelDesc: "Azure OpenAI embedding model (e.g. text-embedding-3-large).",
                 embeddingModelPlaceholder: "text-embedding-3-large",
