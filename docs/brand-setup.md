@@ -85,8 +85,8 @@ Either file format works; the plugin picks whichever variant exists.
 
 ## 4. Optional: icons
 
-Add an `icons/` subfolder with one `.svg` per concept, plus a
-`manifest.json` mapping concept keywords to filenames:
+Add an `icons/` subfolder with one `.svg` per concept, plus an optional
+`index.json` mapping concept keywords to filenames:
 
 ```
 999_Brand/
@@ -94,12 +94,12 @@ Add an `icons/` subfolder with one `.svg` per concept, plus a
   logo-light.svg
   logo-dark.svg
   icons/
-    manifest.json
+    index.json
     growth.svg
     security.svg
 ```
 
-`icons/manifest.json` example:
+`icons/index.json` example:
 
 ```json
 {

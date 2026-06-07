@@ -98,9 +98,9 @@ describe('getBrandIcon', () => {
         expect(uri).toMatch(/^data:image\/png;base64,/);
     });
 
-    it('uses the manifest mapping when present', async () => {
+    it('uses the icons index.json mapping when present', async () => {
         const app = makeApp({
-            '999_Brand/icons/manifest.json': { content: JSON.stringify({ energy: 'corp-power.svg' }) },
+            '999_Brand/icons/index.json': { content: JSON.stringify({ energy: 'corp-power.svg' }) },
             '999_Brand/icons/corp-power.svg': { content: goodSvg },
         });
         const uri = await getBrandIcon(app, SETTINGS, 'energy', 'dark');
