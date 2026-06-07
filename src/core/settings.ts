@@ -4,6 +4,7 @@ import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
 import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior, MinutesStyle, DEFAULT_MINUTES_STYLE, MEDIA_SIZE_WARN_BYTES, DEFAULT_RECORDING_FOLDER } from './constants';
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
+import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -414,6 +415,11 @@ export interface AIOrganiserSettings {
     azureDeployments: { chat?: string; embeddings?: string };
     /** Legacy deployment-based paths (whisper + chat/embeddings) carry an api-version; override here if Azure changes it. */
     azureApiVersionOverride: { whisper?: string; chat?: string };
+    /** Per-capability Azure routing (flexible Azure config). Stores ONLY the
+     *  mode + (for azure) the deployment name SSOT. BYO provider/key/model live
+     *  in the existing specialist settings. Consulted ONLY in Azure mode.
+     *  See docs/plans/azure-capability-flexibility.md. */
+    azureCapabilities: Partial<Record<AzureCapabilityId, AzureCapabilityChoice>>;
     /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
     taskModels: {
         tagging: string;
@@ -739,6 +745,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureRoutingMode: 'model-based',
     azureDeployments: {},
     azureApiVersionOverride: {},
+    azureCapabilities: {},   // seeded from observable state by migrateOldSettings; empty → defaultModeFor at resolve time
     taskModels: {
         tagging: 'claude-sonnet-4-6',
         summarization: 'claude-sonnet-4-6',
@@ -1231,6 +1238,37 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     // so normal-mode mobile uses the newest model instead of a pinned old one.
     if (s.mobileFallbackModel === 'gpt-5.2' || s.mobileFallbackModel === 'gpt-5.3-chat') {
         s.mobileFallbackModel = DEFAULT_SETTINGS.mobileFallbackModel;
+    }
+
+    // ── Per-capability Azure routing seeding (flexible Azure config, D6) ──
+    // SYNC + non-secret only (keys are async/SecretStorage — cannot read here, H3).
+    // Idempotent (only-if-absent — never clobber a user choice). Seeds to PRESERVE
+    // each capability's prior REACHABLE behaviour (G2):
+    //   transcription — was HARDCODED to azure whisper in azure mode (BYO unreachable) → azure.
+    //   embeddings    — azure only when provider==='openai'; other providers used a BYO key → preserve byo.
+    //   websearch     — tavily/brightdata worked regardless of main → preserve byo; else azure (claude surface).
+    //   tts / youtube — no azure path historically → byo (delegate to existing narration/youtube config).
+    if (typeof s.azureCapabilities !== 'object' || s.azureCapabilities === null) {
+        s.azureCapabilities = {};
+    }
+    const isAzureUser =
+        (typeof s.cloudServiceType === 'string' && s.cloudServiceType.startsWith('azure')) ||
+        s.azureFirstMode === true;
+    if (isAzureUser) {
+        const caps = s.azureCapabilities as Record<string, { mode: 'azure' | 'byo' | 'off'; deployment?: string }>;
+        const seed = (id: string, choice: { mode: 'azure' | 'byo' | 'off'; deployment?: string }): void => {
+            if (!caps[id]) caps[id] = choice;
+        };
+        const whisperDep = typeof s.azureWhisperDeployment === 'string' ? s.azureWhisperDeployment : '';
+        const embDep = (s.azureDeployments as { embeddings?: string } | undefined)?.embeddings;
+
+        seed('transcription', { mode: 'azure', deployment: whisperDep });
+        if (s.embeddingProvider === 'openai') seed('embeddings', { mode: 'azure', deployment: embDep ?? '' });
+        else seed('embeddings', { mode: 'byo' });
+        if (s.researchProvider === 'tavily' || s.researchProvider === 'brightdata-serp') seed('websearch', { mode: 'byo' });
+        else seed('websearch', { mode: 'azure' });
+        seed('tts', { mode: 'byo' });
+        seed('youtube', { mode: 'byo' });
     }
 }
 

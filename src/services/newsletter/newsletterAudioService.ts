@@ -29,7 +29,7 @@ import {
 import { downsamplePcm16, dynamicNormalize } from '../tts/pcmUtils';
 import { Mp3Writer } from '../tts/mp3Writer';
 import { sha256Hex } from '../tts/fingerprint';
-import { GeminiTtsEngine } from '../tts/ttsEngine';
+import { GeminiTtsEngine, type TtsEngine } from '../tts/ttsEngine';
 import { NARRATION_PROVIDERS } from '../tts/ttsProviderRegistry';
 import { retryWithBackoff, DEFAULT_TTS_RETRY } from '../tts/ttsRetry';
 import { logger } from '../../utils/logger';
@@ -44,6 +44,11 @@ export interface AudioPodcastOptions {
     voice: string;
     outputFolder: string;
     dateStr: string;
+    /** Pre-built engine (e.g. Azure Speech). When omitted, a Gemini engine is
+     *  built from `apiKey` (back-compat). Lets the caller pick the TTS provider. */
+    engine?: TtsEngine;
+    /** Model id to salt the idempotency fingerprint (defaults to the Gemini model). */
+    modelId?: string;
     /**
      * Optional abort signal. When fired, the chunk-synthesis loop stops at
      * the next iteration (already-completed chunks are discarded; no MP3 is
@@ -71,12 +76,13 @@ export async function generateAudioPodcast(
     const { apiKey, voice, outputFolder, dateStr, signal } = opts;
     const { vault } = app;
     const provider = NARRATION_PROVIDERS.gemini;
+    const fpModel = opts.modelId ?? provider.modelId;
 
     let fingerprint: string;
     try {
-        // Salt with provider.modelId — when the model changes (e.g. tts-preview
-        // → tts) all existing audio is regenerated. Same input → same hash.
-        fingerprint = await sha256Hex([script, voice, provider.modelId]);
+        // Salt with the engine's model id — when the model changes (or the
+        // provider switches gemini↔azure) all existing audio is regenerated.
+        fingerprint = await sha256Hex([script, voice, fpModel]);
     } catch (e) {
         return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
@@ -92,7 +98,8 @@ export async function generateAudioPodcast(
 
     // Build the synthesis engine — shared with audio narration. Each chunk
     // call is wrapped in retryWithBackoff for transient-failure resilience.
-    const engine = new GeminiTtsEngine(apiKey, provider.modelId);
+    // Caller may supply an engine (e.g. Azure Speech); else build Gemini from apiKey.
+    const engine = opts.engine ?? new GeminiTtsEngine(apiKey, provider.modelId);
     const chunks = splitScriptForTts(script);
     const writer = new Mp3Writer({
         sampleRate: MP3_SAMPLE_RATE,

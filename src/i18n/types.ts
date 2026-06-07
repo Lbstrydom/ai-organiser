@@ -323,6 +323,25 @@ export interface Translations {
             credentialsSaved: string;
             credentialsCleared: string;
         };
+        azureCapabilities: {
+            title: string;
+            description: string;
+            modeAzure: string;
+            modeByo: string;
+            modeOff: string;
+            deploymentLabel: string;
+            deploymentPlaceholder: string;
+            statusHas: string;
+            statusPartial: string;
+            statusNone: string;
+            byoConfigured: string;
+            byoNotConfigured: string;
+            transcription: string; transcriptionDesc: string;
+            embeddings: string; embeddingsDesc: string;
+            websearch: string; websearchDesc: string;
+            tts: string; ttsDesc: string;
+            youtube: string; youtubeDesc: string;
+        };
         research: {
             title: string;
             provider: string;

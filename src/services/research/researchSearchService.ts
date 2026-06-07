@@ -8,6 +8,8 @@
 import type AIOrganiserPlugin from '../../main';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { getClaudeWebSearchKey } from '../apiKeyHelpers';
+import { isAzureMode } from '../azure/endpointResolver';
+import { capabilityChoice } from '../azure/resolveAzureCapability';
 import type { SearchProvider, SearchProviderType, SearchResult, SearchOptions } from './researchTypes';
 import { TavilyAdapter } from './adapters/tavilyAdapter';
 import { BrightDataSerpAdapter } from './adapters/brightdataSerpAdapter';
@@ -21,6 +23,10 @@ export class ResearchSearchService {
 
     constructor(private plugin: AIOrganiserPlugin) {
         const secrets = plugin.secretStorageService;
+        // Web search uses the Azure Claude surface only when the per-capability
+        // choice is 'azure' (H2). Otherwise the Claude adapter must not receive
+        // the azure base (BYO tavily/brightdata, or off).
+        const wsAzure = isAzureMode(plugin.settings) && capabilityChoice(plugin, 'websearch').mode === 'azure';
 
         this.providers = new Map<SearchProviderType, SearchProvider>([
             ['tavily', new TavilyAdapter(
@@ -36,14 +42,20 @@ export class ResearchSearchService {
                     // reuse their cloudModel (which itself defaults to `latest-sonnet`).
                     // Otherwise resolve a dedicated Sonnet for web search via the same
                     // sentinel — never pin a concrete version here.
+                    // Claude deployment for the web-search surface: azure-claude main
+                    // reuses cloudModel; azure-openai main uses the websearch capability
+                    // deployment (flexible Azure routing); non-azure resolves a Sonnet.
                     model: (plugin.settings.cloudServiceType === 'claude' || plugin.settings.cloudServiceType === 'azure-claude')
                         ? plugin.settings.cloudModel
-                        : 'latest-sonnet',
+                        : (wsAzure
+                            ? (plugin.settings.azureCapabilities?.websearch?.deployment || 'latest-sonnet')
+                            : 'latest-sonnet'),
                     maxSearches: plugin.settings.researchClaudeMaxSearches ?? 5,
                     useDynamicFiltering: plugin.settings.researchClaudeUseDynamicFiltering ?? true,
-                    // Azure web search routes through the Foundry passthrough; only set
-                    // the base when the active provider is azure-claude.
-                    azureEndpointBase: plugin.settings.cloudServiceType === 'azure-claude'
+                    // Azure web search routes through the Foundry passthrough only when
+                    // the websearch capability is in AZURE mode (H2 — don't hand the
+                    // azure base to the Claude adapter when the user chose BYO/off).
+                    azureEndpointBase: wsAzure
                         ? (plugin.settings.azureAIEndpoint?.trim().replace(/\/+$/, '') || undefined)
                         : undefined,
                 },

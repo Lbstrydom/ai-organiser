@@ -355,4 +355,43 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('azureCapabilities seeding (flexible Azure config)', () => {
+        const caps = (old: any): any => (migrateOldSettings(old)! as any).azureCapabilities;
+
+        it('non-azure user: azureCapabilities stays empty (never consulted off-azure)', () => {
+            expect(caps({ cloudServiceType: 'claude' })).toEqual({});
+        });
+
+        it('Wärtsilä azure-claude: transcription+embeddings+websearch → azure (preserved)', () => {
+            const c = caps({
+                cloudServiceType: 'azure-claude',
+                azureWhisperDeployment: 'whisper',
+                embeddingProvider: 'openai',
+                azureDeployments: { embeddings: 'text-embedding-3-large' },
+                researchProvider: 'claude-web-search',
+            });
+            expect(c.transcription).toEqual({ mode: 'azure', deployment: 'whisper' });
+            expect(c.embeddings).toEqual({ mode: 'azure', deployment: 'text-embedding-3-large' });
+            expect(c.websearch).toEqual({ mode: 'azure' });
+            expect(c.tts).toEqual({ mode: 'byo' });        // no azure path historically
+            expect(c.youtube).toEqual({ mode: 'byo' });
+        });
+
+        it('azure-openai user on Tavily + Gemini embeddings: BYO preserved, not force-azure (G2)', () => {
+            const c = caps({ cloudServiceType: 'azure-openai', embeddingProvider: 'gemini', researchProvider: 'tavily' });
+            expect(c.embeddings).toEqual({ mode: 'byo' });
+            expect(c.websearch).toEqual({ mode: 'byo' });
+        });
+
+        it('is idempotent — never clobbers an existing user choice', () => {
+            const c = caps({ cloudServiceType: 'azure-claude', azureCapabilities: { transcription: { mode: 'off' } } });
+            expect(c.transcription).toEqual({ mode: 'off' });
+        });
+
+        it('azureFirstMode (provider not yet azure) still seeds (treated as azure user)', () => {
+            const c = caps({ azureFirstMode: true, cloudServiceType: 'claude', embeddingProvider: 'openai' });
+            expect(c.transcription?.mode).toBe('azure');
+        });
+    });
+
 });

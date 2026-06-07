@@ -7,8 +7,9 @@
 
 import type AIOrganiserPlugin from '../../main';
 import { createGeminiTtsEngine, type TtsEngine } from './ttsEngine';
+import { createAzureSpeechTtsEngine } from './azureSpeechTtsEngine';
 
-export type NarrationProviderId = 'gemini';
+export type NarrationProviderId = 'gemini' | 'azure-openai';
 
 export interface NarrationVoiceEntry {
     /** Provider's voice id (sent to API). */
@@ -29,6 +30,9 @@ export interface NarrationProviderConfig {
     readonly privacyConsentKey: string;
     /** Async factory; returns null when no API key resolvable. */
     readonly factory: (plugin: AIOrganiserPlugin) => Promise<TtsEngine | null>;
+    /** Internal Azure-capability engine — NOT offered in the user-facing
+     *  narration provider dropdown (selected only via the capability resolver). */
+    readonly internalOnly?: boolean;
 }
 
 // ⚠ AUDIT-ON-RELEASE — pinned to a concrete version because Gemini's TTS
@@ -57,6 +61,24 @@ export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, Narration
         costPerMillionCharsUsd: 15.00,
         privacyConsentKey: 'gemini',
         factory: (plugin) => createGeminiTtsEngine(plugin, GEMINI_MODEL_ID),
+    },
+    'azure-openai': {
+        id: 'azure-openai',
+        displayName: 'Azure OpenAI Speech',
+        // Model/deployment is resolved per-request from the tts capability config.
+        modelId: 'azure-speech',
+        defaultVoice: 'alloy',
+        voices: [
+            { id: 'alloy', labelKey: 'settings.azureCapabilities.tts' },
+            { id: 'nova', labelKey: 'settings.azureCapabilities.tts' },
+            { id: 'shimmer', labelKey: 'settings.azureCapabilities.tts' },
+        ],
+        costPerMillionCharsUsd: 15.00,
+        // 'azure-openai' is the user's own resource — not in the external-data
+        // consent list, so ensurePrivacyConsent returns true (no wrong Gemini notice).
+        privacyConsentKey: 'azure-openai',
+        factory: (plugin) => createAzureSpeechTtsEngine(plugin),
+        internalOnly: true,
     },
 };
 

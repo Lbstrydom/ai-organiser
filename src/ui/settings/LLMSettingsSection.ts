@@ -12,6 +12,7 @@ import {
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
+import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
 
 export class LLMSettingsSection extends BaseSettingSection {
     private statusContainer: HTMLElement = null!;
@@ -335,6 +336,10 @@ export class LLMSettingsSection extends BaseSettingSection {
                         button.setDisabled(false);
                     }
                 }));
+
+        // Per-capability Azure routing (flexible Azure config) — Use Azure / BYO / Off
+        // per specialist feature, with the Azure situation surfaced per row.
+        new AzureCapabilitiesSettingsSection(this.plugin, this.containerEl, this.settingTab).display();
 
         // Escape hatch — reveal the full provider dropdown for users who want a
         // non-Azure provider while keeping Azure-first mode on.

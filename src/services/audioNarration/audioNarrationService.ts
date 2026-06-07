@@ -42,6 +42,8 @@ import {
     type NarrationWarning,
     type PreparedNarration,
 } from './narrationTypes';
+import { isAzureMode } from '../azure/endpointResolver';
+import { resolveAzureCapability } from '../azure/resolveAzureCapability';
 
 const SOURCE_RATE = 24000;
 const TARGET_RATE = 16000;
@@ -147,8 +149,18 @@ export async function prepareNarration(
         return errFrom<PreparedNarration>(makeError('EMPTY_CONTENT', 'Note has no readable content after stripping frontmatter and code blocks.'));
     }
 
-    // Resolve provider
-    const providerId: NarrationProviderId = plugin.settings.audioNarrationProvider || 'gemini';
+    // Resolve provider. In Azure mode the tts capability decides: azure → the
+    // Azure Speech engine; byo → the configured gemini provider; off/unavailable
+    // → a clear NO_API_KEY (the command maps it to an Azure-aware message).
+    let providerId: NarrationProviderId = plugin.settings.audioNarrationProvider || 'gemini';
+    if (isAzureMode(plugin.settings)) {
+        const ttsRes = await resolveAzureCapability(plugin, 'tts');
+        if (ttsRes.kind === 'azure') providerId = 'azure-openai';
+        else if (ttsRes.kind === 'unavailable') {
+            return errFrom<PreparedNarration>(makeError('NO_API_KEY', 'Audio narration is not configured for Azure.'));
+        }
+        // ttsRes.kind === 'byo' → keep the gemini providerId (existing path).
+    }
     let provider;
     try {
         provider = getProvider(providerId);

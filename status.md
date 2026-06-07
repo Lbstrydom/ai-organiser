@@ -1,5 +1,32 @@
 # Project Status Log
 
+## 2026-06-07 — Flexible Azure specialist-capability configuration (/cycle --autonomous, all phases)
+
+### Changes
+- **Generalised Azure specialist routing** from the hardcoded one-org Foundry assumptions into a flexible, per-capability config so any user's Azure (full / partial / none coverage) is handled professionally and nothing fails silently.
+- **Capability registry SSOT** (`src/services/azure/azureCapabilities.ts`): transcription, embeddings, web search, tts, youtube — each with support level (full/partial/none), surface, BYO providers, feature gates.
+- **3-state per capability** (`azureCapabilities` settings map, `{mode: azure|byo|off, deployment?}`): Use Azure (deployment) / Bring your own (existing specialist config) / Off — surfaced as collapsible rows in AI provider → Azure capabilities (`AzureCapabilitiesSettingsSection`).
+- **Single resolution owner** (`resolveAzureCapability.ts`): fail-closed off-Azure, never-throws, `isByoConfigured` via low-level primitives (no recursion), reason on the caller's stack (no shared-state race). Wired at each capability's resolution entry (transcription/web-search/youtube; embeddings keeps existing routing).
+- **Azure web search now works for azure-openai-main** (Foundry Claude surface + a Claude deployment), not just azure-claude-main; gated on the capability mode.
+- **Azure OpenAI Speech TTS engine** (`azureSpeechTtsEngine.ts`, PCM via `getSpeechEndpoint` SSOT): audio narration + newsletter podcast run on Azure when a speech deployment is configured; else BYO Gemini; else a clear "configure / bring your own" notice (no silent fail). `azure-openai` is an `internalOnly` narration provider (not shown in the non-azure dropdown).
+- **Migration preserves existing users** (sync, no secret reads): Wärtsilä azure-claude keeps transcription+embeddings+websearch on Azure; an azure-openai user on Tavily/Gemini keeps BYO — neither is force-converted.
+
+### Process
+- Ran `/cycle --autonomous`: plan → **audit-plan** (GPT 2 rounds + Gemini 3 rounds → APPROVE; caught 4 would-ship bugs: recursion, migration data-loss, race, never-throws) → clustered implement+audit (A: GPT 2 rounds; B; C) → **consolidated Gemini gate** (round1 5 → round2 1, coherence Strong → capped-stop).
+- Deferred (follow-up tasks): research fallback-on-throw (pre-existing), Azure connection-test capability probes + TTS pacer + resolveEndpoint DRY.
+
+### Files Affected
+- New: `src/services/azure/{azureCapabilities,azureKey,resolveAzureCapability}.ts`, `src/services/tts/azureSpeechTtsEngine.ts`, `src/ui/settings/AzureCapabilitiesSettingsSection.ts` + 3 test files.
+- Modified: `src/core/settings.ts`, `src/services/azure/endpointResolver.ts`, `src/services/apiKeyHelpers.ts`, `src/services/research/researchSearchService.ts`, `src/services/audioNarration/audioNarrationService.ts`, `src/services/tts/ttsProviderRegistry.ts`, `src/services/newsletter/{newsletterService,newsletterAudioService}.ts`, `src/ui/settings/LLMSettingsSection.ts`, `src/i18n/{types,en}.ts`, `tests/settingsMigration.test.ts`.
+
+### Verification
+tsc 0 · eslint 0 errors · 5763 unit + 45 integration tests · build + deploy OK. Plan: [docs/plans/azure-capability-flexibility.md](docs/plans/azure-capability-flexibility.md).
+
+### Next Steps
+- Follow-up tasks (spawned): research-fallback-on-throw; Azure connection-test tts/websearch probes + TTS pacer + resolveEndpoint SSOT.
+
+---
+
 ## 2026-06-07 — Azure-only support audit + no-silent-failure fixes
 
 ### Changes

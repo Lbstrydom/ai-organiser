@@ -96,7 +96,7 @@ export const en: Translations = {
                 audio: "Audio transcription requires an OpenAI or groq key",
                 pdf: "PDF processing requires a claude or gemini key",
                 embeddings: "Semantic search — claude has no embedding API, use voyage AI or another provider",
-                narration: "Audio narration + podcast use Google Gemini text-to-speech — not available through Azure yet (coming soon); a separate gemini key is needed"
+                narration: "Audio narration + podcast: configure an Azure OpenAI Speech deployment under Azure capabilities, or bring your own gemini key"
             },
             thinkingMode: "Thinking mode",
             thinkingModeDesc: "Opus 4.6 adaptive thinking — claude decides when to think deeply",
@@ -329,6 +329,30 @@ export const en: Translations = {
             amazonPasswordDesc: "Stored securely — auto-fills the password field during sign-in",
             credentialsSaved: "Amazon credentials saved",
             credentialsCleared: "Amazon credentials cleared"
+        },
+        azureCapabilities: {
+            title: "Azure capabilities",
+            description: "Choose how each specialist feature runs on Azure: use an Azure deployment, bring your own provider, or turn it off. Features your Azure can't serve are shown so you're never left guessing.",
+            modeAzure: "Use Azure",
+            modeByo: "Bring your own",
+            modeOff: "Off",
+            deploymentLabel: "Azure deployment",
+            deploymentPlaceholder: "deployment name",
+            statusHas: "✓ Azure can serve this via your Foundry deployment.",
+            statusPartial: "⚠ Runs on the Azure Claude surface — needs a Claude deployment (reuses your main model on azure-claude).",
+            statusNone: "✗ Azure has no path for this — bring your own provider or turn it off.",
+            byoConfigured: "Bring-your-own provider is configured.",
+            byoNotConfigured: "Not configured — add the provider key in Specialist providers, or it stays off.",
+            transcription: "Transcription (Whisper)",
+            transcriptionDesc: "Speech-to-text for audio + meeting minutes.",
+            embeddings: "Embeddings",
+            embeddingsDesc: "Vector embeddings for semantic search.",
+            websearch: "Web search",
+            websearchDesc: "Live web search for the research assistant + presentation grounding.",
+            tts: "Audio narration + podcast",
+            ttsDesc: "Text-to-speech for note narration and the newsletter podcast.",
+            youtube: "YouTube",
+            youtubeDesc: "YouTube transcript summarization (Gemini-only — no Azure path).",
         },
         research: {
             title: "Research assistant",
@@ -737,7 +761,7 @@ export const en: Translations = {
         audioNarration: {
             title: "Audio narration",
             description: "Generate spoken-audio mp3 files of your notes.",
-            azureNote: "Audio narration runs on Google Gemini text-to-speech and isn't available through Azure yet (coming soon). To use it now, add a separate Google Gemini API key under Specialist providers.",
+            azureNote: "Audio narration can run on an Azure OpenAI Speech deployment — set Audio narration to \"Use Azure\" under AI provider → Azure capabilities and enter your speech deployment. If your Azure has no speech model, choose \"Bring your own\" and add a Google Gemini key.",
             voice: "Voice",
             voiceDesc: "Gemini built-in voice for narration.",
             outputFolder: "Output folder",
@@ -764,7 +788,7 @@ export const en: Translations = {
             notices: {
                 empty: "Note has no readable content to narrate.",
                 noKey: "Add an API key in settings to use audio narration.",
-                azureUnavailable: "Audio narration isn't available through Azure yet (coming soon). It runs on Google Gemini text-to-speech — add a separate gemini key under Specialist providers to use it.",
+                azureUnavailable: "Audio narration isn't configured for Azure. Under AI provider → Azure capabilities, set Audio narration to an Azure Speech deployment, or choose Bring your own and add a gemini key.",
                 consentDeclined: "Consent declined — narration cancelled.",
                 success: "Narration saved ({size} · {duration})",
                 open: "Open",

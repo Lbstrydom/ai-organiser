@@ -724,24 +724,48 @@ export class NewsletterService {
         // whose main provider was something else got a silent "skipped" log
         // with no audio output. The feature looked broken.
         const settings = this.plugin.settings;
-        const secretKey = this.plugin.secretStorageService.isAvailable()
-            ? await this.plugin.secretStorageService.getProviderKey('gemini')
-            : null;
-        const geminiApiKey =
-            secretKey ||
-            settings.providerSettings?.['gemini']?.apiKey ||
-            (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
-            '';
-        if (!geminiApiKey) {
-            logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
-            // Azure-only honesty: podcast TTS is Gemini-only with no Azure path yet.
-            new Notice(
-                isAzureMode(settings)
-                    ? "Audio podcast isn't available through Azure yet (coming soon) — it uses Google Gemini text-to-speech. Add a separate gemini key to enable it."
-                    : 'Audio podcast skipped — add a gemini key in settings to enable',
-                6000,
-            );
-            return;
+        // Resolve the TTS engine. In Azure mode the tts capability decides:
+        // azure → Azure Speech engine; byo → Gemini key path; off/unavailable → skip.
+        let azureTtsEngine: import('../tts/ttsEngine').TtsEngine | undefined;
+        let azureTtsModelId: string | undefined;
+        if (isAzureMode(settings)) {
+            const { resolveAzureCapability } = await import('../azure/resolveAzureCapability');
+            const ttsRes = await resolveAzureCapability(this.plugin, 'tts');
+            if (ttsRes.kind === 'azure') {
+                const { createAzureSpeechTtsEngine } = await import('../tts/azureSpeechTtsEngine');
+                azureTtsEngine = (await createAzureSpeechTtsEngine(this.plugin)) ?? undefined;
+                azureTtsModelId = ttsRes.deployment || 'azure-speech';
+                if (!azureTtsEngine) {
+                    new Notice('Audio podcast skipped — azure speech needs a tts deployment (set it under azure capabilities)', 6000);
+                    return;
+                }
+            } else if (ttsRes.kind === 'unavailable') {
+                new Notice("Audio podcast isn't configured for azure — set audio narration to a tts deployment, or add a gemini key, in settings", 6000);
+                return;
+            }
+            // ttsRes.kind === 'byo' → fall through to the Gemini key resolution below.
+        }
+
+        let geminiApiKey = '';
+        if (!azureTtsEngine) {
+            const secretKey = this.plugin.secretStorageService.isAvailable()
+                ? await this.plugin.secretStorageService.getProviderKey('gemini')
+                : null;
+            geminiApiKey =
+                secretKey ||
+                settings.providerSettings?.['gemini']?.apiKey ||
+                (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
+                '';
+            if (!geminiApiKey) {
+                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
+                new Notice(
+                    isAzureMode(settings)
+                        ? "Audio podcast isn't configured for Azure — set Audio narration to a TTS deployment, or add a gemini key, in settings."
+                        : 'Audio podcast skipped — add a gemini key in settings to enable',
+                    6000,
+                );
+                return;
+            }
         }
 
         const { buildPodcastScriptPrompt, insertPodcastContent } = await import('../prompts/newsletterPrompts');
@@ -765,6 +789,8 @@ export class NewsletterService {
         const audioFolder = normalizePath(`${outputRoot}/${dateStr}`);
         const result = await generateAudioPodcast(this.plugin.app, podcastScript, {
             apiKey: geminiApiKey,
+            engine: azureTtsEngine,
+            modelId: azureTtsModelId,
             voice: this.plugin.settings.newsletterPodcastVoice || 'Charon',
             outputFolder: audioFolder,
             dateStr,
