@@ -1,7 +1,5 @@
 # AI Organiser for Obsidian
 
-[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md) [![中文](https://img.shields.io/badge/lang-��文-red.svg)](README_CN.md)
-
 **Your notes deserve more than storage.** AI Organiser turns Obsidian into a thinking partner — summarize anything, research the web, build presentations, record meetings, sync Kindle highlights, and let AI tag and connect your knowledge. One plugin, 14 providers, works locally or in the cloud.
 
 <!-- TODO: Add hero GIF/screenshot showing command picker or chat -->
@@ -40,7 +38,9 @@ Ask a question and the plugin decomposes it into sub-queries, searches multiple 
 
 ### Presentation Builder
 
-Describe what you want in plain language. The LLM generates themed HTML slides with speaker notes, previewed live in a sandboxed iframe. Chat to refine, then export to editable PPTX or self-contained HTML. Optional brand guidelines keep everything on-brand.
+Describe what you want in plain language and watch slides appear in a live, sandboxed preview with a side-rail workspace and thumbnail filmstrip. Chat to refine the whole deck or **polish individual slides**. Export to **editable PowerPoint** — native shapes, tables, and charts (2×2 matrices, Harvey balls, waterfalls, line charts, pyramids), not flat images — or to self-contained HTML.
+
+Turn on **consultant-quality mode** to get a McKinsey/BCG-style workflow: the plugin first drafts a **grounded, MECE storyline** (action titles, evidence-bound visuals) that you review and sign off on *before* any slide is designed. Optional **brand fidelity** reads a brand pack from your vault (colours, fonts, logos, icons) so both PPTX and Word exports come out on-brand and template-ready.
 
 ### Meeting Minutes
 
@@ -49,6 +49,10 @@ Record audio in-plugin or paste a transcript. Get structured minutes with agenda
 ### Newsletter Digest
 
 Connect your Gmail via a simple Apps Script. The plugin fetches unread newsletters, triages each one with AI, writes individual notes with key links, and synthesizes a thematic daily brief that groups stories across sources. Optional audio podcast generation reads you the brief.
+
+### Audio Narration
+
+Turn any note into a spoken-audio MP3 — "read this note to me" — with an optional LLM pre-pass that summarises diagrams and large tables and expands acronyms for natural listening. A built-in player offers speed and skip controls. Cost is shown and confirmed before any API call.
 
 ### Intelligent Tagging
 
@@ -151,6 +155,8 @@ Works with **14 cloud providers** and **5+ local options** — pick what fits yo
 
 **Local**: Ollama, LM Studio, LocalAI, Jan, KoboldCpp
 
+**Enterprise**: Azure AI Foundry — Claude + GPT + embeddings + Whisper under one resource, with flexible per-capability routing (use an Azure deployment, bring your own provider, or off) so any corporate Foundry works without silent fallbacks.
+
 **Embeddings**: OpenAI, Gemini, Ollama, Cohere, Voyage AI, OpenRouter, Local ONNX (zero-setup, no API key)
 
 </details>
@@ -163,7 +169,7 @@ Works on iOS and Android — cloud providers, touch-optimized modals, audio reco
 
 ## Languages
 
-Full interface support for **English** and **Simplified Chinese**. Output language configurable independently.
+**English** interface. Output language is configurable independently — generated content (summaries, tags, minutes, translations) can target 20+ languages.
 
 ---
 
@@ -190,7 +196,7 @@ Full interface support for **English** and **Simplified Chinese**. Output langua
 git clone https://github.com/Lbstrydom/ai-organiser.git
 npm install
 npm run dev    # watch mode
-npm test       # 3700+ unit tests
+npm test       # 5700+ unit tests
 npm run build  # production
 ```
 
