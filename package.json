@@ -41,7 +41,7 @@
     "internationalization"
   ],
   "author": "L Strydom",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "@codemirror/state": "^6.6.0",

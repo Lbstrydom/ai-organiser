@@ -4,16 +4,6 @@
 
 ![AI Organiser — build presentations, summarize anything, and organise your vault with AI](docs/screenshots/1-coffee-deck.png)
 
-<!-- arch-map-discoverability:start -->
-## Architecture
-
-See [`docs/architecture-map.md`](docs/architecture-map.md) — a generated
-index of every symbol in this repo, grouped by domain, with Mermaid
-diagrams. Regenerated on `/ship` or via `npm run arch:render`.
-<!-- arch-map-discoverability:end -->
-
----
-
 ## What does it actually do?
 
 **Drop in a URL** and get a structured summary with tags — or paste five URLs and get a single synthesized note. **Record a meeting** and walk away with structured minutes, action items in GTD format, and a Word document ready to send. **Ask "what do I know about X?"** and get answers grounded in your own vault, with citations. **Say "make me a deck about Q3 results"** and watch slides appear in a live preview, then export to PowerPoint.
@@ -190,6 +180,16 @@ Works on iOS and Android — cloud providers, touch-optimized modals, audio reco
 
 ---
 
+<!-- arch-map-discoverability:start -->
+## Architecture
+
+See [`docs/architecture-map.md`](docs/architecture-map.md) — a generated
+index of every symbol in this repo, grouped by domain, with Mermaid
+diagrams. Regenerated on `/ship` or via `npm run arch:render`.
+<!-- arch-map-discoverability:end -->
+
+---
+
 ## Contributing
 
 ```bash
@@ -204,7 +204,7 @@ See [AGENTS.md](AGENTS.md) for architecture documentation.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPL-3.0 — see [LICENSE](LICENSE).
 
 ## Support
 
