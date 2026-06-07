@@ -17,6 +17,7 @@ import { buildDailyBriefPrompt, insertBriefContent, type BriefSource } from '../
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
+import { isAzureMode } from '../azure/endpointResolver';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
 import { getLanguageNameForPrompt } from '../languages';
@@ -733,7 +734,13 @@ export class NewsletterService {
             '';
         if (!geminiApiKey) {
             logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
-            new Notice('Audio podcast skipped — add a gemini key in settings to enable', 6000);
+            // Azure-only honesty: podcast TTS is Gemini-only with no Azure path yet.
+            new Notice(
+                isAzureMode(settings)
+                    ? "Audio podcast isn't available through Azure yet (coming soon) — it uses Google Gemini text-to-speech. Add a separate gemini key to enable it."
+                    : 'Audio podcast skipped — add a gemini key in settings to enable',
+                6000,
+            );
             return;
         }
 

@@ -9,6 +9,7 @@ import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { ResearchUsageService } from '../../services/research/researchUsageService';
@@ -42,6 +43,18 @@ export class ResearchSettingsSection extends BaseSettingSection {
 
         // Provider-specific API key fields
         const provider = this.plugin.settings.researchProvider;
+
+        // Azure-only honesty: Claude web search runs on the Azure Claude surface.
+        // With Azure OpenAI as the main provider it can't run (no Claude deployment
+        // is configured) — surface this instead of a silent "no results".
+        if (provider === 'claude-web-search'
+            && isAzureMode(this.plugin.settings)
+            && this.plugin.settings.cloudServiceType !== 'azure-claude') {
+            this.containerEl.createEl('div', {
+                text: rt.azureWebSearchNote,
+                cls: 'ai-organiser-settings-info',
+            });
+        }
         if (provider === 'tavily') {
             this.renderApiKeyField({
                 name: rt.apiKey || 'API key',

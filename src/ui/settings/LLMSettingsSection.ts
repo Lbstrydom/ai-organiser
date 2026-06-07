@@ -597,7 +597,15 @@ export class LLMSettingsSection extends BaseSettingSection {
         // createServiceTypeDropdown (shown when the "use a different provider"
         // escape hatch is expanded) — pick a non-Azure provider and this generic
         // config renders for it.
-        if (isAzureMode(this.plugin.settings)) return;
+        if (isAzureMode(this.plugin.settings)) {
+            // The generic cloud config is suppressed in Azure mode, but the
+            // capability banner MUST still render — it's the honest list of what
+            // has NO Azure path and needs a separate key (YouTube + audio
+            // narration/podcast via Gemini). Without this the banner was dead
+            // code in Azure mode and the gaps were silent.
+            this.renderProviderCapabilityBanner();
+            return;
+        }
 
         // Getting Started info box — suppressed in streamlined Azure mode
         // (the Azure section already owns the provider guidance).
@@ -867,14 +875,18 @@ export class LLMSettingsSection extends BaseSettingSection {
         const missing: string[] = [];
         if (provider.startsWith('azure')) {
             // In Azure mode, audio (Whisper), PDF (Azure Claude) and embeddings
-            // (Azure OpenAI) are auto-handled by Azure — only YouTube genuinely
-            // needs a separate Gemini key (Azure has no YouTube/Gemini path).
+            // (Azure OpenAI) are auto-handled by Azure. YouTube AND audio
+            // narration/podcast (Gemini TTS) have no Azure path — both need a
+            // separate Gemini key (narration TTS is "coming soon" on Azure).
             missing.push(t.youtube);
+            missing.push(t.narration);
         } else {
             if (!caps.youtube.includes(provider)) missing.push(t.youtube);
             if (!caps.audio.includes(provider)) missing.push(t.audio);
             if (!caps.pdf.includes(provider)) missing.push(t.pdf);
             if (provider === 'claude') missing.push(t.embeddings);
+            // Narration TTS is Gemini-only — any non-gemini main provider needs a key.
+            if (provider !== 'gemini') missing.push(t.narration);
         }
 
         if (missing.length === 0) return;

@@ -88,6 +88,7 @@ export interface Translations {
                 audio: string;
                 pdf: string;
                 embeddings: string;
+                narration: string;
             };
             thinkingMode: string;
             thinkingModeDesc: string;
@@ -326,6 +327,7 @@ export interface Translations {
             title: string;
             provider: string;
             providerDesc: string;
+            azureWebSearchNote: string;
             apiKey: string;
             apiKeyDesc: string;
             tavilyInfo: string;
@@ -728,6 +730,7 @@ export interface Translations {
         audioNarration: {
             title: string;
             description: string;
+            azureNote: string;
             voice: string;
             voiceDesc: string;
             outputFolder: string;
@@ -754,6 +757,7 @@ export interface Translations {
             notices: {
                 empty: string;
                 noKey: string;
+                azureUnavailable: string;
                 consentDeclined: string;
                 success: string;
                 open: string;

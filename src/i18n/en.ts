@@ -95,7 +95,8 @@ export const en: Translations = {
                 youtube: "YouTube processing requires a gemini key",
                 audio: "Audio transcription requires an OpenAI or groq key",
                 pdf: "PDF processing requires a claude or gemini key",
-                embeddings: "Semantic search — claude has no embedding API, use voyage AI or another provider"
+                embeddings: "Semantic search — claude has no embedding API, use voyage AI or another provider",
+                narration: "Audio narration + podcast use Google Gemini text-to-speech — not available through Azure yet (coming soon); a separate gemini key is needed"
             },
             thinkingMode: "Thinking mode",
             thinkingModeDesc: "Opus 4.6 adaptive thinking — claude decides when to think deeply",
@@ -333,6 +334,7 @@ export const en: Translations = {
             title: "Research assistant",
             provider: "Search provider",
             providerDesc: "Which search API to use for web research",
+            azureWebSearchNote: "Claude web search runs on the Azure Claude surface. With Azure OpenAI as your main provider it can't run — switch your main provider to Azure Claude, or choose Tavily / Bright Data here and add that key.",
             apiKey: "API key",
             apiKeyDesc: "Your search provider API key (stored securely)",
             tavilyInfo: "Tavily: 1,000 free searches/month. Sign up at tavily.com",
@@ -735,6 +737,7 @@ export const en: Translations = {
         audioNarration: {
             title: "Audio narration",
             description: "Generate spoken-audio mp3 files of your notes.",
+            azureNote: "Audio narration runs on Google Gemini text-to-speech and isn't available through Azure yet (coming soon). To use it now, add a separate Google Gemini API key under Specialist providers.",
             voice: "Voice",
             voiceDesc: "Gemini built-in voice for narration.",
             outputFolder: "Output folder",
@@ -761,6 +764,7 @@ export const en: Translations = {
             notices: {
                 empty: "Note has no readable content to narrate.",
                 noKey: "Add an API key in settings to use audio narration.",
+                azureUnavailable: "Audio narration isn't available through Azure yet (coming soon). It runs on Google Gemini text-to-speech — add a separate gemini key under Specialist providers to use it.",
                 consentDeclined: "Consent declined — narration cancelled.",
                 success: "Narration saved ({size} · {duration})",
                 open: "Open",

@@ -2771,6 +2771,12 @@ Two first-class providers for Azure AI Foundry, which exposes two surfaces under
 - **Audio → Azure Whisper**, **embeddings → Azure OpenAI**, **PDF → Azure Claude** (documents). **No silent fallback**: in Azure mode a missing/invalid Azure surface surfaces a clear error, never quietly borrows the user's personal key. **YouTube** genuinely needs a separate Gemini key (Azure has no path) — shown explicitly, not a fallback.
 - Settings UI streamlines in Azure-first mode: provider choice lives in the Azure section; the generic provider config (endpoint/key/model/test) is suppressed (`displayCloudSettings` early-returns on `isAzureMode`); Specialist Providers show "handled by Azure". A "use a different provider" escape hatch reveals the full provider dropdown to switch (a switch, NOT a fallback).
 
+#### No-Azure-path features fail LOUD, never silently (azure-only audit 2026-06-07)
+Some features genuinely have no Azure path (Azure deployments are restricted to existing models — TTS can't be added). These are surfaced honestly as "coming soon", never silent:
+- **Audio narration + newsletter podcast** are Gemini-TTS-only. The NO_API_KEY Notice is Azure-aware (`audioNarration.notices.azureUnavailable` — "isn't available through Azure yet (coming soon)…"), a permanent note renders at the top of the Audio narration settings in Azure mode (`audioNarration.azureNote`), and the newsletter podcast-skip Notice is Azure-aware.
+- **Capability banner** (`LLMSettingsSection.renderProviderCapabilityBanner`) now renders in Azure mode too — it was dead code (the `isAzureMode` early-return in `displayCloudSettings` fired before it). The Azure branch lists what needs a separate gemini key: **YouTube + audio narration/podcast** (`providerCapabilities.narration`). The non-azure branch adds `narration` for any non-gemini main provider.
+- **Research / Claude web search** routes through the Foundry passthrough only when the MAIN provider is `azure-claude` (the Claude deployment name = `cloudModel`). For **azure-openai-main** there's no Claude deployment to target → `ResearchSettingsSection` shows `research.azureWebSearchNote` (switch main provider to azure-claude, or use Tavily / Bright Data) instead of a silent "no results".
+
 ### Key patterns
 - **`getAzureApiKey(plugin, provider)`** — `useMainKeyFallback: false` always (no personal-key borrow). `azure-openai` falls back to the shared Foundry key via two sequential lookups.
 - **`blockOverride = adapterType === 'azure-openai'`** in `cloudService` drops `modelOverride` on the deployment-routed URL.

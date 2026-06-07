@@ -10,6 +10,7 @@
 
 import { Notice, TFile, type MenuItem, type Menu } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import { isAzureMode } from '../services/azure/endpointResolver';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import { withProgressResult } from '../services/progress';
@@ -47,7 +48,12 @@ function mapErrorToNotice(error: NarrationError, plugin: AIOrganiserPlugin): Not
         case 'EMPTY_CONTENT':
             return { message: t.empty, durationMs: 5000 };
         case 'NO_API_KEY':
-            return { message: t.noKey, durationMs: 0 };  // settings link variant
+            // Azure-only users have a key but no TTS path (narration is Gemini-only).
+            // Tell them honestly instead of the generic "add an API key" (which they have).
+            return {
+                message: isAzureMode(plugin.settings) ? t.azureUnavailable : t.noKey,
+                durationMs: 0,
+            };  // settings link variant
         case 'CONSENT_DECLINED':
             return { message: t.consentDeclined, durationMs: 4000 };
         case 'IN_FLIGHT':

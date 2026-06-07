@@ -1,5 +1,33 @@
 # Project Status Log
 
+## 2026-06-07 — Azure-only support audit + no-silent-failure fixes
+
+### Changes
+- **Audit** (5 parallel investigations + direct verification): for an Azure-only user (one Foundry key → both `azure-claude` + `azure-openai` surfaces, no personal LLM keys), confirmed the **core is fail-closed** — no silent reverts to other LLMs. `getAzureApiKey` uses `useMainKeyFallback:false` everywhere; invalid Azure → `NullLLMService` (clear Notice, no network); embeddings/Whisper/PDF/vision/multimodal/capability-detection all route through the correct Azure surface; mobile fallback gated off in Azure mode.
+- **Real gaps found = features with NO Azure path that were signalling poorly** (not silent reverts). Fixed all toward honest "coming soon" messaging:
+  - **Audio narration (TTS)** is Gemini-only (no Azure TTS — deployments restricted, can't add). The NO_API_KEY error said *"Add an API key"* (misleading — Azure users have a key). Now Azure-aware: *"…isn't available through Azure yet (coming soon). It runs on Google Gemini text-to-speech…"* + a permanent "coming soon" note at the top of the Audio narration settings (Azure mode).
+  - **Newsletter podcast audio** (same Gemini TTS): skip Notice is now Azure-aware ("coming soon").
+  - **Capability banner** (`LLMSettingsSection`) was **dead in Azure mode** (`displayCloudSettings` returned before rendering it). Now renders for Azure too, listing what needs a separate gemini key (YouTube + audio narration/podcast). Added a `narration` capability line (also shown for any non-gemini main provider).
+  - **Research / Claude web search** works on azure-claude (Foundry passthrough). For **azure-openai-main** it can't (no Claude deployment) → added a settings note in `ResearchSettingsSection` explaining it instead of a silent "no results".
+- **Verification**: tsc + eslint (0 errors) + full unit suite (5722) + 45 integration green. Live Playwright/Electron confirmation by flipping the running config to `azure-claude` then `azure-openai` **in memory only (never saved — data.json untouched)**: narration "coming soon" + capability-banner narration line render on both; research note correctly hidden on azure-claude, shown on azure-openai.
+
+### Files Affected
+- `src/i18n/{types,en}.ts` — `audioNarration.azureNote`, `audioNarration.notices.azureUnavailable`, `providerCapabilities.narration`, `research.azureWebSearchNote`
+- `src/commands/audioNarrationCommands.ts` — Azure-aware NO_API_KEY message
+- `src/ui/settings/AudioNarrationSettingsSection.ts` — Azure "coming soon" note
+- `src/ui/settings/LLMSettingsSection.ts` — render capability banner in Azure mode (+ narration line)
+- `src/ui/settings/ResearchSettingsSection.ts` — Azure web-search clarity note
+- `src/services/newsletter/newsletterService.ts` — Azure-aware podcast-skip Notice
+
+### Decisions Made
+- Per user: Azure deployments are restricted to existing models — **cannot add a TTS model**, so narration/podcast show "coming soon" rather than building an Azure TTS adapter.
+- Core routing needed NO changes — the audit confirmed it's already fail-closed with no hidden cross-provider fallback.
+
+### Next Steps
+- None required. (Optional: i18n the one remaining hardcoded newsletter podcast-skip English string.)
+
+---
+
 ## 2026-06-07 — Settings wiring audit + fixes (unreachable features + dead settings + collapsible quick-commands)
 
 ### Changes

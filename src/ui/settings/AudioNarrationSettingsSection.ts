@@ -5,6 +5,7 @@
 
 import { Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 import { NARRATION_PROVIDERS } from '../../services/tts/ttsProviderRegistry';
 import { LLM_ENHANCEMENT_PROVIDERS } from '../../services/audioNarration/llmEnhancerProvider';
 import { estimateLlmEnhancementCostUsd } from '../../services/audioNarration/narrationCostEstimator';
@@ -14,6 +15,14 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
         const t = this.plugin.t.settings.audioNarration;
         const newsletterT = this.plugin.t.settings.newsletter;
         this.createSectionHeader(t.title, 'audio-lines', 2);
+
+        // Azure-only honesty: narration is Gemini-TTS-only with no Azure path yet.
+        // Surface a clear "coming soon" notice so the feature never appears to
+        // silently fail for Azure users.
+        if (isAzureMode(this.plugin.settings)) {
+            const note = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
+            note.createEl('p', { text: t.azureNote });
+        }
 
         // Voice
         new Setting(this.containerEl)
