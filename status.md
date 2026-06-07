@@ -20,7 +20,7 @@
 - Modified: `src/core/settings.ts`, `src/services/azure/endpointResolver.ts`, `src/services/apiKeyHelpers.ts`, `src/services/research/researchSearchService.ts`, `src/services/audioNarration/audioNarrationService.ts`, `src/services/tts/ttsProviderRegistry.ts`, `src/services/newsletter/{newsletterService,newsletterAudioService}.ts`, `src/ui/settings/LLMSettingsSection.ts`, `src/i18n/{types,en}.ts`, `tests/settingsMigration.test.ts`.
 
 ### Verification
-tsc 0 · eslint 0 errors · 5763 unit + 45 integration tests · build + deploy OK. Plan: [docs/plans/azure-capability-flexibility.md](docs/plans/azure-capability-flexibility.md).
+tsc 0 · eslint 0 errors · 5763 unit + 45 integration tests · build + deploy OK. Plan: [docs/completed/azure-capability-flexibility.md](docs/completed/azure-capability-flexibility.md).
 
 ### Next Steps
 - Follow-up tasks (spawned): research-fallback-on-throw; Azure connection-test tts/websearch probes + TTS pacer + resolveEndpoint SSOT.

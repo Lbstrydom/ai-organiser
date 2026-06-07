@@ -2779,7 +2779,7 @@ Azure specialist routing is **config-driven, not hardcoded** — any user's Foun
 - **UI**: `AzureCapabilitiesSettingsSection` renders the per-capability rows (Use Azure deployment / Bring your own / Off) under AI provider → Azure capabilities, with a ✓/⚠/✗ situation line; BYO shows a configured/not-set status (no key field — keys live in the existing specialist sections).
 - **Migration** (`migrateOldSettings`, sync, no secret reads): seeds `azureCapabilities` from observable specialist settings to PRESERVE each capability's prior reachable behaviour — azure-claude users keep transcription/embeddings/websearch on Azure; an azure-openai user on Tavily/non-OpenAI-embeddings keeps BYO (never force-converted to a blank Azure deployment).
 - **Deferred follow-ups**: Azure connection-test tts/websearch probes, TTS request-pacer integration, `resolveEndpoint` azure-claude SSOT routing, research fallback-on-throw.
-- **Plan**: [docs/plans/azure-capability-flexibility.md](docs/plans/azure-capability-flexibility.md).
+- **Plan**: [docs/completed/azure-capability-flexibility.md](docs/completed/azure-capability-flexibility.md).
 
 ### Key patterns
 - **`getAzureApiKey(plugin, provider)`** — `useMainKeyFallback: false` always (no personal-key borrow). `azure-openai` falls back to the shared Foundry key via two sequential lookups.
