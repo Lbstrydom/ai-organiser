@@ -1,6 +1,6 @@
 {
   "name": "ai-organiser",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "AI-powered note organization with 50+ commands: tagging, summarization, web research, meeting minutes, presentations, semantic search, Kindle sync, and more. Supports 14 cloud providers and local LLMs.",
   "main": "main.js",
   "scripts": {
