@@ -206,8 +206,7 @@ See [AGENTS.md](AGENTS.md) for architecture documentation.
 
 GPL-3.0 — see [LICENSE](LICENSE).
 
-## Support
+## Support & feedback
 
-If you find this plugin useful:
-
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-yellow)](https://buymeacoffee.com/lbstrydom)
+- 🐛 **Found a bug or want a feature?** [Open an issue](https://github.com/Lbstrydom/ai-organiser/issues) — the best way to reach me. Issues are tracked and searchable, so others benefit from the answer too.
+- ☕ **Enjoying it?** [Buy me a coffee](https://buymeacoffee.com/lbstrydom)
