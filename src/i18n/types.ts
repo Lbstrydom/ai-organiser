@@ -2429,6 +2429,7 @@ export interface Translations {
             // Phase labels (previously hardcoded in PresentationModeHandler) —
             // both the side-panel status text and the thinking-indicator bubble
             // use these keys (F4 follow-up).
+            phaseStoryboarding: string;
             phaseGenerating: string;
             phaseRefining: string;
             phaseAuditing: string;

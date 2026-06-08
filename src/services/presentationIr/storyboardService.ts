@@ -38,6 +38,10 @@ interface StoryboardCallOpts {
     label: string;
     onRetryStatus?: (seconds: number) => void;
     modelOverride?: string;
+    /** Structured JSON task — adaptive thinking adds large latency (and competes
+     *  with the JSON output) for no schema benefit; the Zod schema + repair retry
+     *  are the correctness guardrails. Mirrors the audit/selective-refine calls. */
+    disableThinking?: boolean;
 }
 
 /** Shared LLM-call: send the prompt → parse → 1 repair on validation failure. */
@@ -73,6 +77,7 @@ function toCallOpts(label: string, options: GenerateStoryboardOptions): Storyboa
         signal: options.signal,
         label,
         onRetryStatus: options.onRetryStatus,
+        disableThinking: true,
         ...(options.modelOverride ? { modelOverride: options.modelOverride } : {}),
     };
 }

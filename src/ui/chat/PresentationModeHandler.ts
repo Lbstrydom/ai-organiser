@@ -212,6 +212,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private getPhaseMessage(phase: PresentationPhase): string | null {
         const t = this.run.translations;
         switch (phase) {
+            case 'storyboarding': return t?.phaseStoryboarding ?? 'Drafting storyline…';
             case 'generating':   return t?.phaseGenerating ?? 'Generating slides…';
             case 'refining':     return t?.phaseRefining   ?? 'Refining presentation…';
             case 'auditing':     return t?.phaseAuditing   ?? 'Checking brand compliance…';
@@ -359,6 +360,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      *  → i18n key. Returns null for phases with no visible status line. */
     private getPhaseStatusText(t: Translations['modals']['unifiedChat']): string | null {
         switch (this.deck.phase) {
+            case 'storyboarding': return t.phaseStoryboarding;
             case 'generating': return t.phaseGenerating;
             case 'refining':   return t.phaseRefining;
             case 'auditing':   return t.phaseAuditing;
@@ -443,7 +445,14 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Generation + refinement (extracted to keep buildPrompt lean) ─────────
 
     private async runGenerate(r: RunContext): Promise<StreamingResult> {
-        this.setPhase('generating');
+        // Storyline-first decks draft a storyline before slides — show the right
+        // phase from the start (a pending storyline that BUILDS resets to
+        // 'generating' in handlePendingStoryline). Direct decks generate slides.
+        this.setPhase(
+            this.creationConfig.planMode === 'storyline' && !this.pendingStoryline
+                ? 'storyboarding'
+                : 'generating',
+        );
         // Structured-IR is the only generation path: produce a typed deck IR,
         // render it to preview HTML deterministically, and keep the IR for a
         // faithful PPTX export. On failure we surface an explicit error (no
@@ -641,6 +650,9 @@ export class PresentationModeHandler implements ChatModeHandler {
     private async runConsultantStage(r: RunContext, sources: PromptSource[]): Promise<{ early: string } | Result<SlideDeckIr>> {
         const settings = r.ctx.fullPlugin.settings;
         const t = r.ctx.plugin.t.modals.unifiedChat;
+        // Storyline drafting, not slide generation — surface the right phase label
+        // (the side panel + thinking indicator otherwise say "Generating slides…").
+        this.setPhase('storyboarding');
         // Model-aware char budget so the catalog (and thus the prompt) stays bounded
         // for the configured model / Azure TPM, instead of an unbounded injection (audit H12).
         const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
@@ -708,6 +720,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
         // REVISE: apply the request + any reviewer comments, re-ground/audit,
         // rewrite the note in place, and stay in review for the next turn.
+        this.setPhase('storyboarding');  // revising the storyline, not generating slides
         const parsed = markdownToStoryboard(md);
         if (!parsed.ok) return { early: t.storylineReviseFailed.replace('{error}', parsed.error) };
         const gen = await this.resolveRoleRun(r, 'storyboard_generator');

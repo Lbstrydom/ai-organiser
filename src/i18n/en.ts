@@ -2414,6 +2414,7 @@ export const en: Translations = {
             storylineReviseFailed: 'Could not revise the storyline: {error}',
             slidePreviewEmpty: 'No deck yet — generate slides to see a preview here.',
             slideDiffDriftAdvisory: 'Accepting will also apply changes to {n} unselected slide{s}. Expand the drift section to review.',
+            phaseStoryboarding: 'Drafting storyline…',
             phaseGenerating: 'Generating slides…',
             phaseRefining: 'Refining presentation…',
             phaseAuditing: 'Checking brand compliance…',

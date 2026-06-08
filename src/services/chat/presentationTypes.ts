@@ -14,6 +14,7 @@ import type { SlideDeckIr } from '../presentationIr/slideIr';
 
 export type PresentationPhase =
     | 'empty'
+    | 'storyboarding'
     | 'generating'
     | 'preview-ready'
     | 'refining'

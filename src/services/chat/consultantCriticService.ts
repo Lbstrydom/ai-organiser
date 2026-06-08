@@ -106,6 +106,7 @@ export function buildStoryboardJudge(
                 signal: options.signal,
                 timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
                 label: 'presentation-critic',
+                disableThinking: true,  // structured judgment task — no adaptive thinking (latency)
                 ...(options.modelOverride ? { modelOverride: options.modelOverride } : {}),
             });
             if (options.signal?.aborted) return { findings: [] };
