@@ -414,15 +414,14 @@ describe('migrateOldSettings', () => {
         });
     });
 
-    describe('Azure model defaults V2 migration', () => {
+    describe('Azure model defaults V3 migration', () => {
         it('bumps stale azureGPTModel gpt-5.3-chat → gpt-5.5 once', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: false })!;
+            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat' })!;
             expect(r.azureGPTModel).toBe('gpt-5.5');
-            expect(r.azureModelDefaultsV2).toBe(true);
+            expect(r.azureModelDefaultsV3).toBe(true);
         });
         it('bumps stale taskModels + cloudModel claude-opus-4-6 → claude-opus-4-7', () => {
             const r = migrateOldSettings({
-                azureModelDefaultsV2: false,
                 cloudModel: 'claude-opus-4-6',
                 taskModels: { audit: 'claude-opus-4-6', research: 'claude-opus-4-6', tagging: 'claude-sonnet-4-6' },
             })!;
@@ -433,12 +432,18 @@ describe('migrateOldSettings', () => {
             // current model untouched
             expect(tm.tagging).toBe('claude-sonnet-4-6');
         });
+        it('self-heals an instance left stuck by the old default-true V2 guard', () => {
+            // V2 stuck true on disk, model never bumped — V3 (absent) must re-fire.
+            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: true })!;
+            expect(r.azureGPTModel).toBe('gpt-5.5');
+            expect(r.azureModelDefaultsV3).toBe(true);
+        });
         it('exact-match only — never touches a custom deployment name', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'my-custom-gpt', azureModelDefaultsV2: false })!;
+            const r = migrateOldSettings({ azureGPTModel: 'my-custom-gpt' })!;
             expect(r.azureGPTModel).toBe('my-custom-gpt');
         });
-        it('does not re-bump once the V2 flag is set', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: true })!;
+        it('does not re-bump once the V3 flag is set', () => {
+            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV3: true })!;
             expect(r.azureGPTModel).toBe('gpt-5.3-chat');
         });
     });

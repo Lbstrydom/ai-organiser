@@ -405,8 +405,11 @@ export interface AIOrganiserSettings {
     azureThrottleDefaultsV2: boolean;
     /** One-time guard: bump the superseded Azure default model IDs to their current
      *  equivalents (gpt-5.3-chat→gpt-5.5, claude-opus-4-6→claude-opus-4-7) once. Exact-
-     *  match only — never clobbers a custom deployment name. */
-    azureModelDefaultsV2: boolean;
+     *  match only — never clobbers a custom deployment name. Defaults to FALSE so the
+     *  guard can never persist ahead of the bump via the DEFAULT_SETTINGS merge (a
+     *  default-true guard could get stuck true-without-bump if data.json is written
+     *  out of band) — and so it self-heals any instance left in that state. */
+    azureModelDefaultsV3: boolean;
     /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Empty → every
      *  deployment uses azureMaxRpm. NEVER derived from TPM; the user enters their verified
      *  quotas (e.g. {"whisper":3,"gpt-4o-transcribe":10000}). Public-safe default: {}. */
@@ -754,7 +757,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureMaxConcurrentRequests: 4,
     azureMaxRpm: 60,
     azureThrottleDefaultsV2: true,
-    azureModelDefaultsV2: true,
+    azureModelDefaultsV3: false,
     azurePerDeploymentRpm: {},
     azureFastModel: {},
     azureAIEndpoint: '',
@@ -1230,8 +1233,12 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     // One-time bump of the superseded Azure default model IDs to their current
     // equivalents (the old low-tier gpt-5.3-chat / claude-opus-4-6 deployments are
     // 10 RPM; the standard current deployments are gpt-5.5 / claude-opus-4-7). Exact-
-    // match only — a custom deployment name is never touched. Mirrors azureThrottleDefaultsV2.
-    if (s.azureModelDefaultsV2 !== true) {
+    // match only — a custom deployment name is never touched. The guard DEFAULTS TO
+    // FALSE (unlike azureThrottleDefaultsV2) so it can never be persisted true-without-
+    // bump through the DEFAULT_SETTINGS merge; the V3 version also re-fires once to
+    // self-heal any instance the earlier default-true V2 guard left stuck. The legacy
+    // azureModelDefaultsV2 key (if present on disk) is now ignored.
+    if (s.azureModelDefaultsV3 !== true) {
         const bumpModel = (v: unknown): unknown => {
             if (v === 'gpt-5.3-chat') return 'gpt-5.5';
             if (v === 'claude-opus-4-6') return 'claude-opus-4-7';
@@ -1243,7 +1250,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
             const tm = s.taskModels as Record<string, unknown>;
             for (const k of Object.keys(tm)) tm[k] = bumpModel(tm[k]);
         }
-        s.azureModelDefaultsV2 = true;
+        s.azureModelDefaultsV3 = true;
     }
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
