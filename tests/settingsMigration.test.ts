@@ -414,14 +414,15 @@ describe('migrateOldSettings', () => {
         });
     });
 
-    describe('Azure model defaults V3 migration', () => {
+    describe('Azure model defaults V3 migration (azure-gated)', () => {
         it('bumps stale azureGPTModel gpt-5.3-chat → gpt-5.5 once', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat' })!;
+            const r = migrateOldSettings({ cloudServiceType: 'azure-openai', azureGPTModel: 'gpt-5.3-chat' })!;
             expect(r.azureGPTModel).toBe('gpt-5.5');
             expect(r.azureModelDefaultsV3).toBe(true);
         });
         it('bumps stale taskModels + cloudModel claude-opus-4-6 → claude-opus-4-7', () => {
             const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
                 cloudModel: 'claude-opus-4-6',
                 taskModels: { audit: 'claude-opus-4-6', research: 'claude-opus-4-6', tagging: 'claude-sonnet-4-6' },
             })!;
@@ -434,17 +435,40 @@ describe('migrateOldSettings', () => {
         });
         it('self-heals an instance left stuck by the old default-true V2 guard', () => {
             // V2 stuck true on disk, model never bumped — V3 (absent) must re-fire.
-            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: true })!;
+            const r = migrateOldSettings({ cloudServiceType: 'azure-openai', azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: true })!;
             expect(r.azureGPTModel).toBe('gpt-5.5');
             expect(r.azureModelDefaultsV3).toBe(true);
         });
         it('exact-match only — never touches a custom deployment name', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'my-custom-gpt' })!;
+            const r = migrateOldSettings({ cloudServiceType: 'azure-openai', azureGPTModel: 'my-custom-gpt' })!;
             expect(r.azureGPTModel).toBe('my-custom-gpt');
         });
         it('does not re-bump once the V3 flag is set', () => {
-            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV3: true })!;
+            const r = migrateOldSettings({ cloudServiceType: 'azure-openai', azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV3: true })!;
             expect(r.azureGPTModel).toBe('gpt-5.3-chat');
+        });
+        it('does NOT touch a non-Azure user (cloudModel untouched, migration did not fire)', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'claude', cloudModel: 'claude-opus-4-6' })!;
+            expect(r.cloudModel).toBe('claude-opus-4-6');
+            // migration skipped → never set the guard (DEFAULT false is applied later in loadSettings)
+            expect(r.azureModelDefaultsV3).toBeUndefined();
+        });
+        it('seeds the standard per-deployment RPM map when empty (azure)', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'azure-claude', azurePerDeploymentRpm: {} })!;
+            const rpm = r.azurePerDeploymentRpm as Record<string, number>;
+            expect(rpm.whisper).toBe(3);
+            expect(rpm['gpt-5.5']).toBe(100);
+            expect(rpm['gpt-4o-transcribe']).toBe(10000);
+        });
+        it('does NOT clobber an existing non-empty per-deployment map', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'azure-claude', azurePerDeploymentRpm: { whisper: 99 } })!;
+            const rpm = r.azurePerDeploymentRpm as Record<string, number>;
+            expect(rpm.whisper).toBe(99);
+            expect(rpm['gpt-5.5']).toBeUndefined();
+        });
+        it('default settings ship the standard per-deployment RPM map', () => {
+            expect(DEFAULT_SETTINGS.azurePerDeploymentRpm.whisper).toBe(3);
+            expect(DEFAULT_SETTINGS.azurePerDeploymentRpm['claude-sonnet-4-6']).toBe(200);
         });
     });
 

@@ -410,9 +410,10 @@ export interface AIOrganiserSettings {
      *  default-true guard could get stuck true-without-bump if data.json is written
      *  out of band) — and so it self-heals any instance left in that state. */
     azureModelDefaultsV3: boolean;
-    /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Empty → every
-     *  deployment uses azureMaxRpm. NEVER derived from TPM; the user enters their verified
-     *  quotas (e.g. {"whisper":3,"gpt-4o-transcribe":10000}). Public-safe default: {}. */
+    /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Defaults to the
+     *  standard Azure deployment quotas (DEFAULT_AZURE_DEPLOYMENT_RPM) so pacing is correct
+     *  out of the box; a deployment not listed (and not overridden) falls back to azureMaxRpm.
+     *  Fully editable in the per-deployment editor. NEVER derived from TPM. */
     azurePerDeploymentRpm: Record<string, number>;
     /** Optional Azure fast/triage deployment names for high-volume tagging (Phase 3).
      *  Surface-matched: openai→azure-openai main, claude→azure-claude main. Empty (H4) →
@@ -464,6 +465,36 @@ function getDefaultTimezone(): string {
         return 'UTC';
     }
 }
+
+/**
+ * Sensible default per-deployment RPM map keyed by the STANDARD Azure AI Foundry
+ * deployment names, reflecting Azure's typical Standard / Global-Standard tier
+ * quotas. These are public, non-secret defaults (standard model names + standard
+ * tier RPMs) — NOT one tenant's private allocation. They make pacing correct out
+ * of the box for a standard Azure deployment set, and are fully overridable in the
+ * per-deployment editor (a user with different quotas just edits the rows). A
+ * deployment NOT listed here (and not in the user's overrides) falls back to the
+ * global `azureMaxRpm`.
+ *
+ * Whisper (3 RPM) is the one that actually prevents 429s if left at the global
+ * default; the high-quota entries (transcribe, embeddings-small) exist so those
+ * deployments aren't needlessly throttled down to the global fallback.
+ */
+export const DEFAULT_AZURE_DEPLOYMENT_RPM: Record<string, number> = {
+    'gpt-5.5': 100,
+    'gpt-5.4-nano': 100,
+    'gpt-5.3-chat': 10,
+    'gpt-4o-transcribe': 10000,
+    'gpt-4o-transcribe-diarize': 10000,
+    'whisper': 3,
+    'text-embedding-3-large': 60,
+    'text-embedding-3-small': 600,
+    'embed-v-4-0': 100,
+    'claude-opus-4-7': 100,
+    'claude-opus-4-6': 10,
+    'claude-sonnet-4-6': 200,
+    'claude-haiku-4-5': 10,
+};
 
 export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     serviceType: 'cloud',
@@ -758,7 +789,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureMaxRpm: 60,
     azureThrottleDefaultsV2: true,
     azureModelDefaultsV3: false,
-    azurePerDeploymentRpm: {},
+    azurePerDeploymentRpm: { ...DEFAULT_AZURE_DEPLOYMENT_RPM },
     azureFastModel: {},
     azureAIEndpoint: '',
     azureOpenAIEndpoint: '',
@@ -1232,13 +1263,18 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     }
     // One-time bump of the superseded Azure default model IDs to their current
     // equivalents (the old low-tier gpt-5.3-chat / claude-opus-4-6 deployments are
-    // 10 RPM; the standard current deployments are gpt-5.5 / claude-opus-4-7). Exact-
-    // match only — a custom deployment name is never touched. The guard DEFAULTS TO
-    // FALSE (unlike azureThrottleDefaultsV2) so it can never be persisted true-without-
-    // bump through the DEFAULT_SETTINGS merge; the V3 version also re-fires once to
-    // self-heal any instance the earlier default-true V2 guard left stuck. The legacy
-    // azureModelDefaultsV2 key (if present on disk) is now ignored.
-    if (s.azureModelDefaultsV3 !== true) {
+    // 10 RPM; the standard current deployments are gpt-5.5 / claude-opus-4-7) + seed
+    // the standard per-deployment RPM map. Exact-match only — a custom deployment name
+    // is never touched. The guard DEFAULTS TO FALSE (unlike azureThrottleDefaultsV2) so
+    // it can never be persisted true-without-bump through the DEFAULT_SETTINGS merge; the
+    // V3 version also re-fires once to self-heal any instance the earlier default-true V2
+    // guard left stuck. The legacy azureModelDefaultsV2 key (if present) is ignored.
+    // AZURE-GATED: never touches a non-Azure user's cloudModel or pollutes their data.json
+    // (a direct-Claude user keeping claude-opus-4-6 is left alone; fires if they later switch).
+    const isAzureUserForV3 =
+        (typeof s.cloudServiceType === 'string' && s.cloudServiceType.startsWith('azure')) ||
+        s.azureFirstMode === true;
+    if (isAzureUserForV3 && s.azureModelDefaultsV3 !== true) {
         const bumpModel = (v: unknown): unknown => {
             if (v === 'gpt-5.3-chat') return 'gpt-5.5';
             if (v === 'claude-opus-4-6') return 'claude-opus-4-7';
@@ -1250,6 +1286,13 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
             const tm = s.taskModels as Record<string, unknown>;
             for (const k of Object.keys(tm)) tm[k] = bumpModel(tm[k]);
         }
+        // Seed the standard per-deployment RPM map when the user has none yet (missing
+        // or empty {}). One-time (same V3 guard) so a user who later clears the map to
+        // run everything at the global fallback is not re-seeded. Never clobbers an
+        // existing non-empty map.
+        const rpm = s.azurePerDeploymentRpm;
+        const isEmpty = !rpm || typeof rpm !== 'object' || Object.keys(rpm as object).length === 0;
+        if (isEmpty) s.azurePerDeploymentRpm = { ...DEFAULT_AZURE_DEPLOYMENT_RPM };
         s.azureModelDefaultsV3 = true;
     }
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
