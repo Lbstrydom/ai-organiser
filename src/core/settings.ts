@@ -187,7 +187,12 @@ export interface AIOrganiserSettings {
     maxChunksPerNote: number;            // Limit chunks per note (default: 10)
     chunkSize: number;                   // Characters per chunk (default: 2000)
     chunkOverlap: number;                // Overlap characters (default: 200)
-    
+    /** Index TEXT extracted from a note's Office-XML attachments (docx/xlsx/pptx/txt/rtf/csv/xls)
+     *  so they're semantically searchable. Off by default (azure-capability-completion-v2 Phase 1). */
+    indexAttachmentText: boolean;
+    /** Per-note cumulative cap on attachment text indexed (chars). A WORK cap, not just storage. */
+    maxAttachmentCharsPerNote: number;
+
     // Search & RAG Settings
     enableVaultChat: boolean;            // Enable Chat with Vault (RAG) - Phase 2
     ragContextChunks: number;            // How many chunks to include in context (default: 5)
@@ -617,6 +622,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     maxChunksPerNote: 10,                               // Reasonable limit
     chunkSize: 2000,                                    // ~500 tokens (char/4 approximation)
     chunkOverlap: 200,                                  // ~50 tokens overlap
+    indexAttachmentText: false,                         // Opt-in (azure-capability-completion-v2 Phase 1)
+    maxAttachmentCharsPerNote: 50_000,                  // ~12k tokens of attachment text per note
     enableVaultChat: false,                             // Phase 2 feature
     ragContextChunks: 5,                                // Standard context window
     ragIncludeMetadata: true,                           // Include paths/headings
@@ -1137,6 +1144,16 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
             oldSettings.claudeThinkingMode = 'standard';
         }
         oldSettings.thinkingDefaultOffV1 = true;
+    }
+
+    // Validate the attachment-text cap (azure-capability-completion-v2 Phase 1): coerce to a
+    // finite int in [1000, 1_000_000], else the default. A 0/negative/garbage value would
+    // otherwise disable or unbound the per-note work cap.
+    if (oldSettings.indexAttachmentText !== undefined || oldSettings.maxAttachmentCharsPerNote !== undefined) {
+        const n = Math.floor(Number(oldSettings.maxAttachmentCharsPerNote));
+        oldSettings.maxAttachmentCharsPerNote = Number.isFinite(n)
+            ? Math.min(1_000_000, Math.max(1000, n))
+            : DEFAULT_SETTINGS.maxAttachmentCharsPerNote;
     }
 
     migrateAzureSettings(oldSettings);

@@ -27,6 +27,14 @@ export interface VectorDocument {
         contentHash: string;          // Hash of original content
         wordCount: number;            // Approximate word count
         tokens: number;               // Estimated token count
+        /** Set when this chunk is derived from a note's ATTACHMENT (Office-XML/PDF text),
+         *  not the note body (azure-capability-completion-v2 Phase 1). The host note is
+         *  still `filePath`; this names the source attachment for the RAG label + lifecycle. */
+        sourceAttachment?: {
+            name: string;
+            path: string;
+            contentHash: string;
+        };
     };
 }
 

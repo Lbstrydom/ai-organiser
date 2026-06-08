@@ -540,6 +540,14 @@ export interface Translations {
                 name: string;
                 description: string;
             };
+            indexAttachmentText: {
+                name: string;
+                description: string;
+            };
+            maxAttachmentCharsPerNote: {
+                name: string;
+                description: string;
+            };
             useSharedExcludedFolders: {
                 name: string;
                 description: string;

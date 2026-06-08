@@ -206,6 +206,30 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     void plugin.saveSettings();
                 }));
 
+        // Index attachment text (azure-capability-completion-v2 Phase 1) + per-note cap.
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.indexAttachmentText.name)
+            .setDesc(t.settings.semanticSearch.indexAttachmentText.description)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.indexAttachmentText)
+                .onChange((value) => {
+                    plugin.settings.indexAttachmentText = value;
+                    void plugin.saveSettings();
+                }));
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.maxAttachmentCharsPerNote.name)
+            .setDesc(t.settings.semanticSearch.maxAttachmentCharsPerNote.description)
+            .addText(text => text
+                .setPlaceholder('50000')
+                .setValue(plugin.settings.maxAttachmentCharsPerNote.toString())
+                .onChange((value) => {
+                    const n = parseInt(value, 10);
+                    if (!isNaN(n) && n > 0) {
+                        plugin.settings.maxAttachmentCharsPerNote = Math.min(1_000_000, Math.max(1000, n));
+                        void plugin.saveSettings();
+                    }
+                }));
+
         // Use shared excluded folders toggle
         new Setting(sectionEl)
             .setName(t.settings.semanticSearch.useSharedExcludedFolders.name)

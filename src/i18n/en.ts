@@ -552,6 +552,14 @@ export const en: Translations = {
                 name: "Auto-index",
                 description: "Index notes when created or modified"
             },
+            indexAttachmentText: {
+                name: "Index attachment text",
+                description: "Also extract and index text from a note's Office documents (docx, xlsx, pptx, txt, rtf, csv). The extracted text is sent to your embedding provider. PDFs are not included yet."
+            },
+            maxAttachmentCharsPerNote: {
+                name: "Attachment text limit per note",
+                description: "Maximum characters of attachment text indexed per note (1000–1000000). Higher values cost more embedding tokens."
+            },
             useSharedExcludedFolders: {
                 name: "Use tagging exclusions",
                 description: "Use same excluded folders as tagging"

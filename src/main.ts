@@ -32,6 +32,8 @@ import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
 import { ConfigurationService, CURRENT_PERSONA_SCHEMA_VERSION } from './services/configurationService';
 import { VectorStoreService, IVectorStore } from './services/vector';
+import { AttachmentLifecycleCoordinator } from './services/attachmentLifecycleCoordinator';
+import { ALL_DOCUMENT_EXTENSIONS } from './core/constants';
 import { IEmbeddingService, createEmbeddingServiceFromSettings } from './services/embeddings';
 import { AdapterType } from './services/adapters';
 import cloudEndpoints from './services/adapters/cloudEndpoints.json';
@@ -98,6 +100,11 @@ export default class AIOrganiserPlugin extends Plugin {
     public embeddingService: IEmbeddingService | null = null;
     public vectorStore: IVectorStore | null = null;
     public vectorStoreService: VectorStoreService | null = null;
+    /** The single attachment-event ingress (azure-capability-completion-v2 C16); dispatches
+     *  modify/delete/rename of non-markdown attachments to the registered index consumers. */
+    public attachmentCoordinator: AttachmentLifecycleCoordinator | null = null;
+    /** Per-attachment-path modify debounce timers (attachments fire rapid `modify` events). */
+    private readonly attachmentModifyTimers = new Map<string, number>();
     public sourcePackService: SourcePackService | null = null;
     /** The settings tab instance — kept so `applyFeatureFlags` can await a re-render (FT-5). */
     public settingTab: AIOrganiserSettingTab | null = null;
@@ -401,6 +408,39 @@ export default class AIOrganiserPlugin extends Plugin {
     /**
      * Initialize or reinitialize the NotebookLM source pack service
      */
+    /**
+     * Route non-markdown attachment vault events (modify/delete/rename) through the single
+     * lifecycle coordinator (C16). Plugin-scoped (auto-unregistered on unload). Gated to the
+     * document/PDF extensions we index; the registered consumers self-gate on their feature
+     * flags. `modify` is per-path debounced (attachments fire bursts of modify events).
+     */
+    private registerAttachmentEventHandlers(): void {
+        const coord = this.attachmentCoordinator;
+        if (!coord) return;
+        const docExts: readonly string[] = ALL_DOCUMENT_EXTENSIONS;
+        const isIndexableAttachment = (f: unknown): f is TFile =>
+            f instanceof TFile && f.extension !== 'md' && docExts.includes(f.extension.toLowerCase());
+
+        this.registerEvent(this.app.vault.on('modify', (file) => {
+            if (!isIndexableAttachment(file)) return;
+            const path = file.path;
+            const prev = this.attachmentModifyTimers.get(path);
+            if (prev) window.clearTimeout(prev);
+            this.attachmentModifyTimers.set(path, window.setTimeout(() => {
+                this.attachmentModifyTimers.delete(path);
+                void coord.handleChange('modify', path);
+            }, 800));
+        }));
+        this.registerEvent(this.app.vault.on('delete', (file) => {
+            if (!isIndexableAttachment(file)) return;
+            void coord.handleChange('delete', file.path);
+        }));
+        this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+            if (!isIndexableAttachment(file)) return;
+            void coord.handleChange('rename', file.path, oldPath);
+        }));
+    }
+
     private initializeSourcePackService(): void {
         const pdfConfig = {
             ...DEFAULT_PDF_CONFIG,
@@ -778,6 +818,16 @@ export default class AIOrganiserPlugin extends Plugin {
                 if (this.settings.autoIndexNewNotes) {
                     this.vectorStoreService.registerFileEventHandlers();
                 }
+
+                // Attachment lifecycle (C16): the single attachment-event ingress. The text
+                // consumer self-gates on `indexAttachmentText`; Phase 6 registers the visual
+                // consumer on the SAME coordinator. Created whenever semantic-search is on so
+                // attachment events reach whichever lanes are enabled.
+                this.attachmentCoordinator = new AttachmentLifecycleCoordinator(
+                    () => this.vectorStoreService?.getLinkSource() ?? { resolvedLinks: {}, unresolvedLinks: {} },
+                );
+                this.attachmentCoordinator.register(this.vectorStoreService);
+                this.registerAttachmentEventHandlers();
 
                 if (this.embeddingService) {
                     logger.debug('Core', `Semantic search initialized with ${this.settings.embeddingProvider}/${this.settings.embeddingModel}`);

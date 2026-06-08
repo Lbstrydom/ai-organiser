@@ -32,6 +32,26 @@ const QUERY_MAX_CHARS = 2500;
 const MAX_FETCH_LIMIT = 200;
 
 /**
+ * `RelatedNotesDeduper` (azure-capability-completion-v2 C20): the text-only, related-notes
+ * DISPLAY deduper. Groups search hits by host `filePath` (keeping the best-scoring chunk per
+ * note), excludes the query note, sorts by score, and takes the top `limit`. This is distinct
+ * from the prompt-evidence `RagContextMerger` (Phase 7, dedups by evidenceId) — final RAG
+ * prompt construction must NOT apply this host-note filePath dedup before evidence merging.
+ * Pure + exported for direct unit testing.
+ */
+export function dedupeRelatedByFile(results: SearchResult[], excludePath: string, limit: number): SearchResult[] {
+    const bestByFile = new Map<string, SearchResult>();
+    for (const r of results) {
+        if (r.document.filePath === excludePath) continue;
+        const existing = bestByFile.get(r.document.filePath);
+        if (!existing || r.score > existing.score) bestByFile.set(r.document.filePath, r);
+    }
+    return Array.from(bestByFile.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+}
+
+/**
  * Service for retrieving and formatting context for RAG
  */
 export class RAGService {
@@ -147,6 +167,11 @@ export class RAGService {
             if (includeMetadata) {
                 contextParts.push(`**File:** ${doc.filePath}`);
                 contextParts.push(`**Title:** ${doc.metadata.title}`);
+                // Name the source attachment when this chunk came from a note's attachment
+                // (Office-XML/PDF text), not the note body (azure-capability-completion-v2 Phase 1).
+                if (doc.metadata.sourceAttachment) {
+                    contextParts.push(`**From attachment:** ${doc.metadata.sourceAttachment.name}`);
+                }
                 contextParts.push(`**Relevance Score:** ${(result.score * 100).toFixed(1)}%`);
                 contextParts.push('');
             }
@@ -216,36 +241,29 @@ export class RAGService {
             const title = file.basename || file.path.split('/').pop()?.replace(/\.md$/i, '') || '';
             const queryContent = `${title}\n\n${body}`.substring(0, QUERY_MAX_CHARS);
 
-            const fetchLimit = Math.min(maxResults * 5, MAX_FETCH_LIMIT);
-
             // Build folder filter predicate (single source of truth)
             const folderScope = options?.folderScope;
             const filter = (folderScope && folderScope !== '' && folderScope !== '/')
                 ? (doc: VectorDocument) => doc.filePath.startsWith(folderScope + '/')
                 : undefined;
 
-            const results = await this.vectorStore.searchByContent(
-                queryContent,
-                this.embeddingService,
-                fetchLimit,
-                filter
-            );
-
-            // Filter out the current file before dedup
-            const filtered = results.filter((r: SearchResult) => r.document.filePath !== file.path);
-
-            // Deduplicate by file path, keep highest score
-            const bestByFile = new Map<string, SearchResult>();
-            for (const result of filtered) {
-                const existing = bestByFile.get(result.document.filePath);
-                if (!existing || result.score > existing.score) {
-                    bestByFile.set(result.document.filePath, result);
-                }
+            // C20: dedup-by-file is the DISPLAY-path `RelatedNotesDeduper`. The fix for the
+            // dedup-before-limit shortfall (chunks from few files crowding out unique notes —
+            // now likelier with attachment chunks sharing a host's filePath) is to WIDEN the
+            // fetch until we have ≥ maxResults unique files (or the store is exhausted / cap hit),
+            // not to dedup a too-small first page.
+            let fetchLimit = Math.min(maxResults * 5, MAX_FETCH_LIMIT);
+            let deduped: SearchResult[] = [];
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const results = await this.vectorStore.searchByContent(
+                    queryContent, this.embeddingService, fetchLimit, filter,
+                );
+                deduped = dedupeRelatedByFile(results, file.path, maxResults);
+                const exhausted = results.length < fetchLimit;
+                if (deduped.length >= maxResults || fetchLimit >= MAX_FETCH_LIMIT || exhausted) break;
+                fetchLimit = Math.min(fetchLimit * 2, MAX_FETCH_LIMIT);
             }
-
-            return Array.from(bestByFile.values())
-                .sort((a, b) => b.score - a.score)
-                .slice(0, maxResults);
+            return deduped;
         } catch (error) {
             logger.error('Search', 'Error getting related notes', error);
             return [];

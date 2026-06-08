@@ -11,6 +11,19 @@ import { AIOrganiserSettings, getPluginManagedFolders } from '../../core/setting
 import { createContentHash } from './hashUtils';
 import type { IEmbeddingService } from '../embeddings/types';
 import type { EmbeddingQueue, ChunkTask } from './embeddingQueue';
+import type { Result } from '../../core/result';
+import { ok } from '../../core/result';
+import { collectAttachmentChunks, type AttachmentExtractionDeps, type AttachmentRef } from './attachmentTextIndexer';
+import { SingleFlightCache, computeAttachmentContentHash } from './attachmentFingerprint';
+import {
+    captureAttachmentHosts,
+    type AttachmentConsumer,
+    type AttachmentChangeEvent,
+    type MetadataLinkSource,
+} from '../attachmentLifecycleCoordinator';
+import { detectEmbeddedContent } from '../../utils/embeddedContentDetector';
+import { DocumentExtractionService } from '../documentExtractionService';
+import { chunkPlainTextAsync } from '../../utils/textChunker';
 import { getTranslations } from '../../i18n';
 import { logger } from '../../utils/logger';
 import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
@@ -109,10 +122,14 @@ class SearchCache {
     }
 }
 
+/** Attachment-chunk `chunkIndex` offset so they never collide with note body chunk
+ *  indices (cosmetic ordering field; ids are the real identity). */
+const ATTACHMENT_CHUNK_INDEX_BASE = 1_000_000;
+
 /**
  * Service for managing vector store operations
  */
-export class VectorStoreService {
+export class VectorStoreService implements AttachmentConsumer {
     private static readonly METADATA_PREFIX_MAX_CHARS = 200;
     private static readonly BULK_RENAME_THRESHOLD = 10;
     private static readonly RENAME_DEBOUNCE_MS = 500;
@@ -120,6 +137,8 @@ export class VectorStoreService {
     private embeddingService: IEmbeddingService | null;
     private app: App;
     private settings: AIOrganiserSettings;
+    /** Lazily-built document extractor for attachment text (Phase 1). */
+    private documentExtractor: DocumentExtractionService | null = null;
     private isIndexing = false;
     private searchCache = new SearchCache();
     private fileEventRefs: EventRef[] = [];
@@ -249,12 +268,92 @@ export class VectorStoreService {
     }
 
     /**
+     * Force a host-note re-index even when its OWN body content is unchanged — used when
+     * one of its ATTACHMENTS changed (the body hash would otherwise short-circuit the
+     * re-index and leave stale/missing attachment chunks). (azure-capability-completion-v2 Phase 1.)
+     */
+    public async forceReindexNote(file: TFile): Promise<boolean> {
+        return this.indexNoteInternal(file, false, true);
+    }
+
+    // ── Attachment lifecycle consumer (azure-capability-completion-v2 Phase 1) ──────────
+    // Registered on the AttachmentLifecycleCoordinator (C12/C16). Self-gates on
+    // `indexAttachmentText` so the coordinator can dispatch unconditionally.
+
+    async onAttachmentChanged(ev: AttachmentChangeEvent): Promise<Result<void>> {
+        if (!this.settings.indexAttachmentText) return ok(undefined);
+        for (const hostPath of ev.hosts) {
+            const f = this.app.vault.getAbstractFileByPath(hostPath);
+            if (f instanceof TFile && f.extension === 'md') await this.forceReindexNote(f);
+        }
+        return ok(undefined);
+    }
+
+    async purgeByAttachmentPath(path: string): Promise<Result<{ removed: number }>> {
+        if (!this.settings.indexAttachmentText) return ok({ removed: 0 });
+        const hosts = captureAttachmentHosts(this.getLinkSource(), path);
+        for (const hostPath of hosts) {
+            const f = this.app.vault.getAbstractFileByPath(hostPath);
+            if (f instanceof TFile && f.extension === 'md') await this.forceReindexNote(f);
+        }
+        return ok({ removed: hosts.length });
+    }
+
+    /** Live Obsidian link maps as a `MetadataLinkSource` (for host capture). */
+    getLinkSource(): MetadataLinkSource {
+        const mc = this.app.metadataCache as unknown as {
+            resolvedLinks?: Record<string, Record<string, number>>;
+            unresolvedLinks?: Record<string, Record<string, number>>;
+        };
+        return { resolvedLinks: mc.resolvedLinks ?? {}, unresolvedLinks: mc.unresolvedLinks ?? {} };
+    }
+
+    /** Build Obsidian-bound attachment-extraction deps with a fresh single-flight cache. */
+    private buildAttachmentDeps(note: TFile): AttachmentExtractionDeps {
+        if (!this.documentExtractor) this.documentExtractor = new DocumentExtractionService(this.app);
+        const extractor = this.documentExtractor;
+        const chunkSize = this.settings.chunkSize || 2000;
+        const overlap = Math.max(0, Math.min(this.settings.chunkOverlap || 0, chunkSize - 1));
+        const resolve = (ref: AttachmentRef): TFile | null => {
+            const f = this.app.vault.getAbstractFileByPath(ref.path);
+            return f instanceof TFile ? f : null;
+        };
+        return {
+            detect: (noteContent: string): AttachmentRef[] => {
+                const det = detectEmbeddedContent(this.app, noteContent, note);
+                const seen = new Set<string>();
+                const refs: AttachmentRef[] = [];
+                for (const item of det.items) {
+                    if ((item.type !== 'document' && item.type !== 'pdf') || item.isExternal) continue;
+                    const f = item.resolvedFile;
+                    if (!(f instanceof TFile) || seen.has(f.path)) continue;
+                    seen.add(f.path);
+                    refs.push({ name: f.basename, path: f.path, isPdf: item.type === 'pdf' });
+                }
+                return refs;
+            },
+            extractText: async (ref: AttachmentRef) => {
+                const f = resolve(ref);
+                if (!f) return { ok: false, error: 'attachment not found' };
+                const res = await extractor.extractText(f);
+                return { ok: res.success, text: res.text, error: res.error };
+            },
+            contentHash: async (ref: AttachmentRef) => {
+                const f = resolve(ref);
+                return f ? computeAttachmentContentHash(this.app, f) : '';
+            },
+            chunk: (text: string) => chunkPlainTextAsync(text, { maxChars: chunkSize, overlapChars: overlap }),
+            cache: new SingleFlightCache<{ text: string; contentHash: string }>(),
+        };
+    }
+
+    /**
      * Shared index implementation. `awaitCompletion=true` (rebuild/indexAllNotes)
      * resolves only after the queue finishes draining THIS note's batch, so the
      * UI can truthfully report "rebuild complete" (D4.4 / R3-H2). `false`
      * (file events) returns as soon as the work is enqueued.
      */
-    private async indexNoteInternal(file: TFile, awaitCompletion: boolean): Promise<boolean> {
+    private async indexNoteInternal(file: TFile, awaitCompletion: boolean, force = false): Promise<boolean> {
         try {
             if (Platform.isMobile && this.settings.mobileIndexingMode !== 'full') {
                 return false;
@@ -278,8 +377,9 @@ export class VectorStoreService {
             const changeTracker = this.getChangeTracker();
             const hasChanged = changeTracker ? changeTracker.hasChanged(file.path, contentHash) : true;
 
-            // Skip if unchanged
-            if (!hasChanged) {
+            // Skip if unchanged — UNLESS forced (an attachment changed while the note body
+            // did not; the body hash alone would orphan the stale attachment chunks).
+            if (!hasChanged && !force) {
                 return true;
             }
 
@@ -322,6 +422,42 @@ export class VectorStoreService {
                         tokens: Math.ceil(chunk.length / 4)
                     }
                 });
+            }
+
+            // Attachment text (azure-capability-completion-v2 Phase 1, gated): extract +
+            // chunk Office-XML attachments and append them as same-note documents tagged
+            // `sourceAttachment`. PDFs are deferred to Phase 4. The host note replace-on-
+            // upsert (persist below removes ALL of this note's docs) keeps these in sync —
+            // a deleted attachment's chunks drop on the next (forced) re-index.
+            if (this.settings.indexAttachmentText) {
+                const attRes = await collectAttachmentChunks(
+                    file.path,
+                    content,
+                    this.settings.maxAttachmentCharsPerNote || 50_000,
+                    this.buildAttachmentDeps(file),
+                );
+                if (attRes.ok) {
+                    for (const ac of attRes.value.chunks) {
+                        documents.push({
+                            id: ac.id,
+                            filePath: file.path,
+                            chunkIndex: ATTACHMENT_CHUNK_INDEX_BASE + documents.length,
+                            content: ac.content,
+                            metadata: {
+                                title: file.basename,
+                                createdTime: file.stat?.ctime || Date.now(),
+                                modifiedTime: file.stat?.mtime || Date.now(),
+                                contentHash: ac.attachment.contentHash,
+                                wordCount: ac.content.split(/\s+/).length,
+                                tokens: Math.ceil(ac.content.length / 4),
+                                sourceAttachment: { ...ac.attachment },
+                            },
+                        });
+                    }
+                    if (attRes.value.skipped.length > 0) {
+                        logger.debug('Search', `Attachment indexing for ${file.path}: ${attRes.value.skipped.length} skipped`, attRes.value.skipped);
+                    }
+                }
             }
 
             // Persistence step (shared by the queue path and the direct
