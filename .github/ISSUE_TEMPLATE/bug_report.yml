@@ -1,0 +1,81 @@
+name: Bug report
+description: Something isn't working as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the details below so it can be fixed quickly.
+        Tip: open the developer console (Ctrl/Cmd+Shift+I) and paste any red errors — they're the single most useful thing.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+      placeholder: When I run "Build presentation", the preview stays blank and…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Command Picker
+        2. Run "…"
+        3. See the error
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: AI Organiser version
+      description: Settings → Community plugins → AI Organiser (e.g. 1.0.19)
+      placeholder: "1.0.19"
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: Settings → About (e.g. 1.11.4)
+      placeholder: "1.11.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - iOS
+        - Android
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: AI provider + model
+      description: Which provider/model were you using? (e.g. Claude / Sonnet 4.6, OpenAI / GPT-5.4, Azure, Ollama)
+      placeholder: "Claude / Sonnet 4.6"
+    validations:
+      required: false
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors / logs
+      description: Paste any red errors from the developer console (Ctrl/Cmd+Shift+I). Enable Debug mode in settings for more detail.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate
+          required: true
+        - label: I'm on the latest version of the plugin
+          required: false
