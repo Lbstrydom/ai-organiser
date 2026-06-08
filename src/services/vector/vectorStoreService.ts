@@ -328,7 +328,7 @@ export class VectorStoreService implements AttachmentConsumer {
                     const f = item.resolvedFile;
                     if (!(f instanceof TFile) || seen.has(f.path)) continue;
                     seen.add(f.path);
-                    refs.push({ name: f.basename, path: f.path, isPdf: item.type === 'pdf' });
+                    refs.push({ name: f.basename, path: f.path, isPdf: item.type === 'pdf', size: f.stat?.size ?? 0 });
                 }
                 return refs;
             },

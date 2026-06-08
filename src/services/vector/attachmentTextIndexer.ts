@@ -28,7 +28,14 @@ export interface AttachmentRef {
     path: string;
     /** PDF text is deferred to Phase 4; flagged so it's skipped (not extracted) here. */
     isPdf: boolean;
+    /** File size in bytes — the size-admission guard rejects pathologically large files
+     *  BEFORE extraction (the only way to truly bound work given a non-abortable extractor). */
+    size: number;
 }
+
+/** Hard per-file size cap (audit H7/H11): a file above this is never extracted — the
+ *  non-cancellable Office extractor means an admission guard is the real work bound. */
+export const MAX_ATTACHMENT_FILE_BYTES = 25_000_000; // 25 MB
 
 export interface AttachmentChunk {
     /** Collision-safe, path-stable id: `${notePath}::att::${hash(path)}#${i}`. */
@@ -41,7 +48,7 @@ export interface AttachmentChunk {
 
 export interface AttachmentSkip {
     path: string;
-    reason: 'pdf-deferred-to-phase4' | 'extract-failed' | 'timeout' | 'empty' | 'cap-reached';
+    reason: 'pdf-deferred-to-phase4' | 'extract-failed' | 'timeout' | 'empty' | 'cap-reached' | 'too-large';
     detail?: string;
 }
 
@@ -59,23 +66,19 @@ export interface AttachmentExtractionDeps {
     cache: SingleFlightCache<{ text: string; contentHash: string }>;
     /** Per-file extraction timeout (ms). Default 30s. */
     timeoutMs?: number;
-    /** Max attachments extracted in parallel. Default 3. */
-    concurrency?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_CONCURRENCY = 3;
 
-/** Deterministic, sync FNV-1a hash of the attachment path → short hex id component. */
-function pathHash(path: string): string {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < path.length; i++) {
-        h ^= path.charCodeAt(i);
-        h = Math.imul(h, 0x01000193);
-    }
-    return (h >>> 0).toString(16).padStart(8, '0');
-}
-
+/**
+ * Bound the AWAIT on `p` to `ms`. Caveat (audit H7/H11): without an abortable extractor
+ * (officeparser is not cancellation-aware), the orphaned extraction continues in the
+ * background after a timeout — it just isn't awaited, and its result is discarded. The
+ * impactful bound is the ADMISSION cap below (we never START extraction once the per-note
+ * budget is exhausted), so total work stays bounded; the timeout only caps a single
+ * pathological file's wait. Full AbortSignal threading is deferred to the PDF lane (Phase 4),
+ * where page-iterating extraction is natively interruptible.
+ */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => {
@@ -86,33 +89,14 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
     return Promise.race([p, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
-/** Run `worker` over `items` with a bounded concurrency pool, preserving input order. */
-async function mapBounded<I, O>(items: I[], limit: number, worker: (item: I, index: number) => Promise<O>): Promise<O[]> {
-    const out: O[] = new Array(items.length);
-    let next = 0;
-    const run = async (): Promise<void> => {
-        for (;;) {
-            const i = next++;
-            if (i >= items.length) return;
-            out[i] = await worker(items[i], i);
-        }
-    };
-    const pool = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, run);
-    await Promise.all(pool);
-    return out;
-}
-
-/** One attachment's extraction result (collected before the cap is applied). */
-interface ExtractedAttachment {
-    ref: AttachmentRef;
-    chunks: string[];
-    contentHash: string;
-    skip?: AttachmentSkip;
-}
-
 /**
  * Collect attachment-derived text chunks for a note. Never throws — a failure of an
  * individual attachment becomes a `skipped` entry; the note's own indexing is unaffected.
+ *
+ * The per-note `maxCharsPerNote` is enforced as an ADMISSION WORK CAP (audit H6/H11): once
+ * the running budget is exhausted, further attachments are reported `cap-reached` and are
+ * NOT extracted — extraction is the expensive work, so processing is sequential and stops
+ * early rather than extracting everything and truncating after.
  */
 export async function collectAttachmentChunks(
     notePath: string,
@@ -121,23 +105,22 @@ export async function collectAttachmentChunks(
     deps: AttachmentExtractionDeps,
 ): Promise<Result<{ chunks: AttachmentChunk[]; skipped: AttachmentSkip[] }>> {
     const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const concurrency = deps.concurrency ?? DEFAULT_CONCURRENCY;
     const refs = deps.detect(noteContent);
     const skipped: AttachmentSkip[] = [];
+    const chunks: AttachmentChunk[] = [];
+    let budget = Math.max(0, maxCharsPerNote);
 
-    const extractable: AttachmentRef[] = [];
     for (const ref of refs) {
-        if (ref.isPdf) {
-            skipped.push({ path: ref.path, reason: 'pdf-deferred-to-phase4' });
-        } else {
-            extractable.push(ref);
-        }
-    }
+        if (ref.isPdf) { skipped.push({ path: ref.path, reason: 'pdf-deferred-to-phase4' }); continue; }
+        // Size-admission guard: never extract a pathologically large file (the extractor is
+        // not cancellable, so this is the real work bound — audit H7/H11).
+        if (ref.size > MAX_ATTACHMENT_FILE_BYTES) { skipped.push({ path: ref.path, reason: 'too-large' }); continue; }
+        // Admission cap: do NOT extract once the per-note budget is exhausted.
+        if (budget <= 0) { skipped.push({ path: ref.path, reason: 'cap-reached' }); continue; }
 
-    // Extract (bounded + cached + per-file timeout), isolated per attachment.
-    const extracted = await mapBounded<AttachmentRef, ExtractedAttachment>(extractable, concurrency, async (ref) => {
+        let extracted: { text: string; contentHash: string };
         try {
-            const { text, contentHash } = await withTimeout(
+            extracted = await withTimeout(
                 deps.cache.get(`${ref.path}|${ATTACHMENT_EXTRACTOR_VERSION}`, async () => {
                     const res = await deps.extractText(ref);
                     if (!res.ok || !res.text) throw new Error(res.error || 'extract-failed');
@@ -146,40 +129,34 @@ export async function collectAttachmentChunks(
                 }),
                 timeoutMs,
             );
-            const trimmed = text.trim();
-            if (!trimmed) return { ref, chunks: [], contentHash, skip: { path: ref.path, reason: 'empty' } };
-            const chunks = await deps.chunk(trimmed);
-            return { ref, chunks, contentHash };
         } catch (e) {
             const detail = e instanceof Error ? e.message : String(e);
-            const reason: AttachmentSkip['reason'] = detail === 'timeout' ? 'timeout' : 'extract-failed';
-            return { ref, chunks: [], contentHash: '', skip: { path: ref.path, reason, detail } };
+            skipped.push({ path: ref.path, reason: detail === 'timeout' ? 'timeout' : 'extract-failed', detail });
+            continue;
         }
-    });
 
-    // Assemble chunks under the per-note WORK cap (in detection order). Once the cap is
-    // reached, remaining attachments are reported `cap-reached` rather than dropped silently.
-    const chunks: AttachmentChunk[] = [];
-    let charBudget = Math.max(0, maxCharsPerNote);
-    let capped = false;
-    for (const item of extracted) {
-        if (item.skip) { skipped.push(item.skip); continue; }
-        if (capped) { skipped.push({ path: item.ref.path, reason: 'cap-reached' }); continue; }
-        const idBase = `${notePath}::att::${pathHash(item.ref.path)}`;
+        const trimmed = extracted.text.trim();
+        if (!trimmed) { skipped.push({ path: ref.path, reason: 'empty' }); continue; }
+
+        const pieces = await deps.chunk(trimmed);
+        // Collision-free, path-stable id base (audit H5/M17): the encoded vault path IS the
+        // identity — no hash, so two distinct attachments can never share an id. The `#${i}`
+        // suffix is unambiguous because encodeURIComponent escapes any literal '#'.
+        const idBase = `${notePath}::att::${encodeURIComponent(ref.path)}`;
         let emitted = 0;
-        for (let i = 0; i < item.chunks.length; i++) {
-            const content = item.chunks[i];
-            if (content.length > charBudget) { capped = true; break; }
-            charBudget -= content.length;
+        let cappedHere = false;
+        for (const content of pieces) {
+            if (content.length > budget) { cappedHere = true; break; }
+            budget -= content.length;
             chunks.push({
                 id: `${idBase}#${emitted}`,
                 content,
                 chunkIndex: emitted,
-                attachment: { name: item.ref.name, path: item.ref.path, contentHash: item.contentHash },
+                attachment: { name: ref.name, path: ref.path, contentHash: extracted.contentHash },
             });
             emitted++;
         }
-        if (capped && emitted === 0) skipped.push({ path: item.ref.path, reason: 'cap-reached' });
+        if (cappedHere && emitted === 0) skipped.push({ path: ref.path, reason: 'cap-reached' });
     }
 
     return ok({ chunks, skipped });

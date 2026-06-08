@@ -237,6 +237,9 @@ export class RAGService {
         options?: { folderScope?: string | null }
     ): Promise<SearchResult[]> {
         try {
+            // Clamp a possibly-garbage caller/setting value (audit H8): a negative / zero /
+            // non-integer / huge maxResults would corrupt the fetch+slice math below.
+            const limit = Math.max(1, Math.min(Math.floor(maxResults) || 5, 50));
             const body = content.replace(/^---[\s\S]*?---\n?/, '');
             const title = file.basename || file.path.split('/').pop()?.replace(/\.md$/i, '') || '';
             const queryContent = `${title}\n\n${body}`.substring(0, QUERY_MAX_CHARS);
@@ -250,17 +253,17 @@ export class RAGService {
             // C20: dedup-by-file is the DISPLAY-path `RelatedNotesDeduper`. The fix for the
             // dedup-before-limit shortfall (chunks from few files crowding out unique notes —
             // now likelier with attachment chunks sharing a host's filePath) is to WIDEN the
-            // fetch until we have ≥ maxResults unique files (or the store is exhausted / cap hit),
+            // fetch until we have ≥ limit unique files (or the store is exhausted / cap hit),
             // not to dedup a too-small first page.
-            let fetchLimit = Math.min(maxResults * 5, MAX_FETCH_LIMIT);
+            let fetchLimit = Math.min(limit * 5, MAX_FETCH_LIMIT);
             let deduped: SearchResult[] = [];
             for (let attempt = 0; attempt < 3; attempt++) {
                 const results = await this.vectorStore.searchByContent(
                     queryContent, this.embeddingService, fetchLimit, filter,
                 );
-                deduped = dedupeRelatedByFile(results, file.path, maxResults);
+                deduped = dedupeRelatedByFile(results, file.path, limit);
                 const exhausted = results.length < fetchLimit;
-                if (deduped.length >= maxResults || fetchLimit >= MAX_FETCH_LIMIT || exhausted) break;
+                if (deduped.length >= limit || fetchLimit >= MAX_FETCH_LIMIT || exhausted) break;
                 fetchLimit = Math.min(fetchLimit * 2, MAX_FETCH_LIMIT);
             }
             return deduped;

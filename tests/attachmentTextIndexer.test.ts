@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { collectAttachmentChunks, type AttachmentExtractionDeps, type AttachmentRef } from '../src/services/vector/attachmentTextIndexer';
+import { collectAttachmentChunks, MAX_ATTACHMENT_FILE_BYTES, type AttachmentExtractionDeps, type AttachmentRef } from '../src/services/vector/attachmentTextIndexer';
 import { SingleFlightCache } from '../src/services/vector/attachmentFingerprint';
 
 function makeDeps(over: Partial<AttachmentExtractionDeps> & { refs: AttachmentRef[] }): AttachmentExtractionDeps {
@@ -16,11 +16,10 @@ function makeDeps(over: Partial<AttachmentExtractionDeps> & { refs: AttachmentRe
         chunk: over.chunk ?? (async (t) => [t]),
         cache: over.cache ?? new SingleFlightCache(),
         timeoutMs: over.timeoutMs,
-        concurrency: over.concurrency,
     };
 }
 
-const ref = (name: string, isPdf = false): AttachmentRef => ({ name, path: `att/${name}`, isPdf });
+const ref = (name: string, isPdf = false, size = 1000): AttachmentRef => ({ name, path: `att/${name}`, isPdf, size });
 
 describe('collectAttachmentChunks', () => {
     it('defers PDFs (not extracted) with reason pdf-deferred-to-phase4', async () => {
@@ -42,8 +41,9 @@ describe('collectAttachmentChunks', () => {
         if (!r.ok) return;
         expect(r.value.chunks).toHaveLength(2);
         expect(r.value.chunks[0].attachment).toEqual({ name: 'report.docx', path: 'att/report.docx', contentHash: 'hash-att/report.docx' });
-        expect(r.value.chunks[0].id).toMatch(/^notes\/n\.md::att::[0-9a-f]{8}#0$/);
-        expect(r.value.chunks[1].id).toMatch(/#1$/);
+        // Collision-free path-stable id: the encoded vault path is the identity (no hash).
+        expect(r.value.chunks[0].id).toBe('notes/n.md::att::att%2Freport.docx#0');
+        expect(r.value.chunks[1].id).toBe('notes/n.md::att::att%2Freport.docx#1');
         // ids are unique
         expect(new Set(r.value.chunks.map(c => c.id)).size).toBe(2);
     });
@@ -93,11 +93,36 @@ describe('collectAttachmentChunks', () => {
         expect(r.value.skipped).toContainEqual(expect.objectContaining({ path: 'att/b.docx', reason: 'cap-reached' }));
     });
 
+    it('size-admission guard: a file over MAX_ATTACHMENT_FILE_BYTES is skipped without extraction (H7/H11)', async () => {
+        const extractText = vi.fn(async () => ({ ok: true, text: 'huge' }));
+        const huge = ref('huge.docx', false, MAX_ATTACHMENT_FILE_BYTES + 1);
+        const r = await collectAttachmentChunks('n.md', '', 50_000, makeDeps({ refs: [huge], extractText }));
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(extractText).not.toHaveBeenCalled();
+        expect(r.value.skipped).toEqual([{ path: 'att/huge.docx', reason: 'too-large' }]);
+    });
+
+    it('admission work-cap: does NOT extract attachments once the budget is exhausted (H6)', async () => {
+        const extractText = vi.fn(async (a: AttachmentRef) => ({ ok: true, text: a.name === 'a.docx' ? '1234567890' : 'never' }));
+        const r = await collectAttachmentChunks('n.md', '', 10, makeDeps({
+            refs: [ref('a.docx'), ref('b.docx')],
+            extractText,
+            chunk: async (t) => [t],
+        }));
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        // a.docx fills the 10-char budget; b.docx is cap-reached WITHOUT being extracted.
+        expect(extractText).toHaveBeenCalledTimes(1);
+        expect(extractText).toHaveBeenCalledWith(expect.objectContaining({ name: 'a.docx' }));
+        expect(r.value.skipped).toContainEqual({ path: 'att/b.docx', reason: 'cap-reached' });
+    });
+
     it('single-flight cache: a duplicate-path ref extracts once', async () => {
         const extractText = vi.fn(async (a: AttachmentRef) => ({ ok: true, text: `t-${a.name}` }));
         // Two refs with the SAME path → the cache key collapses them to one extraction.
-        const dup: AttachmentRef = { name: 'shared.docx', path: 'att/shared.docx', isPdf: false };
-        const r = await collectAttachmentChunks('n.md', '', 50_000, makeDeps({ refs: [dup, { ...dup }], extractText, concurrency: 2 }));
+        const dup: AttachmentRef = { name: 'shared.docx', path: 'att/shared.docx', isPdf: false, size: 1000 };
+        const r = await collectAttachmentChunks('n.md', '', 50_000, makeDeps({ refs: [dup, { ...dup }], extractText }));
         expect(r.ok).toBe(true);
         expect(extractText).toHaveBeenCalledTimes(1);
     });

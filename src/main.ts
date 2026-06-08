@@ -1095,6 +1095,10 @@ export default class AIOrganiserPlugin extends Plugin {
     public onunload(): void {
         this.stopNewsletterScheduler();
         this.narrationJobs.abortAll();
+        // Clear pending attachment-modify debounce timers (audit H9 — no leaked timers/work
+        // after unload). The vault event handlers themselves are auto-unregistered by Obsidian.
+        for (const timer of this.attachmentModifyTimers.values()) window.clearTimeout(timer);
+        this.attachmentModifyTimers.clear();
         // D4.4: the queue is plugin-scoped — disposed only here (symmetric with onload).
         this.embeddingQueue?.dispose();
         this.embeddingQueue = null;
