@@ -426,11 +426,12 @@ describe('migrateOldSettings', () => {
                 cloudModel: 'claude-opus-4-6',
                 taskModels: { audit: 'claude-opus-4-6', research: 'claude-opus-4-6', tagging: 'claude-sonnet-4-6' },
             })!;
+            const tm = r.taskModels as Record<string, string>;
             expect(r.cloudModel).toBe('claude-opus-4-7');
-            expect(r.taskModels.audit).toBe('claude-opus-4-7');
-            expect(r.taskModels.research).toBe('claude-opus-4-7');
+            expect(tm.audit).toBe('claude-opus-4-7');
+            expect(tm.research).toBe('claude-opus-4-7');
             // current model untouched
-            expect(r.taskModels.tagging).toBe('claude-sonnet-4-6');
+            expect(tm.tagging).toBe('claude-sonnet-4-6');
         });
         it('exact-match only — never touches a custom deployment name', () => {
             const r = migrateOldSettings({ azureGPTModel: 'my-custom-gpt', azureModelDefaultsV2: false })!;
