@@ -35,7 +35,10 @@ const OUTPUT_RESERVE_TOKENS = 2000;
  */
 function getModelInputTokens(provider: string, model: string | undefined): number | null {
     if (!model) return null;
-    if (provider.toLowerCase() === 'claude' && claudeHas1MContext(model)) {
+    const p = provider.toLowerCase();
+    // Claude 4.6+ (Opus/Sonnet) ship a 1M window — both on direct Anthropic AND
+    // the Azure Foundry surface (e.g. claude-opus-4-7 for long PDF reports).
+    if ((p === 'claude' || p === 'azure-claude') && claudeHas1MContext(model)) {
         return 1_000_000;
     }
     // Add other providers here as they ship larger context models:

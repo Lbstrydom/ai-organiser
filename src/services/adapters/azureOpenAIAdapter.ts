@@ -19,7 +19,7 @@ export class AzureOpenAIAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || '',
-            modelName: config.modelName || 'gpt-5.3-chat'
+            modelName: config.modelName || 'gpt-5.5'
         });
         this.provider = {
             name: 'azure-openai',

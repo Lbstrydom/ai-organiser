@@ -397,10 +397,12 @@ export interface AIOrganiserSettings {
     azureApiKey: string;
     /** Soft indicator that a key lives in SecretStorage. */
     azureKeyStored: boolean;
-    /** Max concurrent in-flight Azure requests (rate-limit pacing; default 2). */
+    /** Max concurrent in-flight Azure requests (rate-limit pacing; default 4). */
     azureMaxConcurrentRequests: number;
-    /** Max Azure requests started per rolling 60s (rate-limit pacing; default 10 — Azure's typical RPM cap). */
+    /** Max Azure requests started per rolling 60s (rate-limit pacing; default 60). */
     azureMaxRpm: number;
+    /** One-time guard: bump stale low throttle defaults (2/10) to the post-quota-upgrade values (4/60) once, without clobbering user customisations. */
+    azureThrottleDefaultsV2: boolean;
     /** Azure AI Foundry endpoint host (Claude) — e.g. https://<your-resource>.services.ai.azure.com */
     azureAIEndpoint: string;
     /** Azure OpenAI endpoint host (GPT/embeddings/Whisper) — e.g. https://<your-resource>.openai.azure.com */
@@ -736,12 +738,13 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     preAzureFirstProvider: '',
     azureApiKey: '',
     azureKeyStored: false,
-    azureMaxConcurrentRequests: 2,
-    azureMaxRpm: 10,
+    azureMaxConcurrentRequests: 4,
+    azureMaxRpm: 60,
+    azureThrottleDefaultsV2: true,
     azureAIEndpoint: '',
     azureOpenAIEndpoint: '',
     azureWhisperDeployment: 'whisper',
-    azureGPTModel: 'gpt-5.3-chat',
+    azureGPTModel: 'gpt-5.5',
     azureRoutingMode: 'model-based',
     azureDeployments: {},
     azureApiVersionOverride: {},
@@ -1200,8 +1203,16 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         const n = Math.floor(Number(v));
         return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
     };
-    s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 2, 1, 10);
-    s.azureMaxRpm = clampInt(s.azureMaxRpm, 10, 1, 600);
+    // One-time bump: the old conservative defaults (2 concurrent / 10 RPM) were
+    // set for a low Azure quota. Post-quota-upgrade defaults are 4/60. Bump ONLY
+    // when the user is still on the exact old defaults (never clobber a custom value).
+    if (s.azureThrottleDefaultsV2 !== true) {
+        if (Number(s.azureMaxConcurrentRequests) === 2) s.azureMaxConcurrentRequests = 4;
+        if (Number(s.azureMaxRpm) === 10) s.azureMaxRpm = 60;
+        s.azureThrottleDefaultsV2 = true;
+    }
+    s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
+    s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
     if (typeof s.azureAIEndpoint !== 'string') s.azureAIEndpoint = DEFAULT_SETTINGS.azureAIEndpoint;
     if (typeof s.azureOpenAIEndpoint !== 'string') s.azureOpenAIEndpoint = DEFAULT_SETTINGS.azureOpenAIEndpoint;
     if (typeof s.azureWhisperDeployment !== 'string') s.azureWhisperDeployment = DEFAULT_SETTINGS.azureWhisperDeployment;

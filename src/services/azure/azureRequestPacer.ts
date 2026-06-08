@@ -82,7 +82,7 @@ export class AzureRequestPacer {
     private pumpTimer: unknown = null;
 
     constructor(policy: PacerPolicy, private readonly clock: PacerClock = REAL_CLOCK) {
-        this.policy = normalizePolicy(policy, { maxConcurrent: 2, maxRpm: 10, maxQueue: AZURE_PACER_MAX_QUEUE });
+        this.policy = normalizePolicy(policy, { maxConcurrent: 4, maxRpm: 60, maxQueue: AZURE_PACER_MAX_QUEUE });
     }
     private policy: PacerPolicy;
 
@@ -201,7 +201,7 @@ export class AzureRequestPacer {
 
 // ── Per-deployment registry + global policy ──────────────────────────────────
 
-let globalPolicy: PacerPolicy = { maxConcurrent: 2, maxRpm: 10, maxQueue: AZURE_PACER_MAX_QUEUE };
+let globalPolicy: PacerPolicy = { maxConcurrent: 4, maxRpm: 60, maxQueue: AZURE_PACER_MAX_QUEUE };
 const registry = new Map<string, AzureRequestPacer>();
 
 // Per-deployment keys are built ONLY via the SSOT builders below

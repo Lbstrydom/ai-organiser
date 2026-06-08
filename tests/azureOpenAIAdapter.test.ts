@@ -37,7 +37,7 @@ describe('AzureOpenAIAdapter', () => {
 		it('defaults to a concrete model id', () => {
 			const adapter = new AzureOpenAIAdapter(makeConfig({ modelName: undefined }));
 			const body = adapter.formatMultimodalRequest([{ type: 'text', text: 'x' }]);
-			expect(body.model).toBe('gpt-5.3-chat');
+			expect(body.model).toBe('gpt-5.5');
 		});
 
 		it('exposes the configured Azure endpoint', () => {

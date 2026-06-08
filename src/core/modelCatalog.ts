@@ -23,7 +23,7 @@ interface CatalogEntry {
 }
 
 /** Catalog version — incremented when models are added/removed/renamed */
-export const CATALOG_VERSION = '2026-03-27';
+export const CATALOG_VERSION = '2026-06-08';
 
 /**
  * Model ID aliases for migration (old → new).
@@ -55,10 +55,30 @@ export const MODEL_CATALOG: CatalogEntry[] = [
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
 	{
+		id: 'claude-opus-4-7' as ModelId,
+		name: 'Claude Opus 4.7',
+		provider: 'azure-claude',
+		// 1M context — deep research/audit over long PDF reports.
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
 		id: 'gpt-5.3-chat' as ModelId,
 		name: 'GPT-5.3',
 		provider: 'azure-openai',
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 128 },
+	},
+	{
+		id: 'gpt-5.5' as ModelId,
+		name: 'GPT-5.5',
+		provider: 'azure-openai',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 128 },
+	},
+	{
+		id: 'gpt-5.4-nano' as ModelId,
+		name: 'GPT-5.4 nano',
+		provider: 'azure-openai',
+		// Fast/cheap triage + classification tier — non-reasoning for speed.
+		capabilities: { vision: true, tools: true, reasoning: false, maxContextK: 128 },
 	},
 	{
 		id: 'text-embedding-3-large' as ModelId,

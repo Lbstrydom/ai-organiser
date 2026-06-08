@@ -97,7 +97,7 @@ export function getClaudeMessagesEndpoint(settings: EndpointSettings): ClaudeMes
 
 export function getOpenAIChatEndpoint(settings: EndpointSettings): OpenAIChatEndpoint {
 	if (settings.azureRoutingMode === 'deployment-based') {
-		const dep = settings.azureDeployments?.chat ?? settings.azureGPTModel ?? 'gpt-5.3-chat';
+		const dep = settings.azureDeployments?.chat ?? settings.azureGPTModel ?? 'gpt-5.5';
 		const apiVersion = settings.azureApiVersionOverride?.chat ?? AZURE_API_VERSIONS.chat;
 		return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + `/openai/deployments/${dep}/chat/completions?api-version=${apiVersion}`) as OpenAIChatEndpoint;
 	}

@@ -160,3 +160,16 @@ describe('truncateAtBoundary', () => {
         expect(result.length).toBe(45);
     });
 });
+
+describe('1M context on Azure Claude (opus-4-7)', () => {
+    it('applies the 1M window for claude-opus-4-7 on azure-claude', () => {
+        const big = getMaxContentCharsForModel('azure-claude', 'claude-opus-4-7');
+        const base = getMaxContentChars('azure-claude'); // 200K-token default
+        expect(big).toBeGreaterThan(base * 3); // 1M >> 200K
+    });
+    it('does NOT inflate context for a non-1M Azure model (haiku)', () => {
+        const haiku = getMaxContentCharsForModel('azure-claude', 'claude-haiku-4-5');
+        const base = getMaxContentChars('azure-claude');
+        expect(haiku).toBe(base);
+    });
+});

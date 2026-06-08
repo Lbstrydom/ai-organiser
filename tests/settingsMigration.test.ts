@@ -394,4 +394,24 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('Azure throttle defaults bump (v2)', () => {
+        it('bumps the old defaults (2/10) once when V2 flag absent', () => {
+            const r = migrateOldSettings({ azureMaxConcurrentRequests: 2, azureMaxRpm: 10 })!;
+            expect(r.azureMaxConcurrentRequests).toBe(4);
+            expect(r.azureMaxRpm).toBe(60);
+            expect(r.azureThrottleDefaultsV2).toBe(true);
+        });
+        it('preserves a customised value (does not clobber)', () => {
+            const r = migrateOldSettings({ azureMaxConcurrentRequests: 6, azureMaxRpm: 30 })!;
+            expect(r.azureMaxConcurrentRequests).toBe(6);
+            expect(r.azureMaxRpm).toBe(30);
+            expect(r.azureThrottleDefaultsV2).toBe(true);
+        });
+        it('does not re-bump once V2 flag is set', () => {
+            const r = migrateOldSettings({ azureMaxConcurrentRequests: 2, azureMaxRpm: 10, azureThrottleDefaultsV2: true })!;
+            expect(r.azureMaxConcurrentRequests).toBe(2);
+            expect(r.azureMaxRpm).toBe(10);
+        });
+    });
+
 });
