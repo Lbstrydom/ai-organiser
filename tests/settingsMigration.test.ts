@@ -448,4 +448,25 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('consultant-mode default-on migration', () => {
+        it('flips a legacy default-off vault to ON once (guard absent)', () => {
+            const r = migrateOldSettings({ presentationConsultantMode: false })!;
+            expect(r.presentationConsultantMode).toBe(true);
+            expect(r.presentationConsultantDefaultedOn).toBe(true);
+        });
+        it('respects an explicit opt-out once the guard is set', () => {
+            const r = migrateOldSettings({ presentationConsultantMode: false, presentationConsultantDefaultedOn: true })!;
+            expect(r.presentationConsultantMode).toBe(false);
+        });
+        it('leaves an already-on vault on', () => {
+            const r = migrateOldSettings({ presentationConsultantMode: true })!;
+            expect(r.presentationConsultantMode).toBe(true);
+            expect(r.presentationConsultantDefaultedOn).toBe(true);
+        });
+        it('new install defaults consultant mode ON', () => {
+            expect(DEFAULT_SETTINGS.presentationConsultantMode).toBe(true);
+            expect(DEFAULT_SETTINGS.presentationConsultantDefaultedOn).toBe(true);
+        });
+    });
+
 });

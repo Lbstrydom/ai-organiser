@@ -194,6 +194,14 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.editScope.render();
     }
 
+    /** After an aborted op, leave the deck in a STABLE phase so the side-panel
+     *  status line doesn't stay stuck on a transient "Generating slides…" /
+     *  "Refining…". An existing deck returns to preview; an empty create flow
+     *  returns to the create panel. */
+    private resetPhaseAfterCancel(): void {
+        this.setPhase(this.deck.html ? 'preview-ready' : 'empty');
+    }
+
     /** Human-readable label per presentation phase. Returns null for phases
      *  the user shouldn't see a thinking text for. (F4 — i18n-driven, falls
      *  back to English if no op-scoped i18n bundle has been registered yet.) */
@@ -561,6 +569,11 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.deck.lastError = msg;
             return { finalContent: t.slideGenerateFailed.replace('{error}', msg) };
         } finally {
+            // Aborted runs return early above without committing — clear the
+            // transient 'generating' phase so the side-panel status line doesn't
+            // linger on "Generating slides…" after cancel. (Success → already
+            // 'preview-ready'; non-abort failure → 'error'; both left intact.)
+            if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
         }
@@ -808,6 +821,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.deck.lastError = msg;
             return { finalContent: t.slideRefineFailed.replace('{error}', msg) };
         } finally {
+            if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
         }
@@ -902,6 +916,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             this.deck.lastError = msg;
             return { finalContent: t.slideEditFailed.replace('{error}', msg) };
         } finally {
+            if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
             globalThis.clearInterval(elapsedTimer);
             controller.dispose();
         }
@@ -1030,6 +1045,22 @@ export class PresentationModeHandler implements ChatModeHandler {
         const ready = this.deck.phase === 'preview-ready';
         const locked = this.run.isLocked();
 
+        // Consultant review gate: while a storyline is pending (no deck yet), the
+        // primary CTA is "Create deck" — an explicit affordance for the build step
+        // that otherwise requires typing "build" into chat. Builds from the
+        // (possibly user-edited) storyline note using the on-screen create-panel
+        // settings (brand applied at build; slide-count/sources shaped the storyline).
+        if (this.pendingStoryline && !hasDeck) {
+            return [{
+                id: 'create-deck-from-storyline',
+                labelKey: 'Create deck',
+                tooltipKey: 'Build the slide deck from the storyline above (apply your On-brand + export settings)',
+                isEnabled: !locked,
+                requiresEditor: false,
+                isDefault: true,
+            }];
+        }
+
         // Export HTML is the primary CTA: the HTML note is the editable
         // intermediate form users iterate on via chat. PPTX is a terminal
         // export for when they're finished refining. (User feedback 2026-04-20.)
@@ -1089,12 +1120,25 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     async handleAction(actionId: string, ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         switch (actionId) {
+            case 'create-deck-from-storyline': return this.handleCreateDeckFromStoryline(ctx, callbacks);
             case 'export-pptx': return this.exportPptx(ctx, callbacks);
             case 'export-html': return this.exportHtmlFile(ctx, callbacks);
             case 'check-brand': return this.handleBrandAudit(ctx, callbacks);
             case 'polish': return this.handlePolish(ctx, callbacks);
             case 'discard': return this.handleDiscard(callbacks);
         }
+    }
+
+    /** "Create deck" button (consultant review gate): build the deck from the
+     *  pending storyline note via the shared build path, then re-render the
+     *  context panel so the create panel is replaced by the deck preview. */
+    private async handleCreateDeckFromStoryline(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
+        const pending = this.pendingStoryline;
+        if (!pending) { callbacks.notify(ctx.plugin.t.modals.unifiedChat.storylineNoteRequired); return; }
+        await this.buildFromStorylineNote(ctx, pending.notePath);
+        // buildFromStorylineNote clears pendingStoryline + sets the deck on success;
+        // re-render so the side panel switches from the create form to the preview.
+        callbacks.rerenderContext?.();
     }
 
     onClear(): void {

@@ -1259,6 +1259,7 @@ export class UnifiedChatModal extends Modal {
                 showThinking: (msg) => this.showThinkingIndicator(msg),
                 hideThinking: () => this.hideThinkingIndicator(),
                 rerenderActions: () => this.renderActionsBar(),
+                rerenderContext: () => this.renderContextPanel(),
                 getEditor: () => this.cachedEditor ?? null,
                 notify: (msg) => this.notify(msg),
             };

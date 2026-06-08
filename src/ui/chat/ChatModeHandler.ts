@@ -154,6 +154,10 @@ export interface ActionCallbacks {
     showThinking(message?: string): void;
     hideThinking(): void;
     rerenderActions(): void;
+    /** Re-render the mode's context panel (e.g. after an action transitions the
+     *  deck from no-deck → built, so the create panel is replaced by the preview).
+     *  Optional — handlers that don't restructure their context panel can ignore it. */
+    rerenderContext?(): void;
     getEditor(): Editor | null;
     notify(message: string): void;
 }
