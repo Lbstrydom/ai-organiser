@@ -458,7 +458,28 @@ describe('migrateOldSettings', () => {
             const rpm = r.azurePerDeploymentRpm as Record<string, number>;
             expect(rpm.whisper).toBe(3);
             expect(rpm['gpt-5.5']).toBe(100);
-            expect(rpm['gpt-4o-transcribe']).toBe(10000);
+            expect(rpm['claude-sonnet-4-6']).toBe(200);
+            expect(r.azureDeploymentRpmSeededV1).toBe(true);
+        });
+        it('seed map is trimmed to pacer-governed deployments only (no embeddings/transcribe/visual)', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'azure-claude', azurePerDeploymentRpm: {} })!;
+            const rpm = r.azurePerDeploymentRpm as Record<string, number>;
+            expect(rpm['text-embedding-3-large']).toBeUndefined(); // embeddings bypass the pacer
+            expect(rpm['gpt-4o-transcribe']).toBeUndefined();      // not wired
+            expect(rpm['embed-v-4-0']).toBeUndefined();            // visual lane not implemented
+            expect(rpm['gpt-5.3-chat']).toBeUndefined();           // superseded
+        });
+        it('self-heals a vault that consumed V3 before the seed existed (separate guard)', () => {
+            // azureModelDefaultsV3 already true (V3 consumed, map left empty), but the
+            // fresh azureDeploymentRpmSeededV1 guard is absent → seed must still fire.
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureModelDefaultsV3: true,
+                azurePerDeploymentRpm: {},
+            })!;
+            const rpm = r.azurePerDeploymentRpm as Record<string, number>;
+            expect(rpm.whisper).toBe(3);
+            expect(r.azureDeploymentRpmSeededV1).toBe(true);
         });
         it('does NOT clobber an existing non-empty per-deployment map', () => {
             const r = migrateOldSettings({ cloudServiceType: 'azure-claude', azurePerDeploymentRpm: { whisper: 99 } })!;
@@ -466,9 +487,23 @@ describe('migrateOldSettings', () => {
             expect(rpm.whisper).toBe(99);
             expect(rpm['gpt-5.5']).toBeUndefined();
         });
-        it('default settings ship the standard per-deployment RPM map', () => {
+        it('does NOT re-seed once the seed guard is set (respects a deliberate clear)', () => {
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureDeploymentRpmSeededV1: true,
+                azurePerDeploymentRpm: {},
+            })!;
+            expect(Object.keys(r.azurePerDeploymentRpm as Record<string, number>).length).toBe(0);
+        });
+        it('does NOT seed for a non-Azure user', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'claude', azurePerDeploymentRpm: {} })!;
+            expect(Object.keys(r.azurePerDeploymentRpm as Record<string, number>).length).toBe(0);
+            expect(r.azureDeploymentRpmSeededV1).toBeUndefined();
+        });
+        it('default settings ship the trimmed per-deployment RPM map', () => {
             expect(DEFAULT_SETTINGS.azurePerDeploymentRpm.whisper).toBe(3);
             expect(DEFAULT_SETTINGS.azurePerDeploymentRpm['claude-sonnet-4-6']).toBe(200);
+            expect(DEFAULT_SETTINGS.azurePerDeploymentRpm['text-embedding-3-large']).toBeUndefined();
         });
     });
 

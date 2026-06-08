@@ -488,14 +488,23 @@ export class LLMSettingsSection extends BaseSettingSection {
         const out: string[] = [];
         const push = (v: unknown): void => { if (typeof v === 'string' && v.trim()) out.push(v.trim()); };
         push(s.cloudModel);
-        push(s.embeddingModel);
         push(s.azureWhisperDeployment);
         push(s.azureGPTModel);
         push(s.azureFastModel?.openai);
         push(s.azureFastModel?.claude);
-        if (s.taskModels) for (const v of Object.values(s.taskModels)) push(v);
+        // Only deployments the per-deployment PACER governs are "active" here. Embeddings
+        // run through the cap-1 embedding queue (not the pacer), so an RPM override is a
+        // no-op — excluding the embedding model + the taskModels.embeddings entry avoids a
+        // false "not listed" warning for it.
+        if (s.taskModels) {
+            for (const [k, v] of Object.entries(s.taskModels)) {
+                if (k === 'embeddings') continue;
+                push(v);
+            }
+        }
         if (s.azureCapabilities) {
-            for (const cap of Object.values(s.azureCapabilities)) {
+            for (const [id, cap] of Object.entries(s.azureCapabilities)) {
+                if (id === 'embeddings') continue;
                 if (cap && cap.mode === 'azure') push(cap.deployment);
             }
         }

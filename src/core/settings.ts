@@ -423,6 +423,11 @@ export interface AIOrganiserSettings {
      *  default-true guard could get stuck true-without-bump if data.json is written
      *  out of band) — and so it self-heals any instance left in that state. */
     azureModelDefaultsV3: boolean;
+    /** One-time guard (default FALSE) for seeding the standard per-deployment RPM map.
+     *  Separate from azureModelDefaultsV3 so vaults that consumed V3 before the seed
+     *  existed (map left empty) self-heal on the next load. Only seeds when the map is
+     *  empty; never re-seeds after a deliberate clear. */
+    azureDeploymentRpmSeededV1: boolean;
     /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Defaults to the
      *  standard Azure deployment quotas (DEFAULT_AZURE_DEPLOYMENT_RPM) so pacing is correct
      *  out of the box; a deployment not listed (and not overridden) falls back to azureMaxRpm.
@@ -494,19 +499,21 @@ function getDefaultTimezone(): string {
  * deployments aren't needlessly throttled down to the global fallback.
  */
 export const DEFAULT_AZURE_DEPLOYMENT_RPM: Record<string, number> = {
+    // Only deployments the per-deployment PACER actually governs are listed — i.e.
+    // chat/completion models + Whisper transcription. Deliberately EXCLUDED:
+    //  • embeddings (text-embedding-*) — routed through the cap-1 embedding queue,
+    //    not the pacer, so an RPM override here would be a dead no-op;
+    //  • gpt-4o-transcribe(-diarize) — not wired (transcription uses `whisper`);
+    //  • embed-v-4-0 — the visual lane isn't implemented yet;
+    //  • gpt-5.3-chat / claude-opus-4-6 — superseded (migrated to gpt-5.5 / opus-4-7).
+    // nano + haiku are kept as the fast-triage tier so pacing is correct if a user
+    // opts into fast triage later.
+    'claude-sonnet-4-6': 200,
+    'claude-opus-4-7': 100,
+    'claude-haiku-4-5': 10,
     'gpt-5.5': 100,
     'gpt-5.4-nano': 100,
-    'gpt-5.3-chat': 10,
-    'gpt-4o-transcribe': 10000,
-    'gpt-4o-transcribe-diarize': 10000,
     'whisper': 3,
-    'text-embedding-3-large': 60,
-    'text-embedding-3-small': 600,
-    'embed-v-4-0': 100,
-    'claude-opus-4-7': 100,
-    'claude-opus-4-6': 10,
-    'claude-sonnet-4-6': 200,
-    'claude-haiku-4-5': 10,
 };
 
 export const DEFAULT_SETTINGS: AIOrganiserSettings = {
@@ -805,6 +812,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureMaxRpm: 60,
     azureThrottleDefaultsV2: true,
     azureModelDefaultsV3: false,
+    azureDeploymentRpmSeededV1: false,
     azurePerDeploymentRpm: { ...DEFAULT_AZURE_DEPLOYMENT_RPM },
     azureFastModel: {},
     azureAIEndpoint: '',
@@ -1328,14 +1336,19 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
             const tm = s.taskModels as Record<string, unknown>;
             for (const k of Object.keys(tm)) tm[k] = bumpModel(tm[k]);
         }
-        // Seed the standard per-deployment RPM map when the user has none yet (missing
-        // or empty {}). One-time (same V3 guard) so a user who later clears the map to
-        // run everything at the global fallback is not re-seeded. Never clobbers an
-        // existing non-empty map.
+        s.azureModelDefaultsV3 = true;
+    }
+    // Seed the standard per-deployment RPM map when the user has none yet (missing or
+    // empty {}). SEPARATE one-time guard (NOT the V3 model guard) — vaults that
+    // consumed V3 before the seed existed had their map left empty; this fresh guard
+    // re-fires once to self-heal them. Default-FALSE guard (see DEFAULT_SETTINGS) so it
+    // can never persist true-without-seed via the merge. Azure-gated; never re-seeds
+    // after a user deliberately clears the map; never clobbers a non-empty map.
+    if (isAzureUserForV3 && s.azureDeploymentRpmSeededV1 !== true) {
         const rpm = s.azurePerDeploymentRpm;
         const isEmpty = !rpm || typeof rpm !== 'object' || Object.keys(rpm).length === 0;
         if (isEmpty) s.azurePerDeploymentRpm = { ...DEFAULT_AZURE_DEPLOYMENT_RPM };
-        s.azureModelDefaultsV3 = true;
+        s.azureDeploymentRpmSeededV1 = true;
     }
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
