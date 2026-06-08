@@ -9692,6 +9692,21 @@
     color: var(--color-red);
 }
 
+.ai-organiser-azure-rpm-summary {
+    margin: 4px 0 8px;
+}
+
+.ai-organiser-azure-rpm-summary-list {
+    color: var(--text-normal);
+    font-variant-numeric: tabular-nums;
+}
+
+.ai-organiser-azure-rpm-missing {
+    margin-top: 4px;
+    color: var(--text-warning);
+    font-size: var(--font-ui-small);
+}
+
 .ai-organiser-azure-auto-status {
     margin: 6px 0 12px;
     padding: 10px 12px;

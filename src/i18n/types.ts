@@ -170,6 +170,9 @@ export interface Translations {
                 youtubeSeparateNote: string;
                 perDeploymentRpm: string;
                 perDeploymentRpmDesc: string;
+                perDeploymentRpmActiveLabel: string;
+                perDeploymentRpmActiveNone: string;
+                perDeploymentRpmMissingWarning: string;
                 perDeploymentRpmNamePlaceholder: string;
                 perDeploymentRpmValuePlaceholder: string;
                 perDeploymentRpmAdd: string;

@@ -1,5 +1,23 @@
 # Project Status Log
 
+## 2026-06-08 — Azure rate-limit settings UX (fallback relabel + live per-deployment surfacing + unlisted-deployment warning)
+
+### Changes
+- Clarified that the Azure rate-limit UI does **not** cap deployments below quota — the seeded per-deployment RPMs already match standard Azure quotas (opus 100, sonnet 200, embed-small 600, whisper 3, …); the "60" box was only ever a fallback for *unlisted* deployments, but the label made it read like a global cap.
+- **Relabelled** the fallback box: "Default requests per minute" → **"Fallback requests per minute"**, with desc clarifying it applies only to deployments not listed and never overrides listed ones. Tightened the concurrency desc ("applied per deployment, not a shared pool… parallelism, not a rate cap").
+- **(Option 1) Live active-limits summary** under the editor: shows each listed deployment's own ceiling (`opus 100 · sonnet 200 · …`, highest first), refreshing as rows change — so it's obvious nothing's pinned at the fallback.
+- **(Option 2) Unlisted-deployment warning**: `collectActiveAzureDeployments()` gathers the identities this config actually fires at (main model, embeddings, Whisper, GPT, fast-tier, per-task overrides, per-capability deployments); any active deployment **not** in the RPM map (i.e. silently on the fallback) is flagged inline with the fallback value. `latest-*` sentinels excluded (resolve to seeded concrete ids at runtime).
+
+### Files Affected
+- `src/ui/settings/LLMSettingsSection.ts` — relabel + live summary + warning + `collectActiveAzureDeployments`
+- `src/i18n/{en,types}.ts` — relabel + 3 new keys (`perDeploymentRpmActiveLabel/None`, `perDeploymentRpmMissingWarning`)
+- `styles.css` — summary + warning styles
+
+### Verify
+- tsc clean · vitest **5868 passed** · test:auto **45/45** (i18n parity) · build:quick clean (0 bot-blocking lint, `createElement("script")`=0) · deployed to vault + mobile.
+
+---
+
 ## 2026-06-08 — Lint config fix + Obsidian-bot compliance sweep
 
 ### Changes

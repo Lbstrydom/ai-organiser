@@ -383,6 +383,11 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setName(az.perDeploymentRpm)
             .setDesc(az.perDeploymentRpmDesc);
 
+        // Live read-only summary so it's obvious each LISTED deployment paces at its
+        // OWN ceiling (not the fallback above) — addresses the "everything's capped at
+        // 60" misread where the fallback box looks like a global cap.
+        const summaryEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-rpm-summary setting-item-description' });
+
         // Working model held in closure — survives add/delete re-renders of the
         // rows container without thrashing the persisted map on every keystroke.
         const rows: { name: string; rpm: string }[] = Object.entries(
@@ -390,6 +395,43 @@ export class LLMSettingsSection extends BaseSettingSection {
         ).map(([name, rpm]) => ({ name, rpm: String(rpm) }));
 
         const rowsEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-rpm-rows' });
+
+        // The deployments this config actually uses (computed once) — to flag any that
+        // silently fall through to the fallback RPM because they aren't listed.
+        const activeDeployments = this.collectActiveAzureDeployments();
+
+        const renderSummary = (): void => {
+            summaryEl.empty();
+            const active = rows
+                .map(r => ({ name: r.name.trim(), rpm: Math.floor(Number(r.rpm)) }))
+                .filter(r => r.name && Number.isFinite(r.rpm) && r.rpm >= 1)
+                .sort((a, b) => b.rpm - a.rpm);
+            if (active.length === 0) {
+                summaryEl.createDiv({ text: az.perDeploymentRpmActiveNone });
+            } else {
+                const line = summaryEl.createDiv();
+                line.createSpan({ text: `${az.perDeploymentRpmActiveLabel} ` });
+                line.createSpan({
+                    cls: 'ai-organiser-azure-rpm-summary-list',
+                    text: active.map(r => `${r.name} ${r.rpm}`).join(' · '),
+                });
+            }
+
+            // Option 2: warn about ACTIVE deployments not listed → silently on the
+            // fallback RPM. `latest-*` sentinels resolve to a concrete id at runtime
+            // (which IS seeded), so they're excluded to avoid false positives.
+            const listed = new Set(active.map(r => r.name.toLowerCase()));
+            const missing = activeDeployments.filter(
+                n => !n.toLowerCase().startsWith('latest-') && !listed.has(n.toLowerCase()),
+            );
+            if (missing.length > 0) {
+                const warn = summaryEl.createDiv({ cls: 'ai-organiser-azure-rpm-missing' });
+                warn.createSpan({
+                    text: `${az.perDeploymentRpmMissingWarning.replace('{rpm}', String(this.plugin.settings.azureMaxRpm))} `,
+                });
+                warn.createSpan({ cls: 'ai-organiser-azure-rpm-summary-list', text: missing.join(' · ') });
+            }
+        };
 
         const persist = (): void => {
             const map: Record<string, number> = {};
@@ -401,6 +443,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             }
             this.plugin.settings.azurePerDeploymentRpm = map;
             void this.plugin.saveSettings();
+            renderSummary();
         };
 
         const renderRows = (): void => {
@@ -432,7 +475,37 @@ export class LLMSettingsSection extends BaseSettingSection {
                     .onClick(() => { rows.push({ name: '', rpm: '' }); renderRows(); }));
         };
 
+        renderSummary();
         renderRows();
+    }
+
+    /** The deployment/model identities this Azure config actually fires requests at —
+     *  main model, embeddings, Whisper, GPT, fast-tier, per-task overrides, and any
+     *  per-capability Azure deployment. Deduped case-insensitively. Used to flag a
+     *  deployment that silently falls through to the fallback RPM (not listed). */
+    private collectActiveAzureDeployments(): string[] {
+        const s = this.plugin.settings;
+        const out: string[] = [];
+        const push = (v: unknown): void => { if (typeof v === 'string' && v.trim()) out.push(v.trim()); };
+        push(s.cloudModel);
+        push(s.embeddingModel);
+        push(s.azureWhisperDeployment);
+        push(s.azureGPTModel);
+        push(s.azureFastModel?.openai);
+        push(s.azureFastModel?.claude);
+        if (s.taskModels) for (const v of Object.values(s.taskModels)) push(v);
+        if (s.azureCapabilities) {
+            for (const cap of Object.values(s.azureCapabilities)) {
+                if (cap && cap.mode === 'azure') push(cap.deployment);
+            }
+        }
+        const seen = new Set<string>();
+        const dedup: string[] = [];
+        for (const n of out) {
+            const k = n.toLowerCase();
+            if (!seen.has(k)) { seen.add(k); dedup.push(n); }
+        }
+        return dedup;
     }
 
     /** Render a live Azure test report as a per-surface result list. */
