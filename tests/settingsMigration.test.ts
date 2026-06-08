@@ -414,4 +414,32 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('Azure model defaults V2 migration', () => {
+        it('bumps stale azureGPTModel gpt-5.3-chat → gpt-5.5 once', () => {
+            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: false })!;
+            expect(r.azureGPTModel).toBe('gpt-5.5');
+            expect(r.azureModelDefaultsV2).toBe(true);
+        });
+        it('bumps stale taskModels + cloudModel claude-opus-4-6 → claude-opus-4-7', () => {
+            const r = migrateOldSettings({
+                azureModelDefaultsV2: false,
+                cloudModel: 'claude-opus-4-6',
+                taskModels: { audit: 'claude-opus-4-6', research: 'claude-opus-4-6', tagging: 'claude-sonnet-4-6' },
+            })!;
+            expect(r.cloudModel).toBe('claude-opus-4-7');
+            expect(r.taskModels.audit).toBe('claude-opus-4-7');
+            expect(r.taskModels.research).toBe('claude-opus-4-7');
+            // current model untouched
+            expect(r.taskModels.tagging).toBe('claude-sonnet-4-6');
+        });
+        it('exact-match only — never touches a custom deployment name', () => {
+            const r = migrateOldSettings({ azureGPTModel: 'my-custom-gpt', azureModelDefaultsV2: false })!;
+            expect(r.azureGPTModel).toBe('my-custom-gpt');
+        });
+        it('does not re-bump once the V2 flag is set', () => {
+            const r = migrateOldSettings({ azureGPTModel: 'gpt-5.3-chat', azureModelDefaultsV2: true })!;
+            expect(r.azureGPTModel).toBe('gpt-5.3-chat');
+        });
+    });
+
 });

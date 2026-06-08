@@ -210,10 +210,21 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setName(az.defaultModel)
             .setDesc(az.defaultModelDesc)
             .addDropdown(dropdown => {
+                // Current azure-claude models (Batch A catalog). opus-4-7 is the
+                // 1M-context upgrade; the stale opus-4-6 option was removed.
+                const current = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-4-6';
                 dropdown
                     .addOption('claude-sonnet-4-6', az.modelSonnet)
-                    .addOption('claude-opus-4-6', az.modelOpus)
-                    .setValue(this.plugin.settings.taskModels?.tagging || 'claude-sonnet-4-6')
+                    .addOption('claude-opus-4-7', az.modelOpus);
+                // Preserve any other stored value (e.g. a legacy opus-4-6 or a
+                // custom deployment) as a passthrough option so the dropdown
+                // never silently mismatches what's saved — no forced migration
+                // of a tenant model the user may rely on.
+                if (current !== 'claude-sonnet-4-6' && current !== 'claude-opus-4-7') {
+                    dropdown.addOption(current, current);
+                }
+                dropdown
+                    .setValue(current)
                     .onChange((value) => {
                         if (!this.plugin.settings.taskModels) return;
                         this.plugin.settings.taskModels.tagging = value;
@@ -248,30 +259,35 @@ export class LLMSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
-        // Rate-limit pacing — Azure deployments ship with very low default quotas
-        // (~10 RPM / 10k TPM). Pace request starts to stay under them.
+        // Rate-limit pacing — Azure deployments ship with low default quotas;
+        // pace request starts to stay under them. Defaults: 4 concurrent / 60 RPM.
         new Setting(this.containerEl)
             .setName(az.maxConcurrent)
             .setDesc(az.maxConcurrentDesc)
             .addText(text => text
-                .setPlaceholder('2')
+                .setPlaceholder('4')
                 .setValue(String(this.plugin.settings.azureMaxConcurrentRequests))
                 .onChange((value) => {
                     const n = Math.floor(Number(value));
-                    this.plugin.settings.azureMaxConcurrentRequests = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 2;
+                    this.plugin.settings.azureMaxConcurrentRequests = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 4;
                     void this.plugin.saveSettings();
                 }));
         new Setting(this.containerEl)
             .setName(az.maxRpm)
             .setDesc(az.maxRpmDesc)
             .addText(text => text
-                .setPlaceholder('10')
+                .setPlaceholder('60')
                 .setValue(String(this.plugin.settings.azureMaxRpm))
                 .onChange((value) => {
                     const n = Math.floor(Number(value));
-                    this.plugin.settings.azureMaxRpm = Number.isFinite(n) ? Math.min(600, Math.max(1, n)) : 10;
+                    this.plugin.settings.azureMaxRpm = Number.isFinite(n) ? Math.min(600, Math.max(1, n)) : 60;
                     void this.plugin.saveSettings();
                 }));
+
+        // Per-deployment RPM overrides (Phase 2). A name→rpm editor: deployments
+        // not listed fall back to "Max requests per minute" above. Public-safe —
+        // the user enters their own verified quotas; nothing is shipped/derived.
+        this.renderPerDeploymentRpmEditor(az);
 
         // Routing mode — deployment-based reveals named deployment fields.
         new Setting(this.containerEl)
@@ -354,6 +370,69 @@ export class LLMSettingsSection extends BaseSettingSection {
                 this.settingTab.display();
             });
         }
+    }
+
+    /**
+     * Per-deployment RPM editor (Phase 2): name→rpm rows. Numeric validation,
+     * duplicate-name last-wins, delete-row. Add/delete re-render only the local
+     * rows container (not the whole tab) so a freshly-added blank row survives.
+     * Persists a clean `Record<string,number>` (blanks/invalid dropped).
+     */
+    private renderPerDeploymentRpmEditor(az: typeof this.plugin.t.settings.llm.azure): void {
+        new Setting(this.containerEl)
+            .setName(az.perDeploymentRpm)
+            .setDesc(az.perDeploymentRpmDesc);
+
+        // Working model held in closure — survives add/delete re-renders of the
+        // rows container without thrashing the persisted map on every keystroke.
+        const rows: { name: string; rpm: string }[] = Object.entries(
+            this.plugin.settings.azurePerDeploymentRpm,
+        ).map(([name, rpm]) => ({ name, rpm: String(rpm) }));
+
+        const rowsEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-rpm-rows' });
+
+        const persist = (): void => {
+            const map: Record<string, number> = {};
+            for (const r of rows) {
+                const name = r.name.trim();
+                const n = Math.floor(Number(r.rpm));
+                // Duplicate names: last entry wins. Blank/invalid: dropped.
+                if (name && Number.isFinite(n) && n >= 1) map[name] = n;
+            }
+            this.plugin.settings.azurePerDeploymentRpm = map;
+            void this.plugin.saveSettings();
+        };
+
+        const renderRows = (): void => {
+            rowsEl.empty();
+            rows.forEach((row, i) => {
+                const setting = new Setting(rowsEl)
+                    .addText(text => text
+                        .setPlaceholder(az.perDeploymentRpmNamePlaceholder)
+                        .setValue(row.name)
+                        .onChange((value) => { row.name = value; persist(); }))
+                    .addText(text => {
+                        text.setPlaceholder(az.perDeploymentRpmValuePlaceholder)
+                            .setValue(row.rpm)
+                            .onChange((value) => { row.rpm = value; persist(); });
+                        text.inputEl.type = 'number';
+                        text.inputEl.min = '1';
+                        return text;
+                    })
+                    .addExtraButton(btn => btn
+                        .setIcon('trash-2')
+                        .setTooltip(az.perDeploymentRpmRemove)
+                        .onClick(() => { rows.splice(i, 1); persist(); renderRows(); }));
+                setting.settingEl.addClass('ai-organiser-azure-rpm-row');
+            });
+            new Setting(rowsEl)
+                .addButton(btn => btn
+                    .setIcon('plus')
+                    .setButtonText(az.perDeploymentRpmAdd)
+                    .onClick(() => { rows.push({ name: '', rpm: '' }); renderRows(); }));
+        };
+
+        renderRows();
     }
 
     /** Render a live Azure test report as a per-surface result list. */

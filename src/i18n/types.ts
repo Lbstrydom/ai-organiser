@@ -168,6 +168,12 @@ export interface Translations {
                 autoPdf: string;
                 autoEmbeddings: string;
                 youtubeSeparateNote: string;
+                perDeploymentRpm: string;
+                perDeploymentRpmDesc: string;
+                perDeploymentRpmNamePlaceholder: string;
+                perDeploymentRpmValuePlaceholder: string;
+                perDeploymentRpmAdd: string;
+                perDeploymentRpmRemove: string;
             };
         };
         tagging: {
@@ -257,6 +263,10 @@ export interface Translations {
             enableCompanionDesc: string;
             webReaderOutputFolder: string;
             webReaderOutputFolderDesc: string;
+            azureFastModel: string;
+            azureFastModelDesc: string;
+            azureFastModelOpenAIPlaceholder: string;
+            azureFastModelClaudePlaceholder: string;
         };
         minutes: {
             title: string;

@@ -132,7 +132,7 @@ export const en: Translations = {
                 defaultModel: "Default model",
                 defaultModelDesc: "Used for tagging, summarization, chat, and general tasks.",
                 modelSonnet: "Claude Sonnet 4.6 (fast, recommended)",
-                modelOpus: "Claude Opus 4.6 (powerful, slower)",
+                modelOpus: "Claude Opus 4.7 (powerful, slower)",
                 testConfig: "Test Azure connection",
                 testConfigDesc: "Validate config, then make a live round-trip to each Azure surface.",
                 testButton: "Test connection",
@@ -151,12 +151,12 @@ export const en: Translations = {
                 embeddingModelDesc: "Azure OpenAI embedding model (e.g. text-embedding-3-large).",
                 embeddingModelPlaceholder: "text-embedding-3-large",
                 gptModel: "GPT model",
-                gptModelDesc: "Azure OpenAI chat model used for GPT tasks and the live test (e.g. gpt-5.3-chat).",
-                gptModelPlaceholder: "gpt-5.3-chat",
+                gptModelDesc: "Azure OpenAI chat model used for GPT tasks and the live test (e.g. gpt-5.5).",
+                gptModelPlaceholder: "gpt-5.5",
                 maxConcurrent: "Max concurrent requests",
                 maxConcurrentDesc: "How many Azure requests run at once (1–10). Lower if you hit 429 rate-limit errors on a low-quota deployment.",
                 maxRpm: "Max requests per minute",
-                maxRpmDesc: "Caps Azure request starts per rolling 60s (1–600). Azure's default quota is often ~10/min — keep at or below your deployment's RPM limit.",
+                maxRpmDesc: "Caps Azure request starts per rolling 60s (1–600). Keep at or below your deployment's RPM limit — quotas vary widely, so set per-deployment overrides below for any deployment with a different limit.",
                 routingMode: "Routing mode",
                 routingModeDesc: "Model-based uses the new /openai/v1 paths. Deployment-based targets named deployments.",
                 routingModel: "Model-based (recommended)",
@@ -175,7 +175,13 @@ export const en: Translations = {
                 autoAudio: "Audio transcription → Azure Whisper",
                 autoPdf: "PDF → Azure Claude",
                 autoEmbeddings: "Embeddings → Azure OpenAI",
-                youtubeSeparateNote: "YouTube needs a separate Gemini key — Azure has no YouTube path."
+                youtubeSeparateNote: "YouTube needs a separate Gemini key — Azure has no YouTube path.",
+                perDeploymentRpm: "Per-deployment rate limits",
+                perDeploymentRpmDesc: "Override requests per minute for specific deployments (Azure quotas vary widely — e.g. whisper 3, transcribe 10000). Deployments not listed use the max above. Enter your own verified quotas.",
+                perDeploymentRpmNamePlaceholder: "Deployment name",
+                perDeploymentRpmValuePlaceholder: "RPM",
+                perDeploymentRpmAdd: "Add deployment",
+                perDeploymentRpmRemove: "Remove deployment"
             }
         },
         tagging: {
@@ -263,7 +269,11 @@ export const en: Translations = {
             enableCompanion: "Study companion notes",
             enableCompanionDesc: "When using the study persona, also create a companion note that explains the material in conversational language",
             webReaderOutputFolder: "Web reader output folder",
-            webReaderOutputFolderDesc: "Where to save notes created by web reader"
+            webReaderOutputFolderDesc: "Where to save notes created by web reader",
+            azureFastModel: "Fast tagging deployment (Azure)",
+            azureFastModelDesc: "Optional. Route high-volume tagging through a cheaper/faster Azure deployment (e.g. a nano model). Blank = use your main model. Enter the deployment name exactly as configured in Azure.",
+            azureFastModelOpenAIPlaceholder: "gpt-5.4-nano",
+            azureFastModelClaudePlaceholder: "claude-haiku-4-5"
         },
         minutes: {
             title: "Meeting minutes",

@@ -44,6 +44,7 @@ import { ForegroundGate } from './services/foregroundGate';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue } from './services/vector/embeddingQueue';
 import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
+import { resolveAzureTriageRoute } from './services/azure/azureTriageRouting';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -69,6 +70,13 @@ export default class AIOrganiserPlugin extends Plugin {
         enabled: isFeatureEnabled(DEFAULT_SETTINGS, 'semantic-search')
     };
     public llmService: SummarizableLLMService;
+    /** Dedicated Azure triage service for high-volume tagging, bound to the fast
+     *  deployment (Phase 3). Lazily built, cached, and invalidated on every
+     *  initializeLLMService re-init. Null when not Azure / no fast model. */
+    private azureTriageService: CloudLLMService | null = null;
+    /** Snapshot of the route the cached triage service was built for, so a
+     *  settings change that alters the route rebuilds it. */
+    private azureTriageRouteKey: string | null = null;
     /** Resolved, validated active-provider profile (D1 SSOT). Null pre-init. */
     public providerProfile: ProviderProfile | null = null;
     /** Listeners fired after `providerProfile` is recomputed (badge re-render, R2-M4). */
@@ -481,6 +489,9 @@ export default class AIOrganiserPlugin extends Plugin {
         // before mutating `llmService`/`providerProfile` so the latest wins.
         const myEpoch = ++this.llmInitEpoch;
         await this.llmService?.dispose();
+        // Invalidate the cached triage service — provider/key/endpoint/fast-model
+        // may all have changed; it is rebuilt lazily on the next tagging call.
+        await this.disposeAzureTriageService();
 
         let serviceType = this.settings.serviceType;
         let localEndpoint = this.settings.localEndpoint;
@@ -599,6 +610,63 @@ export default class AIOrganiserPlugin extends Plugin {
 
         // Notify subscribers (badge) that the profile may have changed.
         this.fireProfileChange();
+    }
+
+    /**
+     * The LLM service for high-volume TAGGING. In Azure mode with a configured
+     * surface-matched fast deployment (Phase 3), returns a dedicated triage
+     * `CloudLLMService` bound to that deployment (cheap/fast, works in both
+     * routing modes — see `azureTriageRouting`). Otherwise falls back to the
+     * main `llmService` (no regression for non-Azure / unset).
+     *
+     * The triage service is built lazily, cached, and rebuilt when the resolved
+     * route changes; it is disposed on re-init + unload.
+     */
+    private async getTaggingService(): Promise<SummarizableLLMService> {
+        const route = resolveAzureTriageRoute(this.settings);
+        if (!route) {
+            await this.disposeAzureTriageService();
+            return this.llmService;
+        }
+
+        // The Azure key is never embedded in the route (secret-free resolver) —
+        // resolve it here. A missing key means the main path is already fail-
+        // closed (NullLLMService), so just fall back rather than build a broken
+        // triage service.
+        const apiKey = (await getAzureApiKey(this, route.type)) || '';
+        if (!apiKey) {
+            await this.disposeAzureTriageService();
+            return this.llmService;
+        }
+
+        const routeKey = `${route.type}|${route.endpoint}|${route.modelName}|${apiKey.length}`;
+        if (this.azureTriageService && this.azureTriageRouteKey === routeKey) {
+            return this.azureTriageService;
+        }
+
+        await this.disposeAzureTriageService();
+        const svc = new CloudLLMService({
+            endpoint: route.endpoint,
+            apiKey,
+            modelName: route.modelName,
+            type: route.type,
+            language: this.settings.language,
+            thinkingMode: this.settings.claudeThinkingMode,
+        }, this.app);
+        svc.setDebugMode(this.settings.debugMode);
+        svc.setSummarizeTimeout(this.settings.summarizeTimeoutSeconds);
+        svc.setOnCall(() => { this.llmCallCounter++; });
+        this.azureTriageService = svc;
+        this.azureTriageRouteKey = routeKey;
+        return svc;
+    }
+
+    /** Dispose + clear the cached Azure triage service (re-init + unload). */
+    private async disposeAzureTriageService(): Promise<void> {
+        const svc = this.azureTriageService;
+        this.azureTriageService = null;
+        this.azureTriageRouteKey = null;
+        await svc?.dispose();
     }
 
     /**
@@ -983,6 +1051,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // Azure rate-limit pacers are module-scoped — clear on unload.
         disposeAzurePacers();
         void this.llmService?.dispose();
+        void this.disposeAzureTriageService();
         void this.embeddingService?.dispose();
         if (this.vectorStoreService) {
             void this.vectorStoreService.dispose();
@@ -1319,8 +1388,10 @@ export default class AIOrganiserPlugin extends Plugin {
                 );
 
                 onProgress?.('Analysing note with AI…');
-                // Get tags from LLM
-                const response = await withBusyIndicator(this, () => this.llmService.generateTags(prompt));
+                // Get tags from LLM — routed through the Azure fast/triage
+                // deployment when configured (Phase 3), else the main service.
+                const taggingService = await this.getTaggingService();
+                const response = await withBusyIndicator(this, () => taggingService.generateTags(prompt));
 
                 if (!response.success || !response.tags) {
                     return { success: false, message: response.error || 'Failed to generate tags' };

@@ -8,6 +8,7 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { addFolderPicker } from './components/FolderSuggest';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import type { Persona } from '../../services/configurationService';
+import { isAzureMode } from '../../services/azure/endpointResolver';
 
 export class SummarizationSettingsSection extends BaseSettingSection {
   private personas: Persona[] = [];
@@ -219,5 +220,29 @@ export class SummarizationSettingsSection extends BaseSettingSection {
             this.settingTab.display();
           })
       );
+
+    // Azure fast/triage deployment for high-volume tagging (Phase 3). Azure-only:
+    // route tagging through a cheaper/faster deployment (e.g. a nano model). The
+    // field is surface-matched to the active Azure provider; blank = main model.
+    if (isAzureMode(plugin.settings)) {
+      const isOpenAI = plugin.settings.cloudServiceType === 'azure-openai';
+      new Setting(containerEl)
+        .setName(t.azureFastModel)
+        .setDesc(t.azureFastModelDesc)
+        .addText(text =>
+          text
+            .setPlaceholder(isOpenAI ? t.azureFastModelOpenAIPlaceholder : t.azureFastModelClaudePlaceholder)
+            .setValue(
+              (isOpenAI ? plugin.settings.azureFastModel.openai : plugin.settings.azureFastModel.claude) ?? '',
+            )
+            .onChange(value => {
+              const v = value.trim();
+              if (!plugin.settings.azureFastModel) plugin.settings.azureFastModel = {};
+              if (isOpenAI) plugin.settings.azureFastModel.openai = v || undefined;
+              else plugin.settings.azureFastModel.claude = v || undefined;
+              void plugin.saveSettings();
+            }),
+        );
+    }
   }
 }

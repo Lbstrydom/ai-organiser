@@ -10,6 +10,7 @@ import {
     getHierarchicalThreshold,
     estimateCharsPerToken,
     exceedsProviderHardLimit,
+    resolveAzureFastDeployment,
     QUALITY_CHUNK_THRESHOLD_SUMMARIZATION,
     QUALITY_CHUNK_THRESHOLD_MINUTES,
     QUALITY_HIERARCHICAL_THRESHOLD_SUMMARIZATION,
@@ -104,6 +105,43 @@ describe('assessContent', () => {
         });
         expect(r.mapModelOverride).toBeUndefined();
     });
+    // ── Azure fast-model surface-matching (Phase 3) ──────────────────────────
+    it('sets mapModelOverride to the azure-openai fast deployment when set', () => {
+        const r = assessContent(mediumText, 'summarization', 'azure-openai', {
+            cloudServiceType: 'azure-openai',
+            azureFastModel: { openai: 'gpt-5.4-nano', claude: 'claude-haiku-4-5' },
+        });
+        expect(r.mapModelOverride).toBe('gpt-5.4-nano');
+    });
+    it('sets mapModelOverride to the azure-claude fast deployment when set', () => {
+        const r = assessContent(mediumText, 'summarization', 'azure-claude', {
+            cloudServiceType: 'azure-claude',
+            azureFastModel: { openai: 'gpt-5.4-nano', claude: 'claude-haiku-4-5' },
+        });
+        expect(r.mapModelOverride).toBe('claude-haiku-4-5');
+    });
+    it('does NOT cross surfaces — azure-openai ignores the claude fast model', () => {
+        const r = assessContent(mediumText, 'summarization', 'azure-openai', {
+            cloudServiceType: 'azure-openai',
+            azureFastModel: { claude: 'claude-haiku-4-5' },
+        });
+        expect(r.mapModelOverride).toBeUndefined();
+    });
+    it('does NOT set mapModelOverride in Azure mode when azureFastModel unset (no regression)', () => {
+        const r = assessContent(mediumText, 'summarization', 'azure-openai', {
+            cloudServiceType: 'azure-openai',
+            azureFastModel: {},
+        });
+        expect(r.mapModelOverride).toBeUndefined();
+    });
+    it('Azure fast model does NOT depend on useHaikuForFastTasks', () => {
+        const r = assessContent(mediumText, 'summarization', 'azure-openai', {
+            useHaikuForFastTasks: false,
+            cloudServiceType: 'azure-openai',
+            azureFastModel: { openai: 'gpt-5.4-nano' },
+        });
+        expect(r.mapModelOverride).toBe('gpt-5.4-nano');
+    });
     it('includes warningMessage for content above warning threshold', () => {
         const huge = 'A'.repeat(CHUNKING_WARNING_THRESHOLD + 1000);
         const r = assessContent(huge, 'summarization', 'claude');
@@ -122,5 +160,29 @@ describe('exceedsProviderHardLimit', () => {
     });
     it('returns true for pathologically large content', () => {
         expect(exceedsProviderHardLimit('A'.repeat(10_000_000), 'claude')).toBe(true);
+    });
+});
+
+describe('resolveAzureFastDeployment', () => {
+    it('surface-matches azure-openai → openai', () => {
+        expect(resolveAzureFastDeployment('azure-openai', { openai: 'nano', claude: 'haiku' })).toBe('nano');
+    });
+    it('surface-matches azure-claude → claude', () => {
+        expect(resolveAzureFastDeployment('azure-claude', { openai: 'nano', claude: 'haiku' })).toBe('haiku');
+    });
+    it('returns undefined for non-azure surfaces', () => {
+        expect(resolveAzureFastDeployment('claude', { openai: 'nano' })).toBeUndefined();
+        expect(resolveAzureFastDeployment('openai', { claude: 'haiku' })).toBeUndefined();
+    });
+    it('returns undefined when the matching surface is unset', () => {
+        expect(resolveAzureFastDeployment('azure-openai', { claude: 'haiku' })).toBeUndefined();
+        expect(resolveAzureFastDeployment('azure-claude', {})).toBeUndefined();
+    });
+    it('returns undefined for an undefined map', () => {
+        expect(resolveAzureFastDeployment('azure-openai', undefined)).toBeUndefined();
+    });
+    it('trims whitespace and treats blank as undefined', () => {
+        expect(resolveAzureFastDeployment('azure-openai', { openai: '  nano  ' })).toBe('nano');
+        expect(resolveAzureFastDeployment('azure-openai', { openai: '   ' })).toBeUndefined();
     });
 });

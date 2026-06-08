@@ -403,6 +403,10 @@ export interface AIOrganiserSettings {
     azureMaxRpm: number;
     /** One-time guard: bump stale low throttle defaults (2/10) to the post-quota-upgrade values (4/60) once, without clobbering user customisations. */
     azureThrottleDefaultsV2: boolean;
+    /** One-time guard: bump the superseded Azure default model IDs to their current
+     *  equivalents (gpt-5.3-chat→gpt-5.5, claude-opus-4-6→claude-opus-4-7) once. Exact-
+     *  match only — never clobbers a custom deployment name. */
+    azureModelDefaultsV2: boolean;
     /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Empty → every
      *  deployment uses azureMaxRpm. NEVER derived from TPM; the user enters their verified
      *  quotas (e.g. {"whisper":3,"gpt-4o-transcribe":10000}). Public-safe default: {}. */
@@ -750,6 +754,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureMaxConcurrentRequests: 4,
     azureMaxRpm: 60,
     azureThrottleDefaultsV2: true,
+    azureModelDefaultsV2: true,
     azurePerDeploymentRpm: {},
     azureFastModel: {},
     azureAIEndpoint: '',
@@ -1221,6 +1226,24 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         if (Number(s.azureMaxConcurrentRequests) === 2) s.azureMaxConcurrentRequests = 4;
         if (Number(s.azureMaxRpm) === 10) s.azureMaxRpm = 60;
         s.azureThrottleDefaultsV2 = true;
+    }
+    // One-time bump of the superseded Azure default model IDs to their current
+    // equivalents (the old low-tier gpt-5.3-chat / claude-opus-4-6 deployments are
+    // 10 RPM; the standard current deployments are gpt-5.5 / claude-opus-4-7). Exact-
+    // match only — a custom deployment name is never touched. Mirrors azureThrottleDefaultsV2.
+    if (s.azureModelDefaultsV2 !== true) {
+        const bumpModel = (v: unknown): unknown => {
+            if (v === 'gpt-5.3-chat') return 'gpt-5.5';
+            if (v === 'claude-opus-4-6') return 'claude-opus-4-7';
+            return v;
+        };
+        s.azureGPTModel = bumpModel(s.azureGPTModel);
+        s.cloudModel = bumpModel(s.cloudModel);
+        if (s.taskModels && typeof s.taskModels === 'object') {
+            const tm = s.taskModels as Record<string, unknown>;
+            for (const k of Object.keys(tm)) tm[k] = bumpModel(tm[k]);
+        }
+        s.azureModelDefaultsV2 = true;
     }
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);

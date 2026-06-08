@@ -129,6 +129,7 @@ export function assessContent(
         useHaikuForFastTasks?: boolean;
         cloudServiceType?: string;
         qualityChunkThresholdChars?: number;
+        azureFastModel?: { openai?: string; claude?: string };
     } = {},
 ): ContentAssessment {
     const charsPerToken = estimateCharsPerToken(provider, text);
@@ -174,12 +175,37 @@ export function assessContent(
  */
 function resolveFastModel(
     provider: string,
-    settings: { useHaikuForFastTasks?: boolean; cloudServiceType?: string },
+    settings: {
+        useHaikuForFastTasks?: boolean;
+        cloudServiceType?: string;
+        azureFastModel?: { openai?: string; claude?: string };
+    },
     chunkChars: number,
     charsPerToken: number,
 ): string | undefined {
+    const surface = settings.cloudServiceType ?? provider;
+
+    // Azure surfaces (Phase 3): the fast/triage model is a CONCRETE tenant
+    // deployment NAME the user enters (never a `latest-*` sentinel — Azure
+    // deployments don't resolve sentinels). Surface-matched: azure-openai →
+    // `azureFastModel.openai`, azure-claude → `azureFastModel.claude`. Empty
+    // (H4) → undefined: no fast routing, no regression. NOTE: the chunk
+    // map-phase passes this as `modelOverride`; on azure-openai
+    // *deployment-based* routing `blockOverride` drops it (the URL is
+    // deployment-pinned), so the map phase still uses the main deployment
+    // there — graceful, no error. The high-volume TAGGING path routes through
+    // a dedicated triage service (azureTriageRouting) that works in BOTH modes.
+    if (surface === 'azure-openai' || surface === 'azure-claude') {
+        const dep = resolveAzureFastDeployment(surface, settings.azureFastModel);
+        if (!dep) return undefined;
+        const fastContextTokens = getMaxContentCharsForModel(provider, dep) / charsPerToken;
+        const requiredTokens = (chunkChars / charsPerToken) + PROMPT_BUDGET_TOKENS;
+        if (fastContextTokens < requiredTokens) return undefined;
+        return dep;
+    }
+
     if (!settings.useHaikuForFastTasks) return undefined;
-    if ((settings.cloudServiceType ?? provider) !== 'claude') return undefined;
+    if (surface !== 'claude') return undefined;
 
     // Haiku latest sentinel — resolved at adapter-build time via modelRegistry.
     // We don't hardcode the concrete version here.
@@ -192,6 +218,28 @@ function resolveFastModel(
     if (fastContextTokens < requiredTokens) return undefined;
 
     return fastModel;
+}
+
+/**
+ * Surface-matched Azure fast/triage deployment name (Phase 3).
+ *
+ * Pure helper (no context-window guard) used by both `resolveFastModel` (chunk
+ * map phase, with guard) and the tagging triage route (`azureTriageRouting`).
+ * azure-openai → `openai`, azure-claude → `claude`; any other surface or an
+ * unset/blank value → `undefined` (no fast routing).
+ */
+export function resolveAzureFastDeployment(
+    cloudServiceType: string | undefined,
+    azureFastModel: { openai?: string; claude?: string } | undefined,
+): string | undefined {
+    if (!azureFastModel) return undefined;
+    const dep = cloudServiceType === 'azure-openai'
+        ? azureFastModel.openai
+        : cloudServiceType === 'azure-claude'
+            ? azureFastModel.claude
+            : undefined;
+    const trimmed = (dep ?? '').trim();
+    return trimmed || undefined;
 }
 
 /**
