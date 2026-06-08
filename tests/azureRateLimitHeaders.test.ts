@@ -99,4 +99,14 @@ describe('classifyTpm + estimateMinProcessedTokens (audit H3/R2-H4)', () => {
         expect(bigInput).toBeGreaterThan(10000);
         expect(classifyTpm('...Tokens...', { limitTokens: 10000 }, bigInput)).toBe(true);
     });
+    it('TPM-less deployment (whisper-shaped: no limitTokens, RPM-only) never fails fast — paces on RPM alone (Phase 2)', () => {
+        // Whisper has no TPM ("--") and a 3 RPM cap. A token-dimension body + a huge
+        // estimate must STILL return false because there is no TPM budget to exceed —
+        // the pacer's RPM gate is the only control. parseAzureRateLimitHeaders yields
+        // limitTokens: undefined for such a deployment.
+        const whisperInfo = { limitRequests: 3, remainingRequests: 0 }; // no limitTokens
+        expect(whisperInfo).not.toHaveProperty('limitTokens');
+        expect(classifyTpm('Rate limit exceeded for ...Tokens', whisperInfo, 1_000_000)).toBe(false);
+        expect(classifyTpm('...Tokens...', whisperInfo, estimateMinProcessedTokens('x'.repeat(500_000)))).toBe(false);
+    });
 });

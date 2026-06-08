@@ -43,7 +43,7 @@ import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue } from './services/vector/embeddingQueue';
-import { setAzurePacerPolicy, disposeAzurePacers } from './services/azure/azureRequestPacer';
+import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
 import type { SourcePackConfig } from './services/notebooklm/types';
@@ -557,6 +557,9 @@ export default class AIOrganiserPlugin extends Plugin {
             maxConcurrent: this.settings.azureMaxConcurrentRequests,
             maxRpm: this.settings.azureMaxRpm,
         });
+        // Per-deployment RPM overrides (Phase 2): applied after the global policy so
+        // each override survives a global change. Live-updates running pacers (M3).
+        setDeploymentRpm(this.settings.azurePerDeploymentRpm);
 
         // D2: fail closed. A misconfigured Azure setup gets a NullLLMService —
         // no network path can fire — plus one actionable Notice per misconfig

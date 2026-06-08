@@ -403,6 +403,15 @@ export interface AIOrganiserSettings {
     azureMaxRpm: number;
     /** One-time guard: bump stale low throttle defaults (2/10) to the post-quota-upgrade values (4/60) once, without clobbering user customisations. */
     azureThrottleDefaultsV2: boolean;
+    /** Per-deployment RPM overrides keyed by deployment NAME (Phase 2). Empty → every
+     *  deployment uses azureMaxRpm. NEVER derived from TPM; the user enters their verified
+     *  quotas (e.g. {"whisper":3,"gpt-4o-transcribe":10000}). Public-safe default: {}. */
+    azurePerDeploymentRpm: Record<string, number>;
+    /** Optional Azure fast/triage deployment names for high-volume tagging (Phase 3).
+     *  Surface-matched: openai→azure-openai main, claude→azure-claude main. Empty (H4) →
+     *  no fast-model routing (main model used; no regression). The user enters a tenant
+     *  deployment name (e.g. { openai: 'gpt-5.4-nano' }); never assumed to exist. */
+    azureFastModel: { openai?: string; claude?: string };
     /** Azure AI Foundry endpoint host (Claude) — e.g. https://<your-resource>.services.ai.azure.com */
     azureAIEndpoint: string;
     /** Azure OpenAI endpoint host (GPT/embeddings/Whisper) — e.g. https://<your-resource>.openai.azure.com */
@@ -741,6 +750,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureMaxConcurrentRequests: 4,
     azureMaxRpm: 60,
     azureThrottleDefaultsV2: true,
+    azurePerDeploymentRpm: {},
+    azureFastModel: {},
     azureAIEndpoint: '',
     azureOpenAIEndpoint: '',
     azureWhisperDeployment: 'whisper',
@@ -1213,6 +1224,27 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     }
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
+    // Per-deployment RPM map: keep only string→finite-positive-int entries (drop blanks/garbage).
+    {
+        const raw = s.azurePerDeploymentRpm;
+        const clean: Record<string, number> = {};
+        if (raw && typeof raw === 'object') {
+            for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+                const name = String(k).trim();
+                const n = Math.floor(Number(v));
+                if (name && Number.isFinite(n) && n >= 1) clean[name] = n;
+            }
+        }
+        s.azurePerDeploymentRpm = clean;
+    }
+    // Azure fast-model deployment names: optional trimmed strings per surface.
+    {
+        const raw = (s.azureFastModel ?? {}) as Record<string, unknown>;
+        const fm: { openai?: string; claude?: string } = {};
+        if (typeof raw.openai === 'string' && raw.openai.trim()) fm.openai = raw.openai.trim();
+        if (typeof raw.claude === 'string' && raw.claude.trim()) fm.claude = raw.claude.trim();
+        s.azureFastModel = fm;
+    }
     if (typeof s.azureAIEndpoint !== 'string') s.azureAIEndpoint = DEFAULT_SETTINGS.azureAIEndpoint;
     if (typeof s.azureOpenAIEndpoint !== 'string') s.azureOpenAIEndpoint = DEFAULT_SETTINGS.azureOpenAIEndpoint;
     if (typeof s.azureWhisperDeployment !== 'string') s.azureWhisperDeployment = DEFAULT_SETTINGS.azureWhisperDeployment;

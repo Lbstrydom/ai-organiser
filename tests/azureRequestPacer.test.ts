@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { AzureRequestPacer, type PacerClock, type RateLimitLease, AZURE_PACER_MAX_QUEUE } from '../src/services/azure/azureRequestPacer';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+    AzureRequestPacer, type PacerClock, type RateLimitLease, AZURE_PACER_MAX_QUEUE,
+    getAzurePacer, setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers,
+    buildAzureOpenAIDeploymentKey,
+} from '../src/services/azure/azureRequestPacer';
 import { AzureRateLimitError } from '../src/services/azure/azureRateLimitError';
 
 /** Manually-advanced clock so the rolling window + pump timers are deterministic. */
@@ -151,5 +155,69 @@ describe('AzureRequestPacer — deadlock-free + policy + queue', () => {
         held.release();
         await flush();
         expect(order).toEqual([1, 2]); // FIFO preserved
+    });
+});
+
+describe('per-deployment RPM registry (Phase 2)', () => {
+    const ENDPOINT = 'https://r.openai.azure.com';
+    const keyFor = (dep: string) => buildAzureOpenAIDeploymentKey(ENDPOINT, dep);
+    // Registry pacers use the real clock; with a high concurrency cap and no time
+    // advance, the rolling window never prunes — so the (maxRpm+1)-th acquire queues
+    // deterministically. Pending acquires are .catch()'d (disposeAzurePacers rejects them).
+    const pending: Array<Promise<unknown>> = [];
+    const acq = (key: string) => { const p = getAzurePacer(key).acquire(); pending.push(p.catch(() => {})); return p; };
+
+    beforeEach(() => {
+        disposeAzurePacers();
+        setAzurePacerPolicy({ maxConcurrent: 100, maxRpm: 60, maxQueue: 256 });
+        setDeploymentRpm({});
+        pending.length = 0;
+    });
+    afterEach(() => { disposeAzurePacers(); });
+
+    it('applies a per-deployment override to a freshly-created pacer', async () => {
+        setDeploymentRpm({ whisper: 2 });
+        const p = getAzurePacer(keyFor('whisper'));
+        await acq(keyFor('whisper')); await acq(keyFor('whisper')); // 2 starts → window full at rpm=2
+        acq(keyFor('whisper'));                                     // 3rd → queued
+        await new Promise<void>(r => setTimeout(r, 0));
+        expect(p.queueLength).toBe(1);
+    });
+
+    it('a non-overridden deployment uses the global RPM', async () => {
+        setDeploymentRpm({ whisper: 2 });
+        const p = getAzurePacer(keyFor('gpt-5.5'));
+        await acq(keyFor('gpt-5.5')); await acq(keyFor('gpt-5.5')); await acq(keyFor('gpt-5.5'));
+        await new Promise<void>(r => setTimeout(r, 0));
+        expect(p.queueLength).toBe(0); // global 60 ≫ 3
+    });
+
+    it('live setDeploymentRpm tightens a RUNNING pacer in place (M3)', async () => {
+        const p = getAzurePacer(keyFor('whisper'));
+        await acq(keyFor('whisper'));            // 1 start under global 60 → fine
+        setDeploymentRpm({ whisper: 2 });        // tighten the live pacer to rpm=2
+        await acq(keyFor('whisper'));            // 2nd start (==2) still granted
+        acq(keyFor('whisper'));                  // 3rd → now queued under the new cap
+        await new Promise<void>(r => setTimeout(r, 0));
+        expect(p.queueLength).toBe(1);
+    });
+
+    it('override keys are canonicalized (case/space-insensitive)', async () => {
+        setDeploymentRpm({ '  WHISPER ': 2 });
+        const p = getAzurePacer(keyFor('whisper'));
+        await acq(keyFor('whisper')); await acq(keyFor('whisper'));
+        acq(keyFor('whisper'));
+        await new Promise<void>(r => setTimeout(r, 0));
+        expect(p.queueLength).toBe(1);
+    });
+
+    it('a global policy change preserves per-deployment overrides', async () => {
+        setDeploymentRpm({ whisper: 2 });
+        const w = getAzurePacer(keyFor('whisper'));
+        setAzurePacerPolicy({ maxConcurrent: 100, maxRpm: 500, maxQueue: 256 }); // raise global
+        await acq(keyFor('whisper')); await acq(keyFor('whisper'));
+        acq(keyFor('whisper'));
+        await new Promise<void>(r => setTimeout(r, 0));
+        expect(w.queueLength).toBe(1); // whisper kept rpm=2 despite global 500
     });
 });

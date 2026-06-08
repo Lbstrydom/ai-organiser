@@ -16,6 +16,7 @@
  */
 
 import { AzureRateLimitError } from './azureRateLimitError';
+import { rpmForDeployment } from './azurePacingPolicy';
 
 export interface RateLimitLease {
     release(): void;
@@ -202,6 +203,9 @@ export class AzureRequestPacer {
 // ── Per-deployment registry + global policy ──────────────────────────────────
 
 let globalPolicy: PacerPolicy = { maxConcurrent: 4, maxRpm: 60, maxQueue: AZURE_PACER_MAX_QUEUE };
+/** User per-deployment RPM overrides (`settings.azurePerDeploymentRpm`); keyed by
+ *  deployment NAME (canonicalized on lookup). Empty → every deployment uses globalRpm. */
+let deploymentRpm: Record<string, number> = {};
 const registry = new Map<string, AzureRequestPacer>();
 
 // Per-deployment keys are built ONLY via the SSOT builders below
@@ -209,20 +213,47 @@ const registry = new Map<string, AzureRequestPacer>();
 // `azureRateLimitKey` was removed (azure-throttle-coverage audit M2) because its
 // raw-fallback normalization diverged from the canonical `normalizeAzureEndpointToHost`.
 
-/** The shared pacer for a deployment key (created lazily with the current policy). */
+/** Extract the canonical deployment/model identity from a registry key
+ *  (`provider|host|identity` — the SSOT builders guarantee the identity is the
+ *  trailing `|`-segment and is already trimmed+lowercased; Azure deployment names
+ *  never contain `|`). */
+function deploymentIdentityOfKey(key: string): string {
+    const i = key.lastIndexOf('|');
+    return i >= 0 ? key.slice(i + 1) : key;
+}
+
+/** Effective policy for a deployment key: global concurrency/queue + the deployment's
+ *  per-deployment RPM override (or global RPM fallback). */
+function effectivePolicyFor(key: string): PacerPolicy {
+    return {
+        ...globalPolicy,
+        maxRpm: rpmForDeployment(deploymentIdentityOfKey(key), deploymentRpm, globalPolicy.maxRpm),
+    };
+}
+
+/** The shared pacer for a deployment key (created lazily with its effective policy). */
 export function getAzurePacer(key: string): AzureRequestPacer {
     let p = registry.get(key);
     if (!p) {
-        p = new AzureRequestPacer(globalPolicy);
+        p = new AzureRequestPacer(effectivePolicyFor(key));
         registry.set(key, p);
     }
     return p;
 }
 
-/** Set the global policy AND update every live pacer in place (audit R2-M1). */
+/** Set the global policy AND re-apply each live pacer's effective policy in place
+ *  (audit R2-M1: never recreate — preserves the rolling window/FIFO). Per-deployment
+ *  RPM overrides survive a global change (only concurrency/fallback-RPM shift). */
 export function setAzurePacerPolicy(p: Partial<PacerPolicy>): void {
     globalPolicy = normalizePolicy(p, globalPolicy);
-    for (const pacer of registry.values()) pacer.setPolicy(globalPolicy);
+    for (const [key, pacer] of registry.entries()) pacer.setPolicy(effectivePolicyFor(key));
+}
+
+/** Set the per-deployment RPM overrides AND update every live pacer in place (M3:
+ *  a running pacer's RPM changes without losing its window/FIFO). */
+export function setDeploymentRpm(map: Record<string, number> | undefined): void {
+    deploymentRpm = map ?? {};
+    for (const [key, pacer] of registry.entries()) pacer.setPolicy(effectivePolicyFor(key));
 }
 
 /** Dispose + clear the registry (plugin onunload + test teardown). */
