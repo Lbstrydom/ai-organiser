@@ -7711,6 +7711,14 @@
 .ai-organiser-chat-modal-content.ai-organiser-pres-create .ai-organiser-chat-area {
     display: none;
 }
+/* …EXCEPT while a command is running: the thinking/progress indicator lives
+   inside the transcript, so reveal it as a compact strip (sized to the
+   indicator, not the flex:1 void) so the user can see status + elapsed time.
+   Re-collapses when the wait ends (the JS toggles `-busy`). */
+.ai-organiser-chat-modal-content.ai-organiser-pres-create .ai-organiser-chat-area.ai-organiser-chat-area-busy {
+    display: block;
+    flex: 0 0 auto;
+}
 /* The create form + composer are short, but the modal is ~92vh tall. Centre the
    cluster (create panel → composer → actions) in the space below the mode tabs
    via balanced auto-margins, so the spare height reads as an intentional compose

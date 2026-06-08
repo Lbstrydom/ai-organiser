@@ -1365,6 +1365,13 @@ export class UnifiedChatModal extends Modal {
             phaseText: text,
             cancelLabel: this.plugin.t.modals.unifiedChat.cancelGeneration,
         });
+        // Slides "create" mode collapses the empty transcript (display:none) so
+        // the compose screen centres — but the indicator lives INSIDE that
+        // container, so it would be invisible during generation. Mark the
+        // container busy so CSS reveals it as a compact strip while we wait.
+        // Inert in every other mode (no CSS targets the class there). The class
+        // survives transcript rebuilds (empty() clears children, not classes).
+        this.chatContainer.addClass('ai-organiser-chat-area-busy');
     }
 
     /** Split progress update — status fragment (slide-count) + elapsed ticker.
@@ -1389,6 +1396,8 @@ export class UnifiedChatModal extends Modal {
     private hideThinkingIndicator(): void {
         this.thinkingHandle?.destroy();
         this.thinkingHandle = undefined;
+        // Re-collapse the slides-create transcript void once the wait ends.
+        this.chatContainer?.removeClass('ai-organiser-chat-area-busy');
     }
 
     // ── Extend-budget card (transient — NOT persisted in historyMap) ────────
