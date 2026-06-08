@@ -704,6 +704,16 @@ Run `npm run lint` before submitting PRs. Key rules:
 
 The precommit script runs lint + full test suite: `npm run precommit`.
 
+## Obsidian community-review compliance
+
+The plugin is GPL-3.0 and passes the community review bot's automated scan with **zero blocking errors** (1.0.19). Invariants future changes MUST preserve:
+
+- **`minAppVersion` is `1.11.4`** (manifest.json + versions.json) — the newest Obsidian API the code uses is `SecretStorage` (v1.11.4). The `obsidianmd/no-unsupported-api` ESLint rule is enabled (`eslint.config.mjs`) and reads `minAppVersion`; using an API newer than it is a lint error. If you adopt a newer API, bump `minAppVersion` to the version the rule reports.
+- **No remote `<script>` injection.** Obsidian's bot flags `document.createElement("script")` (with or without `src`) as "dynamic script injection" — a blocking error. D3 is bundled (not CDN); the old `heic2any` CDN loader was removed. Don't reintroduce either.
+- **The dead `setImmediate` `<script>` polyfill is neutralised at build time.** `jszip` (via `docx`/`pptxgenjs`) bundles an IE-era `setImmediate` polyfill that does `createElement("script")` (empty, no `src`, dead in Electron). The `neutralizeSetImmediateScriptPolyfill` esbuild plugin (`esbuild.config.mjs`) swaps it to `createElement("span")` **per-occurrence**, only at sites within 60 chars of the polyfill's `onreadystatechange` signature — so a genuine script-with-`src` loader (now or in a future dep) is left intact. Verify with `grep -c 'createElement("script")' main.js` → must be `0`. If you add a dep that legitimately creates a script element, the proximity guard protects it; don't broaden the swap.
+- **Release attestation**: `.github/workflows/release.yml` builds via `npm ci` (needs `.npmrc` `legacy-peer-deps=true`) + `actions/attest-build-provenance`. Tag pushes (no `v` prefix) trigger it.
+- **Disclosed, accepted warnings** (non-blocking): >5 MB bundle (single-file + local ONNX + export suite), `fs`/`child_process` (FFmpeg, desktop-gated), `eval`/`new Function` (bundled-dep polyfills), opt-in newsletter `setInterval`, transitive vuln deps (xlsx/jspdf/dompurify/@xmldom/protobufjs/ws).
+
 ## Obsidian API Quirks
 
 Subtle Obsidian-API behaviours that the review bot and TypeScript do NOT catch. Follow these conventions to avoid regressions.
@@ -844,7 +854,7 @@ User pasted Office 365 HTML into Minutes transcript field → hundreds of `file:
 
 - Obsidian API externals must match platform version (defined in `esbuild.config.mjs`)
 - TypeScript compilation is strict mode with ES2020 target
-- D3.js loaded dynamically from CDN (no bundling) for network visualization
+- D3.js is **bundled** as submodules (`d3-selection`/`d3-force`/`d3-drag`/`d3-zoom`) for the tag-network view — **never** CDN-loaded. Obsidian's review bot blocks remote `<script>` injection; do NOT reintroduce a CDN `<script>` loader (or a `heic2any`-style runtime script fetch). See "Obsidian community-review compliance".
 - Interface language change requires Obsidian restart (output languages do not)
 - Tag formatting preserves `/` for nested tags but converts other special chars to hyphens
 - Claude/Anthropic has no embeddings API (use Voyage AI instead)
