@@ -680,7 +680,9 @@ export class PresentationModeHandler implements ChatModeHandler {
                 const notePath = await this.writeStorylineNote(r.ctx, stage.value.storylineMarkdown, r.originalQuery);
                 this.pendingStoryline = { catalog, notePath, deckName: r.originalQuery };
                 const name = notePath.split('/').pop() ?? notePath;
-                return { early: t.storylineReady.replace('{name}', name) };
+                // Post the storyline IN the chat for conversational iteration; the
+                // note is the auto-saved background copy.
+                return { early: `${stage.value.storylineMarkdown}\n\n---\n\n${t.storylineReady.replace('{name}', name)}` };
             } catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
                 logger.error('Presentation', `[storyline] note write failed: ${msg}`);
@@ -739,7 +741,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!revised.ok) return { early: t.storylineReviseFailed.replace('{error}', revised.error) };
         await r.ctx.app.vault.modify(file, revised.value.storylineMarkdown);
         const name = pending.notePath.split('/').pop() ?? pending.notePath;
-        return { early: t.storylineRevised.replace('{name}', name) };
+        // Re-post the revised storyline in the chat so iteration stays conversational.
+        return { early: `${revised.value.storylineMarkdown}\n\n---\n\n${t.storylineRevised.replace('{name}', name)}` };
     }
 
     /** Write the dot-dash storyline `.md` to the presentation output folder + open it. */
@@ -752,8 +755,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         for (let i = 1; ctx.app.vault.getAbstractFileByPath(path) && i <= 999; i++) {
             path = `${folder}/${safe} — storyline ${i}.md`;
         }
-        const file = await ctx.app.vault.create(path, markdown);
-        await ctx.app.workspace.getLeaf(true).openFile(file);
+        await ctx.app.vault.create(path, markdown);
+        // Auto-saved, NOT force-opened: the storyline is reviewed/iterated IN the
+        // chat (it's posted as the assistant's reply); the .md is the synced
+        // background artifact (survives modal close + hand-editable if the user
+        // navigates to it), not a pane shoved in front of them.
         return path;
     }
 
