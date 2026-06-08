@@ -125,13 +125,8 @@ export interface AIOrganiserSettings {
     aichatRefinementPasses: 1 | 2;       // Number of refinement passes in presentation build
     aichatBrandToggleDefault: boolean;   // Whether brand toggle is on by default
     presentationGroundWebSearch: boolean; // LLM-ground presentation web-search queries in attached notes + prompt (sends note-derived terms to the search provider)
-    presentationConsultantMode: boolean; // Consultant-quality pipeline: write a grounded storyline (ghost deck) BEFORE designing slides (action titles, MECE, evidence-bound visuals). Default ON (storyline-first is the intended flow).
-    /** One-time guard: flip the legacy default-OFF consultant mode to ON once for existing
-     *  vaults (storyline-first is now the default flow). Default TRUE so new installs skip the
-     *  flip; an existing vault lacking the key gets `consultantMode` set true once, then any
-     *  later opt-out the user makes persists (guard stays true → never re-flipped). */
-    presentationConsultantDefaultedOn: boolean;
-    presentationStorylineGate: 'review' | 'auto-build'; // When consultant mode is on: 'review' writes the dot-dash storyline note for sign-off first; 'auto-build' goes straight to slides
+    presentationConsultantMode: boolean; // DEFAULT for the per-deck "Plan" pill: when true a new presentation defaults to storyline-first (dot-dash) instead of straight-to-slides. The actual per-deck choice lives in CreationConfig.planMode; this is only the seed.
+    presentationStorylineGate: 'review' | 'auto-build'; // When the deck's Plan = storyline: 'review' writes the dot-dash storyline note for sign-off first; 'auto-build' goes straight to slides
     // Per-role model selection for the consultant pipeline (plan Cluster B). Each value is a
     // provider id (CloudServiceType) or null = "Main" (use the configured main provider). The
     // concrete model resolves via the capability resolver + latest-* sentinel (so it can't rot).
@@ -533,9 +528,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aichatRefinementPasses: 1,
     aichatBrandToggleDefault: false,
     presentationGroundWebSearch: true,   // Automatic per user request; toggle gives privacy-conscious users an off switch
-    presentationConsultantMode: true,    // Storyline-first is the intended flow: draft a dot-dash storyline → iterate → Create deck
-    presentationConsultantDefaultedOn: true, // New installs already default-on; the migration flips legacy default-off vaults once
-    presentationStorylineGate: 'review', // When consultant mode is on, default to the storyline sign-off step (the consulting workflow)
+    presentationConsultantMode: false,   // Per-deck "Plan" pill default: false = new decks start "Straight to slides"; user picks "Storyline first" per deck (or flips this to default new decks to storyline)
+    presentationStorylineGate: 'review', // When a deck's Plan = storyline, default to the storyline sign-off step (the consulting workflow)
     presentationModelRoles: { storyboardGenerator: null, independentCritic: null }, // null = "Main" for both roles
     presentationOutputFolder: 'Presentations',
     presentationBrandGuidelinesPath: '',
@@ -1017,17 +1011,6 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     // path, so coerce any stored 'html-legacy' choice (2026-06 retirement).
     if (oldSettings.presentationExportEngine === 'html-legacy') {
         oldSettings.presentationExportEngine = 'structured-ir';
-    }
-
-    // Storyline-first is now the default flow: one-time flip of the legacy
-    // default-OFF consultant mode to ON for existing vaults. Guarded so it fires
-    // exactly once — a later user opt-out persists (guard stays true, never
-    // re-flipped). New installs default the guard true and skip this.
-    if (oldSettings.presentationConsultantDefaultedOn !== true) {
-        if (oldSettings.presentationConsultantMode === false) {
-            oldSettings.presentationConsultantMode = true;
-        }
-        oldSettings.presentationConsultantDefaultedOn = true;
     }
 
     // Consultant-quality storyline gate: coerce any out-of-range stored value to

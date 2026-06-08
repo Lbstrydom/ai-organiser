@@ -159,6 +159,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     // Deep clone so nested config (arrays/objects) can never alias the shared
     // module default — a shallow spread would let one handler mutate the default.
     private creationConfig: CreationConfig = structuredClone(DEFAULT_CREATION_CONFIG);
+    /** The creation epoch whose `planMode` has been seeded from settings. Ensures
+     *  the per-deck Plan pill defaults from `presentationConsultantMode` ONCE per
+     *  creation cycle, while a user pill click within the cycle is preserved. */
+    private planModeSeededEpoch = -1;
     private createPanelDispose: (() => void) | null = null;
 
     // ── Collaborators (TD-SSR-02 decomposition) ─────────────────────────────
@@ -287,6 +291,12 @@ export class PresentationModeHandler implements ChatModeHandler {
         // No deck yet — render the Create panel so the user can configure
         // sources / audience / length / speed before generating.
         if (!this.deck.html) {
+            // Seed the per-deck Plan choice from the global default ONCE per creation
+            // cycle (user pill clicks within the cycle override it; a new deck re-seeds).
+            if (this.planModeSeededEpoch !== this.creationFlowEpoch) {
+                this.creationConfig.planMode = ctx.fullPlugin.settings.presentationConsultantMode ? 'storyline' : 'direct';
+                this.planModeSeededEpoch = this.creationFlowEpoch;
+            }
             this.ensureSourceController(ctx);
             const panelHost = container.createDiv({ cls: 'ai-organiser-pres-create-panel-host' });
             if (this.sourceController) {
@@ -494,8 +504,8 @@ export class PresentationModeHandler implements ChatModeHandler {
                     });
                     if (resolved.ok) sources = resolved.value.usable;
                 }
-                if (settings.presentationConsultantMode) {
-                    // Consultant pipeline: write a grounded storyline (ghost deck)
+                if (this.creationConfig.planMode === 'storyline') {
+                    // Per-deck Plan = storyline: write a grounded storyline (ghost deck)
                     // first; gate='review' opens it for sign-off and returns early.
                     const consultant = await this.runConsultantStage(r, sources);
                     if ('early' in consultant) return { finalContent: consultant.early };
@@ -550,10 +560,10 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             this.runQualityCheck();
             this.setPhase('preview-ready');
-            // Consultant mode (Cluster D): route the visual quality scan through the
-            // INDEPENDENT visual critic (a different model family) so the layout review
-            // is independent of the generator; otherwise the configured main context.
-            const scanCtx = r.ctx.fullPlugin.settings.presentationConsultantMode
+            // Storyline (consultant) decks (Cluster D): route the visual quality scan
+            // through the INDEPENDENT visual critic (a different model family) so the
+            // layout review is independent of the generator; direct decks use main.
+            const scanCtx = this.creationConfig.planMode === 'storyline'
                 ? (await this.resolveRoleRun(r, 'visual_critic')).context
                 : r.llmCtx;
             void this.runBackgroundQualityScan(scanCtx, r.abort.signal);

@@ -32,6 +32,7 @@ export type CreatePanelT = Pick<
     | 'slideCreateAudienceExecutive' | 'slideCreateAudienceGeneral'
     | 'slideCreateLengthLabel' | 'slideCreateLengthCustom'
     | 'slideCreateSpeedLabel' | 'slideCreateSpeedFast' | 'slideCreateSpeedQuality'
+    | 'slideCreatePlanLabel' | 'slideCreatePlanStoryline' | 'slideCreatePlanDirect'
     | 'slideCreateSourcesLabel'
     | 'slideCreateSourcesAddNote' | 'slideCreateSourcesAddWeb' | 'slideCreateSourcesAddFolder'
     | 'slideCreateSourcesAutoDetected' | 'slideCreateSourcesEmpty'
@@ -99,6 +100,7 @@ export function renderCreatePanel(
     renderAudienceRow(container, opts);
     renderLengthRow(container, opts);
     renderSpeedRow(container, opts);
+    renderPlanRow(container, opts);
     renderSourcesSection(container, opts, state);
     state.validationEl = renderValidationRow(container);
 
@@ -270,6 +272,50 @@ function addSpeedPill(
         const cfg = opts.getConfig();
         if (cfg.speedTier === tier) return;
         opts.onConfigChange({ ...cfg, speedTier: tier });
+        for (const sib of Array.from(row.querySelectorAll('.ai-organiser-pres-create-pill'))) {
+            sib.removeClass('is-active');
+            sib.setAttribute('aria-checked', 'false');
+            sib.setAttribute('tabindex', '-1');
+        }
+        pill.addClass('is-active');
+        pill.setAttribute('aria-checked', 'true');
+        pill.setAttribute('tabindex', '0');
+    });
+}
+
+// ── Plan (storyline-first vs straight-to-slides) ─────────────────────────────
+
+function renderPlanRow(parent: HTMLElement, opts: CreatePanelOptions): void {
+    const row = parent.createDiv({
+        cls: 'ai-organiser-pres-create-row',
+        attr: { role: 'radiogroup', 'aria-label': opts.t.slideCreatePlanLabel },
+    });
+    row.createSpan({ cls: 'ai-organiser-pres-create-row-label', text: opts.t.slideCreatePlanLabel });
+    addPlanPill(row, opts, 'storyline', opts.t.slideCreatePlanStoryline);
+    addPlanPill(row, opts, 'direct', opts.t.slideCreatePlanDirect);
+}
+
+function addPlanPill(
+    row: HTMLElement,
+    opts: CreatePanelOptions,
+    mode: 'storyline' | 'direct',
+    label: string,
+): void {
+    const isActive = opts.getConfig().planMode === mode;
+    const pill = row.createEl('button', {
+        cls: `ai-organiser-pres-create-pill${isActive ? ' is-active' : ''}`,
+        text: label,
+        attr: {
+            type: 'button',
+            role: 'radio',
+            'aria-checked': isActive ? 'true' : 'false',
+            tabindex: isActive ? '0' : '-1',
+        },
+    });
+    pill.addEventListener('click', () => {
+        const cfg = opts.getConfig();
+        if (cfg.planMode === mode) return;
+        opts.onConfigChange({ ...cfg, planMode: mode });
         for (const sib of Array.from(row.querySelectorAll('.ai-organiser-pres-create-pill'))) {
             sib.removeClass('is-active');
             sib.setAttribute('aria-checked', 'false');

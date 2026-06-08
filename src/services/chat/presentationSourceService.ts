@@ -408,4 +408,5 @@ export const DEFAULT_CREATION_CONFIG: CreationConfig = {
     audience: 'general' as AudienceTier,
     length: 8,
     speedTier: 'fast' as ModelTier,
+    planMode: 'direct',  // seeded from settings.presentationConsultantMode per creation cycle
 };

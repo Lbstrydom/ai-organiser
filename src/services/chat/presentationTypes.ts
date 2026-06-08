@@ -378,4 +378,8 @@ export interface CreationConfig {
     length: number;
     /** Speed/quality model dispatch — 'fast' default. */
     speedTier: ModelTier;
+    /** Per-deck plan choice: 'storyline' drafts a dot-dash storyline for review/iteration
+     *  BEFORE building (consultant flow); 'direct' rolls straight into slide generation.
+     *  Seeded from `settings.presentationConsultantMode` per creation cycle; default 'direct'. */
+    planMode: 'storyline' | 'direct';
 }

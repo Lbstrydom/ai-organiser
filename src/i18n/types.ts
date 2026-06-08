@@ -2379,6 +2379,9 @@ export interface Translations {
             slideCreateSpeedLabel: string;
             slideCreateSpeedFast: string;
             slideCreateSpeedQuality: string;
+            slideCreatePlanLabel: string;
+            slideCreatePlanStoryline: string;
+            slideCreatePlanDirect: string;
             slideCreateSourcesLabel: string;
             slideCreateSourcesAddNote: string;
             slideCreateSourcesAddWeb: string;

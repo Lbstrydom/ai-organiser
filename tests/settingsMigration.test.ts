@@ -448,24 +448,13 @@ describe('migrateOldSettings', () => {
         });
     });
 
-    describe('consultant-mode default-on migration', () => {
-        it('flips a legacy default-off vault to ON once (guard absent)', () => {
-            const r = migrateOldSettings({ presentationConsultantMode: false })!;
-            expect(r.presentationConsultantMode).toBe(true);
-            expect(r.presentationConsultantDefaultedOn).toBe(true);
+    describe('per-deck Plan default (storyline vs direct)', () => {
+        it('global consultant-mode default is OFF (new decks default to direct)', () => {
+            expect(DEFAULT_SETTINGS.presentationConsultantMode).toBe(false);
         });
-        it('respects an explicit opt-out once the guard is set', () => {
-            const r = migrateOldSettings({ presentationConsultantMode: false, presentationConsultantDefaultedOn: true })!;
-            expect(r.presentationConsultantMode).toBe(false);
-        });
-        it('leaves an already-on vault on', () => {
-            const r = migrateOldSettings({ presentationConsultantMode: true })!;
-            expect(r.presentationConsultantMode).toBe(true);
-            expect(r.presentationConsultantDefaultedOn).toBe(true);
-        });
-        it('new install defaults consultant mode ON', () => {
-            expect(DEFAULT_SETTINGS.presentationConsultantMode).toBe(true);
-            expect(DEFAULT_SETTINGS.presentationConsultantDefaultedOn).toBe(true);
+        it('leaves a user-set consultant mode untouched (it only seeds the per-deck Plan pill)', () => {
+            expect(migrateOldSettings({ presentationConsultantMode: true })!.presentationConsultantMode).toBe(true);
+            expect(migrateOldSettings({ presentationConsultantMode: false })!.presentationConsultantMode).toBe(false);
         });
     });
 
