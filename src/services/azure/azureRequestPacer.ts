@@ -216,7 +216,16 @@ const registry = new Map<string, AzureRequestPacer>();
 /** Extract the canonical deployment/model identity from a registry key
  *  (`provider|host|identity` — the SSOT builders guarantee the identity is the
  *  trailing `|`-segment and is already trimmed+lowercased; Azure deployment names
- *  never contain `|`). */
+ *  never contain `|`).
+ *
+ *  C11 migration seam: per-deployment RPM overrides are looked up by this
+ *  NAME-ONLY identity (v1 tradeoff). Each `(provider|host|name)` still gets its
+ *  OWN pacer + rolling window (the registry key is the full compound key), so
+ *  PACING stays per-endpoint correct; only the override *ceiling value* is shared
+ *  when two Azure resources reuse a deployment name (documented limitation). To
+ *  migrate to full `surface|host|name` override keys later, change ONLY this
+ *  function to return the compound identity and key `azurePerDeploymentRpm`
+ *  likewise — the call sites do not change. */
 function deploymentIdentityOfKey(key: string): string {
     const i = key.lastIndexOf('|');
     return i >= 0 ? key.slice(i + 1) : key;

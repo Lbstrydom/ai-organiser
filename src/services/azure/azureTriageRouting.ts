@@ -37,7 +37,17 @@ export interface AzureTriageSettings {
     azureCapabilities?: Partial<Record<string, { mode?: string; deployment?: string }>>;
 }
 
-/** The bound endpoint/model/type for a triage `CloudLLMService` (no secret). */
+/**
+ * The bound endpoint/model/type for a triage `CloudLLMService` (no secret).
+ *
+ * `modelName` IS the user's deployment name (C11 deployment-name-keyed identity).
+ * This is sound here ONLY because the triage service is used SOLELY for short
+ * tagging calls (`generateTags`) — there is no token-window enforcement, thinking,
+ * or multimodal capability gating on that path. `modelName` here is a ROUTING
+ * identifier, NOT a capability/model-id for general inference. Do NOT reuse this
+ * route for capability- or context-window-sensitive work without first resolving
+ * a separate canonical model identity from the deployment name.
+ */
 export interface AzureTriageRoute {
     endpoint: string;
     modelName: string;
