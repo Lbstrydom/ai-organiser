@@ -442,12 +442,14 @@ describe('Orchestrator synthesizeStream', () => {
             { signal: controller.signal },
         );
 
-        // Verify the signal was passed to the facade
+        // Verify the signal was passed to the facade, plus the synthesis thinking
+        // options (presentation-depth-controls D6 — no deepThinking → disableThinking).
         expect(mockSummarizeTextStream).toHaveBeenCalledWith(
             expect.anything(),
             expect.any(String),
             expect.any(Function),
             controller.signal,
+            { disableThinking: true },
         );
     });
 

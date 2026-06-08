@@ -99,6 +99,10 @@ export interface SummarizeOptions {
     maxTokens?: number;
     /** Disable adaptive thinking (Claude) for this call. Reduces latency for structured output tasks. */
     disableThinking?: boolean;
+    /** Force adaptive thinking (Claude) ON for this call even when the service default is
+     *  `'standard'`. Symmetric twin of `disableThinking`, which WINS when both are set
+     *  (presentation-depth-controls D1). No-op on a model that lacks adaptive thinking. */
+    enableThinking?: boolean;
     /** Override the model ID for this call. Used by the presentation pipeline to route
      *  generation (Opus) and audits (Sonnet non-reasoning) to different models
      *  without creating temporary service instances. */

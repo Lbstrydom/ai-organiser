@@ -328,6 +328,14 @@ export interface AIOrganiserSettings {
     // === CLAUDE THINKING MODE ===
     // Controls adaptive thinking for Claude Opus 4.6
     claudeThinkingMode: 'standard' | 'adaptive';  // standard = no thinking, adaptive = Claude decides when to think
+    /** One-time guard (presentation-depth-controls D3): flip a persisted
+     *  `claudeThinkingMode === 'adaptive'` (the prior default — overwhelmingly the
+     *  persisted-default rather than a deliberate choice) → `'standard'` ONCE, then
+     *  set this guard so a later DELIBERATE re-enable (persisted with the guard
+     *  already true) is never re-flipped. Defaults to FALSE so the guard can never
+     *  persist ahead of the flip via the DEFAULT_SETTINGS merge (mirrors
+     *  azureModelDefaultsV3). */
+    thinkingDefaultOffV1: boolean;
 
     // === FEATURE TOGGLES (outer feature flags — distinct from inner enable* configs) ===
     /** Per-feature on/off. Absent/undefined entries resolve to the registry's defaultOn (FT-3 coalesce). */
@@ -731,7 +739,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     quickPeekModel: '',                                 // Use provider default
 
     // Claude Thinking Mode Defaults
-    claudeThinkingMode: 'adaptive' as const,            // Adaptive thinking for Opus 4.6
+    claudeThinkingMode: 'standard' as const,            // Thinking is opt-in (D3); Research's Deep-thinking toggle restores it
+    thinkingDefaultOffV1: false,                        // One-time migration guard (D3) — see interface doc
 
     // Feature toggles — empty map; isFeatureEnabled coalesces unset → registry.defaultOn
     // (fresh installs get the Lean set via the coalesce; migration seeds explicit flags).
@@ -1112,6 +1121,22 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     if ('notebooklmPdfIncludeTitle' in oldSettings && !('notebooklmIncludeTitle' in oldSettings)) {
         oldSettings.notebooklmIncludeTitle = oldSettings.notebooklmPdfIncludeTitle;
         delete oldSettings.notebooklmPdfIncludeTitle;
+    }
+
+    // Default thinking OFF (presentation-depth-controls D3). Obsidian persists the
+    // full default-shaped settings after any save, so most existing users have the
+    // PRIOR default `claudeThinkingMode: 'adaptive'` PERSISTED (not implicit) — a bare
+    // default flip wouldn't reach them. So flip a persisted 'adaptive' → 'standard'
+    // ONCE, guarded by thinkingDefaultOffV1 (default FALSE so it can't persist ahead of
+    // the flip). A deliberate re-enable AFTER the guard is set persists with the guard
+    // already true → never re-flipped. 'standard'/absent values are left untouched.
+    // NOT provider-gated: thinking applies to the Claude path on any provider, and the
+    // Research Deep-thinking toggle restores depth where it matters.
+    if (oldSettings.thinkingDefaultOffV1 !== true) {
+        if (oldSettings.claudeThinkingMode === 'adaptive') {
+            oldSettings.claudeThinkingMode = 'standard';
+        }
+        oldSettings.thinkingDefaultOffV1 = true;
     }
 
     migrateAzureSettings(oldSettings);

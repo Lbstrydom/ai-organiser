@@ -73,6 +73,10 @@ export interface ResearchSessionState {
     precheckShown?: boolean;
     academicMode?: boolean;
     perspectiveMode?: boolean;
+    /** presentation-depth-controls D6: per-session "Deep thinking" toggle — when set,
+     *  research synthesis runs with adaptive thinking ON even if the global default is
+     *  standard; when explicitly false, thinking is forced OFF for synthesis. */
+    deepThinking?: boolean;
     sourceMetadata?: SourceMetadata[];
     // Phase 3.4: multi-turn conversation history for Claude Web Search resume
     conversationHistory?: Array<{ role: string; content: unknown }>;

@@ -482,4 +482,42 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('thinking default OFF migration (presentation-depth-controls D3)', () => {
+        it('new-install default is "standard" (thinking opt-in)', () => {
+            expect(DEFAULT_SETTINGS.claudeThinkingMode).toBe('standard');
+            expect(DEFAULT_SETTINGS.thinkingDefaultOffV1).toBe(false);
+        });
+
+        it('flips a persisted "adaptive" → "standard" once and sets the guard', () => {
+            const r = migrateOldSettings({ claudeThinkingMode: 'adaptive' })!;
+            expect(r.claudeThinkingMode).toBe('standard');
+            expect(r.thinkingDefaultOffV1).toBe(true);
+        });
+
+        it('preserves a deliberate "adaptive" set AFTER the guard is already true (no re-flip)', () => {
+            const r = migrateOldSettings({ claudeThinkingMode: 'adaptive', thinkingDefaultOffV1: true })!;
+            expect(r.claudeThinkingMode).toBe('adaptive');
+            expect(r.thinkingDefaultOffV1).toBe(true);
+        });
+
+        it('leaves a persisted "standard" untouched and sets the guard', () => {
+            const r = migrateOldSettings({ claudeThinkingMode: 'standard' })!;
+            expect(r.claudeThinkingMode).toBe('standard');
+            expect(r.thinkingDefaultOffV1).toBe(true);
+        });
+
+        it('does not introduce claudeThinkingMode when absent; still sets the guard', () => {
+            const r = migrateOldSettings({})!;
+            expect(r.claudeThinkingMode).toBeUndefined();
+            expect(r.thinkingDefaultOffV1).toBe(true);
+        });
+
+        it('is idempotent — a second pass does not re-flip a now-"standard" value', () => {
+            const once = migrateOldSettings({ claudeThinkingMode: 'adaptive' })!;
+            const twice = migrateOldSettings({ ...once })!;
+            expect(twice.claudeThinkingMode).toBe('standard');
+            expect(twice.thinkingDefaultOffV1).toBe(true);
+        });
+    });
+
 });

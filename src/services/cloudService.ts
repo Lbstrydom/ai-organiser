@@ -14,6 +14,45 @@ import { withAzureLease, buildAzureClaudeDeploymentKey, buildAzureOpenAIDeployme
 import { parseAzureRateLimitHeaders, computeAzureBackoffMs, classifyTpm, estimateMinProcessedTokens, estimateMultimodalMinTokens, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
 import { AzureRateLimitError } from './azure/azureRateLimitError';
 
+/**
+ * Pure: the candidate model-id pool for `adapterType` — the live-fetched catalog
+ * when populated this session (user clicked "Refresh models"), else the static
+ * registry, with `latest-*` sentinels stripped from the pool (they're lookup
+ * KEYS, never candidates). Reads only the module-level live cache (no service
+ * instance state), so UI code may call it. (presentation-depth-controls D2/M1.)
+ */
+export function computeAvailableModelIds(adapterType: AdapterType): string[] {
+    const liveCache = getCachedModels(adapterType);
+    const staticIds = Object.keys(PROVIDER_MODELS[adapterType] || {})
+        .filter(id => !id.startsWith('latest-'));
+    return liveCache && liveCache.length > 0
+        ? liveCache.map(m => m.id)
+        : staticIds;
+}
+
+/**
+ * Pure: resolve a per-call `modelOverride` to the concrete model id to send, or
+ * `''` meaning "use the service model". Contract (presentation-depth-controls D2):
+ *  - empty/blank override → `''`;
+ *  - a `latest-*` sentinel is resolved against `availableIds`; if it STILL can't
+ *    resolve (unknown alias / no catalog or live match — e.g. a `latest-*` on
+ *    `azure-claude`, which has no resolver case) the override is DROPPED (`''`)
+ *    rather than sending a literal sentinel the API would reject;
+ *  - a concrete id passes through unchanged (even when absent from `availableIds`
+ *    — only sentinels are pool-gated).
+ */
+export function resolveModelOverride(
+    adapterType: AdapterType,
+    override: string | undefined,
+    availableIds: string[],
+): string {
+    const trimmed = override?.trim();
+    if (!trimmed) return '';
+    const resolved = resolveLatestModel(adapterType, trimmed, availableIds) ?? trimmed;
+    if (resolved.startsWith('latest-')) return ''; // unresolved sentinel → drop
+    return resolved;
+}
+
 export class CloudLLMService extends BaseLLMService implements MultimodalLLMService {
     private adapter: BaseAdapter;
     private readonly adapterType: AdapterType;
@@ -38,12 +77,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // (populated by user clicking "Refresh models"), otherwise the
         // hardcoded static registry. Live cache is the source of truth for
         // "newly released" models — static list may lag.
-        const liveCache = getCachedModels(config.type);
-        const staticIds = Object.keys(PROVIDER_MODELS[config.type] || {})
-            .filter(id => !id.startsWith('latest-'));
-        const availableIds = liveCache && liveCache.length > 0
-            ? liveCache.map(m => m.id)
-            : staticIds;
+        const availableIds = computeAvailableModelIds(config.type);
         // Fill empty modelName with the registry default BEFORE resolving,
         // so a sentinel default (e.g. `latest-sonnet`) is resolved to a
         // concrete id rather than leaking past the adapter's own non-
@@ -51,6 +85,16 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const requestedModel = config.modelName || PROVIDER_DEFAULT_MODEL[config.type];
         const resolvedModel = resolveLatestModel(config.type, requestedModel, availableIds)
             ?? requestedModel;
+        // Diagnosability hardening (presentation-depth-controls audit LOW): if the
+        // configured service model is STILL an unresolved `latest-*` sentinel (no
+        // catalog/live match — e.g. a hand-edited `latest-*` on a provider with no
+        // resolver case), surface a warning instead of silently sending the literal
+        // alias. No real trigger today (claude's static pool always resolves; Azure
+        // uses concrete deployment names) — this just makes a misconfiguration
+        // self-diagnosing rather than a cryptic provider error. Routing unchanged.
+        if (resolvedModel.startsWith('latest-')) {
+            logger.warn('LLM', `Configured ${config.type} model "${resolvedModel}" could not be resolved to a concrete id; sending it as-is. Pick a concrete model in settings.`);
+        }
         this.adapter = createAdapter(config.type, {
             endpoint: config.endpoint,
             apiKey: config.apiKey || '',
@@ -129,9 +173,19 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      *  Claude vs OpenAI Foundry deployments get distinct, host+model-normalized
      *  buckets. Uses the CONCRETE model the adapter sends (never a `latest-*`
      *  sentinel) so the bucket matches the web-search adapter's for the same
-     *  deployment (shared RPM budget). */
-    private azurePacerKey(): string {
-        const model = (this.adapter['config'] as { modelName?: string } | undefined)?.modelName || this.modelName;
+     *  deployment (shared RPM budget).
+     *
+     *  `pacerModel` (presentation-depth-controls D2, Gemini-R2 G1): when a per-call
+     *  `modelOverride` changes the effective azure-claude model (e.g. Sonnet→Opus),
+     *  the request body carries the override model — so the RPM lease MUST key on
+     *  that SAME resolved model, not the static service model, else Opus calls pace
+     *  under Sonnet's deployment bucket. The summarize path passes the body's
+     *  resolved model here; other paths (tagging/multimodal/stream) don't apply a
+     *  per-call override and fall back to the service model. */
+    private azurePacerKey(pacerModel?: string): string {
+        const model = pacerModel
+            || (this.adapter['config'] as { modelName?: string } | undefined)?.modelName
+            || this.modelName;
         const endpoint = this.adapter.getEndpoint();
         return this.adapterType === 'azure-claude'
             ? buildAzureClaudeDeploymentKey(endpoint, model)
@@ -152,13 +206,14 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         opts: Parameters<typeof requestUrl>[0],
         timeoutMs: number,
         signal?: AbortSignal,
+        pacerModel?: string,
     ): Promise<import('obsidian').RequestUrlResponse> {
         if (!this.isAzureAdapter()) {
             return this.requestWithTimeout(requestUrl(opts), timeoutMs);
         }
         // Reuse the shared lease wrapper (azure-throttle-coverage audit M4) — one
         // acquire/finally-release lifecycle for every Azure egress, no duplication.
-        return withAzureLease(this.azurePacerKey(), signal, async () => {
+        return withAzureLease(this.azurePacerKey(pacerModel), signal, async () => {
             const r = await this.requestWithTimeout(requestUrl(opts), timeoutMs);
             logAzureRateLimitHeaders(parseAzureRateLimitHeaders(r.headers), this.adapterType);
             return r;
@@ -272,7 +327,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         body: string,
         timeoutMs: number,
         signal?: AbortSignal,
-        onRetryStatus?: (seconds: number) => void
+        onRetryStatus?: (seconds: number) => void,
+        pacerModel?: string,
     ): Promise<import('obsidian').RequestUrlResponse> {
         let lastResponse: import('obsidian').RequestUrlResponse | null = null;
         for (let attempt = 0; attempt < this.MAX_RETRIES; attempt++) {
@@ -281,7 +337,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // not a network-error phase.
             if (signal?.aborted) throw new Error('Aborted');
             try {
-                lastResponse = await this.pacedRequestUrl({ url, method: 'POST', headers, body, throw: false }, timeoutMs, signal);
+                lastResponse = await this.pacedRequestUrl({ url, method: 'POST', headers, body, throw: false }, timeoutMs, signal, pacerModel);
             } catch (networkErr) {
                 // A pacer queued-abort rejects with name 'AbortError' — treat as a
                 // clean cancellation, not a retriable network error.
@@ -616,13 +672,19 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // don't silently fall back to truncated content when a rate limit is hit.
         // D6: thread the abort signal + retry-status callback so Cancel interrupts
         // a backoff and the UI surfaces "retrying in Ns".
+        // presentation-depth-controls D2 (Gemini-R2 G1): the body's resolved model
+        // (which now honors a per-call modelOverride on the Claude path) is also the
+        // Azure pacer-key identity — so an override-driven Sonnet→Opus call paces
+        // under the Opus deployment's RPM bucket, not the static service model's.
+        const pacerModel = typeof requestBody.model === 'string' ? requestBody.model : undefined;
         const response = await this.postWithRetry(
             endpoint,
             this.adapter.getHeaders(),
             JSON.stringify(requestBody),
             timeoutMs,
             options?.signal,
-            options?.onRetryStatus
+            options?.onRetryStatus,
+            pacerModel,
         );
 
         if (response.status < 200 || response.status >= 300) {
@@ -690,11 +752,17 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         } else {
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
             // modelOverride allows per-call model switching (e.g., presentation pipeline
-            // routes generation to Opus and audits to Sonnet non-reasoning).
+            // routes generation to Opus and audits to Sonnet non-reasoning). Routed through
+            // the shared resolveModelOverride (presentation-depth-controls D2) so a `latest-*`
+            // override resolves to a concrete id and an unresolvable sentinel is dropped
+            // (never sent literally) — same resolver the Claude path uses.
             // AZURE: azure-openai's deployment-routed URL bakes the deployment into the
             // path and ignores body.model, so drop modelOverride for it (plan AD-4).
             const blockOverride = this.adapterType === 'azure-openai';
-            const modelName = (!blockOverride && options?.modelOverride)
+            const overrideModel = blockOverride
+                ? ''
+                : resolveModelOverride(this.adapterType, options?.modelOverride, computeAvailableModelIds(this.adapterType));
+            const modelName = overrideModel
                 || (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim())
                 || PROVIDER_DEFAULT_MODEL[this.adapterType]
                 || PROVIDER_DEFAULT_MODEL.openai;
@@ -756,13 +824,23 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      *   prefix Anthropic would silently refuse to cache.
      */
     private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): Record<string, unknown> {
-        const modelName = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
+        const serviceModel = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
+        // presentation-depth-controls D2: honor a per-call modelOverride on the Claude
+        // path (previously a silent no-op — the core bug). `azure-claude` is model-in-body
+        // (NOT deployment-routed) so it honors the override too; only `azure-openai` blocks
+        // it (handled in the OpenAI branch). Unresolvable sentinel → '' → service model.
+        const modelName = resolveModelOverride(this.adapterType, options?.modelOverride, computeAvailableModelIds(this.adapterType))
+            || serviceModel;
         const thinkingMode = this.adapter['config']?.thinkingMode;
-        const modelSupportsThinking = thinkingMode === 'adaptive'
-            && claudeSupportsAdaptiveThinking(modelName);
 
-        // Per-call override: disableThinking skips thinking even if model supports it
-        const useThinking = modelSupportsThinking && !options?.disableThinking;
+        // presentation-depth-controls D1: thinking is on when the service default is
+        // adaptive OR the caller forces it via enableThinking — gated by model capability
+        // (checked against the RESOLVED model, so an Opus override re-enables thinking and
+        // a Haiku override disables it). disableThinking WINS over both.
+        const wantThinking = thinkingMode === 'adaptive' || !!options?.enableThinking;
+        const useThinking = wantThinking
+            && claudeSupportsAdaptiveThinking(modelName)
+            && !options?.disableThinking;
 
         let maxTokens: number;
         if (options?.maxTokens) {

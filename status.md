@@ -1,5 +1,36 @@
 # Project Status Log
 
+## 2026-06-08 — Presentation/LLM depth controls (thinking opt-in + Speed pill + per-call modelOverride fix)
+
+### Changes
+- **Fixed a latent core bug**: `buildClaudeSummarizeBody` IGNORED `options.modelOverride` on `claude`/`azure-claude` — a silent no-op that broke every per-call route (presentation role overrides, `contentSizePolicy` chunk-map `latest-haiku`, selective refine) on the dominant provider. Both the Claude path and the OpenAI branch now route through one shared pure **`resolveModelOverride`** (resolves `latest-*`, DROPS an unresolvable sentinel to `''` — never sends a literal alias) + the companion **`computeAvailableModelIds`**.
+- **Thinking is now opt-in**: `SummarizeOptions.enableThinking` (symmetric twin of `disableThinking`, which wins); `claudeThinkingMode` default `'adaptive'→'standard'` + guarded one-time migration `thinkingDefaultOffV1`.
+- **`resolveDepthModel`** (modelCatalog SSOT) + **Speed pill** now has a real effect: Fast=main / Deep=Opus, routing the storyboard GENERATOR only (role override wins; cross-provider/local untouched; critic unaffected). Speed pills get effect-naming tooltips.
+- **Research "Deep thinking" toggle** (capability-gated to Claude-family adaptive-capable models): `buildResearchSynthesisOptions` (enable/authoritative-disable) on `synthesize` + `synthesizeStream` + the vault-precheck fallback; session-persisted.
+- **Azure pacer-key ripple**: the resolved override model threads through to `azurePacerKey` so a Sonnet→Opus override paces under the Opus deployment's RPM bucket.
+- Constructor diagnosability: `logger.warn` on an unresolved `latest-*` service model (closed the h3h5 audit LOW).
+
+### Files Affected
+- `src/services/cloudService.ts` — `computeAvailableModelIds` + `resolveModelOverride` exports, modelOverride fix, enableThinking, pacer-key ripple, constructor warn
+- `src/services/types.ts` — `SummarizeOptions.enableThinking`
+- `src/core/settings.ts` — default `'standard'` + `thinkingDefaultOffV1` guard + migration
+- `src/core/modelCatalog.ts` — `resolveDepthModel`
+- `src/ui/chat/presentation/speedPillModel.ts` (new), `PresentationModeHandler.ts`, `CreatePanel.ts` — Speed pill → generator model + tooltips
+- `src/ui/chat/ResearchModeHandler.ts`, `src/services/research/{researchOrchestrator,researchTypes}.ts` — Deep-thinking toggle + helpers
+- `src/i18n/{en,types}.ts` — speed-pill + deep-thinking strings
+- Tests: `cloudServiceClaudeRouting` (new), `speedPillModel` (new), `modelCatalog`, `settingsMigration`, `researchOrchestrator`, `streamingSynthesis`
+- `AGENTS.md` — feature section
+
+### Process
+- `/cycle` clustered: Cluster A GPT-converged (over-capture rebutted to 0 HIGH/MEDIUM; 2 LOW → tech-debt, h3h5 later mitigated) + Cluster B (fix-gate `final`) → **consolidated Gemini gate APPROVE** ("exceptional… production-ready", architectural coherence Strong).
+- Verify: tsc clean · vitest **5868 passed** · test:auto **45/45** · build:quick clean (`createElement("script")`=0).
+
+### Notes
+- Non-Claude / non-Azure behavior byte-identical (locked by no-override baseline tests).
+- Pre-existing `npm run lint` is broken (a `.cjs` stub + typed-rule parser config) independent of this change; changed-line files are lint-clean.
+
+---
+
 ## 2026-06-08 — Obsidian community-review remediation + listing polish (1.0.17→1.0.19)
 
 ### Changes

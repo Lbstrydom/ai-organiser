@@ -13,7 +13,7 @@
  * Plan: docs/completed/slide-authoring-followup-implementation.md (Phase C).
  */
 
-import type { App } from 'obsidian';
+import { setTooltip, type App } from 'obsidian';
 import type AIOrganiserPlugin from '../../../main';
 import type { Translations } from '../../../i18n/types';
 import type {
@@ -32,6 +32,7 @@ export type CreatePanelT = Pick<
     | 'slideCreateAudienceExecutive' | 'slideCreateAudienceGeneral'
     | 'slideCreateLengthLabel' | 'slideCreateLengthCustom'
     | 'slideCreateSpeedLabel' | 'slideCreateSpeedFast' | 'slideCreateSpeedQuality'
+    | 'slideCreateSpeedFastTooltip' | 'slideCreateSpeedQualityTooltip'
     | 'slideCreatePlanLabel' | 'slideCreatePlanStoryline' | 'slideCreatePlanDirect'
     | 'slideCreateSourcesLabel'
     | 'slideCreateSourcesAddNote' | 'slideCreateSourcesAddWeb' | 'slideCreateSourcesAddFolder'
@@ -247,8 +248,8 @@ function renderSpeedRow(parent: HTMLElement, opts: CreatePanelOptions): void {
     });
     row.createSpan({ cls: 'ai-organiser-pres-create-row-label', text: opts.t.slideCreateSpeedLabel });
 
-    addSpeedPill(row, opts, 'fast', opts.t.slideCreateSpeedFast);
-    addSpeedPill(row, opts, 'quality', opts.t.slideCreateSpeedQuality);
+    addSpeedPill(row, opts, 'fast', opts.t.slideCreateSpeedFast, opts.t.slideCreateSpeedFastTooltip);
+    addSpeedPill(row, opts, 'quality', opts.t.slideCreateSpeedQuality, opts.t.slideCreateSpeedQualityTooltip);
 }
 
 function addSpeedPill(
@@ -256,6 +257,7 @@ function addSpeedPill(
     opts: CreatePanelOptions,
     tier: ModelTier,
     label: string,
+    tooltip: string,
 ): void {
     const isActive = opts.getConfig().speedTier === tier;
     const pill = row.createEl('button', {
@@ -268,6 +270,8 @@ function addSpeedPill(
             tabindex: isActive ? '0' : '-1',
         },
     });
+    // Name the effect so the pill isn't an opaque label (D5: "Deep = Opus reasoning").
+    setTooltip(pill, tooltip);
     pill.addEventListener('click', () => {
         const cfg = opts.getConfig();
         if (cfg.speedTier === tier) return;

@@ -14,6 +14,11 @@ import { Readability } from '@mozilla/readability';
 import type AIOrganiserPlugin from '../../main';
 import { isFeatureEnabled } from '../featureService';
 import { summarizeText, summarizeTextStream, pluginContext } from '../llmFacade';
+import type { SummarizeOptions } from '../types';
+import { computeAvailableModelIds } from '../cloudService';
+import { resolveLatestModel, claudeSupportsAdaptiveThinking } from '../adapters/modelCapabilities';
+import { PROVIDER_DEFAULT_MODEL } from '../adapters/providerRegistry';
+import type { AIOrganiserSettings } from '../../core/settings';
 import {
     buildQueryDecompositionPrompt,
     buildContextualAnswerPrompt,
@@ -76,6 +81,37 @@ const PRECHECK_EXCERPT_LENGTH = 200;
 
 /** Callback to request user consent before escalating to a paid tier. */
 export type EscalationConsentFn = (url: string, tier: 'web-unlocker' | 'scraping-browser') => Promise<boolean>;
+
+/**
+ * Research-synthesis thinking options (presentation-depth-controls D6). The
+ * per-session "Deep thinking" checkbox FULLY controls research thinking in BOTH
+ * directions: ON → force adaptive thinking even when the global default is
+ * standard; OFF → force thinking off even when the global default is adaptive
+ * (`disableThinking` wins per D1). Authoritative for research synthesis regardless
+ * of `claudeThinkingMode`. Pure.
+ */
+export function buildResearchSynthesisOptions(args: { deepThinking?: boolean }): SummarizeOptions {
+    return args.deepThinking ? { enableThinking: true } : { disableThinking: true };
+}
+
+/**
+ * Capability gate for the research "Deep thinking" checkbox (presentation-depth-controls
+ * D7): only the Claude wire format (direct `claude` or `azure-claude`) supports adaptive
+ * thinking, AND only on a model that actually has it. Resolves the configured (possibly
+ * `latest-*`) main model to a concrete id first, so a user on `latest-sonnet` still sees
+ * the control. A non-Claude / local / Haiku main → the checkbox is omitted (never a silent
+ * no-op the user can toggle). Pure given a settings snapshot.
+ */
+export function researchDeepThinkingAvailable(settings: AIOrganiserSettings): boolean {
+    if (settings.serviceType === 'local') return false;
+    const adapterType = settings.cloudServiceType;
+    if (adapterType !== 'claude' && adapterType !== 'azure-claude') return false;
+    const configured = settings.providerSettings?.[adapterType]?.model
+        || settings.cloudModel
+        || PROVIDER_DEFAULT_MODEL[adapterType];
+    const resolved = resolveLatestModel(adapterType, configured, computeAvailableModelIds(adapterType)) ?? configured;
+    return claudeSupportsAdaptiveThinking(resolved);
+}
 
 export class ResearchOrchestrator {
     private sessionId: string;
@@ -714,6 +750,8 @@ export class ResearchOrchestrator {
         options?: {
             citationStyle?: 'numeric' | 'author-year';
             searchResults?: SearchResult[];
+            /** D6: per-session Deep-thinking toggle — drives adaptive thinking on synthesis. */
+            deepThinking?: boolean;
         },
     ): Promise<{ synthesis: string; sourceMetadata: SourceMetadata[] }> {
         const summaries = extractions
@@ -734,7 +772,10 @@ export class ResearchOrchestrator {
             summaries, question, noteContext, language, includeCitations,
             options?.citationStyle,
         );
-        const response = await summarizeText(pluginContext(this.plugin), prompt);
+        const response = await summarizeText(
+            pluginContext(this.plugin), prompt,
+            buildResearchSynthesisOptions({ deepThinking: options?.deepThinking }),
+        );
 
         // Build source metadata for Zotero/save-findings
         const sourceMetadata: SourceMetadata[] = summaries.map(s => ({
@@ -771,6 +812,8 @@ export class ResearchOrchestrator {
             includeCitations?: boolean;
             citationStyle?: 'numeric' | 'author-year';
             searchResults?: SearchResult[];
+            /** D6: per-session Deep-thinking toggle — drives adaptive thinking on synthesis. */
+            deepThinking?: boolean;
         },
     ): Promise<{ synthesis: string; sourceMetadata: SourceMetadata[] }> {
         const { signal, noteContext, language, includeCitations } = streamOpts ?? {};
@@ -794,6 +837,7 @@ export class ResearchOrchestrator {
         );
         const response = await summarizeTextStream(
             pluginContext(this.plugin), prompt, onChunk, signal,
+            buildResearchSynthesisOptions({ deepThinking: streamOpts?.deepThinking }),
         );
 
         const sourceMetadata: SourceMetadata[] = summaries.map(s => ({

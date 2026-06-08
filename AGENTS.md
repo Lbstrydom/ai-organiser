@@ -3037,6 +3037,32 @@ Kills the taxonomy-drift class between the **Features settings menu** and the **
 
 **Plan** (completed): [docs/completed/unified-feature-taxonomy.md](docs/completed/unified-feature-taxonomy.md). `/cycle` autonomous: GPT per-cluster audits + consolidated Gemini gate **APPROVE** ("brilliant architectural enforcement mechanism").
 
+## Presentation / LLM Depth Controls (thinking opt-in + Speed pill + per-call modelOverride fix)
+
+**Status**: ✅ Implemented (June 2026) — Clusters A (core) + B (consumers), consolidated Gemini gate APPROVE.
+
+Two coupled depth controls rooted in the core LLM service, plus the latent-bug fix that makes them work.
+
+### Cluster A — core LLM-service contract (`src/services/cloudService.ts`, `src/services/types.ts`, `src/core/settings.ts`, `src/core/modelCatalog.ts`)
+- **The core fix**: `buildClaudeSummarizeBody` previously IGNORED `options.modelOverride` on `claude`/`azure-claude` — a silent no-op that broke every per-call route on the dominant provider (`presentationModelRoles` same-provider role, `contentSizePolicy.mapModelOverride='latest-haiku'` chunk-map, selective refine). Now both the Claude path and the OpenAI branch route through one shared, exported, pure **`resolveModelOverride(adapterType, override, availableIds)`** — resolves `latest-*` against the live/static pool and **DROPS an unresolvable sentinel to `''`** (never sends a literal alias). `azure-claude` honours the override (model-in-body); `azure-openai` keeps `blockOverride` (deployment-routed URL). The companion **`computeAvailableModelIds(adapterType)`** is the pure live-cache-else-static pool helper (constructor + UI share it).
+- **`SummarizeOptions.enableThinking`** — symmetric twin of `disableThinking`; `useThinking = (thinkingMode==='adaptive' || enableThinking) && claudeSupportsAdaptiveThinking(RESOLVED model) && !disableThinking` — **`disableThinking` wins**; capability is checked against the resolved override model.
+- **Pacer-key ripple**: the resolved body model threads `sendSummarizeRequest → postWithRetry → pacedRequestUrl → azurePacerKey(pacerModel?)` so a per-call Sonnet→Opus override paces under the **Opus** deployment's RPM bucket, not the static service model's.
+- **Thinking default OFF**: `claudeThinkingMode` default `'adaptive' → 'standard'` + guarded one-time migration **`thinkingDefaultOffV1`** (flips a persisted `'adaptive' → 'standard'` once; a deliberate re-enable after the guard is preserved; mirrors `azureModelDefaultsV3`).
+- **`resolveDepthModel({adapterType, tier, availableIds})`** (modelCatalog SSOT): fast→`''`; direct-claude quality→`'latest-opus'`; `azure-claude` quality→newest catalog Opus present in `availableIds` (tenant on 4-6 still gets Deep), `''` if populated-no-opus, newest catalog opus if pool empty; other providers→`''`. Opus ids derived from `MODEL_CATALOG`.
+- Constructor diagnosability: `logger.warn` when a configured service model is still an unresolved `latest-*` (no real trigger; makes a misconfig self-diagnosing instead of a cryptic API error).
+
+### Cluster B — the two consumers
+- **Speed pill → storyboard generator** (`src/ui/chat/presentation/speedPillModel.ts` pure, `PresentationModeHandler.ts`, `CreatePanel.ts`): `resolveStoryboardModelOverride` — an explicit `storyboard_generator` role override WINS; else the pill upgrades the MAIN provider (**Deep=Opus** via `resolveDepthModel`, **Fast=main**). Applies ONLY on the main context (a cross-provider role keeps its baked model — never leaks a main-provider Opus id elsewhere) and never to local; non-Claude mains → `''`. Used at BOTH generator call sites (`runStoryboardStage` + `reviseStoryboard`) — the **critic is untouched**. Speed pills get a `setTooltip` naming the effect.
+- **Research Deep-thinking toggle** (`ResearchModeHandler.ts`, `researchOrchestrator.ts`, `researchTypes.ts`): **`buildResearchSynthesisOptions({deepThinking})`** — `enableThinking` or authoritative `disableThinking` (turns thinking OFF even when the global is adaptive) — applied on `synthesize` + `synthesizeStream` + the vault-precheck fallback. **`researchDeepThinkingAvailable(settings)`** capability-gates the checkbox (Claude-family + adaptive-capable resolved model only — never a silent no-op). `ResearchSessionState.deepThinking` persisted/restored alongside `academicMode`.
+
+### Key patterns
+- **Non-Claude / non-Azure byte-identical** — a no-override / no-thinking-flag call is unchanged (locked by baseline tests).
+- **`disableThinking` wins** over `enableThinking` and over the global adaptive default — the complete symmetric per-call thinking contract.
+- **Concrete override passes through; only `latest-*` is pool-gated and dropped-if-unresolvable** — never a literal sentinel to the API.
+
+### Tests
+`tests/{cloudServiceClaudeRouting,speedPillModel,modelCatalog,settingsMigration,researchOrchestrator,streamingSynthesis}.test.ts`. Plan + audit summary gitignored (`docs/plans/presentation-depth-controls*.md`); consolidated Gemini gate **APPROVE** ("exceptional… production-ready").
+
 ## Documentation
 
 See `docs/` folder for additional documentation:

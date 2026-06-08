@@ -9,10 +9,10 @@
  * multi-perspective, vault pre-check, Zotero/save-findings actions.
  */
 
-import { Platform, ButtonComponent, TFile } from 'obsidian';
+import { Platform, ButtonComponent, TFile, setTooltip } from 'obsidian';
 import type { ChatModeHandler, ModalContext, SendResult, ActionDescriptor, ActionCallbacks } from './ChatModeHandler';
 import type { Translations } from '../../i18n/types';
-import { ResearchOrchestrator, type EscalationConsentFn } from '../../services/research/researchOrchestrator';
+import { ResearchOrchestrator, buildResearchSynthesisOptions, researchDeepThinkingAvailable, type EscalationConsentFn } from '../../services/research/researchOrchestrator';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
 import { ResearchUsageService } from '../../services/research/researchUsageService';
 import { SourceQualityService } from '../../services/research/sourceQualityService';
@@ -87,6 +87,8 @@ export class ResearchModeHandler implements ChatModeHandler {
 
     // Phase 3: additional UI state
     private academicMode = false;
+    /** presentation-depth-controls D6: per-session "Deep thinking" toggle for synthesis. */
+    private deepThinking = false;
     private perspectiveMode = false;
     private sourceMetadata: SourceMetadata[] = [];
     private streamAbortController: AbortController | null = null;
@@ -291,6 +293,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         this.siteScope = session.siteScope;
         this.dateRange = session.dateRange ?? 'any';
         this.academicMode = session.academicMode ?? false;
+        this.deepThinking = session.deepThinking ?? false;
         this.perspectiveMode = session.perspectiveMode ?? this.perspectiveMode;
         this.sourceMetadata = session.sourceMetadata ?? [];
         this.conversationHistory = session.conversationHistory ?? [];
@@ -722,7 +725,12 @@ export class ResearchModeHandler implements ChatModeHandler {
                 .join('\n\n');
             const prompt = `Based on the following notes from my vault, answer this question: "${query}"\n\n${context}`;
             const { summarizeText, pluginContext } = await import('../../services/llmFacade');
-            const response = await summarizeText(pluginContext(ctx.fullPlugin), prompt);
+            // D6: the Deep-thinking toggle authoritatively controls thinking on the
+            // vault-context fallback too (parity with the web-synthesis paths).
+            const response = await summarizeText(
+                pluginContext(ctx.fullPlugin), prompt,
+                buildResearchSynthesisOptions({ deepThinking: this.deepThinking }),
+            );
             if (response.success && response.content) {
                 cb.addAssistantMessage(response.content);
             } else {
@@ -831,6 +839,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                         noteContext: ctx.options.noteContent?.slice(0, 20_000),
                         language, includeCitations, citationStyle,
                         searchResults: this.searchResults,
+                        deepThinking: this.deepThinking,
                     },
                 );
                 this.lastSynthesis = result.synthesis;
@@ -841,7 +850,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 const result = await this.orchestrator.synthesize(
                     successful, this.lastQuestion,
                     ctx.options.noteContent?.slice(0, 20_000), language, includeCitations,
-                    { citationStyle, searchResults: this.searchResults },
+                    { citationStyle, searchResults: this.searchResults, deepThinking: this.deepThinking },
                 );
                 this.lastSynthesis = result.synthesis;
                 this.sourceMetadata = result.sourceMetadata;
@@ -1026,6 +1035,7 @@ export class ResearchModeHandler implements ChatModeHandler {
                 phase: this.phase,
                 timestamp: Date.now(),
                 academicMode: this.academicMode,
+                deepThinking: this.deepThinking,
                 perspectiveMode: this.perspectiveMode,
                 sourceMetadata: this.sourceMetadata,
                 conversationHistory: this.conversationHistory.length > 0
@@ -1152,6 +1162,20 @@ export class ResearchModeHandler implements ChatModeHandler {
         academicCheckbox.addEventListener('change', () => {
             this.academicMode = (academicCheckbox).checked;
         });
+
+        // presentation-depth-controls D6/D7: per-session Deep-thinking toggle, rendered
+        // ONLY when the active provider/model supports adaptive thinking (Claude family) —
+        // never a silent no-op the user can toggle on a non-Claude provider.
+        if (researchDeepThinkingAvailable(ctx.fullPlugin.settings)) {
+            const deepLabel = row.createEl('label', { cls: 'ai-organiser-research-toggle-label' });
+            const deepCheckbox = deepLabel.createEl('input', { type: 'checkbox' });
+            deepCheckbox.checked = this.deepThinking;
+            deepLabel.createEl('span', { text: t.researchDeepThinking || 'Deep thinking' });
+            setTooltip(deepLabel, t.researchDeepThinkingTooltip || '');
+            deepCheckbox.addEventListener('change', () => {
+                this.deepThinking = deepCheckbox.checked;
+            });
+        }
     }
 
     /**

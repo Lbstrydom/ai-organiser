@@ -4,6 +4,7 @@
  */
 
 import type { TaskType } from './taskTypes';
+import { parseClaudeModel, type ClaudeModelParts } from '../services/adapters/modelCapabilities';
 
 export interface ModelCapabilities {
 	vision: boolean;
@@ -177,4 +178,56 @@ export const TASK_CAPABILITY_REQUIREMENTS: Record<TaskType, Partial<ModelCapabil
 export function getModelDisplayName(modelId: string): string {
 	const entry = CATALOG_MAP.get(modelId);
 	return entry?.name ?? modelId;
+}
+
+/** Catalog `azure-claude` Opus ids, newest version first — derived from the
+ *  MODEL_CATALOG SSOT (no loose hardcoding). An Opus version bump is a catalog
+ *  edit, picked up here automatically. */
+function azureClaudeOpusIdsNewestFirst(): string[] {
+	return MODEL_CATALOG
+		.filter(m => m.provider === 'azure-claude')
+		.map(m => ({ id: m.id as string, parts: parseClaudeModel(m.id) }))
+		.filter((x): x is { id: string; parts: ClaudeModelParts } => x.parts?.tier === 'opus')
+		.sort((a, b) => a.parts.major !== b.parts.major
+			? b.parts.major - a.parts.major
+			: b.parts.minor - a.parts.minor)
+		.map(x => x.id);
+}
+
+/**
+ * Depth-tier model resolver for the presentation Speed pill
+ * (presentation-depth-controls D4). Returns a CONCRETE model id to use as a
+ * per-call `modelOverride`, or `''` meaning "no upgrade — use the configured main
+ * model". The returned id is the INPUT to `resolveModelOverride`, never sent raw.
+ *
+ *  - tier `'fast'` → `''` (always; Fast = your main model, no upgrade).
+ *  - tier `'quality'`:
+ *      - direct `claude` → `'latest-opus'` (the idiomatic sentinel;
+ *        `resolveModelOverride` resolves it to the newest concrete claude-opus
+ *        against the live/static pool — never dropped, a concrete opus always exists).
+ *      - `azure-claude` → the newest catalog Opus PRESENT in `availableIds` (the
+ *        tenant's actual deployments), so a tenant on opus-4-6 still gets Deep.
+ *        `availableIds` non-empty but NO Opus → `''` (graceful Fast). `availableIds`
+ *        EMPTY (live cache never refreshed — static catalog is NOT tenant truth) →
+ *        the newest catalog Opus as an ATTEMPT (a genuinely-missing deployment then
+ *        surfaces as a clear API error, not a silent downgrade).
+ *      - other providers → `''`.
+ */
+export function resolveDepthModel(args: {
+	adapterType: string;
+	tier: 'fast' | 'quality';
+	availableIds: string[];
+}): string {
+	const { adapterType, tier, availableIds } = args;
+	if (tier === 'fast') return '';
+	if (adapterType === 'claude') return 'latest-opus';
+	if (adapterType === 'azure-claude') {
+		const opusNewestFirst = azureClaudeOpusIdsNewestFirst();
+		if (availableIds.length === 0) return opusNewestFirst[0] ?? '';
+		for (const id of opusNewestFirst) {
+			if (availableIds.includes(id)) return id;
+		}
+		return '';
+	}
+	return '';
 }

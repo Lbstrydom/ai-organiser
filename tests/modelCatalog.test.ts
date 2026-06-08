@@ -6,6 +6,7 @@ import {
 	isKnownModel,
 	CATALOG_ALIASES,
 	MODEL_CATALOG,
+	resolveDepthModel,
 } from '../src/core/modelCatalog';
 
 describe('modelCatalog.getCapabilities', () => {
@@ -95,5 +96,45 @@ describe('embedding model distinctness (plan §7)', () => {
 		const large = MODEL_CATALOG.find(m => m.id === 'text-embedding-3-large');
 		expect(small?.capabilities.dimensions).toBe(1536);
 		expect(large?.capabilities.dimensions).toBe(3072);
+	});
+});
+
+describe('resolveDepthModel (presentation-depth-controls D4)', () => {
+	it('fast tier → "" (no upgrade) for every provider', () => {
+		for (const adapterType of ['claude', 'azure-claude', 'gemini', 'openai']) {
+			expect(resolveDepthModel({ adapterType, tier: 'fast', availableIds: ['claude-opus-4-7'] })).toBe('');
+		}
+	});
+
+	it('direct claude quality → "latest-opus" sentinel (resolved downstream)', () => {
+		expect(resolveDepthModel({ adapterType: 'claude', tier: 'quality', availableIds: [] })).toBe('latest-opus');
+	});
+
+	it('azure-claude quality → newest catalog Opus PRESENT in availableIds', () => {
+		const ids = ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7'];
+		expect(resolveDepthModel({ adapterType: 'azure-claude', tier: 'quality', availableIds: ids })).toBe('claude-opus-4-7');
+	});
+
+	it('azure-claude quality → opus-4-6 for a tenant deployed only on 4-6 (not pinned to 4-7)', () => {
+		const ids = ['claude-sonnet-4-6', 'claude-opus-4-6'];
+		expect(resolveDepthModel({ adapterType: 'azure-claude', tier: 'quality', availableIds: ids })).toBe('claude-opus-4-6');
+	});
+
+	it('azure-claude quality → "" when availableIds is populated but has NO Opus (graceful Fast)', () => {
+		expect(resolveDepthModel({ adapterType: 'azure-claude', tier: 'quality', availableIds: ['claude-sonnet-4-6'] })).toBe('');
+	});
+
+	it('azure-claude quality → newest catalog Opus when availableIds is EMPTY (live cache never refreshed)', () => {
+		const result = resolveDepthModel({ adapterType: 'azure-claude', tier: 'quality', availableIds: [] });
+		// Derived from the MODEL_CATALOG SSOT — the newest azure-claude opus present.
+		const catalogOpus = MODEL_CATALOG.filter(m => m.provider === 'azure-claude' && /opus/.test(m.id)).map(m => m.id);
+		expect(catalogOpus).toContain(result);
+		expect(result).toBe('claude-opus-4-7');
+	});
+
+	it('non-claude providers → "" (no depth upgrade)', () => {
+		expect(resolveDepthModel({ adapterType: 'gemini', tier: 'quality', availableIds: [] })).toBe('');
+		expect(resolveDepthModel({ adapterType: 'openai', tier: 'quality', availableIds: ['gpt-4o'] })).toBe('');
+		expect(resolveDepthModel({ adapterType: 'azure-openai', tier: 'quality', availableIds: [] })).toBe('');
 	});
 });

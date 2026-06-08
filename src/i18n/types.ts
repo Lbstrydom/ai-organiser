@@ -2259,6 +2259,8 @@ export interface Translations {
             researchQualityLow: string;
             researchQualityTooltip: string;
             researchAcademicMode: string;
+            researchDeepThinking: string;
+            researchDeepThinkingTooltip: string;
             researchVaultPrecheckFound: string;
             researchVaultPrecheckUse: string;
             researchVaultPrecheckContinue: string;
@@ -2379,6 +2381,8 @@ export interface Translations {
             slideCreateSpeedLabel: string;
             slideCreateSpeedFast: string;
             slideCreateSpeedQuality: string;
+            slideCreateSpeedFastTooltip: string;
+            slideCreateSpeedQualityTooltip: string;
             slideCreatePlanLabel: string;
             slideCreatePlanStoryline: string;
             slideCreatePlanDirect: string;

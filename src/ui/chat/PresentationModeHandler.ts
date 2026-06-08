@@ -41,6 +41,7 @@ import { buildStoryboardJudge } from '../../services/chat/consultantCriticServic
 import type { StoryboardJudge } from '../../services/chat/consultantAuditService';
 import { resolveProviderProfile } from '../../services/providerProfile';
 import { CloudLLMService } from '../../services/cloudService';
+import { resolveStoryboardModelOverride } from './presentation/speedPillModel';
 import { PROVIDER_ENDPOINT } from '../../services/adapters/providerRegistry';
 import type { AdapterType } from '../../services/adapters';
 import { ResearchSearchService } from '../../services/research/researchSearchService';
@@ -627,6 +628,23 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /**
+     * Cluster B (D5): the storyboard GENERATOR's effective model. An explicit
+     * `storyboard_generator` role override wins; otherwise the Speed pill upgrades
+     * the MAIN provider (Deep=Opus, Fast=main) — but only when the generator runs on
+     * the main context (a cross-provider role keeps its own model). Never the critic.
+     */
+    private resolveStoryboardModel(r: RunContext, gen: { context: LLMFacadeContext; modelOverride: string }): string {
+        const s = r.ctx.fullPlugin.settings;
+        return resolveStoryboardModelOverride({
+            roleOverride: gen.modelOverride,
+            isMainContext: gen.context === r.llmCtx,
+            isLocal: s.serviceType === 'local',
+            adapterType: s.cloudServiceType,
+            speedTier: this.creationConfig.speedTier,
+        });
+    }
+
+    /**
      * Build the independent-critic `StoryboardJudge` (plan Cluster D) bound to the
      * resolved critic role (a DIFFERENT model family from the generator, per the
      * resolver's independence invariant). Returns undefined if the critic can't be
@@ -667,7 +685,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             targetLength: this.creationConfig.length,
             signal: r.abort.signal,
             deckName: r.originalQuery,
-            modelOverride: gen.modelOverride,
+            modelOverride: this.resolveStoryboardModel(r, gen),
             judge,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
@@ -731,7 +749,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             outputLanguage: r.ctx.fullPlugin.settings.summaryLanguage,
             deckName: pending.deckName,
             signal: r.abort.signal,
-            modelOverride: gen.modelOverride,
+            modelOverride: this.resolveStoryboardModel(r, gen),
             judge,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),

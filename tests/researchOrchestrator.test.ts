@@ -59,7 +59,8 @@ vi.mock('../src/services/canvas/canvasUtils', () => ({
     generateId: vi.fn().mockReturnValue('abc123def456ghij'),
 }));
 
-import { ResearchOrchestrator } from '../src/services/research/researchOrchestrator';
+import { ResearchOrchestrator, buildResearchSynthesisOptions, researchDeepThinkingAvailable } from '../src/services/research/researchOrchestrator';
+import type { AIOrganiserSettings } from '../src/core/settings';
 import { TFolder, createTFile } from './mocks/obsidian';
 import type { SearchResult, ResearchSessionState, SourceExtraction, PerspectiveQuery } from '../src/services/research/researchTypes';
 
@@ -576,6 +577,66 @@ describe('ResearchOrchestrator', () => {
             const result = await orchestrator.synthesize(extractions, 'question');
 
             expect(result.synthesis).toBe('Synthesis failed. Please try again.');
+        });
+
+        // ── presentation-depth-controls D6: Deep-thinking toggle threads to synthesis ──
+        it('deepThinking=true → synthesis call carries { enableThinking: true }', async () => {
+            mockSummarizeText.mockResolvedValue({ success: true, content: 'ok [1][2]' });
+            await orchestrator.synthesize(extractions, 'q', undefined, undefined, true, { deepThinking: true });
+            const lastArgs = mockSummarizeText.mock.calls.at(-1)!;
+            expect(lastArgs[2]).toEqual({ enableThinking: true });
+        });
+
+        it('deepThinking=false → synthesis call forces { disableThinking: true } (off even if global adaptive)', async () => {
+            mockSummarizeText.mockResolvedValue({ success: true, content: 'ok [1][2]' });
+            await orchestrator.synthesize(extractions, 'q', undefined, undefined, true, { deepThinking: false });
+            const lastArgs = mockSummarizeText.mock.calls.at(-1)!;
+            expect(lastArgs[2]).toEqual({ disableThinking: true });
+        });
+
+        it('no deepThinking option → defaults to { disableThinking: true }', async () => {
+            mockSummarizeText.mockResolvedValue({ success: true, content: 'ok [1][2]' });
+            await orchestrator.synthesize(extractions, 'q');
+            const lastArgs = mockSummarizeText.mock.calls.at(-1)!;
+            expect(lastArgs[2]).toEqual({ disableThinking: true });
+        });
+    });
+
+    // ═══ Deep-thinking helpers (presentation-depth-controls D6/D7) ═══
+
+    describe('buildResearchSynthesisOptions (D6)', () => {
+        it('deepThinking true → enableThinking', () => {
+            expect(buildResearchSynthesisOptions({ deepThinking: true })).toEqual({ enableThinking: true });
+        });
+        it('deepThinking false/undefined → disableThinking (authoritative off)', () => {
+            expect(buildResearchSynthesisOptions({ deepThinking: false })).toEqual({ disableThinking: true });
+            expect(buildResearchSynthesisOptions({})).toEqual({ disableThinking: true });
+        });
+    });
+
+    describe('researchDeepThinkingAvailable (D7 capability gate)', () => {
+        const settings = (o: Partial<AIOrganiserSettings>): AIOrganiserSettings =>
+            ({ serviceType: 'cloud', ...o } as AIOrganiserSettings);
+
+        it('true for direct claude on an adaptive-capable concrete model', () => {
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'claude', cloudModel: 'claude-sonnet-4-6' }))).toBe(true);
+        });
+        it('true for direct claude on a latest-* sentinel (resolved first)', () => {
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'claude', cloudModel: 'latest-sonnet' }))).toBe(true);
+        });
+        it('true for azure-claude on an Opus deployment', () => {
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'azure-claude', cloudModel: 'claude-opus-4-7' }))).toBe(true);
+        });
+        it('false for a Haiku model (no adaptive thinking)', () => {
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'claude', cloudModel: 'claude-haiku-4-5-20251001' }))).toBe(false);
+        });
+        it('false for non-Claude providers (openai / gemini / azure-openai)', () => {
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'openai', cloudModel: 'gpt-5.5' }))).toBe(false);
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'gemini', cloudModel: 'gemini-3.1-pro' }))).toBe(false);
+            expect(researchDeepThinkingAvailable(settings({ cloudServiceType: 'azure-openai', cloudModel: 'gpt-5.5' }))).toBe(false);
+        });
+        it('false for a local provider', () => {
+            expect(researchDeepThinkingAvailable(settings({ serviceType: 'local', cloudServiceType: 'claude', cloudModel: 'claude-sonnet-4-6' }))).toBe(false);
         });
     });
 
