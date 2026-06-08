@@ -174,6 +174,17 @@ export const consultantStoryboardSchema = z.object({
 });
 export type ConsultantStoryboard = z.infer<typeof consultantStoryboardSchema>;
 
+/** Validate an already-parsed object against the storyboard schema (e.g. a
+ *  persisted snapshot being restored). Same strict Zod gate as the LLM parser. */
+export function validateStoryboard(value: unknown): Result<ConsultantStoryboard> {
+    const parsed = consultantStoryboardSchema.safeParse(value);
+    if (!parsed.success) {
+        const first = parsed.error.issues[0];
+        return err(`storyboard: schema validation failed — ${first.path.join('.')}: ${first.message}`);
+    }
+    return ok(parsed.data);
+}
+
 /**
  * Parse + validate an LLM storyboard response. Mirrors `parseIrFromResponse`:
  * tolerant JSON extraction (direct → fence → object-search) then a strict Zod

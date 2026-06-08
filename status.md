@@ -1,5 +1,26 @@
 # Project Status Log
 
+## 2026-06-08 — Storyline deferred materialization + build-phrase / stale-label / cramped-transcript fixes
+
+### Changes
+- **Deferred `.md` materialization** ([docs/plans/storyline-deferred-materialization.md](docs/plans/storyline-deferred-materialization.md)): the consultant storyline now lives IN MEMORY (conversation state) during review — `runConsultantStage` no longer writes a `.md` eagerly. `pendingStoryline` changed from `{ notePath }` to `{ catalog, storyboard, storylineMarkdown, deckName, savedNotePath? }`. A `.md` is written ONLY on an explicit choice: **Save storyline** (`handleSaveStorylineNote` → write once, then `vault.modify` in place) or **Create deck** (`buildPendingStoryboard` → `buildDeckFromStoryboard` in-memory + a provenance `.md` copy). Build no longer depends on a file path (can't break if the note is moved/deleted). `getActionDescriptors` now returns TWO review CTAs.
+- **Crash-safety moved to the snapshot**: `getSerializableState` serializes a pending storyline (`{ storyboard, catalog, deckName, savedNotePath }`) when there's no deck; `restoreState` validates + restores it (re-derives the markdown via `storyboardToMarkdown`). The storyline chat message is restored via normal history. Added `validateStoryboard()` to `consultantStoryboard.ts`.
+- **Build-phrase matcher** (`looksLikeBuildCommand`): loosened from end-anchored to leading-verb + slides/deck/presentation noun with trailing words allowed — so the instructed phrase "Build slides from this storyline" now BUILDS (was treated as a revision). `make slide 3 a 2x2` / `create a 2x2 deck` still revise.
+- **Stale "Drafting storyline…" label**: new `storyline-review` phase (no thinking spinner; side-panel status "Storyline ready — …") set on the review-gate + revise early-returns, so the label no longer lingers after the draft completes.
+- **Cramped storyline transcript**: a `reviewingStoryline` layout flag + `ai-organiser-pres-reviewing` marker override the create-mode `display:none` collapse, so the posted storyline is visible + scrollable during review (was hidden entirely pre-deck).
+- **onClear leak**: `onClear` now nulls `pendingStoryline` (a pending storyline used to survive Clear/Discard, stranding the review CTAs/gate).
+
+### Files Affected
+- `src/ui/chat/PresentationModeHandler.ts` — pendingStoryline type, runConsultantStage (no eager write), handlePendingStoryline (in-memory build/revise), saveStorylineNote, handleSaveStorylineNote, buildPendingStoryboard, commitBuiltDeck extraction, getActionDescriptors (2 CTAs), getSerializableState/restoreState pending support, getLayoutState reviewingStoryline, onClear leak fix, storyline-review phase
+- `src/services/chat/consultantStoryboardPipeline.ts` — `looksLikeBuildCommand` regex; `src/services/presentationIr/consultantStoryboard.ts` — `validateStoryboard`
+- `src/services/chat/presentationTypes.ts` — `storyline-review` phase; `src/ui/controllers/PresentationLayoutController.ts` + `src/ui/modals/UnifiedChatModal.ts` + `styles.css` — reviewing marker; `src/i18n/{en,types}.ts` — 4 keys
+- Tests: `tests/presentationModeHandler.deferredStoryline.test.ts` (new, 7) + `tests/consultantStoryboardPipeline.test.ts` (build-phrase cases)
+
+### Verify
+- tsc clean · full vitest green · test:auto 45/45 (i18n parity) · build:quick clean · deployed. Pre-existing popout-timer lint advisories only (no new). Live harness re-verification pending (the `persona-consultant-slides.mjs` harness needs adapting to the deferred flow — it asserts an eager note).
+
+---
+
 ## 2026-06-08 — Slides workspace: run-lock recovery + Clear/Discard repaint + storyboard content-bleed fix
 
 ### Changes

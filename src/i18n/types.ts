@@ -2436,6 +2436,9 @@ export interface Translations {
             slideGenerateFailed: string;            // "Failed to generate: {error}"
             storylineReady: string;                 // consultant mode: storyline note written for review
             storylineRevised: string;               // consultant mode: storyline revised, still in review
+            storylineReadyInChat: string;           // consultant mode: storyline drafted in-memory (Save / Create-deck choice)
+            storylineRevisedInChat: string;         // consultant mode: in-memory storyline revised, still in review
+            storylineSaved: string;                 // consultant mode: storyline materialized to a .md ({name})
             storylineWriteFailed: string;           // consultant mode: storyline note write failed
             storylineBuildFailed: string;           // consultant mode: build-from-storyline failed
             storylineReviseFailed: string;          // consultant mode: storyline revision failed
@@ -2445,6 +2448,7 @@ export interface Translations {
             // both the side-panel status text and the thinking-indicator bubble
             // use these keys (F4 follow-up).
             phaseStoryboarding: string;
+            phaseStorylineReview: string;
             phaseGenerating: string;
             phaseRefining: string;
             phaseAuditing: string;

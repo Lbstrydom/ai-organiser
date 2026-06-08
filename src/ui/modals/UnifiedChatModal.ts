@@ -469,11 +469,12 @@ export class UnifiedChatModal extends Modal {
         if (!this.layoutController) return;
         const ls = this.activeMode === 'presentation' && this.presentationHandler
             ? this.presentationHandler.getLayoutState()
-            : { hasDeck: false, deckVersion: 0 };
+            : { hasDeck: false, deckVersion: 0, reviewingStoryline: false };
         this.layoutController.sync({
             mode: this.activeMode ?? '',
             hasDeck: ls.hasDeck,
             deckVersion: ls.deckVersion,
+            reviewingStoryline: ls.reviewingStoryline,
         });
     }
 

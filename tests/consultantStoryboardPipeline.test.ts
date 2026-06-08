@@ -102,8 +102,13 @@ describe('looksLikeBuildCommand', () => {
             expect(looksLikeBuildCommand(m)).toBe(true);
         }
     });
+    it('matches the instructed phrase with trailing words (the storyline note says "Build slides from this storyline")', () => {
+        for (const m of ['Build slides from this storyline', 'Build the slides from this storyline', 'create the deck now', 'generate the presentation please']) {
+            expect(looksLikeBuildCommand(m)).toBe(true);
+        }
+    });
     it('treats change requests as NOT build (→ revise)', () => {
-        for (const m of ['make slide 2 a 2x2', 'sharpen the thesis', 'add a slide on risks', 'build a stronger argument for EMEA', 'tighten slide 3']) {
+        for (const m of ['make slide 2 a 2x2', 'sharpen the thesis', 'add a slide on risks', 'build a stronger argument for EMEA', 'tighten slide 3', 'create a 2x2 deck of the options']) {
             expect(looksLikeBuildCommand(m)).toBe(false);
         }
     });

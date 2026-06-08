@@ -7734,6 +7734,24 @@
     margin-bottom: auto;
 }
 
+/* Storyline review (no deck yet, but a storyline is posted in the transcript):
+   override the create-mode collapse — the transcript IS the review surface, so
+   give it the room (scrollable) instead of hiding it. The create form drops its
+   centring auto-margins so the transcript's flex:1 wins. (More specific than the
+   collapse + busy rules; source order also after them.) */
+.ai-organiser-chat-modal-content.ai-organiser-pres-create.ai-organiser-pres-reviewing .ai-organiser-chat-area {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+.ai-organiser-chat-modal-content.ai-organiser-pres-create.ai-organiser-pres-reviewing > .ai-organiser-chat-context {
+    margin-top: 0;
+}
+.ai-organiser-chat-modal-content.ai-organiser-pres-create.ai-organiser-pres-reviewing > .ai-organiser-chat-actions {
+    margin-bottom: 0;
+}
+
 /* ── Slides filmstrip (Phase 2) ─────────────────────────────────────────────
    Canvas body lays the filmstrip (left) + preview (fills) in a row inside the
    canvas grid cell, so the side-rail grid template is untouched. */

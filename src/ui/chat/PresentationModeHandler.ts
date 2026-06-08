@@ -31,11 +31,12 @@ import { runBrandAudit, generateDeckIr, refineDeckIr, buildHtmlFromDeckIr } from
 import type { SlideDeckIr } from '../../services/presentationIr/slideIr';
 import { validateDeckIr } from '../../services/presentationIr/slideIr';
 import type { Result } from '../../core/result';
-import type { EvidenceSpan } from '../../services/presentationIr/consultantStoryboard';
+import type { EvidenceSpan, ConsultantStoryboard } from '../../services/presentationIr/consultantStoryboard';
+import { validateStoryboard } from '../../services/presentationIr/consultantStoryboard';
+import { storyboardToMarkdown } from '../../services/presentationIr/dotDashSerializer';
 import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
 import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
 import { classifyStorylineNote } from '../../services/chat/storylineNote';
-import { markdownToStoryboard } from '../../services/presentationIr/dotDashParser';
 import { resolvePresentationRole, type PresentationRole } from '../../services/presentationIr/presentationModelResolver';
 import { buildStoryboardJudge } from '../../services/chat/consultantCriticService';
 import type { StoryboardJudge } from '../../services/chat/consultantAuditService';
@@ -176,7 +177,17 @@ export class PresentationModeHandler implements ChatModeHandler {
      * REVISES the storyline (chat request / doc comments) or BUILDS the deck — all
      * without re-resolving sources or re-running any web search. Cleared on build.
      */
-    private pendingStoryline: { catalog: EvidenceSpan[]; notePath: string; deckName: string } | null = null;
+    // The WORKING storyline lives in memory (conversation state), not on disk. A
+    // `.md` is materialized only on an explicit Save / Create-deck choice
+    // (storyline-deferred-materialization). `savedNotePath` is set once Save has
+    // written a file, so a later Save / revision updates it in place.
+    private pendingStoryline: {
+        catalog: EvidenceSpan[];
+        storyboard: ConsultantStoryboard;
+        storylineMarkdown: string;
+        deckName: string;
+        savedNotePath?: string;
+    } | null = null;
     private readonly editScope = new EditScopeController({
         getOperation: () => this.deriveOperation(),
         isLocked: () => this.run.isLocked(),
@@ -219,6 +230,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             case 'auditing':     return t?.phaseAuditing   ?? 'Checking brand compliance…';
             case 'exporting':    return t?.phaseExporting  ?? 'Exporting…';
             case 'empty':
+            case 'storyline-review':
             case 'preview-ready':
             case 'error':
                 return null;
@@ -362,6 +374,7 @@ export class PresentationModeHandler implements ChatModeHandler {
     private getPhaseStatusText(t: Translations['modals']['unifiedChat']): string | null {
         switch (this.deck.phase) {
             case 'storyboarding': return t.phaseStoryboarding;
+            case 'storyline-review': return t.phaseStorylineReview;
             case 'generating': return t.phaseGenerating;
             case 'refining':   return t.phaseRefining;
             case 'auditing':   return t.phaseAuditing;
@@ -694,18 +707,20 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!stage.ok) return err(stage.error);
 
         if (settings.presentationStorylineGate === 'review') {
-            try {
-                const notePath = await this.writeStorylineNote(r.ctx, stage.value.storylineMarkdown, r.originalQuery);
-                this.pendingStoryline = { catalog, notePath, deckName: r.originalQuery };
-                const name = notePath.split('/').pop() ?? notePath;
-                // Post the storyline IN the chat for conversational iteration; the
-                // note is the auto-saved background copy.
-                return { early: `${stage.value.storylineMarkdown}\n\n---\n\n${t.storylineReady.replace('{name}', name)}` };
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                logger.error('Presentation', `[storyline] note write failed: ${msg}`);
-                return { early: t.storylineWriteFailed.replace('{error}', msg) };
-            }
+            // Keep the storyline IN MEMORY (conversation state) — no .md is written
+            // until the user explicitly Saves or Creates a deck. Post it in chat for
+            // conversational iteration. The 'storyboarding' phase label is cleared by
+            // the early-return path in generateIr so it doesn't linger as "Drafting…".
+            this.pendingStoryline = {
+                catalog,
+                storyboard: stage.value.storyboard,
+                storylineMarkdown: stage.value.storylineMarkdown,
+                deckName: r.originalQuery,
+            };
+            // Leave the 'storyboarding' ("Drafting storyline…") phase — the draft is
+            // done and awaiting the user's Save / Create-deck choice.
+            this.setPhase('storyline-review');
+            return { early: `${stage.value.storylineMarkdown}\n\n---\n\n${t.storylineReadyInChat}` };
         }
         // auto-build: storyboard → IR directly (no markdown round-trip).
         return buildDeckFromStoryboard(stage.value.storyboard);
@@ -722,30 +737,26 @@ export class PresentationModeHandler implements ChatModeHandler {
         const pending = this.pendingStoryline;
         const t = r.ctx.plugin.t.modals.unifiedChat;
         if (!pending) return err('no pending storyline');
-        const file = r.ctx.app.vault.getAbstractFileByPath(pending.notePath);
-        if (!(file instanceof TFile)) {
-            this.pendingStoryline = null;
-            return err(t.storylineBuildFailed.replace('{error}', 'the storyline note was moved or deleted'));
-        }
-        const md = await r.ctx.app.vault.read(file);
         const request = r.originalQuery;
 
         if (looksLikeBuildCommand(request)) {
-            // BUILD: re-read + re-ground the (possibly edited) note, then translate.
-            const built = buildDeckFromStoryline(md, pending.catalog, r.ctx.fullPlugin.settings.summaryLanguage);
-            if (!built.ok) return err(t.storylineBuildFailed.replace('{error}', built.error));
+            // BUILD from the IN-MEMORY storyboard (no file dependency — can't break
+            // if a note was moved/deleted). Write a .md provenance copy (best-effort;
+            // the build still succeeds if the copy fails). generateIr commits the deck.
+            const deck = buildDeckFromStoryboard(pending.storyboard);
+            if (!deck.ok) return err(t.storylineBuildFailed.replace('{error}', deck.error));
+            await this.saveStorylineNote(r.ctx, pending).catch((e) =>
+                logger.warn('Presentation', `[storyline] provenance copy failed: ${e instanceof Error ? e.message : String(e)}`));
             this.pendingStoryline = null;
-            return ok(built.value.deck);
+            return ok(deck.value);
         }
 
-        // REVISE: apply the request + any reviewer comments, re-ground/audit,
-        // rewrite the note in place, and stay in review for the next turn.
-        this.setPhase('storyboarding');  // revising the storyline, not generating slides
-        const parsed = markdownToStoryboard(md);
-        if (!parsed.ok) return { early: t.storylineReviseFailed.replace('{error}', parsed.error) };
+        // REVISE the in-memory storyboard, re-post, and stay in review. Reviewer
+        // comments now come from the chat message itself (no .md to embed them in).
+        this.setPhase('storyboarding');
         const gen = await this.resolveRoleRun(r, 'storyboard_generator');
         const judge = await this.buildCritic(r, pending.catalog);
-        const revised = await reviseStoryboard(gen.context, parsed.value.storyboard, request, parsed.value.comments, pending.catalog, {
+        const revised = await reviseStoryboard(gen.context, pending.storyboard, request, [], pending.catalog, {
             outputLanguage: r.ctx.fullPlugin.settings.summaryLanguage,
             deckName: pending.deckName,
             signal: r.abort.signal,
@@ -757,10 +768,34 @@ export class PresentationModeHandler implements ChatModeHandler {
         });
         if (r.abort.signal.aborted) return { early: t.generationCancelled };
         if (!revised.ok) return { early: t.storylineReviseFailed.replace('{error}', revised.error) };
-        await r.ctx.app.vault.modify(file, revised.value.storylineMarkdown);
-        const name = pending.notePath.split('/').pop() ?? pending.notePath;
-        // Re-post the revised storyline in the chat so iteration stays conversational.
-        return { early: `${revised.value.storylineMarkdown}\n\n---\n\n${t.storylineRevised.replace('{name}', name)}` };
+        pending.storyboard = revised.value.storyboard;
+        pending.storylineMarkdown = revised.value.storylineMarkdown;
+        // If the user already Saved a .md, keep it in sync with the revision.
+        if (pending.savedNotePath) {
+            const f = r.ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
+            if (f instanceof TFile) await r.ctx.app.vault.modify(f, revised.value.storylineMarkdown);
+            else pending.savedNotePath = undefined; // moved/deleted — drop the stale link
+        }
+        this.setPhase('storyline-review'); // clear the transient "Drafting storyline…" label
+        return { early: `${revised.value.storylineMarkdown}\n\n---\n\n${t.storylineRevisedInChat}` };
+    }
+
+    /** Materialize / update the storyline `.md` for `pending` (the Save action +
+     *  build provenance copy). Writes once, then updates `savedNotePath` in place. */
+    private async saveStorylineNote(
+        ctx: ModalContext,
+        pending: NonNullable<PresentationModeHandler['pendingStoryline']>,
+    ): Promise<string> {
+        if (pending.savedNotePath) {
+            const existing = ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
+            if (existing instanceof TFile) {
+                await ctx.app.vault.modify(existing, pending.storylineMarkdown);
+                return pending.savedNotePath;
+            }
+        }
+        const path = await this.writeStorylineNote(ctx, pending.storylineMarkdown, pending.deckName);
+        pending.savedNotePath = path;
+        return path;
     }
 
     /** Write the dot-dash storyline `.md` to the presentation output folder + open it. */
@@ -1093,19 +1128,28 @@ export class PresentationModeHandler implements ChatModeHandler {
         const locked = this.run.isLocked();
 
         // Consultant review gate: while a storyline is pending (no deck yet), the
-        // primary CTA is "Create deck" — an explicit affordance for the build step
-        // that otherwise requires typing "build" into chat. Builds from the
-        // (possibly user-edited) storyline note using the on-screen create-panel
-        // settings (brand applied at build; slide-count/sources shaped the storyline).
+        // working storyline lives in memory and NO .md has been written. The user
+        // gets two explicit choices — Save storyline (materialize a hand-editable
+        // .md) or Create deck (build slides + save a provenance copy).
         if (this.pendingStoryline && !hasDeck) {
-            return [{
-                id: 'create-deck-from-storyline',
-                labelKey: 'Create deck',
-                tooltipKey: 'Build the slide deck from the storyline above (apply your On-brand + export settings)',
-                isEnabled: !locked,
-                requiresEditor: false,
-                isDefault: true,
-            }];
+            return [
+                {
+                    id: 'save-storyline-note',
+                    labelKey: 'Save storyline',
+                    tooltipKey: 'Save the storyline above as a Markdown note you can hand-edit (no slides yet)',
+                    isEnabled: !locked,
+                    requiresEditor: false,
+                    isDefault: false,
+                },
+                {
+                    id: 'create-deck-from-storyline',
+                    labelKey: 'Create deck',
+                    tooltipKey: 'Build the slide deck from the storyline above (also saves a Markdown copy)',
+                    isEnabled: !locked,
+                    requiresEditor: false,
+                    isDefault: true,
+                },
+            ];
         }
 
         // Export HTML is the primary CTA: the HTML note is the editable
@@ -1167,6 +1211,7 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     async handleAction(actionId: string, ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
         switch (actionId) {
+            case 'save-storyline-note': return this.handleSaveStorylineNote(ctx, callbacks);
             case 'create-deck-from-storyline': return this.handleCreateDeckFromStoryline(ctx, callbacks);
             case 'export-pptx': return this.exportPptx(ctx, callbacks);
             case 'export-html': return this.exportHtmlFile(ctx, callbacks);
@@ -1176,16 +1221,55 @@ export class PresentationModeHandler implements ChatModeHandler {
         }
     }
 
-    /** "Create deck" button (consultant review gate): build the deck from the
-     *  pending storyline note via the shared build path, then re-render the
-     *  context panel so the create panel is replaced by the deck preview. */
-    private async handleCreateDeckFromStoryline(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
+    /** "Save storyline" button (review gate): materialize the in-memory storyline
+     *  as a hand-editable `.md` (idempotent — a second Save updates the same file).
+     *  Stays in review; the create panel + actions are unchanged. */
+    private async handleSaveStorylineNote(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
+        const t = ctx.plugin.t.modals.unifiedChat;
         const pending = this.pendingStoryline;
-        if (!pending) { callbacks.notify(ctx.plugin.t.modals.unifiedChat.storylineNoteRequired); return; }
-        await this.buildFromStorylineNote(ctx, pending.notePath);
-        // buildFromStorylineNote clears pendingStoryline + sets the deck on success;
+        if (!pending) { callbacks.notify(t.storylineNoteRequired); return; }
+        try {
+            const path = await this.saveStorylineNote(ctx, pending);
+            const name = path.split('/').pop() ?? path;
+            callbacks.notify(t.storylineSaved.replace('{name}', name));
+        } catch (e) {
+            callbacks.notify(t.storylineWriteFailed.replace('{error}', e instanceof Error ? e.message : String(e)));
+        }
+    }
+
+    /** "Create deck" button (review gate): build the deck from the IN-MEMORY
+     *  storyboard (no file dependency), save a `.md` provenance copy, then re-render
+     *  the context panel so the create form is replaced by the deck preview. */
+    private async handleCreateDeckFromStoryline(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
+        await this.buildPendingStoryboard(ctx, callbacks);
+        // buildPendingStoryboard clears pendingStoryline + sets the deck on success;
         // re-render so the side panel switches from the create form to the preview.
         callbacks.rerenderContext?.();
+    }
+
+    /** Build the deck from the pending in-memory storyboard + commit it, then write
+     *  a `.md` provenance copy. Shares the deck-commit transaction with
+     *  `buildFromStorylineNote` via `commitBuiltDeck`. Never throws. */
+    private async buildPendingStoryboard(ctx: ModalContext, callbacks: ActionCallbacks): Promise<void> {
+        const t = ctx.plugin.t.modals.unifiedChat;
+        const pending = this.pendingStoryline;
+        if (!pending) { callbacks.notify(t.storylineNoteRequired); return; }
+        if (this.run.isLocked()) { callbacks.notify(t.presentationBusy); return; }
+        const deck = buildDeckFromStoryboard(pending.storyboard);
+        if (!deck.ok) { callbacks.notify(t.storylineBuildFailed.replace('{error}', deck.error)); return; }
+        this.run.begin(() => { /* deterministic build — no thinking sink */ }, t);
+        try {
+            if (!(await this.commitBuiltDeck(ctx, deck.value, pending.deckName))) return;
+            // Provenance .md copy (best-effort — the deck is already committed).
+            await this.saveStorylineNote(ctx, pending).catch((e) =>
+                logger.warn('Presentation', `[storyline] provenance copy failed: ${e instanceof Error ? e.message : String(e)}`));
+            this.pendingStoryline = null;
+        } catch (e) {
+            callbacks.notify(t.buildFromStorylineFailed.replace('{error}', e instanceof Error ? e.message : String(e)));
+        } finally {
+            this.run.end();
+            this.flushPendingBrandRerender();
+        }
     }
 
     onClear(): void {
@@ -1199,6 +1283,9 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.deck.qualityResult = null;
         this.deck.lastError = null;
         this.deck.phase = 'empty';
+        // Clear any in-review storyline (latent leak: a pending storyline used to
+        // survive Clear/Discard, leaving the review CTAs + gate stuck).
+        this.pendingStoryline = null;
         // Scoped-editing state — clear selection and reset mode/flags so a
         // fresh deck doesn't inherit stale scope from the previous one.
         this.editScope.reset();
@@ -1241,10 +1328,13 @@ export class PresentationModeHandler implements ChatModeHandler {
      * mutation (generate/refine/polish/restore push a version) so the controller
      * can resync deterministically.
      */
-    getLayoutState(): { hasDeck: boolean; deckVersion: number } {
+    getLayoutState(): { hasDeck: boolean; deckVersion: number; reviewingStoryline: boolean } {
         return {
             hasDeck: this.deck.html !== null && this.deck.phase !== 'empty',
             deckVersion: this.deck.deckEpoch,
+            // While a storyline is in review (no deck), the transcript holds the
+            // posted storyline — the create-mode layout must NOT collapse it.
+            reviewingStoryline: this.pendingStoryline !== null && this.deck.html === null,
         };
     }
 
@@ -1369,7 +1459,27 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Serialization ───────────────────────────────────────────────────────
 
     getSerializableState(): Record<string, unknown> | null {
-        if (!this.deck.html) return null;
+        if (!this.deck.html) {
+            // No deck yet — but a pending (in-review) storyline IS working state worth
+            // persisting (crash-safety for the review phase, now that the .md is no
+            // longer written eagerly). storyboard + catalog are plain serializable JSON.
+            const p = this.pendingStoryline;
+            if (p) {
+                return {
+                    schemaVersion: 1,
+                    brandEnabled: this.brandEnabled,
+                    pendingStoryline: {
+                        storyboard: p.storyboard,
+                        catalog: p.catalog,
+                        deckName: p.deckName,
+                        ...(p.savedNotePath ? { savedNotePath: p.savedNotePath } : {}),
+                    },
+                    createdAt: new Date().toISOString(),
+                    lastActiveAt: new Date().toISOString(),
+                };
+            }
+            return null;
+        }
         return {
             schemaVersion: 1,
             html: this.deck.html,
@@ -1387,6 +1497,26 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     restoreState(data: unknown): boolean {
+        // Pending-storyline snapshot (working storyline, no deck): restore the
+        // in-memory storyboard so Save / Create-deck / revise work after a reload.
+        // The storyline message itself is restored via the normal chat history.
+        const d = data as { html?: unknown; pendingStoryline?: unknown } | null;
+        if (d && !d.html && d.pendingStoryline && typeof d.pendingStoryline === 'object') {
+            const p = d.pendingStoryline as { storyboard?: unknown; catalog?: unknown; deckName?: unknown; savedNotePath?: unknown };
+            const sb = validateStoryboard(p.storyboard);
+            if (!sb.ok) return false;
+            const deckName = typeof p.deckName === 'string' ? p.deckName : 'Storyline';
+            this.pendingStoryline = {
+                catalog: Array.isArray(p.catalog) ? p.catalog as EvidenceSpan[] : [],
+                storyboard: sb.value,
+                storylineMarkdown: storyboardToMarkdown(sb.value, { deckName }),
+                deckName,
+                ...(typeof p.savedNotePath === 'string' ? { savedNotePath: p.savedNotePath } : {}),
+            };
+            this.deck.phase = 'storyline-review';
+            return true;
+        }
+
         const session = migratePresentationSession(data);
         if (!session) return false;
 
@@ -2034,24 +2164,12 @@ export class PresentationModeHandler implements ChatModeHandler {
 
             this.run.begin(() => { /* deterministic build — no thinking sink needed */ }, t);
             try {
-                // Capture brand BEFORE the async theme-resolve (Gemini-G1).
-                const requestedBrand = this.brandEnabled;
                 const built = buildDeckFromStoryline(md, [], ctx.plugin.settings.summaryLanguage);
                 if (!built.ok) { new Notice(t.storylineParseFailed.replace('{error}', built.error)); return; }
-                const exportTheme = await this.themeResolver.resolve(ctx, requestedBrand);
-                const themeCss = (await resolveTheme(ctx.app, ctx.plugin.settings, requestedBrand)).css;
-                const html = buildHtmlFromDeckIr(
-                    built.value.deck, exportTheme, themeCss,
-                    ctx.plugin.settings.summaryLanguage,
-                    ctx.plugin.t.progress.presentation.slideRenderFailed,
-                );
-                if (!html.ok) { new Notice(t.storylineParseFailed.replace('{error}', html.error)); return; }
-                this.commitNewDeck({ ir: built.value.deck, builtHtml: html.value, label: file.basename, renderedBrandEnabled: requestedBrand });
-                this.pendingStoryline = null;   // Gemini-G2: resync the live chat gate
-                this.runQualityCheck();
-                this.setPhase('preview-ready');
-                void this.runBackgroundQualityScan(this.getLLMContext(ctx), this.run.signal ?? new AbortController().signal);
-                new Notice(t.storylineRebuiltFromSavedNote);
+                if (await this.commitBuiltDeck(ctx, built.value.deck, file.basename)) {
+                    this.pendingStoryline = null;   // Gemini-G2: resync the live chat gate
+                    new Notice(t.storylineRebuiltFromSavedNote);
+                }
             } finally {
                 this.run.end();
                 this.flushPendingBrandRerender();
@@ -2061,6 +2179,28 @@ export class PresentationModeHandler implements ChatModeHandler {
             logger.error('Presentation', `[build-from-storyline] threw: ${msg}`);
             new Notice(t.buildFromStorylineFailed.replace('{error}', msg));
         }
+    }
+
+    /** Shared deck-commit transaction: resolve the theme, render the IR → HTML,
+     *  commit it as the live deck, run quality + the background scan. The CALLER
+     *  holds the run lock. Captures brand BEFORE the async theme-resolve (Gemini-G1).
+     *  Returns false (with a Notice) if the render fails. */
+    private async commitBuiltDeck(ctx: ModalContext, deckIr: SlideDeckIr, label: string): Promise<boolean> {
+        const t = ctx.plugin.t.modals.unifiedChat;
+        const requestedBrand = this.brandEnabled;
+        const exportTheme = await this.themeResolver.resolve(ctx, requestedBrand);
+        const themeCss = (await resolveTheme(ctx.app, ctx.plugin.settings, requestedBrand)).css;
+        const html = buildHtmlFromDeckIr(
+            deckIr, exportTheme, themeCss,
+            ctx.plugin.settings.summaryLanguage,
+            ctx.plugin.t.progress.presentation.slideRenderFailed,
+        );
+        if (!html.ok) { new Notice(t.storylineParseFailed.replace('{error}', html.error)); return false; }
+        this.commitNewDeck({ ir: deckIr, builtHtml: html.value, label, renderedBrandEnabled: requestedBrand });
+        this.runQualityCheck();
+        this.setPhase('preview-ready');
+        void this.runBackgroundQualityScan(this.getLLMContext(ctx), this.run.signal ?? new AbortController().signal);
+        return true;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

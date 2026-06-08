@@ -116,7 +116,13 @@ export async function reviseStoryboard(
 
 // Bare approval / build commands → commit to slides. Anything else (incl. a
 // change request like "make slide 2 a 2x2") → revise the storyline.
-const BUILD_SLIDES_RE = /^(build|generate|create)\s+(the\s+)?(slides?|deck|presentation)$/;
+// The slides matcher is anchored at the START (a leading build verb + a
+// slides/deck/presentation noun) but allows TRAILING words, so the phrase the
+// storyline note instructs — "Build slides from this storyline" — triggers a
+// build instead of being misread as a revision. `make slide 3 a 2x2` still
+// revises (no leading build verb); `create a 2x2 deck` still revises (the 2x2
+// breaks the verb→noun adjacency).
+const BUILD_SLIDES_RE = /^(build|generate|create)\s+(the\s+|a\s+|this\s+)?(slides?|deck|presentation)\b/;
 const BUILD_APPROVE_RE = /^(build|go|proceed|done|approve|ship it|go ahead|looks good|perfect|yes|ok|okay)( it)?$/;
 
 /** True when the message is a clear "build the slides now" / approval (not a revision request). */
