@@ -62,7 +62,12 @@ export function buildStoryboardPrompt(
 Write a "ghost deck": a tight, MECE storyline where every slide's title states the SO-WHAT (the implication), supported by evidence. Output ONE JSON object — a ConsultantStoryboard — and nothing else.
 </task>
 
+<user_brief>
+${neutralise(userBrief)}
+</user_brief>
+
 <requirements>
+- BRIEF AUTHORITY: the deck is about whatever the <user_brief> above asks for. Use the <evidence_catalog> to GROUND the storyline with real facts/numbers where they fit the brief. If the catalog's subject differs from the brief, FOLLOW THE BRIEF — never substitute the catalog's subject — and write the storyline qualitatively where the catalog has no relevant facts.
 - ACTION TITLES, not labels. The title states the implication ("EMEA drove 60% of Q3 growth"), is verb-bearing, and is quantified ONLY where a cited span supports the number. Never "Revenue by Region".
 - One message per slide. Slides ladder up to the deck thesis (pyramid principle). Roles: context | problem | insight | recommendation | proof.
 - GROUNDING: every number in a title or visual_data MUST trace to a cited evidence_span_id from the catalog below. If the data isn't in the catalog, do NOT invent it — use a qualitative so-what instead.
@@ -72,10 +77,6 @@ Write a "ghost deck": a tight, MECE storyline where every slide's title states t
 <evidence_catalog>
 ${catalogBlock}
 </evidence_catalog>
-
-<user_brief>
-${neutralise(userBrief)}
-</user_brief>
 
 <output_format>
 Return ONLY this JSON (no prose, no markdown fences):

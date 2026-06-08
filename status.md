@@ -1,5 +1,25 @@
 # Project Status Log
 
+## 2026-06-08 — Slides workspace: run-lock recovery + Clear/Discard repaint + storyboard content-bleed fix
+
+### Changes
+- **Run-lock leak (root cause of the "dead toolbar")**: `PresentationModeHandler.cancelActiveOperation()` called only `run.abort()`, which signals the AbortController but leaves `locked=true` — only an op's own `finally → run.end()` clears it. A wedged run (an op whose finally never ran) therefore stayed locked forever, disabling EVERY deck action (`hasDeck && !locked` → Discard/Polish/Export/Save) and leaving Clear/Discard unable to recover. Fix: `cancelActiveOperation` now calls `run.end()` after `run.abort()` (idempotent; only fires its release listener when a lock was actually held) so user-initiated teardown ALWAYS unlocks.
+- **Clear/Discard repaint**: `handleDiscard` (handler) + `handleClear` (modal) re-rendered only the toolbar/messages, not the context panel — so a cleared deck stayed painted and the buttons looked dead. Both now re-render the context panel (`callbacks.rerenderContext?()` / `this.renderContextPanel()`), so a cleared deck visibly returns to the create form.
+- **Clear no longer re-restores the deck**: `handleClear` saved the conversation state BEFORE `onClear`, writing the deck snapshot back to disk; since reopen auto-restores the most-recently-updated conversation, the just-cleared deck reappeared. Save now happens AFTER `onClear` (deck snapshot already null), so the cleared file carries no deck.
+- **Storyboard content bleed**: `buildStoryboardPrompt` framed `<evidence_catalog>` as the content and tucked `<user_brief>` after it, so when the active note (catalog) diverged from the brief the model rebuilt the note's topic ("highlight of todays news" → learning-techniques content). Brief now has **primacy** (positioned before the catalog) + an explicit **BRIEF AUTHORITY** rule: the deck is about whatever the brief asks for; the catalog is facts to cite, not the topic; follow the brief and write qualitatively where the catalog lacks relevant facts.
+
+### Files Affected
+- `src/ui/chat/PresentationModeHandler.ts` — `cancelActiveOperation` force-release; `handleDiscard` repaint
+- `src/ui/modals/UnifiedChatModal.ts` — `handleClear` save-after-onClear + context-panel repaint
+- `src/services/presentationIr/storyboardPrompts.ts` — brief primacy + BRIEF AUTHORITY rule
+- `tests/presentationModeHandler.lockRecovery.test.ts` (new, 3 tests) + `tests/storyboardPrompts.test.ts` (brief-authority/primacy test)
+
+### Verify
+- New + existing suites green (lock-recovery 3, storyboard/consultant/prompt-invariant 94). Live-verified in Obsidian on the rebuilt plugin: resume picker shows (no auto-restore masking), **Discard drops the deck + repaints to the create panel** ("Presentation discarded" toast), toolbar enabled (lock not stuck).
+- Follow-ups (separate, pre-existing): Discard/close overwrites a restored saved presentation empty (on-close autosave); empty conversation-stub proliferation; restore-UX "New deck" affordance.
+
+---
+
 ## 2026-06-08 — Azure rate-limit settings UX (fallback relabel + live per-deployment surfacing + unlisted-deployment warning)
 
 ### Changes

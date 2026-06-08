@@ -1804,6 +1804,10 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.onClear();
         callbacks.notify('Presentation discarded.');
         callbacks.rerenderActions();
+        // Repaint the context panel so the dropped deck visibly returns to the
+        // create form — rerenderActions() only refreshes the toolbar, which left
+        // the stale slide preview painted (deck gone in state, still on screen).
+        callbacks.rerenderContext?.();
     }
 
     // ── Version History ─────────────────────────────────────────────────────
@@ -2073,6 +2077,16 @@ export class PresentationModeHandler implements ChatModeHandler {
 
     private cancelActiveOperation(): void {
         this.run.abort();
+        // run.abort() signals the AbortController but does NOT clear `locked` —
+        // only an operation's own finally → run.end() does. A wedged run (an op
+        // whose finally never ran, e.g. an LLM call that didn't honour abort)
+        // would then stay locked forever, disabling EVERY deck action
+        // (Discard/Polish/Export/Save = `hasDeck && !locked`) and making
+        // Clear/Discard themselves unable to recover. Force-release here so
+        // user-initiated teardown ALWAYS unlocks. end() is idempotent and only
+        // fires its release listener when a lock was actually held, so calling it
+        // before a fresh begin() (the defensive pre-op cancels) is a safe no-op.
+        this.run.end();
         // Same hazard for the per-slide polish modal — close it so its
         // in-flight LLM call aborts and onClose clears activePolish before
         // handler state is nulled (audit-r3 H4).

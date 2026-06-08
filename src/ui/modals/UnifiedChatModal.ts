@@ -1079,11 +1079,6 @@ export class UnifiedChatModal extends Modal {
     private handleClear(): void {
         if (!this.activeMode) return;
 
-        // Persist current state before clearing
-        if (this.plugin.settings.enableChatPersistence && this.persistenceService) {
-            void this.persistenceService.saveNow(this.buildConversationState());
-        }
-
         const history = this.historyMap.get(this.activeMode);
         if (!history) return;
         history.length = 0;
@@ -1095,13 +1090,25 @@ export class UnifiedChatModal extends Modal {
         const handler = this.handlers.get(this.activeMode);
         handler?.onClear?.();
 
-        // Start new conversation file
+        // Persist the CLEARED state (AFTER onClear, so a presentation deck snapshot
+        // is already gone — getSerializableState() returns null with no deck) over
+        // the current file, THEN start a fresh conversation. Saving BEFORE onClear
+        // (the old order) wrote the deck back to disk, and since reopen auto-restores
+        // the most-recently-updated conversation, the just-cleared deck reappeared.
+        if (this.plugin.settings.enableChatPersistence && this.persistenceService) {
+            void this.persistenceService.saveNow(this.buildConversationState());
+        }
         this.persistenceService?.startNew(this.activeMode);
         this.compactionService?.reset(this.activeMode);
         this.modeCreatedAt.delete(this.activeMode);
 
         this.renderMessages();
         this.renderActionsBar();
+        // Repaint the context panel so a cleared presentation deck visibly returns
+        // to the create form. Previously only messages + the actions bar were
+        // re-rendered, so the stale slide preview stayed painted and Clear looked
+        // dead even though the deck state had been reset.
+        this.renderContextPanel();
     }
 
     private async handleExport(): Promise<void> {
