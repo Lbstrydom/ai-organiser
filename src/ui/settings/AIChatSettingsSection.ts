@@ -120,8 +120,8 @@ export class AIChatSettingsSection extends BaseSettingSection {
             .setName(t.refinementPassesTitle)
             .setDesc(t.refinementPassesDesc)
             .addDropdown(dd => dd
-                .addOption('1', '1 (quick)')
-                .addOption('2', '2 (thorough)')
+                .addOption('1', '1 (Quick)')
+                .addOption('2', '2 (Thorough)')
                 .setValue(String(plugin.settings.aichatRefinementPasses))
                 .onChange(value => {
                     plugin.settings.aichatRefinementPasses = value === '2' ? 2 : 1;

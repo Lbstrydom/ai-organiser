@@ -1790,7 +1790,7 @@ async function handleYouTubeSummarization(
     // round-trip per call (and we make up to 2 calls: summary + transcript).
     // The previous 5-second flash left users staring at an unchanging editor
     // with no signal the operation was still running.
-    const progress = new Notice('YouTube — gemini summarizing video…', 0);
+    const progress = new Notice('YouTube — Gemini summarizing video…', 0);
     const updateProgress = (msg: string): void => { progress.setMessage(msg); };
 
     // Build prompt for YouTube summarization

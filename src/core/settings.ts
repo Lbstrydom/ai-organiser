@@ -1316,7 +1316,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         // run everything at the global fallback is not re-seeded. Never clobbers an
         // existing non-empty map.
         const rpm = s.azurePerDeploymentRpm;
-        const isEmpty = !rpm || typeof rpm !== 'object' || Object.keys(rpm as object).length === 0;
+        const isEmpty = !rpm || typeof rpm !== 'object' || Object.keys(rpm).length === 0;
         if (isEmpty) s.azurePerDeploymentRpm = { ...DEFAULT_AZURE_DEPLOYMENT_RPM };
         s.azureModelDefaultsV3 = true;
     }

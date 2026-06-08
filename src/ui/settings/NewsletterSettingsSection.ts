@@ -201,7 +201,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
             .setDesc(nl?.fetchLimitDesc || 'Maximum number of newsletters to fetch in one run')
             .addDropdown(drop => {
                 drop.addOption('10', '10');
-                drop.addOption('20', '20 (default)');
+                drop.addOption('20', '20 (Default)');
                 drop.addOption('30', '30');
                 drop.addOption('50', '50');
                 drop.setValue(String(this.plugin.settings.newsletterFetchLimit || 20));

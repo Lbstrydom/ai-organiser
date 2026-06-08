@@ -222,7 +222,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             .setName(rt.defaultOutput || 'Default output')
             .setDesc(rt.defaultOutputDesc || 'Where to put research results by default')
             .addDropdown(dd => {
-                dd.addOption('cursor', 'Insert at cursor');
+                dd.addOption('cursor', 'Insert at Cursor');
                 dd.addOption('section', 'Add as section');
                 dd.addOption('pending', 'Save to pending');
                 dd.setValue(this.plugin.settings.researchDefaultOutput)

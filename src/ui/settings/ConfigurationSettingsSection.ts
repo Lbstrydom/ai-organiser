@@ -174,7 +174,7 @@ class ReviewComparisonModal extends Modal {
                 currentCell.createEl('br');
                 currentCell.createEl('span', { text: item.current.description, cls: 'ai-organiser-text-muted ai-organiser-text-ui-smaller' });
             } else {
-                currentCell.createEl('em', { text: '(new)' });
+                currentCell.createEl('em', { text: '(New)' });
                 currentCell.addClass('ai-organiser-text-muted');
             }
 
@@ -196,7 +196,7 @@ class ReviewComparisonModal extends Modal {
                 suggestedCell.createEl('br');
                 suggestedCell.createEl('span', { text: item.suggested.description, cls: 'ai-organiser-text-muted ai-organiser-text-ui-smaller' });
             } else if (item.action === 'remove') {
-                suggestedCell.createEl('em', { text: '(remove)' });
+                suggestedCell.createEl('em', { text: '(Remove)' });
                 suggestedCell.addClass('ai-organiser-text-error');
             } else {
                 suggestedCell.createEl('em', { text: '—' });

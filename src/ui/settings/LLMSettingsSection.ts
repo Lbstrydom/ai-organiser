@@ -588,7 +588,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setName(this.plugin.t.settings.llm.modelName)
             .setDesc(this.plugin.t.settings.llm.modelNameDesc)
             .addText(text => text
-                .setPlaceholder('Model name (e.g., mistral, llama2, gpt-3.5-turbo)')
+                .setPlaceholder('Model name (e.g., mistral, llama2, GPT-3.5-turbo)')
                 .setValue(this.plugin.settings.localModel)
                 .onChange((value) => {
                     this.plugin.settings.localModel = value;

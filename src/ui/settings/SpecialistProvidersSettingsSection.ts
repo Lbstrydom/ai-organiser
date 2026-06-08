@@ -273,8 +273,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                 .addDropdown(dropdown => {
                     dropdown
                         .addOption('auto', pdf?.providerAuto || 'Auto (use available key)')
-                        .addOption('claude', 'Claude (anthropic)')
-                        .addOption('gemini', 'Gemini (google)')
+                        .addOption('claude', 'Claude (Anthropic)')
+                        .addOption('gemini', 'Gemini (Google)')
                         .setValue(selectedPdfProvider)
                         .onChange((value) => {
                             this.plugin.settings.pdfProvider = value as 'auto' | 'claude' | 'gemini';

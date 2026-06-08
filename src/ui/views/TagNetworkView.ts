@@ -473,13 +473,13 @@ export class TagNetworkView extends ItemView {
 
     // ── D3 loading & rendering ──────────────────────────────────
 
-    private async loadD3AndRender(
+    private loadD3AndRender(
         container: HTMLElement,
         searchState: TagSearchState,
         tooltip: HTMLElement,
         statusEl: HTMLElement,
         onSearchHandlerReady: (handler: () => void) => void
-    ): Promise<void> {
+    ): void {
         const t = this.plugin.t.tagNetwork;
         try {
             const handler = this.renderD3Network(container, searchState, tooltip, statusEl);

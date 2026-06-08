@@ -100,6 +100,12 @@ export default defineConfig([
         },
     },
     {
-        ignores: ['tests/**', 'main.js', 'scripts/**', 'docs/**', '*.config.*'],
+        // `src/stubs/**` holds build-time CJS shims (e.g. tesseractNoop.cjs) aliased
+        // in by esbuild — they are NOT plugin source and are not in tsconfig.build's
+        // include, so the typed obsidianmd rules (which need parserServices) throw on
+        // them ("don't have parserOptions set to generate type information"). They carry
+        // no Obsidian-API patterns, so excluding them from lint is safe and keeps the
+        // bot-parity ruleset runnable.
+        ignores: ['tests/**', 'main.js', 'scripts/**', 'docs/**', 'src/stubs/**', '*.config.*'],
     },
 ]);

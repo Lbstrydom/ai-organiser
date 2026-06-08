@@ -1,5 +1,21 @@
 # Project Status Log
 
+## 2026-06-08 — Lint config fix + Obsidian-bot compliance sweep
+
+### Changes
+- **Fixed the `npm run lint` crash**: `eslint.config.mjs` now ignores `src/stubs/**` (build-time CJS shims aliased in by esbuild, not in `tsconfig.build`'s include) — the typed `obsidianmd` rules threw `parserServices`-missing on `tesseractNoop.cjs`, **aborting the entire lint run**. That crash had been silently masking all lint output, letting bot-blocking errors accumulate unnoticed.
+- **Cleared all 13 revealed bot-blocking errors** (sentence-case ×11 + `require-await` ×1 + `no-unnecessary-type-assertion` ×1) across previously-shipped untouched files: brand/acronym casing the bot preserves (Gemini, Anthropic, Google, GPT, Cursor) + parenthetical labels (`(Quick)`/`(Thorough)`/`(New)`/`(Remove)`/`(Default)`) restored; dropped a vestigial `async` on `TagNetworkView.loadD3AndRender` (caller already `void`s it); removed `rpm as object`.
+- Left the **176 popout-window advisories** (`prefer-window-timers` 156, `no-global-this` 19, `prefer-instanceof` 1) untouched — confirmed NOT in the bot's blocking ruleset (per docs/obsidian-review-bot.md).
+
+### Files Affected
+- `eslint.config.mjs` — ignore `src/stubs/**`
+- `src/commands/summarizeCommands.ts`, `src/services/newsletter/newsletterService.ts`, `src/ui/settings/{AIChat,Configuration,LLM,Newsletter,Research,SpecialistProviders}SettingsSection.ts`, `src/ui/views/TagNetworkView.ts`, `src/core/settings.ts`
+
+### Verify
+- `npm run lint` now runs (0 bot-blocking errors; 176 non-blocking advisories) · tsc clean · vitest **5868 passed** · test:auto **45/45** · build:quick clean (`createElement("script")`=0; minAppVersion 1.11.4 intact).
+
+---
+
 ## 2026-06-08 — Presentation/LLM depth controls (thinking opt-in + Speed pill + per-call modelOverride fix)
 
 ### Changes

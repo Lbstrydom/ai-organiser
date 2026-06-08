@@ -740,7 +740,7 @@ export class NewsletterService {
                     return;
                 }
             } else if (ttsRes.kind === 'unavailable') {
-                new Notice("Audio podcast isn't configured for azure — set audio narration to a tts deployment, or add a gemini key, in settings", 6000);
+                new Notice("Audio podcast isn't configured for azure — set audio narration to a tts deployment, or add a Gemini key, in settings", 6000);
                 return;
             }
             // ttsRes.kind === 'byo' → fall through to the Gemini key resolution below.
