@@ -2437,8 +2437,9 @@ export interface Translations {
             slideSearching: string;                 // mid-conversation /search progress
             slideSearchUnavailable: string;
             slideSearchNoResults: string;
-            slideSearchAddedStoryline: string;
-            slideSearchAddedDeck: string;
+            slideSearchFound: string;
+            slideSearchHintStoryline: string;
+            slideSearchHintDeck: string;
             slideGenerateFailed: string;            // "Failed to generate: {error}"
             storylineReady: string;                 // consultant mode: storyline note written for review
             storylineRevised: string;               // consultant mode: storyline revised, still in review

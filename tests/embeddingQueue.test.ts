@@ -79,8 +79,8 @@ describe('EmbeddingQueue init-race tolerance (live 2026-06-08)', () => {
         const onSuccess = vi.fn(async () => { /* persist */ });
         const completion = queue.enqueue([task('a', 0, 'x')], onSuccess);
         await flush();
-        // Up to MAX_NULL_SERVICE_WAITS (8) wakes are scheduled, never persisting.
-        for (let i = 0; i < 8; i++) {
+        // Up to MAX_NULL_SERVICE_WAITS (30) wakes are scheduled, never persisting.
+        for (let i = 0; i < 30; i++) {
             expect(scheduled.length).toBe(1);
             scheduled.shift()!(); // fire the wake → next (async) drain
             await flush();        // let the async drain re-schedule (or fail at the bound)

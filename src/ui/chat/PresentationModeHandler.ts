@@ -513,6 +513,19 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (found.length === 0) return { finalContent: t.slideSearchNoResults.replace('{query}', query) };
 
         const settings = r.ctx.fullPlugin.settings;
+        // Surface WHAT was found (result titles) so the user can direct its use — the
+        // hint is only actionable if they can see the new evidence.
+        const titles: string[] = [];
+        for (const s of found) {
+            for (const line of s.content.split('\n')) {
+                const m = line.match(/^#+\s+(.+)$/);
+                if (m && m[1].trim()) titles.push(m[1].trim());
+            }
+        }
+        const count = titles.length || found.length;
+        const findingsBlock = titles.length > 0 ? '\n' + titles.slice(0, 5).map((tt) => `- ${tt}`).join('\n') : '';
+        const header = t.slideSearchFound.replace('{count}', String(count)).replace('{query}', query);
+
         if (this.pendingStoryline) {
             const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
             const newSpans = buildEvidenceCatalog(
@@ -520,10 +533,10 @@ export class PresentationModeHandler implements ChatModeHandler {
                 { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) },
             );
             this.pendingStoryline.catalog = [...this.pendingStoryline.catalog, ...newSpans];
-            return { finalContent: t.slideSearchAddedStoryline.replace('{n}', String(found.length)).replace('{query}', query) };
+            return { finalContent: `${header}${findingsBlock}\n${t.slideSearchHintStoryline}` };
         }
         this.midConversationSources.push(...found);
-        return { finalContent: t.slideSearchAddedDeck.replace('{n}', String(found.length)).replace('{query}', query) };
+        return { finalContent: `${header}${findingsBlock}\n${t.slideSearchHintDeck}` };
     }
 
     /**

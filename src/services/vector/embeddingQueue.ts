@@ -80,7 +80,11 @@ const DEFAULT_BATCH_SIZE = 16;
 // every pending chunk on the first null, wait a bounded number of short intervals for
 // the service to appear; only fail if it's genuinely absent (no key + no ONNX fallback).
 const NULL_SERVICE_RETRY_MS = 1500;
-const MAX_NULL_SERVICE_WAITS = 8;   // ~12s window for init to complete
+// ~45s window for the embedding service to finish initializing. On a cold load the
+// vector store + embedding service init can lag the first auto-index enqueue by tens
+// of seconds (live: chunks still dropped under the old 12s bound), so wait generously
+// before giving up — the chunks are small text payloads, cheap to hold.
+const MAX_NULL_SERVICE_WAITS = 30;
 
 export class EmbeddingQueue {
     private readonly pending: QueueItem[] = [];
