@@ -152,19 +152,31 @@ export const storyboardSlideSchema = z.object({
 }).strict().refine(
     (s) => s.suggested_visual === s.visual_data.type,
     { message: 'suggested_visual must equal visual_data.type', path: ['visual_data'] },
-).superRefine((s, ctx) => {
-    // Table/harvey rows must match their column count (consolidated gate MEDIUM) so a
-    // ragged LLM table is rejected at the storyboard boundary, not silently padded later.
+).transform((s) => {
+    // COERCE ragged table/harvey rows to the declared column count instead of
+    // HARD-FAILING the whole storyboard (was a rejecting superRefine — too strict).
+    // The LLM routinely emits a row whose cell/rating count ≠ columns and every
+    // repair reproduces it (live 2026-06-08: "harvey row 0 has 3 ratings but 4
+    // columns"). The header is authoritative: pad short rows (em-dash cell / 0
+    // rating), truncate long ones. The downstream translator already pads ragged
+    // rows, so this just stops a fixable mismatch from killing generation.
     const v = s.visual_data;
     if (v.type === 'table') {
-        v.rows.forEach((r, i) => {
-            if (r.cells.length !== v.columns.length) ctx.addIssue({ code: 'custom', message: `table row ${i} has ${r.cells.length} cells but ${v.columns.length} columns`, path: ['visual_data', 'rows', i] });
+        const n = v.columns.length;
+        v.rows = v.rows.map((r) => {
+            const cells = r.cells.slice(0, n);
+            while (cells.length < n) cells.push({ text: '—' });
+            return { ...r, cells };
         });
     } else if (v.type === 'harvey') {
-        v.rows.forEach((r, i) => {
-            if (r.ratings.length !== v.columns.length) ctx.addIssue({ code: 'custom', message: `harvey row ${i} has ${r.ratings.length} ratings but ${v.columns.length} columns`, path: ['visual_data', 'rows', i] });
+        const n = v.columns.length;
+        v.rows = v.rows.map((r) => {
+            const ratings = r.ratings.slice(0, n);
+            while (ratings.length < n) ratings.push(0);
+            return { ...r, ratings };
         });
     }
+    return s;
 });
 export type StoryboardSlide = z.infer<typeof storyboardSlideSchema>;
 

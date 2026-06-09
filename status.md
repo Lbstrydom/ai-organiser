@@ -1,5 +1,21 @@
 # Project Status Log
 
+## 2026-06-08 — Storyboard ragged-visual hard-fail → coerce + action-title-fits-slide coupling
+
+### Changes
+- **Second storyboard hard-fail (same class as core_message)**: after the length fix shipped, a ragged visual surfaced — `slides.N.visual_data.rows.M: harvey row M has 3 ratings but 4 columns` HARD-FAILED the whole storyboard, and every repair reproduced the identical mismatch (the LLM couldn't self-correct it). The schema's rejecting `superRefine` (table/harvey row-vs-column count) is replaced by a **coercing `.transform`**: the column header is authoritative — short rows pad (em-dash cell / 0 rating), long rows truncate. The downstream translator already pads ragged rows, so this just stops a fixable mismatch from killing generation. Same principle as the core_message truncation: degrade one field gracefully, never hard-fail the deck.
+- **Storyline ↔ slide-design coupling** (per-slide-capacity principle): the storyline budget should reflect what a slide can legibly hold (the renderer already caps per-slide *physically* — fixed canvas, font autofit + min-font floor, height clamp, table-row truncation). First step: the prompt now constrains `action_title` to ONE punchy line (≤ ~16 words) so the title fits a slide's title area and the supporting detail lives in `core_message` — addressing the "H1 runs to ~30 words at 80px / wall of text" the quality scan flagged at the source rather than relying on the renderer to shrink it.
+
+### Files Affected
+- `src/services/presentationIr/consultantStoryboard.ts` — ragged table/harvey rows → coercing `.transform` (was a rejecting `superRefine`)
+- `src/services/presentationIr/storyboardPrompts.ts` — `action_title` one-line-fits-the-title-area constraint
+- Tests: `tests/consultantStoryboard.test.ts` (3 coercion tests, replacing the 2 rejection assertions)
+
+### Verify
+- tsc clean · full vitest green · test:auto 45/45 · build:quick deployed to vault + mobile.
+
+---
+
 ## 2026-06-08 — Live-bug fixes: storyboard core_message length hard-fail + embedding-queue init race
 
 ### Changes

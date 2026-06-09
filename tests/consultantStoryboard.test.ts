@@ -118,15 +118,33 @@ describe('validateStoryboard (snapshot restore)', () => {
     });
 });
 
-describe('column-length invariant (consolidated gate MEDIUM)', () => {
-    it('rejects a harvey row whose ratings count != columns count', () => {
+describe('ragged table/harvey rows COERCE to the column count (live 2026-06-08 — was a hard reject)', () => {
+    it('pads a short harvey row with 0-ratings instead of failing the whole storyboard', () => {
         const slide = { ...barSlide, suggested_visual: 'harvey', visual_data: { type: 'harvey', columns: ['Cost', 'Speed'], rows: [{ label: 'A', ratings: [4] }] } };
         const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
-        expect(r.ok).toBe(false);
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            const v = r.value.slides[0].visual_data as { type: 'harvey'; rows: { ratings: number[] }[] };
+            expect(v.rows[0].ratings).toEqual([4, 0]); // padded to 2 columns
+        }
     });
-    it('rejects a table row whose cells count != columns count', () => {
+    it('truncates a long harvey row to the column count', () => {
+        const slide = { ...barSlide, suggested_visual: 'harvey', visual_data: { type: 'harvey', columns: ['Cost'], rows: [{ label: 'A', ratings: [4, 2, 1] }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            const v = r.value.slides[0].visual_data as { type: 'harvey'; rows: { ratings: number[] }[] };
+            expect(v.rows[0].ratings).toEqual([4]); // truncated to 1 column
+        }
+    });
+    it('pads a short table row with an em-dash cell instead of failing', () => {
         const slide = { ...barSlide, suggested_visual: 'table', visual_data: { type: 'table', columns: ['A', 'B'], rows: [{ cells: [{ text: 'x' }] }] } };
         const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
-        expect(r.ok).toBe(false);
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            const v = r.value.slides[0].visual_data as { type: 'table'; rows: { cells: { text: string }[] }[] };
+            expect(v.rows[0].cells).toHaveLength(2);
+            expect(v.rows[0].cells[1].text).toBe('—');
+        }
     });
 });

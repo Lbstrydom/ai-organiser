@@ -68,7 +68,7 @@ ${neutralise(userBrief)}
 
 <requirements>
 - BRIEF AUTHORITY: the deck is about whatever the <user_brief> above asks for. Use the <evidence_catalog> to GROUND the storyline with real facts/numbers where they fit the brief. If the catalog's subject differs from the brief, FOLLOW THE BRIEF — never substitute the catalog's subject — and write the storyline qualitatively where the catalog has no relevant facts.
-- ACTION TITLES, not labels. The title states the implication ("EMEA drove 60% of Q3 growth"), is verb-bearing, and is quantified ONLY where a cited span supports the number. Never "Revenue by Region".
+- ACTION TITLES, not labels. The title states the implication ("EMEA drove 60% of Q3 growth"), is verb-bearing, and is quantified ONLY where a cited span supports the number. Never "Revenue by Region". Keep it to ONE punchy line (≤ ~16 words) — it must fit a slide's title area; the supporting detail goes in core_message, not the title.
 - One message per slide. Slides ladder up to the deck thesis (pyramid principle). Roles: context | problem | insight | recommendation | proof.
 - core_message is a TIGHT 2–3 sentence supporting paragraph (aim for under ~800 characters); the action_title carries the so-what, the core_message backs it — do not write an essay.
 - GROUNDING: every number in a title or visual_data MUST trace to a cited evidence_span_id from the catalog below. If the data isn't in the catalog, do NOT invent it — use a qualitative so-what instead.
