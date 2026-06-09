@@ -1,5 +1,21 @@
 # Project Status Log
 
+## 2026-06-08 — Large-deck support: scale storyboard output-token budget with slide count
+
+### Changes
+- **The actual large-deck (20–40 slide) bottleneck**: storyboard generation requested a FIXED `8192` output tokens (`targetLength`/slide-count was passed in but never used for the budget). A 20–30 slide storyboard is one ~22–45k-token JSON response → it overflowed 8192 → the JSON truncated → `no JSON object found` → hard fail. azure-claude's `maxOutputTokens` is 64k, so the model could hold it — we just weren't asking. Fix: `storyboardMaxTokens(targetLength) = max(8192, 3000 + slides×1400)` (≈45k at 30 slides, ≈59k at the 40-slide max), threaded through `StoryboardCallOpts.maxTokens`. This is the user's "total cap = per-slide × slides" intuition applied to the **output-token budget** (the per-field *char* caps stay per-slide/scale-invariant — each slide is independent).
+- **Provider-max clamp (Claude path only)**: `buildClaudeSummarizeBody` clamps `maxTokens` to `getProviderLimits(provider).maxOutputTokens` so a generous storyboard budget can't exceed the model limit and 400. NOT applied to the OpenAI path — reasoning models' `max_completion_tokens` covers reasoning + output and legitimately exceeds the output limit (would break a `gpt-5` 24k override).
+
+### Files Affected
+- `src/services/presentationIr/storyboardService.ts` — `storyboardMaxTokens()` + `StoryboardCallOpts.maxTokens` (scaled by `targetLength`)
+- `src/services/cloudService.ts` — Claude-path `maxTokens` clamp to provider max (`getProviderLimits`)
+- Tests: `tests/storyboardRetry.test.ts` (+1 slide-count scaling)
+
+### Verify
+- tsc clean · full vitest green (5928) · test:auto 45/45 · build:quick deployed to vault + mobile.
+
+---
+
 ## 2026-06-08 — Storyboard ragged-visual hard-fail → coerce + action-title-fits-slide coupling
 
 ### Changes

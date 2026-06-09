@@ -73,6 +73,17 @@ describe('storyboard non-JSON retry', () => {
         expect(st).toHaveBeenCalledTimes(1); // no hammering
     });
 
+    it('scales the output-token budget with the target slide count (large-deck fix)', async () => {
+        st.mockResolvedValue({ success: true, content: VALID });
+        await generateStoryboard(ctx, 'brief', [], { targetLength: 30 });
+        // 3000 + 30*1400 = 45000 — a 30-slide deck no longer overflows the fixed 8192.
+        expect((st.mock.calls[0][2] as { maxTokens?: number }).maxTokens).toBeGreaterThan(40000);
+        st.mockClear();
+        await generateStoryboard(ctx, 'brief', [], { targetLength: 6 });
+        // A small deck stays modest (3000 + 6*1400 = 11400).
+        expect((st.mock.calls[0][2] as { maxTokens?: number }).maxTokens).toBeLessThan(15000);
+    });
+
     it('stops early on abort', async () => {
         const ac = new AbortController();
         ac.abort();

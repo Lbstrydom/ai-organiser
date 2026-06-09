@@ -42,6 +42,20 @@ interface StoryboardCallOpts {
      *  with the JSON output) for no schema benefit; the Zod schema + repair retry
      *  are the correctness guardrails. Mirrors the audit/selective-refine calls. */
     disableThinking?: boolean;
+    /** Output-token budget, SCALED with the target slide count (cloudService clamps
+     *  it to the provider max). The whole storyboard JSON is one response, so a large
+     *  deck (20–40 slides) overflows the fixed 8192 default → JSON truncates →
+     *  "no JSON object found". */
+    maxTokens?: number;
+}
+
+/** Output-token budget for a storyboard of `slides` slides: a base for the thesis +
+ *  JSON structure, plus a per-slide allowance (action_title + core_message + visual +
+ *  evidence spans). cloudService clamps the result to the provider's max output
+ *  (azure-claude/claude = 64k), so a 40-slide deck (~59k) still fits. */
+function storyboardMaxTokens(targetLength?: number): number {
+    const slides = Math.max(1, Math.min(40, Math.round(targetLength ?? 8)));
+    return Math.max(8192, 3000 + slides * 1400);
 }
 
 /** Total storyboard attempts (1 initial + 2 repairs). Azure Claude intermittently
@@ -109,6 +123,7 @@ function toCallOpts(label: string, options: GenerateStoryboardOptions): Storyboa
         label,
         onRetryStatus: options.onRetryStatus,
         disableThinking: true,
+        maxTokens: storyboardMaxTokens(options.targetLength),
         ...(options.modelOverride ? { modelOverride: options.modelOverride } : {}),
     };
 }

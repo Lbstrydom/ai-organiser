@@ -6,6 +6,7 @@ import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { claudeSupportsAdaptiveThinking, resolveLatestModel } from './adapters/modelCapabilities';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
+import { getProviderLimits } from './tokenLimits';
 import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
@@ -786,6 +787,9 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 modelName.endsWith('-reasoning');
 
             const defaultTokens = isReasoningModel ? 16384 : 8192;
+            // NOTE: no provider-max clamp here — reasoning models' max_completion_tokens
+            // covers reasoning + output and legitimately exceeds the output limit. The
+            // storyboard's large budget runs on the Claude path (clamped there).
             const tokenBudget = options?.maxTokens || defaultTokens;
 
             const baseRequest: Record<string, unknown> = {
@@ -851,6 +855,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // Default: 64K with thinking (gives ample room for reasoning), 8192 without
             maxTokens = useThinking ? 64000 : 8192;
         }
+        // Clamp to the provider's max output so a generous caller request (e.g. a large
+        // storyboard scaling maxTokens by slide count) can't exceed the model limit and 400.
+        const providerMaxOut = getProviderLimits(this.adapterType).maxOutputTokens;
+        if (maxTokens > providerMaxOut) maxTokens = providerMaxOut;
 
         const { systemField, userContent } = this.buildClaudeSystemAndUser(
             systemPrompt,
