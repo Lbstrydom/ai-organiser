@@ -104,6 +104,15 @@ describe('over-long prose truncates instead of hard-failing (live 2026-06-08 cor
             expect(r.value.slides[0].core_message.endsWith('…')).toBe(true);
         }
     });
+    it('re-balances a dangling **bold / `code marker cut mid-pair (Gemini G2 — no formatting bleed)', () => {
+        const msg = '**' + 'x'.repeat(1600); // opens bold, closing ** is past the 1500 cut
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ ...barSlide, core_message: msg }] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            const cm = r.value.slides[0].core_message;
+            expect((cm.split('**').length - 1) % 2).toBe(0); // even count of ** → balanced
+        }
+    });
     it('a long visual label truncates rather than failing the deck', () => {
         const slide = { ...barSlide, visual_data: { type: 'bar' as const, items: [{ label: 'x'.repeat(1000), value: 1, evidence_span_id: 'e1' }] } };
         const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));

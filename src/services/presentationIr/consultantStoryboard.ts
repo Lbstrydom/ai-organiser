@@ -23,7 +23,7 @@ export const STORYBOARD_SCHEMA_VERSION = 1;
 
 const MAX_TEXT = 800;     // labels / titles / cells — short by nature
 const MAX_PROSE = 1500;   // core_message / thesis — the supporting paragraph
-const MAX_SLIDES = 40;
+export const MAX_SLIDES = 40; // SSOT for the per-deck slide ceiling (schema + service + UI cap)
 const MAX_SERIES_POINTS = 30;
 
 /** A bounded string that TRUNCATES at a word boundary (with an ellipsis) instead of
@@ -34,8 +34,14 @@ const MAX_SERIES_POINTS = 30;
 function boundedText(max: number) {
     return z.string().min(1).transform((s) => {
         if (s.length <= max) return s;
-        const cut = s.slice(0, max).replace(/\s+\S*$/, '').trimEnd();
-        return (cut || s.slice(0, max).trimEnd()) + '…';
+        let cut = s.slice(0, max).replace(/\s+\S*$/, '').trimEnd();
+        if (!cut) cut = s.slice(0, max).trimEnd();
+        // Re-balance the two common inline markdown markers cut mid-pair, so a dangling
+        // **bold or `code opener can't bleed formatting into the rest of the slide (Gemini G2).
+        for (const marker of ['**', '`']) {
+            if ((cut.split(marker).length - 1) % 2 === 1) cut += marker;
+        }
+        return cut + '…';
     });
 }
 const text = boundedText(MAX_TEXT);

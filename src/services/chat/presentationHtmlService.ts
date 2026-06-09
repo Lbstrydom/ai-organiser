@@ -31,6 +31,7 @@ import type { ExportTheme } from '../export/exportTheme';
 import type { SlideDeckIr } from '../presentationIr/slideIr';
 import { renderDeckToHtml } from '../presentationIr/irToHtml';
 import { buildIrSystemPrompt, buildIrRepairPrompt, buildIrRefinePrompt, parseIrFromResponse } from '../presentationIr/irPrompts';
+import { storyboardMaxTokens } from '../presentationIr/storyboardService';
 
 // ── Structured-IR Generation (Phase B) ────────────────────────────────────
 
@@ -80,11 +81,16 @@ export async function generateDeckIr(
             conversationHistory: options.conversationHistory,
         });
 
+    // Scale the output budget with the slide count — the direct IR deck is ONE JSON
+    // response too, so a large deck overflows the fixed 8192 default and truncates,
+    // identically to the storyboard path. cloudService clamps to the provider max.
+    const maxTokens = storyboardMaxTokens(options.targetLength);
     try {
         const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
             timeoutMs: GENERATION_HARD_BUDGET_MS,
             signal: options.signal,
             label: 'presentation',
+            maxTokens,
             onRetryStatus: options.onRetryStatus,
         });
         if (options.signal?.aborted) return err('Aborted');
@@ -103,6 +109,7 @@ export async function generateDeckIr(
             timeoutMs: GENERATION_HARD_BUDGET_MS,
             signal: options.signal,
             label: 'presentation',
+            maxTokens,
             onRetryStatus: options.onRetryStatus,
         });
         if (options.signal?.aborted) return err('Aborted');

@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-08 — /audit-code pass on the session's slide-quality work (GPT R1 + Gemini gate → APPROVE)
+
+GPT R1 (30 findings, mostly diff-blind false positives + pre-existing systemic debt) + Gemini final gate. **2 in-scope fixes from R1** + **3 from the Gemini gate** (Gemini caught a real HIGH regression my triage had wrongly dismissed):
+- **H1 (R1 → fixed)**: the DIRECT `generateDeckIr` path set no `maxTokens` + didn't cap slide count — my session's fix was asymmetric (storyline path only). Now `generateDeckIr` scales `maxTokens` via the shared `storyboardMaxTokens` + the handler caps `targetLength`.
+- **M4 (R1 → fixed)**: `MAX_SLIDES` is now an exported SSOT (was mirrored as `STORYBOARD_SCHEMA_MAX_SLIDES`).
+- **G1/H1 (Gemini → fixed, the important one)**: raising `openai` to 65536 (GPT-5.x) + scaling + no-OpenAI-clamp meant a **`gpt-4o` user (16384) requesting a large deck would HTTP 400** (and `local`'s 8192 floor 400s a 4096 model). New **`getModelOutputLimit(provider, model)`** (per-model floor: gpt-4o/gpt-4-turbo/gpt-3.5 → 16384) is the SSOT for the clamp + `maxStoryboardSlides(provider, model)`. The clamp now runs on EVERY path — Claude, OpenAI **non-reasoning** (reasoning left unclamped), and `localService` (4096) — and the UI caps gpt-4o at ~9 / gpt-5.x at 40 so a deck can't be sized past what the model accepts.
+- **G2 (Gemini → fixed)**: `boundedText` re-balances `**`/`` ` `` markers cut mid-pair so a dangling opener can't bleed formatting into the slide.
+
+Everything else (god-object, i18n monolith, advisory grounding, lock-recovery, brand-audit DOM, queue memory/contract, prompt budgeting) = pre-existing systemic debt, out-of-scope, covered by prior audits' deferred list. Gemini verdict: **APPROVE** (0 new, 0 wrongly-dismissed). Verify: tsc clean · full vitest 5931 · test:auto 45/45 · deployed.
+
+---
+
 ## 2026-06-08 — Systematic visual `.catch()` finisher + provider-aware slide cap + UI advisory
 
 ### Changes

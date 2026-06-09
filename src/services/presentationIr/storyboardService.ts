@@ -16,10 +16,10 @@ import { IR_SCHEMA_VERSION } from './slideIr';
 import type { SlideDeckIr, SlideIr, Block } from './slideIr';
 import { validateDeckIr } from './slideIr';
 import type { ConsultantStoryboard, EvidenceSpan, StoryboardSlide, VisualData } from './consultantStoryboard';
-import { parseStoryboardFromResponse } from './consultantStoryboard';
+import { parseStoryboardFromResponse, MAX_SLIDES } from './consultantStoryboard';
 import { buildStoryboardPrompt, buildStoryboardRepairPrompt, buildStoryboardRevisionPrompt } from './storyboardPrompts';
 import type { StorylineComment } from './storyboardPrompts';
-import { getProviderLimits } from '../tokenLimits';
+import { getModelOutputLimit } from '../tokenLimits';
 
 export interface GenerateStoryboardOptions {
     outputLanguage?: string;
@@ -56,10 +56,16 @@ interface StoryboardCallOpts {
  *  (azure-claude/claude = 64k), so a 40-slide deck (~59k) still fits. */
 const STORYBOARD_BASE_TOKENS = 3000;       // thesis + sections + JSON envelope
 const STORYBOARD_TOKENS_PER_SLIDE = 1400;  // action_title + core_message + visual + spans (generous)
-const STORYBOARD_SCHEMA_MAX_SLIDES = 40;   // mirrors MAX_SLIDES in consultantStoryboard.ts
+// MAX_SLIDES is the SSOT (imported from consultantStoryboard) — no mirrored literal.
 
-function storyboardMaxTokens(targetLength?: number): number {
-    const slides = Math.max(1, Math.min(STORYBOARD_SCHEMA_MAX_SLIDES, Math.round(targetLength ?? 8)));
+/**
+ * Output-token budget for a deck of `targetLength` slides emitted as ONE JSON response
+ * (storyboard OR direct IR — both have the same one-shot-overflow risk). cloudService
+ * clamps the result to the provider max, so a 40-slide deck (~59k) still fits on 64k
+ * providers. Exported so the direct `generateDeckIr` path scales identically.
+ */
+export function storyboardMaxTokens(targetLength?: number): number {
+    const slides = Math.max(1, Math.min(MAX_SLIDES, Math.round(targetLength ?? 8)));
     return Math.max(8192, STORYBOARD_BASE_TOKENS + slides * STORYBOARD_TOKENS_PER_SLIDE);
 }
 
@@ -72,10 +78,13 @@ function storyboardMaxTokens(targetLength?: number): number {
  * reads this to clamp + advise the slide-count input; the handler caps the request so
  * an over-large config can never silently truncate.
  */
-export function maxStoryboardSlides(provider: string): number {
-    const ceiling = getProviderLimits(provider).maxOutputTokens;
+export function maxStoryboardSlides(provider: string, model?: string): number {
+    // Model-aware: an older model below its provider's flagship ceiling (e.g. gpt-4o
+    // = 16384 under openai's 65536) caps lower, so the UI advises the REAL limit and
+    // the request can't be sized past what the model accepts.
+    const ceiling = getModelOutputLimit(provider, model);
     const fits = Math.floor((ceiling - STORYBOARD_BASE_TOKENS) / STORYBOARD_TOKENS_PER_SLIDE);
-    return Math.max(3, Math.min(STORYBOARD_SCHEMA_MAX_SLIDES, fits));
+    return Math.max(3, Math.min(MAX_SLIDES, fits));
 }
 
 /** Total storyboard attempts (1 initial + 2 repairs). Azure Claude intermittently

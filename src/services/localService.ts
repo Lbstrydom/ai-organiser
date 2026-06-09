@@ -2,6 +2,7 @@ import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestErro
 import { SYSTEM_PROMPT } from '../utils/constants';
 import { BaseLLMService } from './baseService';
 import { TaggingMode } from './prompts/types';
+import { getProviderLimits } from './tokenLimits';
 import { App, requestUrl } from 'obsidian';
 import { extractAuthFromUrl } from './localModelFetcher';
 
@@ -278,7 +279,10 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                         }
                     ],
                     temperature: 0.3,
-                    ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {})
+                    // Clamp to the local output ceiling so a large-storyboard request can't
+                    // exceed a small local model's context and 400 (Gemini G1). Local caps
+                    // the storyboard at ~3 slides anyway, which fits this budget.
+                    ...(options?.maxTokens ? { max_tokens: Math.min(options.maxTokens, getProviderLimits('local').maxOutputTokens) } : {})
                 })
             }, options?.timeoutMs ?? this.getSummarizeTimeoutMs());
 

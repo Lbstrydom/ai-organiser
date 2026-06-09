@@ -84,11 +84,15 @@ describe('storyboard non-JSON retry', () => {
         expect((st.mock.calls[0][2] as { maxTokens?: number }).maxTokens).toBeLessThan(15000);
     });
 
-    it('maxStoryboardSlides is provider-aware — all cloud flagships clear ≥35; local stays honest', () => {
-        // 2026 cloud flagships (64k+ output) all reach the schema cap (40) — clears 35.
+    it('maxStoryboardSlides is provider+model-aware — flagships clear ≥35; gpt-4o/local cap honestly', () => {
+        // 2026 cloud flagships (64k+ output) on their current models reach ≥35.
         for (const p of ['azure-claude', 'claude', 'openai', 'azure-openai', 'gemini', 'groq', 'deepseek', 'openrouter']) {
             expect(maxStoryboardSlides(p)).toBeGreaterThanOrEqual(35);
         }
+        // Gemini G1 regression: an OLDER model below the provider flagship (gpt-4o = 16384)
+        // must cap LOW — else a large request 400s. Provider-only would wrongly say 40.
+        expect(maxStoryboardSlides('openai', 'gpt-4o')).toBeLessThan(12);          // ~9
+        expect(maxStoryboardSlides('openai', 'gpt-5.5')).toBeGreaterThanOrEqual(35); // flagship
         // local is honestly capped (an arbitrary local model's output ceiling is unknowable).
         expect(maxStoryboardSlides('local')).toBeGreaterThanOrEqual(3);
         expect(maxStoryboardSlides('local')).toBeLessThan(35);

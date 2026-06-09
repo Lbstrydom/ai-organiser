@@ -535,12 +535,16 @@ export class PresentationModeHandler implements ChatModeHandler {
                     if ('early' in consultant) return { finalContent: consultant.early };
                     irResult = consultant;
                 } else {
+                    // Same provider-aware slide cap as the storyline path (H1) — the direct
+                    // IR deck is one JSON response too, so an over-large config would truncate.
+                    const directProvider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
+                    const directCappedLength = Math.min(this.creationConfig.length, maxStoryboardSlides(directProvider, settings.cloudModel));
                     irResult = await generateDeckIr(r.llmCtx, {
                         userQuery: r.effectiveQuery,
                         noteContent: r.noteContent,
                         conversationHistory: r.history,
                         outputLanguage: settings.summaryLanguage,
-                        targetLength: this.creationConfig.length,
+                        targetLength: directCappedLength,
                         audience: this.creationConfig.audience,
                         sources,
                         signal: r.abort.signal,
@@ -697,7 +701,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Cap the request at what this provider can emit in ONE storyboard JSON response,
         // so an over-large config can never silently overflow the model's output budget
         // and truncate ("no JSON object found"). The UI advises the same cap up front.
-        const slideCap = maxStoryboardSlides(provider);
+        const slideCap = maxStoryboardSlides(provider, settings.cloudModel);
         const cappedLength = Math.min(this.creationConfig.length, slideCap);
         if (cappedLength < this.creationConfig.length) {
             logger.warn('Presentation', `storyboard slide count capped ${this.creationConfig.length} → ${cappedLength} (provider ${provider} output budget)`);

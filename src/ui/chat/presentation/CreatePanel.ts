@@ -177,7 +177,7 @@ function renderLengthRow(parent: HTMLElement, opts: CreatePanelOptions): void {
     // than the model's output budget would truncate. Cap the input at what THIS model
     // can hold (azure-claude/claude reach 40; a low-output model is honestly lower).
     const provider = opts.plugin.settings.serviceType === 'local' ? 'local' : opts.plugin.settings.cloudServiceType;
-    const effectiveMax = Math.min(MAX_LENGTH, maxStoryboardSlides(provider));
+    const effectiveMax = Math.min(MAX_LENGTH, maxStoryboardSlides(provider, opts.plugin.settings.cloudModel));
 
     const presetGroup = row.createDiv({
         cls: 'ai-organiser-pres-create-pill-group',

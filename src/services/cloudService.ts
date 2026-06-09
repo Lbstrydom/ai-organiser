@@ -6,7 +6,7 @@ import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { claudeSupportsAdaptiveThinking, resolveLatestModel } from './adapters/modelCapabilities';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
-import { getProviderLimits } from './tokenLimits';
+import { getProviderLimits, getModelOutputLimit } from './tokenLimits';
 import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';
@@ -787,10 +787,13 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 modelName.endsWith('-reasoning');
 
             const defaultTokens = isReasoningModel ? 16384 : 8192;
-            // NOTE: no provider-max clamp here — reasoning models' max_completion_tokens
-            // covers reasoning + output and legitimately exceeds the output limit. The
-            // storyboard's large budget runs on the Claude path (clamped there).
-            const tokenBudget = options?.maxTokens || defaultTokens;
+            // Reasoning models (gpt-5/o-series) use max_completion_tokens for reasoning +
+            // output and legitimately exceed the output ceiling — leave them unclamped.
+            // NON-reasoning models (gpt-4o = 16384) MUST be clamped to the model output
+            // limit, else a large-storyboard request (e.g. 52k) hard-400s (Gemini G1).
+            const tokenBudget = isReasoningModel
+                ? (options?.maxTokens || defaultTokens)
+                : Math.min(options?.maxTokens || defaultTokens, getModelOutputLimit(this.adapterType, modelName));
 
             const baseRequest: Record<string, unknown> = {
                 model: modelName,
@@ -855,10 +858,12 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // Default: 64K with thinking (gives ample room for reasoning), 8192 without
             maxTokens = useThinking ? 64000 : 8192;
         }
-        // Clamp to the provider's max output so a generous caller request (e.g. a large
-        // storyboard scaling maxTokens by slide count) can't exceed the model limit and 400.
-        const providerMaxOut = getProviderLimits(this.adapterType).maxOutputTokens;
-        if (maxTokens > providerMaxOut) maxTokens = providerMaxOut;
+        // Clamp to the CONCRETE model's max output so a generous caller request (e.g. a
+        // large storyboard scaling maxTokens by slide count) can't exceed the model limit
+        // and 400 — model-aware so an older/smaller model below the provider flagship is
+        // honoured (Claude 4.x are all 64k, but the helper keeps this correct generally).
+        const modelMaxOut = getModelOutputLimit(this.adapterType, modelName);
+        if (maxTokens > modelMaxOut) maxTokens = modelMaxOut;
 
         const { systemField, userContent } = this.buildClaudeSystemAndUser(
             systemPrompt,

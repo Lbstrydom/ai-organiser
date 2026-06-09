@@ -107,6 +107,29 @@ export function getProviderLimits(provider: string): ProviderLimits {
     return PROVIDER_LIMITS[provider.toLowerCase()] || PROVIDER_LIMITS['local'];
 }
 
+// Models whose REAL output ceiling is below their provider's flagship default. The
+// provider table tracks the current flagship (e.g. openai=65536 for GPT-5.x), but an
+// older selected model (gpt-4o = 16384) would 400 on a request above its own limit —
+// so a per-model floor is applied wherever the output budget is sized/clamped.
+const MODEL_OUTPUT_OVERRIDES: ReadonlyArray<{ re: RegExp; max: number }> = [
+    { re: /gpt-4o|gpt-4-turbo|gpt-4-\d|gpt-4\b|gpt-3\.5/i, max: 16384 },
+];
+
+/**
+ * The effective output-token ceiling for a CONCRETE model — the provider flagship
+ * default, lowered to a per-model cap when the selected model is older/smaller. Used
+ * to bound the storyboard token request + the per-deck slide cap so a deck can't be
+ * sized beyond what the actual model will accept (avoids a hard 400).
+ */
+export function getModelOutputLimit(provider: string, model?: string): number {
+    const base = getProviderLimits(provider).maxOutputTokens;
+    if (!model) return base;
+    for (const o of MODEL_OUTPUT_OVERRIDES) {
+        if (o.re.test(model)) return Math.min(base, o.max);
+    }
+    return base;
+}
+
 /**
  * Find best break point before maxPos, searching backward from maxPos.
  * Priority: paragraph (\n\n) → sentence (. ! ?) → word (space) → hard cut.
