@@ -10,17 +10,21 @@ export interface ProviderLimits {
     charsPerToken: number;  // Approximate characters per token
 }
 
+// maxOutputTokens reflects each provider's CURRENT flagship output ceiling (2026): it
+// drives the per-deck storyboard slide cap (one JSON response) + the storyboard token
+// clamp. It must NOT exceed the real model max (requesting more 400s even a modest deck),
+// so `local` stays conservative (an arbitrary local model's ceiling is unknowable).
 export const PROVIDER_LIMITS: Record<string, ProviderLimits> = {
-    'claude': { maxInputTokens: 200000, maxOutputTokens: 64000, charsPerToken: 4 },
-    'openai': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
-    'gemini': { maxInputTokens: 1000000, maxOutputTokens: 65536, charsPerToken: 4 },  // Gemini 2.x supports 64k+ output (8192 was the stale 1.x value)
-    'groq': { maxInputTokens: 32000, maxOutputTokens: 8192, charsPerToken: 4 },
-    'deepseek': { maxInputTokens: 64000, maxOutputTokens: 8192, charsPerToken: 4 },
-    'openrouter': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
-    'local': { maxInputTokens: 8000, maxOutputTokens: 4096, charsPerToken: 4 },  // Conservative default
+    'claude': { maxInputTokens: 200000, maxOutputTokens: 64000, charsPerToken: 4 },      // Opus/Sonnet 4.x
+    'openai': { maxInputTokens: 128000, maxOutputTokens: 65536, charsPerToken: 4 },      // GPT-5.x (16384 was the GPT-4o value)
+    'gemini': { maxInputTokens: 1000000, maxOutputTokens: 65536, charsPerToken: 4 },     // Gemini 3.x Pro (8192 was the stale 1.x value)
+    'groq': { maxInputTokens: 128000, maxOutputTokens: 65536, charsPerToken: 4 },        // Llama-4 / Kimi-K2 flagships
+    'deepseek': { maxInputTokens: 128000, maxOutputTokens: 65536, charsPerToken: 4 },    // DeepSeek V3.2 / R1
+    'openrouter': { maxInputTokens: 128000, maxOutputTokens: 65536, charsPerToken: 4 },  // routes to high-output flagships
+    'local': { maxInputTokens: 8000, maxOutputTokens: 4096, charsPerToken: 4 },          // Conservative — local model ceiling is unknowable
     // Azure providers mirror their direct-provider limits (same underlying models).
     'azure-claude': { maxInputTokens: 200000, maxOutputTokens: 64000, charsPerToken: 4 },
-    'azure-openai': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
+    'azure-openai': { maxInputTokens: 128000, maxOutputTokens: 65536, charsPerToken: 4 }, // GPT-5.x on Azure
 };
 
 // Reserve tokens for prompt template + output

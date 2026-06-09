@@ -84,12 +84,14 @@ describe('storyboard non-JSON retry', () => {
         expect((st.mock.calls[0][2] as { maxTokens?: number }).maxTokens).toBeLessThan(15000);
     });
 
-    it('maxStoryboardSlides is provider-aware (claude reaches 40; low-output models cap honestly)', () => {
-        expect(maxStoryboardSlides('azure-claude')).toBe(40); // 64k → schema max
-        expect(maxStoryboardSlides('claude')).toBe(40);
-        expect(maxStoryboardSlides('openai')).toBeLessThan(15);    // 16384 → ~9
-        expect(maxStoryboardSlides('local')).toBeGreaterThanOrEqual(3); // floored at 3, never 0
-        expect(maxStoryboardSlides('gemini')).toBeGreaterThan(20); // 2.x 64k+ output (post-fix)
+    it('maxStoryboardSlides is provider-aware — all cloud flagships clear ≥35; local stays honest', () => {
+        // 2026 cloud flagships (64k+ output) all reach the schema cap (40) — clears 35.
+        for (const p of ['azure-claude', 'claude', 'openai', 'azure-openai', 'gemini', 'groq', 'deepseek', 'openrouter']) {
+            expect(maxStoryboardSlides(p)).toBeGreaterThanOrEqual(35);
+        }
+        // local is honestly capped (an arbitrary local model's output ceiling is unknowable).
+        expect(maxStoryboardSlides('local')).toBeGreaterThanOrEqual(3);
+        expect(maxStoryboardSlides('local')).toBeLessThan(35);
     });
 
     it('stops early on abort', async () => {
