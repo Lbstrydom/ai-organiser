@@ -68,6 +68,12 @@ describe('buildDeckFromStoryboard (auto-build path)', () => {
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value.slides[0].type).toBe('title');
     });
+    it('re-validates the storyboard at the boundary (audit H5) — rejects a malformed one', () => {
+        // A restored/persisted storyboard could be malformed; don't trust the TS type.
+        const bad = { thesis: 'x', slides: [{ id: 's1', role: 'not-a-role', action_title: 't' }] } as unknown as Parameters<typeof buildDeckFromStoryboard>[0];
+        const r = buildDeckFromStoryboard(bad);
+        expect(r.ok).toBe(false);
+    });
 });
 
 describe('buildDeckFromStoryline (review path)', () => {

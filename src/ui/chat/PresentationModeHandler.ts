@@ -770,11 +770,18 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!revised.ok) return { early: t.storylineReviseFailed.replace('{error}', revised.error) };
         pending.storyboard = revised.value.storyboard;
         pending.storylineMarkdown = revised.value.storylineMarkdown;
-        // If the user already Saved a .md, keep it in sync with the revision.
+        // If the user already Saved a .md, keep it in sync with the revision. This
+        // is AUXILIARY (audit M11): a vault.modify throw must NOT bubble into
+        // generateIr's catch and mis-report a successful revise as a generation
+        // failure — log + drop the stale link, the in-memory revision still stands.
         if (pending.savedNotePath) {
-            const f = r.ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
-            if (f instanceof TFile) await r.ctx.app.vault.modify(f, revised.value.storylineMarkdown);
-            else pending.savedNotePath = undefined; // moved/deleted — drop the stale link
+            try {
+                const f = r.ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
+                if (f instanceof TFile) await r.ctx.app.vault.modify(f, revised.value.storylineMarkdown);
+                else pending.savedNotePath = undefined; // moved/deleted — drop the stale link
+            } catch (e) {
+                logger.warn('Presentation', `[storyline] saved-note sync failed (revision still applied): ${e instanceof Error ? e.message : String(e)}`);
+            }
         }
         this.setPhase('storyline-review'); // clear the transient "Drafting storyline…" label
         return { early: `${revised.value.storylineMarkdown}\n\n---\n\n${t.storylineRevisedInChat}` };

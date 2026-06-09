@@ -4,6 +4,7 @@ import {
     storyboardSlideSchema,
     visualDataSchema,
     parseStoryboardFromResponse,
+    validateStoryboard,
     STORYBOARD_SCHEMA_VERSION,
 } from '../src/services/presentationIr/consultantStoryboard';
 
@@ -73,6 +74,25 @@ describe('parseStoryboardFromResponse', () => {
         const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ ...barSlide, suggested_visual: 'line' }] }));
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error).toMatch(/schema validation failed/);
+    });
+    it('strips zero-width chars at the parse boundary (Gemini-gate: no revision-cycle accumulation)', () => {
+        const zwsp = '​';
+        const dirty = { thesis: `Growth ${zwsp}<${zwsp}strong>`, slides: [{ ...barSlide, action_title: `EMEA ${zwsp}drove 60%` }] };
+        const r = parseStoryboardFromResponse(JSON.stringify(dirty));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.thesis).not.toContain(zwsp);
+            expect(r.value.slides[0].action_title).not.toContain(zwsp);
+        }
+    });
+});
+
+describe('validateStoryboard (snapshot restore)', () => {
+    it('strips zero-width chars from a restored snapshot too', () => {
+        const zwsp = '​';
+        const r = validateStoryboard({ ...deck, thesis: `Growth${zwsp}${zwsp} concentrated` });
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.thesis).not.toContain(zwsp);
     });
 });
 

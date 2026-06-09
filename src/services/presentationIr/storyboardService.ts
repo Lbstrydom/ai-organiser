@@ -44,26 +44,57 @@ interface StoryboardCallOpts {
     disableThinking?: boolean;
 }
 
-/** Shared LLM-call: send the prompt → parse → 1 repair on validation failure. */
+/** Total storyboard attempts (1 initial + 2 repairs). Azure Claude intermittently
+ *  returns a 200 with non-JSON/empty content for the structured-JSON prompt; a
+ *  single repair was not always enough (live: 1 of 2 cold runs failed through both
+ *  the generator AND the one repair). Three attempts drop the all-fail odds sharply
+ *  while staying bounded. */
+const MAX_STORYBOARD_ATTEMPTS = 3;
+
+/** Shared LLM-call: send the prompt → parse → repair up to `MAX_STORYBOARD_ATTEMPTS`.
+ *  Distinguishes an EMPTY/failed response (transient — retry the SAME prompt fresh)
+ *  from a non-empty UNPARSEABLE one (feed it to a repair prompt). Never throws. */
 async function runStoryboardLLM(
     context: LLMFacadeContext,
     systemPrompt: string,
     callOpts: StoryboardCallOpts,
 ): Promise<Result<ConsultantStoryboard>> {
     try {
-        const first = await summarizeText(context, systemPrompt, callOpts);
-        if (callOpts.signal?.aborted) return err('Aborted');
-        if (!first.success || !first.content) return err(first.error || 'storyboard: empty LLM response');
+        let lastError = 'storyboard: no response';
+        // The unparseable prior output to repair; null = retry the base prompt fresh
+        // (used for the first attempt AND after an empty/failed response).
+        let badOutput: string | null = null;
+        for (let attempt = 0; attempt < MAX_STORYBOARD_ATTEMPTS; attempt++) {
+            if (callOpts.signal?.aborted) return err('Aborted');
+            const prompt = badOutput == null
+                ? systemPrompt
+                : `${systemPrompt}\n\n${buildStoryboardRepairPrompt(badOutput, lastError)}`;
+            const res = await summarizeText(context, prompt, callOpts);
+            if (callOpts.signal?.aborted) return err('Aborted');
 
-        const parsed = parseStoryboardFromResponse(first.content);
-        if (parsed.ok) return parsed;
-
-        if (callOpts.signal?.aborted) return err('Aborted');
-        logger.warn('Presentation', `storyboard validation failed, repairing: ${parsed.error}`);
-        const retry = await summarizeText(context, `${systemPrompt}\n\n${buildStoryboardRepairPrompt(first.content, parsed.error)}`, callOpts);
-        if (callOpts.signal?.aborted) return err('Aborted');
-        if (!retry.success || !retry.content) return err(parsed.error);
-        return parseStoryboardFromResponse(retry.content);
+            if (!res.success) {
+                // The LLM call itself FAILED — and `summarizeText`/`postWithRetry` has
+                // ALREADY done provider-level 429/5xx backoff+retries before returning
+                // failure (Gemini-gate). Re-firing here would just hammer a struggling
+                // provider, so surface the error instead of looping.
+                return err(res.error || 'storyboard: LLM call failed');
+            }
+            if (!res.content) {
+                // A 200 with EMPTY content (rare Azure quirk, no rate-limit involved) —
+                // retry the base prompt fresh; there's no malformed output to repair.
+                lastError = 'storyboard: empty LLM response';
+                badOutput = null;
+                logger.warn('Presentation', `storyboard attempt ${attempt + 1}/${MAX_STORYBOARD_ATTEMPTS} empty content — retrying fresh`);
+                continue;
+            }
+            const parsed = parseStoryboardFromResponse(res.content);
+            if (parsed.ok) return parsed;
+            // Non-empty but unparseable — feed it to a repair prompt next round.
+            lastError = parsed.error;
+            badOutput = res.content;
+            logger.warn('Presentation', `storyboard attempt ${attempt + 1}/${MAX_STORYBOARD_ATTEMPTS} unparseable, repairing: ${parsed.error}`);
+        }
+        return err(lastError);
     } catch (e) {
         // Log the full error for diagnosis; return a clean message at the boundary (audit M10).
         logger.warn('Presentation', `storyboard LLM call failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);

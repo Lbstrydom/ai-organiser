@@ -1,5 +1,24 @@
 # Project Status Log
 
+## 2026-06-08 — Storyboard retry hardening + /audit-code pass (GPT + Gemini ×3) on the deferred-materialization work
+
+### Changes
+- **Storyboard non-JSON retry hardening** (`storyboardService.runStoryboardLLM`): Azure Claude intermittently returns a 200 with non-JSON/empty content for the structured-JSON storyboard prompt (live: 1 of 2 cold runs failed through both the generator AND the single repair). Retry is now `MAX_STORYBOARD_ATTEMPTS = 3`, distinguishing an EMPTY 200 (retry the base prompt fresh) from a non-empty UNPARSEABLE one (feed it to a repair prompt). A `!res.success` failure is **terminal** (cloudService/`postWithRetry` already did 429/5xx backoff — re-firing would only hammer a struggling provider).
+- **/audit-code pass** (GPT-5 R1 + Gemini 3.1 Pro final gate ×3 rounds, **converged**, every round 0 wrongly-dismissed / 0 over-engineering). **8 in-scope findings fixed**: M11 (saved-note `vault.modify` sync wrapped so it can't mis-report a revise as a generation failure), H5 (`validateStoryboard()` guard in `buildDeckFromStoryboard` for restored/persisted storyboards), H8 + G1 (Result-boundary `try/catch` on ALL pipeline stages incl. the sync exports), G3 (the terminal-`!res.success` retry rule above), **G2-2 (`stripZeroWidthDeep()` at the storyboard parse boundary** — the prompt-builder's `<`→`<ZWSP` defang can no longer accumulate into the stored storyboard / rendered deck across revision cycles), M1 (stale doc). The ~24 remaining findings were pre-existing/out-of-scope (widened by `--base e1854c6`) or invalid (zod-is-a-dep, advisory-grounding-by-design, a score-clamp misread).
+- **E2E re-verified live (CDP)** on the audited build: 0 P0 / 5 PASS — no `.md` during generation, two review CTAs, no stale "Drafting storyline…" label, transcript visible in review, "Build slides from this storyline" builds, one provenance `.md` on build.
+
+### Files Affected
+- `src/services/presentationIr/storyboardService.ts` — 3-attempt retry, terminal-on-failure
+- `src/services/chat/consultantStoryboardPipeline.ts` — Result-boundary try/catch (async + sync), `validateStoryboard` guard, doc
+- `src/services/presentationIr/consultantStoryboard.ts` — `validateStoryboard` + `stripZeroWidthDeep` at parse/restore boundaries
+- `src/ui/chat/PresentationModeHandler.ts` — M11 saved-note sync wrapped
+- Tests: `tests/storyboardRetry.test.ts` (new, 6), `tests/consultantStoryboard.test.ts` (+ZWSP/validate, 4), `tests/consultantStoryboardPipeline.test.ts` (+H5 guard)
+
+### Verify
+- tsc clean · full vitest green · test:auto 45/45 · audit converged (summary in gitignored `docs/plans/storyline-deferred-materialization-audit-summary.md`) · build:quick deployed · live CDP E2E 5/5.
+
+---
+
 ## 2026-06-08 — Storyline deferred materialization + build-phrase / stale-label / cramped-transcript fixes
 
 ### Changes

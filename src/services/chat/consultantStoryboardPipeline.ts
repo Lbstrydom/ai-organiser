@@ -4,19 +4,25 @@
  * handler calls:
  *
  *   1. `runStoryboardStage` — brief + evidence → generate storyboard → ground →
- *      structural-audit → render the dot-dash storyline `.md`. (The pre-IR stage.)
- *   2. `buildDeckFromStoryline` — the user-edited storyline `.md` → parse → re-ground
- *      → re-audit → DETERMINISTIC translate → `SlideDeckIr`. (After sign-off.)
+ *      structural-audit → render the dot-dash storyline markdown (RETURNED to the
+ *      handler, which keeps it in memory; no `.md` is written here — the handler
+ *      materializes one only on an explicit Save / Create-deck, see
+ *      storyline-deferred-materialization). (The pre-IR stage.)
+ *   2. `buildDeckFromStoryboard` — the in-memory `ConsultantStoryboard` → validate →
+ *      DETERMINISTIC translate → `SlideDeckIr`. (The primary after-review build.)
+ *   3. `buildDeckFromStoryline` — a SAVED + hand-edited storyline `.md` → parse →
+ *      re-ground → re-audit → translate → `SlideDeckIr`. (The note-editor path.)
  *
  * Extracted (not inlined into the 1500-line handler) so the composition is pure +
  * unit-testable; the handler keeps only the UI gate (write note / open / command).
  * The LLM judge is an injected seam (Cluster D supplies the cross-family critic).
  */
 import type { Result } from '../../core/result';
-import { ok } from '../../core/result';
+import { ok, err } from '../../core/result';
 import type { LLMFacadeContext } from '../llmFacade';
 import type { SlideDeckIr } from '../presentationIr/slideIr';
 import type { ConsultantStoryboard, EvidenceSpan } from '../presentationIr/consultantStoryboard';
+import { validateStoryboard } from '../presentationIr/consultantStoryboard';
 import type { GroundingReport } from '../presentationIr/evidenceGrounding';
 import { selfCheckStoryboard } from '../presentationIr/evidenceGrounding';
 import { generateStoryboard, generateRevisedStoryboard, translateStoryboardToIr } from '../presentationIr/storyboardService';
@@ -54,10 +60,17 @@ export async function runStoryboardStage(
 ): Promise<Result<StoryboardStageResult>> {
     const generated = await generateStoryboard(context, brief, catalog, options);
     if (!generated.ok) return generated;
-    const grounding = selfCheckStoryboard(generated.value, catalog);
-    const audit = await auditStoryboardWithJudge(generated.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
-    const storylineMarkdown = storyboardToMarkdown(generated.value, { bySlide: audit.bySlide, deckName: options.deckName });
-    return ok({ storyboard: generated.value, grounding, audit, storylineMarkdown });
+    // Audit H8: keep the post-generate steps (selfCheck / judge / serialize) inside
+    // the Result boundary — a throw here (injected judge, serializer, audit) must
+    // surface as Result.err, not reject past the contract.
+    try {
+        const grounding = selfCheckStoryboard(generated.value, catalog);
+        const audit = await auditStoryboardWithJudge(generated.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
+        const storylineMarkdown = storyboardToMarkdown(generated.value, { bySlide: audit.bySlide, deckName: options.deckName });
+        return ok({ storyboard: generated.value, grounding, audit, storylineMarkdown });
+    } catch (e) {
+        return err(`storyboard stage: ${e instanceof Error ? e.message : String(e)}`);
+    }
 }
 
 export interface DeckFromStorylineResult {
@@ -78,18 +91,32 @@ export function buildDeckFromStoryline(
     catalog: readonly EvidenceSpan[],
     outputLanguage?: string,
 ): Result<DeckFromStorylineResult> {
-    const parsed = markdownToStoryboard(storylineMarkdown);
-    if (!parsed.ok) return parsed;
-    const grounding = selfCheckStoryboard(parsed.value.storyboard, catalog);
-    const audit = auditStoryboard(parsed.value.storyboard, grounding, { outputLanguage });
-    const deck = translateStoryboardToIr(parsed.value.storyboard);
-    if (!deck.ok) return deck;
-    return ok({ deck: deck.value, grounding, audit, comments: parsed.value.comments });
+    try { // Gemini-gate: SYNC export honours the Result boundary (parse/ground/audit/translate can throw).
+        const parsed = markdownToStoryboard(storylineMarkdown);
+        if (!parsed.ok) return parsed;
+        const grounding = selfCheckStoryboard(parsed.value.storyboard, catalog);
+        const audit = auditStoryboard(parsed.value.storyboard, grounding, { outputLanguage });
+        const deck = translateStoryboardToIr(parsed.value.storyboard);
+        if (!deck.ok) return deck;
+        return ok({ deck: deck.value, grounding, audit, comments: parsed.value.comments });
+    } catch (e) {
+        return err(`storyboard build from note: ${e instanceof Error ? e.message : String(e)}`);
+    }
 }
 
-/** auto-build path: storyboard → IR directly (no markdown round-trip). */
+/** Primary after-review build: in-memory storyboard → IR directly (no markdown
+ *  round-trip). Audit H5: re-validate at this boundary — the storyboard may arrive
+ *  from a restored/persisted snapshot, not just a freshly schema-parsed LLM response,
+ *  so don't trust the TS type at runtime. `translateStoryboardToIr` still applies its
+ *  own `validateDeckIr` gate on the output. */
 export function buildDeckFromStoryboard(storyboard: ConsultantStoryboard): Result<SlideDeckIr> {
-    return translateStoryboardToIr(storyboard);
+    try { // Gemini-gate: the SYNC exports must honour the Result boundary too (H8 completion).
+        const valid = validateStoryboard(storyboard);
+        if (!valid.ok) return valid;
+        return translateStoryboardToIr(valid.value);
+    } catch (e) {
+        return err(`storyboard build: ${e instanceof Error ? e.message : String(e)}`);
+    }
 }
 
 /**
@@ -108,10 +135,14 @@ export async function reviseStoryboard(
 ): Promise<Result<StoryboardStageResult>> {
     const revised = await generateRevisedStoryboard(context, current, request, comments, catalog, options);
     if (!revised.ok) return revised;
-    const grounding = selfCheckStoryboard(revised.value, catalog);
-    const audit = await auditStoryboardWithJudge(revised.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
-    const storylineMarkdown = storyboardToMarkdown(revised.value, { bySlide: audit.bySlide, deckName: options.deckName });
-    return ok({ storyboard: revised.value, grounding, audit, storylineMarkdown });
+    try { // Audit H8: keep post-generate steps inside the Result boundary.
+        const grounding = selfCheckStoryboard(revised.value, catalog);
+        const audit = await auditStoryboardWithJudge(revised.value, grounding, options.judge, { outputLanguage: options.outputLanguage });
+        const storylineMarkdown = storyboardToMarkdown(revised.value, { bySlide: audit.bySlide, deckName: options.deckName });
+        return ok({ storyboard: revised.value, grounding, audit, storylineMarkdown });
+    } catch (e) {
+        return err(`storyboard revise: ${e instanceof Error ? e.message : String(e)}`);
+    }
 }
 
 // Bare approval / build commands → commit to slides. Anything else (incl. a

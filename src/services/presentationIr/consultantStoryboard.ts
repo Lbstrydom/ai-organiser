@@ -174,10 +174,27 @@ export const consultantStoryboardSchema = z.object({
 });
 export type ConsultantStoryboard = z.infer<typeof consultantStoryboardSchema>;
 
+/** Zero-width chars (ZWSP/ZWNJ/ZWJ/BOM) never carry meaning in storyboard content
+ *  and otherwise ACCUMULATE across revision cycles (Gemini-gate): the prompt builder
+ *  defangs `<` with a ZWSP, the LLM copies unchanged slides verbatim, and the echoed
+ *  ZWSP re-enters the stored storyboard → re-defanged next cycle. Strip them at the
+ *  parse boundary so the in-memory storyboard + rendered deck stay clean. */
+const ZERO_WIDTH_RE = /[​-‍﻿]/g;
+function stripZeroWidthDeep(value: unknown): unknown {
+    if (typeof value === 'string') return value.replace(ZERO_WIDTH_RE, '');
+    if (Array.isArray(value)) return value.map(stripZeroWidthDeep);
+    if (value && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) out[k] = stripZeroWidthDeep(v);
+        return out;
+    }
+    return value;
+}
+
 /** Validate an already-parsed object against the storyboard schema (e.g. a
  *  persisted snapshot being restored). Same strict Zod gate as the LLM parser. */
 export function validateStoryboard(value: unknown): Result<ConsultantStoryboard> {
-    const parsed = consultantStoryboardSchema.safeParse(value);
+    const parsed = consultantStoryboardSchema.safeParse(stripZeroWidthDeep(value));
     if (!parsed.success) {
         const first = parsed.error.issues[0];
         return err(`storyboard: schema validation failed — ${first.path.join('.')}: ${first.message}`);
@@ -193,7 +210,7 @@ export function validateStoryboard(value: unknown): Result<ConsultantStoryboard>
 export function parseStoryboardFromResponse(raw: string): Result<ConsultantStoryboard> {
     const extracted = tryExtractJson(raw);
     if (!extracted) return err('storyboard: no JSON object found in response');
-    const parsed = consultantStoryboardSchema.safeParse(extracted);
+    const parsed = consultantStoryboardSchema.safeParse(stripZeroWidthDeep(extracted));
     if (!parsed.success) {
         const first = parsed.error.issues[0];
         return err(`storyboard: schema validation failed — ${first.path.join('.')}: ${first.message}`);
