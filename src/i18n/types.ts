@@ -2434,6 +2434,11 @@ export interface Translations {
             slideRefineFailed: string;              // "Failed to refine: {error}"
             slideRefineApplied: string;             // "Updated. {n} slides. Continue refining or export."
             slideRefineNoDeck: string;              // "No presentation to refine."
+            slideSearching: string;                 // mid-conversation /search progress
+            slideSearchUnavailable: string;
+            slideSearchNoResults: string;
+            slideSearchAddedStoryline: string;
+            slideSearchAddedDeck: string;
             slideGenerateFailed: string;            // "Failed to generate: {error}"
             storylineReady: string;                 // consultant mode: storyline note written for review
             storylineRevised: string;               // consultant mode: storyline revised, still in review

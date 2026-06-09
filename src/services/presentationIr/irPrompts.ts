@@ -99,13 +99,22 @@ ${FEW_SHOT}`;
  * current IR + the change and asks for the complete updated IR, so subsequent
  * rounds stay IR-backed (and exportable to faithful PPTX).
  */
-export function buildIrRefinePrompt(currentDeck: SlideDeckIr, userRequest: string): string {
+export function buildIrRefinePrompt(
+    currentDeck: SlideDeckIr,
+    userRequest: string,
+    extraSources?: ReadonlyArray<{ ref: string; content: string }>,
+): string {
+    // Mid-conversation web research the user pulled in via `/search` — offered as
+    // reference material the edit may draw on (it does NOT force new slides).
+    const referenceBlock = extraSources && extraSources.length > 0
+        ? `\n<reference_material>\nFresh research the user added while iterating — use it to ground the edit where relevant; do not invent facts beyond it:\n${extraSources.map(s => `## ${escapeForPrompt(s.ref)}\n${escapeForPrompt(s.content)}`).join('\n\n')}\n</reference_material>\n`
+        : '';
     return `You are editing an existing structured slide deck (IR JSON).
 
 <current_deck>
 ${jsonForPrompt(currentDeck)}
 </current_deck>
-
+${referenceBlock}
 <edit_request>
 ${escapeForPrompt(userRequest)}
 </edit_request>

@@ -47,6 +47,18 @@ describe('buildIrRefinePrompt', () => {
         expect(p).toContain('"id":"s2"');
         expect(p).toContain('COMPLETE updated deck');
     });
+    it('injects mid-conversation /search reference material when extraSources given', () => {
+        const deck = JSON.parse(validDeck) as SlideDeckIr;
+        const p = buildIrRefinePrompt(deck, 'add the new figures', [{ ref: 'EMEA growth 2026', content: 'Revenue grew 33% to €1.2B.' }]);
+        expect(p).toContain('<reference_material>');
+        expect(p).toContain('EMEA growth 2026');
+        expect(p).toContain('Revenue grew 33%');
+    });
+    it('omits the reference block when no extraSources (byte-identical to before)', () => {
+        const deck = JSON.parse(validDeck) as SlideDeckIr;
+        const p = buildIrRefinePrompt(deck, 'tweak');
+        expect(p).not.toContain('reference_material');
+    });
 });
 
 describe('parseIrFromResponse', () => {

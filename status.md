@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-08 — Mid-conversation web-search in slides/storyline (`/search`)
+
+Sources used to resolve ONCE at deck creation; now the user can pull fresh web research while iterating. `/search <query>` (aliases `/research`, `/web`) is intercepted in the presentation chat loop:
+- **`src/services/chat/searchCommand.ts`** — pure `parseSearchCommand()` (word-boundary match, colon-or-space separator, ≥2-char query; null for normal turns).
+- **`PresentationModeHandler.tryHandleSearchCommand(r)`** — gated to when a storyline OR deck exists; resolves via the existing stateless `PresentationSourceService.resolve([{kind:'web-search', ref: query}])` (same configured/consented web-search the create panel uses, NO panel-state pollution). **Storyline phase** → builds evidence spans (budget-bounded) and appends to `pendingStoryline.catalog`, so the next revise re-grounds with them. **Deck phase** → accumulates in `midConversationSources`, injected into the next `refineDeckIr` as `<reference_material>`.
+- Wired at `runGenerate` (storyline/creation) + `runRefine` (deck) tops; `refineDeckIr`/`buildIrRefinePrompt` extended with optional `extraSources` (omitted = byte-identical prompt). Cleared in `onClear`.
+- i18n: `slideSearching` / `slideSearchUnavailable` / `slideSearchNoResults` / `slideSearchAddedStoryline` / `slideSearchAddedDeck`; the storyline-ready message now advertises `/search`.
+
+Tests: `tests/searchCommand.test.ts` (7), `tests/irPrompts.test.ts` (+2 reference-material). Verify: tsc clean · full vitest 5941 · test:auto 45/45.
+
+---
+
 ## 2026-06-08 — Refine/polish token-scaling parity + brand-audit/web-search/log checks
 
 Follow-up checks after the generation-path token fixes:

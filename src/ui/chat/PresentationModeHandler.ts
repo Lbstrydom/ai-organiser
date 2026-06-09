@@ -55,6 +55,7 @@ import { renderCreatePanel } from './presentation/CreatePanel';
 import { PresentationSourceService, DEFAULT_CREATION_CONFIG } from '../../services/chat/presentationSourceService';
 import { CreationSourceController } from '../../services/chat/creationSourceController';
 import { computeSourceBudgetChars } from '../../services/chat/presentationSourceBudget';
+import { parseSearchCommand } from '../../services/chat/searchCommand';
 import type { CreationConfig, PromptSource } from '../../services/chat/presentationTypes';
 import { runFastScan, deduplicateFindings } from '../../services/chat/presentationQualityService';
 import { sanitizePresentation } from '../../services/chat/presentationSanitizer';
@@ -158,6 +159,13 @@ export class PresentationModeHandler implements ChatModeHandler {
     // to `ctx.app`. Disposed in `dispose()`. Subscription unsubscribe stored
     // for teardown when the create panel is replaced by the iframe.
     private sourceController: CreationSourceController | null = null;
+    // Stateless web-search resolver (shared with the create panel's controller) so a
+    // mid-conversation `/search` can pull fresh research without the panel's selection state.
+    private sourceService: PresentationSourceService | null = null;
+    // Web research the user added mid-conversation (via `/search`) while a DECK exists —
+    // injected into the next deck refine as reference material. Storyline-phase searches
+    // append directly to the pending storyboard's evidence catalog instead.
+    private midConversationSources: PromptSource[] = [];
     private creationFlowEpoch = 1;
     // Deep clone so nested config (arrays/objects) can never alias the shared
     // module default — a shallow spread would let one handler mutate the default.
@@ -460,6 +468,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     // ── Generation + refinement (extracted to keep buildPrompt lean) ─────────
 
     private async runGenerate(r: RunContext): Promise<StreamingResult> {
+        // Mid-conversation web research: `/search <query>` pulls fresh sources into an
+        // in-progress storyline (vs. only at creation). Handled before generation routing.
+        const searched = await this.tryHandleSearchCommand(r);
+        if (searched) return searched;
         // Storyline-first decks draft a storyline before slides — show the right
         // phase from the start (a pending storyline that BUILDS resets to
         // 'generating' in handlePendingStoryline). Direct decks generate slides.
@@ -473,6 +485,45 @@ export class PresentationModeHandler implements ChatModeHandler {
         // faithful PPTX export. On failure we surface an explicit error (no
         // silent HTML fallback) so a deck is always IR-backed.
         return await this.generateIr(r);
+    }
+
+    /**
+     * Mid-conversation web research. `/search <query>` (aliases `/research`, `/web`)
+     * pulls fresh web sources while a storyline OR deck exists, WITHOUT re-running
+     * creation: storyline-phase searches append evidence spans to the pending
+     * storyboard's catalog (the next revise re-grounds with them); deck-phase searches
+     * accumulate as reference material injected into the next refine. Returns a
+     * confirmation result, or null for a normal (non-search) chat turn.
+     */
+    private async tryHandleSearchCommand(r: RunContext): Promise<StreamingResult | null> {
+        const query = parseSearchCommand(r.originalQuery);
+        if (!query) return null;
+        // Only meaningful once iterating — a deck or a pending storyline must exist.
+        if (!this.pendingStoryline && !this.deck.html) return null;
+        const t = r.ctx.plugin.t.modals.unifiedChat;
+        if (!this.sourceService) return { finalContent: t.slideSearchUnavailable };
+
+        this.run.setThinking(t.slideSearching.replace('{query}', query));
+        const resolved = await this.sourceService.resolve(
+            [{ kind: 'web-search', ref: query }],
+            { signal: r.abort.signal },
+        );
+        if (r.abort.signal.aborted) return { finalContent: r.ctx.plugin.t.modals.unifiedChat.generationCancelled };
+        const found = resolved.usable.filter((s) => s.content.trim().length > 0);
+        if (found.length === 0) return { finalContent: t.slideSearchNoResults.replace('{query}', query) };
+
+        const settings = r.ctx.fullPlugin.settings;
+        if (this.pendingStoryline) {
+            const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
+            const newSpans = buildEvidenceCatalog(
+                found.map((s) => ({ ref: s.ref, content: s.content })),
+                { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) },
+            );
+            this.pendingStoryline.catalog = [...this.pendingStoryline.catalog, ...newSpans];
+            return { finalContent: t.slideSearchAddedStoryline.replace('{n}', String(found.length)).replace('{query}', query) };
+        }
+        this.midConversationSources.push(...found);
+        return { finalContent: t.slideSearchAddedDeck.replace('{n}', String(found.length)).replace('{query}', query) };
     }
 
     /**
@@ -891,6 +942,8 @@ export class PresentationModeHandler implements ChatModeHandler {
                 userRequest: r.effectiveQuery,
                 outputLanguage: r.ctx.plugin.settings.summaryLanguage,
                 signal: r.abort.signal,
+                // Mid-conversation `/search` research, if any, grounds this edit.
+                extraSources: this.midConversationSources.length > 0 ? this.midConversationSources : undefined,
             });
             if (r.abort.signal.aborted) return { finalContent: t.generationCancelled };
             if (!refined.ok) {
@@ -930,6 +983,10 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     private async runRefine(r: RunContext): Promise<StreamingResult> {
+        // `/search <query>` mid-edit pulls fresh web research into the deck's refine
+        // context (injected as reference material on the next edit) — handled first.
+        const searched = await this.tryHandleSearchCommand(r);
+        if (searched) return searched;
         this.setPhase('refining');
         const t = r.ctx.plugin.t.modals.unifiedChat;
         if (!this.deck.html || !this.deck.deckIr) return { finalContent: t.slideRefineNoDeck };
@@ -1306,6 +1363,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         // Clear any in-review storyline (latent leak: a pending storyline used to
         // survive Clear/Discard, leaving the review CTAs + gate stuck).
         this.pendingStoryline = null;
+        this.midConversationSources = []; // drop mid-conversation `/search` research
         // Scoped-editing state — clear selection and reset mode/flags so a
         // fresh deck doesn't inherit stale scope from the previous one.
         this.editScope.reset();
@@ -1402,6 +1460,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             },
         };
         const service = new PresentationSourceService(ctx.app, dispatcher);
+        this.sourceService = service; // reused by mid-conversation `/search`
         this.sourceController = new CreationSourceController(ctx.app, service);
         // Auto-detect active note as the first source.
         const auto = service.detectActiveNote();

@@ -161,6 +161,8 @@ export interface RefineIrOptions {
     userRequest: string;
     outputLanguage?: string;
     signal?: AbortSignal;
+    /** Mid-conversation web research (via `/search`) offered as reference material. */
+    extraSources?: ReadonlyArray<{ ref: string; content: string }>;
 }
 
 /**
@@ -175,7 +177,7 @@ export async function refineDeckIr(
     if (options.signal?.aborted) return err('Aborted');
 
     const systemPrompt = buildIrSystemPrompt({ outputLanguage: options.outputLanguage });
-    const userPrompt = buildIrRefinePrompt(options.currentDeck, options.userRequest);
+    const userPrompt = buildIrRefinePrompt(options.currentDeck, options.userRequest, options.extraSources);
 
     // Whole-deck refine regenerates EVERY slide as one JSON response, so the output
     // budget must scale with the current deck size — else a large deck truncates on
