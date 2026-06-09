@@ -952,7 +952,7 @@ gantt
                 await this.app.vault.createFolder(this.configFolder);
             } catch {
                 // Folder may already exist due to race condition or stale cache - safe to ignore
-                console.debug(`[AI Organiser] Config folder "${this.configFolder}" already exists or could not be created`);
+                console.debug(`[AI Organiser] Config folder "${this.configFolder}" already exists — skipping creation`);
             }
         }
     }
@@ -1233,7 +1233,7 @@ ${personaSections}
                 await this.app.vault.create(path, content);
             } catch {
                 // File may already exist due to race condition or stale cache - safe to ignore
-                console.debug(`[AI Organiser] Config file "${path}" already exists or could not be created`);
+                console.debug(`[AI Organiser] Config file "${path}" already exists — skipping creation`);
             }
         }
     }

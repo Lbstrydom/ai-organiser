@@ -24,6 +24,7 @@ import { isContentTooLarge } from '../tokenLimits';
 import { tryExtractJson } from '../../utils/responseParser';
 import { summarizeText, getServiceType, type LLMFacadeContext, type LLMCallResult } from '../llmFacade';
 import { buildIrSystemPrompt } from '../presentationIr/irPrompts';
+import { storyboardMaxTokens } from '../presentationIr/storyboardService';
 import { REFINEMENT_HARD_BUDGET_MS } from './presentationConstants';
 import { logger } from '../../utils/logger';
 import type { QualityFinding } from './presentationTypes';
@@ -104,11 +105,16 @@ export async function refineDeckIrSelective(
         }
 
         // ── LLM call (single, no 1-repair — plan §2.3) ──────────────────────
+        // Output = the refined selected slices, so the budget scales with the number
+        // of selected slides — a large "All slides" selection would otherwise overflow
+        // the 8192 default and truncate. cloudService clamps to the model ceiling.
+        const selMaxTokens = storyboardMaxTokens(options.selections.length);
         let raw: LLMCallResult;
         try {
             raw = await summarizeText(context, fullPrompt, {
                 timeoutMs: REFINEMENT_HARD_BUDGET_MS,
                 signal: options.signal,
+                maxTokens: selMaxTokens,
                 disableThinking: true,
             });
         } catch (e) {
@@ -132,6 +138,7 @@ export async function refineDeckIrSelective(
                 retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
                     timeoutMs: REFINEMENT_HARD_BUDGET_MS,
                     signal: options.signal,
+                    maxTokens: selMaxTokens,
                     disableThinking: true,
                 });
             } catch (e) {

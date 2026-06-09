@@ -60,7 +60,7 @@ export class DictionaryService {
                 await this.app.vault.createFolder(folderPath);
             } catch {
                 // Folder may already exist
-                logger.debug('Minutes', `Dictionaries folder "${folderPath}" already exists or could not be created`);
+                logger.debug('Minutes', `Dictionaries folder "${folderPath}" already exists — skipping creation`);
             }
         }
     }

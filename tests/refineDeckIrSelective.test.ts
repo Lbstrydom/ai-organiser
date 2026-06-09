@@ -98,6 +98,17 @@ describe('refineDeckIrSelective — pre-LLM validation', () => {
 describe('refineDeckIrSelective — post-LLM validation + splice', () => {
     const selections = [{ slideIndex: 1, instruction: 'tighten' }, { slideIndex: 3, instruction: 'shorten' }];
 
+    it('scales maxTokens by the selection count (large-selection truncation guard)', async () => {
+        const r1 = { ...contentSlide(coffeeDeckIr.slides[1].id, 'Polished slide two') };
+        const r3 = { ...contentSlide(coffeeDeckIr.slides[3].id, 'Polished slide four') };
+        const { ctx, fn } = makeCtx(async () => jsonResponse([{ slideIndex: 1, slide: r1 }, { slideIndex: 3, slide: r3 }]));
+        await refineDeckIrSelective(ctx, { currentDeck: coffeeDeckIr, selections });
+        // The output budget must now be set (was unset → 8192 default → big selections truncated).
+        const opts = fn.mock.calls[0][1] as { maxTokens?: number };
+        expect(typeof opts.maxTokens).toBe('number');
+        expect(opts.maxTokens).toBeGreaterThanOrEqual(8192);
+    });
+
     it('happy path → ok with all-or-nothing splice + structural sharing', async () => {
         const r1 = { ...contentSlide(coffeeDeckIr.slides[1].id, 'Polished slide two') };
         const r3 = { ...contentSlide(coffeeDeckIr.slides[3].id, 'Polished slide four') };

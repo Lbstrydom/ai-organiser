@@ -177,10 +177,15 @@ export async function refineDeckIr(
     const systemPrompt = buildIrSystemPrompt({ outputLanguage: options.outputLanguage });
     const userPrompt = buildIrRefinePrompt(options.currentDeck, options.userRequest);
 
+    // Whole-deck refine regenerates EVERY slide as one JSON response, so the output
+    // budget must scale with the current deck size — else a large deck truncates on
+    // refine ("no JSON found"), exactly like generation. cloudService clamps to the model.
+    const maxTokens = storyboardMaxTokens(options.currentDeck.slides.length);
     try {
         const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
             timeoutMs: REFINEMENT_HARD_BUDGET_MS,
             signal: options.signal,
+            maxTokens,
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!first.success || !first.content) {
@@ -196,6 +201,7 @@ export async function refineDeckIr(
         const retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
             timeoutMs: REFINEMENT_HARD_BUDGET_MS,
             signal: options.signal,
+            maxTokens,
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!retry.success || !retry.content) return err(parsed.error);

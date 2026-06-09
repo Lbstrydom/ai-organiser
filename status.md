@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-08 — Refine/polish token-scaling parity + brand-audit/web-search/log checks
+
+Follow-up checks after the generation-path token fixes:
+- **Polish/refine had the SAME large-deck truncation bug** (the user's instinct): `refineDeckIr` (whole-deck polish + regular chat refine) set NO `maxTokens` and regenerates the full deck → a large deck truncated on refine ("no JSON found"). `refineDeckIrSelective` (per-slide) likewise didn't scale the output budget (an "All slides" selection on a big deck would truncate). Both now scale via `storyboardMaxTokens(...)` — whole-deck by `currentDeck.slides.length`, selective by `selections.length` — and the model-aware clamp (cloudService/local) applies automatically.
+- **Brand audit is SAFE** — `runBrandAudit` returns an `AuditResult` (violations list), not a regenerated deck, so no large-JSON truncation risk. No change needed.
+- **Web-search mid-conversation is NOT wired** (answer to the user's question): sources (notes/web-search/folders) resolve ONCE at creation via `resolveForSubmit`; the storyline-revise (`reviseStoryboard` uses the existing `pending.catalog`) and deck-refine (`refineDeckIr` uses the current deck + text) paths don't re-resolve. Adding it would be a feature (re-expose the source picker / a `/search` affordance in the chat loop → resolve → append to catalog). Not a bug.
+- **Config-folder log** reworded from "already exists or could not be created" → "already exists — skipping creation" (it's a benign `console.debug` in a safe-to-ignore catch; the old wording read as an error).
+
+Verify: tsc clean · full vitest 5932 · test:auto 45/45 · deployed.
+
+---
+
 ## 2026-06-08 — /audit-code pass on the session's slide-quality work (GPT R1 + Gemini gate → APPROVE)
 
 GPT R1 (30 findings, mostly diff-blind false positives + pre-existing systemic debt) + Gemini final gate. **2 in-scope fixes from R1** + **3 from the Gemini gate** (Gemini caught a real HIGH regression my triage had wrongly dismissed):
