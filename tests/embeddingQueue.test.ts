@@ -44,6 +44,54 @@ function harness(service: any): Harness {
     };
 }
 
+describe('EmbeddingQueue init-race tolerance (live 2026-06-08)', () => {
+    function raceHarness(getSvc: () => unknown) {
+        const scheduled: Array<() => void> = [];
+        const queue = new EmbeddingQueue({
+            getEmbeddingService: getSvc as never,
+            foregroundGate: new ForegroundGate(),
+            cooldown: new EmbeddingCooldown(() => 0),
+            schedule: (fn: () => void) => { scheduled.push(fn); return scheduled.length as never; },
+            cancel: () => { /* noop */ },
+        });
+        return { queue, scheduled };
+    }
+
+    it('waits (does NOT drop chunks) while the embedding service is still initializing, then drains when it appears', async () => {
+        let svc: unknown = null; // not ready yet — the reload init race
+        const { queue, scheduled } = raceHarness(() => svc);
+        const onSuccess = vi.fn(async () => { /* persist */ });
+        const completion = queue.enqueue([task('a', 0, 'x')], onSuccess);
+        await flush();
+        // First drain: service null → a wake is SCHEDULED, nothing failed/persisted.
+        expect(scheduled.length).toBe(1);
+        expect(onSuccess).not.toHaveBeenCalled();
+        // Service finishes initializing; the scheduled wake drains successfully.
+        svc = mockService(1);
+        scheduled.shift()!();
+        await completion;
+        expect((svc as ReturnType<typeof mockService>).batchGenerateEmbeddings).toHaveBeenCalledTimes(1);
+        expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    it('eventually fails pending chunks if the service NEVER initializes (no key + no fallback)', async () => {
+        const { queue, scheduled } = raceHarness(() => null);
+        const onSuccess = vi.fn(async () => { /* persist */ });
+        const completion = queue.enqueue([task('a', 0, 'x')], onSuccess);
+        await flush();
+        // Up to MAX_NULL_SERVICE_WAITS (8) wakes are scheduled, never persisting.
+        for (let i = 0; i < 8; i++) {
+            expect(scheduled.length).toBe(1);
+            scheduled.shift()!(); // fire the wake → next (async) drain
+            await flush();        // let the async drain re-schedule (or fail at the bound)
+        }
+        // The drain after the bound failed all pending → completion settled, nothing persisted.
+        await completion;
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(scheduled.length).toBe(0); // no further wake after the final fail
+    });
+});
+
 describe('EmbeddingQueue', () => {
     it('embeds one note in a single request and persists via onBatchSuccess', async () => {
         const svc = mockService(2);

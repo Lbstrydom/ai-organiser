@@ -1,5 +1,22 @@
 # Project Status Log
 
+## 2026-06-08 — Live-bug fixes: storyboard core_message length hard-fail + embedding-queue init race
+
+### Changes
+- **Storyboard generation blocker** (root cause from live Verbose logs): the schema's `text = z.string().min(1).max(800)` HARD-FAILED the whole storyboard when any field exceeded 800 chars — and consultant `core_message`s routinely run long, with every repair re-emitting an equally long one (`slides.N.core_message: Too big: expected string to have <=800 characters`). The "no JSON object found" reports were the same family (a structurally-truncated variant). Fix: bounded strings now **TRUNCATE at a word boundary (with an ellipsis) instead of rejecting** (`boundedText()` transform), `core_message`/`thesis` get a larger `prose` budget (`MAX_PROSE = 1500`), and the prompt asks for a tight 2–3 sentence `core_message`. A single over-long field can no longer kill generation. (The Azure calls were succeeding the whole time — valid JSON, `out≈1900` tokens well under budget — the failure was our own schema.)
+- **Embedding-queue init race**: on plugin load a vault re-index enqueues chunks BEFORE the async embedding service finishes initializing, and `drainOnce` dropped all pending chunks on the first null (`failing 194 pending chunks — no embedding service`). Fix: a bounded retry (`MAX_NULL_SERVICE_WAITS = 8 × NULL_SERVICE_RETRY_MS = 1500ms`, ~12s window) waits for the service to appear, only failing if it's genuinely absent (no key + no ONNX fallback). The counter resets once the service appears.
+
+### Files Affected
+- `src/services/presentationIr/consultantStoryboard.ts` — `boundedText()` truncating transform, `prose`/`MAX_PROSE`, `core_message`/`thesis` → `prose`
+- `src/services/presentationIr/storyboardPrompts.ts` — concise-core_message hint
+- `src/services/vector/embeddingQueue.ts` — bounded null-service retry (init-race tolerance)
+- Tests: `tests/consultantStoryboard.test.ts` (+3 truncation), `tests/embeddingQueue.test.ts` (+2 init-race)
+
+### Verify
+- tsc clean · full vitest green · test:auto 45/45 · build:quick deployed to vault + mobile.
+
+---
+
 ## 2026-06-08 — Storyboard retry hardening + /audit-code pass (GPT + Gemini ×3) on the deferred-materialization work
 
 ### Changes

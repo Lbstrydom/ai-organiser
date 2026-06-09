@@ -87,6 +87,28 @@ describe('parseStoryboardFromResponse', () => {
     });
 });
 
+describe('over-long prose truncates instead of hard-failing (live 2026-06-08 core_message fix)', () => {
+    it('a >800-char core_message no longer fails generation (was the storyboard blocker)', () => {
+        const longMsg = 'EMEA cloud revenue compounding. '.repeat(40); // ~1280 chars, > old 800 cap
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ ...barSlide, core_message: longMsg }] }));
+        expect(r.ok).toBe(true);
+    });
+    it('an extreme core_message (>1500) truncates with an ellipsis (graceful, not rejected)', () => {
+        const huge = 'word '.repeat(500); // 2500 chars
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ ...barSlide, core_message: huge }] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.slides[0].core_message.length).toBeLessThanOrEqual(1501);
+            expect(r.value.slides[0].core_message.endsWith('…')).toBe(true);
+        }
+    });
+    it('a long visual label truncates rather than failing the deck', () => {
+        const slide = { ...barSlide, visual_data: { type: 'bar' as const, items: [{ label: 'x'.repeat(1000), value: 1, evidence_span_id: 'e1' }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(true);
+    });
+});
+
 describe('validateStoryboard (snapshot restore)', () => {
     it('strips zero-width chars from a restored snapshot too', () => {
         const zwsp = '​';

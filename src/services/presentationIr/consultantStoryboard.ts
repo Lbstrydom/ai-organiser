@@ -21,11 +21,25 @@ import { tryExtractJson } from '../../utils/responseParser';
 
 export const STORYBOARD_SCHEMA_VERSION = 1;
 
-const MAX_TEXT = 800;
+const MAX_TEXT = 800;     // labels / titles / cells — short by nature
+const MAX_PROSE = 1500;   // core_message / thesis — the supporting paragraph
 const MAX_SLIDES = 40;
 const MAX_SERIES_POINTS = 30;
 
-const text = z.string().min(1).max(MAX_TEXT);
+/** A bounded string that TRUNCATES at a word boundary (with an ellipsis) instead of
+ *  HARD-FAILING the whole storyboard on a length overage. Consultant `core_message`s
+ *  routinely run past a tight cap, and every repair re-emitted an equally long one —
+ *  a hard `.max()` killed the ENTIRE generation (live 2026-06-08, `slides.N.core_message:
+ *  Too big`). Truncation degrades one field gracefully instead. */
+function boundedText(max: number) {
+    return z.string().min(1).transform((s) => {
+        if (s.length <= max) return s;
+        const cut = s.slice(0, max).replace(/\s+\S*$/, '').trimEnd();
+        return (cut || s.slice(0, max).trimEnd()) + '…';
+    });
+}
+const text = boundedText(MAX_TEXT);
+const prose = boundedText(MAX_PROSE);
 const spanId = z.string().min(1).max(120);
 
 // ── Evidence catalog ─────────────────────────────────────────────────────────
@@ -130,7 +144,7 @@ export const storyboardSlideSchema = z.object({
     role: slideRoleSchema,
     /** The so-what. Verb-bearing; quantified WHERE the data supports it; NOT a label. */
     action_title: text,
-    core_message: text,
+    core_message: prose,
     /** ids into the deck's evidence catalog backing the title's claims. */
     evidence_span_ids: z.array(spanId).max(40).default([]),
     suggested_visual: suggestedVisualSchema,
@@ -156,7 +170,7 @@ export type StoryboardSlide = z.infer<typeof storyboardSlideSchema>;
 
 export const consultantStoryboardSchema = z.object({
     schemaVersion: z.literal(STORYBOARD_SCHEMA_VERSION).default(STORYBOARD_SCHEMA_VERSION),
-    thesis: text,
+    thesis: prose,
     sections: z.array(z.object({ label: text, slide_ids: z.array(z.string()).min(1) }).strict()).optional(),
     slides: z.array(storyboardSlideSchema).min(1).max(MAX_SLIDES),
 }).strict().superRefine((sb, ctx) => {

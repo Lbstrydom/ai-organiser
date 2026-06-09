@@ -75,6 +75,13 @@ interface QueueItem {
 
 const DEFAULT_BATCH_SIZE = 16;
 
+// Init-race tolerance (live 2026-06-08): on plugin load a vault re-index can enqueue
+// chunks BEFORE the async embedding service finishes initializing. Rather than drop
+// every pending chunk on the first null, wait a bounded number of short intervals for
+// the service to appear; only fail if it's genuinely absent (no key + no ONNX fallback).
+const NULL_SERVICE_RETRY_MS = 1500;
+const MAX_NULL_SERVICE_WAITS = 8;   // ~12s window for init to complete
+
 export class EmbeddingQueue {
     private readonly pending: QueueItem[] = [];
     private readonly batches = new Map<string, Batch>();
@@ -85,6 +92,7 @@ export class EmbeddingQueue {
     private readonly cancel: CancelFn;
 
     private draining = false;
+    private nullServiceWaits = 0;
     private wakeTimer: ReturnType<typeof setTimeout> | null = null;
     private idleUnsub: (() => void) | null = null;
 
@@ -205,9 +213,19 @@ export class EmbeddingQueue {
             }
             const service = this.getEmbeddingService();
             if (!service) {
+                // Init race: the service may still be initializing — wait a bounded
+                // number of short intervals before giving up, so a reload's re-index
+                // isn't dropped just because the queue drained a beat too early.
+                if (this.nullServiceWaits < MAX_NULL_SERVICE_WAITS) {
+                    this.nullServiceWaits++;
+                    this.scheduleWake(NULL_SERVICE_RETRY_MS);
+                    return;
+                }
                 this.failAllPending('no embedding service');
+                this.nullServiceWaits = 0;
                 return;
             }
+            this.nullServiceWaits = 0; // service appeared — reset the init-race counter
 
             const batchSize = Math.max(1, service.maxBatchSize || DEFAULT_BATCH_SIZE);
             const items = this.takeNext(batchSize);
