@@ -19,6 +19,7 @@ import type { ConsultantStoryboard, EvidenceSpan, StoryboardSlide, VisualData } 
 import { parseStoryboardFromResponse } from './consultantStoryboard';
 import { buildStoryboardPrompt, buildStoryboardRepairPrompt, buildStoryboardRevisionPrompt } from './storyboardPrompts';
 import type { StorylineComment } from './storyboardPrompts';
+import { getProviderLimits } from '../tokenLimits';
 
 export interface GenerateStoryboardOptions {
     outputLanguage?: string;
@@ -53,9 +54,28 @@ interface StoryboardCallOpts {
  *  JSON structure, plus a per-slide allowance (action_title + core_message + visual +
  *  evidence spans). cloudService clamps the result to the provider's max output
  *  (azure-claude/claude = 64k), so a 40-slide deck (~59k) still fits. */
+const STORYBOARD_BASE_TOKENS = 3000;       // thesis + sections + JSON envelope
+const STORYBOARD_TOKENS_PER_SLIDE = 1400;  // action_title + core_message + visual + spans (generous)
+const STORYBOARD_SCHEMA_MAX_SLIDES = 40;   // mirrors MAX_SLIDES in consultantStoryboard.ts
+
 function storyboardMaxTokens(targetLength?: number): number {
-    const slides = Math.max(1, Math.min(40, Math.round(targetLength ?? 8)));
-    return Math.max(8192, 3000 + slides * 1400);
+    const slides = Math.max(1, Math.min(STORYBOARD_SCHEMA_MAX_SLIDES, Math.round(targetLength ?? 8)));
+    return Math.max(8192, STORYBOARD_BASE_TOKENS + slides * STORYBOARD_TOKENS_PER_SLIDE);
+}
+
+/**
+ * The most slides a provider can generate in ONE storyboard response, given its
+ * output-token ceiling — the whole storyboard is a single JSON response, so a deck
+ * larger than this overflows the model's max output and truncates ("no JSON object
+ * found"). Provider-aware (NOT just Claude): a low-output model (Gemini 1.x, local)
+ * is honestly capped low; azure-claude/claude (64k) reach the schema max (40). The UI
+ * reads this to clamp + advise the slide-count input; the handler caps the request so
+ * an over-large config can never silently truncate.
+ */
+export function maxStoryboardSlides(provider: string): number {
+    const ceiling = getProviderLimits(provider).maxOutputTokens;
+    const fits = Math.floor((ceiling - STORYBOARD_BASE_TOKENS) / STORYBOARD_TOKENS_PER_SLIDE);
+    return Math.max(3, Math.min(STORYBOARD_SCHEMA_MAX_SLIDES, fits));
 }
 
 /** Total storyboard attempts (1 initial + 2 repairs). Azure Claude intermittently

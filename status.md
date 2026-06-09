@@ -1,5 +1,28 @@
 # Project Status Log
 
+## 2026-06-08 — Systematic visual `.catch()` finisher + provider-aware slide cap + UI advisory
+
+### Changes
+- **Visual `.catch()` finisher (ends the whack-a-mole)**: any `visual_data` too malformed to render (a `line` with <2 points, a `harvey` with >8 columns, a missing required field) now DEGRADES to a prose `bullets` visual — the slide keeps its `action_title` + `core_message`, just loses the chart — instead of hard-failing the whole storyboard. `suggested_visual` RECONCILES to the actual `visual_data.type` (the rejecting `refine` is gone). No schema constraint the LLM occasionally violates can kill generation anymore; the only `err` path left is a STRUCTURAL break (a slide missing `id`/`role`).
+- **Provider-aware slide cap**: `maxStoryboardSlides(provider) = clamp((maxOutputTokens − 3000) / 1400, 3, 40)` — the whole storyboard is ONE JSON response, so the max deck size is set by the provider's output budget. azure-claude/claude (64k) → 40; OpenAI (16k) → ~9; low-output → floored at 3. The handler caps `targetLength` at this (defensive, logs when it clamps) so an over-large config can never silently truncate.
+- **UI advisory**: the create panel's slide-count input now clamps to the provider cap and shows "This model fits up to {n} slides per deck." (`slideCreateLengthProviderCap`).
+- **Gemini limit un-staled**: `gemini.maxOutputTokens` 8192 → 65536 (the 8192 was the Gemini 1.x value; 2.x supports 64k+), so modern Gemini users get ~40 slides instead of ~3.
+- **Scaling factor is model-independent by design**: the 1400-tokens/slide factor is the per-slide *content* budget (schema-bounded — same for Opus/Sonnet/any model). What varies by model is the output *ceiling*, handled by `getProviderLimits` (the cap + the cloudService clamp) — so it works for ALL providers, not just Claude.
+
+### Files Affected
+- `src/services/presentationIr/consultantStoryboard.ts` — `visual_data: visualDataSchema.catch({type:'bullets'})` + suggested_visual reconcile (removed the rejecting refine)
+- `src/services/presentationIr/storyboardService.ts` — `maxStoryboardSlides()` + shared token constants
+- `src/services/tokenLimits.ts` — gemini 8192 → 65536
+- `src/ui/chat/PresentationModeHandler.ts` — cap `targetLength` at the provider slide max
+- `src/ui/chat/presentation/CreatePanel.ts` — provider-aware input max + advisory hint
+- `src/i18n/{en,types}.ts` — `slideCreateLengthProviderCap`; `styles.css` — `.ai-organiser-pres-create-hint`
+- Tests: `tests/consultantStoryboard.test.ts` (+3 degrade, reconcile/struct-err updated), `tests/storyboardRetry.test.ts` (+1 provider cap)
+
+### Verify
+- tsc clean · full vitest green (5930) · test:auto 45/45 · build:quick deployed to vault + mobile.
+
+---
+
 ## 2026-06-08 — Large-deck support: scale storyboard output-token budget with slide count
 
 ### Changes

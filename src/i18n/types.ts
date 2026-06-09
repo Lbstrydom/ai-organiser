@@ -2389,6 +2389,7 @@ export interface Translations {
             slideCreateAudienceGeneral: string;
             slideCreateLengthLabel: string;
             slideCreateLengthCustom: string;
+            slideCreateLengthProviderCap: string;
             slideCreateSpeedLabel: string;
             slideCreateSpeedFast: string;
             slideCreateSpeedQuality: string;

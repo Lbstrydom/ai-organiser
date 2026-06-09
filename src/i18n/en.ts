@@ -2379,6 +2379,7 @@ export const en: Translations = {
             slideCreateAudienceGeneral: 'General',
             slideCreateLengthLabel: 'Slides',
             slideCreateLengthCustom: 'Custom',
+            slideCreateLengthProviderCap: 'This model fits up to {n} slides per deck.',
             slideCreateSpeedLabel: 'Speed',
             slideCreateSpeedFast: 'Fast',
             slideCreateSpeedQuality: 'Quality',

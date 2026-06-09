@@ -27,11 +27,11 @@ describe('ConsultantStoryboard schema', () => {
         if (r.success) expect(r.data.schemaVersion).toBe(STORYBOARD_SCHEMA_VERSION);
     });
 
-    it('REQUIRES suggested_visual === visual_data.type (the refine)', () => {
-        const bad = { ...barSlide, suggested_visual: 'line' as const };
-        const r = storyboardSlideSchema.safeParse(bad);
-        expect(r.success).toBe(false);
-        if (!r.success) expect(r.error.issues[0].message).toMatch(/suggested_visual must equal visual_data.type/);
+    it('RECONCILES suggested_visual to visual_data.type (was a rejecting refine — now follows the data)', () => {
+        const mismatched = { ...barSlide, suggested_visual: 'line' as const }; // bar data, line label
+        const r = storyboardSlideSchema.safeParse(mismatched);
+        expect(r.success).toBe(true);
+        if (r.success) expect(r.data.suggested_visual).toBe('bar'); // reconciled to the actual data
     });
 
     it('strict-rejects a hallucinated/unknown field (not silently stripped)', () => {
@@ -70,8 +70,10 @@ describe('parseStoryboardFromResponse', () => {
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error).toMatch(/no JSON object found/);
     });
-    it('returns a typed err on schema-invalid JSON', () => {
-        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ ...barSlide, suggested_visual: 'line' }] }));
+    it('returns a typed err on STRUCTURALLY-invalid JSON (a slide missing required fields)', () => {
+        // A visual mismatch now reconciles + a malformed visual degrades, so the err
+        // path needs a STRUCTURAL break the .catch()/coerce can't save: a slide with no id/role.
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [{ core_message: 'orphan' }] }));
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error).toMatch(/schema validation failed/);
     });
@@ -115,6 +117,31 @@ describe('validateStoryboard (snapshot restore)', () => {
         const r = validateStoryboard({ ...deck, thesis: `Growth${zwsp}${zwsp} concentrated` });
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value.thesis).not.toContain(zwsp);
+    });
+});
+
+describe('malformed visual DEGRADES to bullets (systematic .catch() finisher — no more whack-a-mole)', () => {
+    it('a line with <2 points falls back to a prose visual instead of failing the deck', () => {
+        const slide = { ...barSlide, suggested_visual: 'line', visual_data: { type: 'line', series: [{ label: 'X', points: [{ x: 'a', y: 1, evidence_span_id: 'e1' }] }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.slides[0].visual_data.type).toBe('bullets'); // degraded
+            expect(r.value.slides[0].suggested_visual).toBe('bullets'); // reconciled
+        }
+    });
+    it('a harvey with >8 columns degrades to bullets rather than hard-failing', () => {
+        const cols = Array.from({ length: 9 }, (_, i) => `c${i}`);
+        const slide = { ...barSlide, suggested_visual: 'harvey', visual_data: { type: 'harvey', columns: cols, rows: [{ label: 'A', ratings: [1] }] } };
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.slides[0].visual_data.type).toBe('bullets');
+    });
+    it('a suggested_visual ≠ visual_data.type mismatch reconciles (no longer rejected)', () => {
+        const slide = { ...barSlide, suggested_visual: 'pyramid' }; // bar data, pyramid label
+        const r = parseStoryboardFromResponse(JSON.stringify({ thesis: 'x', slides: [slide] }));
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.slides[0].suggested_visual).toBe('bar'); // follows the data
     });
 });
 

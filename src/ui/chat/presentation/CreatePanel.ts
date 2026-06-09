@@ -24,13 +24,14 @@ import type {
     CreationSourceController, SourceChangeReason,
 } from '../../../services/chat/creationSourceController';
 import { openSourcePicker } from '../../modals/SourcePickerModal';
+import { maxStoryboardSlides } from '../../../services/presentationIr/storyboardService';
 
 /** Subset of i18n strings the panel consumes. */
 export type CreatePanelT = Pick<
     Translations['modals']['unifiedChat'],
     | 'slideCreateAudienceLabel' | 'slideCreateAudienceAnalyst'
     | 'slideCreateAudienceExecutive' | 'slideCreateAudienceGeneral'
-    | 'slideCreateLengthLabel' | 'slideCreateLengthCustom'
+    | 'slideCreateLengthLabel' | 'slideCreateLengthCustom' | 'slideCreateLengthProviderCap'
     | 'slideCreateSpeedLabel' | 'slideCreateSpeedFast' | 'slideCreateSpeedQuality'
     | 'slideCreateSpeedFastTooltip' | 'slideCreateSpeedQualityTooltip'
     | 'slideCreatePlanLabel' | 'slideCreatePlanStoryline' | 'slideCreatePlanDirect'
@@ -172,6 +173,12 @@ function renderLengthRow(parent: HTMLElement, opts: CreatePanelOptions): void {
     const row = parent.createDiv({ cls: 'ai-organiser-pres-create-row' });
     row.createSpan({ cls: 'ai-organiser-pres-create-row-label', text: opts.t.slideCreateLengthLabel });
 
+    // Provider-aware ceiling: the whole storyboard is ONE response, so a deck larger
+    // than the model's output budget would truncate. Cap the input at what THIS model
+    // can hold (azure-claude/claude reach 40; a low-output model is honestly lower).
+    const provider = opts.plugin.settings.serviceType === 'local' ? 'local' : opts.plugin.settings.cloudServiceType;
+    const effectiveMax = Math.min(MAX_LENGTH, maxStoryboardSlides(provider));
+
     const presetGroup = row.createDiv({
         cls: 'ai-organiser-pres-create-pill-group',
         attr: { role: 'radiogroup', 'aria-label': opts.t.slideCreateLengthLabel },
@@ -185,16 +192,21 @@ function renderLengthRow(parent: HTMLElement, opts: CreatePanelOptions): void {
         cls: 'ai-organiser-pres-create-length-input',
         attr: {
             min: String(MIN_LENGTH),
-            max: String(MAX_LENGTH),
+            max: String(effectiveMax),
             step: '1',
             'aria-label': opts.t.slideCreateLengthCustom,
         },
     });
-    customInput.value = String(opts.getConfig().length);
+    customInput.value = String(Math.min(opts.getConfig().length, effectiveMax));
+    // Advisory hint: surface the model's per-deck slide ceiling up front.
+    parent.createDiv({
+        cls: 'ai-organiser-pres-create-hint',
+        text: opts.t.slideCreateLengthProviderCap.replace('{n}', String(effectiveMax)),
+    });
     customInput.addEventListener('change', () => {
         const raw = parseInt(customInput.value, 10);
         if (!Number.isFinite(raw)) return;
-        const clamped = Math.max(MIN_LENGTH, Math.min(MAX_LENGTH, raw));
+        const clamped = Math.max(MIN_LENGTH, Math.min(effectiveMax, raw));
         customInput.value = String(clamped);
         opts.onConfigChange({ ...opts.getConfig(), length: clamped });
         // Refresh active pill class.

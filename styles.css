@@ -9228,6 +9228,11 @@
     font-size: 0.85em;
     min-width: 5em;
 }
+.ai-organiser-pres-create-hint {
+    color: var(--text-faint);
+    font-size: 0.78em;
+    margin: 0.1em 0 0.3em 5.5em;
+}
 .ai-organiser-pres-create-pill-group {
     display: flex;
     gap: 0.25em;

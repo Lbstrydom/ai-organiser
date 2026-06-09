@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../src/services/llmFacade', () => ({ summarizeText: vi.fn() }));
 import { summarizeText } from '../src/services/llmFacade';
 import type { LLMFacadeContext } from '../src/services/llmFacade';
-import { generateStoryboard } from '../src/services/presentationIr/storyboardService';
+import { generateStoryboard, maxStoryboardSlides } from '../src/services/presentationIr/storyboardService';
 
 const st = vi.mocked(summarizeText);
 const ctx = {} as unknown as LLMFacadeContext;
@@ -82,6 +82,14 @@ describe('storyboard non-JSON retry', () => {
         await generateStoryboard(ctx, 'brief', [], { targetLength: 6 });
         // A small deck stays modest (3000 + 6*1400 = 11400).
         expect((st.mock.calls[0][2] as { maxTokens?: number }).maxTokens).toBeLessThan(15000);
+    });
+
+    it('maxStoryboardSlides is provider-aware (claude reaches 40; low-output models cap honestly)', () => {
+        expect(maxStoryboardSlides('azure-claude')).toBe(40); // 64k → schema max
+        expect(maxStoryboardSlides('claude')).toBe(40);
+        expect(maxStoryboardSlides('openai')).toBeLessThan(15);    // 16384 → ~9
+        expect(maxStoryboardSlides('local')).toBeGreaterThanOrEqual(3); // floored at 3, never 0
+        expect(maxStoryboardSlides('gemini')).toBeGreaterThan(20); // 2.x 64k+ output (post-fix)
     });
 
     it('stops early on abort', async () => {

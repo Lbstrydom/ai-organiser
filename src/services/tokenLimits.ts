@@ -13,7 +13,7 @@ export interface ProviderLimits {
 export const PROVIDER_LIMITS: Record<string, ProviderLimits> = {
     'claude': { maxInputTokens: 200000, maxOutputTokens: 64000, charsPerToken: 4 },
     'openai': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },
-    'gemini': { maxInputTokens: 1000000, maxOutputTokens: 8192, charsPerToken: 4 },
+    'gemini': { maxInputTokens: 1000000, maxOutputTokens: 65536, charsPerToken: 4 },  // Gemini 2.x supports 64k+ output (8192 was the stale 1.x value)
     'groq': { maxInputTokens: 32000, maxOutputTokens: 8192, charsPerToken: 4 },
     'deepseek': { maxInputTokens: 64000, maxOutputTokens: 8192, charsPerToken: 4 },
     'openrouter': { maxInputTokens: 128000, maxOutputTokens: 16384, charsPerToken: 4 },

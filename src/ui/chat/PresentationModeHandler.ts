@@ -36,6 +36,7 @@ import { validateStoryboard } from '../../services/presentationIr/consultantStor
 import { storyboardToMarkdown } from '../../services/presentationIr/dotDashSerializer';
 import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCatalog';
 import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
+import { maxStoryboardSlides } from '../../services/presentationIr/storyboardService';
 import { classifyStorylineNote } from '../../services/chat/storylineNote';
 import { resolvePresentationRole, type PresentationRole } from '../../services/presentationIr/presentationModelResolver';
 import { buildStoryboardJudge } from '../../services/chat/consultantCriticService';
@@ -693,9 +694,17 @@ export class PresentationModeHandler implements ChatModeHandler {
         ], { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) });
         const gen = await this.resolveRoleRun(r, 'storyboard_generator');
         const judge = await this.buildCritic(r, catalog);
+        // Cap the request at what this provider can emit in ONE storyboard JSON response,
+        // so an over-large config can never silently overflow the model's output budget
+        // and truncate ("no JSON object found"). The UI advises the same cap up front.
+        const slideCap = maxStoryboardSlides(provider);
+        const cappedLength = Math.min(this.creationConfig.length, slideCap);
+        if (cappedLength < this.creationConfig.length) {
+            logger.warn('Presentation', `storyboard slide count capped ${this.creationConfig.length} → ${cappedLength} (provider ${provider} output budget)`);
+        }
         const stage = await runStoryboardStage(gen.context, r.effectiveQuery, catalog, {
             outputLanguage: settings.summaryLanguage,
-            targetLength: this.creationConfig.length,
+            targetLength: cappedLength,
             signal: r.abort.signal,
             deckName: r.originalQuery,
             modelOverride: this.resolveStoryboardModel(r, gen),

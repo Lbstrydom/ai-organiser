@@ -148,11 +148,14 @@ export const storyboardSlideSchema = z.object({
     /** ids into the deck's evidence catalog backing the title's claims. */
     evidence_span_ids: z.array(spanId).max(40).default([]),
     suggested_visual: suggestedVisualSchema,
-    visual_data: visualDataSchema,
-}).strict().refine(
-    (s) => s.suggested_visual === s.visual_data.type,
-    { message: 'suggested_visual must equal visual_data.type', path: ['visual_data'] },
-).transform((s) => {
+    // SYSTEMATIC FINISHER (2026-06-08): any visual_data too malformed to render
+    // (e.g. a line with <2 points, a harvey with >8 columns, a missing required
+    // field) DEGRADES to a prose 'bullets' visual instead of hard-failing the whole
+    // storyboard — the slide keeps its action_title + core_message, just loses the
+    // chart. This is the belt-and-braces that ends the per-constraint whack-a-mole:
+    // we no longer chase each new visual schema rule the LLM occasionally violates.
+    visual_data: visualDataSchema.catch({ type: 'bullets' as const }),
+}).strict().transform((s) => {
     // COERCE ragged table/harvey rows to the declared column count instead of
     // HARD-FAILING the whole storyboard (was a rejecting superRefine — too strict).
     // The LLM routinely emits a row whose cell/rating count ≠ columns and every
@@ -176,6 +179,10 @@ export const storyboardSlideSchema = z.object({
             return { ...r, ratings };
         });
     }
+    // RECONCILE suggested_visual to the (possibly .catch-degraded) visual type instead
+    // of HARD-FAILING a mismatch (was a rejecting .refine) — the data type is
+    // authoritative; the label just follows. The translator reads visual_data.type.
+    s.suggested_visual = s.visual_data.type;
     return s;
 });
 export type StoryboardSlide = z.infer<typeof storyboardSlideSchema>;
