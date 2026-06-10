@@ -4,7 +4,7 @@
  * config to probe; `needs-retry` cached results never wedge the selector (CA2).
  */
 import { describe, it, expect } from 'vitest';
-import { selectVisualBackend, fnv1a64Hex, COHERE_NATIVE_MODEL_ID } from '../src/services/visualEmbedding/visualBackendResolver';
+import { selectVisualBackend, fnv1a64Hex, COHERE_NATIVE_MODEL_ID, shouldAutoEnableVisualSearch } from '../src/services/visualEmbedding/visualBackendResolver';
 import { computeProbeIdentity, type VisualProbeResult } from '../src/services/visualEmbedding/azureCohereV4ImageProbe';
 import { PLUGIN_SECRET_IDS } from '../src/core/secretIds';
 
@@ -150,6 +150,14 @@ describe('selectVisualBackend — Azure main', () => {
         })));
         expect(r.kind).toBe('ready');
         if (r.kind === 'ready') expect(r.cfg.backend).toBe('cohere-native');
+    });
+
+    it('auto-enable eligibility: untouched flag → yes; EXPLICIT disable → no; already on → no', () => {
+        expect(shouldAutoEnableVisualSearch({})).toBe(true);
+        expect(shouldAutoEnableVisualSearch(undefined)).toBe(true);
+        expect(shouldAutoEnableVisualSearch({ 'visual-search': false })).toBe(false); // user said no — respected
+        expect(shouldAutoEnableVisualSearch({ 'visual-search': true })).toBe(false);  // nothing to do
+        expect(shouldAutoEnableVisualSearch({ 'semantic-search': true })).toBe(true); // other flags irrelevant
     });
 
     it('dim setting flows into the selected config', async () => {

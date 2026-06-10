@@ -50,7 +50,7 @@ import { VisualIndexRepository } from './services/visualEmbedding/visualIndexRep
 import { VisualIndexService } from './services/visualEmbedding/visualIndexService';
 import { createVisualEmbedderProvider, createVisualEmbedBackend, type VisualEmbedderProvider } from './services/visualEmbedding/visualEmbedBackend';
 import { VisualRetrievalService } from './services/visualEmbedding/visualRetrievalService';
-import { selectVisualBackend } from './services/visualEmbedding/visualBackendResolver';
+import { selectVisualBackend, shouldAutoEnableVisualSearch } from './services/visualEmbedding/visualBackendResolver';
 import type { VisualPageTask } from './services/visualEmbedding/types';
 import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
 import { resolveAzureTriageRoute } from './services/azure/azureTriageRouting';
@@ -484,9 +484,22 @@ export default class AIOrganiserPlugin extends Plugin {
      */
     private async initVisualLane(): Promise<void> {
         if (this.visualService) return; // already up
-        if (!isFeatureEnabled(this.settings, 'visual-search') || !isFeatureEnabled(this.settings, 'semantic-search')) return;
+        if (!isFeatureEnabled(this.settings, 'semantic-search')) return;
         if (!this.attachmentCoordinator) return; // semantic lane failed to init
         try {
+            // Auto-adopt (2026-06-10): a configured READY backend switches the feature on
+            // at startup — providing the dedicated key/deployment IS the consent act.
+            // An EXPLICIT disable (flag === false) is respected; only an untouched flag
+            // (undefined) auto-adopts. Persisted via saveData (no service-reinit cascade
+            // mid-onload).
+            if (!isFeatureEnabled(this.settings, 'visual-search')) {
+                if (!shouldAutoEnableVisualSearch(this.settings.featureFlags)) return;
+                const adopt = await selectVisualBackend(this);
+                if (adopt.kind !== 'ready') return;
+                this.settings.featureFlags['visual-search'] = true;
+                await this.saveData(this.settings);
+                logger.debug('Search', 'Visual search auto-enabled: a configured backend was detected');
+            }
             const sel = await selectVisualBackend(this);
             if (sel.kind !== 'ready') {
                 logger.debug('Search', `Visual lane not started: ${sel.kind === 'probe-needed' ? 'probe pending' : sel.reason}`);

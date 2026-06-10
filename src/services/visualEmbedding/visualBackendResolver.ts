@@ -112,3 +112,15 @@ export async function selectVisualBackend(plugin: AIOrganiserPlugin, hash: HashF
 function nativeConfig(apiKey: string, dim: number): CohereV4Config {
     return { backend: 'cohere-native', apiKey, modelId: COHERE_NATIVE_MODEL_ID, dim };
 }
+
+/**
+ * Auto-enable eligibility (2026-06-10 simplification): providing a working backend IS
+ * the consent act — the dedicated Cohere key / Azure deployment+probe are configured in
+ * the visual-search panel, beneath the named-transmissions copy, and nobody configures a
+ * backend they don't want. So a READY backend switches the feature on automatically —
+ * UNLESS the user EXPLICITLY disabled it (`featureFlags['visual-search'] === false`,
+ * which only a deliberate disable writes; an untouched feature is `undefined`).
+ */
+export function shouldAutoEnableVisualSearch(featureFlags: Partial<Record<string, boolean>> | undefined): boolean {
+    return featureFlags?.['visual-search'] === undefined;
+}

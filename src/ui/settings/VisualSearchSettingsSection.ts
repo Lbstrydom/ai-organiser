@@ -15,7 +15,7 @@ import { Notice, Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { isFeatureEnabled, resolveEnable, resolveDisable } from '../../services/featureService';
-import { selectVisualBackend, fnv1a64Hex, type VisualBackendSelection } from '../../services/visualEmbedding/visualBackendResolver';
+import { selectVisualBackend, fnv1a64Hex, shouldAutoEnableVisualSearch, type VisualBackendSelection } from '../../services/visualEmbedding/visualBackendResolver';
 import { probeAzureCohereV4Image } from '../../services/visualEmbedding/azureCohereV4ImageProbe';
 import { isAzureMode } from '../../services/azure/endpointResolver';
 import { logger } from '../../utils/logger';
@@ -56,12 +56,14 @@ export class VisualSearchSettingsSection extends BaseSettingSection {
                     .onClick(() => { void this.runProbe(selection); }));
         }
 
-        // ── BYO Cohere key — allowed pre-enable (C15), dedicated secret (C22) ──
+        // ── BYO Cohere key — dedicated secret (C22). Saving a key AUTO-ENABLES the
+        // feature (the key is entered HERE, beneath the named-transmissions copy —
+        // that IS the consent act; an explicit prior disable is respected). ──
         this.renderApiKeyField({
             name: t.byoKeyName,
             desc: t.byoKeyDesc,
             secretId: PLUGIN_SECRET_IDS.COHERE_VISUAL,
-            onChange: () => { void this.rerender(); },
+            onChange: () => { void this.autoEnableIfReady(); },
         });
 
         // ── Enable / disable (the consent action — C15) ──
@@ -185,8 +187,32 @@ export class VisualSearchSettingsSection extends BaseSettingSection {
         } finally {
             notice.hide();
             this.probeRunning = false;
-            await this.rerender();
+            // Probe green = a verified, deliberately-configured backend → auto-enable
+            // (the probe is run from THIS consent panel). Also rerenders.
+            await this.autoEnableIfReady();
         }
+    }
+
+    /**
+     * Auto-enable (2026-06-10): a READY backend switches the feature on — providing the
+     * key / verifying the deployment happens in this panel, beneath the consent copy, so
+     * it IS the consent act. An explicit prior disable (`flag === false`) is respected;
+     * re-enable then goes through the Enable button. Always re-renders.
+     */
+    private async autoEnableIfReady(): Promise<void> {
+        const settings = this.plugin.settings;
+        if (!isFeatureEnabled(settings, 'visual-search')
+            && shouldAutoEnableVisualSearch(settings.featureFlags)
+            && isFeatureEnabled(settings, 'semantic-search')) {
+            const selection = await selectVisualBackend(this.plugin);
+            if (selection.kind === 'ready') {
+                new Notice(this.plugin.t.settings.visualSearch.autoEnabled);
+                const { flags } = resolveEnable(settings.featureFlags, 'visual-search');
+                await this.plugin.applyFeatureFlags(flags); // inits the lane + backfill + re-renders
+                return;
+            }
+        }
+        await this.rerender();
     }
 
     private async rerender(): Promise<void> {

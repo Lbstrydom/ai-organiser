@@ -368,6 +368,7 @@ export interface Translations {
             consentSynthesisImages: string;
             enableButton: string;
             disableButton: string;
+            autoEnabled: string;
             statusEnabledAzure: string;
             statusEnabledNative: string;
             statusDisabled: string;
