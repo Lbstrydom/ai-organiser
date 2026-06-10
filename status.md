@@ -1,5 +1,33 @@
 # Project Status Log
 
+## 2026-06-10 — Visual search COMPLETE: Clusters C+D shipped, all gates green (azure-capability-completion-v2 ✅)
+
+Resumed the autonomous clustered build at the Phase-5-core checkpoint (`0fc88fb`) and ran it to plan completion: **Phase 5 wiring → Phase 6 visual index lane → Cluster C audit (converged + Gemini APPROVE) → Phase 7 vision synthesis → consolidated Gemini final gate APPROVE** over the A–D union diff (`0d883aa..6686e43`, 95 files, 0 findings).
+
+### Changes
+- **Phase 5 wiring** (`1ac5d77`): `visual-embeddings` Azure capability (DEDICATED `byoConfigKind:'visual-embedding'` — consent-isolated from the text lane, G2), Foundry `/models/{images/,}embeddings` endpoint builders, **per-backend serializer** in `cohereV4VisualEmbeddingService` (the live Azure Foundry API uses the inference shape, NOT Cohere's v2 — documented deviation from plan C2, probe-verified), CA2 probe semantics (`supported`/`unsupported`/`needs-retry` — transient never cached), `visualBackendResolver` (the DP-2 selector SSOT: azure-if-probe-green → BYO Cohere → unavailable-with-reason), settings (probe cache, dim, consent toggles C5/C18, page cap, native RPM) + migration, `visual-search` feature (find, requires semantic-search, default OFF) + `SECTION_HOSTED_FEATURES` SSOT (C17 — consent panel hosted UNGATED inside the semantic-search section), `VisualSearchSettingsSection` naming all 3 transmissions (C18).
+- **Phase 6 visual lane** (`81fb449`): `GenericEmbeddingQueue<TTask>` (D3 — text wrapper byte-parity pinned by pre-existing tests), `pdfHandlePool` (CA1 ref-count + 8s TTL, (path,mtime)-keyed), `visualIndexRepository` (second Voy lane; C19 PRE-topK scoped search via registry-eligible hosts → exact cosine; C8 identity sidecar → needsRebuild blocks writes+search; C14 whole-namespace deleteAll; injectable `VisualStorePort` for tests), `visualIndexService` (AttachmentConsumer C12/C16; host-note lifecycle C24 delete/rename/modify-reconcile; C23 backfill; C9 fingerprint gating; C25 pointer-only enqueue), `visualEmbedBackend` (lazy render-in-batch; Azure → per-deployment pacer bucket, native → own dual-gate pacer; dedicated visual cooldown), coordinator `unregister` (CA3), main.ts lazy init + on-enable-without-reload + teardown purge.
+- **Cluster C audit** (`ba19881`): 3 GPT rounds + 2 deliberations → **CONVERGED H0/M0/qf0** + per-cluster **Gemini APPROVE**. 16 real fixes (embeds-only PDF discovery — plain `[[links]]` no longer transmit page images; rename/persist liveness guards; transient 408/429; fail-closed corrupt sidecars; Foundry index-set validation; budget-poisoning cache invalidation; indexer Result-wrap; ref dedupe; chunk work bound; consumer snapshot; deferred-queue race test). 7 debt entries captured (Cluster-A-subsystem hardening). The duplicate-import false positive was disproven a third time and suppressed.
+- **Phase 7 / Cluster D** (`6686e43`): `visualRetrievalService` (C1 query-side embedding, graceful `ok([])` on every unavailability), `ragContextMerger` (C4 evidence-identity dedup — testing caught text chunks need `chunkIndex` in the id; per-host/per-attachment/global budgets), `ragPayloadBuilder` (C5 image consent + C18 page-text consent + capability + count/byte budgets IN CODE, deterministic degrade-to-text, deferred renderRef materialised at build), `ragService` optional collaborator (absent ⇒ byte-identical text RAG), VaultModeHandler wiring.
+
+### Files Affected (key)
+- `src/services/visualEmbedding/{types,cohereV4VisualEmbeddingService,azureCohereV4ImageProbe,visualBackendResolver,visualEmbedBackend,visualIndexRepository,visualIndexService,visualRetrievalService}.ts`
+- `src/services/pdf/{pdfPageRenderer,pdfHandlePool}.ts`, `src/services/vector/{embeddingQueue,attachmentTextIndexer,attachmentFingerprint}.ts`
+- `src/services/{ragService,ragContextMerger,ragPayloadBuilder}.ts`, `src/services/azure/{azureCapabilities,resolveAzureCapability,endpointResolver}.ts`
+- `src/main.ts`, `src/core/{features,settings}.ts`, `src/ui/settings/VisualSearchSettingsSection.ts`, `src/ui/chat/{ChatModeHandler,VaultModeHandler}.ts`
+- 14 new/extended test suites (~250 new tests) → **6110 vitest + 45 auto, tsc strict, bundle clean (0 `createElement("script")`)**
+
+### Decisions Made
+- Azure Foundry serves image embeddings via the **inference API shape** (`{model, input:[{image}]}` → `{data:[{index,embedding}]}`, one image/request) — the embedder branches its serializer per backend; the DP-2 probe contract-verifies whichever shape ships.
+- Visual lane indexes **embeds only** (`![[deck.pdf]]`), not resolved links — the consent/cost surface matches C18/C24's language.
+- C8 rebuild = wipe + re-derive via backfill (atomic temp-swap is meaningless for an hours-long paced re-embed; index fully re-derivable) — documented deviation.
+- `SECTION_HOSTED_FEATURES` SSOT lets the consent panel render ungated (C17) while keeping the feature-completeness CI invariant honest.
+
+### Next Steps
+- None for this plan — complete. Debt ledger holds 10 entries (Cluster-A-subsystem hardening: AbortSignal propagation, dim-mismatch rebuild surfacing, threshold full-hash, link normalization) for a future pass.
+
+---
+
 ## 2026-06-08 — Gemini TTS auto-latest (no more pinned TTS model) + alias confirmation
 
 The Gemini **TTS** model was the last pinned-version holdout (`gemini-3.1-flash-tts-preview`) — Google ships **no `*-tts-latest` server alias**, so it couldn't ride the chat `latest-*` mechanism (which excludes TTS variants). Now resolved the way the old code comment specced as "future work":
