@@ -12,6 +12,7 @@ function makeDeps(over: Partial<AttachmentExtractionDeps> & { refs: AttachmentRe
     return {
         detect: () => over.refs,
         extractText: over.extractText ?? (async (r) => ({ ok: true, text: `text-of-${r.name}` })),
+        extractPdfText: over.extractPdfText,
         contentHash: over.contentHash ?? (async (r) => `hash-${r.path}`),
         chunk: over.chunk ?? (async (t) => [t]),
         cache: over.cache ?? new SingleFlightCache(),
@@ -30,6 +31,26 @@ describe('collectAttachmentChunks', () => {
         expect(r.value.chunks).toHaveLength(0);
         expect(r.value.skipped).toEqual([{ path: 'att/doc.pdf', reason: 'pdf-deferred-to-phase4' }]);
         expect(extractText).not.toHaveBeenCalled();
+    });
+
+    it('Phase 4: extracts a PDF via the extractPdfText seam (no longer deferred)', async () => {
+        const extractPdfText = vi.fn(async () => ({ ok: true, text: 'figure 1 shows revenue growth' }));
+        const r = await collectAttachmentChunks('n.md', '', 50_000, makeDeps({ refs: [ref('deck.pdf', true)], extractPdfText }));
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.chunks.length).toBeGreaterThan(0);
+        expect(r.value.chunks[0].attachment.name).toBe('deck.pdf');
+        expect(extractPdfText).toHaveBeenCalledTimes(1);
+        expect(r.value.skipped).toHaveLength(0);
+    });
+
+    it('Phase 4 G1: a pdfjs-unavailable PDF is skipped as needs-retry (NOT cached)', async () => {
+        const extractPdfText = vi.fn(async () => ({ ok: false, error: 'pdfjs-unavailable' }));
+        const r = await collectAttachmentChunks('n.md', '', 50_000, makeDeps({ refs: [ref('deck.pdf', true)], extractPdfText }));
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.value.chunks).toHaveLength(0);
+        expect(r.value.skipped[0]).toMatchObject({ path: 'att/deck.pdf', reason: 'needs-retry' });
     });
 
     it('extracts an Office doc → chunk with sourceAttachment + collision-safe id', async () => {

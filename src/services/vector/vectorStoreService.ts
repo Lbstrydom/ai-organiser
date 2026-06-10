@@ -3,7 +3,7 @@
  * Manages lifecycle of vector store, handles embeddings, and coordinates indexing
  */
 
-import { App, TFile, EventRef, Notice, Platform } from 'obsidian';
+import { App, TFile, EventRef, Notice, Platform, loadPdfJs } from 'obsidian';
 import { IVectorStore, VectorDocument, SearchResult, FileChangeTracker, INDEX_SCHEMA_VERSION } from './types';
 import { VoyVectorStore } from './voyVectorStore';
 import { SimpleVectorStore } from './simpleVectorStore';
@@ -14,6 +14,7 @@ import type { EmbeddingQueue, ChunkTask } from './embeddingQueue';
 import type { Result } from '../../core/result';
 import { ok } from '../../core/result';
 import { collectAttachmentChunks, type AttachmentExtractionDeps, type AttachmentRef } from './attachmentTextIndexer';
+import { extractPdfTextBounded } from '../pdf/pdfPageRenderer';
 import { SingleFlightCache, computeAttachmentContentHash } from './attachmentFingerprint';
 import {
     captureAttachmentHosts,
@@ -337,6 +338,15 @@ export class VectorStoreService implements AttachmentConsumer {
                 if (!f) return { ok: false, error: 'attachment not found' };
                 const res = await extractor.extractText(f);
                 return { ok: res.success, text: res.text, error: res.error };
+            },
+            // Phase 4: page-bounded PDF text via pdf.js (C21). No canvas needed for text.
+            extractPdfText: async (ref: AttachmentRef, budgetChars: number) => {
+                const f = resolve(ref);
+                if (!f) return { ok: false, error: 'attachment not found' };
+                return extractPdfTextBounded(f, {
+                    loadPdfJs,
+                    readBinary: (file) => this.app.vault.readBinary(file),
+                }, budgetChars);
             },
             contentHash: async (ref: AttachmentRef) => {
                 const f = resolve(ref);

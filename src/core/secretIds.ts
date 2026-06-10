@@ -34,6 +34,9 @@ export const STANDARD_SECRET_IDS = {
  */
 export const PLUGIN_SECRET_IDS = {
     EMBEDDING: 'ai-organiser-embedding-key',
+    // Visual-search Cohere v4 BYO key — DEDICATED + canonical (C22): independently consented
+    // and revocable, never silently sharing the text-lane embedding/Cohere key.
+    COHERE_VISUAL: 'ai-organiser-cohere-visual-key',
     YOUTUBE: 'ai-organiser-youtube-key',
     PDF: 'ai-organiser-pdf-key',
     AUDIO: 'ai-organiser-audio-key',

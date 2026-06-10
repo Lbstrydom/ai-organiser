@@ -48,7 +48,9 @@ export interface AttachmentChunk {
 
 export interface AttachmentSkip {
     path: string;
-    reason: 'pdf-deferred-to-phase4' | 'extract-failed' | 'timeout' | 'empty' | 'cap-reached' | 'too-large';
+    reason: 'pdf-deferred-to-phase4' | 'extract-failed' | 'timeout' | 'empty' | 'cap-reached' | 'too-large'
+        // Phase 4: pdf.js wasn't loaded yet (G1) — NOT cached, re-attempted on a later run.
+        | 'needs-retry';
     detail?: string;
 }
 
@@ -58,6 +60,9 @@ export interface AttachmentExtractionDeps {
     detect: (noteContent: string) => AttachmentRef[];
     /** Extract text from an attachment (by path). */
     extractText: (ref: AttachmentRef) => Promise<{ ok: boolean; text?: string; error?: string }>;
+    /** Phase 4: page-bounded PDF text extraction (via pdfPageRenderer, C21). Absent → PDFs
+     *  stay deferred. `error: 'pdfjs-unavailable'` ⇒ skipped as `needs-retry` (G1), not cached. */
+    extractPdfText?: (ref: AttachmentRef, budgetChars: number) => Promise<{ ok: boolean; text?: string; error?: string }>;
     /** Durable content hash for change-detection metadata. */
     contentHash: (ref: AttachmentRef) => Promise<string>;
     /** Sentence-aware chunker. */
@@ -111,18 +116,26 @@ export async function collectAttachmentChunks(
     let budget = Math.max(0, maxCharsPerNote);
 
     for (const ref of refs) {
-        if (ref.isPdf) { skipped.push({ path: ref.path, reason: 'pdf-deferred-to-phase4' }); continue; }
+        // Phase 4: PDFs are extracted (page-bounded, C21) when the renderer seam is wired;
+        // otherwise they stay deferred (graceful — e.g. pdf.js unavailable at build time).
+        if (ref.isPdf && !deps.extractPdfText) { skipped.push({ path: ref.path, reason: 'pdf-deferred-to-phase4' }); continue; }
         // Size-admission guard: never extract a pathologically large file (the extractor is
         // not cancellable, so this is the real work bound — audit H7/H11).
         if (ref.size > MAX_ATTACHMENT_FILE_BYTES) { skipped.push({ path: ref.path, reason: 'too-large' }); continue; }
         // Admission cap: do NOT extract once the per-note budget is exhausted.
         if (budget <= 0) { skipped.push({ path: ref.path, reason: 'cap-reached' }); continue; }
 
+        // Distinct cache key + extractor per lane (office vs page-bounded PDF) so a shared
+        // attachment is parsed once (C9/G4); the cache evicts rejections → G1 retry.
+        const cacheKey = ref.isPdf ? `${ref.path}|pdf|${ATTACHMENT_EXTRACTOR_VERSION}` : `${ref.path}|${ATTACHMENT_EXTRACTOR_VERSION}`;
+        const budgetSnapshot = budget;
         let extracted: { text: string; contentHash: string };
         try {
             extracted = await withTimeout(
-                deps.cache.get(`${ref.path}|${ATTACHMENT_EXTRACTOR_VERSION}`, async () => {
-                    const res = await deps.extractText(ref);
+                deps.cache.get(cacheKey, async () => {
+                    const res = ref.isPdf
+                        ? await deps.extractPdfText!(ref, budgetSnapshot)
+                        : await deps.extractText(ref);
                     if (!res.ok || !res.text) throw new Error(res.error || 'extract-failed');
                     const hash = await deps.contentHash(ref);
                     return { text: res.text, contentHash: hash };
@@ -131,7 +144,10 @@ export async function collectAttachmentChunks(
             );
         } catch (e) {
             const detail = e instanceof Error ? e.message : String(e);
-            skipped.push({ path: ref.path, reason: detail === 'timeout' ? 'timeout' : 'extract-failed', detail });
+            const reason = detail === 'timeout' ? 'timeout'
+                : detail === 'pdfjs-unavailable' ? 'needs-retry'   // G1: re-attempt later (cache evicted)
+                : 'extract-failed';
+            skipped.push({ path: ref.path, reason, detail });
             continue;
         }
 
