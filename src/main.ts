@@ -1,4 +1,4 @@
-import { addIcon, App, debounce, MarkdownView, Notice, Platform, Plugin, TFile, TFolder } from 'obsidian';
+import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
 import {
     ConnectionTestError,
     ConnectionTestResult,
@@ -44,7 +44,13 @@ import { ProviderProfile, resolveProviderProfile } from './services/providerProf
 import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
-import { EmbeddingQueue } from './services/vector/embeddingQueue';
+import { EmbeddingQueue, GenericEmbeddingQueue } from './services/vector/embeddingQueue';
+import { PdfHandlePool } from './services/pdf/pdfHandlePool';
+import { VisualIndexRepository } from './services/visualEmbedding/visualIndexRepository';
+import { VisualIndexService } from './services/visualEmbedding/visualIndexService';
+import { createVisualEmbedderProvider, createVisualEmbedBackend, type VisualEmbedderProvider } from './services/visualEmbedding/visualEmbedBackend';
+import { selectVisualBackend } from './services/visualEmbedding/visualBackendResolver';
+import type { VisualPageTask } from './services/visualEmbedding/types';
 import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
 import { resolveAzureTriageRoute } from './services/azure/azureTriageRouting';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
@@ -96,6 +102,15 @@ export default class AIOrganiserPlugin extends Plugin {
      *  when the persisted index identity differs from the selected backend; the settings
      *  panel surfaces it as `needs-rebuild` and the lane blocks writes+search until rebuilt. */
     public visualIndexNeedsRebuild = false;
+    // ── Visual-search lane (Phase 6) — lazily initialized, torn down on disable (C14) ──
+    public visualRepository: VisualIndexRepository | null = null;
+    public visualService: VisualIndexService | null = null;
+    private visualQueue: GenericEmbeddingQueue<VisualPageTask> | null = null;
+    private visualPool: PdfHandlePool | null = null;
+    private visualCooldown: EmbeddingCooldown | null = null;
+    private visualEmbedderProvider: VisualEmbedderProvider | null = null;
+    private visualNoteEventRefs: EventRef[] = [];
+    private readonly visualNoteModifyTimers = new Map<string, number>();
     /** Logical user-facing LLM call count (D5), bumped via CloudLLMService.onCall. */
     public llmCallCounter = 0;
     public configService: ConfigurationService;
@@ -322,6 +337,13 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
             }
 
+            // C23: visual-search starts WITHOUT a reload — its lane is fully lazy (no
+            // commands/views to register) and the on-enable backfill must run from the
+            // consent panel's Enable action.
+            const visualTurnedOn = !isFeatureEnabled({ featureFlags: prev }, 'visual-search')
+                && isFeatureEnabled({ featureFlags: newFlags }, 'visual-search');
+            if (visualTurnedOn) void this.initVisualLane();
+
             await this.settingTab?.render();
             new Notice(this.t.features.reloadNotice, 8000);
         } finally {
@@ -337,7 +359,11 @@ export default class AIOrganiserPlugin extends Plugin {
      * absence. Commands/views still need a reload to fully unregister (FT-5).
      */
     private teardownFeature(id: FeatureId): void {
-        if (id === 'semantic-search') {
+        if (id === 'visual-search') {
+            // C14: disabling visual search purges the WHOLE visual namespace (no orphaned
+            // vectors). CA3: the consumer is unregistered BEFORE disposal inside.
+            this.teardownVisualLane(/*purge*/ true);
+        } else if (id === 'semantic-search') {
             if (this.vectorStoreService) {
                 void this.vectorStoreService.dispose();
                 this.vectorStore = null;
@@ -443,6 +469,138 @@ export default class AIOrganiserPlugin extends Plugin {
             if (!isIndexableAttachment(file)) return;
             void coord.handleChange('rename', file.path, oldPath);
         }));
+    }
+
+    /**
+     * Lazily initialize the visual-search lane (Phase 6): repository (second Voy index) +
+     * pointer queue + index service, registered as a consumer on the Phase-1 lifecycle
+     * coordinator (C16) and on host-note events (C24). No-op unless the feature is enabled
+     * AND the DP-2 selector reports a ready backend (probe green / BYO key present).
+     * Called from onload and again when the feature is enabled at runtime (C23).
+     */
+    private async initVisualLane(): Promise<void> {
+        if (this.visualService) return; // already up
+        if (!isFeatureEnabled(this.settings, 'visual-search') || !isFeatureEnabled(this.settings, 'semantic-search')) return;
+        if (!this.attachmentCoordinator) return; // semantic lane failed to init
+        try {
+            const sel = await selectVisualBackend(this);
+            if (sel.kind !== 'ready') {
+                logger.debug('Search', `Visual lane not started: ${sel.kind === 'probe-needed' ? 'probe pending' : sel.reason}`);
+                return;
+            }
+            const identity = { modelId: sel.cfg.modelId, backend: sel.cfg.backend, dim: sel.cfg.dim };
+
+            // Separate cooldown bucket for the visual deployment (C2/M5 — a Cohere 429
+            // must never pause TEXT indexing, and vice versa).
+            this.visualCooldown = new EmbeddingCooldown();
+            this.visualPool = new PdfHandlePool({
+                loadPdfJs: () => loadPdfJs(),
+                readBinary: (f) => this.app.vault.readBinary(f),
+                createCanvas: (w, h) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const context = canvas.getContext('2d');
+                    return context ? { canvas, context } : null;
+                },
+            });
+            this.visualEmbedderProvider = createVisualEmbedderProvider(this);
+            const backend = createVisualEmbedBackend({
+                app: this.app,
+                pool: this.visualPool,
+                provider: this.visualEmbedderProvider,
+                visualCooldown: this.visualCooldown,
+            });
+            this.visualQueue = new GenericEmbeddingQueue<VisualPageTask>({
+                getBackend: () => backend,
+                foregroundGate: this.foregroundGate,
+                cooldown: this.visualCooldown,
+            });
+            this.visualRepository = new VisualIndexRepository(this.app, identity);
+            const loaded = await this.visualRepository.load();
+            if (!loaded.ok) logger.warn('Search', `Visual index load failed: ${loaded.error}`);
+            this.visualIndexNeedsRebuild = this.visualRepository.needsRebuild;
+
+            this.visualService = new VisualIndexService({
+                app: this.app,
+                repository: this.visualRepository,
+                queue: this.visualQueue,
+                pool: this.visualPool,
+                isEnabled: () => isFeatureEnabled(this.settings, 'visual-search'),
+                getIdentity: () => identity,
+                getMaxPagesPerAttachment: () => this.settings.maxVisualPagesPerAttachment,
+            });
+            this.attachmentCoordinator.register(this.visualService);
+            this.registerVisualNoteEventHandlers();
+
+            // C23 backfill: make pre-existing linked PDFs retrievable without an edit
+            // event. Cheap on re-runs (the C9 cache skips unchanged PDFs); paced by the
+            // cap-1 queue, which yields to foreground work.
+            if (!this.visualIndexNeedsRebuild) void this.visualService.backfillVault();
+            logger.debug('Search', `Visual search lane initialized (${identity.backend}/${identity.modelId}/${identity.dim})`);
+        } catch (error) {
+            logger.error('Search', 'Failed to initialize visual search lane', error);
+        }
+    }
+
+    /**
+     * Tear the visual lane down. `purge=true` (feature disable, C14) deletes the WHOLE
+     * visual namespace; `purge=false` (plugin unload) saves and releases. CA3: the
+     * consumer is unregistered from the coordinator BEFORE anything is disposed, so
+     * post-teardown vault events can't dispatch into a dead service.
+     */
+    private teardownVisualLane(purge: boolean): void {
+        if (this.visualService && this.attachmentCoordinator) {
+            this.attachmentCoordinator.unregister(this.visualService);
+        }
+        this.visualService?.cancelBackfill();
+        for (const ref of this.visualNoteEventRefs) this.app.vault.offref(ref);
+        this.visualNoteEventRefs = [];
+        for (const timer of this.visualNoteModifyTimers.values()) window.clearTimeout(timer);
+        this.visualNoteModifyTimers.clear();
+        this.visualQueue?.dispose();
+        this.visualQueue = null;
+        this.visualPool?.disposeAll();
+        this.visualPool = null;
+        this.visualEmbedderProvider?.dispose();
+        this.visualEmbedderProvider = null;
+        this.visualCooldown = null;
+        const repo = this.visualRepository;
+        this.visualRepository = null;
+        this.visualService = null;
+        this.visualIndexNeedsRebuild = false;
+        if (repo) void (purge ? repo.deleteAll() : repo.dispose());
+    }
+
+    /**
+     * C24 — the visual store is keyed by HOST note, so it must react to `.md` events too:
+     * delete → purge, rename → rekey, modify → reconcile the note's embedded-PDF set
+     * (de-linked PDFs lose their vectors; newly-linked ones index). Refs are kept for
+     * early teardown (feature disable) AND registered for unload safety.
+     */
+    private registerVisualNoteEventHandlers(): void {
+        const isNote = (f: unknown): f is TFile => f instanceof TFile && f.extension === 'md';
+
+        const modifyRef = this.app.vault.on('modify', (file) => {
+            if (!isNote(file)) return;
+            const path = file.path;
+            const prev = this.visualNoteModifyTimers.get(path);
+            if (prev) window.clearTimeout(prev);
+            this.visualNoteModifyTimers.set(path, window.setTimeout(() => {
+                this.visualNoteModifyTimers.delete(path);
+                void this.visualService?.noteModified(path);
+            }, 1500));
+        });
+        const deleteRef = this.app.vault.on('delete', (file) => {
+            if (!isNote(file)) return;
+            void this.visualService?.noteDeleted(file.path);
+        });
+        const renameRef = this.app.vault.on('rename', (file, oldPath) => {
+            if (!isNote(file)) return;
+            void this.visualService?.noteRenamed(oldPath, file.path);
+        });
+        this.visualNoteEventRefs = [modifyRef, deleteRef, renameRef];
+        for (const ref of this.visualNoteEventRefs) this.registerEvent(ref);
     }
 
     private initializeSourcePackService(): void {
@@ -833,6 +991,10 @@ export default class AIOrganiserPlugin extends Plugin {
                 this.attachmentCoordinator.register(this.vectorStoreService);
                 this.registerAttachmentEventHandlers();
 
+                // Visual-search lane (Phase 6): second consumer on the SAME coordinator
+                // (C16); self-gates on the visual-search flag + a ready backend (DP-2).
+                await this.initVisualLane();
+
                 if (this.embeddingService) {
                     logger.debug('Core', `Semantic search initialized with ${this.settings.embeddingProvider}/${this.settings.embeddingModel}`);
                 } else {
@@ -1106,6 +1268,8 @@ export default class AIOrganiserPlugin extends Plugin {
         // D4.4: the queue is plugin-scoped — disposed only here (symmetric with onload).
         this.embeddingQueue?.dispose();
         this.embeddingQueue = null;
+        // Visual lane: save + release on unload (purge only on feature DISABLE — C14).
+        this.teardownVisualLane(/*purge*/ false);
         // Azure rate-limit pacers are module-scoped — clear on unload.
         disposeAzurePacers();
         void this.llmService?.dispose();

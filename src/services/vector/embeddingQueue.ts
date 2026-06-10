@@ -16,6 +16,14 @@
  *
  * The drain yields while the foreground gate is active (one-shot `onIdle`) and
  * pauses while the cooldown is active (single scheduled wake).
+ *
+ * GENERALIZED (azure-capability-completion-v2 Phase 6, D3): the scheduler core is
+ * `GenericEmbeddingQueue<TTask>` with an injected backend (`embedBatch` + `maxBatchSize`).
+ * The TEXT path (`EmbeddingQueue`) is a thin wrapper binding `TTask = ChunkTask` and
+ * adapting `IEmbeddingService.batchGenerateEmbeddings` — behavior-preserving (the
+ * pre-existing `embeddingQueue.test.ts` pins it). The VISUAL path injects an
+ * image-embed backend whose tasks are lightweight page POINTERS (C25) — rendering
+ * happens inside the backend's `embedBatch`, never in the queue.
  */
 
 import type { ForegroundGate } from '../foregroundGate';
@@ -43,6 +51,24 @@ type CancelFn = (handle: ReturnType<typeof setTimeout>) => void;
  *  hung request would otherwise stall ALL indexing indefinitely. */
 const BATCH_TIMEOUT_MS = 90_000;
 
+/** The injected embedding backend (D3): one request per `embedBatch` call. */
+export interface EmbeddingBackend<TTask> {
+    embedBatch(tasks: TTask[]): Promise<BatchEmbeddingResult>;
+    readonly maxBatchSize: number;
+}
+
+export interface GenericEmbeddingQueueDeps<TTask> {
+    /** Reaches the CURRENT backend indirectly so a settings-driven swap never
+     *  leaves the queue holding a stale instance (D4.4 lifecycle). Null while
+     *  the backend is still initializing (bounded init-race wait below). */
+    getBackend: () => EmbeddingBackend<TTask> | null;
+    foregroundGate: ForegroundGate;
+    cooldown: EmbeddingCooldown;
+    /** Injectable timer (tests). Defaults to global setTimeout/clearTimeout. */
+    schedule?: ScheduleFn;
+    cancel?: CancelFn;
+}
+
 export interface EmbeddingQueueDeps {
     /** Reaches the CURRENT embedding service indirectly so a settings-driven
      *  swap never leaves the queue holding a stale instance (D4.4 lifecycle). */
@@ -55,7 +81,7 @@ export interface EmbeddingQueueDeps {
 }
 
 interface Batch {
-    path: string;
+    key: string;
     onBatchSuccess: OnBatchSuccess;
     /** Filled by chunk position as embeddings arrive. */
     slots: (number[] | undefined)[];
@@ -66,10 +92,10 @@ interface Batch {
     resolve: () => void;
 }
 
-interface QueueItem {
-    task: ChunkTask;
+interface QueueItem<TTask> {
+    task: TTask;
     batch: Batch;
-    /** Position of this chunk within its batch (for ordered persistence). */
+    /** Position of this task within its batch (for ordered persistence). */
     slot: number;
 }
 
@@ -86,10 +112,11 @@ const NULL_SERVICE_RETRY_MS = 1500;
 // before giving up — the chunks are small text payloads, cheap to hold.
 const MAX_NULL_SERVICE_WAITS = 30;
 
-export class EmbeddingQueue {
-    private readonly pending: QueueItem[] = [];
+/** The scheduler core — cap-1 drain, cooldown, foreground-yield, supersede, timeout. */
+export class GenericEmbeddingQueue<TTask> {
+    private readonly pending: QueueItem<TTask>[] = [];
     private readonly batches = new Map<string, Batch>();
-    private readonly getEmbeddingService: () => IEmbeddingService | null;
+    private readonly getBackend: () => EmbeddingBackend<TTask> | null;
     private readonly foregroundGate: ForegroundGate;
     private readonly cooldown: EmbeddingCooldown;
     private readonly schedule: ScheduleFn;
@@ -100,8 +127,8 @@ export class EmbeddingQueue {
     private wakeTimer: ReturnType<typeof setTimeout> | null = null;
     private idleUnsub: (() => void) | null = null;
 
-    constructor(deps: EmbeddingQueueDeps) {
-        this.getEmbeddingService = deps.getEmbeddingService;
+    constructor(deps: GenericEmbeddingQueueDeps<TTask>) {
+        this.getBackend = deps.getBackend;
         this.foregroundGate = deps.foregroundGate;
         this.cooldown = deps.cooldown;
         this.schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
@@ -109,56 +136,48 @@ export class EmbeddingQueue {
     }
 
     /**
-     * Enqueue all of one note's chunks. Re-enqueueing a path SUPERSEDES its
-     * prior pending batch (a re-saved note wins). Returns a promise that
-     * resolves when THIS batch finishes draining (success or terminal failure)
-     * — `rebuildVault` awaits it for a truthful "rebuild complete".
+     * Enqueue one batch of tasks under `key` (text: the note path). Re-enqueueing
+     * a key SUPERSEDES its prior pending batch (a re-saved note wins). Returns a
+     * promise that resolves when THIS batch finishes draining (success or terminal
+     * failure) — `rebuildVault` awaits it for a truthful "rebuild complete".
      */
-    enqueue(tasks: ChunkTask[], onBatchSuccess: OnBatchSuccess): Promise<void> {
+    enqueueKeyed(key: string, tasks: TTask[], onBatchSuccess: OnBatchSuccess): Promise<void> {
         if (tasks.length === 0) return Promise.resolve();
-        // Invariant (M20): one enqueue = one note, so every task shares a path.
-        // The sole caller (vectorStoreService.indexNote) guarantees this; guard
-        // defensively so a mis-call can't silently mix notes into one batch.
-        const path = tasks[0].path;
-        const ownTasks = tasks.every((t) => t.path === path) ? tasks : tasks.filter((t) => t.path === path);
-        if (ownTasks.length !== tasks.length) {
-            logger.warn('Search', `Embedding queue: enqueue mixed paths for ${path}; ignoring foreign chunks`);
-        }
 
-        // Supersede any prior pending batch for this path.
-        this.removePath(path, /*supersededByNewBatch*/ true);
+        // Supersede any prior pending batch for this key.
+        this.removePath(key, /*supersededByNewBatch*/ true);
 
         let resolve!: () => void;
         const completion = new Promise<void>((res) => { resolve = res; });
         const batch: Batch = {
-            path,
+            key,
             onBatchSuccess,
-            slots: new Array<number[] | undefined>(ownTasks.length).fill(undefined),
-            total: ownTasks.length,
-            remaining: ownTasks.length,
+            slots: new Array<number[] | undefined>(tasks.length).fill(undefined),
+            total: tasks.length,
+            remaining: tasks.length,
             settled: false,
             completion,
             resolve,
         };
-        this.batches.set(path, batch);
-        ownTasks.forEach((task, slot) => this.pending.push({ task, batch, slot }));
+        this.batches.set(key, batch);
+        tasks.forEach((task, slot) => this.pending.push({ task, batch, slot }));
 
         void this.kick();
         return completion;
     }
 
     /**
-     * Remove a path's pending chunks (delete/rename — R2-M1). Settles its batch
+     * Remove a key's pending chunks (delete/rename — R2-M1). Settles its batch
      * so any awaiter unblocks. `superseded=true` when a newer batch replaces it.
      */
-    removePath(path: string, superseded = false): void {
-        const batch = this.batches.get(path);
+    removePath(key: string, superseded = false): void {
+        const batch = this.batches.get(key);
         if (!batch) return;
         for (let i = this.pending.length - 1; i >= 0; i--) {
             if (this.pending[i].batch === batch) this.pending.splice(i, 1);
         }
         this.settle(batch);
-        if (superseded) logger.debug('Search', `Embedding queue: superseded pending batch for ${path}`);
+        if (superseded) logger.debug('Search', `Embedding queue: superseded pending batch for ${key}`);
     }
 
     /** Pending chunk count (tests / diagnostics). */
@@ -215,8 +234,8 @@ export class EmbeddingQueue {
                 this.scheduleWake(this.cooldown.remainingMs());
                 return;
             }
-            const service = this.getEmbeddingService();
-            if (!service) {
+            const backend = this.getBackend();
+            if (!backend) {
                 // Init race: the service may still be initializing — wait a bounded
                 // number of short intervals before giving up, so a reload's re-index
                 // isn't dropped just because the queue drained a beat too early.
@@ -231,7 +250,7 @@ export class EmbeddingQueue {
             }
             this.nullServiceWaits = 0; // service appeared — reset the init-race counter
 
-            const batchSize = Math.max(1, service.maxBatchSize || DEFAULT_BATCH_SIZE);
+            const batchSize = Math.max(1, backend.maxBatchSize || DEFAULT_BATCH_SIZE);
             const items = this.takeNext(batchSize);
             if (items.length === 0) continue; // all dropped as stale/settled
 
@@ -241,7 +260,7 @@ export class EmbeddingQueue {
             // degrade to a dropped batch so the loop keeps making progress.
             let result: BatchEmbeddingResult;
             try {
-                result = await this.withTimeout(service.batchGenerateEmbeddings(items.map((i) => i.task.text)));
+                result = await this.withTimeout(backend.embedBatch(items.map((i) => i.task)));
             } catch (e) {
                 this.dropItems(items, e instanceof Error ? e.message : 'embedding request failed');
                 continue;
@@ -262,8 +281,8 @@ export class EmbeddingQueue {
     }
 
     /** Take up to `n` still-live items off the front (skips settled batches). */
-    private takeNext(n: number): QueueItem[] {
-        const items: QueueItem[] = [];
+    private takeNext(n: number): QueueItem<TTask>[] {
+        const items: QueueItem<TTask>[] = [];
         while (items.length < n && this.pending.length > 0) {
             const item = this.pending.shift()!;
             if (item.batch.settled) continue; // superseded/removed since enqueue
@@ -272,7 +291,7 @@ export class EmbeddingQueue {
         return items;
     }
 
-    private async applyEmbeddings(items: QueueItem[], embeddings: number[][]): Promise<void> {
+    private async applyEmbeddings(items: QueueItem<TTask>[], embeddings: number[][]): Promise<void> {
         const completed = new Set<Batch>();
         items.forEach((item, i) => {
             const batch = item.batch;
@@ -288,19 +307,19 @@ export class EmbeddingQueue {
             try {
                 await batch.onBatchSuccess(ordered);
             } catch (e) {
-                logger.error('Search', `Embedding queue: onBatchSuccess failed for ${batch.path}`, e);
+                logger.error('Search', `Embedding queue: onBatchSuccess failed for ${batch.key}`, e);
             } finally {
                 this.settle(batch);
             }
         }
     }
 
-    private dropItems(items: QueueItem[], error: string): void {
+    private dropItems(items: QueueItem<TTask>[], error: string): void {
         const affected = new Set<Batch>();
         for (const item of items) affected.add(item.batch);
         for (const batch of affected) {
             if (batch.settled) continue;
-            logger.warn('Search', `Embedding queue: dropping ${batch.path} — ${error}`);
+            logger.warn('Search', `Embedding queue: dropping ${batch.key} — ${error}`);
             // Drop the rest of this batch's pending chunks too — a partial note
             // must not be half-persisted.
             for (let i = this.pending.length - 1; i >= 0; i--) {
@@ -320,7 +339,7 @@ export class EmbeddingQueue {
     private settle(batch: Batch): void {
         if (batch.settled) return;
         batch.settled = true;
-        this.batches.delete(batch.path);
+        this.batches.delete(batch.key);
         batch.resolve();
     }
 
@@ -341,5 +360,47 @@ export class EmbeddingQueue {
             this.wakeTimer = null;
             void this.kick();
         }, Math.max(0, ms));
+    }
+}
+
+/**
+ * The TEXT embedding queue — `GenericEmbeddingQueue<ChunkTask>` bound to the
+ * live `IEmbeddingService`. Public surface unchanged from the pre-generalization
+ * class (D3 behavior-preserving): `enqueue(tasks, onBatchSuccess)` derives the
+ * batch key from `tasks[0].path` and guards against mixed-path mis-calls.
+ */
+export class EmbeddingQueue extends GenericEmbeddingQueue<ChunkTask> {
+    constructor(deps: EmbeddingQueueDeps) {
+        super({
+            getBackend: () => {
+                const service = deps.getEmbeddingService();
+                if (!service) return null;
+                return {
+                    maxBatchSize: service.maxBatchSize,
+                    embedBatch: (tasks: ChunkTask[]) => service.batchGenerateEmbeddings(tasks.map((t) => t.text)),
+                };
+            },
+            foregroundGate: deps.foregroundGate,
+            cooldown: deps.cooldown,
+            schedule: deps.schedule,
+            cancel: deps.cancel,
+        });
+    }
+
+    /**
+     * Enqueue all of one note's chunks. Re-enqueueing a path SUPERSEDES its
+     * prior pending batch (a re-saved note wins).
+     */
+    enqueue(tasks: ChunkTask[], onBatchSuccess: OnBatchSuccess): Promise<void> {
+        if (tasks.length === 0) return Promise.resolve();
+        // Invariant (M20): one enqueue = one note, so every task shares a path.
+        // The sole caller (vectorStoreService.indexNote) guarantees this; guard
+        // defensively so a mis-call can't silently mix notes into one batch.
+        const path = tasks[0].path;
+        const ownTasks = tasks.every((t) => t.path === path) ? tasks : tasks.filter((t) => t.path === path);
+        if (ownTasks.length !== tasks.length) {
+            logger.warn('Search', `Embedding queue: enqueue mixed paths for ${path}; ignoring foreign chunks`);
+        }
+        return this.enqueueKeyed(path, ownTasks, onBatchSuccess);
     }
 }

@@ -100,6 +100,14 @@ export class AttachmentLifecycleCoordinator {
         this.consumers.push(consumer);
     }
 
+    /** Unregister a consumer (CA3): `teardownFeature('visual-search')` MUST unregister the
+     *  visual consumer BEFORE disposing it, else post-teardown vault edits dispatch to a
+     *  dead service. Identity-based; unknown consumers are a no-op. */
+    unregister(consumer: AttachmentConsumer): void {
+        const i = this.consumers.indexOf(consumer);
+        if (i >= 0) this.consumers.splice(i, 1);
+    }
+
     /** True once at least one consumer is registered (lets `main.ts` skip wiring when off). */
     get hasConsumers(): boolean {
         return this.consumers.length > 0;
