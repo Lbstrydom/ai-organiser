@@ -9,12 +9,19 @@ import { IEmbeddingService } from './embeddings/types';
 import { AIOrganiserSettings } from '../core/settings';
 import { isFeatureEnabled } from './featureService';
 import { logger } from '../utils/logger';
+import type { VisualRetrievalService } from './visualEmbedding/visualRetrievalService';
+import type { VisualHit } from './visualEmbedding/types';
+import { mergeRagContext, type RagContextItem } from './ragContextMerger';
 
 export interface RAGContext {
     chunks: SearchResult[];
     formattedContext: string;
     sources: string[];  // Unique file paths
     totalChunks: number;
+    /** Merged text+visual evidence (Phase 7, C4) — set when a visual retrieval ran.
+     *  Multimodal callers feed this to `buildRagParts` (ragPayloadBuilder); the
+     *  `formattedContext` string already includes the visual page TEXT (DP-1 default). */
+    items?: RagContextItem[];
 }
 
 export interface RAGOptions {
@@ -58,15 +65,20 @@ export class RAGService {
     private vectorStore: IVectorStore;
     private settings: AIOrganiserSettings;
     private embeddingService: IEmbeddingService | null;
+    private visualRetrieval: VisualRetrievalService | null;
 
     constructor(
         vectorStore: IVectorStore,
         settings: AIOrganiserSettings,
-        embeddingService?: IEmbeddingService | null
+        embeddingService?: IEmbeddingService | null,
+        /** Phase 7 (optional, additive): the visual lane's query side. Absent ⇒ the
+         *  service is byte-identical to the text-only behavior. */
+        visualRetrieval?: VisualRetrievalService | null,
     ) {
         this.vectorStore = vectorStore;
         this.settings = settings;
         this.embeddingService = embeddingService || null;
+        this.visualRetrieval = visualRetrieval || null;
     }
 
     /**
@@ -113,22 +125,39 @@ export class RAGService {
             // Limit to max chunks
             const selectedChunks = filteredResults.slice(0, maxChunks);
 
-            // Format context for LLM
+            // Phase 7: ADDITIVE visual evidence (graceful — empty on any unavailability).
+            // C18 #2 gate: when page-text consent is off, do not even retrieve.
+            let visualHits: VisualHit[] = [];
+            if (this.visualRetrieval && this.settings.allowVisualPageTextInRag) {
+                const vr = await this.visualRetrieval.search(query, {
+                    folderScope: (folderScope && folderScope !== '/' ? folderScope : undefined) || undefined,
+                    currentFile: excludeCurrentFile ? currentFile?.path : undefined,
+                }, Math.min(4, maxChunks));
+                if (vr.ok) visualHits = vr.value;
+            }
+            // C4/C20: prompt evidence merges by EVIDENCE identity (never host-filePath
+            // dedup). The model id is constant within one retrieval pass, so '' suffices.
+            const items = mergeRagContext(selectedChunks, visualHits, '');
+
+            // Format context for LLM (visual page TEXT appended — DP-1 default payload)
             const formattedContext = this.formatContextForPrompt(
                 selectedChunks,
-                includeMetadata
+                includeMetadata,
+                items.filter((i) => i.kind === 'attachment-page'),
             );
 
-            // Get unique sources
-            const sources = Array.from(
-                new Set(selectedChunks.map((r: SearchResult) => r.document.filePath))
-            );
+            // Get unique sources (visual hits contribute their HOST notes)
+            const sources = Array.from(new Set([
+                ...selectedChunks.map((r: SearchResult) => r.document.filePath),
+                ...visualHits.map((h: VisualHit) => h.hostNotePath),
+            ]));
 
             return {
                 chunks: selectedChunks,
                 formattedContext,
                 sources,
-                totalChunks: selectedChunks.length
+                totalChunks: selectedChunks.length,
+                ...(visualHits.length > 0 ? { items } : {}),
             };
         } catch (error) {
             logger.error('Search', 'Error retrieving RAG context', error);
@@ -146,9 +175,10 @@ export class RAGService {
      */
     private formatContextForPrompt(
         chunks: SearchResult[],
-        includeMetadata: boolean
+        includeMetadata: boolean,
+        visualItems: RagContextItem[] = [],
     ): string {
-        if (chunks.length === 0) {
+        if (chunks.length === 0 && visualItems.length === 0) {
             return '';
         }
 
@@ -183,6 +213,25 @@ export class RAGService {
             contextParts.push('');
         });
 
+        // Visual evidence (Phase 7, DP-1): page TEXT + provenance. Images are NEVER
+        // carried here — they materialise only on the gated multimodal path
+        // (ragPayloadBuilder, C5).
+        visualItems.forEach((item, index) => {
+            if (item.kind !== 'attachment-page') return;
+            contextParts.push(`## Source ${chunks.length + index + 1} (attachment page)`);
+            if (includeMetadata) {
+                contextParts.push(`**File:** ${item.filePath}`);
+                contextParts.push(`**From attachment:** ${item.sourceAttachment.name} (page ${item.page})`);
+                contextParts.push(`**Relevance Score:** ${(item.score * 100).toFixed(1)}%`);
+                contextParts.push('');
+            }
+            contextParts.push('**Content:**');
+            contextParts.push(item.text || '(figure page — no extractable text)');
+            contextParts.push('');
+            contextParts.push('---');
+            contextParts.push('');
+        });
+
         return contextParts.join('\n');
     }
 
@@ -194,7 +243,8 @@ export class RAGService {
         context: RAGContext,
         systemPrompt?: string
     ): string {
-        if (context.totalChunks === 0) {
+        // Visual-only context (text chunks empty but attachment pages matched) still counts.
+        if (context.totalChunks === 0 && !(context.items && context.items.length > 0)) {
             return userQuery;
         }
 

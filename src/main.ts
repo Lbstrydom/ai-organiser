@@ -49,6 +49,7 @@ import { PdfHandlePool } from './services/pdf/pdfHandlePool';
 import { VisualIndexRepository } from './services/visualEmbedding/visualIndexRepository';
 import { VisualIndexService } from './services/visualEmbedding/visualIndexService';
 import { createVisualEmbedderProvider, createVisualEmbedBackend, type VisualEmbedderProvider } from './services/visualEmbedding/visualEmbedBackend';
+import { VisualRetrievalService } from './services/visualEmbedding/visualRetrievalService';
 import { selectVisualBackend } from './services/visualEmbedding/visualBackendResolver';
 import type { VisualPageTask } from './services/visualEmbedding/types';
 import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
@@ -105,6 +106,9 @@ export default class AIOrganiserPlugin extends Plugin {
     // ── Visual-search lane (Phase 6) — lazily initialized, torn down on disable (C14) ──
     public visualRepository: VisualIndexRepository | null = null;
     public visualService: VisualIndexService | null = null;
+    /** Phase 7: the visual lane's QUERY side (owns query embedding, C1). Consumed by
+     *  RAG construction sites; null whenever the lane is down. */
+    public visualRetrieval: VisualRetrievalService | null = null;
     private visualQueue: GenericEmbeddingQueue<VisualPageTask> | null = null;
     private visualPool: PdfHandlePool | null = null;
     private visualCooldown: EmbeddingCooldown | null = null;
@@ -533,6 +537,14 @@ export default class AIOrganiserPlugin extends Plugin {
             this.attachmentCoordinator.register(this.visualService);
             this.registerVisualNoteEventHandlers();
 
+            // Phase 7: the query side — RAG construction sites read `plugin.visualRetrieval`.
+            const provider = this.visualEmbedderProvider;
+            this.visualRetrieval = new VisualRetrievalService({
+                getRepository: () => this.visualRepository,
+                getEmbedder: () => provider.getEmbedder(),
+                isEnabled: () => isFeatureEnabled(this.settings, 'visual-search'),
+            });
+
             // C23 backfill: make pre-existing linked PDFs retrievable without an edit
             // event. Cheap on re-runs (the C9 cache skips unchanged PDFs); paced by the
             // cap-1 queue, which yields to foreground work.
@@ -568,6 +580,7 @@ export default class AIOrganiserPlugin extends Plugin {
         const repo = this.visualRepository;
         this.visualRepository = null;
         this.visualService = null;
+        this.visualRetrieval = null;
         this.visualIndexNeedsRebuild = false;
         if (repo) void (purge ? repo.deleteAll() : repo.dispose());
     }

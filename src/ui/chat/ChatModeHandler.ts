@@ -12,6 +12,7 @@ import type { AIOrganiserSettings } from '../../core/settings';
 import type { IEmbeddingService } from '../../services/embeddings/types';
 import type { IVectorStore } from '../../services/vector/types';
 import type { SummarizableLLMService } from '../../services/types';
+import type { VisualRetrievalService } from '../../services/visualEmbedding/visualRetrievalService';
 import type AIOrganiserPlugin from '../../main';
 
 export type ChatMode = 'note' | 'vault' | 'highlight' | 'research' | 'free' | 'presentation';
@@ -43,6 +44,8 @@ export interface ChatPluginContext {
     settings: AIOrganiserSettings;
     vectorStore?: IVectorStore | null;
     embeddingService?: IEmbeddingService | null;
+    /** Phase 7 (visual-search): the visual lane's query side; null/absent when down. */
+    visualRetrieval?: VisualRetrievalService | null;
     llmService: SummarizableLLMService;
 }
 

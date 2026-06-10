@@ -23,7 +23,10 @@ export class VaultModeHandler implements ChatModeHandler {
         this.ragService ??= new RAGService(
             ctx.plugin.vectorStore,
             ctx.plugin.settings,
-            ctx.plugin.embeddingService
+            ctx.plugin.embeddingService,
+            // Phase 7: visual evidence in vault chat (null when the visual lane is down —
+            // the service is then byte-identical to text-only RAG).
+            ctx.plugin.visualRetrieval,
         );
         return this.ragService;
     }
