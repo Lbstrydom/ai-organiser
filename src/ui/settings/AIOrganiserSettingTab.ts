@@ -9,6 +9,7 @@ import { SummarizationSettingsSection } from './SummarizationSettingsSection';
 import { MinutesSettingsSection } from './MinutesSettingsSection';
 import { ConfigurationSettingsSection } from './ConfigurationSettingsSection';
 import { SemanticSearchSettingsSection } from './SemanticSearchSettingsSection';
+import { VisualSearchSettingsSection } from './VisualSearchSettingsSection';
 import { MobileSettingsSection } from './MobileSettingsSection';
 import { BasesSettingsSection } from './BasesSettingsSection';
 import { NotebookLMSettingsSection } from './NotebookLMSettingsSection';
@@ -268,6 +269,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-semantic-search', async () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-semantic-search', t.semanticSearch?.title || 'Semantic Search', 'brain-circuit');
                 await new SemanticSearchSettingsSection(this.plugin, sub, this).display();
+                // Visual search rides the SAME gate as Semantic Search (C17): the consent/
+                // enable panel must be visible BEFORE the visual-search feature is on, so it
+                // is deliberately NOT wrapped in its own renderIfEnabled('visual-search').
+                const visualSub = this.createSubCollapsibleSection(content, 'sub-visual-search', this.plugin.t.settings.visualSearch.title, 'scan-search');
+                await new VisualSearchSettingsSection(this.plugin, visualSub, this).display();
             });
             await this.renderIfEnabled('sub-canvas', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-canvas', this.plugin.t.canvas?.settingsTitle || 'Canvas Boards', 'layout-grid');

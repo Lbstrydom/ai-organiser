@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildCommandCategories, type PickerCommand, type CommandCategory } from '../src/ui/modals/CommandPickerModal';
 import { projectSettingsGroups } from '../src/services/featureProjection';
-import { FEATURE_REGISTRY, FEATURE_BY_ID, SECTION_FEATURE } from '../src/core/features';
+import { FEATURE_REGISTRY, FEATURE_BY_ID, SECTION_FEATURE, SECTION_HOSTED_FEATURES } from '../src/core/features';
 import { WORKFLOW_STAGES } from '../src/core/workflowStages';
 import { en } from '../src/i18n/en';
 
@@ -131,13 +131,27 @@ describe('cross-surface taxonomy — shared labels', () => {
 });
 
 describe('cross-surface taxonomy — completeness', () => {
+    // Declared exceptions (SSOT: features.ts SECTION_HOSTED_FEATURES, C17): features
+    // with NO picker command whose settings panel is hosted INSIDE another feature's
+    // section, so an own SECTION_FEATURE mapping would hide the consent UI when disabled.
+    const SECTION_HOSTED: ReadonlySet<string> = new Set(SECTION_HOSTED_FEATURES);
+
     it('every non-core feature is reachable from ≥1 picker leaf or owns a settings section', () => {
         const leafFeatures = new Set(leaves.map(({ leaf }) => leaf.feature).filter(Boolean));
         const sectionOwners = new Set(Object.values(SECTION_FEATURE));
         for (const f of FEATURE_REGISTRY) {
             if (f.core) continue;
-            const reachable = leafFeatures.has(f.id) || sectionOwners.has(f.id);
+            const reachable = leafFeatures.has(f.id) || sectionOwners.has(f.id) || SECTION_HOSTED.has(f.id);
             expect(reachable, `feature ${f.id} unreachable from both surfaces`).toBe(true);
+        }
+    });
+
+    it('section-hosted exceptions are not ALSO reachable normally (no stale entries)', () => {
+        const leafFeatures = new Set(leaves.map(({ leaf }) => leaf.feature).filter(Boolean));
+        const sectionOwners = new Set(Object.values(SECTION_FEATURE));
+        for (const id of SECTION_HOSTED) {
+            expect(leafFeatures.has(id as never) || sectionOwners.has(id as never),
+                `'${id}' is reachable normally — remove it from SECTION_HOSTED`).toBe(false);
         }
     });
 });

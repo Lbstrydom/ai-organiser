@@ -12,11 +12,11 @@ import { FEATURE_REGISTRY } from '../src/core/features';
 const FEATURE_IDS = new Set(FEATURE_REGISTRY.map((f) => f.id));
 
 describe('azureCapabilities registry', () => {
-    it('exposes exactly the 5 specialist capabilities', () => {
+    it('exposes exactly the 6 specialist capabilities', () => {
         expect([...AZURE_CAPABILITY_IDS].sort()).toEqual(
-            ['embeddings', 'transcription', 'tts', 'websearch', 'youtube'].sort(),
+            ['embeddings', 'transcription', 'tts', 'visual-embeddings', 'websearch', 'youtube'].sort(),
         );
-        expect(listCapabilities()).toHaveLength(5);
+        expect(listCapabilities()).toHaveLength(6);
     });
 
     it('every featureFlag is a real FeatureId', () => {

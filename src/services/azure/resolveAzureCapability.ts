@@ -30,6 +30,7 @@ import {
     getOpenAIEmbeddingsEndpoint,
     getClaudeMessagesEndpoint,
     getSpeechEndpoint,
+    getFoundryImageEmbeddingsEndpoint,
 } from './endpointResolver';
 import { getAzureApiKey } from './azureKey';
 
@@ -79,6 +80,11 @@ export async function isByoConfigured(plugin: AIOrganiserPlugin, kind: ByoConfig
             if (provKey(p) || await providerKey(p)) return true;
             return await has(p === 'groq' ? STANDARD_SECRET_IDS.GROQ : STANDARD_SECRET_IDS.OPENAI);
         }
+        case 'visual-embedding':
+            // DEDICATED check (Gemini-R3 G2): ONLY the canonical Cohere visual BYO secret
+            // (C22). Never the text-lane 'embedding' chain — text-embedding config must
+            // not silently authorize page-image transmission (C5 consent isolation).
+            return has(PLUGIN_SECRET_IDS.COHERE_VISUAL);
         case 'tts':
             // Narration TTS provider is Gemini (NOT the optional llm-enhancement key — G3).
             return geminiConfigured();
@@ -98,6 +104,9 @@ export async function isByoConfigured(plugin: AIOrganiserPlugin, kind: ByoConfig
 /** Does this capability's azure resolution genuinely require a deployment name to be set? */
 function azureNeedsDeployment(capId: AzureCapabilityId, settings: AIOrganiserPlugin['settings']): boolean {
     if (capId === 'websearch') return true; // the Claude deployment is always required
+    // The Foundry `/models` routes are model-in-body — the deployment/model name is
+    // ALWAYS required regardless of routing mode (no conventional default; H6 no-fabrication).
+    if (capId === 'visual-embeddings') return true;
     // OpenAI-surface capabilities only need a named deployment in deployment-based routing.
     return settings.azureRoutingMode === 'deployment-based';
 }
@@ -120,6 +129,7 @@ function azureDeploymentFor(capId: AzureCapabilityId, plugin: AIOrganiserPlugin)
     if (cap) return cap;
     // No fabrication (H6): return the explicitly-configured deployment or ''.
     // The endpoint builders apply their own conventional default for direct callers.
+    // ('visual-embeddings' has NO legacy fallback field — capability deployment only.)
     if (capId === 'transcription') return settings.azureWhisperDeployment || '';
     if (capId === 'embeddings') return settings.azureDeployments?.embeddings || '';
     return '';
@@ -131,6 +141,9 @@ function azureEndpointFor(capId: AzureCapabilityId, plugin: AIOrganiserPlugin): 
         case 'transcription': return getWhisperEndpoint(settings);
         case 'embeddings': return getOpenAIEmbeddingsEndpoint(settings);
         case 'websearch': return getClaudeMessagesEndpoint(settings);
+        // Primary (image) endpoint; the visual lane resolves the text-query endpoint
+        // separately via getFoundryTextEmbeddingsEndpoint (same resource, same key).
+        case 'visual-embeddings': return getFoundryImageEmbeddingsEndpoint(settings);
         case 'tts': return getSpeechEndpoint(settings);
         default: throw new Error(`no azure endpoint for ${capId}`);
     }

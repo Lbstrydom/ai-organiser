@@ -92,6 +92,10 @@ export default class AIOrganiserPlugin extends Plugin {
     public readonly foregroundGate = new ForegroundGate();
     public readonly embeddingCooldown = new EmbeddingCooldown();
     public embeddingQueue: EmbeddingQueue | null = null;
+    /** Visual index metadata mismatch flag (C8) — set by the Phase-6 visual lane on load
+     *  when the persisted index identity differs from the selected backend; the settings
+     *  panel surfaces it as `needs-rebuild` and the lane blocks writes+search until rebuilt. */
+    public visualIndexNeedsRebuild = false;
     /** Logical user-facing LLM call count (D5), bumped via CloudLLMService.onCall. */
     public llmCallCounter = 0;
     public configService: ConfigurationService;

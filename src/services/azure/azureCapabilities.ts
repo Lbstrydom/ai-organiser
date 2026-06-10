@@ -17,12 +17,13 @@ import type { FeatureId } from '../../core/features';
 export type AzureCapabilityId =
     | 'transcription'
     | 'embeddings'
+    | 'visual-embeddings'
     | 'tts'
     | 'websearch'
     | 'youtube';
 
 export const AZURE_CAPABILITY_IDS: readonly AzureCapabilityId[] = Object.freeze([
-    'transcription', 'embeddings', 'tts', 'websearch', 'youtube',
+    'transcription', 'embeddings', 'visual-embeddings', 'tts', 'websearch', 'youtube',
 ]);
 
 /**
@@ -35,7 +36,11 @@ export type AzureSupport = 'full' | 'partial' | 'none';
 
 /** Which existing specialist-config subsystem owns the BYO provider/key/model
  *  for a capability (D2 — the Azure map NEVER stores provider/key/model). */
-export type ByoConfigKind = 'embedding' | 'transcription' | 'tts' | 'research' | 'youtube';
+/** `visual-embedding` is DEDICATED (Gemini-R3 G2) — it must NEVER alias `embedding`,
+ *  whose check reads TEXT-lane config (EMBEDDING secret / embeddingProvider / local-onnx
+ *  bypass) and would silently authorize visual page-image traffic on text settings,
+ *  breaking the C5/C22 consent isolation. */
+export type ByoConfigKind = 'embedding' | 'visual-embedding' | 'transcription' | 'tts' | 'research' | 'youtube';
 
 export type AzureSurface = 'azure-openai' | 'azure-claude';
 
@@ -78,6 +83,20 @@ export const AZURE_CAPABILITIES: Readonly<Record<AzureCapabilityId, AzureCapabil
         byoConfigKind: 'embedding',
         featureFlags: ['semantic-search'],
         labelKey: 'embeddings', descKey: 'embeddingsDesc',
+    },
+    'visual-embeddings': {
+        id: 'visual-embeddings',
+        // Azure CAN serve Cohere embed-v-4-0 (Foundry `/models` routes), but whether the
+        // tenant's deployment accepts IMAGE input is probe-gated (DP-2/C3) — the resolver
+        // only says where to route; the probe decides azure-vs-byo at the lane level.
+        // Surface is azure-claude because the Foundry `/models` routes live on the SAME
+        // resource + key as the Claude surface (`azureAIEndpoint`, services.ai.azure.com).
+        support: 'partial',
+        surface: 'azure-claude',
+        needsDeployment: true,
+        byoConfigKind: 'visual-embedding',
+        featureFlags: ['visual-search'],
+        labelKey: 'visualEmbeddings', descKey: 'visualEmbeddingsDesc',
     },
     websearch: {
         id: 'websearch',

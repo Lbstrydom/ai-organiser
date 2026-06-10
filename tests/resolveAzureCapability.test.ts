@@ -153,4 +153,61 @@ describe('resolveAzureCapability', () => {
         const r = await resolveAzureCapability(makePlugin({ azureCapabilities: { tts: { mode: 'byo' } }, providerKeys: { gemini: 'g' } }), 'tts');
         expect(r).toEqual({ kind: 'byo', byoConfigKind: 'tts' });
     });
+
+    // ── visual-embeddings (azure-capability-completion-v2 Phase 5) ────────────
+
+    it('visual-embeddings: azure mode + deployment → azure with Foundry image endpoint', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureCapabilities: { 'visual-embeddings': { mode: 'azure', deployment: 'embed-v-4-0' } },
+        })), 'visual-embeddings');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') {
+            expect(r.surface).toBe('azure-claude');
+            expect(r.deployment).toBe('embed-v-4-0');
+            expect(r.endpoint).toBe(`${VALID_AI}/models/images/embeddings?api-version=2024-05-01-preview`);
+            expect(r.key).toBe('AZ-KEY');
+        }
+    });
+
+    it('visual-embeddings: deployment ALWAYS required — even in model-based routing', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureRoutingMode: 'model-based',
+            azureCapabilities: { 'visual-embeddings': { mode: 'azure' } },
+        })), 'visual-embeddings');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'no-deployment' });
+    });
+
+    it('visual-embeddings byo: TEXT embedding config does NOT satisfy (G2 consent isolation)', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureCapabilities: { 'visual-embeddings': { mode: 'byo' } },
+            // Fully-configured TEXT lane: provider key + dedicated embedding secret + plaintext.
+            embeddingProvider: 'openai',
+            providerKeys: { openai: 'oa-key' },
+            secrets: { [PLUGIN_SECRET_IDS.EMBEDDING]: 'text-emb-key', [STANDARD_SECRET_IDS.OPENAI]: 'oa' },
+        })), 'visual-embeddings');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'no-byo-key' });
+    });
+
+    it('visual-embeddings byo: ONLY the dedicated COHERE_VISUAL secret satisfies (C22)', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureCapabilities: { 'visual-embeddings': { mode: 'byo' } },
+            secrets: { [PLUGIN_SECRET_IDS.COHERE_VISUAL]: 'co-visual-key' },
+        })), 'visual-embeddings');
+        expect(r).toEqual({ kind: 'byo', byoConfigKind: 'visual-embedding' });
+    });
+
+    it('visual-embeddings off → unavailable(off)', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureCapabilities: { 'visual-embeddings': { mode: 'off' } },
+        })), 'visual-embeddings');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'off' });
+    });
+
+    it('visual-embeddings azure with bad azureAIEndpoint → no-endpoint (never throws)', async () => {
+        const r = await resolveAzureCapability(makePlugin(withAzureKey({
+            azureAIEndpoint: 'http://insecure.example.com',
+            azureCapabilities: { 'visual-embeddings': { mode: 'azure', deployment: 'embed-v-4-0' } },
+        })), 'visual-embeddings');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'no-endpoint' });
+    });
 });

@@ -255,6 +255,24 @@ export async function getDeepgramApiKey(plugin: AIOrganiserPlugin): Promise<stri
 }
 
 /**
+ * Cohere-native BYO key for the VISUAL embedding lane (visual-search, C22).
+ *
+ * DEDICATED secret (`PLUGIN_SECRET_IDS.COHERE_VISUAL`) — independently consented and
+ * revocable. It must NEVER inherit the text-lane embedding key or the main LLM key
+ * (`useMainKeyFallback: false`, Deepgram lesson): visual indexing transmits page IMAGES,
+ * a different consent surface than text embeddings (C5/C18). No plain-text settings
+ * fallback — the key is entered through SecretStorage in the visual-search panel only.
+ */
+export async function getCohereVisualApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    if (!secretStorage.isAvailable()) return null;
+    return await secretStorage.resolveApiKey({
+        primaryId: PLUGIN_SECRET_IDS.COHERE_VISUAL,
+        useMainKeyFallback: false,
+    });
+}
+
+/**
  * LLM enhancer key resolution (audioNarration LLM pre-pass).
  *
  * Returns PRIMITIVES only — no audioNarration types imported, so this

@@ -18,6 +18,9 @@ const AZURE_API_VERSIONS = {
 	// Speech (TTS) is a separate surface — give it its own version rather than
 	// inheriting chat's (H5). Bump independently if Azure changes the Speech API.
 	speech: '2024-10-21',
+	// Foundry Models inference routes (`/models/*` on the services.ai.azure.com
+	// resource) — used by the Cohere embed-v-4-0 visual lane (Phase 5).
+	foundryModels: '2024-05-01-preview',
 } as const;
 
 // ── Branded Endpoint Types (compile-time safety, zero runtime cost) ─────────
@@ -27,6 +30,8 @@ export type OpenAIChatEndpoint = string & { __brand: 'openai-chat' };
 export type OpenAIEmbeddingsEndpoint = string & { __brand: 'openai-embeddings' };
 export type WhisperEndpoint = string & { __brand: 'whisper' };
 export type SpeechEndpoint = string & { __brand: 'speech' };
+export type FoundryImageEmbeddingsEndpoint = string & { __brand: 'foundry-image-embeddings' };
+export type FoundryTextEmbeddingsEndpoint = string & { __brand: 'foundry-text-embeddings' };
 
 // ── Azure mode detection ────────────────────────────────────────────────────
 
@@ -121,6 +126,26 @@ export function getWhisperEndpoint(settings: EndpointSettings): WhisperEndpoint 
 		WHISPER_PATH_PREFIX + deployment +
 		`/audio/transcriptions?api-version=${apiVersion}`
 	) as WhisperEndpoint;
+}
+
+/**
+ * Foundry Models IMAGE-embeddings route (Cohere embed-v-4-0 visual lane, Phase 5).
+ * Lives on the Foundry resource (`azureAIEndpoint`, services.ai.azure.com) — the SAME
+ * resource + key as the Claude surface, NOT the openai endpoint. Model name goes in the
+ * BODY (no deployment in the path), so this is routing-mode-independent.
+ * Request shape is the Azure AI inference schema (`{model, input:[{image}], input_type}`),
+ * NOT Cohere's native v2 shape — the embedder branches its serializer per backend.
+ */
+export function getFoundryImageEmbeddingsEndpoint(settings: EndpointSettings): FoundryImageEmbeddingsEndpoint {
+	return (normalizeEndpointUrl(settings.azureAIEndpoint) +
+		`/models/images/embeddings?api-version=${AZURE_API_VERSIONS.foundryModels}`) as FoundryImageEmbeddingsEndpoint;
+}
+
+/** Foundry Models TEXT-embeddings route — the visual lane's QUERY side (C1: same
+ *  space/model as the image side, so text queries retrieve page-image vectors). */
+export function getFoundryTextEmbeddingsEndpoint(settings: EndpointSettings): FoundryTextEmbeddingsEndpoint {
+	return (normalizeEndpointUrl(settings.azureAIEndpoint) +
+		`/models/embeddings?api-version=${AZURE_API_VERSIONS.foundryModels}`) as FoundryTextEmbeddingsEndpoint;
 }
 
 /**

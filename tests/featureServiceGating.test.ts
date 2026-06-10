@@ -6,6 +6,7 @@ import {
     SECTION_FEATURE,
     SURFACE_FEATURE,
     CHATMODE_FEATURE,
+    SECTION_HOSTED_FEATURES,
     type FeatureId,
 } from '../src/core/features';
 import { buildCommandCategories, type CommandCategory } from '../src/ui/modals/CommandPickerModal';
@@ -54,6 +55,9 @@ describe('FT-4 completeness — every non-core feature is referenced by ≥1 own
             ...Object.values(SURFACE_FEATURE),
             ...Object.values(CHATMODE_FEATURE),
             ...leafFeatures(buildCommandCategories(en, noop)),
+            // Declared section-hosted features (C17): panel lives inside another
+            // feature's section, so no own SECTION_FEATURE entry — see features.ts.
+            ...SECTION_HOSTED_FEATURES,
         ] as string[]);
         const orphans = FEATURE_REGISTRY
             .filter((f) => !f.core)

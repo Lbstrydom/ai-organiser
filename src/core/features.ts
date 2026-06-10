@@ -33,6 +33,7 @@ export type FeatureId =
     | 'minutes'
     | 'audio-narration'
     | 'semantic-search'
+    | 'visual-search'
     | 'research'
     | 'web-reader'
     | 'quick-peek'
@@ -121,6 +122,11 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'digitisation', labelKey: 'features.digitisation.label', descKey: 'features.digitisation.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
     // ── Find (retrieve / understand existing vault content) ───────────────────────────
     { id: 'semantic-search', labelKey: 'features.semantic-search.label', descKey: 'features.semantic-search.desc', stage: 'find', requires: ['provider'], defaultOn: true, absorbsLegacyFlag: 'enableSemanticSearch' },
+    // Visual search is OPT-IN (D10): enabling is informed consent for page-image
+    // transmission to the embedding backend (C18). Its consent/enable panel renders
+    // inside the Semantic Search section UNGATED on this flag (C17) — only indexing,
+    // retrieval, and teardown gate on it.
+    { id: 'visual-search', labelKey: 'features.visual-search.label', descKey: 'features.visual-search.desc', stage: 'find', requires: ['semantic-search'], defaultOn: false },
     { id: 'quick-peek', labelKey: 'features.quick-peek.label', descKey: 'features.quick-peek.desc', stage: 'find', requires: ['provider'], defaultOn: false },
     // ── Maintain (vault hygiene + admin; local tools, no external account) ────────────
     { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', stage: 'maintain', requires: [], defaultOn: false },
@@ -166,6 +172,16 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-export': 'export',
     'sub-brand': 'export',
 });
+
+/**
+ * Features with NO picker command whose settings panel is deliberately HOSTED inside
+ * another feature's section (so it has no SECTION_FEATURE entry of its own). The
+ * completeness tests treat these as reachable. `visual-search` (C17,
+ * azure-capability-completion-v2): its consent/enable panel must be visible BEFORE the
+ * feature is enabled, so it renders ungated inside the semantic-search section — an own
+ * SECTION_FEATURE mapping would hide the consent UI whenever the feature is off.
+ */
+export const SECTION_HOSTED_FEATURES: readonly FeatureId[] = Object.freeze(['visual-search']);
 
 /** Always-rendered, ungated child sections owned by no feature (R3-H4). */
 export const INFRA_SECTIONS: readonly string[] = Object.freeze([

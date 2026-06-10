@@ -13,6 +13,7 @@ vi.mock('../src/ui/settings/SummarizationSettingsSection', () => ({ Summarizatio
 vi.mock('../src/ui/settings/MinutesSettingsSection', () => ({ MinutesSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/ConfigurationSettingsSection', () => ({ ConfigurationSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/SemanticSearchSettingsSection', () => ({ SemanticSearchSettingsSection: class { display() {} } }));
+vi.mock('../src/ui/settings/VisualSearchSettingsSection', () => ({ VisualSearchSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/MobileSettingsSection', () => ({ MobileSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/BasesSettingsSection', () => ({ BasesSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/NotebookLMSettingsSection', () => ({ NotebookLMSettingsSection: class { display() {} } }));

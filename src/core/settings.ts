@@ -5,6 +5,7 @@ import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, Ov
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
+import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -192,6 +193,20 @@ export interface AIOrganiserSettings {
     indexAttachmentText: boolean;
     /** Per-note cumulative cap on attachment text indexed (chars). A WORK cap, not just storage. */
     maxAttachmentCharsPerNote: number;
+
+    // Visual search (azure-capability-completion-v2 Phases 5–7) — the Cohere v4 page-image lane.
+    /** Cached image-capability probe result (C3/DP-2). `needs-retry` results are NEVER persisted (CA2). */
+    azureVisualImageProbe: VisualProbeResult | null;
+    /** Visual index output dimension — PINNED at index creation (D2); changing it = visual rebuild. */
+    visualEmbeddingDim: number;
+    /** C5 — rendered page images may go to the active VISION LLM at synthesis. Default false (consent). */
+    allowVisualSynthesisImages: boolean;
+    /** C18 — matching page TEXT snippets may go to the active LLM during RAG. Named in the enable consent. */
+    allowVisualPageTextInRag: boolean;
+    /** C7/G3 — hard cap on visual pages embedded per attachment (denial-of-wallet bound). */
+    maxVisualPagesPerAttachment: number;
+    /** C2/M5 — RPM pacing for the Cohere-native backend (Azure backend uses the per-deployment pacer). */
+    cohereVisualRpm: number;
 
     // Search & RAG Settings
     enableVaultChat: boolean;            // Enable Chat with Vault (RAG) - Phase 2
@@ -631,6 +646,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     chunkOverlap: 200,                                  // ~50 tokens overlap
     indexAttachmentText: false,                         // Opt-in (azure-capability-completion-v2 Phase 1)
     maxAttachmentCharsPerNote: 50_000,                  // ~12k tokens of attachment text per note
+    azureVisualImageProbe: null,                        // Probe cache (C3) — null until first probe
+    visualEmbeddingDim: 1536,                           // Cohere v4 default output dimension (D2)
+    allowVisualSynthesisImages: false,                  // C5 — separate synthesis-image consent
+    allowVisualPageTextInRag: true,                     // C18 — named in the enable consent
+    maxVisualPagesPerAttachment: 20,                    // C7/G3 work cap
+    cohereVisualRpm: 60,                                // Conservative native-backend RPM (C2/M5)
     enableVaultChat: false,                             // Phase 2 feature
     ragContextChunks: 5,                                // Standard context window
     ragIncludeMetadata: true,                           // Include paths/headings
@@ -1164,6 +1185,8 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
             : DEFAULT_SETTINGS.maxAttachmentCharsPerNote;
     }
 
+    migrateVisualSearchSettings(oldSettings);
+
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
     migrateFeatureFlags(oldSettings);
@@ -1255,6 +1278,40 @@ function migratePickerTaxonomy(s: Record<string, unknown>): void {
  * the brand folder. That is a runtime/async concern (Notice + vault check) and
  * does NOT belong in this pure function; leave the seam here as the trigger.
  */
+/** Cohere v4 supports these output dimensions; anything else would poison the pinned index (D2). */
+const VALID_VISUAL_DIMS = [256, 512, 1024, 1536];
+
+/**
+ * Validate the visual-search lane fields (azure-capability-completion-v2 Phase 5).
+ * Defensive against malformed persisted JSON: clamp numerics, coerce booleans, and
+ * drop any probe cache that is shape-invalid or transient (`needs-retry` is never
+ * persisted — CA2; a stale one from a crash mid-write must not block re-probing).
+ */
+function migrateVisualSearchSettings(s: Record<string, unknown>): void {
+    if (s.visualEmbeddingDim !== undefined && !VALID_VISUAL_DIMS.includes(Number(s.visualEmbeddingDim))) {
+        s.visualEmbeddingDim = DEFAULT_SETTINGS.visualEmbeddingDim;
+    }
+    if (s.maxVisualPagesPerAttachment !== undefined) {
+        const n = Math.floor(Number(s.maxVisualPagesPerAttachment));
+        s.maxVisualPagesPerAttachment = Number.isFinite(n)
+            ? Math.min(200, Math.max(1, n))
+            : DEFAULT_SETTINGS.maxVisualPagesPerAttachment;
+    }
+    if (s.cohereVisualRpm !== undefined) {
+        const n = Math.floor(Number(s.cohereVisualRpm));
+        s.cohereVisualRpm = Number.isFinite(n)
+            ? Math.min(1000, Math.max(1, n))
+            : DEFAULT_SETTINGS.cohereVisualRpm;
+    }
+    if (s.azureVisualImageProbe !== undefined && s.azureVisualImageProbe !== null) {
+        const p = s.azureVisualImageProbe as Record<string, unknown>;
+        const validStatus = p?.status === 'supported' || p?.status === 'unsupported';
+        if (!validStatus || typeof p.identityHash !== 'string') {
+            s.azureVisualImageProbe = null;
+        }
+    }
+}
+
 function migrateBrandSettings(s: Record<string, unknown>): void {
     const oldPath = s.presentationBrandGuidelinesPath;
     if (typeof oldPath !== 'string' || oldPath.trim() === '') return;
