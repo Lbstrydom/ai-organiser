@@ -1,5 +1,17 @@
 # Project Status Log
 
+## 2026-06-08 — Gemini TTS auto-latest (no more pinned TTS model) + alias confirmation
+
+The Gemini **TTS** model was the last pinned-version holdout (`gemini-3.1-flash-tts-preview`) — Google ships **no `*-tts-latest` server alias**, so it couldn't ride the chat `latest-*` mechanism (which excludes TTS variants). Now resolved the way the old code comment specced as "future work":
+- **`pickNewestGeminiTts(ids, tier)`** (`modelCapabilities.ts`) — the TTS-only inverse of `pickNewestGemini` (ranks `isTts` models locally). **`resolveLatestModel`** gains `latest-flash-tts` / `latest-pro-tts` tiers.
+- **`resolveGeminiTtsModel()`** (`ttsProviderRegistry.ts`) — live `/models` catalog → known TTS previews → pinned default. A future `gemini-3.5-flash-tts` is auto-picked from the live catalog, **no manual bump**.
+- Wired into BOTH TTS consumers: the narration factory + the newsletter podcast engine. The narration **cache fingerprint** + newsletter fingerprint use the SAME resolved model (`getEffectiveModelId`), so a model rotation invalidates the cache (no stale audio). Offline/no-key → byte-identical to the old pinned default (no spurious invalidation for existing users).
+- **Chat/Flash/Pro auto-latest was already correct**: the Google `-latest` aliases (`gemini-pro-latest`, `gemini-flash-latest`, `gemini-flash-lite-latest`) are already in `modelRegistry`, and `resolveLatestModel` prefers them → Google serves 3.5 server-side. The live `/models` fetch surfaces concrete current models in the dropdown. (Didn't invent concrete `gemini-3.5-*` chat IDs — the aliases + live fetch are the authoritative current-model source.)
+
+Tests: `modelCapabilities.test.ts` (+TTS picker + TTS-tier routing), `ttsProviderRegistry.test.ts` (new — fallback + getEffectiveModelId). Verify: tsc clean · full vitest 5949 · test:auto 45/45.
+
+---
+
 ## 2026-06-08 — Mid-conversation web-search in slides/storyline (`/search`)
 
 Sources used to resolve ONCE at deck creation; now the user can pull fresh web research while iterating. `/search <query>` (aliases `/research`, `/web`) is intercepted in the presentation chat loop:

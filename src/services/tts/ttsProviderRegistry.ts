@@ -8,6 +8,8 @@
 import type AIOrganiserPlugin from '../../main';
 import { createGeminiTtsEngine, type TtsEngine } from './ttsEngine';
 import { createAzureSpeechTtsEngine } from './azureSpeechTtsEngine';
+import { getCachedModels } from '../adapters/dynamicModelService';
+import { resolveSpecialistModel } from '../adapters/modelCapabilities';
 
 export type NarrationProviderId = 'gemini' | 'azure-openai';
 
@@ -30,28 +32,40 @@ export interface NarrationProviderConfig {
     readonly privacyConsentKey: string;
     /** Async factory; returns null when no API key resolvable. */
     readonly factory: (plugin: AIOrganiserPlugin) => Promise<TtsEngine | null>;
+    /** Resolve the model actually used at call time (auto-latest). When present it
+     *  drives BOTH the engine AND the narration cache fingerprint, so a model rotation
+     *  invalidates the cache. Absent → the static `modelId` is used as-is. */
+    readonly getEffectiveModelId?: () => string;
     /** Internal Azure-capability engine — NOT offered in the user-facing
      *  narration provider dropdown (selected only via the capability resolver). */
     readonly internalOnly?: boolean;
 }
 
-// ⚠ AUDIT-ON-RELEASE — pinned to a concrete version because Gemini's TTS
-// product line is preview-only and has no public `*-tts-latest` alias yet.
-// Our generic `latest-flash` sentinel (modelCapabilities.ts:pickNewestGemini)
-// intentionally excludes TTS variants — `isTts: true` is filtered out so
-// users asking for `latest-flash` don't silently get a TTS model.
-//
-// Bump this string every time Google ships a new Gemini TTS preview.
-// Future work: extend `resolveLatestModel` with a `latest-flash-tts` /
-// `latest-pro-tts` tier and add a `pickNewestGeminiTts` helper. See
-// memory entry `feedback-always-use-latest-model-sentinels`.
-const GEMINI_MODEL_ID = 'gemini-3.1-flash-tts-preview';
+// Gemini's TTS line is preview-only and Google ships NO `*-tts-latest` server alias,
+// so we auto-track the newest TTS model OURSELVES: the `latest-flash-tts` sentinel ranks
+// the TTS-tagged models in the live `/models` catalog (`pickNewestGeminiTts`). When the
+// catalog isn't fetched (no key / offline) we fall back to the known previews, then this
+// pinned default. No manual bump needed — a new `gemini-X-flash-tts` is picked up live.
+const GEMINI_TTS_FALLBACK = 'gemini-3.1-flash-tts-preview';
+const GEMINI_TTS_SENTINEL = 'latest-flash-tts';
+// Offline fallback pool of known TTS previews (the live catalog supersedes this).
+const GEMINI_TTS_STATIC = [GEMINI_TTS_FALLBACK, 'gemini-2.5-flash-preview-tts', 'gemini-2.5-pro-preview-tts'];
+
+/** Resolve the newest Gemini TTS model: live catalog → known previews → pinned default.
+ *  Exported for tests + the cache-fingerprint path (kept consistent with the engine). */
+export function resolveGeminiTtsModel(): string {
+    const live = getCachedModels('gemini')?.map((m) => m.id) ?? null;
+    const resolved = resolveSpecialistModel('gemini', GEMINI_TTS_SENTINEL, { liveIds: live, staticIds: GEMINI_TTS_STATIC });
+    // resolveSpecialistModel echoes the sentinel back when nothing matched → use the default.
+    return resolved.startsWith('latest-') ? GEMINI_TTS_FALLBACK : resolved;
+}
 
 export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, NarrationProviderConfig>> = {
     gemini: {
         id: 'gemini',
         displayName: 'Google Gemini',
-        modelId: GEMINI_MODEL_ID,
+        modelId: GEMINI_TTS_FALLBACK,            // display/fallback; actual model via getEffectiveModelId
+        getEffectiveModelId: resolveGeminiTtsModel,
         defaultVoice: 'Charon',
         voices: [
             { id: 'Charon', labelKey: 'settings.newsletter.podcastVoiceCharon' },
@@ -60,7 +74,7 @@ export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, Narration
         ],
         costPerMillionCharsUsd: 15.00,
         privacyConsentKey: 'gemini',
-        factory: (plugin) => createGeminiTtsEngine(plugin, GEMINI_MODEL_ID),
+        factory: (plugin) => createGeminiTtsEngine(plugin, resolveGeminiTtsModel()),
     },
     'azure-openai': {
         id: 'azure-openai',

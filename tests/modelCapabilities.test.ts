@@ -19,6 +19,7 @@ import {
     geminiSupportsThinking,
     pickNewestClaude,
     pickNewestGemini,
+    pickNewestGeminiTts,
     pickNewestOpenAI,
     resolveLatestModel,
 } from '../src/services/adapters/modelCapabilities';
@@ -210,6 +211,37 @@ describe('pickNewestGemini', () => {
 
     it('auto-picks Gemini 4.0 pro when added', () => {
         expect(pickNewestGemini([...pool, 'gemini-4.0-pro'], 'pro')).toBe('gemini-4.0-pro');
+    });
+});
+
+describe('pickNewestGeminiTts — TTS-only latest (Google has no *-tts-latest alias)', () => {
+    const pool = [
+        'gemini-2.5-flash',                  // non-TTS → excluded
+        'gemini-2.5-flash-preview-tts',
+        'gemini-3.1-flash-tts-preview',
+        'gemini-2.5-pro-preview-tts',
+    ];
+    it('picks the newest flash TTS model (ignores non-TTS)', () => {
+        expect(pickNewestGeminiTts(pool, 'flash')).toBe('gemini-3.1-flash-tts-preview');
+    });
+    it('picks the newest pro TTS model', () => {
+        expect(pickNewestGeminiTts(pool, 'pro')).toBe('gemini-2.5-pro-preview-tts');
+    });
+    it('auto-picks a future gemini-3.5-flash-tts when Google ships it', () => {
+        expect(pickNewestGeminiTts([...pool, 'gemini-3.5-flash-tts'], 'flash')).toBe('gemini-3.5-flash-tts');
+    });
+    it('returns null when no TTS model of the tier exists', () => {
+        expect(pickNewestGeminiTts(['gemini-2.5-flash'], 'flash')).toBeNull();
+    });
+});
+
+describe('resolveLatestModel — gemini TTS tiers route to the TTS picker', () => {
+    const pool = ['gemini-2.5-flash-preview-tts', 'gemini-3.1-flash-tts-preview', 'gemini-flash-latest'];
+    it('latest-flash-tts resolves to the newest TTS model (NOT the chat alias)', () => {
+        expect(resolveLatestModel('gemini', 'latest-flash-tts', pool)).toBe('gemini-3.1-flash-tts-preview');
+    });
+    it('latest-flash still prefers the Google chat alias (unaffected)', () => {
+        expect(resolveLatestModel('gemini', 'latest-flash', pool)).toBe('gemini-flash-latest');
     });
 });
 

@@ -76,7 +76,10 @@ export async function generateAudioPodcast(
     const { apiKey, voice, outputFolder, dateStr, signal } = opts;
     const { vault } = app;
     const provider = NARRATION_PROVIDERS.gemini;
-    const fpModel = opts.modelId ?? provider.modelId;
+    // Auto-latest TTS model (live catalog → known previews → pinned default), used for
+    // BOTH the fingerprint and the engine so a model rotation regenerates the audio.
+    const effectiveModel = opts.modelId ?? provider.getEffectiveModelId?.() ?? provider.modelId;
+    const fpModel = effectiveModel;
 
     let fingerprint: string;
     try {
@@ -99,7 +102,7 @@ export async function generateAudioPodcast(
     // Build the synthesis engine — shared with audio narration. Each chunk
     // call is wrapped in retryWithBackoff for transient-failure resilience.
     // Caller may supply an engine (e.g. Azure Speech); else build Gemini from apiKey.
-    const engine = opts.engine ?? new GeminiTtsEngine(apiKey, provider.modelId);
+    const engine = opts.engine ?? new GeminiTtsEngine(apiKey, effectiveModel);
     const chunks = splitScriptForTts(script);
     const writer = new Mp3Writer({
         sampleRate: MP3_SAMPLE_RATE,

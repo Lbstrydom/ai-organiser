@@ -231,6 +231,24 @@ export function pickNewestGemini(availableIds: string[], tier: GeminiTier): stri
     return ranked[0]?.id ?? null;
 }
 
+/** Pick the newest TTS-tagged Gemini model of the given tier — the inverse filter of
+ *  `pickNewestGemini` (TTS-only). Google ships NO `*-tts-latest` server alias, so the
+ *  narration path ranks the TTS previews locally instead (e.g. a future
+ *  `gemini-3.5-flash-tts` auto-wins over `gemini-3.1-flash-tts-preview`). */
+export function pickNewestGeminiTts(availableIds: string[], tier: 'pro' | 'flash'): string | null {
+    const ranked = availableIds
+        .map(id => ({ id, parts: parseGeminiModel(id) }))
+        .filter((x): x is { id: string; parts: GeminiModelParts } =>
+            x.parts !== null && x.parts.tier === tier && x.parts.isTts)
+        .sort((a, b) => {
+            if (a.parts.major !== b.parts.major) return b.parts.major - a.parts.major;
+            if (a.parts.minor !== b.parts.minor) return b.parts.minor - a.parts.minor;
+            if (a.parts.isPreview !== b.parts.isPreview) return a.parts.isPreview ? 1 : -1;
+            return 0;
+        });
+    return ranked[0]?.id ?? null;
+}
+
 /** Pick the newest OpenAI model of the given tier from a pool of IDs. */
 export function pickNewestOpenAI(availableIds: string[], tier: OpenAITier): string | null {
     const ranked = availableIds
@@ -279,6 +297,11 @@ export function resolveLatestModel(
             }
             return null;
         case 'gemini':
+            // TTS tiers (latest-flash-tts / latest-pro-tts): Google ships no
+            // `*-tts-latest` server alias, so rank the TTS-tagged models locally.
+            if (tier === 'flash-tts' || tier === 'pro-tts') {
+                return pickNewestGeminiTts(availableIds, tier === 'pro-tts' ? 'pro' : 'flash');
+            }
             if (tier === 'pro' || tier === 'flash' || tier === 'ultra' || tier === 'nano') {
                 // Prefer Google's official `gemini-{tier}-latest` alias
                 // when it appears in the pool — Google hot-swaps these with

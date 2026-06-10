@@ -206,16 +206,19 @@ export async function prepareNarration(
     //   off-mode (or on-mode without key) → BYTE-IDENTICAL v1 tuple
     //   on-mode with key → distinct domain via 'llm-on' separator + mtime
     const fingerprintMtime = file.stat?.mtime ?? 0;
+    // Use the EFFECTIVE (auto-resolved) model so a TTS model rotation invalidates the
+    // cache — must match what the engine actually calls (ttsProviderRegistry factory).
+    const fpModel = provider.getEffectiveModelId?.() ?? provider.modelId;
     let fingerprint: string;
     try {
         if (!llmIntent) {
-            fingerprint = await sha256Hex([file.path, spokenText, voice, provider.modelId]);
+            fingerprint = await sha256Hex([file.path, spokenText, voice, fpModel]);
         } else {
             fingerprint = await sha256Hex([
                 file.path,
                 String(fingerprintMtime),
                 voice,
-                provider.modelId,
+                fpModel,
                 llmIntent.providerId,
                 llmIntent.modelSentinel,
                 String(LLM_ENHANCEMENT_PROMPT_VERSION),
