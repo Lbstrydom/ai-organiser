@@ -95,7 +95,13 @@ export class VisualIndexService implements AttachmentConsumer {
 
     async noteRenamed(oldPath: string, newPath: string): Promise<Result<void>> {
         if (!this.deps.isEnabled()) return ok(undefined);
-        return this.deps.repository.rekeyHost(oldPath, newPath);
+        // Drop batches still queued under the OLD host key (audit H10) — their persist
+        // callbacks capture the old path and would write under a stale key after rekey.
+        this.removePendingFor(oldPath);
+        const rekeyed = await this.deps.repository.rekeyHost(oldPath, newPath);
+        if (!rekeyed.ok) return rekeyed;
+        // Re-index under the new key so anything dropped above re-enqueues fresh.
+        return this.indexHostNote(newPath);
     }
 
     async noteModified(hostPath: string): Promise<Result<void>> {
@@ -178,11 +184,22 @@ export class VisualIndexService implements AttachmentConsumer {
 
     // ── Internals ────────────────────────────────────────────────────────────
 
-    /** Linked .pdf targets of a host note (resolved links only — an unresolved link has
-     *  no file to render). */
+    /** EMBEDDED .pdf targets of a host note. EMBEDS ONLY (audit H3): `![[deck.pdf]]` is
+     *  the consent surface named in C18/C24 — a plain `[[deck.pdf]]` mention must NOT
+     *  transmit that PDF's page images to the embedding backend. Resolved via the
+     *  metadata cache (an unresolved embed has no file to render). */
     private linkedPdfPathsOf(hostPath: string): string[] {
-        const resolved = this.deps.app.metadataCache.resolvedLinks?.[hostPath] ?? {};
-        return Object.keys(resolved).filter((t) => t.toLowerCase().endsWith('.pdf'));
+        const { app } = this.deps;
+        const hostFile = app.vault.getAbstractFileByPath(hostPath);
+        if (!(hostFile instanceof ObsidianTFile)) return [];
+        const embeds = app.metadataCache.getFileCache(hostFile)?.embeds ?? [];
+        const out = new Set<string>();
+        for (const e of embeds) {
+            const linkpath = e.link.split('#')[0]; // strip subpath/page fragments
+            const target = app.metadataCache.getFirstLinkpathDest(linkpath, hostPath);
+            if (target && target.path.toLowerCase().endsWith('.pdf')) out.add(target.path);
+        }
+        return [...out];
     }
 
     /** Fingerprint-gate one (host, pdf), then detect figure pages + enqueue pointer tasks. */
@@ -250,6 +267,14 @@ export class VisualIndexService implements AttachmentConsumer {
 
         // Enqueue pointer tasks (C25); the backend renders + embeds lazily per batch.
         void queue.enqueueKeyed(batchKey(hostPath, pdfFile.path), tasks, async (vectors) => {
+            // Liveness re-check (audit H18): the host may have been deleted/renamed or
+            // the embed removed while this batch waited in the paced queue — persisting
+            // then would resurrect purged vectors under a stale key.
+            const hostStillExists = app.vault.getAbstractFileByPath(hostPath) instanceof ObsidianTFile;
+            if (!hostStillExists || !this.linkedPdfPathsOf(hostPath).includes(pdfFile.path)) {
+                logger.debug('Search', `Visual index: skipping persist for ${hostPath} → ${pdfFile.path} (no longer linked)`);
+                return;
+            }
             const pages = tasks.map((t, i) => ({
                 page: t.pageNumber,
                 vector: vectors[i] ?? [],

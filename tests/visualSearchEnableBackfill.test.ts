@@ -36,6 +36,10 @@ describe('C23 — enable backfill', () => {
                     'research/paper-notes.md': { 'research/figures.pdf': 1 },
                     'journal/today.md': {},
                 },
+                getFileCache: (file: { path: string }) => ({
+                    embeds: file.path === 'research/paper-notes.md' ? [{ link: 'research/figures.pdf' }] : [],
+                }),
+                getFirstLinkpathDest: (linkpath: string) => (linkpath === 'research/figures.pdf' ? pdf : null),
             },
         } as never;
 
@@ -113,7 +117,13 @@ describe('C23 — enable backfill', () => {
                 readBinary: async () => new Uint8Array([1]).buffer,
                 getMarkdownFiles: () => [note],
             },
-            metadataCache: { resolvedLinks: { 'a.md': { 'deck.pdf': 1 } } },
+            metadataCache: {
+                resolvedLinks: { 'a.md': { 'deck.pdf': 1 } },
+                getFileCache: (file: { path: string }) => ({
+                    embeds: file.path === 'a.md' ? [{ link: 'deck.pdf' }] : [],
+                }),
+                getFirstLinkpathDest: (linkpath: string) => (linkpath === 'deck.pdf' ? pdf : null),
+            },
         } as never;
         const repo = new VisualIndexRepository(app, IDENTITY, VISUAL_INDEX_PATH, () => fakeStore());
         await repo.load();

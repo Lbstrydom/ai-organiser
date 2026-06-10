@@ -124,7 +124,12 @@ export class VisualIndexRepository {
                 try {
                     this.meta = JSON.parse(await adapter.read(metaPath)) as VisualMetaSidecar;
                 } catch {
+                    // The sidecar EXISTS but is unreadable → the index identity is UNKNOWN.
+                    // Fail closed (audit H12): treat as needs-rebuild — proceeding could mix
+                    // dims/models. Only a genuinely ABSENT sidecar means "fresh index".
                     this.meta = null;
+                    this._needsRebuild = true;
+                    logger.warn('Search', 'Visual index meta sidecar unreadable — identity unknown, needs rebuild');
                 }
             }
             if (this.meta &&
@@ -141,7 +146,13 @@ export class VisualIndexRepository {
                     const reg = JSON.parse(await adapter.read(regPath)) as RegistrySidecar;
                     this.registry = reg?.hosts ?? {};
                 } catch {
+                    // The registry EXISTS but is unreadable (audit R2-H8): it is the
+                    // eligibility/cache SSOT — proceeding with {} would strand the store's
+                    // vectors (unsearchable) AND force a full re-embed that re-upserts
+                    // alongside them. Same fail-closed rule as the meta sidecar.
                     this.registry = {};
+                    this._needsRebuild = true;
+                    logger.warn('Search', 'Visual index registry sidecar unreadable — needs rebuild');
                 }
             }
 
@@ -388,7 +399,17 @@ export class VisualIndexRepository {
         }
     }
 
-    /** Persist index + both sidecars. */
+    /**
+     * Persist index + both sidecars. NOT transactional, BY DESIGN (audit H21): the
+     * registry is the SSOT for "what is indexed", and staleness in EITHER direction
+     * self-heals on the next index pass — a lost registry write leaves a stale cacheKey
+     * → fingerprint mismatch → re-embed → `upsertPages` removes the prior generation's
+     * ids before upserting (idempotent replace); a lost store write leaves registry ids
+     * pointing at missing docs → fewer rows returned → the next reconcile re-upserts.
+     * No mixed-IDENTITY state is reachable (C8 blocks all writes under needsRebuild),
+     * and the whole index is re-derivable from vault PDFs (C23), so a journal layer
+     * would be over-engineering.
+     */
     async save(): Promise<void> {
         if (this._needsRebuild) return; // never write a mixed-identity state (C8)
         await this.store.save();

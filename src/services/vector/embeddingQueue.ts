@@ -203,7 +203,12 @@ export class GenericEmbeddingQueue<TTask> {
 
     /** Race an embedding request against a hard timeout (H5). Uses real timers
      *  (not the injected scheduler) — this liveness guard is internal, never
-     *  test-controlled, and must not interleave with the wake scheduler. */
+     *  test-controlled, and must not interleave with the wake scheduler.
+     *  INVARIANT (audit R2-H1, accepted race-and-drop design): a timed-out request is
+     *  ORPHANED, not cancelled (Obsidian's requestUrl cannot abort mid-flight) — its
+     *  batch is already settled/dropped when it eventually resolves, and `onBatchSuccess`
+     *  only runs through `applyEmbeddings`, which skips settled batches, so late
+     *  completions can never perform post-timeout state writes. */
     private withTimeout(p: Promise<BatchEmbeddingResult>): Promise<BatchEmbeddingResult> {
         return new Promise<BatchEmbeddingResult>((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('embedding request timed out')), BATCH_TIMEOUT_MS);

@@ -48,6 +48,8 @@ describe('classifyProbeFailure (CA2)', () => {
         ['network: ECONNREFUSED', 'needs-retry'],
         ['http-500', 'needs-retry'],
         ['http-503', 'needs-retry'],
+        ['http-429', 'needs-retry'],
+        ['http-408', 'needs-retry'],
         ['http-400', 'unsupported'],
         ['http-401: unauthorized', 'unsupported'],
         ['http-403: unauthorized', 'unsupported'],
@@ -113,6 +115,20 @@ describe('probe identity + freshness (C3/G2)', () => {
         expect(computeProbeIdentity(cfg({ endpoint: 'https://other.services.ai.azure.com/models/images/embeddings' }), fnv1a64Hex)).not.toBe(base);
         expect(computeProbeIdentity(cfg({ modelId: 'embed-v-5' }), fnv1a64Hex)).not.toBe(base);
         expect(computeProbeIdentity(cfg({ dim: 1024 }), fnv1a64Hex)).not.toBe(base);
+    });
+
+    it('identity uses the FULL endpoint — an api-version change re-probes (H6)', () => {
+        const base = computeProbeIdentity(cfg(), fnv1a64Hex);
+        const v2 = cfg({ endpoint: 'https://res.services.ai.azure.com/models/images/embeddings?api-version=2025-01-01' });
+        expect(computeProbeIdentity(v2, fnv1a64Hex)).not.toBe(base);
+    });
+
+    it('an unexpected throw from the embedder → needs-retry, never an unhandled rejection (H7)', async () => {
+        requestMock.mockImplementation(() => { throw new TypeError('boom outside the Result contract'); });
+        const r = await probeAzureCohereV4Image(cfg(), fnv1a64Hex, now);
+        // The service maps a sync throw to `network:`; the probe-level try/catch is the
+        // second net — either way the classification is transient, never cached.
+        expect(r.status).toBe('needs-retry');
     });
 
     it('a fresh supported/unsupported result is fresh; identity drift is stale', () => {

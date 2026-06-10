@@ -143,6 +143,24 @@ describe('azure backend (Foundry inference shape)', () => {
         }
     });
 
+    it('rejects an invalid index set — duplicate index would mis-align rows (H13/H22)', async () => {
+        requestMock.mockResolvedValue({
+            status: 200,
+            json: { data: [{ index: 0, embedding: vec(0.1) }, { index: 0, embedding: vec(0.9) }] },
+        });
+        const r = await new CohereV4VisualEmbeddingService(azureCfg()).embedTextQueries(['a', 'b']);
+        expect(r).toEqual({ ok: false, error: 'parse-failed' });
+    });
+
+    it('rejects out-of-range and fractional indexes (H13/H22)', async () => {
+        requestMock.mockResolvedValue({ status: 200, json: { data: [{ index: 5, embedding: vec() }] } });
+        const r1 = await new CohereV4VisualEmbeddingService(azureCfg()).embedTextQueries(['a']);
+        expect(r1).toEqual({ ok: false, error: 'parse-failed' });
+        requestMock.mockResolvedValue({ status: 200, json: { data: [{ index: 0.5, embedding: vec() }] } });
+        const r2 = await new CohereV4VisualEmbeddingService(azureCfg()).embedTextQueries(['a']);
+        expect(r2).toEqual({ ok: false, error: 'parse-failed' });
+    });
+
     it('missing images endpoint → err(endpoint-missing)', async () => {
         const r = await new CohereV4VisualEmbeddingService(azureCfg({ endpoint: '' })).embedImages([{ dataUrl: 'x' }]);
         expect(r).toEqual({ ok: false, error: 'endpoint-missing' });

@@ -126,7 +126,9 @@ export class AttachmentLifecycleCoordinator {
     async handleChange(kind: AttachmentChangeKind, path: string, oldPath?: string): Promise<void> {
         const hosts = this.captureHosts(path, oldPath);
         const ev: AttachmentChangeEvent = { path, kind, oldPath, hosts };
-        for (const consumer of this.consumers) {
+        // Snapshot (audit R2-M5): register/unregister during an in-flight dispatch
+        // (e.g. teardown mid-event) must not skip or double-dispatch a consumer.
+        for (const consumer of [...this.consumers]) {
             try {
                 const r = await consumer.onAttachmentChanged(ev);
                 if (!r.ok) logger.warn('Attachment', `consumer rejected ${kind} ${path}: ${r.error}`);

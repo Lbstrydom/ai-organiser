@@ -33,14 +33,16 @@ export interface VisualProbeResult {
 /** Hash fn injected for testability (production passes a sha1/sha256 hex helper). */
 export type HashFn = (input: string) => string;
 
-function endpointHostOf(endpoint: string | undefined): string {
-    if (!endpoint) return 'cohere-native';
-    try { return new URL(endpoint).host.toLowerCase(); } catch { return endpoint.toLowerCase(); }
+/** The FULL endpoint participates in the identity (audit H6): an api-version or
+ *  routing-path change must re-probe, not reuse a result verified against a
+ *  different route. Case-normalized; absent endpoint = the fixed native route. */
+function endpointIdentityOf(endpoint: string | undefined): string {
+    return endpoint ? endpoint.toLowerCase() : 'cohere-native';
 }
 
 /** The cache identity for a probe — changes whenever endpoint/model/dim/key change (G2). */
 export function computeProbeIdentity(cfg: Pick<CohereV4Config, 'endpoint' | 'modelId' | 'dim' | 'apiKey'>, hash: HashFn): string {
-    return hash([endpointHostOf(cfg.endpoint), cfg.modelId, String(cfg.dim), hash(cfg.apiKey)].join('|'));
+    return hash([endpointIdentityOf(cfg.endpoint), cfg.modelId, String(cfg.dim), hash(cfg.apiKey)].join('|'));
 }
 
 /** True when a cached probe still matches the live config (no re-probe needed).
@@ -61,24 +63,35 @@ export function classifyProbeFailure(error: string): Exclude<VisualProbeStatus, 
     if (error === 'rate-limited' || error === 'aborted') return 'needs-retry';
     if (error.startsWith('network:')) return 'needs-retry';
     const httpMatch = /^http-(\d{3})/.exec(error);
-    if (httpMatch && Number(httpMatch[1]) >= 500) return 'needs-retry';
-    // 4xx, dim-mismatch, count-mismatch, parse-failed, endpoint-missing → definitive.
+    if (httpMatch) {
+        const status = Number(httpMatch[1]);
+        // 5xx, 408 (request timeout) and 429 (throttle, belt-and-braces — the service
+        // maps 429 → 'rate-limited' today, but a string drift must not turn a throttle
+        // into a cached rejection) are transient, never definitive rejections.
+        if (status >= 500 || status === 408 || status === 429) return 'needs-retry';
+    }
+    // Other 4xx, dim-mismatch, count-mismatch, parse-failed, endpoint-missing → definitive.
     return 'unsupported';
 }
 
-/** Run the probe (one 1×1 PNG embed). Never throws. */
+/** Run the probe (one 1×1 PNG embed). Never throws — an unexpected throw is by
+ *  definition NOT a definitive backend rejection, so it classifies `needs-retry`. */
 export async function probeAzureCohereV4Image(
     cfg: CohereV4Config,
     hash: HashFn,
     now: () => number,
 ): Promise<VisualProbeResult> {
     const identityHash = computeProbeIdentity(cfg, hash);
-    const r = await new CohereV4VisualEmbeddingService(cfg).embedImages([{ dataUrl: PROBE_ONE_PX_PNG }]);
-    if (r.ok && r.value.vectors[0]?.length === cfg.dim) {
-        return { status: 'supported', identityHash, checkedAt: now() };
+    try {
+        const r = await new CohereV4VisualEmbeddingService(cfg).embedImages([{ dataUrl: PROBE_ONE_PX_PNG }]);
+        if (r.ok && r.value.vectors[0]?.length === cfg.dim) {
+            return { status: 'supported', identityHash, checkedAt: now() };
+        }
+        if (r.ok) {
+            return { status: 'unsupported', identityHash, checkedAt: now(), reason: 'dim-mismatch' };
+        }
+        return { status: classifyProbeFailure(r.error), identityHash, checkedAt: now(), reason: r.error };
+    } catch (e) {
+        return { status: 'needs-retry', identityHash, checkedAt: now(), reason: `threw: ${e instanceof Error ? e.message : String(e)}` };
     }
-    if (r.ok) {
-        return { status: 'unsupported', identityHash, checkedAt: now(), reason: 'dim-mismatch' };
-    }
-    return { status: classifyProbeFailure(r.error), identityHash, checkedAt: now(), reason: r.error };
 }

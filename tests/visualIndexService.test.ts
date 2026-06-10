@@ -37,7 +37,15 @@ async function makeWorld(opts: { figurePages?: number[]; markdownFiles?: string[
             readBinary: async () => new Uint8Array([1, 2, 3, 4]).buffer,
             getMarkdownFiles: () => markdownFiles.map((p) => files.get(p)).filter(Boolean),
         },
-        metadataCache: { resolvedLinks: links },
+        metadataCache: {
+            resolvedLinks: links,
+            // Embeds-only contract (audit H3): the service reads getFileCache().embeds,
+            // resolved via getFirstLinkpathDest. The test `links` map models embeds.
+            getFileCache: (file: { path: string }) => ({
+                embeds: Object.keys(links[file.path] ?? {}).map((l) => ({ link: l })),
+            }),
+            getFirstLinkpathDest: (linkpath: string) => files.get(linkpath) ?? null,
+        },
     } as never;
 
     const repo = new VisualIndexRepository(app, IDENTITY, VISUAL_INDEX_PATH, () => fakeStore());
@@ -111,6 +119,49 @@ describe('indexing pipeline (C9/C25)', () => {
             expect(s.value[0].pdfPath).toBe('deck.pdf');
             expect(s.value[0].hostNotePath).toBe('note.md');
         }
+    });
+
+    it('H3: a plain [[link]] to a PDF (resolved link, NOT an embed) does NOT index', async () => {
+        const w = await makeWorld();
+        // Model a non-embed wiki link: resolvedLinks sees it, getFileCache().embeds does not.
+        w.files.set('note.md', createTFile('note.md'));
+        w.files.set('mentioned.pdf', createTFile('mentioned.pdf'));
+        w.links['note.md'] = {}; // no EMBEDS for this note
+        (w as unknown as { resolvedOnly?: boolean }).resolvedOnly = true;
+        await w.service.indexHostNote('note.md');
+        expect(w.enqueues).toHaveLength(0);
+        expect(w.repo.indexedPdfsOf('note.md')).toEqual([]);
+    });
+
+    it('H18: persist is skipped when the embed was removed while the batch was QUEUED (deferred callback)', async () => {
+        // A DEFERRED fake queue: capture the persist callback instead of firing it, so
+        // we can mutate the vault between enqueue and persist — the real paced-queue race.
+        const deferred: Array<{ tasks: VisualPageTask[]; onSuccess: (v: number[][]) => Promise<void> }> = [];
+        const w = await makeWorld();
+        const realQueue = (w.service as unknown as { deps: { queue: { enqueueKeyed: unknown } } }).deps.queue;
+        (realQueue as { enqueueKeyed: unknown }).enqueueKeyed =
+            async (_key: string, tasks: VisualPageTask[], onSuccess: (v: number[][]) => Promise<void>) => {
+                deferred.push({ tasks, onSuccess });
+            };
+        addNoteWithPdf(w, 'note.md', 'deck.pdf');
+        await w.service.indexHostNote('note.md');
+        expect(deferred).toHaveLength(1); // batch is sitting in the "queue"
+
+        // The user removes the embed while the batch waits.
+        w.links['note.md'] = {};
+        // Now the queue drains and the persist callback fires — it must SKIP.
+        await deferred[0].onSuccess(deferred[0].tasks.map(() => [1, 0, 0, 0]));
+        expect(w.repo.indexedPdfsOf('note.md')).toEqual([]);
+        const s = await w.repo.searchByVector([1, 0, 0, 0], {}, 5);
+        expect(s.ok).toBe(true);
+        if (s.ok) expect(s.value).toEqual([]); // no resurrected vectors
+
+        // Control: with the embed still present, the same deferred persist DOES write.
+        addNoteWithPdf(w, 'other.md', 'deck.pdf');
+        await w.service.indexHostNote('other.md');
+        expect(deferred).toHaveLength(2);
+        await deferred[1].onSuccess(deferred[1].tasks.map(() => [1, 0, 0, 0]));
+        expect(w.repo.indexedPdfsOf('other.md')).toEqual(['deck.pdf']);
     });
 
     it('C9: an unchanged PDF is skipped on re-index (cheap prefilter — no second enqueue)', async () => {
@@ -225,14 +276,20 @@ describe('host-note lifecycle (C24)', () => {
         expect(w.removedKeys).toContain('a.md::vis::deck.pdf');
     });
 
-    it('noteRenamed rekeys the host', async () => {
+    it('noteRenamed rekeys the host, drops old-key pending batches, and re-indexes the new path', async () => {
         const w = await makeWorld();
         addNoteWithPdf(w, 'a.md', 'deck.pdf');
         await w.service.indexHostNote('a.md');
+        // The vault rename: the file now lives at the new path with the same embeds.
+        w.files.delete('a.md');
+        addNoteWithPdf(w, 'moved/a.md', 'deck.pdf');
+        delete w.links['a.md'];
         const r = await w.service.noteRenamed('a.md', 'moved/a.md');
         expect(r.ok).toBe(true);
         expect(w.repo.indexedPdfsOf('a.md')).toEqual([]);
         expect(w.repo.indexedPdfsOf('moved/a.md')).toEqual(['deck.pdf']);
+        // H10: batches queued under the OLD host key were dropped before the rekey.
+        expect(w.removedKeys).toContain('a.md::vis::deck.pdf');
     });
 
     it('noteModified RECONCILES: a de-linked embed loses its vectors, a new one indexes', async () => {

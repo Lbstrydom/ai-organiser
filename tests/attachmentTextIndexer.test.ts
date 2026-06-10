@@ -149,6 +149,35 @@ describe('collectAttachmentChunks', () => {
     });
 });
 
+describe('H6(i) — budget-bounded PDF cache must not poison larger-budget callers', () => {
+    it('a low-budget TRUNCATED extraction is re-extracted for a later higher-budget host', async () => {
+        const cache = new SingleFlightCache<{ text: string; contentHash: string; extractedWithBudget?: number }>();
+        const fullText = 'x'.repeat(500);
+        const extractPdfText = vi.fn(async (_r: AttachmentRef, budget: number) => ({
+            ok: true,
+            text: fullText.slice(0, budget), // bounded extractor: returns exactly up to budget
+        }));
+        // Host A: tiny remaining budget (50) → truncated entry cached.
+        const a = await collectAttachmentChunks('a.md', '', 50, makeDeps({ refs: [ref('shared.pdf', true)], extractPdfText, cache }));
+        expect(a.ok).toBe(true);
+        // Host B: full budget — must NOT inherit the 50-char truncation.
+        const b = await collectAttachmentChunks('b.md', '', 50_000, makeDeps({ refs: [ref('shared.pdf', true)], extractPdfText, cache }));
+        expect(b.ok).toBe(true);
+        if (!b.ok) return;
+        expect(extractPdfText).toHaveBeenCalledTimes(2); // re-extracted at the larger budget
+        expect(b.value.chunks[0].content.length).toBe(500);
+    });
+
+    it('a COMPLETE small extraction (budget not binding) is shared without re-extraction', async () => {
+        const cache = new SingleFlightCache<{ text: string; contentHash: string; extractedWithBudget?: number }>();
+        const extractPdfText = vi.fn(async () => ({ ok: true, text: 'short pdf text' })); // 14 chars ≪ any budget
+        const a = await collectAttachmentChunks('a.md', '', 1000, makeDeps({ refs: [ref('shared.pdf', true)], extractPdfText, cache }));
+        const b = await collectAttachmentChunks('b.md', '', 50_000, makeDeps({ refs: [ref('shared.pdf', true)], extractPdfText, cache }));
+        expect(a.ok && b.ok).toBe(true);
+        expect(extractPdfText).toHaveBeenCalledTimes(1); // entry is complete → safely shared
+    });
+});
+
 describe('SingleFlightCache', () => {
     it('shares one in-flight promise for concurrent same-key gets (parse-once)', async () => {
         const cache = new SingleFlightCache<number>();

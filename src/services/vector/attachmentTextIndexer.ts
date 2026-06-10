@@ -17,7 +17,7 @@
  */
 
 import type { Result } from '../../core/result';
-import { ok } from '../../core/result';
+import { ok, err } from '../../core/result';
 import { SingleFlightCache, ATTACHMENT_EXTRACTOR_VERSION } from './attachmentFingerprint';
 
 /** A local document/PDF attachment linked from a note, resolved to a vault path. */
@@ -67,8 +67,10 @@ export interface AttachmentExtractionDeps {
     contentHash: (ref: AttachmentRef) => Promise<string>;
     /** Sentence-aware chunker. */
     chunk: (text: string) => Promise<string[]>;
-    /** Single-flight extraction cache, shared across the indexing pass (C9/G4). */
-    cache: SingleFlightCache<{ text: string; contentHash: string }>;
+    /** Single-flight extraction cache, shared across the indexing pass (C9/G4).
+     *  `extractedWithBudget` is set on PDF entries (the C21 bound the extraction ran
+     *  under) so a later larger-budget caller can invalidate a truncated entry (H6(i)). */
+    cache: SingleFlightCache<{ text: string; contentHash: string; extractedWithBudget?: number }>;
     /** Per-file extraction timeout (ms). Default 30s. */
     timeoutMs?: number;
 }
@@ -109,13 +111,34 @@ export async function collectAttachmentChunks(
     maxCharsPerNote: number,
     deps: AttachmentExtractionDeps,
 ): Promise<Result<{ chunks: AttachmentChunk[]; skipped: AttachmentSkip[] }>> {
+    // The Result contract must hold even when an INJECTED collaborator throws outside
+    // the per-attachment isolation (e.g. detect on malformed content) — audit R2-H2.
+    try {
+        return await collectAttachmentChunksInner(notePath, noteContent, maxCharsPerNote, deps);
+    } catch (e) {
+        return err(`attachment-collect-failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+}
+
+async function collectAttachmentChunksInner(
+    notePath: string,
+    noteContent: string,
+    maxCharsPerNote: number,
+    deps: AttachmentExtractionDeps,
+): Promise<Result<{ chunks: AttachmentChunk[]; skipped: AttachmentSkip[] }>> {
     const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const refs = deps.detect(noteContent);
     const skipped: AttachmentSkip[] = [];
     const chunks: AttachmentChunk[] = [];
     let budget = Math.max(0, maxCharsPerNote);
+    // Dedupe repeated refs to the SAME vault path (audit R2-H6): a note embedding one
+    // attachment twice must emit its chunks once — ids would collide on upsert anyway,
+    // but double emission double-charges the per-note budget.
+    const seenPaths = new Set<string>();
 
     for (const ref of refs) {
+        if (seenPaths.has(ref.path)) continue;
+        seenPaths.add(ref.path);
         // Phase 4: PDFs are extracted (page-bounded, C21) when the renderer seam is wired;
         // otherwise they stay deferred (graceful — e.g. pdf.js unavailable at build time).
         if (ref.isPdf && !deps.extractPdfText) { skipped.push({ path: ref.path, reason: 'pdf-deferred-to-phase4' }); continue; }
@@ -129,19 +152,33 @@ export async function collectAttachmentChunks(
         // attachment is parsed once (C9/G4); the cache evicts rejections → G1 retry.
         const cacheKey = ref.isPdf ? `${ref.path}|pdf|${ATTACHMENT_EXTRACTOR_VERSION}` : `${ref.path}|${ATTACHMENT_EXTRACTOR_VERSION}`;
         const budgetSnapshot = budget;
-        let extracted: { text: string; contentHash: string };
+        const runExtraction = async (): Promise<{ text: string; contentHash: string; extractedWithBudget?: number }> => {
+            const res = ref.isPdf
+                ? await deps.extractPdfText!(ref, budgetSnapshot)
+                : await deps.extractText(ref);
+            if (!res.ok || !res.text) throw new Error(res.error || 'extract-failed');
+            const hash = await deps.contentHash(ref);
+            // Record the bound a PDF extraction ran under so a later, larger-budget
+            // caller can detect a possibly-truncated entry (audit H6(i)).
+            return ref.isPdf
+                ? { text: res.text, contentHash: hash, extractedWithBudget: budgetSnapshot }
+                : { text: res.text, contentHash: hash };
+        };
+        let extracted: { text: string; contentHash: string; extractedWithBudget?: number };
         try {
-            extracted = await withTimeout(
-                deps.cache.get(cacheKey, async () => {
-                    const res = ref.isPdf
-                        ? await deps.extractPdfText!(ref, budgetSnapshot)
-                        : await deps.extractText(ref);
-                    if (!res.ok || !res.text) throw new Error(res.error || 'extract-failed');
-                    const hash = await deps.contentHash(ref);
-                    return { text: res.text, contentHash: hash };
-                }),
-                timeoutMs,
-            );
+            extracted = await withTimeout(deps.cache.get(cacheKey, runExtraction), timeoutMs);
+            // Budget-poisoning guard (audit H6(i), deliberated MEDIUM): a PDF entry cached
+            // under a SMALLER budget that actually HIT that bound may be truncated — a
+            // later caller with more budget must re-extract, not inherit the truncation.
+            // (text shorter than its bound ⇒ the budget wasn't binding ⇒ entry is complete
+            // w.r.t. the char cap and safe to share at any budget.)
+            if (ref.isPdf
+                && extracted.extractedWithBudget !== undefined
+                && extracted.extractedWithBudget < budgetSnapshot
+                && extracted.text.length >= extracted.extractedWithBudget) {
+                deps.cache.delete(cacheKey);
+                extracted = await withTimeout(deps.cache.get(cacheKey, runExtraction), timeoutMs);
+            }
         } catch (e) {
             const detail = e instanceof Error ? e.message : String(e);
             const reason = detail === 'timeout' ? 'timeout'
@@ -154,7 +191,11 @@ export async function collectAttachmentChunks(
         const trimmed = extracted.text.trim();
         if (!trimmed) { skipped.push({ path: ref.path, reason: 'empty' }); continue; }
 
-        const pieces = await deps.chunk(trimmed);
+        // Work bound (audit R2-M4): never chunk more text than the remaining budget can
+        // emit — chunking megabytes for a near-exhausted budget is wasted CPU. A small
+        // overshoot pad keeps the last chunk's sentence boundary natural.
+        const bounded = trimmed.length > budget + 2000 ? trimmed.slice(0, budget + 2000) : trimmed;
+        const pieces = await deps.chunk(bounded);
         // Collision-free, path-stable id base (audit H5/M17): the encoded vault path IS the
         // identity — no hash, so two distinct attachments can never share an id. The `#${i}`
         // suffix is unambiguous because encodeURIComponent escapes any literal '#'.

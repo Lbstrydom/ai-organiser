@@ -62,7 +62,13 @@ export interface VisualHit {
     renderRef: PdfPageRef;
 }
 
-/** Retrieval scope shared by BOTH lanes (C4/H1) — folder-scoped RAG must not leak. */
+/**
+ * Retrieval scope shared by BOTH lanes (C4/H1) — folder-scoped RAG must not leak.
+ * An ABSENT `folderScope` is the intentional all-vault mode (not a fallback): the C19
+ * repository contract resolves scope eligibility PRE-topK from its host registry, so an
+ * out-of-scope hit can never crowd an in-scope one out of the top-k (invariant-tested).
+ * `currentFile` excludes that host note from results (related-notes semantics).
+ */
 export interface RetrievalScope {
     folderScope?: string;
     currentFile?: string;

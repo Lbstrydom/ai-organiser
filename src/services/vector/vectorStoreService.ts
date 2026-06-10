@@ -353,7 +353,7 @@ export class VectorStoreService implements AttachmentConsumer {
                 return f ? computeAttachmentContentHash(this.app, f) : '';
             },
             chunk: (text: string) => chunkPlainTextAsync(text, { maxChars: chunkSize, overlapChars: overlap }),
-            cache: new SingleFlightCache<{ text: string; contentHash: string }>(),
+            cache: new SingleFlightCache<{ text: string; contentHash: string; extractedWithBudget?: number }>(),
         };
     }
 

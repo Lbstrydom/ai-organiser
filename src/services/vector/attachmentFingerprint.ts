@@ -43,9 +43,12 @@ export function fingerprintCacheKey(fp: AttachmentContentFingerprint, salt: stri
 }
 
 /**
- * Compute the durable content hash for a fingerprint. Reads the raw bytes (robust to
- * sync/copy mtime preservation) and SHA-256s them with the size + extractor salt. Lazy —
- * call ONLY for a changed candidate, never on every prefilter hit.
+ * Compute the durable content SIGNATURE for a fingerprint — an APPROXIMATE identity, by
+ * design, NOT a full-content hash (audit R2-H5, accepted trade-off): it SHA-256s the byte
+ * length + mtime + sampled head/tail bytes, so it stays O(1)-ish for very large files. An
+ * interior edit that preserves length AND mtime AND the sampled regions is not detected
+ * until any metadata changes. Lazy — call ONLY for a changed candidate, never on every
+ * prefilter hit.
  */
 export async function computeAttachmentContentHash(app: App, file: TFile): Promise<string> {
     const bytes = await app.vault.readBinary(file);
@@ -97,6 +100,11 @@ export class SingleFlightCache<T> {
 
     clear(): void {
         this.map.clear();
+    }
+
+    /** Evict one entry (budget-insufficiency invalidation — audit H6(i)). */
+    delete(key: string): void {
+        this.map.delete(key);
     }
 
     private evictIfNeeded(): void {

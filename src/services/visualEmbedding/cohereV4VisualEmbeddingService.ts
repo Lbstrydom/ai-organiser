@@ -157,7 +157,18 @@ export class CohereV4VisualEmbeddingService implements IVisualEmbeddingService {
             logger.warn('Search', `Foundry embeddings response shape invalid: ${parsed.error.issues[0]?.message ?? 'unknown'}`);
             return err('parse-failed');
         }
-        // Row order is index-declared, not positional — sort defensively.
+        // Row order is index-declared, not positional — validate the index set is
+        // EXACTLY {0..expected-1} (integers, unique, in-range) before alignment. A
+        // duplicate/missing/fractional index would otherwise silently mis-align
+        // vectors to pages (audit H13/H22).
+        const seen = new Set<number>();
+        for (const d of parsed.data.data) {
+            if (!Number.isInteger(d.index) || d.index < 0 || d.index >= expected || seen.has(d.index)) {
+                logger.warn('Search', `Foundry embeddings response has an invalid index set (got ${d.index} of ${expected})`);
+                return err('parse-failed');
+            }
+            seen.add(d.index);
+        }
         const rows = [...parsed.data.data].sort((a, b) => a.index - b.index).map((d) => d.embedding);
         const guarded = this.guardRows(rows, expected);
         if (!guarded.ok) return guarded;

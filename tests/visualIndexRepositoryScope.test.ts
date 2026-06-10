@@ -86,6 +86,27 @@ describe('C8 — identity sidecar + needs-rebuild blocking', () => {
         expect(s).toEqual({ ok: false, error: 'needs-rebuild' });
     });
 
+    it('an UNREADABLE registry sidecar (exists, corrupt) fails closed → needsRebuild (R2-H8)', async () => {
+        const adapter = fakeAdapter();
+        adapter.files.set(`${VISUAL_INDEX_PATH}/visual-meta.json`, JSON.stringify({ ...IDENTITY, createdAt: 1, sourceVersion: 1 }));
+        adapter.files.set(`${VISUAL_INDEX_PATH}/visual-registry.json`, '{corrupt');
+        const { repo } = makeRepo(adapter);
+        await repo.load();
+        expect(repo.needsRebuild).toBe(true);
+        const s = await repo.searchByVector([1, 0, 0, 0], {}, 5);
+        expect(s).toEqual({ ok: false, error: 'needs-rebuild' });
+    });
+
+    it('an UNREADABLE meta sidecar (exists, corrupt) fails closed → needsRebuild (H12)', async () => {
+        const adapter = fakeAdapter();
+        adapter.files.set(`${VISUAL_INDEX_PATH}/visual-meta.json`, '{not valid json');
+        const { repo } = makeRepo(adapter);
+        await repo.load();
+        expect(repo.needsRebuild).toBe(true);
+        const w = await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k', contentHash: 'h' }, [page(1, [1, 0, 0, 0])]);
+        expect(w).toEqual({ ok: false, error: 'needs-rebuild' });
+    });
+
     it('matching identity loads clean', async () => {
         const adapter = fakeAdapter();
         adapter.files.set(`${VISUAL_INDEX_PATH}/visual-meta.json`, JSON.stringify({
@@ -109,6 +130,37 @@ describe('C8 — identity sidecar + needs-rebuild blocking', () => {
         expect(repo.needsRebuild).toBe(false);
         const w = await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k', contentHash: 'h' }, [page(1, [1, 0, 0, 0])]);
         expect(w.ok).toBe(true);
+    });
+});
+
+describe('H21 — one-sided write failures CONVERGE on the next index pass (no journal)', () => {
+    it('registry-lost (stale cacheKey) → fingerprint mismatch → idempotent replace-upsert', async () => {
+        const { repo, store } = makeRepo();
+        await repo.load();
+        await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k-old', contentHash: 'h-old' }, [page(1, [1, 0, 0, 0])]);
+        // Simulate a lost registry write: the live cache key differs (k-new) so the
+        // caller re-embeds and re-upserts — the prior generation's ids are replaced.
+        await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k-new', contentHash: 'h-new' }, [page(1, [0, 1, 0, 0]), page(2, [0, 0, 1, 0])]);
+        expect(store.docs.size).toBe(2); // no duplicate generation
+        expect(repo.getCacheEntry('a.md', 'a.pdf')?.cacheKey).toBe('k-new');
+        const s = await repo.searchByVector([0, 1, 0, 0], {}, 5);
+        if (s.ok) expect(s.value[0].page).toBe(1);
+        expect(s.ok).toBe(true);
+    });
+
+    it('store-lost (registry ids point at missing docs) → search degrades, re-upsert restores', async () => {
+        const { repo, store } = makeRepo();
+        await repo.load();
+        await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k', contentHash: 'h' }, [page(1, [1, 0, 0, 0])]);
+        store.docs.clear(); // the store write was lost; registry still claims indexed
+        const degraded = await repo.searchByVector([1, 0, 0, 0], {}, 5);
+        expect(degraded.ok).toBe(true);
+        if (degraded.ok) expect(degraded.value).toEqual([]); // fewer rows, never a crash
+        // Next pass re-upserts (caller saw a changed fingerprint or forced re-index).
+        await repo.upsertPages('a.md', 'a.pdf', { cacheKey: 'k2', contentHash: 'h2' }, [page(1, [1, 0, 0, 0])]);
+        const restored = await repo.searchByVector([1, 0, 0, 0], {}, 5);
+        expect(restored.ok).toBe(true);
+        if (restored.ok) expect(restored.value).toHaveLength(1);
     });
 });
 
