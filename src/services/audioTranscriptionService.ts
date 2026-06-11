@@ -132,6 +132,12 @@ export const SUPPORTED_AUDIO_FORMATS = new Set([
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 export const MAX_FILE_SIZE_MB = 25;
 
+/** App-level size cap for the Fast Transcription path — ONE shared cap with
+ *  the diarized path (rBv M5): derived from the diarization constant so the
+ *  two Azure Speech entry points can never drift. The service itself accepts
+ *  ~2 GB / ~2 h. */
+const AZURE_SPEECH_MAX_FILE_BYTES = SHARED_AUDIO_MAX_FILE_BYTES;
+
 /**
  * Check if a file is a supported audio format
  */
@@ -408,11 +414,6 @@ export async function transcribeAudioFromData(
     }
 }
 
-/** App-level size cap for the Fast Transcription path — ONE shared cap with
- *  the diarized path (rBv M5): derived from the diarization constant so the
- *  two Azure Speech entry points can never drift. The service itself accepts
- *  ~2 GB / ~2 h. */
-const AZURE_SPEECH_MAX_FILE_BYTES = SHARED_AUDIO_MAX_FILE_BYTES;
 
 // ── gpt-audio short-clip STT bounds (azure-audio plan G1/G2) ────────────────
 //
