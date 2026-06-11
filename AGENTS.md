@@ -2951,7 +2951,7 @@ Makes **figures/charts in embedded PDFs** semantically searchable: figure-bearin
 - **Graceful everywhere (D12)**: probe red + no BYO → clear unavailable reason; pdf.js absent → `needs-retry` skips (G1, never cached-as-done); render fail → that page degrades; visual retrieval can never break text RAG.
 
 ### Tests
-`tests/{cohereV4VisualEmbeddingService,azureCohereV4ImageProbe,visualBackendResolver,pdfPageRenderer,pdfHandlePool,embeddingQueueGeneric,visualIndexRepositoryScope,visualIndexService,visualSearchTeardown,visualSearchEnableBackfill,visualRetrievalService,ragContextMerger,ragPayloadBuilder}.test.ts` + extended `resolveAzureCapability`/`attachmentTextIndexer`. Plan + audit summary gitignored (`docs/plans/azure-capability-completion-v2*.md`).
+`tests/{cohereV4VisualEmbeddingService,azureCohereV4ImageProbe,visualBackendResolver,pdfPageRenderer,pdfHandlePool,embeddingQueueGeneric,visualIndexRepositoryScope,visualIndexService,visualSearchTeardown,visualSearchEnableBackfill,visualRetrievalService,ragContextMerger,ragPayloadBuilder}.test.ts` + extended `resolveAzureCapability`/`attachmentTextIndexer`. Plan + audit summary gitignored (`docs/completed/azure-capability-completion-v2*.md`).
 
 ## Note-Edit Write Seam (command-layer-hardening, Clusters A+B+C)
 
