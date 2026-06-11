@@ -1,5 +1,31 @@
 # Project Status Log
 
+## 2026-06-11 — Azure audio adapters COMPLETE: Azure AI Speech (in-region) + gpt-audio (private) shipped, all gates green (azure-audio-adapters ✅)
+
+Full autonomous clustered build (`/cycle --autonomous`) of the pre-approved plan: **Cluster A (foundation) → B (Azure Speech STT+TTS) → C (gpt-audio) → D (UI)**, each with a GPT fix-gate, closed by the **consolidated Gemini gate over the union diff `e5534b7..4712308` (45 files): R1 CONCERNS (1 disproven finding) → R2 APPROVE**.
+
+### Changes
+- **Cluster A — foundation** (`94e895d`+`d2367d9`): `azure-speech` as a first-class `AzureSurface` (the in-region compliance boundary modelled as a surface, D1); `azureSpeech*` settings (region/endpoint/voice/maxSpeakers/`azureSpeechRequired` strict flag) + migration (#18 byte-identical when unset); `PLUGIN_SECRET_IDS.AZURE_SPEECH` + `resolveAzureSpeechCredential` (dedicated secret → shared Foundry key, never a personal key); **`AudioProviderPolicy.assertAllowed`** — the single call-time compliance guard (D5/D8) with a provider/op matrix + unknown-id fail-closed; host-anchored `Result` Speech endpoint builders (`:transcribe` custom domain, regional TTS host, voices/list); strict-aware `resolveAzureCapability` (strict ON → azure-speech ONLY, fail-closed; strict OFF → speech-once-configured else legacy with disclosure).
+- **Cluster B — Azure Speech path** (`6b7eb0a`+`d75b9ab`+`06cd74a`): diarization seam change (H3 — positional `apiKey` REMOVED; providers resolve own creds; typed `cost {kind,usd?,basis?}` replaces `actualCostUsd`); `azureSpeechDiarizationAdapter` (Fast Transcription multipart with the **inline `application/json` definition part** — the live-verified §A gotcha; BCP-47 locale normalization; 200 MB single-call cap, chunking deferred §8 per G4); plain `azure-speech` STT in `audioTranscriptionService` (shared `fastTranscribeRequest`, `buildAzureSpeechKey` pacer bucket); policy-driven coordinator provider selection (Azure mode → in-region speech first; strict never falls back to BYO); `ssmlBuilder` (XML-escape untrusted notes + voice grammar incl. dialect subtags + control-chars stripped pre-validation) + `voiceCatalogService` + `cognitiveSpeechTtsEngine` (SSML → raw 24 kHz PCM); narration + newsletter podcast route by resolved surface.
+- **Cluster C — gpt-audio private path** (`0853ef6`+`614f0ff`): `gptAudioTtsEngine` (Chat Completions audio-out `pcm16`; newest `gpt-audio-*` from the live catalog with segment-wise version sort — latest-sentinel rule); `getGptAudioApiKey` (OpenAI-direct chain, never Azure); bounded STT (wav/mp3 only, ~5-min caps per G1/G2; ineligible clips fall back to Whisper with the same key + explicit warning; NO timestamps per D7); `PROVIDER_PRODUCES_TIMESTAMPS` capability map (R2-M4); policy gate at key resolution (a stale gpt-audio id under Azure-BYO can never produce OpenAI-direct egress).
+- **Cluster D — UI wiring** (`5a47fce`): Azure AI Speech settings subsection (region/endpoint/key→SecretStorage/catalog-backed voice picker with M2 states/maxSpeakers/strict toggle/diarization provider dropdown + the DP-1 Global-Standard disclosure while unconfigured); narration provider dropdown (Gemini / OpenAI GPT audio — non-Azure only); transcription provider += gpt-audio; **provider-aware diarization copy** (rC H3 — Deepgram cost preview + third-party disclosure stay Deepgram-only; azure-speech shows the own-resource billing note and skips the disclosure).
+
+### Gates
+- Per-cluster GPT audits: A R1(15H/19M/3L)→R2 · B rB(22H/12M/2L)→rBv · C rC(5H/4M/7L) — all post-triage valid-in-scope H=0 M=0; 17 real findings fixed (policy op-matrix, voice grammar, SSML normalize-before-validate, STT policy gate, narration policy ordering, parse hardening, stat preflight, version sort…). The duplicate-`Translations`-import false positive recurred in 3 rounds and was disproven each time.
+- Consolidated Gemini gate: R1 CONCERNS (G1 claimed `AZURE_SPEECH_MAX_FILE_BYTES` undefined — disproven: defined mid-file; hoisted for readability, `4712308`) → **R2 APPROVE** (0 new, 0 wrongly dismissed).
+- Close-out: 6,240 unit tests green · test:auto 45/45 · build:quick clean · bundle `createElement("script")` = 0.
+
+### Decisions Made
+- Plan path deviations (documented): deepgram tests live at `tests/diarization/`; the transcription provider dropdown lives in `SpecialistProvidersSettingsSection` (post-plan refactor, R2-M3); seam-consumer ripple files added to Cluster B scope (TranscribeOnlyModal, newsletterService, contentExtractionService, azureRequestPacer, transcriptNoteService).
+- G4 sanctioned fallback taken: Azure-Speech STT is single-call v1 (shared 200 MB cap); chunked Azure diarization + cross-chunk speaker reconciliation deferred (§8) — M3 chunk-local disclosure therefore N/A.
+- 15 pre-existing debt entries captured in `.audit/tech-debt.json` (settings god-object, i18n monolith, plaintext-key transients, legacy endpoint anchoring, `resolveSpecialistProvider` mainCloudKey flag).
+
+### Next Steps
+- Live smoke (manual, dev key) per plan §B against a real Speech resource: voices/list, TTS synth, Fast Transcription diarization, narration end-to-end in Azure mode.
+- Deferred §8: batch synthesis, chunked Azure diarization, `gpt-4o-transcribe-diarize` fallback, MAI-Voice premium voices.
+
+---
+
 ## 2026-06-10 — Visual search COMPLETE: Clusters C+D shipped, all gates green (azure-capability-completion-v2 ✅)
 
 Resumed the autonomous clustered build at the Phase-5-core checkpoint (`0fc88fb`) and ran it to plan completion: **Phase 5 wiring → Phase 6 visual index lane → Cluster C audit (converged + Gemini APPROVE) → Phase 7 vision synthesis → consolidated Gemini final gate APPROVE** over the A–D union diff (`0d883aa..6686e43`, 95 files, 0 findings).
