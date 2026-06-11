@@ -332,9 +332,14 @@ export function buildAzureOpenAIDeploymentKey(endpointOrBase: string, deployment
  * per-deployment): `fast-transcription` (STT), `tts` (real-time synth),
  * `voices` (catalog list). Fine-grained Speech dims (chars/min, concurrent
  * transactions) are handled REACTIVELY via 429 + Retry-After backoff.
+ *
+ * The identity segment is `speech-<op>` so the per-deployment RPM editor can
+ * target these buckets by name (rows `speech-tts` / `speech-fast-transcription`,
+ * seeded in DEFAULT_AZURE_DEPLOYMENT_RPM) WITHOUT colliding with an Azure
+ * OpenAI deployment that happens to be named `tts`.
  */
 export function buildAzureSpeechKey(endpointOrBase: string, op: 'fast-transcription' | 'tts' | 'voices'): string {
-    return `azure-speech|${normalizeAzureEndpointToHost(endpointOrBase)}|${op}`;
+    return `azure-speech|${normalizeAzureEndpointToHost(endpointOrBase)}|speech-${op}`;
 }
 
 /** True when the URL host is an Azure Foundry / Azure OpenAI host (audio self-detect). */

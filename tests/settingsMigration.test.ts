@@ -402,6 +402,34 @@ describe('migrateOldSettings', () => {
             expect(r.azureTtsSeedV2).toBe(false);
         });
 
+        it('additively seeds speech-* RPM buckets into a populated map ONCE (azureSpeechRpmSeedV1)', () => {
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureDeploymentRpmSeededV1: true,
+                azurePerDeploymentRpm: { whisper: 3, 'gpt-5.5': 100 },
+            })! as any;
+            expect(r.azurePerDeploymentRpm['speech-tts']).toBe(600);
+            expect(r.azurePerDeploymentRpm['speech-fast-transcription']).toBe(120);
+            expect(r.azurePerDeploymentRpm.whisper).toBe(3); // untouched
+            expect(r.azureSpeechRpmSeedV1).toBe(true);
+        });
+
+        it('never clobbers a user-tuned speech row and respects a post-guard delete', () => {
+            const tuned = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureDeploymentRpmSeededV1: true,
+                azurePerDeploymentRpm: { 'speech-tts': 30 },
+            })! as any;
+            expect(tuned.azurePerDeploymentRpm['speech-tts']).toBe(30);
+
+            const deleted = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureSpeechRpmSeedV1: true,
+                azurePerDeploymentRpm: { whisper: 3 },
+            })! as any;
+            expect(deleted.azurePerDeploymentRpm['speech-tts']).toBeUndefined();
+        });
+
         it('azure-openai user on Tavily + Gemini embeddings: BYO preserved, not force-azure (G2)', () => {
             const c = caps({ cloudServiceType: 'azure-openai', embeddingProvider: 'gemini', researchProvider: 'tavily' });
             expect(c.embeddings).toEqual({ mode: 'byo' });

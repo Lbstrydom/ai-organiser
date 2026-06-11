@@ -496,6 +496,9 @@ export interface AIOrganiserSettings {
     /** One-time guard (default FALSE): flip the historically auto-seeded tts
      *  capability 'byo' → 'azure' for Azure users now that Azure voice paths exist. */
     azureTtsSeedV2: boolean;
+    /** One-time guard (default FALSE): additively seed the `speech-*` op buckets
+     *  into an already-populated per-deployment RPM map (azure-audio follow-up). */
+    azureSpeechRpmSeedV1: boolean;
     /** Azure Speech key — transient; migrated to SecretStorage (AZURE_SPEECH) on save. */
     azureSpeechApiKey?: string;
     /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
@@ -555,6 +558,12 @@ export const DEFAULT_AZURE_DEPLOYMENT_RPM: Record<string, number> = {
     'gpt-5.5': 100,
     'gpt-5.4-nano': 100,
     'whisper': 3,
+    // Azure AI Speech op buckets (azure-audio) — NOT deployments: the speech pacer
+    // keys on `speech-<op>` per resource. S0 quotas are far above these (real-time
+    // TTS ~200 transactions/sec), so they exist to keep speech FAST by default
+    // (never the conservative 60-RPM global fallback) while staying throttle-safe.
+    'speech-tts': 600,
+    'speech-fast-transcription': 120,
 };
 
 export const DEFAULT_SETTINGS: AIOrganiserSettings = {
@@ -877,6 +886,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureSpeechMaxSpeakers: 4,
     azureSpeechRequired: false,
     azureTtsSeedV2: false,
+    azureSpeechRpmSeedV1: false,
     taskModels: {
         tagging: 'claude-sonnet-4-6',
         summarization: 'claude-sonnet-4-6',
@@ -1440,6 +1450,25 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         if (isEmpty) s.azurePerDeploymentRpm = { ...DEFAULT_AZURE_DEPLOYMENT_RPM };
         s.azureDeploymentRpmSeededV1 = true;
     }
+    // One-time ADDITIVE seed of the Azure AI Speech op buckets (azure-audio):
+    // vaults seeded before speech existed have a populated map without the
+    // `speech-*` rows, so speech would pace at the conservative 60-RPM global
+    // fallback. Only-if-absent merge — never clobbers a user-tuned row; a later
+    // deliberate delete is respected (guard consumed). Default-FALSE guard.
+    if (isAzureUserForV3 && s.azureSpeechRpmSeedV1 !== true) {
+        const rpm = s.azurePerDeploymentRpm;
+        // Merge ONLY into a populated map: an empty map is a deliberate clear
+        // (the V1 guard above respects it — so do we). Fresh vaults get the
+        // speech rows via DEFAULT_SETTINGS.
+        if (rpm && typeof rpm === 'object' && Object.keys(rpm).length > 0) {
+            const map = rpm as Record<string, number>;
+            for (const k of ['speech-tts', 'speech-fast-transcription'] as const) {
+                if (!(k in map)) map[k] = DEFAULT_AZURE_DEPLOYMENT_RPM[k];
+            }
+        }
+        s.azureSpeechRpmSeedV1 = true;
+    }
+    if (typeof s.azureSpeechRpmSeedV1 !== 'boolean') s.azureSpeechRpmSeedV1 = false;
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
     // Per-deployment RPM map: keep only string→finite-positive-int entries (drop blanks/garbage).
