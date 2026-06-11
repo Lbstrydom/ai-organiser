@@ -3,10 +3,12 @@
  * Lives under Capture & Input umbrella between Audio & Recording and Smart Digitisation.
  */
 
-import { Setting } from 'obsidian';
+import { Setting, Notice, type ButtonComponent } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
 import { isAzureMode } from '../../services/azure/endpointResolver';
-import { NARRATION_PROVIDERS } from '../../services/tts/ttsProviderRegistry';
+import { resolveAzureCapability } from '../../services/azure/resolveAzureCapability';
+import { ensurePrivacyConsent } from '../../services/privacyNotice';
+import { NARRATION_PROVIDERS, type NarrationProviderId } from '../../services/tts/ttsProviderRegistry';
 import { LLM_ENHANCEMENT_PROVIDERS } from '../../services/audioNarration/llmEnhancerProvider';
 import { estimateLlmEnhancementCostUsd } from '../../services/audioNarration/narrationCostEstimator';
 
@@ -66,6 +68,17 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
                         void this.plugin.saveSettings();
                     });
             });
+
+        // Test voice — synthesizes a short fixed sample through the ACTIVE
+        // narration engine (Azure mode → the capability-resolved Azure surface,
+        // incl. Azure AI Speech; private → Gemini / GPT audio). Verifies keys,
+        // endpoint, and voice end-to-end from inside the plugin.
+        new Setting(this.containerEl)
+            .setName(t.testVoice)
+            .setDesc(t.testVoiceDesc)
+            .addButton(btn => btn
+                .setButtonText(t.testVoiceButton)
+                .onClick(() => { void this.runVoiceTest(btn); }));
 
         // Output folder
         new Setting(this.containerEl)
@@ -137,6 +150,49 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
         // ── AI enhancement (opt-in) ────────────────────────────────────────
         const enhancementContainer = this.containerEl.createDiv();
         this.renderEnhancementSection(enhancementContainer);
+    }
+
+    /** Resolve the active engine exactly like prepareNarration, synth one sample. */
+    private async runVoiceTest(btn: ButtonComponent): Promise<void> {
+        const t = this.plugin.t.settings.audioNarration;
+        btn.setDisabled(true);
+        try {
+            let providerId: NarrationProviderId =
+                this.plugin.settings.audioNarrationProvider in NARRATION_PROVIDERS
+                    ? (this.plugin.settings.audioNarrationProvider as NarrationProviderId)
+                    : 'gemini';
+            if (isAzureMode(this.plugin.settings)) {
+                const res = await resolveAzureCapability(this.plugin, 'tts');
+                if (res.kind === 'azure') {
+                    providerId = res.surface === 'azure-speech' ? 'azure-speech' : 'azure-openai';
+                } else if (res.kind === 'unavailable') {
+                    new Notice(t.testVoiceFailed.replace('{error}', res.reason));
+                    return;
+                }
+            }
+            const provider = NARRATION_PROVIDERS[providerId];
+            const consented = await ensurePrivacyConsent(this.plugin, provider.privacyConsentKey);
+            if (!consented) return;
+            new Notice(t.testVoiceRunning);
+            const engine = await provider.factory(this.plugin);
+            if (!engine) {
+                new Notice(t.testVoiceFailed.replace('{error}', `${provider.displayName} is not configured`));
+                return;
+            }
+            const voice = providerId === 'azure-speech'
+                ? (this.plugin.settings.azureSpeechVoice || provider.defaultVoice)
+                : (this.plugin.settings.audioNarrationVoice || provider.defaultVoice);
+            const pcm = await engine.synthesizeChunk(t.testVoiceSample, voice);
+            const kb = Math.max(1, Math.round((pcm.length * 2) / 1024));
+            new Notice(t.testVoiceOk
+                .replace('{provider}', provider.displayName)
+                .replace('{kb}', String(kb)));
+        } catch (e) {
+            const msg = e instanceof Error ? e.message.slice(0, 140) : String(e);
+            new Notice(t.testVoiceFailed.replace('{error}', msg), 8000);
+        } finally {
+            btn.setDisabled(false);
+        }
     }
 
     private renderEnhancementSection(container: HTMLElement): void {

@@ -541,6 +541,8 @@ export class LLMSettingsSection extends BaseSettingSection {
             'azure-openai-whisper': az.surfaceWhisper,
             'azure-tts': az.surfaceTts,
             'azure-websearch': az.surfaceWebsearch,
+            'azure-speech-tts': az.surfaceSpeechTts,
+            'azure-speech-stt': az.surfaceSpeechStt,
         };
         for (const s of report.surfaces) {
             const label = labels[s.surface] ?? s.surface;

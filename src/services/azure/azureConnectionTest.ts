@@ -15,12 +15,17 @@ import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
 import { capabilityChoice } from './resolveAzureCapability';
+import { resolveAzureSpeechCredential } from './azureSpeechCredential';
+import { buildSsml } from '../tts/ssmlBuilder';
 import {
 	getClaudeMessagesEndpoint,
 	getOpenAIChatEndpoint,
 	getOpenAIEmbeddingsEndpoint,
 	getWhisperEndpoint,
 	getSpeechEndpoint,
+	getSpeechRealtimeTtsEndpoint,
+	getSpeechVoicesListEndpoint,
+	getSpeechFastTranscriptionEndpoint,
 } from './endpointResolver';
 
 export type AzureTestSurface =
@@ -29,7 +34,9 @@ export type AzureTestSurface =
 	| 'azure-openai-embeddings'
 	| 'azure-openai-whisper'
 	| 'azure-tts'
-	| 'azure-websearch';
+	| 'azure-websearch'
+	| 'azure-speech-tts'
+	| 'azure-speech-stt';
 
 export interface AzureSurfaceResult {
 	surface: AzureTestSurface;
@@ -325,6 +332,110 @@ async function testTtsSurface(
 }
 
 /**
+ * Azure AI Speech TTS (the in-region azure-speech surface, azure-audio plan).
+ * Probed whenever a Speech region is configured — the surface shares the main
+ * Foundry key by default, so it is testable as soon as Azure is set up.
+ * With a voice selected → a tiny SSML synthesis proves region + key + voice;
+ * without one → `voices/list` proves region + key and tells the user the
+ * remaining step.
+ */
+async function testSpeechTtsSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	const s = plugin.settings;
+	if (typeof s.azureSpeechRegion !== 'string' || !s.azureSpeechRegion.trim()) return null;
+	const surface: AzureTestSurface = 'azure-speech-tts';
+	const cred = await resolveAzureSpeechCredential(plugin);
+	if (!cred.ok) return { surface, ok: false, status: 0, message: 'no key configured' };
+	if (signal?.aborted) return { surface, ok: false, status: 0, message: 'could not reach endpoint' };
+
+	const voice = typeof s.azureSpeechVoice === 'string' ? s.azureSpeechVoice.trim() : '';
+	if (voice) {
+		const ep = getSpeechRealtimeTtsEndpoint(s);
+		if (!ep.ok) return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+		const ssml = buildSsml('Ping.', voice);
+		if (!ssml.ok) return { surface, ok: false, status: 0, message: 'invalid voice — pick one from the catalog' };
+		let status = 0;
+		try {
+			const res = await requestUrl({
+				url: ep.value,
+				method: 'POST',
+				headers: {
+					'Ocp-Apim-Subscription-Key': cred.value.key,
+					'Content-Type': 'application/ssml+xml',
+					'X-Microsoft-OutputFormat': 'raw-24khz-16bit-mono-pcm',
+				},
+				body: ssml.value,
+				throw: false,
+			});
+			status = res.status;
+		} catch {
+			status = 0;
+		}
+		const ok = status === 200;
+		return { surface, ok, status, message: ok ? 'connected — voice synthesized' : redactedMessage(status) };
+	}
+
+	// No voice yet → the catalog round-trip still proves region + key.
+	const ep = getSpeechVoicesListEndpoint(s);
+	if (!ep.ok) return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	let status = 0;
+	try {
+		const res = await requestUrl({
+			url: ep.value,
+			method: 'GET',
+			headers: { 'Ocp-Apim-Subscription-Key': cred.value.key },
+			throw: false,
+		});
+		status = res.status;
+	} catch {
+		status = 0;
+	}
+	const ok = status === 200;
+	return { surface, ok, status, message: ok ? 'connected — pick a voice to finish setup' : redactedMessage(status) };
+}
+
+/**
+ * Azure AI Speech Fast Transcription (`:transcribe`) — probed whenever the
+ * Speech endpoint (custom domain) is configured. Reuses the PRODUCTION
+ * `fastTranscribeRequest` client (multipart with the inline-JSON definition,
+ * pacing, abort) with the same tiny silent WAV the Whisper probe uses — so a
+ * green result proves the exact code path Minutes/transcription will take.
+ */
+async function testSpeechSttSurface(
+	plugin: AIOrganiserPlugin,
+	signal?: AbortSignal,
+): Promise<AzureSurfaceResult | null> {
+	const s = plugin.settings;
+	if (typeof s.azureSpeechEndpoint !== 'string' || !s.azureSpeechEndpoint.trim()) return null;
+	const surface: AzureTestSurface = 'azure-speech-stt';
+	const ep = getSpeechFastTranscriptionEndpoint(s);
+	if (!ep.ok) return { surface, ok: false, status: 0, message: 'endpoint not configured' };
+	const cred = await resolveAzureSpeechCredential(plugin);
+	if (!cred.ok) return { surface, ok: false, status: 0, message: 'no key configured' };
+
+	// Lazy import keeps the audio service out of the settings-tab load path.
+	const { fastTranscribeRequest } = await import('../audioTranscriptionService');
+	const wav = buildSilentWavBytes();
+	const r = await fastTranscribeRequest({
+		endpoint: ep.value,
+		key: cred.value.key,
+		audioBytes: wav.buffer.slice(0) as ArrayBuffer,
+		filename: 'ping.wav',
+		timeoutMs: 30_000,
+		signal,
+	});
+	if (r.ok) return { surface, ok: true, status: 200, message: 'connected' };
+	const m = /http-(\d+)/.exec(r.error);
+	const status = m ? Number(m[1]) : 0;
+	// 400 = reached + authenticated + routed; the silent clip was rejected —
+	// still proves endpoint + key (same convention as the Whisper probe).
+	const ok = status === 400;
+	return { surface, ok, status, message: ok ? 'connected — endpoint + key valid' : redactedMessage(status) };
+}
+
+/**
  * Web search — only when the `websearch` capability is set to Azure. Runs on the
  * azure-claude surface; the deployment is the main Claude model (azure-claude
  * main) or the websearch capability deployment (azure-openai main). A minimal
@@ -402,6 +513,13 @@ export async function testAzureConnection(
 	if (tts) surfaces.push(tts);
 	const websearch = await testWebSearchSurface(plugin, signal);
 	if (websearch) surfaces.push(websearch);
+
+	// Azure AI Speech (in-region surface) — probed whenever its region/endpoint
+	// is configured (it shares the main Foundry key by default, azure-audio D9).
+	const speechTts = await testSpeechTtsSurface(plugin, signal);
+	if (speechTts) surfaces.push(speechTts);
+	const speechStt = await testSpeechSttSurface(plugin, signal);
+	if (speechStt) surfaces.push(speechStt);
 
 	return { preflightOk: true, preflightErrors: validation.errors, surfaces };
 }

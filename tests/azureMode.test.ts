@@ -303,3 +303,68 @@ describe('resolveEndpoint — single Azure-aware endpoint SSOT', () => {
 		expect(resolveEndpoint('openai', p)).toMatch(/^https?:\/\//);
 	});
 });
+
+describe('testAzureConnection — Azure AI Speech probes (azure-audio follow-up)', () => {
+	beforeEach(() => {
+		mockRequestUrl.mockReset();
+	});
+
+	it('skips speech surfaces when no Speech region/endpoint configured', async () => {
+		mockRequestUrl.mockResolvedValue({ status: 200, json: { content: [{ type: 'text', text: 'pong' }], choices: [{ message: { content: 'p' } }], data: [{ embedding: [0.1] }] } });
+		const plugin = makePlugin();
+		const report = await testAzureConnection(plugin);
+		expect(report.surfaces.find(s => s.surface === 'azure-speech-tts')).toBeUndefined();
+		expect(report.surfaces.find(s => s.surface === 'azure-speech-stt')).toBeUndefined();
+	});
+
+	it('probes voices/list when a region is set but no voice yet (shared Foundry key)', async () => {
+		mockRequestUrl.mockImplementation((opts: { url: string }) => {
+			if (opts.url.includes('voices/list')) return Promise.resolve({ status: 200, json: [] });
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		});
+		const plugin = makePlugin({ azureSpeechRegion: 'swedencentral' });
+		const report = await testAzureConnection(plugin);
+		const tts = report.surfaces.find(s => s.surface === 'azure-speech-tts')!;
+		expect(tts.ok).toBe(true);
+		expect(tts.message).toContain('pick a voice');
+		const voicesCall = mockRequestUrl.mock.calls.find(c => (c[0] as { url: string }).url.includes('voices/list'))!;
+		// Speech auth header (NOT the OpenAI api-key header), via the shared Foundry key.
+		expect((voicesCall[0] as { headers: Record<string, string> }).headers['Ocp-Apim-Subscription-Key']).toBe('azure-key-123');
+	});
+
+	it('synthesizes SSML when a voice is configured', async () => {
+		mockRequestUrl.mockImplementation((opts: { url: string }) => {
+			if (opts.url.includes('tts.speech.microsoft.com/cognitiveservices/v1')) {
+				return Promise.resolve({ status: 200, json: null, arrayBuffer: new ArrayBuffer(64), text: '' });
+			}
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		});
+		const plugin = makePlugin({ azureSpeechRegion: 'swedencentral', azureSpeechVoice: 'en-US-AvaNeural' });
+		const report = await testAzureConnection(plugin);
+		const tts = report.surfaces.find(s => s.surface === 'azure-speech-tts')!;
+		expect(tts.ok).toBe(true);
+		expect(tts.message).toContain('voice synthesized');
+		const synthCall = mockRequestUrl.mock.calls.find(c => (c[0] as { url: string }).url.includes('/cognitiveservices/v1'))!;
+		expect((synthCall[0] as { body: string }).body).toContain('<voice name="en-US-AvaNeural">');
+	});
+
+	it('probes Fast Transcription with the silent WAV when the Speech endpoint is set', async () => {
+		mockRequestUrl.mockImplementation((opts: { url: string }) => {
+			if (opts.url.includes(':transcribe')) {
+				return Promise.resolve({ status: 200, json: { durationMilliseconds: 200, combinedPhrases: [{ text: '' }], phrases: [] }, headers: {} });
+			}
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		});
+		const plugin = makePlugin({ azureSpeechEndpoint: 'https://res.cognitiveservices.azure.com' });
+		const report = await testAzureConnection(plugin);
+		const stt = report.surfaces.find(s => s.surface === 'azure-speech-stt')!;
+		expect(stt.ok).toBe(true);
+		expect(stt.message).toBe('connected');
+	});
+});

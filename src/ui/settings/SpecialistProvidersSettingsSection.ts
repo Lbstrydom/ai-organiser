@@ -427,18 +427,16 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
             .addDropdown(dropdown => {
                 dropdown
                     .addOption('openai', ['OpenAI whisper'].join(''))
-                    .addOption('groq', ['Groq whisper'].join(''));
-                // gpt-audio short-clip STT (azure-audio Phase 4): OpenAI-direct,
-                // private/BYO ONLY — the policy refuses it in Azure mode, so the
-                // option is not offered there (this section is non-Azure anyway,
-                // but guard for the Azure-escape-hatch rendering path).
-                if (!this.plugin.settings.cloudServiceType?.startsWith('azure')) {
-                    dropdown.addOption('openai-gpt-audio', at?.providerGptAudio || 'OpenAI GPT audio (short clips)');
-                }
-                dropdown
-                    .setValue(selectedProvider)
+                    .addOption('groq', ['Groq whisper'].join(''))
+                    // gpt-audio is deliberately NOT offered here (user feedback
+                    // 2026-06-11: two OpenAI options confused the picker). For
+                    // TRANSCRIPTION, Whisper is strictly better (timestamps, any
+                    // length/format) and the gpt-audio STT path auto-falls-back
+                    // to Whisper anyway. gpt-audio remains the NARRATION provider
+                    // option (Audio narration settings), where it belongs.
+                    .setValue(selectedProvider === 'groq' ? 'groq' : 'openai')
                     .onChange((value) => {
-                        this.plugin.settings.audioTranscriptionProvider = value as 'openai' | 'groq' | 'openai-gpt-audio';
+                        this.plugin.settings.audioTranscriptionProvider = value as 'openai' | 'groq';
                         void this.plugin.saveSettings();
                         this.settingTab.display();
                     });

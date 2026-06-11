@@ -139,6 +139,8 @@ export interface Translations {
                 surfaceEmbeddings: string;
                 surfaceWhisper: string;
                 surfaceTts: string;
+                surfaceSpeechTts: string;
+                surfaceSpeechStt: string;
                 surfaceWebsearch: string;
                 embeddingModel: string;
                 embeddingModelDesc: string;
@@ -850,6 +852,13 @@ export interface Translations {
             gptAudioVoiceNova: string;
             gptAudioVoiceOnyx: string;
             gptAudioVoiceShimmer: string;
+            testVoice: string;
+            testVoiceDesc: string;
+            testVoiceButton: string;
+            testVoiceRunning: string;
+            testVoiceSample: string;
+            testVoiceOk: string;
+            testVoiceFailed: string;
             outputFolder: string;
             outputFolderDesc: string;
             embedInNote: string;
@@ -1055,7 +1064,6 @@ export interface Translations {
             noKeyWarning: string;
             provider: string;
             providerDesc: string;
-            providerGptAudio: string;
             apiKey: string;
             apiKeyDesc: string;
             showKey: string;
