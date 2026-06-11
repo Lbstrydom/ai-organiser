@@ -17,7 +17,7 @@ import {
     type AzureCapabilityId,
 } from '../../services/azure/azureCapabilities';
 import { capabilityChoice, isByoConfigured } from '../../services/azure/resolveAzureCapability';
-import { resolveAzureSpeechCredential } from '../../services/azure/azureSpeechCredential';
+import { resolveAzureSpeechCredential, isAzureSpeechFastTranscriptionConfigured } from '../../services/azure/azureSpeechCredential';
 import { listVoices, clearVoiceCatalogCache } from '../../services/tts/voiceCatalogService';
 
 export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
@@ -128,7 +128,37 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 .onChange((value) => {
                     s.audioDiarisationProvider = value as 'none' | 'deepgram' | 'azure-speech';
                     void this.plugin.saveSettings();
+                    void this.refreshDiarizationStatus(statusLine);
                 }));
+
+        // Effective-provider status (user feedback 2026-06-11): the dropdown is
+        // the stored CHOICE, but the coordinator routes azure mode to the
+        // in-region surface once configured — show what will ACTUALLY run.
+        const statusLine = this.containerEl.createDiv({ cls: 'setting-item-description' });
+        void this.refreshDiarizationStatus(statusLine);
+    }
+
+    /** Mirror AudioAttachCoordinator's selection logic for display. */
+    private async refreshDiarizationStatus(el: HTMLElement): Promise<void> {
+        const tDia = this.plugin.t.diarization;
+        const s = this.plugin.settings;
+        try {
+            if (s.audioDiarisationProvider !== 'deepgram' && s.audioDiarisationProvider !== 'azure-speech') {
+                el.setText(tDia.statusNotConfigured);
+                return;
+            }
+            if (await isAzureSpeechFastTranscriptionConfigured(this.plugin)) {
+                el.setText(tDia.statusAzureSpeech);
+                return;
+            }
+            if (s.audioDiarisationProvider === 'deepgram') {
+                el.setText(tDia.statusDeepgram);
+                return;
+            }
+            el.setText(tDia.statusNotConfigured);
+        } catch {
+            el.setText(tDia.statusNotConfigured);
+        }
     }
 
     /** Catalog-backed voice picker with the M2 state matrix. */

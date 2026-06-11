@@ -3423,6 +3423,9 @@ export interface Translations {
         providerDeepgram: string;
         azureSpeechCostNote: string;
         voicesLoaded: string;         // template: "{count}"
+        statusAzureSpeech: string;
+        statusDeepgram: string;
+        statusNotConfigured: string;
     };
     // Slides side-rail workspace layout controls (accessible names / tooltips).
     presentationLayout: {

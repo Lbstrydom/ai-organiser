@@ -493,6 +493,9 @@ export interface AIOrganiserSettings {
      *  Global-Standard surfaces (Whisper, /audio/speech, gpt-audio) are refused fail-closed,
      *  never a silent fallback. Default false = backward-compatible legacy behaviour. */
     azureSpeechRequired: boolean;
+    /** One-time guard (default FALSE): flip the historically auto-seeded tts
+     *  capability 'byo' → 'azure' for Azure users now that Azure voice paths exist. */
+    azureTtsSeedV2: boolean;
     /** Azure Speech key — transient; migrated to SecretStorage (AZURE_SPEECH) on save. */
     azureSpeechApiKey?: string;
     /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
@@ -873,6 +876,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureSpeechVoice: '',
     azureSpeechMaxSpeakers: 4,
     azureSpeechRequired: false,
+    azureTtsSeedV2: false,
     taskModels: {
         tagging: 'claude-sonnet-4-6',
         summarization: 'claude-sonnet-4-6',
@@ -1524,9 +1528,25 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         else seed('embeddings', { mode: 'byo' });
         if (s.researchProvider === 'tavily' || s.researchProvider === 'brightdata-serp') seed('websearch', { mode: 'byo' });
         else seed('websearch', { mode: 'azure' });
-        seed('tts', { mode: 'byo' });
+        // tts seeds AZURE since azure-audio shipped voice paths (Azure AI Speech +
+        // Azure OpenAI /audio/speech). Historically this seeded 'byo' (no Azure
+        // voice existed) — the one-time guard below flips those auto-seeded rows.
+        seed('tts', { mode: 'azure' });
         seed('youtube', { mode: 'byo' });
+
+        // One-time flip (azure-audio follow-up, user feedback 2026-06-11): rows
+        // auto-seeded 'byo' before the Azure voice paths existed move to 'azure'
+        // so Azure users default to their own resource. A deliberate later 'byo'
+        // is preserved (guard consumed). Default-FALSE guard (azureModelDefaultsV3
+        // pattern) so it can never persist true-without-flip via the merge.
+        if (s.azureTtsSeedV2 !== true) {
+            if (caps.tts?.mode === 'byo') {
+                caps.tts = { mode: 'azure', deployment: caps.tts.deployment };
+            }
+            s.azureTtsSeedV2 = true;
+        }
     }
+    if (typeof s.azureTtsSeedV2 !== 'boolean') s.azureTtsSeedV2 = false;
 
     // ── Azure AI Speech (azure-audio-adapters plan) — public-safe empty defaults ──
     // No behaviour change when unset (#18): empty region/endpoint/voice =

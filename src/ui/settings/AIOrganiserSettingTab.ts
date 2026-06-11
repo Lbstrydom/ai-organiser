@@ -32,7 +32,9 @@ import { isFeatureEnabled } from '../../services/featureService';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
-    private expandedSections = new Set<string>(['features', 'ai-provider']);
+    // Only AI provider opens by default — Features is an infrequent-access
+    // section (user feedback 2026-06-11), so it starts collapsed like the rest.
+    private expandedSections = new Set<string>(['ai-provider']);
 
     /** Sub-section id to scroll into view after the next display() — set
      *  by `revealSubSection()` and consumed once. */

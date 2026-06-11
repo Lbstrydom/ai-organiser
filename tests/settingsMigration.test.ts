@@ -373,8 +373,33 @@ describe('migrateOldSettings', () => {
             expect(c.transcription).toEqual({ mode: 'azure', deployment: 'whisper' });
             expect(c.embeddings).toEqual({ mode: 'azure', deployment: 'text-embedding-3-large' });
             expect(c.websearch).toEqual({ mode: 'azure' });
-            expect(c.tts).toEqual({ mode: 'byo' });        // no azure path historically
+            // azure-audio shipped Azure voice paths → tts now seeds/flips to azure.
+            expect(c.tts).toEqual({ mode: 'azure' });
             expect(c.youtube).toEqual({ mode: 'byo' });
+        });
+
+        it('flips a historically auto-seeded tts byo → azure ONCE (azureTtsSeedV2 guard)', () => {
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureCapabilities: { tts: { mode: 'byo' } },
+            })! as any;
+            expect(r.azureCapabilities.tts).toEqual({ mode: 'azure', deployment: undefined });
+            expect(r.azureTtsSeedV2).toBe(true);
+        });
+
+        it('preserves a deliberate byo chosen AFTER the guard was consumed', () => {
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureTtsSeedV2: true,
+                azureCapabilities: { tts: { mode: 'byo' } },
+            })! as any;
+            expect(r.azureCapabilities.tts).toEqual({ mode: 'byo' });
+        });
+
+        it('non-azure users are untouched by the tts flip (guard stays false)', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'claude' })! as any;
+            expect(r.azureCapabilities).toEqual({});
+            expect(r.azureTtsSeedV2).toBe(false);
         });
 
         it('azure-openai user on Tavily + Gemini embeddings: BYO preserved, not force-azure (G2)', () => {
