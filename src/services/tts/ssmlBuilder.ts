@@ -59,8 +59,13 @@ export function voiceLocale(voice: string): string | null {
  * voice name returns a typed error.
  */
 export function buildSsml(text: string, voice: string, lang?: string): Result<string> {
-    if (typeof text !== 'string' || !text.trim()) return err('empty-text');
-    if (text.length > MAX_SSML_TEXT_CHARS) return err('text-too-long');
+    if (typeof text !== 'string') return err('empty-text');
+    // Normalize BEFORE validating (rBv H4/M10): a string of only XML-forbidden
+    // control characters must fail `empty-text`, not slip through and produce
+    // an empty <voice> document after escaping strips them.
+    const clean = text.replace(XML_INVALID_CHARS, '');
+    if (!clean.trim()) return err('empty-text');
+    if (clean.length > MAX_SSML_TEXT_CHARS) return err('text-too-long');
     if (typeof voice !== 'string' || !isValidAzureVoiceName(voice.trim())) return err('invalid-voice');
     const v = voice.trim();
     const locale = (lang && /^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/.test(lang.trim()) ? lang.trim() : null)
@@ -68,7 +73,7 @@ export function buildSsml(text: string, voice: string, lang?: string): Result<st
     if (!locale) return err('invalid-voice');
     const ssml =
         `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${escapeXml(locale)}">` +
-        `<voice name="${escapeXml(v)}">${escapeXml(text)}</voice>` +
+        `<voice name="${escapeXml(v)}">${escapeXml(clean)}</voice>` +
         `</speak>`;
     return ok(ssml);
 }

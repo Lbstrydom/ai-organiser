@@ -9,6 +9,8 @@ import { withAzureLease, buildAzureOpenAIDeploymentKey, buildAzureSpeechKey, isA
 import { parseAzureRateLimitHeaders, computeAzureBackoffMs, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
 import { abortableSleep } from '../utils/abortableSleep';
 import { abortableRequestUrl } from '../utils/abortableRequestUrl';
+// Value import only — diarization/types has no back-imports (no cycle).
+import { DEEPGRAM_MAX_FILE_BYTES as SHARED_AUDIO_MAX_FILE_BYTES } from './diarization/types';
 import { err, ok, type Result } from '../core/result';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
@@ -86,8 +88,9 @@ export interface TranscriptionOptions {
     language?: string;
     prompt?: string;
     /**
-     * Azure Whisper only: pre-resolved endpoint URL (includes deployment name +
-     * api-version). Required when `provider === 'azure'`; ignored otherwise.
+     * Azure surfaces only: pre-resolved endpoint URL — the Whisper deployment
+     * URL (`provider === 'azure'`) or the Fast Transcription `:transcribe` URL
+     * (`provider === 'azure-speech'`). Required for both; ignored otherwise.
      */
     azureEndpoint?: string;
 }
@@ -360,9 +363,11 @@ export async function transcribeAudioFromData(
     }
 }
 
-/** App-level size cap for the Fast Transcription path (mirrors the diarized
- *  path's 200 MB cap; the service itself accepts ~2 GB / ~2 h). */
-const AZURE_SPEECH_MAX_FILE_BYTES = 200 * 1024 * 1024;
+/** App-level size cap for the Fast Transcription path — ONE shared cap with
+ *  the diarized path (rBv M5): derived from the diarization constant so the
+ *  two Azure Speech entry points can never drift. The service itself accepts
+ *  ~2 GB / ~2 h. */
+const AZURE_SPEECH_MAX_FILE_BYTES = SHARED_AUDIO_MAX_FILE_BYTES;
 
 /**
  * Plain (non-diarized) STT via Azure AI Speech Fast Transcription.
