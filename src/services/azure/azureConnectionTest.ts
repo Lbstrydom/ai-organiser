@@ -306,6 +306,10 @@ async function testTtsSurface(
 ): Promise<AzureSurfaceResult | null> {
 	if (!plugin.settings.azureOpenAIEndpoint) return null;
 	if (capabilityChoice(plugin, 'tts').mode !== 'azure') return null;
+	// When Azure AI Speech is configured it is the serving voice surface
+	// (resolution prefers it) — the legacy /audio/speech deployment is not
+	// used, so probing it would only produce a misleading red row.
+	if (typeof plugin.settings.azureSpeechRegion === 'string' && plugin.settings.azureSpeechRegion.trim()) return null;
 	const surface: AzureTestSurface = 'azure-tts';
 	let endpoint: string;
 	try {
@@ -327,7 +331,10 @@ async function testTtsSurface(
 	const message =
 		status === 200 ? 'connected'
 			: status === 400 ? 'connected — endpoint, deployment + key valid'
-				: redactedMessage(status);
+				// A 404 here usually means the tenant has no Azure OPENAI speech
+				// deployment — the in-region Azure AI Speech setup is the fix.
+				: status === 404 ? 'no speech deployment — set up Azure AI Speech (region + voice) under Azure capabilities instead'
+					: redactedMessage(status);
 	return { surface, ok, status, message };
 }
 

@@ -368,3 +368,39 @@ describe('testAzureConnection — Azure AI Speech probes (azure-audio follow-up)
 		expect(stt.message).toBe('connected');
 	});
 });
+
+describe('testAzureConnection — legacy TTS probe vs Azure AI Speech (follow-up)', () => {
+	beforeEach(() => {
+		mockRequestUrl.mockReset();
+	});
+
+	it('skips the legacy azure-openai TTS probe when Azure AI Speech is configured', async () => {
+		mockRequestUrl.mockImplementation((opts: { url: string }) => {
+			if (opts.url.includes('voices/list')) return Promise.resolve({ status: 200, json: [] });
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		});
+		const plugin = makePlugin({
+			azureSpeechRegion: 'swedencentral',
+			azureCapabilities: { tts: { mode: 'azure' } },
+		});
+		const report = await testAzureConnection(plugin);
+		expect(report.surfaces.find(s => s.surface === 'azure-tts')).toBeUndefined();
+		expect(report.surfaces.find(s => s.surface === 'azure-speech-tts')).toBeDefined();
+	});
+
+	it('legacy TTS 404 points the user at the Azure AI Speech setup', async () => {
+		mockRequestUrl.mockImplementation((opts: { url: string }) => {
+			if (opts.url.includes('/audio/speech')) return Promise.resolve({ status: 404, json: {} });
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		});
+		const plugin = makePlugin({ azureCapabilities: { tts: { mode: 'azure' } } });
+		const report = await testAzureConnection(plugin);
+		const tts = report.surfaces.find(s => s.surface === 'azure-tts')!;
+		expect(tts.ok).toBe(false);
+		expect(tts.message).toContain('set up Azure AI Speech');
+	});
+});
