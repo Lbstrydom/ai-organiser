@@ -366,6 +366,7 @@ export interface Translations {
             description: string;
             region: string; regionDesc: string; regionPlaceholder: string;
             endpoint: string; endpointDesc: string; endpointPlaceholder: string;
+            deriveEndpoint: string; deriveEndpointDesc: string; deriveEndpointDone: string;
             apiKey: string; apiKeyDesc: string;
             voice: string; voiceDesc: string; voicePlaceholder: string;
             maxSpeakers: string; maxSpeakersDesc: string;

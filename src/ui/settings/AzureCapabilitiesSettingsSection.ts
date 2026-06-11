@@ -65,7 +65,7 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
-        new Setting(this.containerEl)
+        const endpointSetting = new Setting(this.containerEl)
             .setName(t.endpoint)
             .setDesc(t.endpointDesc)
             .addText((text) => text
@@ -75,6 +75,27 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                     s.azureSpeechEndpoint = value.trim();
                     void this.plugin.saveSettings();
                 }));
+        // One-click derive for the common co-located case: the Speech resource IS
+        // the Foundry resource, so its cognitiveservices custom domain is just
+        // `<resource>.cognitiveservices.azure.com`. The value is written into the
+        // field explicitly (D10 stays honoured — the connection test verifies it).
+        if (!s.azureSpeechEndpoint && s.azureAIEndpoint) {
+            endpointSetting.addButton((btn) => btn
+                .setButtonText(t.deriveEndpoint)
+                .setTooltip(t.deriveEndpointDesc)
+                .onClick(() => {
+                    try {
+                        const resource = new URL(s.azureAIEndpoint).hostname.split('.')[0];
+                        if (!resource) throw new Error('no host');
+                        s.azureSpeechEndpoint = `https://${resource}.cognitiveservices.azure.com`;
+                        void this.plugin.saveSettings();
+                        new Notice(t.deriveEndpointDone);
+                        this.settingTab.display();
+                    } catch {
+                        new Notice(t.voicesError);
+                    }
+                }));
+        }
 
         new Setting(this.containerEl)
             .setName(t.apiKey)
