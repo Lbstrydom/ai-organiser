@@ -45,8 +45,19 @@ export function resolveGptAudioModel(): string {
     const versioned = live
         .map((id) => /^gpt-audio-(\d+(?:\.\d+)?)$/.exec(id))
         .filter((m): m is RegExpExecArray => m !== null)
-        .sort((a, b) => Number(b[1]) - Number(a[1]));
+        .sort((a, b) => compareVersionDesc(a[1], b[1]));
     return versioned[0]?.[0] ?? GPT_AUDIO_FALLBACK;
+}
+
+/** Segment-wise version compare so `1.10` ranks above `1.9` (not decimal math). */
+function compareVersionDesc(a: string, b: string): number {
+    const as = a.split('.').map(Number);
+    const bs = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(as.length, bs.length); i++) {
+        const d = (bs[i] ?? 0) - (as[i] ?? 0);
+        if (d !== 0) return d;
+    }
+    return 0;
 }
 
 interface GptAudioHttpError extends Error {

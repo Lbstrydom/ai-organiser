@@ -75,6 +75,13 @@ describe('resolveGptAudioModel — latest-sentinel rule', () => {
         expect(resolveGptAudioModel()).toBe('gpt-audio-2');
     });
 
+    it('orders versions segment-wise — 1.10 ranks above 1.9 (rC L5)', () => {
+        mockGetCachedModels.mockReturnValue([
+            { id: 'gpt-audio-1.9' }, { id: 'gpt-audio-1.10' },
+        ]);
+        expect(resolveGptAudioModel()).toBe('gpt-audio-1.10');
+    });
+
     it('falls back to the pin when the catalog is absent', () => {
         mockGetCachedModels.mockReturnValue(null);
         expect(resolveGptAudioModel()).toBe('gpt-audio-1.5');

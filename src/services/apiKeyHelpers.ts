@@ -6,6 +6,7 @@ import type { AIOrganiserSettings } from '../core/settings';
 import { getOpenAIChatEndpoint, getClaudeMessagesEndpoint, isAzureMode } from './azure/endpointResolver';
 import { getAzureApiKey } from './azure/azureKey';
 import { resolveAzureCapability, capabilityChoice } from './azure/resolveAzureCapability';
+import { assertAllowed } from './azure/audioProviderPolicy';
 import type { ResolvedTranscriptionConfig } from './audioTranscriptionService';
 
 // Re-export for existing importers (main.ts, pdfTranslationService, providerProfile,
@@ -408,8 +409,11 @@ export async function getAudioTranscriptionApiKey(
     // `openai-gpt-audio` (plan Phase 4): OpenAI-direct chain, kept as its OWN
     // provider id so transcribeAudio routes to the bounded short-clip path
     // (wav/mp3 + size caps; ineligible clips fall back to Whisper internally).
-    // Policy refuses it in Azure mode — but Azure mode already returned above.
-    if (configuredStt === 'openai-gpt-audio') {
+    // CALL-TIME policy gate (D5/D8): Azure mode reaches here via the explicit
+    // BYO capability choice, where a stale persisted `openai-gpt-audio` must
+    // fall back to the user's chosen Whisper, never OpenAI-direct chat egress.
+    if (configuredStt === 'openai-gpt-audio'
+        && assertAllowed(plugin, { op: 'stt', providerId: 'openai-gpt-audio' }).ok) {
         const key = await getGptAudioApiKey(plugin);
         if (key) return { key, provider: 'openai-gpt-audio' };
         // No OpenAI key at all → fall through to the whisper chain (which may
