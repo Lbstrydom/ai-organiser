@@ -52,7 +52,25 @@ export interface AudioPolicyQuery {
 export type AudioPolicyDenialReason =
     | 'not-azure-mode'            // azure surface invoked while main provider is not Azure
     | 'strict-speech-required'    // strict mode: only azure-speech is permitted
-    | 'gpt-audio-requires-non-azure'; // D5: gpt-audio is private/BYO only
+    | 'gpt-audio-requires-non-azure' // D5: gpt-audio is private/BYO only
+    | 'unknown-provider'          // id not in the known audio-provider set — fail closed (D8)
+    | 'op-mismatch';              // provider cannot serve this operation (e.g. deepgram TTS)
+
+/** Operations each provider can serve — denies nonsensical combinations
+ *  (e.g. `deepgram` for TTS, `gemini` for diarization) at the policy layer. */
+const PROVIDER_OPS: Record<AudioProviderId, readonly AudioOp[]> = {
+    'azure-speech': ['tts', 'stt', 'diarization'],
+    'azure-openai': ['tts', 'stt'],
+    gemini: ['tts'],
+    deepgram: ['diarization'],
+    openai: ['stt'],
+    groq: ['stt'],
+    'openai-gpt-audio': ['tts', 'stt'],
+};
+
+function isKnownProvider(id: string): id is AudioProviderId {
+    return Object.prototype.hasOwnProperty.call(PROVIDER_OPS, id);
+}
 
 /** Typed denial prefix — callers can parse `policy-denied:<reason>`. */
 export function policyDenied(reason: AudioPolicyDenialReason): Result<void> {
@@ -74,6 +92,12 @@ export function assertAllowed(plugin: AudioPolicyHost, q: AudioPolicyQuery): Res
     const azure = isAzureMode(settings);
     // The effective surface under judgement: an explicit resolution wins (R2-M1).
     const surface = q.resolvedSurface || q.providerId;
+
+    // Fail CLOSED on ids outside the known provider set (D8: a stale/garbage
+    // persisted provider must never slip past the guard), and deny provider/op
+    // combinations the provider cannot serve.
+    if (!isKnownProvider(surface)) return policyDenied('unknown-provider');
+    if (!PROVIDER_OPS[surface].includes(q.op)) return policyDenied('op-mismatch');
 
     if (!azure) {
         // Azure surfaces need Azure mode (creds/endpoints live there) — refuse.

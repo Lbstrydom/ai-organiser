@@ -360,6 +360,11 @@ export async function getAudioTranscriptionApiKey(
     if (isAzureMode(plugin.settings)) {
         const res = await resolveAzureCapability(plugin, 'transcription');
         if (res.kind === 'azure') {
+            // azure-speech resolutions use a DIFFERENT auth header + body shape
+            // (Ocp-Apim-Subscription-Key + multipart `definition`) — the Whisper
+            // path must NEVER consume them (plan D1). Fail closed until the Fast
+            // Transcription engine (plan Phase 2) handles this surface.
+            if (res.surface === 'azure-speech') return null;
             return { key: res.key, provider: 'azure', azureEndpoint: res.endpoint };
         }
         if (res.kind === 'unavailable') {

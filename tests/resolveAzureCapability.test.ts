@@ -46,6 +46,11 @@ function makePlugin(o: MockOpts = {}): any {
         embeddingApiKey: '',
         audioTranscriptionApiKey: '',
         providerSettings: {},
+        // azure-speech surface (azure-audio-adapters plan)
+        azureSpeechRegion: o.azureSpeechRegion ?? '',
+        azureSpeechEndpoint: o.azureSpeechEndpoint ?? '',
+        azureSpeechVoice: o.azureSpeechVoice ?? '',
+        azureSpeechRequired: o.azureSpeechRequired ?? false,
     };
     const secretStorageService = {
         isAvailable: () => o.secretsAvailable ?? true,
@@ -221,15 +226,9 @@ describe('resolveAzureCapability', () => {
 
 const SPEECH_EP = 'https://res.cognitiveservices.azure.com';
 
-/** makePlugin + Speech settings (region/endpoint/voice/strict). */
-function makeSpeechPlugin(o: MockOpts = {}): any {
-    const plugin = makePlugin(o);
-    plugin.settings.azureSpeechRegion = o.azureSpeechRegion ?? '';
-    plugin.settings.azureSpeechEndpoint = o.azureSpeechEndpoint ?? '';
-    plugin.settings.azureSpeechVoice = o.azureSpeechVoice ?? '';
-    plugin.settings.azureSpeechRequired = o.azureSpeechRequired ?? false;
-    return plugin;
-}
+/** Alias retained for readability in the speech describes — makePlugin now
+ *  copies the speech fields itself. */
+const makeSpeechPlugin = makePlugin;
 
 const speechConfigured = {
     azureSpeechRegion: 'swedencentral',

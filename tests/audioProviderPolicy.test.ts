@@ -28,9 +28,12 @@ describe('AudioProviderPolicy.assertAllowed (plan D5/D8 — compliance keystone)
             expect(assertAllowed(strict, { op: 'stt', providerId: 'openai-gpt-audio' }).ok).toBe(false);
         });
 
-        it('BYO gemini / deepgram / openai / groq all refused', () => {
-            for (const p of ['gemini', 'deepgram', 'openai', 'groq']) {
-                const r = assertAllowed(strict, { op: 'tts', providerId: p });
+        it('BYO gemini / deepgram / openai / groq all refused (each on its own op)', () => {
+            const pairs: Array<[string, AudioOp]> = [
+                ['gemini', 'tts'], ['deepgram', 'diarization'], ['openai', 'stt'], ['groq', 'stt'],
+            ];
+            for (const [p, op] of pairs) {
+                const r = assertAllowed(strict, { op, providerId: p });
                 expect(r).toEqual({ ok: false, error: 'policy-denied:strict-speech-required' });
             }
         });
@@ -73,9 +76,12 @@ describe('AudioProviderPolicy.assertAllowed (plan D5/D8 — compliance keystone)
             expect(assertAllowed(personal, { op: 'stt', providerId: 'openai-gpt-audio' }).ok).toBe(true);
         });
 
-        it('gemini / deepgram / openai / groq allowed', () => {
-            for (const p of ['gemini', 'deepgram', 'openai', 'groq']) {
-                expect(assertAllowed(personal, { op: 'tts', providerId: p }).ok).toBe(true);
+        it('gemini / deepgram / openai / groq allowed (each on its own op)', () => {
+            const pairs: Array<[string, AudioOp]> = [
+                ['gemini', 'tts'], ['deepgram', 'diarization'], ['openai', 'stt'], ['groq', 'stt'],
+            ];
+            for (const [p, op] of pairs) {
+                expect(assertAllowed(personal, { op, providerId: p }).ok).toBe(true);
             }
         });
 
@@ -89,6 +95,30 @@ describe('AudioProviderPolicy.assertAllowed (plan D5/D8 — compliance keystone)
         it('strict flag is inert off-Azure (no accidental lockout)', () => {
             const p = host('claude', true);
             expect(assertAllowed(p, { op: 'tts', providerId: 'gemini' }).ok).toBe(true);
+        });
+    });
+
+    describe('unknown-provider + op-mismatch fail-closed (D8 hardening)', () => {
+        it('unknown persisted provider id is refused in EVERY mode', () => {
+            for (const h of [host('claude'), host('azure-claude'), host('azure-claude', true)]) {
+                expect(assertAllowed(h, { op: 'tts', providerId: 'rogue-provider' }))
+                    .toEqual({ ok: false, error: 'policy-denied:unknown-provider' });
+            }
+        });
+
+        it('provider/op mismatches are refused (deepgram TTS, gemini diarization, gemini STT)', () => {
+            const personal = host('claude');
+            expect(assertAllowed(personal, { op: 'tts', providerId: 'deepgram' }))
+                .toEqual({ ok: false, error: 'policy-denied:op-mismatch' });
+            expect(assertAllowed(personal, { op: 'diarization', providerId: 'gemini' }))
+                .toEqual({ ok: false, error: 'policy-denied:op-mismatch' });
+            expect(assertAllowed(personal, { op: 'stt', providerId: 'gemini' }))
+                .toEqual({ ok: false, error: 'policy-denied:op-mismatch' });
+        });
+
+        it('azure-openai cannot diarize (no inline diarization on that surface)', () => {
+            expect(assertAllowed(host('azure-openai'), { op: 'diarization', providerId: 'azure-openai' }))
+                .toEqual({ ok: false, error: 'policy-denied:op-mismatch' });
         });
     });
 

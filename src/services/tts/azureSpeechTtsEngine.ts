@@ -100,5 +100,12 @@ export async function createAzureSpeechTtsEngine(plugin: AIOrganiserPlugin): Pro
         logger.warn('AudioNarration', `Azure Speech TTS not resolvable (${res.kind === 'unavailable' ? res.reason : res.kind})`);
         return null;
     }
+    // This engine speaks Azure OPENAI `/audio/speech` (JSON + api-key header).
+    // An `azure-speech` (Cognitive Services) resolution uses SSML + a different
+    // host/auth — it must route to the Cognitive Speech engine (plan D1), never here.
+    if (res.surface === 'azure-speech') {
+        logger.warn('AudioNarration', 'tts resolved to azure-speech — not servable by the Azure OpenAI engine');
+        return null;
+    }
     return new AzureSpeechTtsEngine(res.key, res.endpoint, res.deployment);
 }

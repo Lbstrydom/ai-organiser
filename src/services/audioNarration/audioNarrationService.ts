@@ -44,6 +44,7 @@ import {
 } from './narrationTypes';
 import { isAzureMode } from '../azure/endpointResolver';
 import { resolveAzureCapability } from '../azure/resolveAzureCapability';
+import { assertAllowed } from '../azure/audioProviderPolicy';
 
 const SOURCE_RATE = 24000;
 const TARGET_RATE = 16000;
@@ -161,12 +162,28 @@ export async function prepareNarration(
         : 'gemini';
     if (isAzureMode(plugin.settings)) {
         const ttsRes = await resolveAzureCapability(plugin, 'tts');
+        if (ttsRes.kind === 'azure' && ttsRes.surface === 'azure-speech') {
+            // The Cognitive Speech engine ships in plan Phase 3. Until it exists,
+            // FAIL CLOSED rather than silently downgrade an azure-speech
+            // resolution (possibly strict/compliance mode, D3) to the
+            // Global-Standard /audio/speech engine.
+            return errFrom<PreparedNarration>(makeError('NO_API_KEY', 'Azure Speech narration engine is not yet available.'));
+        }
         if (ttsRes.kind === 'azure') providerId = 'azure-openai';
         else if (ttsRes.kind === 'unavailable') {
             return errFrom<PreparedNarration>(makeError('NO_API_KEY', 'Audio narration is not configured for Azure.'));
         }
         // ttsRes.kind === 'byo' → keep the gemini providerId (existing path).
     }
+
+    // Call-time compliance guard (plan D8): every audio entry consults the
+    // policy with the RESOLVED provider, so a stale/disallowed persisted
+    // provider fails closed here regardless of how it was reached.
+    const policyCheck = assertAllowed(plugin, { op: 'tts', providerId });
+    if (!policyCheck.ok) {
+        return errFrom<PreparedNarration>(makeError('NO_API_KEY', `Narration provider not permitted: ${policyCheck.error}`));
+    }
+
     let provider;
     try {
         provider = getProvider(providerId);
