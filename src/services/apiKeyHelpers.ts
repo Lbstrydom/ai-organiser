@@ -1,5 +1,5 @@
 import type AIOrganiserPlugin from '../main';
-import { PLUGIN_SECRET_IDS } from '../core/secretIds';
+import { PLUGIN_SECRET_IDS, STANDARD_SECRET_IDS } from '../core/secretIds';
 import type { AdapterType } from './adapters';
 import { PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT } from './adapters/providerRegistry';
 import type { AIOrganiserSettings } from '../core/settings';
@@ -255,6 +255,33 @@ export async function getDeepgramApiKey(plugin: AIOrganiserPlugin): Promise<stri
 }
 
 /**
+ * OpenAI-direct key for gpt-audio (azure-audio plan Phase 4 — private/BYO only).
+ *
+ * gpt-audio is Global-Standard OpenAI egress: the policy refuses it in Azure
+ * mode, and this chain must NEVER resolve an Azure key. Chain: OPENAI standard
+ * secret → openai provider key → main cloud key ONLY when the main provider IS
+ * openai (a direct-OpenAI user reusing their own key — not a borrow).
+ */
+export async function getGptAudioApiKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+    const secretStorage = plugin.secretStorageService;
+    const mainIsOpenAI = plugin.settings.cloudServiceType === 'openai';
+    if (secretStorage.isAvailable()) {
+        return await secretStorage.resolveApiKey({
+            primaryId: STANDARD_SECRET_IDS.OPENAI,
+            providerFallback: 'openai',
+            useMainKeyFallback: mainIsOpenAI,
+            plainTextFallback: {
+                providerKey: plugin.settings.providerSettings?.openai?.apiKey,
+                mainCloudKey: mainIsOpenAI ? plugin.settings.cloudApiKey : undefined,
+            },
+        });
+    }
+    return plugin.settings.providerSettings?.openai?.apiKey
+        || (mainIsOpenAI ? plugin.settings.cloudApiKey : null)
+        || null;
+}
+
+/**
  * Cohere-native BYO key for the VISUAL embedding lane (visual-search, C22).
  *
  * DEDICATED secret (`PLUGIN_SECRET_IDS.COHERE_VISUAL`) — independently consented and
@@ -376,9 +403,19 @@ export async function getAudioTranscriptionApiKey(
         // through to the openai/groq resolution below (no azure fallback).
     }
 
-    // `openai-gpt-audio` (plan Phase 4) resolves keys through the OpenAI chain —
-    // it IS an OpenAI-direct model; the Whisper-key resolution below is identical.
     const configuredStt = plugin.settings.audioTranscriptionProvider || 'openai';
+
+    // `openai-gpt-audio` (plan Phase 4): OpenAI-direct chain, kept as its OWN
+    // provider id so transcribeAudio routes to the bounded short-clip path
+    // (wav/mp3 + size caps; ineligible clips fall back to Whisper internally).
+    // Policy refuses it in Azure mode — but Azure mode already returned above.
+    if (configuredStt === 'openai-gpt-audio') {
+        const key = await getGptAudioApiKey(plugin);
+        if (key) return { key, provider: 'openai-gpt-audio' };
+        // No OpenAI key at all → fall through to the whisper chain (which may
+        // still find a dedicated AUDIO secret usable for whisper).
+    }
+
     const selectedProvider: 'openai' | 'groq' = configuredStt === 'groq' ? 'groq' : 'openai';
 
     const resolveKey = async (provider: 'openai' | 'groq'): Promise<string | null> => {

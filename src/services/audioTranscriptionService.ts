@@ -11,6 +11,7 @@ import { abortableSleep } from '../utils/abortableSleep';
 import { abortableRequestUrl } from '../utils/abortableRequestUrl';
 // Value import only — diarization/types has no back-imports (no cycle).
 import { DEEPGRAM_MAX_FILE_BYTES as SHARED_AUDIO_MAX_FILE_BYTES } from './diarization/types';
+import { PROVIDER_ENDPOINT } from './adapters/providerRegistry';
 import { err, ok, type Result } from '../core/result';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
@@ -18,9 +19,24 @@ import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
 /**
  * `azure` = Azure OpenAI Whisper (legacy, Global-Standard).
  * `azure-speech` = Azure AI Speech Fast Transcription (in-region, azure-audio plan).
- * `openai-gpt-audio` = bounded short-clip STT via gpt-audio-1.5 (plan Phase 4).
+ * `openai-gpt-audio` = bounded short-clip STT via gpt-audio (wav/mp3 only, NO
+ *  timestamps — plan D7/G1/G2; over-cap/other formats fall back to Whisper).
  */
-export type TranscriptionProvider = 'openai' | 'groq' | 'azure' | 'azure-speech';
+export type TranscriptionProvider = 'openai' | 'groq' | 'azure' | 'azure-speech' | 'openai-gpt-audio';
+
+/**
+ * Which providers emit segment timestamps (plan R2-M4) — ONE capability flag
+ * consulted everywhere instead of scattered provider checks. gpt-audio has no
+ * verbose_json equivalent, so speaker preview/attribution degrade gracefully
+ * (timestampSource 'none') and diarized Minutes stay on an acoustic provider.
+ */
+export const PROVIDER_PRODUCES_TIMESTAMPS: Record<TranscriptionProvider, boolean> = {
+    openai: true,
+    groq: true,
+    azure: true,
+    'azure-speech': true,
+    'openai-gpt-audio': false,
+};
 
 /**
  * Audio Transcription Provider Registry
@@ -33,7 +49,7 @@ export type TranscriptionProvider = 'openai' | 'groq' | 'azure' | 'azure-speech'
  * (not `Authorization: Bearer`); the model name is the deployment ('whisper').
  */
 // Direct-provider endpoints (Azure is resolved dynamically, so excluded here).
-const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure' | 'azure-speech'>, string> = {
+const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure' | 'azure-speech' | 'openai-gpt-audio'>, string> = {
     openai: 'https://api.openai.com/v1/audio/transcriptions',
     groq: 'https://api.groq.com/openai/v1/audio/transcriptions'
 };
@@ -43,6 +59,7 @@ const WHISPER_MODEL: Record<TranscriptionProvider, string> = {
     groq: 'whisper-large-v3',
     azure: 'whisper',
     'azure-speech': 'fast-transcription', // informational — Speech has no model field
+    'openai-gpt-audio': 'gpt-audio',      // informational — resolved live by the engine
 };
 
 /** Whisper verbose_json segment with timestamps and quality signals (Phase 4b TRA) */
@@ -205,6 +222,19 @@ export async function transcribeAudio(
             return transcribeWithAzureSpeech(arrayBuffer, file.name, options);
         }
 
+        // gpt-audio short-clip STT (plan G1/G2): eligible wav/mp3 clips go to
+        // Chat Completions; over-cap or other formats fall back to Whisper with
+        // the SAME OpenAI key — explicit (warning carried), never silent.
+        let effectiveOptions = options;
+        let gptAudioFallbackWarning: string | undefined;
+        if (options.provider === 'openai-gpt-audio') {
+            if (isGptAudioSttEligible(file.name, fileSize).eligible) {
+                return transcribeWithGptAudio(arrayBuffer, file.name, options);
+            }
+            gptAudioFallbackWarning = 'Clip not eligible for GPT audio (format/length) — transcribed with Whisper instead.';
+            effectiveOptions = { ...options, provider: 'openai' };
+        }
+
         // Check file size
         if (!isFileSizeValid(fileSize)) {
             return {
@@ -214,7 +244,7 @@ export async function transcribeAudio(
         }
 
         // Get the appropriate endpoint and prepare the request
-        const endpoint = getWhisperEndpoint(options);
+        const endpoint = getWhisperEndpoint(effectiveOptions);
 
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
@@ -222,7 +252,7 @@ export async function transcribeAudio(
             arrayBuffer,
             file.name,
             file.extension,
-            options,
+            effectiveOptions,
             boundary
         );
 
@@ -235,7 +265,7 @@ export async function transcribeAudio(
             url: endpoint,
             method: 'POST',
             headers: {
-                ...getTranscriptionAuthHeaders(options),
+                ...getTranscriptionAuthHeaders(effectiveOptions),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
             body: formData,
@@ -260,6 +290,7 @@ export async function transcribeAudio(
             duration: result.duration,
             segments: parseWhisperSegments(result.segments),
             language: typeof result.language === 'string' ? result.language : undefined,
+            ...(gptAudioFallbackWarning ? { warnings: [gptAudioFallbackWarning] } : {}),
         };
 
     } catch (error) {
@@ -288,6 +319,20 @@ export async function transcribeAudioFromData(
             return transcribeWithAzureSpeech(exact, fileName, options);
         }
 
+        // gpt-audio short-clip STT (G1/G2); compressed data is always mp3 —
+        // ineligible clips fall back to Whisper with the same OpenAI key.
+        let effectiveOptions = options;
+        if (options.provider === 'openai-gpt-audio') {
+            if (isGptAudioSttEligible(fileName, audioData.byteLength).eligible) {
+                const exact = audioData.buffer.slice(
+                    audioData.byteOffset,
+                    audioData.byteOffset + audioData.byteLength
+                ) as ArrayBuffer;
+                return transcribeWithGptAudio(exact, fileName, options);
+            }
+            effectiveOptions = { ...options, provider: 'openai' };
+        }
+
         // Check file size
         if (!isFileSizeValid(audioData.byteLength)) {
             return {
@@ -297,7 +342,7 @@ export async function transcribeAudioFromData(
         }
 
         // Get the appropriate endpoint and prepare the request
-        const endpoint = getWhisperEndpoint(options);
+        const endpoint = getWhisperEndpoint(effectiveOptions);
 
         // Create form data manually for Obsidian's requestUrl
         const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
@@ -310,7 +355,7 @@ export async function transcribeAudioFromData(
             exactBuffer,
             fileName,
             'mp3', // Compressed files are always MP3
-            options,
+            effectiveOptions,
             boundary
         );
 
@@ -325,7 +370,7 @@ export async function transcribeAudioFromData(
             url: endpoint,
             method: 'POST',
             headers: {
-                ...getTranscriptionAuthHeaders(options),
+                ...getTranscriptionAuthHeaders(effectiveOptions),
                 'Content-Type': `multipart/form-data; boundary=${boundary}`
             },
             body: formData,
@@ -368,6 +413,117 @@ export async function transcribeAudioFromData(
  *  two Azure Speech entry points can never drift. The service itself accepts
  *  ~2 GB / ~2 h. */
 const AZURE_SPEECH_MAX_FILE_BYTES = SHARED_AUDIO_MAX_FILE_BYTES;
+
+// ── gpt-audio short-clip STT bounds (azure-audio plan G1/G2) ────────────────
+//
+// Chat Completions bills audio INPUT against the model context (~1 token per
+// 10 ms → a 2 h MP3 ≈ 720k tokens ≫ the context window), so gpt-audio STT is a
+// bounded SHORT-CLIP convenience only. `input_audio` accepts wav/mp3 ONLY.
+// Caps approximate ≤ ~5 minutes per format; anything larger or other formats
+// falls back to the user's Whisper (same OpenAI key) — explicit, never silent.
+
+/** Formats `input_audio` accepts (G2). Whisper handles the broader set. */
+export const GPT_AUDIO_STT_FORMATS = new Set(['mp3', 'wav']);
+/** ≈5 min at 128 kbps mp3 / 24 kHz 16-bit mono wav, with headroom. */
+export const GPT_AUDIO_STT_MAX_BYTES: Record<'mp3' | 'wav', number> = {
+    mp3: 5 * 1024 * 1024,
+    wav: 16 * 1024 * 1024,
+};
+
+/** Eligibility check (exported for the UI + tests). */
+export function isGptAudioSttEligible(fileName: string, sizeBytes: number): { eligible: boolean; reason?: string } {
+    const ext = (fileName.split('.').pop() ?? '').toLowerCase();
+    if (!GPT_AUDIO_STT_FORMATS.has(ext)) return { eligible: false, reason: 'format' };
+    const cap = GPT_AUDIO_STT_MAX_BYTES[ext as 'mp3' | 'wav'];
+    if (sizeBytes > cap) return { eligible: false, reason: 'size' };
+    return { eligible: true };
+}
+
+/** Portable base64 for audio payloads (Electron has Buffer; mobile has btoa). */
+function bytesToBase64(bytes: Uint8Array): string {
+    if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(binary);
+}
+
+interface GptAudioSttResponse {
+    choices?: Array<{ message?: { content?: string } }>;
+}
+
+/**
+ * Bounded gpt-audio STT (plan Phase 4). NO timestamps (D7) — segments empty;
+ * downstream speaker preview/attribution degrade via `timestampSource:'none'`.
+ * Ineligible input (format/size) returns a typed result the caller uses to
+ * fall back to Whisper with the SAME OpenAI key.
+ */
+async function transcribeWithGptAudio(
+    audioBytes: ArrayBuffer,
+    fileName: string,
+    options: TranscriptionOptions,
+): Promise<TranscriptionResult> {
+    const ext = (fileName.split('.').pop() ?? '').toLowerCase() as 'mp3' | 'wav';
+    const eligibility = isGptAudioSttEligible(fileName, audioBytes.byteLength);
+    if (!eligibility.eligible) {
+        return {
+            success: false,
+            error: eligibility.reason === 'format'
+                ? 'GPT audio transcription accepts wav/mp3 only — use the Whisper provider for this file.'
+                : `GPT audio transcription is limited to short clips (${formatFileSize(GPT_AUDIO_STT_MAX_BYTES[ext] ?? GPT_AUDIO_STT_MAX_BYTES.mp3)}) — use the Whisper provider for longer recordings.`,
+        };
+    }
+
+    // Lazy import avoids a static cycle (gptAudioTtsEngine → apiKeyHelpers →
+    // this module for ResolvedTranscriptionConfig).
+    const { resolveGptAudioModel } = await import('./tts/gptAudioTtsEngine');
+    const body = {
+        model: resolveGptAudioModel(),
+        modalities: ['text'],
+        messages: [
+            {
+                role: 'system',
+                content: 'You are a transcription engine. Transcribe the audio verbatim. Output ONLY the transcript text — no preamble, no commentary.',
+            },
+            {
+                role: 'user',
+                content: [
+                    { type: 'input_audio', input_audio: { data: bytesToBase64(new Uint8Array(audioBytes)), format: ext } },
+                ],
+            },
+        ],
+    };
+
+    // Endpoint from the provider registry (R2-M5) — never a literal URL here.
+    const response = await requestUrl({
+        url: PROVIDER_ENDPOINT.openai,
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${options.apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        throw: false,
+    });
+
+    if (response.status !== 200) {
+        const errorText = typeof response.json === 'object' ? JSON.stringify(response.json) : response.text;
+        return { success: false, error: `API error (${response.status}): ${errorText}` };
+    }
+    const json = response.json as GptAudioSttResponse | null;
+    const content = json?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string' || !content.trim()) {
+        return { success: false, error: 'GPT audio returned no transcript' };
+    }
+    return {
+        success: true,
+        transcript: content.trim(),
+        segments: [], // NO timestamps (plan D7) — preview/attribution degrade gracefully
+        warnings: ['GPT audio transcription has no timestamps — speaker preview is unavailable.'],
+    };
+}
 
 /**
  * Plain (non-diarized) STT via Azure AI Speech Fast Transcription.
@@ -438,6 +594,9 @@ function getWhisperEndpoint(options: TranscriptionOptions): string {
         }
         return options.azureEndpoint;
     }
+    // gpt-audio never reaches the Whisper path either (routed earlier; the
+    // fallback leg rewrites provider to 'openai') — guard for completeness.
+    if (options.provider === 'openai-gpt-audio') return WHISPER_ENDPOINT.openai;
     return WHISPER_ENDPOINT[options.provider] || WHISPER_ENDPOINT.openai;
 }
 

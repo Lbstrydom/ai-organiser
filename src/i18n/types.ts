@@ -840,6 +840,16 @@ export interface Translations {
             azureNote: string;
             voice: string;
             voiceDesc: string;
+            provider: string;
+            providerDesc: string;
+            providerGemini: string;
+            providerGptAudio: string;
+            gptAudioVoiceAlloy: string;
+            gptAudioVoiceCedar: string;
+            gptAudioVoiceMarin: string;
+            gptAudioVoiceNova: string;
+            gptAudioVoiceOnyx: string;
+            gptAudioVoiceShimmer: string;
             outputFolder: string;
             outputFolderDesc: string;
             embedInNote: string;

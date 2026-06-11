@@ -9,12 +9,15 @@ import type AIOrganiserPlugin from '../../main';
 import { createGeminiTtsEngine, type TtsEngine } from './ttsEngine';
 import { createAzureSpeechTtsEngine } from './azureSpeechTtsEngine';
 import { createCognitiveSpeechTtsEngine } from './cognitiveSpeechTtsEngine';
+import { createGptAudioTtsEngine, resolveGptAudioModel } from './gptAudioTtsEngine';
 import { getCachedModels } from '../adapters/dynamicModelService';
 import { resolveSpecialistModel } from '../adapters/modelCapabilities';
 
 /** `azure-openai` (legacy /audio/speech) + `azure-speech` (in-region Cognitive
- *  Speech) are internalOnly — selected only via the capability resolver. */
-export type NarrationProviderId = 'gemini' | 'azure-openai' | 'azure-speech';
+ *  Speech) are internalOnly — selected only via the capability resolver.
+ *  `openai-gpt-audio` is user-selectable, private/BYO ONLY (policy refuses it
+ *  in Azure mode — azure-audio D5). */
+export type NarrationProviderId = 'gemini' | 'azure-openai' | 'azure-speech' | 'openai-gpt-audio';
 
 export interface NarrationVoiceEntry {
     /** Provider's voice id (sent to API). */
@@ -78,6 +81,24 @@ export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, Narration
         costPerMillionCharsUsd: 15.00,
         privacyConsentKey: 'gemini',
         factory: (plugin) => createGeminiTtsEngine(plugin, resolveGeminiTtsModel()),
+    },
+    'openai-gpt-audio': {
+        id: 'openai-gpt-audio',
+        displayName: 'OpenAI GPT audio',
+        modelId: 'gpt-audio-1.5',                 // display/fallback; actual via getEffectiveModelId
+        getEffectiveModelId: resolveGptAudioModel, // latest gpt-audio-* from the live catalog
+        defaultVoice: 'alloy',
+        voices: [
+            { id: 'alloy',   labelKey: 'settings.audioNarration.gptAudioVoiceAlloy' },
+            { id: 'cedar',   labelKey: 'settings.audioNarration.gptAudioVoiceCedar' },
+            { id: 'marin',   labelKey: 'settings.audioNarration.gptAudioVoiceMarin' },
+            { id: 'nova',    labelKey: 'settings.audioNarration.gptAudioVoiceNova' },
+            { id: 'onyx',    labelKey: 'settings.audioNarration.gptAudioVoiceOnyx' },
+            { id: 'shimmer', labelKey: 'settings.audioNarration.gptAudioVoiceShimmer' },
+        ],
+        costPerMillionCharsUsd: 25.00,
+        privacyConsentKey: 'openai',
+        factory: (plugin) => createGptAudioTtsEngine(plugin),
     },
     'azure-speech': {
         id: 'azure-speech',
