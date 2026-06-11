@@ -46,9 +46,16 @@ import {
     DEEPGRAM_COST_PER_MIN_USD,
     DEEPGRAM_MAX_FILE_BYTES,
     type DiarizationProvider,
+    type DiarizationProviderName,
     type DiarizationResult,
 } from '../../services/diarization/types';
-import { deepgramAdapter } from '../../services/diarization/deepgramAdapter';
+import { createDeepgramProvider } from '../../services/diarization/deepgramAdapter';
+import { createAzureSpeechDiarizationProvider } from '../../services/diarization/azureSpeechDiarizationAdapter';
+import { isAzureMode } from '../../services/azure/endpointResolver';
+import { assertAllowed } from '../../services/azure/audioProviderPolicy';
+import { isAzureSpeechFastTranscriptionConfigured } from '../../services/azure/azureSpeechCredential';
+import { getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import type AIOrganiserPlugin from '../../main';
 
 /**
  * Outcome of a picker request. `'cancelled'` is distinct from `'failed'`:
@@ -72,7 +79,19 @@ export interface CoordinatorOptions {
      * that don't have translations on hand.
      */
     translations?: Translations;
+    /**
+     * Plugin handle for diarization provider selection (azure-audio plan D8):
+     * Azure mode + Speech configured → Azure Speech Fast Transcription;
+     * private + 'deepgram' → Deepgram. Required for the diarized path
+     * (hosts always have it); optional so picker-only usage stays light.
+     */
+    plugin?: AIOrganiserPlugin;
 }
+
+/** Outcome of diarization provider selection (drives modal gating + routing). */
+export type DiarizationSelection =
+    | { kind: 'available'; providerName: DiarizationProviderName }
+    | { kind: 'unavailable'; reason: string };
 
 /**
  * Owns picker dispatch + preview lifecycle. One instance per host modal.
@@ -85,14 +104,60 @@ export class AudioAttachCoordinator {
     private diarizationOptedIn = false;
     /** How many items the host has currently attached — set via {@link setItemCount}. */
     private itemCount = 0;
-    private readonly provider: DiarizationProvider;
+    /** Test/DI override — production resolves per-call via policy + settings (D8). */
+    private readonly injectedProvider: DiarizationProvider | null;
 
     constructor(
         private readonly app: App,
         private readonly options: CoordinatorOptions,
         provider?: DiarizationProvider,
     ) {
-        this.provider = provider ?? deepgramAdapter;
+        this.injectedProvider = provider ?? null;
+    }
+
+    /**
+     * Select the diarization provider via the central policy (azure-audio D8):
+     * Azure mode → in-region azure-speech once configured (strict mode NEVER
+     * falls back to a Global-Standard/BYO diarizer); private + 'deepgram' →
+     * Deepgram (unchanged). Used for BOTH modal gating and the transcribe call —
+     * no Deepgram-shaped key is ever handed to a non-Deepgram provider (H3).
+     */
+    async resolveDiarizationSelection(): Promise<DiarizationSelection> {
+        if (this.injectedProvider) {
+            return { kind: 'available', providerName: this.injectedProvider.name };
+        }
+        const plugin = this.options.plugin;
+        if (!plugin) return { kind: 'unavailable', reason: 'no-plugin' };
+        const setting = plugin.settings.audioDiarisationProvider;
+        if (setting !== 'deepgram' && setting !== 'azure-speech') {
+            return { kind: 'unavailable', reason: 'provider-off' };
+        }
+
+        if (isAzureMode(plugin.settings)) {
+            // Azure mode: in-region azure-speech first (the compliance point).
+            const speechAllowed = assertAllowed(plugin, { op: 'diarization', providerId: 'azure-speech' });
+            if (speechAllowed.ok && await isAzureSpeechFastTranscriptionConfigured(plugin)) {
+                return { kind: 'available', providerName: 'azure-speech' };
+            }
+            // Speech not ready → deepgram ONLY when the policy allows it
+            // (strict mode refuses — fail-closed, never a silent BYO fallback).
+            const dgAllowed = assertAllowed(plugin, { op: 'diarization', providerId: 'deepgram' });
+            if (!dgAllowed.ok) return { kind: 'unavailable', reason: 'speech-not-configured' };
+            if (setting === 'deepgram' && await safeDeepgramKey(plugin)) {
+                return { kind: 'available', providerName: 'deepgram' };
+            }
+            return { kind: 'unavailable', reason: 'speech-not-configured' };
+        }
+
+        // Private/BYO mode.
+        const allowed = assertAllowed(plugin, { op: 'diarization', providerId: setting });
+        if (!allowed.ok) return { kind: 'unavailable', reason: allowed.error };
+        if (setting === 'deepgram') {
+            return await safeDeepgramKey(plugin)
+                ? { kind: 'available', providerName: 'deepgram' }
+                : { kind: 'unavailable', reason: 'no-api-key' };
+        }
+        return { kind: 'unavailable', reason: 'not-azure-mode' };
     }
 
     // ============================================================================
@@ -364,7 +429,6 @@ export class AudioAttachCoordinator {
      */
     async transcribeDiarized(
         item: AudioAttachItem,
-        apiKey: string,
         signal?: AbortSignal,
     ): Promise<Result<DiarizationResult>> {
         this.assertNotDisposed();
@@ -373,6 +437,11 @@ export class AudioAttachCoordinator {
         const upfront = this.getUpfrontSourceSize(item.source);
         if (upfront !== null && upfront > DEEPGRAM_MAX_FILE_BYTES) {
             return err(`file-too-large:${upfront}:${DEEPGRAM_MAX_FILE_BYTES}`);
+        }
+
+        const selection = await this.resolveDiarizationSelection();
+        if (selection.kind === 'unavailable') {
+            return err(`diarization-unavailable:${selection.reason}`);
         }
 
         const imported = await this.importToVault(item.source, signal);
@@ -386,10 +455,25 @@ export class AudioAttachCoordinator {
 
         const bytes = await this.app.vault.readBinary(imported.value.file);
 
-        return this.provider.transcribeWithDiarization(this.app, bytes, apiKey, {
+        const provider = this.injectedProvider ?? (selection.providerName === 'azure-speech'
+            // plugin is non-null here: a selection without an injected provider
+            // can only come from the plugin-backed resolution path above.
+            ? createAzureSpeechDiarizationProvider(this.options.plugin as AIOrganiserPlugin)
+            : createDeepgramProvider(this.options.plugin as AIOrganiserPlugin));
+
+        return provider.transcribeWithDiarization(this.app, bytes, {
             signal,
             filename: imported.value.file.name,
         });
+    }
+}
+
+/** Never-throws Deepgram key probe (availability only — value not retained). */
+async function safeDeepgramKey(plugin: AIOrganiserPlugin): Promise<boolean> {
+    try {
+        return !!(await getDeepgramApiKey(plugin));
+    } catch {
+        return false;
     }
 }
 

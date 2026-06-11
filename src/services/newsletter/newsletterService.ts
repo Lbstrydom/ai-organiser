@@ -731,7 +731,16 @@ export class NewsletterService {
         if (isAzureMode(settings)) {
             const { resolveAzureCapability } = await import('../azure/resolveAzureCapability');
             const ttsRes = await resolveAzureCapability(this.plugin, 'tts');
-            if (ttsRes.kind === 'azure') {
+            if (ttsRes.kind === 'azure' && ttsRes.surface === 'azure-speech') {
+                // In-region Cognitive Speech engine (azure-audio plan Phase 3).
+                const { createCognitiveSpeechTtsEngine } = await import('../tts/cognitiveSpeechTtsEngine');
+                azureTtsEngine = (await createCognitiveSpeechTtsEngine(this.plugin)) ?? undefined;
+                azureTtsModelId = 'azure-cognitive-speech-v1';
+                if (!azureTtsEngine) {
+                    new Notice('Audio podcast skipped — Azure AI Speech needs a region, key, and voice (set them under Azure capabilities)', 6000);
+                    return;
+                }
+            } else if (ttsRes.kind === 'azure') {
                 const { createAzureSpeechTtsEngine } = await import('../tts/azureSpeechTtsEngine');
                 azureTtsEngine = (await createAzureSpeechTtsEngine(this.plugin)) ?? undefined;
                 azureTtsModelId = ttsRes.deployment || 'azure-speech';

@@ -5,13 +5,20 @@
 
 import { App, TFile, Platform, requestUrl } from 'obsidian';
 import { getFs, getPath } from '../utils/desktopRequire';
-import { withAzureLease, buildAzureOpenAIDeploymentKey, isAzureHost } from './azure/azureRequestPacer';
+import { withAzureLease, buildAzureOpenAIDeploymentKey, buildAzureSpeechKey, isAzureHost } from './azure/azureRequestPacer';
 import { parseAzureRateLimitHeaders, computeAzureBackoffMs, logAzureRateLimitHeaders } from './azure/azureRateLimitHeaders';
 import { abortableSleep } from '../utils/abortableSleep';
+import { abortableRequestUrl } from '../utils/abortableRequestUrl';
+import { err, ok, type Result } from '../core/result';
 import { validateChunkQuality, stitchOverlappingTranscripts } from './transcriptQualityService';
 import { SEGMENT_OVERLAP_SECONDS } from './audioCompressionService';
 
-export type TranscriptionProvider = 'openai' | 'groq' | 'azure';
+/**
+ * `azure` = Azure OpenAI Whisper (legacy, Global-Standard).
+ * `azure-speech` = Azure AI Speech Fast Transcription (in-region, azure-audio plan).
+ * `openai-gpt-audio` = bounded short-clip STT via gpt-audio-1.5 (plan Phase 4).
+ */
+export type TranscriptionProvider = 'openai' | 'groq' | 'azure' | 'azure-speech';
 
 /**
  * Audio Transcription Provider Registry
@@ -24,7 +31,7 @@ export type TranscriptionProvider = 'openai' | 'groq' | 'azure';
  * (not `Authorization: Bearer`); the model name is the deployment ('whisper').
  */
 // Direct-provider endpoints (Azure is resolved dynamically, so excluded here).
-const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure'>, string> = {
+const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure' | 'azure-speech'>, string> = {
     openai: 'https://api.openai.com/v1/audio/transcriptions',
     groq: 'https://api.groq.com/openai/v1/audio/transcriptions'
 };
@@ -32,7 +39,8 @@ const WHISPER_ENDPOINT: Record<Exclude<TranscriptionProvider, 'azure'>, string> 
 const WHISPER_MODEL: Record<TranscriptionProvider, string> = {
     openai: 'whisper-1',
     groq: 'whisper-large-v3',
-    azure: 'whisper'
+    azure: 'whisper',
+    'azure-speech': 'fast-transcription', // informational — Speech has no model field
 };
 
 /** Whisper verbose_json segment with timestamps and quality signals (Phase 4b TRA) */
@@ -178,6 +186,12 @@ export async function transcribeAudio(
         const arrayBuffer = await app.vault.readBinary(file);
         const fileSize = arrayBuffer.byteLength;
 
+        // Azure AI Speech Fast Transcription path (in-region; own size cap —
+        // the service accepts ~2 GB, app-capped well below the Whisper 25 MB).
+        if (options.provider === 'azure-speech') {
+            return transcribeWithAzureSpeech(arrayBuffer, file.name, options);
+        }
+
         // Check file size
         if (!isFileSizeValid(fileSize)) {
             return {
@@ -253,6 +267,14 @@ export async function transcribeAudioFromData(
     options: TranscriptionOptions
 ): Promise<TranscriptionResult> {
     try {
+        if (options.provider === 'azure-speech') {
+            const exact = audioData.buffer.slice(
+                audioData.byteOffset,
+                audioData.byteOffset + audioData.byteLength
+            ) as ArrayBuffer;
+            return transcribeWithAzureSpeech(exact, fileName, options);
+        }
+
         // Check file size
         if (!isFileSizeValid(audioData.byteLength)) {
             return {
@@ -328,14 +350,76 @@ export async function transcribeAudioFromData(
     }
 }
 
+/** App-level size cap for the Fast Transcription path (mirrors the diarized
+ *  path's 200 MB cap; the service itself accepts ~2 GB / ~2 h). */
+const AZURE_SPEECH_MAX_FILE_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Plain (non-diarized) STT via Azure AI Speech Fast Transcription.
+ * `options.azureEndpoint` carries the pre-resolved `:transcribe` URL and
+ * `options.apiKey` the Ocp-Apim-Subscription-Key (both from
+ * `getAudioTranscriptionApiKey` → `resolveAzureCapability('transcription')`).
+ */
+async function transcribeWithAzureSpeech(
+    audioBytes: ArrayBuffer,
+    fileName: string,
+    options: TranscriptionOptions,
+): Promise<TranscriptionResult> {
+    if (!options.azureEndpoint) {
+        return { success: false, error: 'Azure Speech transcription requires a resolved endpoint' };
+    }
+    if (audioBytes.byteLength > AZURE_SPEECH_MAX_FILE_BYTES) {
+        return {
+            success: false,
+            error: `File size (${formatFileSize(audioBytes.byteLength)}) exceeds the ${formatFileSize(AZURE_SPEECH_MAX_FILE_BYTES)} limit — split large recordings first.`,
+        };
+    }
+    const locale = normalizeSpeechLocale(options.language);
+    const r = await fastTranscribeRequest({
+        endpoint: options.azureEndpoint,
+        key: options.apiKey,
+        audioBytes,
+        filename: fileName,
+        locales: locale ? [locale] : undefined,
+        // diarization off — the diarized path goes through the adapter
+    });
+    if (!r.ok) {
+        return { success: false, error: `Azure Speech transcription failed: ${r.error}` };
+    }
+    const body = r.value;
+    const transcript = body.combinedPhrases?.[0]?.text
+        ?? (body.phrases ?? []).map((p) => p.text).join(' ');
+    if (!transcript) {
+        return { success: false, error: 'Azure Speech returned no transcript' };
+    }
+    const segments: WhisperSegment[] = (body.phrases ?? []).map((p, idx) => ({
+        id: idx,
+        start: p.offsetMilliseconds / 1000,
+        end: (p.offsetMilliseconds + p.durationMilliseconds) / 1000,
+        text: p.text,
+        // Fast Transcription has no Whisper quality signals — neutral values.
+        no_speech_prob: 0,
+        compression_ratio: 1,
+    }));
+    return {
+        success: true,
+        transcript,
+        duration: body.durationMilliseconds != null ? body.durationMilliseconds / 1000 : undefined,
+        segments,
+        language: body.phrases?.[0]?.locale ?? locale ?? undefined,
+    };
+}
+
 /**
  * Get the Whisper API endpoint for the provider.
  * Azure callers must supply the pre-resolved endpoint in `options.azureEndpoint`.
  */
 function getWhisperEndpoint(options: TranscriptionOptions): string {
-    if (options.provider === 'azure') {
+    // azure-speech never reaches the Whisper path — routed earlier in
+    // transcribeAudio*/transcribeWithAzureSpeech (plan D1: different surface).
+    if (options.provider === 'azure' || options.provider === 'azure-speech') {
         if (!options.azureEndpoint) {
-            throw new Error('Azure Whisper requires a resolved endpoint');
+            throw new Error('Azure transcription requires a resolved endpoint');
         }
         return options.azureEndpoint;
     }
@@ -414,6 +498,169 @@ export async function pacedWhisperRequest(
     } finally {
         if (timer) clearTimeout(timer);
         if (signal) signal.removeEventListener('abort', onParentAbort);
+    }
+}
+
+// ── Azure AI Speech — Fast Transcription client (azure-audio plan Phase 2) ──
+//
+// Shared by the plain-STT path here AND the diarization adapter
+// (`azureSpeechDiarizationAdapter` imports it — same import direction as
+// `getAudioMimeType`, no module cycle). Multipart gotchas (plan §A, verified
+// live 2026-06-08): the `definition` part MUST be inline `application/json`
+// (a file-shaped part is SILENTLY ignored → no diarization), and the host is
+// the `<resource>.cognitiveservices.azure.com` custom domain.
+
+/** Verified response shape (§A) — only the fields we read. */
+export interface FastTranscriptionPhrase {
+    speaker?: number;
+    offsetMilliseconds: number;
+    durationMilliseconds: number;
+    text: string;
+    locale?: string;
+    confidence?: number;
+}
+
+export interface FastTranscriptionResponse {
+    durationMilliseconds?: number;
+    combinedPhrases?: Array<{ text: string }>;
+    phrases?: FastTranscriptionPhrase[];
+}
+
+export interface FastTranscribeArgs {
+    /** Pre-resolved `:transcribe` endpoint (from getSpeechFastTranscriptionEndpoint). */
+    endpoint: string;
+    /** Ocp-Apim-Subscription-Key value. */
+    key: string;
+    audioBytes: ArrayBuffer;
+    filename?: string;
+    mimeType?: string;
+    /** Full BCP-47 locales (e.g. ['en-US']); omit for auto language identification. */
+    locales?: string[];
+    /** Enable inline diarization with a max-speakers hint. */
+    diarization?: { enabled: boolean; maxSpeakers: number };
+    signal?: AbortSignal;
+    timeoutMs?: number;
+}
+
+/**
+ * Map a short language hint to a full BCP-47 locale Azure accepts (plan §2e).
+ * Already-regioned tags pass through; unknown short codes get a sensible
+ * region default; unmappable input returns null (caller omits `locales`).
+ */
+export function normalizeSpeechLocale(hint: string | undefined): string | null {
+    if (!hint) return null;
+    const t = hint.trim();
+    if (!t) return null;
+    if (/^[A-Za-z]{2,3}-[A-Za-z]{2,4}(-[A-Za-z0-9]+)?$/.test(t)) return t; // already BCP-47 with region
+    const SHORT_TO_LOCALE: Record<string, string> = {
+        en: 'en-US', fi: 'fi-FI', sv: 'sv-SE', de: 'de-DE', fr: 'fr-FR',
+        es: 'es-ES', it: 'it-IT', pt: 'pt-PT', nl: 'nl-NL', da: 'da-DK',
+        no: 'nb-NO', nb: 'nb-NO', pl: 'pl-PL', ru: 'ru-RU', ja: 'ja-JP',
+        ko: 'ko-KR', zh: 'zh-CN', ar: 'ar-SA', hi: 'hi-IN', tr: 'tr-TR',
+        cs: 'cs-CZ', uk: 'uk-UA', et: 'et-EE',
+    };
+    return SHORT_TO_LOCALE[t.toLowerCase()] ?? null;
+}
+
+const SPEECH_MAX_RETRIES = 3;
+const SPEECH_DEFAULT_TIMEOUT_MS = 300_000; // synchronous endpoint; large files take minutes
+
+/**
+ * POST one Fast Transcription request. Paced through the resource-level
+ * azure-speech lease (R2-H2); 429/5xx retried with Azure-aware backoff; owns
+ * its timeout via an internal AbortController (no leaked timer, no zombie
+ * retry loop). Multipart is built WITHOUT duplicating the audio buffer
+ * beyond the single combined body (G3).
+ */
+export async function fastTranscribeRequest(
+    args: FastTranscribeArgs,
+): Promise<Result<FastTranscriptionResponse>> {
+    const { endpoint, key, audioBytes } = args;
+    if (audioBytes.byteLength === 0) return err('empty-audio');
+
+    const definition: Record<string, unknown> = {};
+    if (args.locales && args.locales.length > 0) definition.locales = args.locales;
+    if (args.diarization?.enabled) {
+        definition.diarization = { enabled: true, maxSpeakers: args.diarization.maxSpeakers };
+    }
+
+    const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+    const mimeType = args.mimeType
+        ?? getAudioMimeType((args.filename ?? '').split('.').pop() ?? '');
+    const parts: (string | ArrayBuffer)[] = [];
+    parts.push(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="audio"; filename="${args.filename ?? 'audio'}"\r\n` +
+        `Content-Type: ${mimeType}\r\n\r\n`
+    );
+    parts.push(audioBytes);
+    parts.push('\r\n');
+    // ⚠ Inline JSON with an explicit per-part Content-Type (plan §A/§2e) —
+    // a file-attachment-shaped part is silently ignored by the service.
+    parts.push(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="definition"\r\n` +
+        `Content-Type: application/json\r\n\r\n` +
+        `${JSON.stringify(definition)}\r\n`
+    );
+    parts.push(`--${boundary}--\r\n`);
+    const body = combineArrayBuffers(parts);
+
+    let paceKey: string;
+    try {
+        paceKey = buildAzureSpeechKey(endpoint, 'fast-transcription');
+    } catch {
+        return err('bad-endpoint');
+    }
+
+    const controller = new AbortController();
+    const onParentAbort = (): void => controller.abort();
+    if (args.signal) {
+        if (args.signal.aborted) return err('aborted');
+        args.signal.addEventListener('abort', onParentAbort, { once: true });
+    }
+    const timeoutMs = args.timeoutMs ?? SPEECH_DEFAULT_TIMEOUT_MS;
+    let didTimeout = false;
+    const timer = setTimeout(() => { didTimeout = true; controller.abort(); }, timeoutMs);
+
+    try {
+        let last: import('obsidian').RequestUrlResponse | null = null;
+        for (let attempt = 0; attempt < SPEECH_MAX_RETRIES; attempt++) {
+            if (controller.signal.aborted) return err(didTimeout ? 'timeout' : 'aborted');
+            try {
+                last = await withAzureLease(paceKey, controller.signal, () => abortableRequestUrl({
+                    url: endpoint,
+                    method: 'POST',
+                    headers: {
+                        'Ocp-Apim-Subscription-Key': key,
+                        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                    },
+                    body,
+                    throw: false,
+                }, { signal: controller.signal }));
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                if (didTimeout) return err('timeout');
+                if (/abort|cancell/i.test(msg)) return err('aborted');
+                return err(`network: ${msg.slice(0, 120)}`);
+            }
+            if (last.status === 200) {
+                const json = last.json as FastTranscriptionResponse | null;
+                if (!json || typeof json !== 'object') return err('malformed-response');
+                return ok(json);
+            }
+            const info = parseAzureRateLimitHeaders(last.headers);
+            logAzureRateLimitHeaders(info, 'azure-speech-stt');
+            const retriable = last.status === 429 || (last.status >= 500 && last.status < 600);
+            if (!retriable || attempt >= SPEECH_MAX_RETRIES - 1) {
+                return err(`http-${last.status}: ${(last.text ?? '').slice(0, 200)}`);
+            }
+            await abortableSleep(computeAzureBackoffMs(info, attempt), controller.signal);
+        }
+        return err(`http-${last?.status ?? 0}`);
+    } finally {
+        clearTimeout(timer);
+        if (args.signal) args.signal.removeEventListener('abort', onParentAbort);
     }
 }
 

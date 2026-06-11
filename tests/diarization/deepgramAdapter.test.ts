@@ -68,7 +68,7 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
 
     beforeEach(() => {
         mockRequestUrl.mockReset();
-        adapter = new DeepgramAdapter();
+        adapter = new DeepgramAdapter(async () => 'fake-key');
     });
 
     it('parses sanitized fixture to expected shape', async () => {
@@ -76,7 +76,6 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
         const r = await adapter.transcribeWithDiarization(
             makeApp(),
             makeBytes(),
-            'fake-key',
             { filename: 'hamina.mp3' },
         );
 
@@ -96,7 +95,6 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
         const r = await adapter.transcribeWithDiarization(
             makeApp(),
             makeBytes(),
-            'fake-key',
         );
 
         expect(r.ok).toBe(true);
@@ -112,7 +110,7 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
 
     it('formats speaker labels as 1-indexed "Speaker N" (G2-L1)', async () => {
         mockRequestUrl.mockResolvedValueOnce(okResponse(fixtureJson));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'fake-key');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
 
         expect(r.ok).toBe(true);
         if (!r.ok) throw new Error('unreachable');
@@ -127,21 +125,22 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
         );
     });
 
-    it('computes actualCostUsd from durationSec (G2)', async () => {
+    it('computes typed actual cost from durationSec (G2 + azure-audio M6)', async () => {
         mockRequestUrl.mockResolvedValueOnce(okResponse(fixtureJson));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'fake-key');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
 
         expect(r.ok).toBe(true);
         if (!r.ok) throw new Error('unreachable');
         const expected = Math.round(
             (r.value.durationSec / 60) * DEEPGRAM_COST_PER_MIN_USD * 10000,
         ) / 10000;
-        expect(r.value.actualCostUsd).toBeCloseTo(expected, 6);
+        expect(r.value.cost.kind).toBe('actual');
+        expect(r.value.cost.usd).toBeCloseTo(expected, 6);
     });
 
     it('sends Deepgram URL with all required params (incl. mip_opt_out=true)', async () => {
         mockRequestUrl.mockResolvedValueOnce(okResponse(fixtureJson));
-        await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'fake-key', {
+        await adapter.transcribeWithDiarization(makeApp(), makeBytes(), {
             filename: 'meeting.mp3',
         });
 
@@ -159,7 +158,7 @@ describe('DeepgramAdapter — happy path (sanitized 20-min fixture)', () => {
 
     it('honors options.mimeType override (G3-M1)', async () => {
         mockRequestUrl.mockResolvedValueOnce(okResponse(fixtureJson));
-        await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'fake-key', {
+        await adapter.transcribeWithDiarization(makeApp(), makeBytes(), {
             filename: 'recording.webm',
             mimeType: 'audio/ogg;codecs=opus',
         });
@@ -173,19 +172,28 @@ describe('DeepgramAdapter — error handling', () => {
 
     beforeEach(() => {
         mockRequestUrl.mockReset();
-        adapter = new DeepgramAdapter();
+        adapter = new DeepgramAdapter(async () => 'fake-key');
     });
 
-    it('returns no-api-key when key is empty', async () => {
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), '');
+    it('returns no-api-key when the resolver yields no key (H3 — provider-owned creds)', async () => {
+        const noKey = new DeepgramAdapter(async () => null);
+        const r = await noKey.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('no-api-key');
         expect(mockRequestUrl).not.toHaveBeenCalled();
     });
 
+    it('returns no-api-key when the resolver throws (never throws outward)', async () => {
+        const throwing = new DeepgramAdapter(async () => { throw new Error('storage'); });
+        const r = await throwing.transcribeWithDiarization(makeApp(), makeBytes());
+        expect(r.ok).toBe(false);
+        if (r.ok) throw new Error('unreachable');
+        expect(r.error).toBe('no-api-key');
+    });
+
     it('returns empty-audio when audioBytes is zero-length', async () => {
-        const r = await adapter.transcribeWithDiarization(makeApp(), new ArrayBuffer(0), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), new ArrayBuffer(0));
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('empty-audio');
@@ -193,7 +201,7 @@ describe('DeepgramAdapter — error handling', () => {
 
     it('returns http-401 on bad key', async () => {
         mockRequestUrl.mockResolvedValueOnce(errResponse(401, '{"err":"unauth"}'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'bad');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('http-401');
@@ -201,7 +209,7 @@ describe('DeepgramAdapter — error handling', () => {
 
     it('returns http-500 on server error (no retry)', async () => {
         mockRequestUrl.mockResolvedValueOnce(errResponse(500, '{"err":"oops"}'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('http-500');
@@ -216,7 +224,7 @@ describe('DeepgramAdapter — error handling', () => {
             headers: {},
             arrayBuffer: new ArrayBuffer(0),
         });
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toMatch(/malformed-response/);
@@ -226,7 +234,7 @@ describe('DeepgramAdapter — error handling', () => {
         mockRequestUrl.mockResolvedValueOnce(
             okResponse({ metadata: { duration: 10 }, results: { channels: [] } }),
         );
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('no-utterances');
@@ -240,7 +248,7 @@ describe('DeepgramAdapter — retry policy (R2 M5 + R4 M4)', () => {
     beforeEach(() => {
         mockRequestUrl.mockReset();
         sleeperCalls = [];
-        adapter = new DeepgramAdapter({
+        adapter = new DeepgramAdapter(async () => 'fake-key', {
             _sleeper: async (ms) => {
                 sleeperCalls.push(ms);
             },
@@ -253,7 +261,7 @@ describe('DeepgramAdapter — retry policy (R2 M5 + R4 M4)', () => {
             .mockResolvedValueOnce(errResponse(429))
             .mockResolvedValueOnce(errResponse(429))
             .mockResolvedValueOnce(errResponse(429));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('http-429');
@@ -265,7 +273,7 @@ describe('DeepgramAdapter — retry policy (R2 M5 + R4 M4)', () => {
         mockRequestUrl
             .mockResolvedValueOnce(errResponse(429))
             .mockResolvedValueOnce(okResponse(fixtureJson));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(true);
         expect(mockRequestUrl).toHaveBeenCalledTimes(2);
         expect(sleeperCalls).toEqual([1000]);
@@ -273,7 +281,7 @@ describe('DeepgramAdapter — retry policy (R2 M5 + R4 M4)', () => {
 
     it('does NOT retry on non-429 errors', async () => {
         mockRequestUrl.mockResolvedValueOnce(errResponse(503));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         expect(mockRequestUrl).toHaveBeenCalledTimes(1);
         expect(sleeperCalls).toEqual([]);
@@ -285,13 +293,13 @@ describe('DeepgramAdapter — abort + transport (R2 M1 + R4 H3)', () => {
 
     beforeEach(() => {
         mockRequestUrl.mockReset();
-        adapter = new DeepgramAdapter();
+        adapter = new DeepgramAdapter(async () => 'fake-key');
     });
 
     it('returns aborted when signal is pre-aborted', async () => {
         const ctrl = new AbortController();
         ctrl.abort();
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k', {
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), {
             signal: ctrl.signal,
         });
         expect(r.ok).toBe(false);
@@ -301,7 +309,7 @@ describe('DeepgramAdapter — abort + transport (R2 M1 + R4 H3)', () => {
 
     it('classifies DNS rejection as network-dns', async () => {
         mockRequestUrl.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND api.deepgram.com'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('network-dns');
@@ -309,7 +317,7 @@ describe('DeepgramAdapter — abort + transport (R2 M1 + R4 H3)', () => {
 
     it('classifies TLS rejection as network-tls', async () => {
         mockRequestUrl.mockRejectedValueOnce(new Error('TLS handshake failed: cert expired'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('network-tls');
@@ -317,7 +325,7 @@ describe('DeepgramAdapter — abort + transport (R2 M1 + R4 H3)', () => {
 
     it('classifies offline rejection as network-offline', async () => {
         mockRequestUrl.mockRejectedValueOnce(new Error('connect ENETUNREACH 0.0.0.0'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toBe('network-offline');
@@ -325,7 +333,7 @@ describe('DeepgramAdapter — abort + transport (R2 M1 + R4 H3)', () => {
 
     it('falls back to network-other for unknown transport errors', async () => {
         mockRequestUrl.mockRejectedValueOnce(new Error('something weird happened'));
-        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes(), 'k');
+        const r = await adapter.transcribeWithDiarization(makeApp(), makeBytes());
         expect(r.ok).toBe(false);
         if (r.ok) throw new Error('unreachable');
         expect(r.error).toMatch(/^network-other:/);
@@ -348,7 +356,7 @@ describe('parseResponse — pure parser', () => {
         expect(r.ok).toBe(true);
     });
 
-    it('omits cost when duration is missing', () => {
+    it('reports unknown cost when duration is missing', () => {
         const r = buildOk({
             metadata: {},
             results: {
@@ -360,7 +368,7 @@ describe('parseResponse — pure parser', () => {
         });
         expect(r.ok).toBe(true);
         if (!r.ok) throw new Error('unreachable');
-        expect(r.value.actualCostUsd).toBeNull();
+        expect(r.value.cost).toEqual({ kind: 'unknown' });
     });
 
     it('handles utterances without speaker (no label assigned)', () => {

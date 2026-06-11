@@ -45,7 +45,7 @@ import { getTranscriptOutputFullPath } from '../../core/settings';
 import { ensureFolderExists, getAvailableFilePath, sanitizeFileName } from '../../utils/minutesUtils';
 import { isRecordingSupported } from '../../services/audioRecordingService';
 import { transcribeAudioWithFullWorkflow } from '../../services/audioTranscriptionService';
-import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
 import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
 import { DEEPGRAM_LARGE_FILE_WARN_BYTES } from '../../services/diarization/types';
 import type { DiarizationResult } from '../../services/diarization/types';
@@ -66,7 +66,8 @@ export class TranscribeOnlyModal extends Modal {
     private speakerReview: SpeakerReviewState = { kind: 'not-required' };
     private outputFolder: string;
     /** Async-resolved Deepgram API key (null = not configured / not yet checked) */
-    private deepgramKey: string | null = null;
+    /** Coordinator-resolved diarization availability (azure-audio H3). */
+    private diarizationAvailable = false;
     /** Used when async key resolution races against onClose() */
     private isOpenFlag = false;
     /** Whether transcription is currently in flight (drives toggle.disabled). */
@@ -107,6 +108,7 @@ export class TranscribeOnlyModal extends Modal {
         this.coordinator = new AudioAttachCoordinator(this.app, {
             importTargetFolder: 'AI-Organiser/Imports',
             translations: this.plugin.t,
+            plugin: this.plugin,
         });
 
         // Audio attach trio.
@@ -138,7 +140,7 @@ export class TranscribeOnlyModal extends Modal {
         this.isOpenFlag = true;
         // Async-resolve Deepgram key; re-render the helper region once known
         // so the checkbox shows up (or stays hidden) without flicker.
-        void this.resolveDeepgramKeyAndRefresh();
+        void this.resolveDiarizationAvailabilityAndRefresh();
     }
 
     onClose(): void {
@@ -299,7 +301,7 @@ export class TranscribeOnlyModal extends Modal {
 
     private async handleTranscribeDiarized(): Promise<void> {
         if (!this.audioFile || !this.coordinator) return;
-        if (!this.deepgramKey) {
+        if (!this.diarizationAvailable) {
             new Notice(this.plugin.t.diarization.failedNotice.replace('{error}', 'no-api-key'));
             return;
         }
@@ -311,7 +313,7 @@ export class TranscribeOnlyModal extends Modal {
             displayName: this.audioDisplayName,
             itemState: 'pending' as const,
         };
-        const result = await this.coordinator.transcribeDiarized(item, this.deepgramKey);
+        const result = await this.coordinator.transcribeDiarized(item);
 
         if (!result.ok) {
             const msg = this.plugin.t.diarization.failedNotice.replace('{error}', result.error);
@@ -478,8 +480,9 @@ export class TranscribeOnlyModal extends Modal {
                 ...(dia
                     ? {
                           diarization_provider: dia.provider,
-                          ...(dia.actualCostUsd !== null
-                              ? { diarization_cost_usd: dia.actualCostUsd }
+                          // Typed cost (azure-audio M6): usd present only for actual/estimated.
+                          ...(typeof dia.cost.usd === 'number'
+                              ? { diarization_cost_usd: dia.cost.usd }
                               : {}),
                           diarization_language: dia.detectedLanguage,
                       }
@@ -505,31 +508,33 @@ export class TranscribeOnlyModal extends Modal {
     // ============================================================================
 
     /**
-     * Async key resolve on modal open. Re-renders the attach region once the
-     * key is known so the checkbox shows up without flicker. Guarded against
+     * Async availability resolve on modal open. Re-renders the attach region
+     * once known so the checkbox shows up without flicker. Guarded against
      * onClose racing the resolution.
      */
-    private async resolveDeepgramKeyAndRefresh(): Promise<void> {
+    private async resolveDiarizationAvailabilityAndRefresh(): Promise<void> {
         try {
-            this.deepgramKey = await getDeepgramApiKey(this.plugin);
+            const sel = this.coordinator
+                ? await this.coordinator.resolveDiarizationSelection()
+                : null;
+            this.diarizationAvailable = sel?.kind === 'available';
         } catch {
-            this.deepgramKey = null;
+            this.diarizationAvailable = false;
         }
         if (!this.isOpenFlag) return;
-        // Re-render the attach region so the diarizationToggle slot reflects the resolved key.
+        // Re-render the attach region so the diarizationToggle slot reflects availability.
         const attachSlot = this.contentEl.querySelector<HTMLElement>('.ai-organiser-transcribe-only-attach');
         if (attachSlot) this.renderAttach(attachSlot);
     }
 
     /**
      * Build the diarizationToggle options for the helper. Returns undefined
-     * (no checkbox at all) on mobile, when provider !== 'deepgram', or when
-     * no key is configured.
+     * (no checkbox at all) on mobile or when no diarization provider is
+     * available (coordinator policy decides which provider serves).
      */
     private buildDiarizationToggleOptions() {
         if (Platform.isMobile) return undefined;
-        if (this.plugin.settings.audioDiarisationProvider !== 'deepgram') return undefined;
-        if (!this.deepgramKey) return undefined;
+        if (!this.diarizationAvailable) return undefined;
         if (!this.coordinator) return undefined;
 
         const checked = this.coordinator.shouldUseDiarization();

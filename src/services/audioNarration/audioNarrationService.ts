@@ -162,15 +162,11 @@ export async function prepareNarration(
         : 'gemini';
     if (isAzureMode(plugin.settings)) {
         const ttsRes = await resolveAzureCapability(plugin, 'tts');
-        if (ttsRes.kind === 'azure' && ttsRes.surface === 'azure-speech') {
-            // The Cognitive Speech engine ships in plan Phase 3. Until it exists,
-            // FAIL CLOSED rather than silently downgrade an azure-speech
-            // resolution (possibly strict/compliance mode, D3) to the
-            // Global-Standard /audio/speech engine.
-            return errFrom<PreparedNarration>(makeError('NO_API_KEY', 'Azure Speech narration engine is not yet available.'));
-        }
-        if (ttsRes.kind === 'azure') providerId = 'azure-openai';
-        else if (ttsRes.kind === 'unavailable') {
+        // The resolved SURFACE picks the engine (plan D1): in-region Cognitive
+        // Speech vs the legacy Azure OpenAI /audio/speech — never interchanged.
+        if (ttsRes.kind === 'azure') {
+            providerId = ttsRes.surface === 'azure-speech' ? 'azure-speech' : 'azure-openai';
+        } else if (ttsRes.kind === 'unavailable') {
             return errFrom<PreparedNarration>(makeError('NO_API_KEY', 'Audio narration is not configured for Azure.'));
         }
         // ttsRes.kind === 'byo' → keep the gemini providerId (existing path).
@@ -191,8 +187,13 @@ export async function prepareNarration(
         return errFrom<PreparedNarration>(makeError('ESTIMATE_FAILED', `Unknown provider: ${providerId}`, e));
     }
 
-    // Resolve voice (fallback to provider default)
-    const voice = plugin.settings.audioNarrationVoice || provider.defaultVoice;
+    // Resolve voice (fallback to provider default). The azure-speech surface
+    // has its OWN voice setting (the catalog-validated selection) — using it
+    // here keeps the narration cache fingerprint voice-accurate (a voice
+    // change regenerates audio, exactly like a Gemini voice change).
+    const voice = providerId === 'azure-speech'
+        ? (plugin.settings.azureSpeechVoice || provider.defaultVoice)
+        : (plugin.settings.audioNarrationVoice || provider.defaultVoice);
 
     // Verify API key resolvable (do not actually call the API yet)
     const engine = await provider.factory(plugin);

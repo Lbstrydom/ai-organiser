@@ -8,10 +8,13 @@
 import type AIOrganiserPlugin from '../../main';
 import { createGeminiTtsEngine, type TtsEngine } from './ttsEngine';
 import { createAzureSpeechTtsEngine } from './azureSpeechTtsEngine';
+import { createCognitiveSpeechTtsEngine } from './cognitiveSpeechTtsEngine';
 import { getCachedModels } from '../adapters/dynamicModelService';
 import { resolveSpecialistModel } from '../adapters/modelCapabilities';
 
-export type NarrationProviderId = 'gemini' | 'azure-openai';
+/** `azure-openai` (legacy /audio/speech) + `azure-speech` (in-region Cognitive
+ *  Speech) are internalOnly — selected only via the capability resolver. */
+export type NarrationProviderId = 'gemini' | 'azure-openai' | 'azure-speech';
 
 export interface NarrationVoiceEntry {
     /** Provider's voice id (sent to API). */
@@ -75,6 +78,24 @@ export const NARRATION_PROVIDERS: Readonly<Record<NarrationProviderId, Narration
         costPerMillionCharsUsd: 15.00,
         privacyConsentKey: 'gemini',
         factory: (plugin) => createGeminiTtsEngine(plugin, resolveGeminiTtsModel()),
+    },
+    'azure-speech': {
+        id: 'azure-speech',
+        displayName: 'Azure AI Speech',
+        // Voice (not model) is the synthesis selector on this surface; the value
+        // here only salts the narration cache fingerprint.
+        modelId: 'azure-cognitive-speech-v1',
+        defaultVoice: 'en-US-AvaNeural',
+        voices: [
+            // The real catalog comes from voices/list (settings picker); these
+            // are display fallbacks only.
+            { id: 'en-US-AvaNeural', labelKey: 'settings.azureSpeech.voice' },
+        ],
+        costPerMillionCharsUsd: 16.00,
+        // The user's own Azure resource — not in the external-data consent list.
+        privacyConsentKey: 'azure-openai',
+        factory: (plugin) => createCognitiveSpeechTtsEngine(plugin),
+        internalOnly: true,
     },
     'azure-openai': {
         id: 'azure-openai',

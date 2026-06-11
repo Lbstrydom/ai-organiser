@@ -1,0 +1,56 @@
+{
+  "durationMilliseconds": 16480,
+  "combinedPhrases": [
+    {
+      "text": "So, shall we get started with the agenda? Yes, let's begin with the budget review. The Q3 numbers came in above forecast. That's good news for the expansion plan."
+    }
+  ],
+  "phrases": [
+    {
+      "speaker": 1,
+      "offsetMilliseconds": 160,
+      "durationMilliseconds": 2480,
+      "text": "So, shall we get started with the agenda?",
+      "locale": "en-US",
+      "confidence": 0.95,
+      "words": [
+        { "text": "So,", "offsetMilliseconds": 160, "durationMilliseconds": 560 },
+        { "text": "shall", "offsetMilliseconds": 720, "durationMilliseconds": 240 },
+        { "text": "we", "offsetMilliseconds": 960, "durationMilliseconds": 160 }
+      ]
+    },
+    {
+      "speaker": 2,
+      "offsetMilliseconds": 3200,
+      "durationMilliseconds": 2960,
+      "text": "Yes, let's begin with the budget review.",
+      "locale": "en-US",
+      "confidence": 0.93,
+      "words": [
+        { "text": "Yes,", "offsetMilliseconds": 3200, "durationMilliseconds": 480 }
+      ]
+    },
+    {
+      "speaker": 2,
+      "offsetMilliseconds": 6800,
+      "durationMilliseconds": 3680,
+      "text": "The Q3 numbers came in above forecast.",
+      "locale": "en-US",
+      "confidence": 0.96,
+      "words": [
+        { "text": "The", "offsetMilliseconds": 6800, "durationMilliseconds": 160 }
+      ]
+    },
+    {
+      "speaker": 1,
+      "offsetMilliseconds": 11200,
+      "durationMilliseconds": 5280,
+      "text": "That's good news for the expansion plan.",
+      "locale": "en-US",
+      "confidence": 0.94,
+      "words": [
+        { "text": "That's", "offsetMilliseconds": 11200, "durationMilliseconds": 320 }
+      ]
+    }
+  ]
+}

@@ -44,7 +44,7 @@ import {
 import { withBusyIndicator } from '../../utils/busyIndicator';
 import { resolveSlideTierModel } from '../../services/specialistModelResolver';
 import type { SummarizeOptions } from '../../services/types';
-import { getAudioTranscriptionApiKey, getDeepgramApiKey } from '../../services/apiKeyHelpers';
+import { getAudioTranscriptionApiKey } from '../../services/apiKeyHelpers';
 import type { TranscriptionProvider } from '../../services/audioTranscriptionService';
 import { DiarizationPrivacyModal } from './DiarizationPrivacyModal';
 import {
@@ -187,7 +187,9 @@ export class MinutesCreationModal extends Modal {
     /** Live handle to the rendered AudioAttachHelper — used for rerender on state changes. */
     private audioAttachHandle: AudioAttachHandle | null = null;
     /** Deepgram key resolved async on open (null when not configured / pre-resolution). */
-    private deepgramKey: string | null = null;
+    /** Coordinator-resolved diarization availability (azure-audio H3 — the
+     *  modal no longer touches provider keys; the provider resolves its own). */
+    private diarizationAvailable = false;
     /** Modal-open flag — guards async resolution against onClose() race. */
     private modalIsOpen = false;
     /** DiarizationResult populated when the last transcribe used the diarized path. */
@@ -302,16 +304,17 @@ export class MinutesCreationModal extends Modal {
         this.audioCoordinator = new AudioAttachCoordinator(this.app, {
             importTargetFolder: 'AI-Organiser/Imports',
             translations: this.plugin.t,
+            plugin: this.plugin,
         });
         // Restore modal-scoped opt-in after coordinator (re)creation — without
         // this line, `rerenderModal()` would wipe the user's "Identify speakers"
         // choice every time they attach a file.
         this.audioCoordinator.setDiarizationOptIn(this.diarizationOptedIn);
 
-        // Diarization opt-in flag — async key resolution kicks off here, then
-        // re-renders the audio section once known (or stays unchecked if no key).
+        // Diarization opt-in flag — async availability resolution kicks off here,
+        // then re-renders the audio section once known (or stays unchecked).
         this.modalIsOpen = true;
-        void this.resolveDeepgramKeyAndRefresh();
+        void this.resolveDiarizationAvailabilityAndRefresh();
 
         const titleRow = contentEl.createDiv({ cls: 'ai-organiser-minutes-title-row' });
         titleRow.createEl('h2', {
@@ -2191,7 +2194,7 @@ export class MinutesCreationModal extends Modal {
      */
     private async handleTranscribeAudioDiarized(audioItem: DetectedContent): Promise<void> {
         if (!audioItem.resolvedFile || !this.audioCoordinator) return;
-        if (!this.deepgramKey) {
+        if (!this.diarizationAvailable) {
             new Notice(this.plugin.t.diarization.failedNotice.replace('{error}', 'no-api-key'), 6000);
             return;
         }
@@ -2207,7 +2210,7 @@ export class MinutesCreationModal extends Modal {
         };
 
         try {
-            const result = await this.audioCoordinator.transcribeDiarized(item, this.deepgramKey);
+            const result = await this.audioCoordinator.transcribeDiarized(item);
             if (!result.ok) {
                 const msg = this.plugin.t.diarization.failedNotice.replace('{error}', result.error);
                 new Notice(msg, 6000);
@@ -2273,8 +2276,9 @@ export class MinutesCreationModal extends Modal {
                 const dia = this.lastDiarizationResult;
                 if (dia) {
                     fmLines.push(`diarization_provider: ${dia.provider}`);
-                    if (dia.actualCostUsd !== null) {
-                        fmLines.push(`diarization_cost_usd: ${dia.actualCostUsd}`);
+                    // Typed cost (azure-audio M6): usd present only for actual/estimated.
+                    if (typeof dia.cost.usd === 'number') {
+                        fmLines.push(`diarization_cost_usd: ${dia.cost.usd}`);
                     }
                     fmLines.push(`diarization_language: ${dia.detectedLanguage}`);
                 }
@@ -4214,14 +4218,17 @@ export class MinutesCreationModal extends Modal {
     // Diarization opt-in (plan §1.5 + Gemini G3)
     // ============================================================================
 
-    private async resolveDeepgramKeyAndRefresh(): Promise<void> {
+    private async resolveDiarizationAvailabilityAndRefresh(): Promise<void> {
         try {
-            this.deepgramKey = await getDeepgramApiKey(this.plugin);
+            const sel = this.audioCoordinator
+                ? await this.audioCoordinator.resolveDiarizationSelection()
+                : null;
+            this.diarizationAvailable = sel?.kind === 'available';
         } catch {
-            this.deepgramKey = null;
+            this.diarizationAvailable = false;
         }
         if (!this.modalIsOpen) return;
-        // Re-render the audio helper so the toggle slot reflects key availability
+        // Re-render the audio helper so the toggle slot reflects availability
         const helperContainer = this.contentEl.querySelector<HTMLElement>(
             '.ai-organiser-minutes-audio-attach-container',
         );
@@ -4230,13 +4237,12 @@ export class MinutesCreationModal extends Modal {
 
     /**
      * Build the diarizationToggle options for the helper. Returns undefined
-     * (no checkbox) on mobile, when provider !== 'deepgram', or when the key
-     * is not yet configured / resolved.
+     * (no checkbox) on mobile or when no diarization provider is available
+     * (coordinator policy decides: azure-speech in Azure mode, Deepgram private).
      */
     private buildDiarizationToggleOptions() {
         if (Platform.isMobile) return undefined;
-        if (this.plugin.settings.audioDiarisationProvider !== 'deepgram') return undefined;
-        if (!this.deepgramKey) return undefined;
+        if (!this.diarizationAvailable) return undefined;
         if (!this.audioCoordinator) return undefined;
 
         const checked = this.audioCoordinator.shouldUseDiarization();

@@ -326,6 +326,17 @@ export function buildAzureOpenAIDeploymentKey(endpointOrBase: string, deployment
     return `azure-openai|${normalizeAzureEndpointToHost(endpointOrBase)}|${canonicalIdentity(deployment)}`;
 }
 
+/**
+ * SSOT key builder for the Azure AI Speech surface (azure-audio R2-H2).
+ * Resource-level + per-op buckets (Speech quotas are per-resource, not
+ * per-deployment): `fast-transcription` (STT), `tts` (real-time synth),
+ * `voices` (catalog list). Fine-grained Speech dims (chars/min, concurrent
+ * transactions) are handled REACTIVELY via 429 + Retry-After backoff.
+ */
+export function buildAzureSpeechKey(endpointOrBase: string, op: 'fast-transcription' | 'tts' | 'voices'): string {
+    return `azure-speech|${normalizeAzureEndpointToHost(endpointOrBase)}|${op}`;
+}
+
 /** True when the URL host is an Azure Foundry / Azure OpenAI host (audio self-detect). */
 export function isAzureHost(url: string): boolean {
     try {

@@ -34,10 +34,10 @@ export interface ExtractionResult {
 }
 
 export interface AudioTranscriptionConfig {
-    provider: 'openai' | 'groq' | 'azure';
+    provider: 'openai' | 'groq' | 'azure' | 'azure-speech';
     apiKey: string;
     language?: string;
-    /** Azure Whisper only: pre-resolved endpoint URL. */
+    /** Azure surfaces only: pre-resolved endpoint URL (Whisper deployment or Fast Transcription). */
     azureEndpoint?: string;
 }
 

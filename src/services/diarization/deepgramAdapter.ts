@@ -17,10 +17,12 @@
  */
 
 import type { App, RequestUrlResponse } from 'obsidian';
+import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import { abortableRequestUrl } from '../../utils/abortableRequestUrl';
 import { err, ok, type Result } from '../../core/result';
 import { getAudioMimeType } from '../audioTranscriptionService';
+import { getDeepgramApiKey } from '../apiKeyHelpers';
 import type {
     LabelledTimedSegment,
     LabelledTimedTranscript,
@@ -36,6 +38,9 @@ const DEEPGRAM_URL = 'https://api.deepgram.com/v1/listen';
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_RETRIES_ON_429 = 2; // 3 total attempts = original + 2 retries
 const BASE_BACKOFFS_MS = [1000, 4000] as const;
+
+/** Provider-owned credential resolution (azure-audio H3/D9). */
+export type DiarizationKeyResolver = () => Promise<string | null>;
 
 /** Injectable hooks used only by tests (underscore-prefixed). */
 interface AdapterTestHooks {
@@ -93,16 +98,24 @@ interface DeepgramResponse {
 }
 
 export class DeepgramAdapter implements DiarizationProvider {
-    public readonly name = 'deepgram';
+    public readonly name = 'deepgram' as const;
 
-    constructor(private readonly hooks: AdapterTestHooks = {}) {}
+    constructor(
+        private readonly keyResolver: DiarizationKeyResolver,
+        private readonly hooks: AdapterTestHooks = {},
+    ) {}
 
     async transcribeWithDiarization(
         _app: App,
         audioBytes: ArrayBuffer,
-        apiKey: string,
         options: DiarizationOptions = {},
     ): Promise<Result<DiarizationResult>> {
+        let apiKey: string | null;
+        try {
+            apiKey = await this.keyResolver();
+        } catch {
+            apiKey = null;
+        }
         if (!apiKey) {
             return err('no-api-key');
         }
@@ -297,9 +310,15 @@ export function parseResponse(response: RequestUrlResponse): Result<DiarizationR
         speakers: Array.from(speakersSet),
     };
 
-    const actualCostUsd = durationSec > 0
-        ? Math.round((durationSec / 60) * DEEPGRAM_COST_PER_MIN_USD * 10000) / 10000
-        : null;
+    // Typed cost (azure-audio M6): Deepgram cost is computed from authoritative
+    // duration → kind 'actual'; missing duration → 'unknown' (frontmatter omits usd).
+    const cost = durationSec > 0
+        ? {
+            kind: 'actual' as const,
+            usd: Math.round((durationSec / 60) * DEEPGRAM_COST_PER_MIN_USD * 10000) / 10000,
+            basis: `$${DEEPGRAM_COST_PER_MIN_USD}/min nova-3`,
+        }
+        : { kind: 'unknown' as const };
 
     return ok({
         labelled,
@@ -307,9 +326,15 @@ export function parseResponse(response: RequestUrlResponse): Result<DiarizationR
         durationSec,
         detectedLanguage,
         provider: 'deepgram',
-        actualCostUsd,
+        cost,
     });
 }
 
-/** Production singleton (DIP — coordinator can inject a mock). */
-export const deepgramAdapter = new DeepgramAdapter();
+/**
+ * Production factory (azure-audio H3/D9): binds the canonical Deepgram key
+ * chain so callers never pass a key positionally. Tests construct the class
+ * directly with a stub resolver.
+ */
+export function createDeepgramProvider(plugin: AIOrganiserPlugin): DeepgramAdapter {
+    return new DeepgramAdapter(() => getDeepgramApiKey(plugin));
+}
