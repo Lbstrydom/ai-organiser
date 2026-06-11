@@ -394,6 +394,69 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    describe('Azure AI Speech defaults (azure-audio-adapters plan)', () => {
+        it('seeds public-safe empty defaults — no behaviour change when unset (#18)', () => {
+            const r = migrateOldSettings({ cloudServiceType: 'claude' })! as any;
+            expect(r.azureSpeechRegion).toBe('');
+            expect(r.azureSpeechEndpoint).toBe('');
+            expect(r.azureSpeechVoice).toBe('');
+            expect(r.azureSpeechMaxSpeakers).toBe(4);
+            expect(r.azureSpeechRequired).toBe(false);
+        });
+
+        it('preserves configured values', () => {
+            const r = migrateOldSettings({
+                azureSpeechRegion: 'swedencentral',
+                azureSpeechEndpoint: 'https://res.cognitiveservices.azure.com',
+                azureSpeechVoice: 'en-US-AvaNeural',
+                azureSpeechMaxSpeakers: 6,
+                azureSpeechRequired: true,
+            })! as any;
+            expect(r.azureSpeechRegion).toBe('swedencentral');
+            expect(r.azureSpeechVoice).toBe('en-US-AvaNeural');
+            expect(r.azureSpeechMaxSpeakers).toBe(6);
+            expect(r.azureSpeechRequired).toBe(true);
+        });
+
+        it('clamps maxSpeakers to 1–10 and coerces garbage to the default', () => {
+            expect((migrateOldSettings({ azureSpeechMaxSpeakers: 99 })! as any).azureSpeechMaxSpeakers).toBe(10);
+            expect((migrateOldSettings({ azureSpeechMaxSpeakers: 0 })! as any).azureSpeechMaxSpeakers).toBe(1);
+            expect((migrateOldSettings({ azureSpeechMaxSpeakers: 'lots' })! as any).azureSpeechMaxSpeakers).toBe(4);
+        });
+
+        it('coerces malformed types to safe defaults', () => {
+            const r = migrateOldSettings({
+                azureSpeechRegion: 42, azureSpeechEndpoint: null, azureSpeechVoice: {}, azureSpeechRequired: 'yes',
+            })! as any;
+            expect(r.azureSpeechRegion).toBe('');
+            expect(r.azureSpeechEndpoint).toBe('');
+            expect(r.azureSpeechVoice).toBe('');
+            expect(r.azureSpeechRequired).toBe(false);
+        });
+
+        it('coerces unknown widened audio-provider enum values to safe defaults (fail closed)', () => {
+            const r = migrateOldSettings({
+                audioDiarisationProvider: 'rogue-provider',
+                audioTranscriptionProvider: 'rogue-stt',
+                audioNarrationProvider: 'rogue-tts',
+            })! as any;
+            expect(r.audioDiarisationProvider).toBe('none');
+            expect(r.audioTranscriptionProvider).toBe('openai');
+            expect(r.audioNarrationProvider).toBe('gemini');
+        });
+
+        it('keeps valid widened enum values (azure-speech / openai-gpt-audio)', () => {
+            const r = migrateOldSettings({
+                audioDiarisationProvider: 'azure-speech',
+                audioTranscriptionProvider: 'openai-gpt-audio',
+                audioNarrationProvider: 'openai-gpt-audio',
+            })! as any;
+            expect(r.audioDiarisationProvider).toBe('azure-speech');
+            expect(r.audioTranscriptionProvider).toBe('openai-gpt-audio');
+            expect(r.audioNarrationProvider).toBe('openai-gpt-audio');
+        });
+    });
+
     describe('Azure throttle defaults bump (v2)', () => {
         it('bumps the old defaults (2/10) once when V2 flag absent', () => {
             const r = migrateOldSettings({ azureMaxConcurrentRequests: 2, azureMaxRpm: 10 })!;

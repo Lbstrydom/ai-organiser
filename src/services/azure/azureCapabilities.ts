@@ -42,7 +42,19 @@ export type AzureSupport = 'full' | 'partial' | 'none';
  *  breaking the C5/C22 consent isolation. */
 export type ByoConfigKind = 'embedding' | 'visual-embedding' | 'transcription' | 'tts' | 'research' | 'youtube';
 
-export type AzureSurface = 'azure-openai' | 'azure-claude';
+/**
+ * `azure-speech` is the Azure AI Speech (Cognitive Services) surface — a
+ * FIRST-CLASS surface distinct from `azure-openai` (plan D1): different host
+ * (`{region}.tts.speech.microsoft.com` / `<resource>.cognitiveservices.azure.com`),
+ * different auth header (`Ocp-Apim-Subscription-Key`), different body shapes
+ * (SSML / multipart). Decisively: Speech endpoints are REGIONAL (in-region
+ * processing) while Azure OpenAI audio is Global-Standard — the compliance
+ * boundary is modelled as a surface, not a boolean. The `tts` and
+ * `transcription` capabilities may resolve to it (resolveAzureCapability,
+ * plan D3); their registry `surface` field below stays `azure-openai` as the
+ * LEGACY surface used when Speech is not configured and strict mode is off.
+ */
+export type AzureSurface = 'azure-openai' | 'azure-claude' | 'azure-speech';
 
 export interface AzureCapabilityDef {
     id: AzureCapabilityId;

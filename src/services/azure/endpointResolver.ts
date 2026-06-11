@@ -3,6 +3,8 @@
  * All adapters and services call this module. No manual URL concatenation elsewhere.
  */
 
+import { type Result, ok, err } from '../../core/result';
+
 // ── Path Constants ──────────────────────────────────────────────────────────────
 
 const CLAUDE_MESSAGES_PATH = '/anthropic/v1/messages';
@@ -21,6 +23,9 @@ const AZURE_API_VERSIONS = {
 	// Foundry Models inference routes (`/models/*` on the services.ai.azure.com
 	// resource) — used by the Cohere embed-v-4-0 visual lane (Phase 5).
 	foundryModels: '2024-05-01-preview',
+	// Azure AI Speech Fast Transcription (`:transcribe` synchronous REST) —
+	// live-verified 2026-06-08 (2024-11-15 also works).
+	speechFastTranscription: '2025-10-15',
 } as const;
 
 // ── Branded Endpoint Types (compile-time safety, zero runtime cost) ─────────
@@ -51,6 +56,10 @@ export function isAzureMode(settings: { cloudServiceType?: string }): boolean {
 interface EndpointSettings {
 	azureAIEndpoint: string;
 	azureOpenAIEndpoint: string;
+	/** Azure AI Speech custom domain (`<resource>.cognitiveservices.azure.com`) — REQUIRED for Fast Transcription (plan D10). */
+	azureSpeechEndpoint?: string;
+	/** Azure AI Speech region (e.g. `swedencentral`) — builds the `{region}.tts.speech.microsoft.com` TTS host. */
+	azureSpeechRegion?: string;
 	azureWhisperDeployment?: string;
 	azureRoutingMode?: 'model-based' | 'deployment-based';
 	azureDeployments?: { chat?: string; embeddings?: string };
@@ -160,4 +169,69 @@ export function getSpeechEndpoint(settings: EndpointSettings): SpeechEndpoint {
 		return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + `/openai/deployments/${dep}/audio/speech?api-version=${apiVersion}`) as SpeechEndpoint;
 	}
 	return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + '/openai/v1/audio/speech') as SpeechEndpoint;
+}
+
+// ── Azure AI Speech (Cognitive Services) — the in-region `azure-speech` surface ──
+//
+// Distinct hosts + auth from Azure OpenAI (plan D1):
+//   STT (Fast Transcription) → `<resource>.cognitiveservices.azure.com` custom domain
+//     (the `{region}.stt.speech.microsoft.com` host 404s for `:transcribe` — §A).
+//   TTS (real-time)          → `{region}.tts.speech.microsoft.com`.
+// Builders return typed `Result` — NEVER a guessed string (plan D10): the STT
+// endpoint is an explicit setting (no prefix derivation from azureOpenAIEndpoint,
+// which is unsafe when the Speech resource differs), and hosts are anchored
+// (R2-M2: suffix match on the parsed hostname, so
+// `…cognitiveservices.azure.com.attacker.com` is rejected).
+
+const SPEECH_COGNITIVE_DOMAIN_SUFFIX = '.cognitiveservices.azure.com';
+const SPEECH_TTS_HOST_SUFFIX = '.tts.speech.microsoft.com';
+/** Azure region names are lowercase alphanumerics (e.g. `swedencentral`). */
+const SPEECH_REGION_RE = /^[a-z0-9]+$/;
+
+export type SpeechEndpointError = 'no-endpoint' | 'bad-endpoint' | 'no-region' | 'bad-region';
+
+function normalizeSpeechHost(raw: string, suffix: string): Result<string> {
+	let url: URL;
+	try {
+		url = new URL(raw);
+	} catch {
+		return err('bad-endpoint');
+	}
+	if (url.protocol !== 'https:') return err('bad-endpoint');
+	if (!url.hostname.endsWith(suffix)) return err('bad-endpoint');
+	if (url.pathname !== '/' && url.pathname !== '') return err('bad-endpoint');
+	return ok(url.origin);
+}
+
+/**
+ * Fast Transcription synchronous REST endpoint (STT + inline diarization).
+ * Requires the explicit `azureSpeechEndpoint` custom domain (plan D10).
+ */
+export function getSpeechFastTranscriptionEndpoint(settings: EndpointSettings): Result<string> {
+	const raw = settings.azureSpeechEndpoint?.trim();
+	if (!raw) return err('no-endpoint');
+	const host = normalizeSpeechHost(raw, SPEECH_COGNITIVE_DOMAIN_SUFFIX);
+	if (!host.ok) return host;
+	return ok(`${host.value}/speechtotext/transcriptions:transcribe?api-version=${AZURE_API_VERSIONS.speechFastTranscription}`);
+}
+
+function speechTtsHost(settings: EndpointSettings): Result<string> {
+	const region = settings.azureSpeechRegion?.trim().toLowerCase();
+	if (!region) return err('no-region');
+	if (!SPEECH_REGION_RE.test(region)) return err('bad-region');
+	return ok(`https://${region}${SPEECH_TTS_HOST_SUFFIX}`);
+}
+
+/** Real-time TTS endpoint (SSML in, audio out) on the regional TTS host. */
+export function getSpeechRealtimeTtsEndpoint(settings: EndpointSettings): Result<string> {
+	const host = speechTtsHost(settings);
+	if (!host.ok) return host;
+	return ok(`${host.value}/cognitiveservices/v1`);
+}
+
+/** `voices/list` catalog endpoint (powers the voice picker + validation, plan D11). */
+export function getSpeechVoicesListEndpoint(settings: EndpointSettings): Result<string> {
+	const host = speechTtsHost(settings);
+	if (!host.ok) return host;
+	return ok(`${host.value}/cognitiveservices/voices/list`);
 }

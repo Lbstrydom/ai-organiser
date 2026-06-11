@@ -31,10 +31,16 @@ import {
     getClaudeMessagesEndpoint,
     getSpeechEndpoint,
     getFoundryImageEmbeddingsEndpoint,
+    getSpeechRealtimeTtsEndpoint,
+    getSpeechFastTranscriptionEndpoint,
 } from './endpointResolver';
 import { getAzureApiKey } from './azureKey';
+import { resolveAzureSpeechCredential } from './azureSpeechCredential';
 
-export type AzureUnavailableReason = 'off' | 'no-deployment' | 'no-endpoint' | 'no-key' | 'no-byo-key' | 'no-azure-path';
+export type AzureUnavailableReason =
+    | 'off' | 'no-deployment' | 'no-endpoint' | 'no-key' | 'no-byo-key' | 'no-azure-path'
+    // azure-speech surface (azure-audio-adapters plan D3/D10/D11):
+    | 'no-region' | 'no-voice';
 
 export type AzureCapabilityResolution =
     | { kind: 'azure'; surface: AzureSurface; deployment: string; key: string; endpoint: string }
@@ -150,6 +156,36 @@ function azureEndpointFor(capId: AzureCapabilityId, plugin: AIOrganiserPlugin): 
 }
 
 /**
+ * Resolve the in-region azure-speech surface for an audio capability
+ * (azure-audio-adapters plan D3). Readiness is per-op (D10): TTS = region +
+ * voice + key; Fast Transcription = explicit custom-domain endpoint + key.
+ * The endpoint builders validate + host-anchor (R2-M2) — never a guessed
+ * string. No deployment concept on this surface (deployment = '').
+ */
+async function resolveSpeechSurface(
+    plugin: AIOrganiserPlugin,
+    capId: 'tts' | 'transcription',
+): Promise<AzureCapabilityResolution> {
+    const settings = plugin.settings;
+    let endpoint: string;
+    if (capId === 'tts') {
+        const ep = getSpeechRealtimeTtsEndpoint(settings);
+        if (!ep.ok) return { kind: 'unavailable', reason: ep.error === 'bad-endpoint' ? 'no-endpoint' : 'no-region' };
+        // No usable empty voice default (plan D11) — unavailable until chosen.
+        const voice = typeof settings.azureSpeechVoice === 'string' ? settings.azureSpeechVoice.trim() : '';
+        if (!voice) return { kind: 'unavailable', reason: 'no-voice' };
+        endpoint = ep.value;
+    } else {
+        const ep = getSpeechFastTranscriptionEndpoint(settings);
+        if (!ep.ok) return { kind: 'unavailable', reason: 'no-endpoint' };
+        endpoint = ep.value;
+    }
+    const cred = await resolveAzureSpeechCredential(plugin);
+    if (!cred.ok) return { kind: 'unavailable', reason: 'no-key' };
+    return { kind: 'azure', surface: 'azure-speech', deployment: '', key: cred.value.key, endpoint };
+}
+
+/**
  * Resolve where capability `capId` should be served. Call this at the feature/
  * resolution entry (never inside the BYO primitives). Returns immediately for
  * non-Azure mode callers should not invoke it; guarded anyway.
@@ -168,8 +204,27 @@ export async function resolveAzureCapability(
 
     if (choice.mode === 'off') return { kind: 'unavailable', reason: 'off' };
 
+    // ── Audio capabilities: azure-speech surface (azure-audio-adapters plan D3) ──
+    if (capId === 'tts' || capId === 'transcription') {
+        if (plugin.settings.azureSpeechRequired === true) {
+            // STRICT (compliance): azure-speech ONLY. Legacy Whisper//audio/speech
+            // (Global-Standard) AND byo are refused fail-closed — unconfigured
+            // Speech surfaces a typed reason, NEVER a silent fallback (R1-H2).
+            return resolveSpeechSurface(plugin, capId);
+        }
+        if (choice.mode === 'azure') {
+            // Strict OFF: prefer azure-speech once configured (DP-1); otherwise
+            // fall through to the legacy azure-openai path (backward-compat #18 —
+            // the UI discloses the legacy path is Global-Standard, not in-region).
+            const speech = await resolveSpeechSurface(plugin, capId);
+            if (speech.kind === 'azure') return speech;
+        }
+    }
+
     // No-Azure-path capability (youtube) can never be 'azure' — coerce to byo intent.
-    if (choice.mode === 'azure' && def.support !== 'none' && def.surface) {
+    // (`azure-speech` never appears in registry defs — its resolution is the explicit
+    // branch above; the guard also narrows the type for getAzureApiKey.)
+    if (choice.mode === 'azure' && def.support !== 'none' && def.surface && def.surface !== 'azure-speech') {
         const surface = def.surface;
         const deployment = azureDeploymentFor(capId, plugin);
         if (azureNeedsDeployment(capId, plugin.settings) && !deployment) {

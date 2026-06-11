@@ -370,7 +370,10 @@ export async function getAudioTranscriptionApiKey(
         // through to the openai/groq resolution below (no azure fallback).
     }
 
-    const selectedProvider = plugin.settings.audioTranscriptionProvider || 'openai';
+    // `openai-gpt-audio` (plan Phase 4) resolves keys through the OpenAI chain —
+    // it IS an OpenAI-direct model; the Whisper-key resolution below is identical.
+    const configuredStt = plugin.settings.audioTranscriptionProvider || 'openai';
+    const selectedProvider: 'openai' | 'groq' = configuredStt === 'groq' ? 'groq' : 'openai';
 
     const resolveKey = async (provider: 'openai' | 'groq'): Promise<string | null> => {
         const secretStorage = plugin.secretStorageService;

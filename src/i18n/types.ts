@@ -359,6 +359,30 @@ export interface Translations {
             tts: string; ttsDesc: string;
             youtube: string; youtubeDesc: string;
         };
+        azureSpeech: {
+            title: string;
+            description: string;
+            region: string; regionDesc: string; regionPlaceholder: string;
+            endpoint: string; endpointDesc: string; endpointPlaceholder: string;
+            apiKey: string; apiKeyDesc: string;
+            voice: string; voiceDesc: string; voicePlaceholder: string;
+            maxSpeakers: string; maxSpeakersDesc: string;
+            strictMode: string; strictModeDesc: string;
+            legacyGlobalStandardNotice: string;
+            strictUnavailableNotice: string;
+            reasonNoRegion: string;
+            reasonNoEndpoint: string;
+            reasonNoKey: string;
+            reasonNoVoice: string;
+            reasonStrictRequired: string;
+            gptAudioRequiresNonAzure: string;
+            notAzureMode: string;
+            voicesLoading: string;
+            voicesError: string;
+            voicesEmpty: string;
+            voicesRetry: string;
+            chunkedSpeakersDisclosure: string;
+        };
         visualSearch: {
             title: string;
             description: string;

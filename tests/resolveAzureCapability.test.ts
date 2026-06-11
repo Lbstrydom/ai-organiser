@@ -20,6 +20,11 @@ interface MockOpts {
     secrets?: Record<string, string>;
     providerKeys?: Record<string, string>;
     secretsAvailable?: boolean;
+    // azure-speech surface (azure-audio-adapters plan)
+    azureSpeechRegion?: string;
+    azureSpeechEndpoint?: string;
+    azureSpeechVoice?: string;
+    azureSpeechRequired?: boolean;
 }
 
 function makePlugin(o: MockOpts = {}): any {
@@ -209,5 +214,148 @@ describe('resolveAzureCapability', () => {
             azureCapabilities: { 'visual-embeddings': { mode: 'azure', deployment: 'embed-v-4-0' } },
         })), 'visual-embeddings');
         expect(r).toEqual({ kind: 'unavailable', reason: 'no-endpoint' });
+    });
+});
+
+// ── azure-speech surface (azure-audio-adapters plan D3/D10/D11) ─────────────
+
+const SPEECH_EP = 'https://res.cognitiveservices.azure.com';
+
+/** makePlugin + Speech settings (region/endpoint/voice/strict). */
+function makeSpeechPlugin(o: MockOpts = {}): any {
+    const plugin = makePlugin(o);
+    plugin.settings.azureSpeechRegion = o.azureSpeechRegion ?? '';
+    plugin.settings.azureSpeechEndpoint = o.azureSpeechEndpoint ?? '';
+    plugin.settings.azureSpeechVoice = o.azureSpeechVoice ?? '';
+    plugin.settings.azureSpeechRequired = o.azureSpeechRequired ?? false;
+    return plugin;
+}
+
+const speechConfigured = {
+    azureSpeechRegion: 'swedencentral',
+    azureSpeechEndpoint: SPEECH_EP,
+    azureSpeechVoice: 'en-US-AvaNeural',
+};
+
+describe('resolveAzureCapability — azure-speech (strict OFF, default)', () => {
+    it('tts: speech configured + mode azure → azure-speech with regional TTS endpoint', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { tts: { mode: 'azure' } }, ...speechConfigured,
+        }) as any), 'tts');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') {
+            expect(r.surface).toBe('azure-speech');
+            expect(r.deployment).toBe('');
+            expect(r.endpoint).toBe('https://swedencentral.tts.speech.microsoft.com/cognitiveservices/v1');
+            expect(r.key).toBe('AZ-KEY');
+        }
+    });
+
+    it('transcription: speech configured + mode azure → azure-speech with :transcribe endpoint', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { transcription: { mode: 'azure' } }, ...speechConfigured,
+        }) as any), 'transcription');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') {
+            expect(r.surface).toBe('azure-speech');
+            expect(r.endpoint).toBe(`${SPEECH_EP}/speechtotext/transcriptions:transcribe?api-version=2025-10-15`);
+        }
+    });
+
+    it('speech NOT configured → legacy azure-openai whisper (backward compat, byte-identical)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey()) as any, 'transcription');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') {
+            expect(r.surface).toBe('azure-openai');
+            expect(r.endpoint).toContain('/openai/deployments/whisper/audio/transcriptions');
+        }
+    });
+
+    it('tts: region+key but NO voice → falls through to legacy (strict off, no-voice not terminal)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { tts: { mode: 'azure' } },
+            azureSpeechRegion: 'swedencentral', azureSpeechEndpoint: SPEECH_EP,
+        }) as any), 'tts');
+        // Voice missing → speech unavailable → legacy azure-openai /audio/speech path.
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') expect(r.surface).toBe('azure-openai');
+    });
+
+    it('byo choice is respected when strict is off (speech configured does not override)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { tts: { mode: 'byo' } },
+            providerKeys: { gemini: 'g' },
+            ...speechConfigured,
+        }) as any), 'tts');
+        expect(r).toEqual({ kind: 'byo', byoConfigKind: 'tts' });
+    });
+});
+
+describe('resolveAzureCapability — azure-speech STRICT mode (D3 fail-closed keystone)', () => {
+    it('strict + speech configured → azure-speech', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            ...speechConfigured, azureSpeechRequired: true,
+        }) as any), 'transcription');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') expect(r.surface).toBe('azure-speech');
+    });
+
+    it('strict + speech unconfigured → unavailable, NEVER the legacy Global-Standard path (H2)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureSpeechRequired: true,
+        }) as any), 'transcription');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'no-endpoint' });
+    });
+
+    it('strict tts reasons surface in order: no-region → no-voice → no-key', async () => {
+        const noRegion = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureSpeechRequired: true,
+        }) as any), 'tts');
+        expect(noRegion).toEqual({ kind: 'unavailable', reason: 'no-region' });
+
+        const noVoice = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureSpeechRequired: true, azureSpeechRegion: 'swedencentral',
+        }) as any), 'tts');
+        expect(noVoice).toEqual({ kind: 'unavailable', reason: 'no-voice' });
+
+        const noKey = await resolveAzureCapability(makeSpeechPlugin({
+            azureSpeechRequired: true, azureSpeechRegion: 'swedencentral', azureSpeechVoice: 'en-US-AvaNeural',
+        }) as any, 'tts');
+        expect(noKey).toEqual({ kind: 'unavailable', reason: 'no-key' });
+    });
+
+    it('strict overrides a stale byo choice — azure-speech, not byo (D3: speech ONLY)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { tts: { mode: 'byo' } },
+            providerKeys: { gemini: 'g' },
+            ...speechConfigured, azureSpeechRequired: true,
+        }) as any), 'tts');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') expect(r.surface).toBe('azure-speech');
+    });
+
+    it('strict + mode off stays off (a deliberate off is compliant)', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureCapabilities: { tts: { mode: 'off' } },
+            ...speechConfigured, azureSpeechRequired: true,
+        }) as any), 'tts');
+        expect(r).toEqual({ kind: 'unavailable', reason: 'off' });
+    });
+
+    it('strict only affects audio capabilities — embeddings unchanged', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin(withAzureKey({
+            azureSpeechRequired: true, embeddingProvider: 'openai',
+        }) as any), 'embeddings');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') expect(r.surface).toBe('azure-openai');
+    });
+
+    it('dedicated Speech secret is used for the azure-speech key when present', async () => {
+        const r = await resolveAzureCapability(makeSpeechPlugin({
+            ...speechConfigured, azureSpeechRequired: true,
+            secrets: { [PLUGIN_SECRET_IDS.AZURE_SPEECH]: 'SPEECH-KEY' },
+        } as any) as any, 'tts');
+        expect(r.kind).toBe('azure');
+        if (r.kind === 'azure') expect(r.key).toBe('SPEECH-KEY');
     });
 });

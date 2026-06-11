@@ -5,6 +5,9 @@ import {
 	getOpenAIChatEndpoint,
 	getOpenAIEmbeddingsEndpoint,
 	getWhisperEndpoint,
+	getSpeechFastTranscriptionEndpoint,
+	getSpeechRealtimeTtsEndpoint,
+	getSpeechVoicesListEndpoint,
 } from '../src/services/azure/endpointResolver';
 
 const AI = 'https://my-resource.services.ai.azure.com';
@@ -105,5 +108,76 @@ describe('whisper endpoint', () => {
 			azureApiVersionOverride: { whisper: '2030-05-05' },
 		}));
 		expect(url).toContain('?api-version=2030-05-05');
+	});
+});
+
+// ── Azure AI Speech builders (azure-audio-adapters plan D10 / R2-M2) ────────
+
+const SPEECH_EP = 'https://my-resource.cognitiveservices.azure.com';
+
+describe('speech fast-transcription endpoint', () => {
+	it('builds the :transcribe URL on the custom domain with the speech api-version', () => {
+		const r = getSpeechFastTranscriptionEndpoint(base({ azureSpeechEndpoint: SPEECH_EP }));
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toBe(`${SPEECH_EP}/speechtotext/transcriptions:transcribe?api-version=2025-10-15`);
+	});
+
+	it('missing endpoint → typed err(no-endpoint), never a guessed string (D10)', () => {
+		// Even with azureOpenAIEndpoint present — no prefix derivation.
+		const r = getSpeechFastTranscriptionEndpoint(base());
+		expect(r).toEqual({ ok: false, error: 'no-endpoint' });
+	});
+
+	it('host-anchored: cognitiveservices.azure.com.attacker.com rejected (R2-M2 SSRF)', () => {
+		const r = getSpeechFastTranscriptionEndpoint(base({
+			azureSpeechEndpoint: 'https://my-resource.cognitiveservices.azure.com.attacker.com',
+		}));
+		expect(r).toEqual({ ok: false, error: 'bad-endpoint' });
+	});
+
+	it('http rejected', () => {
+		const r = getSpeechFastTranscriptionEndpoint(base({ azureSpeechEndpoint: 'http://res.cognitiveservices.azure.com' }));
+		expect(r).toEqual({ ok: false, error: 'bad-endpoint' });
+	});
+
+	it('endpoint with a path rejected', () => {
+		const r = getSpeechFastTranscriptionEndpoint(base({ azureSpeechEndpoint: `${SPEECH_EP}/speechtotext` }));
+		expect(r).toEqual({ ok: false, error: 'bad-endpoint' });
+	});
+
+	it('wrong-domain host (openai.azure.com) rejected', () => {
+		const r = getSpeechFastTranscriptionEndpoint(base({ azureSpeechEndpoint: OAI }));
+		expect(r).toEqual({ ok: false, error: 'bad-endpoint' });
+	});
+});
+
+describe('speech realtime TTS + voices-list endpoints', () => {
+	it('builds the regional tts host from azureSpeechRegion', () => {
+		const r = getSpeechRealtimeTtsEndpoint(base({ azureSpeechRegion: 'swedencentral' }));
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toBe('https://swedencentral.tts.speech.microsoft.com/cognitiveservices/v1');
+	});
+
+	it('voices/list shares the same regional host', () => {
+		const r = getSpeechVoicesListEndpoint(base({ azureSpeechRegion: 'swedencentral' }));
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toBe('https://swedencentral.tts.speech.microsoft.com/cognitiveservices/voices/list');
+	});
+
+	it('missing region → err(no-region)', () => {
+		expect(getSpeechRealtimeTtsEndpoint(base())).toEqual({ ok: false, error: 'no-region' });
+		expect(getSpeechVoicesListEndpoint(base())).toEqual({ ok: false, error: 'no-region' });
+	});
+
+	it('region is charset-validated — host injection rejected (bad-region)', () => {
+		for (const evil of ['sweden central', 'evil.attacker.com/', 'region.attacker.com', 'a/b', 'x?y']) {
+			expect(getSpeechRealtimeTtsEndpoint(base({ azureSpeechRegion: evil }))).toEqual({ ok: false, error: 'bad-region' });
+		}
+	});
+
+	it('region is case-normalized', () => {
+		const r = getSpeechRealtimeTtsEndpoint(base({ azureSpeechRegion: 'SwedenCentral' }));
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toContain('https://swedencentral.tts.speech');
 	});
 });

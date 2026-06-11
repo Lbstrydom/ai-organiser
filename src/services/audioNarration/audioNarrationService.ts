@@ -21,7 +21,7 @@ import { downsamplePcm16, dynamicNormalize } from '../tts/pcmUtils';
 import { splitForTts } from '../tts/ttsChunker';
 import { sha256Hex, CryptoUnavailableError } from '../tts/fingerprint';
 import { retryWithBackoff } from '../tts/ttsRetry';
-import { getProvider, type NarrationProviderId } from '../tts/ttsProviderRegistry';
+import { getProvider, NARRATION_PROVIDERS, type NarrationProviderId } from '../tts/ttsProviderRegistry';
 
 import { transformToSpokenProse } from './markdownToProseTransformer';
 import { estimateNarrationCost, estimateLlmEnhancementCostUsd } from './narrationCostEstimator';
@@ -152,7 +152,13 @@ export async function prepareNarration(
     // Resolve provider. In Azure mode the tts capability decides: azure → the
     // Azure Speech engine; byo → the configured gemini provider; off/unavailable
     // → a clear NO_API_KEY (the command maps it to an Azure-aware message).
-    let providerId: NarrationProviderId = plugin.settings.audioNarrationProvider || 'gemini';
+    // Registry-membership narrowing: settings may carry ids whose engine ships in a
+    // later phase (e.g. `openai-gpt-audio`, plan Phase 4) — an id without a registry
+    // entry falls back to gemini; once the entry exists it flows through unchanged.
+    const configuredNarration: string = plugin.settings.audioNarrationProvider || 'gemini';
+    let providerId: NarrationProviderId = configuredNarration in NARRATION_PROVIDERS
+        ? (configuredNarration as NarrationProviderId)
+        : 'gemini';
     if (isAzureMode(plugin.settings)) {
         const ttsRes = await resolveAzureCapability(plugin, 'tts');
         if (ttsRes.kind === 'azure') providerId = 'azure-openai';

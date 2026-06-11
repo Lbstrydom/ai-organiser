@@ -97,7 +97,7 @@ export interface AIOrganiserSettings {
     minutesObsidianTasksFormat: boolean; // Add actions as Obsidian Tasks
     minutesGTDOverlay: boolean;              // GTD-style action classification overlay
     enableSpeakerLabelling: boolean;          // LLM speaker-labelling pre-pass (Phase 4 TRA)
-    audioDiarisationProvider: 'none' | 'assemblyai' | 'deepgram'; // Diarisation provider (v2: 'deepgram' enabled; 'assemblyai' reserved)
+    audioDiarisationProvider: 'none' | 'assemblyai' | 'deepgram' | 'azure-speech'; // Diarisation provider (v2: 'deepgram'; azure-audio plan adds 'azure-speech'; 'assemblyai' reserved)
     deepgramApiKey?: string;             // Deepgram key — transient; migrated to SecretStorage on save
     maxDocumentChars: number;            // Minutes: max document size before truncation
     oversizedDocumentBehavior: 'truncate' | 'full' | 'ask'; // Minutes: oversized behavior
@@ -264,7 +264,9 @@ export interface AIOrganiserSettings {
     // === AUDIO TRANSCRIPTION SETTINGS ===
     // Whisper API for audio transcription (OpenAI or Groq)
     audioTranscriptionApiKey: string;    // Dedicated key for transcription (uses main key if provider supports Whisper)
-    audioTranscriptionProvider: 'openai' | 'groq';  // Which Whisper provider to use
+    /** Which transcription provider to use. `openai-gpt-audio` is a bounded short-clip
+     *  STT option (wav/mp3 only, NO timestamps — plan D7/G1/G2), private/BYO only. */
+    audioTranscriptionProvider: 'openai' | 'groq' | 'openai-gpt-audio';
 
     // === RECORDING SETTINGS ===
     autoTranscribeRecordings: boolean;    // Auto-transcribe recordings under 25MB
@@ -382,7 +384,11 @@ export interface AIOrganiserSettings {
     newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
 
     // === AUDIO NARRATION ===
-    audioNarrationProvider: 'gemini';                                    // v1: Gemini only; v1.1 expands to other TTS providers
+    /** User-facing narration provider. `openai-gpt-audio` (gpt-audio-1.5 chat audio-out)
+     *  is selectable ONLY when not in Azure mode (plan D5; AudioProviderPolicy enforces).
+     *  Azure surfaces (`azure-openai`, `azure-speech`) are internalOnly — capability-resolved,
+     *  never stored here. */
+    audioNarrationProvider: 'gemini' | 'openai-gpt-audio';
     audioNarrationVoice: string;                                         // Voice id (default 'Charon')
     audioNarrationOutputFolder: string;                                  // Subfolder under output root
     audioNarrationEmbedInNote: boolean;                                  // Embed 🎧 link at top of source note
@@ -472,6 +478,23 @@ export interface AIOrganiserSettings {
      *  in the existing specialist settings. Consulted ONLY in Azure mode.
      *  See docs/plans/azure-capability-flexibility.md. */
     azureCapabilities: Partial<Record<AzureCapabilityId, AzureCapabilityChoice>>;
+    // === AZURE AI SPEECH (azure-audio-adapters plan — the in-region azure-speech surface) ===
+    /** Azure AI Speech region (e.g. `swedencentral`) — builds the regional TTS host. Empty = unconfigured. */
+    azureSpeechRegion: string;
+    /** Azure AI Speech custom domain (`https://<resource>.cognitiveservices.azure.com`) —
+     *  REQUIRED for Fast Transcription STT (plan D10; no prefix derivation). Empty = unconfigured. */
+    azureSpeechEndpoint: string;
+    /** Selected Speech voice (e.g. `en-US-AvaNeural`). NO usable empty default (plan D11):
+     *  TTS resolves unavailable(`no-voice`) until a voice is chosen. */
+    azureSpeechVoice: string;
+    /** Max speakers hint for Fast Transcription diarization (clamp 1–10). */
+    azureSpeechMaxSpeakers: number;
+    /** Compliance-strict mode (plan D3): audio capabilities resolve to azure-speech ONLY —
+     *  Global-Standard surfaces (Whisper, /audio/speech, gpt-audio) are refused fail-closed,
+     *  never a silent fallback. Default false = backward-compatible legacy behaviour. */
+    azureSpeechRequired: boolean;
+    /** Azure Speech key — transient; migrated to SecretStorage (AZURE_SPEECH) on save. */
+    azureSpeechApiKey?: string;
     /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
     taskModels: {
         tagging: string;
@@ -844,6 +867,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureDeployments: {},
     azureApiVersionOverride: {},
     azureCapabilities: {},   // seeded from observable state by migrateOldSettings; empty → defaultModeFor at resolve time
+    // Azure AI Speech — public-safe empty defaults; no behaviour change when unset (plan #18).
+    azureSpeechRegion: '',
+    azureSpeechEndpoint: '',
+    azureSpeechVoice: '',
+    azureSpeechMaxSpeakers: 4,
+    azureSpeechRequired: false,
     taskModels: {
         tagging: 'claude-sonnet-4-6',
         summarization: 'claude-sonnet-4-6',
@@ -1497,6 +1526,26 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         else seed('websearch', { mode: 'azure' });
         seed('tts', { mode: 'byo' });
         seed('youtube', { mode: 'byo' });
+    }
+
+    // ── Azure AI Speech (azure-audio-adapters plan) — public-safe empty defaults ──
+    // No behaviour change when unset (#18): empty region/endpoint/voice =
+    // unconfigured, strict OFF = legacy resolution byte-identical.
+    if (typeof s.azureSpeechRegion !== 'string') s.azureSpeechRegion = '';
+    if (typeof s.azureSpeechEndpoint !== 'string') s.azureSpeechEndpoint = '';
+    if (typeof s.azureSpeechVoice !== 'string') s.azureSpeechVoice = '';
+    s.azureSpeechMaxSpeakers = clampInt(s.azureSpeechMaxSpeakers, 4, 1, 10);
+    if (typeof s.azureSpeechRequired !== 'boolean') s.azureSpeechRequired = false;
+    // Widened audio-provider enums: coerce unknown persisted values to safe defaults
+    // (a stale/disallowed provider must fail CLOSED to the default, plan D8).
+    if (!['none', 'assemblyai', 'deepgram', 'azure-speech'].includes(s.audioDiarisationProvider as string)) {
+        s.audioDiarisationProvider = 'none';
+    }
+    if (!['openai', 'groq', 'openai-gpt-audio'].includes(s.audioTranscriptionProvider as string)) {
+        s.audioTranscriptionProvider = 'openai';
+    }
+    if (!['gemini', 'openai-gpt-audio'].includes(s.audioNarrationProvider as string)) {
+        s.audioNarrationProvider = 'gemini';
     }
 }
 
