@@ -68,6 +68,8 @@ export class TranscribeOnlyModal extends Modal {
     /** Async-resolved Deepgram API key (null = not configured / not yet checked) */
     /** Coordinator-resolved diarization availability (azure-audio H3). */
     private diarizationAvailable = false;
+    /** Which provider serves diarization — drives provider-aware copy (rC H3). */
+    private diarizationProviderName: 'deepgram' | 'azure-speech' | null = null;
     /** Used when async key resolution races against onClose() */
     private isOpenFlag = false;
     /** Whether transcription is currently in flight (drives toggle.disabled). */
@@ -518,8 +520,10 @@ export class TranscribeOnlyModal extends Modal {
                 ? await this.coordinator.resolveDiarizationSelection()
                 : null;
             this.diarizationAvailable = sel?.kind === 'available';
+            this.diarizationProviderName = sel?.kind === 'available' ? sel.providerName : null;
         } catch {
             this.diarizationAvailable = false;
+            this.diarizationProviderName = null;
         }
         if (!this.isOpenFlag) return;
         // Re-render the attach region so the diarizationToggle slot reflects availability.
@@ -551,8 +555,12 @@ export class TranscribeOnlyModal extends Modal {
 
     private computeCostPreviewText(): string | null {
         if (!this.coordinator || !this.audioFile) return null;
-        const upfront = this.coordinator.getUpfrontSourceSize({ kind: 'vault', file: this.audioFile });
         const tDia = this.plugin.t.diarization;
+        // Provider-aware copy (rC H3): Azure Speech bills account-level.
+        if (this.diarizationProviderName === 'azure-speech') {
+            return tDia.azureSpeechCostNote;
+        }
+        const upfront = this.coordinator.getUpfrontSourceSize({ kind: 'vault', file: this.audioFile });
         if (upfront === null || upfront <= 0) return tDia.costUnknown;
         const usd = this.coordinator.estimateAudioCostUsd(upfront);
         const formatted = this.coordinator.formatCostPreview(usd);
@@ -562,8 +570,12 @@ export class TranscribeOnlyModal extends Modal {
     private handleDiarizationToggleChange(next: boolean): void {
         if (!this.coordinator) return;
 
+        // Deepgram-specific third-party disclosure (rC H3): azure-speech runs
+        // on the user's OWN Azure resource — no external disclosure needed.
+        const needsDisclosure = this.diarizationProviderName !== 'azure-speech';
         if (
             next === true
+            && needsDisclosure
             && !this.plugin.diarizationDisclosureShownThisSession
         ) {
             // Disclosure modal — only on transition unchecked → checked.

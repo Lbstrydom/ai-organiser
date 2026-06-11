@@ -1055,6 +1055,7 @@ export interface Translations {
             noKeyWarning: string;
             provider: string;
             providerDesc: string;
+            providerGptAudio: string;
             apiKey: string;
             apiKeyDesc: string;
             showKey: string;
@@ -3406,6 +3407,14 @@ export interface Translations {
         failedNotice: string;         // template: "{error}"
         apiKeyLabel: string;
         apiKeyDescription: string;
+        // Provider-aware copy (azure-audio Cluster D — rC H3)
+        providerLabel: string;
+        providerDesc: string;
+        providerOff: string;
+        providerAzureSpeech: string;
+        providerDeepgram: string;
+        azureSpeechCostNote: string;
+        voicesLoaded: string;         // template: "{count}"
     };
     // Slides side-rail workspace layout controls (accessible names / tooltips).
     presentationLayout: {

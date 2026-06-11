@@ -16,27 +16,51 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
         const newsletterT = this.plugin.t.settings.newsletter;
         this.createSectionHeader(t.title, 'audio-lines', 2);
 
-        // Azure-only honesty: narration is Gemini-TTS-only with no Azure path yet.
-        // Surface a clear "coming soon" notice so the feature never appears to
-        // silently fail for Azure users.
+        // Azure-mode honesty: narration routes via the tts capability (Azure AI
+        // Speech / Azure OpenAI / BYO Gemini) — the provider dropdown below is
+        // for PRIVATE mode only (gpt-audio is Global-Standard, refused on Azure).
         if (isAzureMode(this.plugin.settings)) {
             const note = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });
             note.createEl('p', { text: t.azureNote });
+        } else {
+            // Narration provider (azure-audio Phase 5): gemini | openai-gpt-audio.
+            new Setting(this.containerEl)
+                .setName(t.provider)
+                .setDesc(t.providerDesc)
+                .addDropdown(dropdown => dropdown
+                    .addOption('gemini', t.providerGemini)
+                    .addOption('openai-gpt-audio', t.providerGptAudio)
+                    .setValue(this.plugin.settings.audioNarrationProvider || 'gemini')
+                    .onChange(value => {
+                        this.plugin.settings.audioNarrationProvider = value as 'gemini' | 'openai-gpt-audio';
+                        void this.plugin.saveSettings();
+                        this.settingTab.display();   // re-render the voice list for the provider
+                    }));
         }
 
-        // Voice
+        // Voice — options come from the SELECTED user-facing provider's registry
+        // entry (Azure-internal engines bind their own voice setting).
         new Setting(this.containerEl)
             .setName(t.voice)
             .setDesc(t.voiceDesc)
             .addDropdown(dropdown => {
-                const provider = NARRATION_PROVIDERS.gemini;
+                const selectedId = !isAzureMode(this.plugin.settings)
+                    && this.plugin.settings.audioNarrationProvider === 'openai-gpt-audio'
+                    ? 'openai-gpt-audio' : 'gemini';
+                const provider = NARRATION_PROVIDERS[selectedId];
+                const tAll = this.plugin.t as unknown as Record<string, unknown>;
                 for (const v of provider.voices) {
-                    // Voice labels live under settings.newsletter.podcastVoice* — shared with newsletter audio.
-                    const label = (newsletterT as unknown as Record<string, string>)[v.labelKey.split('.').pop() || ''] || v.id;
-                    dropdown.addOption(v.id, label);
+                    // Voice labels resolve from the dotted labelKey; Gemini's live
+                    // under settings.newsletter.podcastVoice* (shared with newsletter).
+                    const leaf = v.labelKey.split('.').pop() || '';
+                    const fromNewsletter = (newsletterT as unknown as Record<string, string>)[leaf];
+                    const fromNarration = (tAll.settings as Record<string, Record<string, string>>)?.audioNarration?.[leaf];
+                    dropdown.addOption(v.id, fromNewsletter || fromNarration || v.id);
                 }
+                const current = this.plugin.settings.audioNarrationVoice;
+                const valid = provider.voices.some((v) => v.id === current);
                 dropdown
-                    .setValue(this.plugin.settings.audioNarrationVoice || provider.defaultVoice)
+                    .setValue(valid ? current : provider.defaultVoice)
                     .onChange(value => {
                         this.plugin.settings.audioNarrationVoice = value;
                         void this.plugin.saveSettings();

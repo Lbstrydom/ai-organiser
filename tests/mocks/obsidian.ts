@@ -353,6 +353,15 @@ export class Setting {
         return this;
     }
 
+    setClass(_cls: string) {
+        return this;
+    }
+
+    addSlider(cb: (slider: MockSlider) => void) {
+        cb(new MockSlider());
+        return this;
+    }
+
     addButton(cb: (button: MockButton) => void) {
         cb(new MockButton());
         return this;
@@ -435,9 +444,19 @@ class MockDropdown {
     getOptions() { return this._options; }
 }
 
+class MockSlider {
+    private _value = 0;
+    setLimits(_min: number, _max: number, _step: number) { return this; }
+    setValue(v: number) { this._value = v; return this; }
+    setDynamicTooltip() { return this; }
+    onChange(_cb: (value: number) => void) { return this; }
+}
+
 class MockButton {
     private _text: string = '';
     private _onClick?: () => void;
+
+    setTooltip(_tooltip: string) { return this; }
 
     setButtonText(text: string) {
         this._text = text;

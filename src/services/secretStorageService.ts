@@ -332,6 +332,25 @@ export class SecretStorageService implements ISecretStorageService {
                 }
             }
 
+            // Migrate Azure Speech API key (azure-audio plan)
+            if (settings.azureSpeechApiKey) {
+                try {
+                    await this.setSecret(PLUGIN_SECRET_IDS.AZURE_SPEECH, settings.azureSpeechApiKey);
+                    settings.azureSpeechApiKey = '';
+                    entries.push({
+                        field: 'azureSpeechApiKey',
+                        secretId: PLUGIN_SECRET_IDS.AZURE_SPEECH,
+                        success: true,
+                    });
+                } catch {
+                    entries.push({
+                        field: 'azureSpeechApiKey',
+                        secretId: PLUGIN_SECRET_IDS.AZURE_SPEECH,
+                        success: false,
+                    });
+                }
+            }
+
             // Migrate Deepgram API key (v2 diarization)
             if (settings.deepgramApiKey) {
                 try {

@@ -190,6 +190,8 @@ export class MinutesCreationModal extends Modal {
     /** Coordinator-resolved diarization availability (azure-audio H3 — the
      *  modal no longer touches provider keys; the provider resolves its own). */
     private diarizationAvailable = false;
+    /** Which provider serves diarization — drives provider-aware copy (rC H3). */
+    private diarizationProviderName: 'deepgram' | 'azure-speech' | null = null;
     /** Modal-open flag — guards async resolution against onClose() race. */
     private modalIsOpen = false;
     /** DiarizationResult populated when the last transcribe used the diarized path. */
@@ -4224,8 +4226,10 @@ export class MinutesCreationModal extends Modal {
                 ? await this.audioCoordinator.resolveDiarizationSelection()
                 : null;
             this.diarizationAvailable = sel?.kind === 'available';
+            this.diarizationProviderName = sel?.kind === 'available' ? sel.providerName : null;
         } catch {
             this.diarizationAvailable = false;
+            this.diarizationProviderName = null;
         }
         if (!this.modalIsOpen) return;
         // Re-render the audio helper so the toggle slot reflects availability
@@ -4259,10 +4263,15 @@ export class MinutesCreationModal extends Modal {
 
     private computeDiarizationCostPreviewText(): string | null {
         if (!this.audioCoordinator) return null;
+        const tDia = this.plugin.t.diarization;
+        // Provider-aware copy (rC H3): Azure Speech bills account-level on the
+        // user's own resource — no per-file Deepgram price applies.
+        if (this.diarizationProviderName === 'azure-speech') {
+            return tDia.azureSpeechCostNote;
+        }
         // Use the first detected/attached audio item's size as the basis for the
         // cost preview. If no items yet, we still show the per-minute rate cue
         // by returning the costUnknown line so users see something.
-        const tDia = this.plugin.t.diarization;
         const firstAudio = this.state.detectedAudioFiles?.[0]?.resolvedFile;
         if (!firstAudio) return tDia.costUnknown;
         const upfront = this.audioCoordinator.getUpfrontSourceSize({
@@ -4278,7 +4287,11 @@ export class MinutesCreationModal extends Modal {
     private handleDiarizationToggleChange(next: boolean): void {
         if (!this.audioCoordinator) return;
 
-        if (next && !this.plugin.diarizationDisclosureShownThisSession) {
+        // The third-party disclosure is Deepgram-specific (rC H3): the
+        // azure-speech path runs on the user's OWN Azure resource — same
+        // own-resource consent semantics as the Azure OpenAI surfaces.
+        const needsDisclosure = this.diarizationProviderName !== 'azure-speech';
+        if (next && needsDisclosure && !this.plugin.diarizationDisclosureShownThisSession) {
             DiarizationPrivacyModal.openOnce(this.app, this.plugin.t, (accepted) => {
                 if (accepted) {
                     this.plugin.diarizationDisclosureShownThisSession = true;
