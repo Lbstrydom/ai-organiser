@@ -113,7 +113,10 @@ export class DeepgramAdapter implements DiarizationProvider {
         let apiKey: string | null;
         try {
             apiKey = await this.keyResolver();
-        } catch {
+        } catch (e) {
+            // Surface the underlying reason in logs (H21) — the typed error
+            // stays 'no-api-key' (callers prompt for configuration either way).
+            logger.warn('Diarization', `Deepgram key resolution failed: ${e instanceof Error ? e.message : String(e)}`);
             apiKey = null;
         }
         if (!apiKey) {

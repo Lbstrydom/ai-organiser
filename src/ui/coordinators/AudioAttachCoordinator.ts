@@ -124,6 +124,13 @@ export class AudioAttachCoordinator {
      */
     async resolveDiarizationSelection(): Promise<DiarizationSelection> {
         if (this.injectedProvider) {
+            // DI override (tests) — still policy-gated when a plugin is present,
+            // so an injected provider cannot bypass strict/compliance mode (D8).
+            const plugin = this.options.plugin;
+            if (plugin) {
+                const allowed = assertAllowed(plugin, { op: 'diarization', providerId: this.injectedProvider.name });
+                if (!allowed.ok) return { kind: 'unavailable', reason: allowed.error };
+            }
             return { kind: 'available', providerName: this.injectedProvider.name };
         }
         const plugin = this.options.plugin;

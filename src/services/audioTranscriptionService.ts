@@ -182,6 +182,16 @@ export async function transcribeAudio(
     options: TranscriptionOptions
 ): Promise<TranscriptionResult> {
     try {
+        // Stat-based preflight BEFORE buffering (azure-audio G3) — reject an
+        // over-cap file without reading it into memory.
+        const statSize = file.stat?.size ?? 0;
+        if (options.provider === 'azure-speech' && statSize > AZURE_SPEECH_MAX_FILE_BYTES) {
+            return {
+                success: false,
+                error: `File size (${formatFileSize(statSize)}) exceeds the ${formatFileSize(AZURE_SPEECH_MAX_FILE_BYTES)} limit — split large recordings first.`,
+            };
+        }
+
         // Read the file as binary
         const arrayBuffer = await app.vault.readBinary(file);
         const fileSize = arrayBuffer.byteLength;

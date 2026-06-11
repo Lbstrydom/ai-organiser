@@ -16,9 +16,14 @@ import { type Result, ok, err } from '../../core/result';
 
 /**
  * Azure voice names: `<locale>-<Name>` (e.g. `en-US-AvaNeural`) with an
+ * optional dialect subtag (e.g. `zh-CN-liaoning-XiaobeiNeural`) and an
  * optional `:Variant` suffix (e.g. `en-US-Ava:DragonHDLatestNeural`).
  */
-const AZURE_VOICE_RE = /^[A-Za-z]{2,3}-[A-Za-z]{2,4}-[A-Za-z0-9]+(:[A-Za-z0-9]+)?$/;
+const AZURE_VOICE_RE = /^[A-Za-z]{2,4}-[A-Za-z]{2,4}(-[A-Za-z0-9]+){1,2}(:[A-Za-z0-9]+)?$/;
+
+/** XML 1.0 forbidden control characters (everything below 0x20 except TAB/LF/CR). */
+// eslint-disable-next-line no-control-regex
+const XML_INVALID_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 
 /**
  * Per-request character budget. Narration chunking (`splitForTts`) produces
@@ -29,6 +34,7 @@ export const MAX_SSML_TEXT_CHARS = 8000;
 
 export function escapeXml(text: string): string {
     return text
+        .replace(XML_INVALID_CHARS, '') // XML 1.0 cannot carry these even escaped
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')

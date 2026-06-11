@@ -153,13 +153,23 @@ export async function prepareNarration(
     // Resolve provider. In Azure mode the tts capability decides: azure → the
     // Azure Speech engine; byo → the configured gemini provider; off/unavailable
     // → a clear NO_API_KEY (the command maps it to an Azure-aware message).
-    // Registry-membership narrowing: settings may carry ids whose engine ships in a
-    // later phase (e.g. `openai-gpt-audio`, plan Phase 4) — an id without a registry
-    // entry falls back to gemini; once the entry exists it flows through unchanged.
     const configuredNarration: string = plugin.settings.audioNarrationProvider || 'gemini';
-    let providerId: NarrationProviderId = configuredNarration in NARRATION_PROVIDERS
-        ? (configuredNarration as NarrationProviderId)
-        : 'gemini';
+    // Policy-check the CONFIGURED id FIRST (D8) — a disallowed/stale persisted
+    // provider must fail closed, never be silently remapped to an allowed default.
+    const configuredPolicy = assertAllowed(plugin, { op: 'tts', providerId: configuredNarration });
+    if (!configuredPolicy.ok) {
+        return errFrom<PreparedNarration>(makeError('NO_API_KEY', `Narration provider not permitted: ${configuredPolicy.error}`));
+    }
+    // Registry-membership narrowing AFTER the policy gate: an ALLOWED id whose
+    // engine ships in a later phase (e.g. `openai-gpt-audio`, plan Phase 4)
+    // falls back to gemini — logged, not silent.
+    let providerId: NarrationProviderId;
+    if (configuredNarration in NARRATION_PROVIDERS) {
+        providerId = configuredNarration as NarrationProviderId;
+    } else {
+        logger.warn('AudioNarration', `Configured narration provider '${configuredNarration}' has no engine yet — using gemini`);
+        providerId = 'gemini';
+    }
     if (isAzureMode(plugin.settings)) {
         const ttsRes = await resolveAzureCapability(plugin, 'tts');
         // The resolved SURFACE picks the engine (plan D1): in-region Cognitive

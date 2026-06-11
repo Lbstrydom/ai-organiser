@@ -96,17 +96,28 @@ export class AzureSpeechDiarizationAdapter implements DiarizationProvider {
  * matches the UX convention shared with the Deepgram/Whisper paths.
  */
 export function parseFastTranscription(body: FastTranscriptionResponse): Result<DiarizationResult> {
-    const phrases = body.phrases;
-    if (!phrases || !Array.isArray(phrases) || phrases.length === 0) {
+    const rawPhrases = body.phrases;
+    if (!rawPhrases || !Array.isArray(rawPhrases) || rawPhrases.length === 0) {
         return err('no-phrases');
     }
+
+    // Provider payload is untrusted (M4): keep only well-formed phrases —
+    // finite non-negative timestamps + non-empty text. All malformed → error.
+    const phrases = rawPhrases.filter((p) =>
+        p && typeof p.text === 'string' && p.text.length > 0
+        && Number.isFinite(p.offsetMilliseconds) && p.offsetMilliseconds >= 0
+        && Number.isFinite(p.durationMilliseconds) && p.durationMilliseconds >= 0,
+    );
+    if (phrases.length === 0) return err('no-phrases');
 
     const segments: LabelledTimedSegment[] = phrases.map((p, idx) => ({
         startMs: Math.round(p.offsetMilliseconds),
         endMs: Math.round(p.offsetMilliseconds + p.durationMilliseconds),
         text: p.text,
         id: idx,
-        speaker: typeof p.speaker === 'number' ? `Speaker ${p.speaker}` : undefined,
+        speaker: typeof p.speaker === 'number' && Number.isFinite(p.speaker)
+            ? `Speaker ${p.speaker}`
+            : undefined,
     }));
 
     const seen = new Set<string>();

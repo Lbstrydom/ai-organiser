@@ -125,6 +125,12 @@ export function getProvider(id: NarrationProviderId): NarrationProviderConfig {
     return p;
 }
 
-export function listProviders(): ReadonlyArray<NarrationProviderConfig> {
-    return Object.values(NARRATION_PROVIDERS);
+/**
+ * Enumerate providers for user-facing surfaces. internalOnly entries
+ * (capability-resolved Azure engines) are EXCLUDED by default — they must
+ * never appear in a narration provider dropdown (azure-audio D5/D8).
+ */
+export function listProviders(includeInternal = false): ReadonlyArray<NarrationProviderConfig> {
+    const all = Object.values(NARRATION_PROVIDERS);
+    return includeInternal ? all : all.filter((p) => !p.internalOnly);
 }
