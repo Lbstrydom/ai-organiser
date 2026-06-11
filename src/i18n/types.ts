@@ -369,6 +369,7 @@ export interface Translations {
             deriveEndpoint: string; deriveEndpointDesc: string; deriveEndpointDone: string;
             apiKey: string; apiKeyDesc: string;
             voice: string; voiceDesc: string; voicePlaceholder: string;
+            browseVoices: string; voicePickerPlaceholder: string; voicePicked: string;
             maxSpeakers: string; maxSpeakersDesc: string;
             strictMode: string; strictModeDesc: string;
             legacyGlobalStandardNotice: string;

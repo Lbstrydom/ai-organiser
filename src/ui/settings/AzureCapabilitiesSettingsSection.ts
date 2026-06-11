@@ -200,14 +200,16 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 void this.plugin.saveSettings();
             }));
 
+        // Primary affordance: load the catalog (cached) and open a searchable
+        // picker — nobody should have to know Azure's voice-name grammar.
         setting.addButton((btn) => btn
-            .setButtonText(t.voicesRetry)
-            .setTooltip(t.voicesLoading)
-            .onClick(() => { void this.loadVoicesInto(statusEl); }));
+            .setButtonText(t.browseVoices)
+            .setCta()
+            .onClick(() => { void this.openVoicePicker(statusEl); }));
     }
 
-    /** Fetch the regional voice catalog and surface the M2 states. */
-    private async loadVoicesInto(statusEl: HTMLElement): Promise<void> {
+    /** Fetch the regional catalog (cached) and open the fuzzy voice picker. */
+    private async openVoicePicker(statusEl: HTMLElement): Promise<void> {
         const t = this.plugin.t.settings.azureSpeech;
         statusEl.setText(t.voicesLoading);
         const cred = await resolveAzureSpeechCredential(this.plugin);
@@ -215,7 +217,7 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
             statusEl.setText(`${t.voicesError} (${t.reasonNoKey})`);
             return;
         }
-        const r = await listVoices(this.plugin.settings, cred.value.key, { forceRefresh: true });
+        const r = await listVoices(this.plugin.settings, cred.value.key, {});
         if (!r.ok) {
             statusEl.setText(r.error === 'no-region' ? t.reasonNoRegion : t.voicesError);
             return;
@@ -224,9 +226,14 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
             statusEl.setText(t.voicesEmpty);
             return;
         }
-        const loaded = this.plugin.t.diarization.voicesLoaded.replace('{count}', String(r.value.length));
-        statusEl.setText(loaded);
-        new Notice(loaded);
+        statusEl.setText(this.plugin.t.diarization.voicesLoaded.replace('{count}', String(r.value.length)));
+        const { SpeechVoicePickerModal } = await import('../modals/SpeechVoicePickerModal');
+        new SpeechVoicePickerModal(this.plugin.app, [...r.value], t.voicePickerPlaceholder, (voice) => {
+            this.plugin.settings.azureSpeechVoice = voice.shortName;
+            void this.plugin.saveSettings();
+            new Notice(t.voicePicked.replace('{voice}', `${voice.displayName} (${voice.locale})`));
+            this.settingTab.display();
+        }).open();
     }
 
     private setMode(id: AzureCapabilityId, mode: 'azure' | 'byo' | 'off'): void {
