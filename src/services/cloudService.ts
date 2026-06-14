@@ -6,7 +6,7 @@ import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { claudeSupportsAdaptiveThinking, resolveLatestModel } from './adapters/modelCapabilities';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
-import { getProviderLimits, getModelOutputLimit } from './tokenLimits';
+import { getModelOutputLimit } from './tokenLimits';
 import { TaggingMode } from './prompts/types';
 import { App, requestUrl } from 'obsidian';
 import { logger } from '../utils/logger';

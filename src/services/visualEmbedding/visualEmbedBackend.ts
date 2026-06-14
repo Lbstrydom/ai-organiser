@@ -13,7 +13,7 @@
  * `cohereVisualRpm`. A 429 sets the dedicated VISUAL cooldown (separate from text) and
  * re-enqueues via the queue's transient path.
  */
-import type { App, TFile } from 'obsidian';
+import type { App } from 'obsidian';
 import { TFile as ObsidianTFile } from 'obsidian';
 import type { BatchEmbeddingResult } from '../embeddings/types';
 import type { EmbeddingCooldown } from '../embeddings/embeddingCooldown';
@@ -106,7 +106,7 @@ export function createVisualEmbedBackend(deps: VisualEmbedBackendDeps): Embeddin
             for (const [pdfPath, idxs] of byPdf) {
                 const file = deps.app.vault.getAbstractFileByPath(pdfPath);
                 if (!(file instanceof ObsidianTFile)) continue; // deleted since enqueue → [] rows
-                const lease = await deps.pool.lease(file as TFile);
+                const lease = await deps.pool.lease(file);
                 if (!lease.ok) {
                     logger.warn('Search', `Visual embed: cannot open ${pdfPath}: ${lease.error}`);
                     continue;

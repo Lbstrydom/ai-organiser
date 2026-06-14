@@ -97,7 +97,7 @@ export class PdfHandlePool {
             release: () => {
                 if (released) return;
                 released = true;
-                this.releaseEntry(entry!);
+                this.releaseEntry(entry);
             },
         });
     }
