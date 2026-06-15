@@ -22,7 +22,7 @@ import { type Result, ok, err } from '../../core/result';
 const AZURE_VOICE_RE = /^[A-Za-z]{2,4}-[A-Za-z]{2,4}(-[A-Za-z0-9]+){1,2}(:[A-Za-z0-9]+)?$/;
 
 /** XML 1.0 forbidden control characters (everything below 0x20 except TAB/LF/CR). */
-// eslint-disable-next-line no-control-regex
+// eslint-disable-next-line no-control-regex -- intentional: matches XML-1.0-forbidden control chars in order to strip them
 const XML_INVALID_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 
 /**
