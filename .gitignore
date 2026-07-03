@@ -49,6 +49,8 @@ coverage/
 # clean-clone gate: `npm run build` → test:all → node scripts/automated-tests.js)
 # and the persona-harness (minus its transient session outputs).
 scripts/*
+# consumers TRACK their own sync manifest (synced-skills isolation verifier reads it)
+!scripts/.sync-manifest.json
 !scripts/automated-tests.js
 .github/skills/
 .github/appmod/
@@ -139,6 +141,13 @@ dashboard/telemetry.html
 .skills-fit-check.json
 logs/mcp-*.log
 logs/mcp-*.log.gz
+.audit/cache-metrics.jsonl
+.audit-loop/*-observed.json
+.audit-loop/*-verify-result.json
+.audit-loop/*-drift-ledger.json
+.audit-loop/arm-eval-toggle.json
+docs/arm-eval/sessions/*
+docs/arm-eval/worksheets/*
 # /managed-by:claude-engineering-skills-sync
 
 # Playwright e2e output
