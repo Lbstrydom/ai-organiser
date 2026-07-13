@@ -1,8 +1,10 @@
 import type { AdapterType } from './index';
 import * as endpoints from './cloudEndpoints.json';
 
-// Complete list of supported adapters (keep in sync with AdapterType and createAdapter)
-export const ALL_ADAPTERS: AdapterType[] = [
+// Complete list of supported adapters (keep in sync with AdapterType and createAdapter).
+// A literal tuple (`as const`), not `AdapterType[]` — see the compile-time
+// exhaustiveness assertion below, which depends on the narrow literal type.
+export const ALL_ADAPTERS = [
   'openai',
   'gemini',
   'deepseek',
@@ -19,7 +21,22 @@ export const ALL_ADAPTERS: AdapterType[] = [
   'openai-compatible',
   'azure-claude',
   'azure-openai',
-];
+] as const satisfies readonly AdapterType[];
+
+// Compile-time guard: every AdapterType union member must appear in
+// ALL_ADAPTERS. If a new member is added to the union without being added
+// here, `_MissingAdapterTypes` becomes a non-`never` type and this line
+// fails to typecheck (caught by `tsc`, which `npm run test:all`/`build:quick`
+// already run — not a runtime assertion).
+//
+// The array MUST stay a literal tuple for this to be meaningful: with the
+// wide `AdapterType[]` annotation, `(typeof ALL_ADAPTERS)[number]` collapses
+// back to `AdapterType` and this assertion becomes vacuously true regardless
+// of the array's actual contents (a mistake made and caught during review —
+// don't reintroduce it).
+type _MissingAdapterTypes = Exclude<AdapterType, (typeof ALL_ADAPTERS)[number]>;
+const _allAdaptersCovered: [_MissingAdapterTypes] extends [never] ? true : never = true;
+void _allAdaptersCovered;
 
 // Default models per provider
 // `latest-*` sentinels are used where a provider has the auto-tracking

@@ -633,9 +633,10 @@ Each settings section is a separate class extending `BaseSettingSection`. Add ne
 ### Service Adapters
 New cloud providers require:
 1. Create adapter in `src/services/adapters/[provider]Adapter.ts`
-2. Implement `CloudServiceAdapter` interface
-3. Add to `AdapterType` type and `adapters` map in `index.ts`
+2. Extend `BaseAdapter` (`baseAdapter.ts`) — there is no separate `CloudServiceAdapter` interface
+3. Add to `AdapterType` type, `ALL_ADAPTERS` (`providerRegistry.ts`), and the `createAdapter()` switch in `index.ts`
 4. Update settings UI dropdown
+5. The adapter is automatically covered by `tests/adapterConformance.test.ts` (registry-driven — no test file edits needed). See [docs/adapter-conformance-contract.md](docs/adapter-conformance-contract.md) for the full derived contract.
 
 ### Command Pattern
 Commands are isolated in `src/commands/` by category. New commands follow pattern:

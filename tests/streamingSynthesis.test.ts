@@ -61,7 +61,6 @@ import { GrokAdapter } from '../src/services/adapters/grokAdapter';
 import { OpenRouterAdapter } from '../src/services/adapters/openRouterAdapter';
 import { RequestyAdapter } from '../src/services/adapters/requestyAdapter';
 import { AliyunAdapter } from '../src/services/adapters/aliyunAdapter';
-import { SiliconflowAdapter } from '../src/services/adapters/siliconflowAdapter';
 import { OpenAICompatibleAdapter } from '../src/services/adapters/openaiCompatibleAdapter';
 import { CDPClient } from '../src/services/research/brightdata/cdpClient';
 import { ScrapingBrowser } from '../src/services/research/brightdata/scrapingBrowser';
@@ -271,7 +270,6 @@ describe('Adapter streaming support', () => {
         ['OpenRouter', OpenRouterAdapter],
         ['Requesty', RequestyAdapter],
         ['Aliyun', AliyunAdapter],
-        ['Siliconflow', SiliconflowAdapter],
         ['OpenAI-Compatible', OpenAICompatibleAdapter],
         ['Gemini', GeminiAdapter],
     ] as const;
