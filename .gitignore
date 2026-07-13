@@ -55,7 +55,9 @@ scripts/*
 !scripts/.sync-manifest.json
 !scripts/automated-tests.js
 !scripts/verify-build.mjs
+!scripts/verify-build.d.mts
 !scripts/setImmediatePolyfillSignature.mjs
+!scripts/setImmediatePolyfillSignature.d.mts
 .github/skills/
 .github/appmod/
 .githooks/

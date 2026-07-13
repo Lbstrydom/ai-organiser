@@ -19,7 +19,10 @@ const AZURE_ADAPTERS = ['azure-claude', 'azure-openai'] as const;
 
 describe('Provider Registry', () => {
   it('ALL_ADAPTERS includes all supported adapters', () => {
-    expect(ALL_ADAPTERS.sort()).toEqual([...EXPECTED_ADAPTERS].sort());
+    // ALL_ADAPTERS is now a readonly literal tuple (compile-time exhaustiveness
+    // assertion against AdapterType) — spread into a mutable array before
+    // sorting, since Array.prototype.sort() mutates in place.
+    expect([...ALL_ADAPTERS].sort()).toEqual([...EXPECTED_ADAPTERS].sort());
   });
 
   it('has default models for each adapter', () => {
