@@ -46,12 +46,16 @@ TEST_INSTRUCTIONS.md
 coverage/
 
 # Internal dev tools — ignore scripts/ contents EXCEPT the build runner (a real
-# clean-clone gate: `npm run build` → test:all → node scripts/automated-tests.js)
-# and the persona-harness (minus its transient session outputs).
+# clean-clone gate: `npm run build` → test:all → node scripts/automated-tests.js),
+# the build-artifact verification gate (imported by the tracked esbuild.config.mjs
+# — a fresh clone's build would fail without these), and the persona-harness
+# (minus its transient session outputs).
 scripts/*
 # consumers TRACK their own sync manifest (synced-skills isolation verifier reads it)
 !scripts/.sync-manifest.json
 !scripts/automated-tests.js
+!scripts/verify-build.mjs
+!scripts/setImmediatePolyfillSignature.mjs
 .github/skills/
 .github/appmod/
 .githooks/
@@ -142,6 +146,7 @@ dashboard/telemetry.html
 logs/mcp-*.log
 logs/mcp-*.log.gz
 .audit/cache-metrics.jsonl
+.audit/tiered-shadow-log.jsonl
 .audit-loop/*-observed.json
 .audit-loop/*-verify-result.json
 .audit-loop/*-drift-ledger.json

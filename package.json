@@ -7,6 +7,7 @@
     "dev": "node esbuild.config.mjs",
     "build": "npm run test:all && node esbuild.config.mjs production",
     "build:quick": "npx tsc -p tsconfig.build.json -noEmit && node esbuild.config.mjs production",
+    "verify:build": "node scripts/verify-build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

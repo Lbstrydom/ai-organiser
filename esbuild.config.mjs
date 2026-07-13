@@ -4,6 +4,8 @@ import builtins from "builtin-modules";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
+import { SCRIPT_CREATE_RE, ONREADYSTATECHANGE_WINDOW } from "./scripts/setImmediatePolyfillSignature.mjs";
+import { loadArtifacts, runAllChecks } from "./scripts/verify-build.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -97,12 +99,10 @@ module.exports.default = m;
  */
 const SETIMMEDIATE_POLYFILL_FILES =
     /[\\/]node_modules[\\/](immediate|setimmediate|lie|jszip|pptxgenjs|dom-to-pptx|docx)[\\/].*\.(?:c|m)?js$/;
-const SCRIPT_CREATE_RE = /createElement\((['"])script\1\)/g;
-// The setImmediate polyfill's signature token sits within a few chars of BOTH its
-// createElement("script") sites: the feature-detection (`"onreadystatechange" in
-// …createElement("script")`) and the usage (`x=…createElement("script");x.onready
-// statechange=…`). 60 chars comfortably spans either side.
-const ONREADYSTATECHANGE_WINDOW = 60;
+// SCRIPT_CREATE_RE / ONREADYSTATECHANGE_WINDOW now live in
+// scripts/setImmediatePolyfillSignature.mjs, shared with scripts/verify-build.mjs
+// so the build-time swap and the post-build verification can never independently
+// drift about what "the polyfill signature" is.
 const neutralizeSetImmediateScriptPolyfill = {
     name: 'neutralize-setimmediate-script-polyfill',
     setup(build) {
@@ -261,5 +261,28 @@ esbuild.build({
     ".md": "text"
   }
 }).then(() => {
+  // Production builds are release artifacts — verify BEFORE deploying, so a
+  // failing gate never lets a bad main.js reach the local vault/mobile
+  // staging folders first (audit-caught ordering bug: `npm run verify:build`
+  // used to run only AFTER this whole script — including deploy — already
+  // completed). Dev/watch builds skip this: they're unminified iteration
+  // builds, not release candidates, and gating them would be pure friction —
+  // `npm run verify:build` remains available standalone for anyone who wants
+  // to check an already-built main.js without rebuilding.
+  if (prod) {
+    const loaded = loadArtifacts();
+    if (!loaded.ok) {
+      console.error(`[verify:build] ${loaded.result.name}: ${loaded.result.message}`);
+      process.exit(1);
+    }
+    const results = runAllChecks(loaded);
+    for (const r of results) {
+      console.log(`[verify:build ${r.status.toUpperCase()}] ${r.name}: ${r.message}`);
+    }
+    if (results.some(r => r.status === "fail")) {
+      console.error("\n[verify:build] FAILED — build artifact not deployed. See docs/build-invariants.md.");
+      process.exit(1);
+    }
+  }
   deployArtifacts();
 }).catch(() => process.exit(1));
