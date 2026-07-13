@@ -1,4 +1,6 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
+// jsdom (not happy-dom): exercises sanitizePresentation()/DOMPurify — see
+// https://github.com/capricorn86/happy-dom/issues/1810.
 import { describe, it, expect } from 'vitest';
 import { SlideIrSchema, validateDeckIr, IR_SCHEMA_VERSION } from '../src/services/presentationIr/slideIr';
 import type { Block, SlideDeckIr } from '../src/services/presentationIr/slideIr';

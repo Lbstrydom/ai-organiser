@@ -1,10 +1,14 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 /**
  * Security tests for the DOMPurify-based presentation sanitizer
  * (plan: presentation-sanitizer-hardening, Phase 1).
  *
- * happy-dom gives DOMPurify a real-ish parser for the removal corpus. CSP
- * enforcement (a "script didn't RUN" assertion) is NOT testable here — happy-dom
+ * jsdom gives DOMPurify a real-ish parser for the removal corpus (DOMPurify's
+ * own docs recommend jsdom over happy-dom for Node testing — happy-dom only
+ * purifies parent elements, not children, which silently under-sanitizes;
+ * see https://github.com/capricorn86/happy-dom/issues/1810). Real-Chromium
+ * behavior is independently verified correct (2026-07-13 audit) — CSP
+ * enforcement (a "script didn't RUN" assertion) is NOT testable here — jsdom
  * doesn't enforce CSP — that's the deferred Phase-2 Playwright test. These
  * assert the sanitizer REMOVES the executable surface.
  */
@@ -141,7 +145,14 @@ describe('sanitizePresentation — CSS property/value allowlist', () => {
         expect(r.html).not.toMatch(/evil\.com/);
     });
     it('counts a partial CSS strip as a removal (audit M4)', () => {
-        const r = sanitizePresentation('<div class="slide" style="color:red; -moz-binding:url(x)">x</div>');
+        // `cursor` (not `-moz-binding`): real Chromium and jsdom's CSSOM both
+        // silently refuse to parse legacy vendor-prefixed properties like
+        // `-moz-binding` into `style.item()` at all (verified against real
+        // Chromium 2026-07-13) — so it never reached our allowlist-drop logic
+        // in the first place and couldn't exercise this assertion. `cursor` is
+        // a real, CSSOM-recognized property that's genuinely absent from our
+        // allowlist, so it actually reaches (and is dropped by) our own check.
+        const r = sanitizePresentation('<div class="slide" style="color:red; cursor:pointer">x</div>');
         expect(r.status).toBe('sanitized');
         expect(r.removed.attrs).toBeGreaterThanOrEqual(1);
     });

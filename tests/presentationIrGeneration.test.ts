@@ -1,4 +1,9 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
+// jsdom (not happy-dom): this file exercises sanitizePresentation()/DOMPurify
+// via buildHtmlFromDeckIr; happy-dom+DOMPurify silently under-sanitizes (only
+// purifies parent elements, not children — see
+// https://github.com/capricorn86/happy-dom/issues/1810). Real-Chromium
+// behavior independently verified correct (2026-07-13 audit).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../src/services/llmFacade', () => ({
