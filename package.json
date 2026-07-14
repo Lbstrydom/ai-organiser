@@ -97,10 +97,13 @@
     "perfect-freehand": "^1.2.3",
     "pptxgenjs": "^4.0.1",
     "voy-search": "^0.6.0",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
     "@xenova/transformers": "^2.17.2"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.10"
   }
 }
