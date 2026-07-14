@@ -71,7 +71,7 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                                 // called with settings.embeddingModel as the model id.
                                 plugin.settings.enableLocalOnnxEmbeddings = true;
                                 plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
-                                plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
+                                plugin.settings.embeddingModel = EMBEDDING_DEFAULT_MODEL['local-onnx'];
                             });
                         });
                         return;
@@ -151,7 +151,16 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 this.openLocalOnnxConsentModal(plugin, (accepted) => {
                     if (!accepted) return;
                     void this.applyLocalOnnxConsentChange(plugin, () => {
+                        // This banner also covers the auto-fallback case (a
+                        // cloud provider selected with no API key) — flag-only
+                        // would leave `embeddingModel` at the cloud provider's
+                        // model string (e.g. 'text-embedding-3-small'), which
+                        // resolveLocalOnnxEmbeddingService() would then try to
+                        // load as an HF repo id. Switch fully to local-onnx,
+                        // same as the dropdown's accept mutator above.
                         plugin.settings.enableLocalOnnxEmbeddings = true;
+                        plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
+                        plugin.settings.embeddingModel = EMBEDDING_DEFAULT_MODEL['local-onnx'];
                     });
                 });
             });
@@ -183,8 +192,14 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     });
             });
 
-        // local-onnx: show "ready" notice instead of API key/endpoint
-        if (plugin.settings.embeddingProvider === 'local-onnx') {
+        // local-onnx: show "ready" notice instead of API key/endpoint.
+        // audit-caught (M6): gating on the raw provider field alone let this
+        // render alongside the not-consented banner above whenever
+        // embeddingProvider === 'local-onnx' but consent had been revoked
+        // (or was never granted) — two contradictory statuses at once. Gate
+        // on the SAME classifier the not-consented banner uses, so exactly
+        // one of the two can ever be true.
+        if (plugin.settings.embeddingProvider === 'local-onnx' && availability === 'local-onnx') {
             const readyEl = sectionEl.createDiv({ cls: 'ai-organiser-settings-status' });
             readyEl.createEl('span', {
                 text: t.settings.semanticSearch.localOnnxReady,

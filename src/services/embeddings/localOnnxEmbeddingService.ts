@@ -11,15 +11,22 @@ const MODEL_DIMENSIONS: Record<string, number> = {
  * Hub's mutable `main` branch default (npm-audit-remediation plan,
  * Cluster 4, Gemini gate round 3 G1) — a compromise of the upstream HF
  * account could otherwise push different model bytes to every opted-in
- * user with no version bump or code change on our side. Verified
- * 2026-07-13 against https://huggingface.co/api/models/Xenova/all-MiniLM-L6-v2
- * (see docs/dependency-accepted-risks.md for the update procedure). Only
- * the default model is currently pinned — a model not in this map falls
- * back to `main` (documented gap, not a silent unpinned default: this is
- * the ONLY model this plan's security review verified).
+ * user with no version bump or code change on our side. All three models
+ * offered by the local-onnx model dropdown (embeddingRegistry.ts
+ * EMBEDDING_MODELS['local-onnx']) are pinned — audit H3/M9/H8 caught that
+ * only the default was covered, while the other two are equally reachable
+ * via the settings UI. Verified 2026-07-13/14 against
+ * https://huggingface.co/api/models/<id> (see
+ * docs/dependency-accepted-risks.md for the update procedure). A caller-
+ * supplied `modelId` outside this map (not offered by any UI — the type is
+ * an unconstrained string) still falls back to `main` — that residual gap
+ * is documented in docs/dependency-accepted-risks.md rather than silently
+ * unpinned.
  */
 const MODEL_REVISIONS: Record<string, string> = {
     'Xenova/all-MiniLM-L6-v2': '751bff37182d3f1213fa05d7196b954e230abad9',
+    'Xenova/bge-small-en-v1.5': 'ea104dacec62c0de699686887e3f920caeb4f3e3',
+    'nomic-ai/nomic-embed-text-v1.5': 'e9b6763023c676ca8431644204f50c2b100d9aab',
 };
 
 type FeatureExtractionPipeline = (text: string | string[], options?: { pooling?: 'none' | 'cls' | 'mean'; normalize?: boolean }) => Promise<{ data: Float32Array }>;

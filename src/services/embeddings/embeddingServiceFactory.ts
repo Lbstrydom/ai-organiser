@@ -42,7 +42,10 @@ export async function resolveLocalOnnxEmbeddingService(
     // promise that bypasses every caller's Result-handling.
     try {
         const { LocalOnnxEmbeddingService } = await import('./localOnnxEmbeddingService');
-        return ok(new LocalOnnxEmbeddingService(modelId || 'Xenova/all-MiniLM-L6-v2'));
+        // audit-caught (L2): don't re-hardcode the default model id here —
+        // embeddingRegistry.ts's EMBEDDING_DEFAULT_MODEL is already the
+        // single source of truth for it, and this module already imports it.
+        return ok(new LocalOnnxEmbeddingService(modelId || EMBEDDING_DEFAULT_MODEL['local-onnx']));
     } catch (error) {
         logger.error('Search', 'Failed to load local ONNX embedding service:', error);
         return err('local-onnx-load-failed');

@@ -110,25 +110,47 @@ Plan: [docs/plans/npm-audit-remediation.md](plans/npm-audit-remediation.md).
 
 ### Local ONNX embedding model — pinned to a commit SHA
 
-- **Reason**: `LocalOnnxEmbeddingService` downloads
-  `Xenova/all-MiniLM-L6-v2` from Hugging Face Hub. The default `main` branch
-  is a mutable ref — a compromise of the `Xenova` HF account could push
-  different model bytes to every opted-in user, and the `@xenova/transformers
-  → onnxruntime-web → onnx-proto → protobufjs` chain has a known
-  critical-severity (RCE-class) vulnerability with no available fix, so the
-  bytes being decoded matter.
-- **Pinned commit**: `751bff37182d3f1213fa05d7196b954e230abad9`
-- **Verified 2026-07-13**: `https://huggingface.co/api/models/Xenova/all-MiniLM-L6-v2`
-  → `sha: 751bff37182d3f1213fa05d7196b954e230abad9`, `lastModified:
-  2025-07-22T16:42:24.000Z`.
+- **Reason**: `LocalOnnxEmbeddingService` downloads its model from Hugging
+  Face Hub. The default `main` branch is a mutable ref — a compromise of
+  the upstream HF account could push different model bytes to every
+  opted-in user, and the `@xenova/transformers → onnxruntime-web →
+  onnx-proto → protobufjs` chain has a known critical-severity (RCE-class)
+  vulnerability with no available fix, so the bytes being decoded matter.
+- **Pinned commits** — all three models offered by the local-onnx model
+  dropdown (`embeddingRegistry.ts` `EMBEDDING_MODELS['local-onnx']`) are
+  pinned; audit round H3/M9/H8 caught that only the default was covered
+  while the other two are equally selectable in the settings UI:
+  - `Xenova/all-MiniLM-L6-v2` (default) →
+    `751bff37182d3f1213fa05d7196b954e230abad9`
+  - `Xenova/bge-small-en-v1.5` →
+    `ea104dacec62c0de699686887e3f920caeb4f3e3`
+  - `nomic-ai/nomic-embed-text-v1.5` →
+    `e9b6763023c676ca8431644204f50c2b100d9aab`
+- **Verified 2026-07-13/14** via `https://huggingface.co/api/models/<id>`:
+  - `Xenova/all-MiniLM-L6-v2` → `sha: 751bff37182d3f1213fa05d7196b954e230abad9`,
+    `lastModified: 2025-07-22T16:42:24.000Z`.
+  - `Xenova/bge-small-en-v1.5` → `sha: ea104dacec62c0de699686887e3f920caeb4f3e3`,
+    `lastModified: 2025-07-22T16:45:37.000Z`.
+  - `nomic-ai/nomic-embed-text-v1.5` → `sha: e9b6763023c676ca8431644204f50c2b100d9aab`,
+    `lastModified: 2026-04-07T14:17:02.000Z`.
+- **Residual gap (documented, not silent)**: `LocalOnnxEmbeddingService`'s
+  constructor accepts an unconstrained `modelId: string` — a value outside
+  this map (reachable only through a hand-edited settings file or a future
+  code path, since no UI offers a fourth option today) still resolves
+  against the mutable `main` branch. `getPipeline()` computes
+  `MODEL_REVISIONS[this.modelId]` and only passes a `revision` option when
+  a pin exists, so this degrades to the pre-pin behaviour rather than
+  failing — a deliberate choice (fail-open on an unrecognised model id, not
+  fail-closed) since the alternative (refusing to embed) would break the
+  feature for a value the plan didn't anticipate.
 - **Underlying dependency risk NOT eliminated**: this narrows exploitability
   (immutable content vs. a mutable branch pointer) — it does not fix the
   `protobufjs` chain itself. The real fix is a future migration to
   `@huggingface/transformers`, tracked separately (out of scope for the
   plan that produced this pin).
-- **Update procedure**: any intentional model update requires resolving and
-  recording a new commit SHA here, the same way the xlsx pin is updated —
-  never a silent `main`-branch drift.
+- **Update procedure**: any intentional model update, or adding a new
+  selectable model to the dropdown, requires resolving and recording a new
+  commit SHA here first — never a silent `main`-branch drift.
 
 ### Related but deferred
 
