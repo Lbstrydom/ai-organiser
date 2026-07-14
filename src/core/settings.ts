@@ -1258,7 +1258,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
  * `false` (a user who later revoked consent must never be silently
  * re-enabled on a later load). Operates on the RAW persisted object, called
  * from `migrateOldSettings()` before `main.ts`'s `Object.assign` merges
- * `DEFAULT_SETTINGS` — see `docs/plans/npm-audit-remediation.md` audit M2.
+ * `DEFAULT_SETTINGS` — see `docs/completed/npm-audit-remediation.md` audit M2.
  */
 function migrateLocalOnnxConsent(s: Record<string, unknown>): void {
     if (s.enableLocalOnnxEmbeddings === undefined && s.embeddingProvider === 'local-onnx') {

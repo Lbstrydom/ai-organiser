@@ -5,7 +5,7 @@ whose risk is accepted (with a named trigger for revisiting), or a dependency
 pinned to a specific non-registry artifact (with its provenance recorded so
 future updates repeat the same verification, not a blind bump).
 
-Plan: [docs/plans/npm-audit-remediation.md](plans/npm-audit-remediation.md).
+Plan: [docs/completed/npm-audit-remediation.md](completed/npm-audit-remediation.md).
 
 ---
 
