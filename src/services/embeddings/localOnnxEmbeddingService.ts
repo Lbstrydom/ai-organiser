@@ -46,6 +46,8 @@ type FeatureExtractionPipeline = ((text: string | string[], options?: { pooling?
 export class LocalOnnxEmbeddingService implements IEmbeddingService {
     private pipeline: FeatureExtractionPipeline | null = null;
     private modelId: string;
+    private isDisposed = false;
+    private activeInferences = 0;
 
     constructor(modelId = 'Xenova/all-MiniLM-L6-v2') {
         this.modelId = modelId;
@@ -57,6 +59,15 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
     }
 
     async generateEmbedding(text: string): Promise<EmbeddingResult> {
+        // Gemini gate final round 2, G2: a permanently-disposed instance
+        // must never silently "resurrect" itself by starting a new init —
+        // a long-running batchGenerateEmbeddings() loop that outlives a
+        // dispose() call (e.g. the user toggled the feature off mid-index)
+        // would otherwise keep downloading/running inference indefinitely.
+        if (this.isDisposed) {
+            return { success: false, error: 'Service disposed' };
+        }
+        this.activeInferences++;
         try {
             const pipe = await this.getPipeline();
             const result = await pipe(text, { pooling: 'mean', normalize: true });
@@ -64,6 +75,17 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
             return { success: true, embedding };
         } catch (error) {
             return { success: false, error: String(error) };
+        } finally {
+            this.activeInferences--;
+            // Gemini gate final round 2, G1 (self-correction of the round-1
+            // fix): a dispose() that arrived while THIS inference was
+            // actively inside the WASM pipeline call deferred physical
+            // teardown (see dispose()) rather than freeing memory out from
+            // under an active prediction. Once the last active inference
+            // finishes, complete the deferred teardown.
+            if (this.isDisposed && this.activeInferences === 0) {
+                await this.teardownPipeline();
+            }
         }
     }
 
@@ -118,29 +140,39 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
     }
 
     async dispose(): Promise<void> {
-        // Gemini gate final round G1: release the underlying ONNX Runtime
-        // Web session's WASM heap explicitly — clearing our own reference
-        // doesn't free it, and it isn't reliably garbage-collected.
+        // Permanent — this instance never does new work again, matching the
+        // real call pattern (main.ts always discards a disposed instance
+        // and constructs a fresh one for whatever comes next; it never
+        // reuses one). Set BEFORE the active-inference check so no new
+        // generateEmbedding() call can start in the window while we decide
+        // whether to tear down immediately or defer.
+        this.isDisposed = true;
+        if (this.activeInferences > 0) {
+            // Gemini gate final round 2, G1: freeing the WASM session's
+            // memory while generateEmbedding() is actively inside
+            // pipe(text, ...) can crash the Obsidian renderer (the C++ WASM
+            // bindings access linear memory that would be pulled out from
+            // under them mid-call). Defer physical teardown — the last
+            // active inference's own `finally` block (in generateEmbedding)
+            // completes it once it's actually safe. No new inference can
+            // start in the meantime (isDisposed is already true above).
+            return;
+        }
+        await this.teardownPipeline();
+    }
+
+    private async teardownPipeline(): Promise<void> {
+        // Gemini gate final round 1, G1: release the underlying ONNX
+        // Runtime Web session's WASM heap explicitly — clearing our own
+        // reference doesn't free it, and it isn't reliably garbage-collected.
+        // Safe to call more than once: `?.` no-ops once `this.pipeline` is
+        // already null.
         await this.pipeline?.dispose?.();
         this.pipeline = null;
         this.pipelinePromise = null;
-        // audit-caught (M2/M5, round 2): a dispose() call while an init was
-        // still in flight cleared these fields, but the in-flight async work
-        // kept running regardless and would resurrect `this.pipeline` on a
-        // disposed instance once it resolved. A plain boolean flag isn't
-        // enough — a SECOND dispose+reinit racing against the first init's
-        // still-pending resolution would reset the flag before the first
-        // init's completion check ever ran. A monotonic generation counter
-        // fixes this: each init captures the generation it started under,
-        // and only commits its result if that generation is still current
-        // — bumping the generation on EVERY dispose (not just setting a
-        // flag) invalidates every init that started before it, regardless
-        // of how many dispose/reinit cycles race in between.
-        this.generation++;
     }
 
     private pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
-    private generation = 0;
 
     private async getPipeline(): Promise<FeatureExtractionPipeline> {
         if (this.pipeline) return this.pipeline;
@@ -148,7 +180,6 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         // resolved pipeline — without this, concurrent first-callers each
         // independently triggered a separate model download/init.
         if (this.pipelinePromise) return this.pipelinePromise;
-        const startedAtGeneration = this.generation;
         // audit-caught (H4/M3/H7, round 3): reject an unpinned model id
         // HERE, at the class's own enforcement point, rather than relying
         // solely on the factory's pre-construction check — a defense-in-
@@ -164,34 +195,21 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
             // @ts-ignore — optional peer dependency
             const { pipeline } = await import('@xenova/transformers');
             const pipe = (await pipeline('feature-extraction', this.modelId, { revision })) as unknown as FeatureExtractionPipeline;
-            if (this.generation !== startedAtGeneration) {
-                // Gemini gate final round G1: a dispose() (or dispose+reinit)
-                // raced ahead of this init — this pipeline was never stored
-                // in `this.pipeline` and nothing else will ever dispose it.
-                // Release its WASM resources now rather than leaking them;
-                // the caller that started this specific call receives a
-                // now-disposed pipe (matches "this service instance's
-                // generation moved on" semantics — its pending
-                // generateEmbedding() call fails through the existing
-                // try/catch rather than silently using a zombie session).
-                await pipe.dispose?.();
-                return pipe;
-            }
+            // No isDisposed special-case here (Gemini gate final round 2):
+            // the only way this init is still running after dispose() is
+            // that dispose() saw activeInferences > 0 and deferred — i.e.
+            // THIS specific in-flight generateEmbedding() call is exactly
+            // the active inference being waited on. Storing the pipeline
+            // normally lets that call's own `finally` block find and
+            // dispose it via the shared teardownPipeline() path once its
+            // inference completes — no separate disposal path needed here.
             this.pipeline = pipe;
             return pipe;
         })();
         try {
             return await this.pipelinePromise;
         } finally {
-            // Clear the in-flight marker regardless of outcome — a failed
-            // init must not permanently wedge every future call behind a
-            // rejected promise; `this.pipeline` (set only on success) is
-            // the real completion marker. Only clear it if THIS init is
-            // still the current one — a superseded init's `finally` must
-            // not clobber a newer init's own in-flight promise.
-            if (this.generation === startedAtGeneration) {
-                this.pipelinePromise = null;
-            }
+            this.pipelinePromise = null;
         }
     }
 }

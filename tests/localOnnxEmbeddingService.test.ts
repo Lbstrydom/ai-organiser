@@ -101,6 +101,26 @@ describe('LocalOnnxEmbeddingService', () => {
             const result = await svc.batchGenerateEmbeddings(['ok', 'fail']);
             expect(result.success).toBe(false);
         });
+
+        // Gemini gate final round 2, G2: a long-running batch loop that
+        // outlives a dispose() call (e.g. the user toggled the feature off
+        // mid-index) must stop cleanly instead of silently starting a new
+        // model download/init for the remaining texts.
+        it('stops cleanly instead of resurrecting the service if disposed mid-batch', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            pipelineMock.mockClear();
+            const svc = new LocalOnnxEmbeddingService();
+            await svc.generateEmbedding('prime the pipeline');
+            pipelineMock.mockClear();
+
+            await svc.dispose();
+            const result = await svc.batchGenerateEmbeddings(['a', 'b', 'c']);
+
+            expect(result.success).toBe(false);
+            expect(result.error).toBe('Service disposed');
+            expect(pipelineMock).not.toHaveBeenCalled();
+        });
     });
 
     describe('testConnection', () => {
@@ -147,15 +167,18 @@ describe('LocalOnnxEmbeddingService', () => {
             expect(pipelineMock).toHaveBeenCalledTimes(1);
         });
 
-        // audit-caught (M2/M5, round 2): dispose() during an in-flight init
-        // used to clear this.pipeline/this.pipelinePromise, but the
-        // in-flight async work kept running regardless and would resurrect
-        // this.pipeline once it resolved — a disposed instance silently
-        // becoming "ready" again with a stale pipeline reference.
-        it('discards an in-flight init\'s result if dispose() was called before it resolved', async () => {
+        // Gemini gate final round 2, G1/G2 (supersedes the earlier round-1/2
+        // "reinit after dispose" design): dispose() is now PERMANENT — it
+        // never causes a "fresh call triggers a new init" outcome, because
+        // freeing WASM memory out from under an active inference can crash
+        // the renderer, and a disposed instance must never silently
+        // resurrect itself. dispose() called mid-init instead DEFERS
+        // physical teardown until the in-flight call (which owns the only
+        // active inference) actually finishes.
+        it('lets an in-flight inference complete successfully even if dispose() arrives mid-flight, then tears down afterward', async () => {
             const { pipeline } = await import('@xenova/transformers');
             const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
-            let resolveInit: ((fn: () => Promise<{ data: Float32Array }>) => void) | undefined;
+            let resolveInit: ((fn: unknown) => void) | undefined;
             pipelineMock.mockImplementationOnce(() => new Promise((resolve) => { resolveInit = resolve; }));
 
             const svc = new LocalOnnxEmbeddingService();
@@ -168,18 +191,39 @@ describe('LocalOnnxEmbeddingService', () => {
             // there before disposing, or dispose() races ahead of it.
             await vi.waitFor(() => { if (!resolveInit) throw new Error('not yet'); });
 
-            await svc.dispose();
-            // Now let the init actually complete, AFTER disposal.
-            resolveInit!(vi.fn().mockResolvedValue({ data: new Float32Array([0.1]) }));
-            await inFlight;
+            const disposePromise = svc.dispose();
 
-            // A fresh call after disposal must trigger a genuinely NEW init
-            // (proving the disposed init's result was discarded, not reused).
+            const pipelineDispose = vi.fn().mockResolvedValue(undefined);
+            const pipeFn = Object.assign(
+                vi.fn().mockResolvedValue({ data: new Float32Array([0.1, 0.2]) }),
+                { dispose: pipelineDispose },
+            );
+            resolveInit!(pipeFn);
+
+            // dispose() must not hang waiting for the in-flight inference —
+            // it returns promptly (deferred teardown), not blocked on it.
+            await disposePromise;
+            expect(pipelineDispose).not.toHaveBeenCalled();
+
+            const result = await inFlight;
+            expect(result.success).toBe(true);
+            // Only NOW, after the in-flight inference actually finished,
+            // is the underlying WASM session torn down.
+            expect(pipelineDispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('rejects any call after dispose() immediately, never starting a new init (dispose is permanent)', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            const svc = new LocalOnnxEmbeddingService();
+            await svc.generateEmbedding('prime the pipeline');
+            await svc.dispose();
+
             pipelineMock.mockClear();
-            pipelineMock.mockResolvedValueOnce(vi.fn().mockResolvedValue({ data: new Float32Array([0.2]) }));
             const after = await svc.generateEmbedding('after dispose');
-            expect(after.success).toBe(true);
-            expect(pipelineMock).toHaveBeenCalledTimes(1);
+            expect(after.success).toBe(false);
+            expect(after.error).toBe('Service disposed');
+            expect(pipelineMock).not.toHaveBeenCalled();
         });
     });
 
@@ -218,26 +262,9 @@ describe('LocalOnnxEmbeddingService', () => {
             await expect(svc.dispose()).resolves.toBeUndefined();
         });
 
-        it('disposes an orphaned pipeline (one that resolved AFTER a dispose()/reinit race) instead of leaking it', async () => {
-            const { pipeline } = await import('@xenova/transformers');
-            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
-            let resolveInit: ((fn: unknown) => void) | undefined;
-            pipelineMock.mockImplementationOnce(() => new Promise((resolve) => { resolveInit = resolve; }));
-
-            const svc = new LocalOnnxEmbeddingService();
-            const inFlight = svc.generateEmbedding('will be disposed mid-flight');
-            await vi.waitFor(() => { if (!resolveInit) throw new Error('not yet'); });
-            await svc.dispose();
-
-            const orphanedDispose = vi.fn().mockResolvedValue(undefined);
-            const orphanedPipeFn = Object.assign(
-                vi.fn().mockResolvedValue({ data: new Float32Array([0.1]) }),
-                { dispose: orphanedDispose },
-            );
-            resolveInit!(orphanedPipeFn);
-            await inFlight;
-
-            expect(orphanedDispose).toHaveBeenCalledTimes(1);
-        });
+        // The dispose-during-in-flight-init race (deferred teardown until
+        // the active inference completes) is covered by the "lets an
+        // in-flight inference complete successfully..." test in the
+        // "concurrent initialization" describe block above.
     });
 });
