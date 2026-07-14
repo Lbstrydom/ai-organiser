@@ -1573,6 +1573,7 @@ export const en: Translations = {
         semanticSearchDisabled: "Semantic search is not enabled. Enable it in settings.",
         localOnnxNotConsented: "No cloud embedding key configured — enable local embeddings in settings, or add a cloud provider key.",
         localOnnxLoadFailed: "Local embeddings failed to load. Check your internet connection, or switch to a cloud provider in settings.",
+        localOnnxModelUnsupported: "The selected local embedding model isn't recognised. Choose one of the built-in options in settings.",
         externalCompressionNotSupported: "Can't compress external files. Use a smaller file.",
         mobileIndexTooLarge: "Mobile index skipped ({size}MB exceeds {limit}MB).",
         mobileDataWarning: "This audio file is {size}MB. It may use significant mobile data. Continue?",

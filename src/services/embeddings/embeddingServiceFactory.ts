@@ -36,16 +36,29 @@ export async function resolveLocalOnnxEmbeddingService(
     if (!settings.enableLocalOnnxEmbeddings) {
         return err('local-onnx-not-consented');
     }
+    // audit-caught (H1/H4/H5/H7/M4, recurring across two rounds): an
+    // unrecognised model id used to fall through to construction anyway,
+    // which the service resolves against Hugging Face Hub's mutable `main`
+    // branch (no immutable-revision pin exists for it) — a fail-OPEN
+    // outcome at exactly the trust boundary this whole cluster exists to
+    // fail CLOSED at. `EMBEDDING_MODELS['local-onnx']` is the same list
+    // that drives the settings dropdown (embeddingRegistry.ts) — the only
+    // 3 models a user can ever actually select — so validating against it
+    // rejects anything else (corrupted/hand-edited settings, a future code
+    // path) before construction, rather than silently downloading and
+    // running an unreviewed model.
+    const effectiveModelId = modelId || EMBEDDING_DEFAULT_MODEL['local-onnx'];
+    if (!EMBEDDING_MODELS['local-onnx'].includes(effectiveModelId)) {
+        logger.error('Search', `Rejected unsupported local-onnx model id: ${effectiveModelId}`);
+        return err('local-onnx-model-unsupported');
+    }
     // audit-caught (M1/M8/M16): the advertised Result<T> boundary must be
     // total — a failed dynamic import (optional dependency missing/corrupt)
     // or a throwing constructor must surface as `err(...)`, not a rejected
     // promise that bypasses every caller's Result-handling.
     try {
         const { LocalOnnxEmbeddingService } = await import('./localOnnxEmbeddingService');
-        // audit-caught (L2): don't re-hardcode the default model id here —
-        // embeddingRegistry.ts's EMBEDDING_DEFAULT_MODEL is already the
-        // single source of truth for it, and this module already imports it.
-        return ok(new LocalOnnxEmbeddingService(modelId || EMBEDDING_DEFAULT_MODEL['local-onnx']));
+        return ok(new LocalOnnxEmbeddingService(effectiveModelId));
     } catch (error) {
         logger.error('Search', 'Failed to load local ONNX embedding service:', error);
         return err('local-onnx-load-failed');
@@ -167,7 +180,7 @@ export function createEmbeddingService(config: NonLocalEmbeddingServiceConfig): 
  *  reason, since neither stores it anywhere shared. */
 export interface EmbeddingServiceResolution {
     service: IEmbeddingService | null;
-    unavailableReason: 'none' | 'credentials-missing' | 'local-onnx-not-consented' | 'local-onnx-load-failed';
+    unavailableReason: 'none' | 'credentials-missing' | 'local-onnx-not-consented' | 'local-onnx-load-failed' | 'local-onnx-model-unsupported';
 }
 
 /**
@@ -246,18 +259,35 @@ export async function createEmbeddingServiceFromSettings(
         // Explicit local-onnx selection, or the auto-fallback condition
         // (provider needs an API key but none is available) — both route
         // through the SAME consent-gated resolver, no special-casing.
+        //
+        // audit-caught (H3/M6 round 2): `settings.embeddingModel` only
+        // means "a local-onnx model id" when `embeddingProvider` is ITSELF
+        // 'local-onnx' — the model the user picked via the dropdown. In the
+        // auto-fallback branch, `embeddingProvider` is still a DIFFERENT
+        // cloud provider (e.g. 'openai') and `embeddingModel` is that
+        // provider's model string (e.g. 'text-embedding-3-small'), which
+        // resolveLocalOnnxEmbeddingService() would otherwise try to load as
+        // a HuggingFace repo id. This was the root cause behind three
+        // separate UI mutators each needing their own "also switch provider
+        // + model" patch (M9/H3/M6 across two audit rounds) — fixing it
+        // ONCE here, at the boundary that actually has both pieces of
+        // context (which branch is executing), means no UI callback needs
+        // to coordinate consent + provider + model as a bundle.
+        const localOnnxModelId = provider === 'local-onnx' ? settings.embeddingModel : undefined;
         if (provider === 'local-onnx' || (requiresApiKey(provider) && !apiKey)) {
-            const result = await resolveLocalOnnxEmbeddingService(settings, settings.embeddingModel);
+            const result = await resolveLocalOnnxEmbeddingService(settings, localOnnxModelId);
             if (!result.ok) {
                 // audit-caught (M7): resolveLocalOnnxEmbeddingService() can
-                // fail for two DIFFERENT reasons (not consented vs. the
-                // package/model genuinely failed to load) — collapsing both
-                // into 'local-onnx-not-consented' hid a real load failure
-                // behind a message telling an already-consented user to
-                // "enable" something they'd already enabled.
-                return unavailable(
-                    result.error === 'local-onnx-load-failed' ? 'local-onnx-load-failed' : 'local-onnx-not-consented'
-                );
+                // fail for THREE distinct reasons (not consented, the
+                // package/model failed to load, or an unsupported model id
+                // was rejected) — collapsing them all into
+                // 'local-onnx-not-consented' hid real failures behind a
+                // message telling an already-consented user to "enable"
+                // something they'd already enabled.
+                const reason = result.error === 'local-onnx-load-failed' || result.error === 'local-onnx-model-unsupported'
+                    ? result.error
+                    : 'local-onnx-not-consented';
+                return unavailable(reason);
             }
             return { service: result.value, unavailableReason: 'none' };
         }

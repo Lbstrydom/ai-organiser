@@ -128,6 +128,41 @@ describe('LocalOnnxEmbeddingService', () => {
             expect(b.success).toBe(true);
             expect(pipelineMock).toHaveBeenCalledTimes(1);
         });
+
+        // audit-caught (M2/M5, round 2): dispose() during an in-flight init
+        // used to clear this.pipeline/this.pipelinePromise, but the
+        // in-flight async work kept running regardless and would resurrect
+        // this.pipeline once it resolved — a disposed instance silently
+        // becoming "ready" again with a stale pipeline reference.
+        it('discards an in-flight init\'s result if dispose() was called before it resolved', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            let resolveInit: ((fn: () => Promise<{ data: Float32Array }>) => void) | undefined;
+            pipelineMock.mockImplementationOnce(() => new Promise((resolve) => { resolveInit = resolve; }));
+
+            const svc = new LocalOnnxEmbeddingService();
+            const inFlight = svc.generateEmbedding('will be disposed mid-flight');
+
+            // The mock's Promise executor (which captures resolveInit) only
+            // runs once execution reaches the `pipeline(...)` call inside
+            // getPipeline()'s IIFE — which is itself preceded by an awaited
+            // dynamic import. Wait for that microtask chain to actually get
+            // there before disposing, or dispose() races ahead of it.
+            await vi.waitFor(() => { if (!resolveInit) throw new Error('not yet'); });
+
+            await svc.dispose();
+            // Now let the init actually complete, AFTER disposal.
+            resolveInit!(vi.fn().mockResolvedValue({ data: new Float32Array([0.1]) }));
+            await inFlight;
+
+            // A fresh call after disposal must trigger a genuinely NEW init
+            // (proving the disposed init's result was discarded, not reused).
+            pipelineMock.mockClear();
+            pipelineMock.mockResolvedValueOnce(vi.fn().mockResolvedValue({ data: new Float32Array([0.2]) }));
+            const after = await svc.generateEmbedding('after dispose');
+            expect(after.success).toBe(true);
+            expect(pipelineMock).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('dispose', () => {

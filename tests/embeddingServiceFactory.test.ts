@@ -84,6 +84,32 @@ describe('resolveLocalOnnxEmbeddingService — the sole construction point', () 
             vi.resetModules();
         }
     });
+
+    // audit-caught (H1/H4/H5/H7/M4, recurring across two rounds): an
+    // unrecognised model id previously fell through to construction anyway,
+    // resolving against Hugging Face Hub's mutable `main` branch instead of
+    // an immutable pin — the exact trust-boundary bypass this cluster exists
+    // to close.
+    it('rejects a model id outside the 3 reviewed local-onnx models, never constructs the service', async () => {
+        const settings = makeSettings({ enableLocalOnnxEmbeddings: true });
+        const result = await resolveLocalOnnxEmbeddingService(settings, 'some-random/unreviewed-model');
+        expect(result).toEqual({ ok: false, error: 'local-onnx-model-unsupported' });
+    });
+
+    it('rejects an empty-string model id by treating it as the default (not bypassing validation via a falsy value)', async () => {
+        const settings = makeSettings({ enableLocalOnnxEmbeddings: true });
+        const result = await resolveLocalOnnxEmbeddingService(settings, '');
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.value.getModelName()).toBe('Xenova/all-MiniLM-L6-v2');
+    });
+
+    it('accepts each of the 3 reviewed models', async () => {
+        const settings = makeSettings({ enableLocalOnnxEmbeddings: true });
+        for (const modelId of ['Xenova/all-MiniLM-L6-v2', 'Xenova/bge-small-en-v1.5', 'nomic-ai/nomic-embed-text-v1.5']) {
+            const result = await resolveLocalOnnxEmbeddingService(settings, modelId);
+            expect(result.ok).toBe(true);
+        }
+    });
 });
 
 describe('classifyEmbeddingAvailability — pure classifier, shared source of truth', () => {
@@ -163,6 +189,19 @@ describe('createEmbeddingServiceFromSettings — end to end', () => {
         expect(unavailableReason).toBe('none');
     });
 
+    // audit-caught (H3/M6, round 2): the auto-fallback path used to pass
+    // settings.embeddingModel straight through, but that field belongs to
+    // the CLOUD provider ('text-embedding-3-small' here, per makeSettings'
+    // default) — resolveLocalOnnxEmbeddingService() would try to load it as
+    // a Hugging Face repo id. Explicit regression lock on the model that
+    // actually gets constructed, not just that A service was constructed.
+    it('auto-fallback constructs a REAL local-onnx model, never leaking the cloud provider\'s model string', async () => {
+        const settings = makeSettings({ embeddingProvider: 'openai', embeddingModel: 'text-embedding-3-small', embeddingApiKey: '', enableLocalOnnxEmbeddings: true });
+        const { service } = await createEmbeddingServiceFromSettings(settings);
+        expect(service).not.toBeNull();
+        expect(service?.getModelName()).toBe('Xenova/all-MiniLM-L6-v2');
+    });
+
     it('explicit provider: local-onnx, flag off → unavailable, no throw (audit H2 round 2 — closes the crash scenario)', async () => {
         const settings = makeSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: false });
         await expect(createEmbeddingServiceFromSettings(settings)).resolves.not.toThrow();
@@ -172,7 +211,11 @@ describe('createEmbeddingServiceFromSettings — end to end', () => {
     });
 
     it('explicit provider: local-onnx, flag on → constructs the service (same enforcement point as auto-fallback, no special-case)', async () => {
-        const settings = makeSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: true });
+        // audit round 2 (H1/H4/H7-adjacent fix): embeddingModel must be a
+        // real local-onnx model — the shared makeSettings() default
+        // ('text-embedding-3-small', an OpenAI model id) is now correctly
+        // rejected by the model-allowlist validation this fix added.
+        const settings = makeSettings({ embeddingProvider: 'local-onnx', embeddingModel: 'Xenova/all-MiniLM-L6-v2', enableLocalOnnxEmbeddings: true });
         const { service, unavailableReason } = await createEmbeddingServiceFromSettings(settings);
         expect(service).not.toBeNull();
         expect(unavailableReason).toBe('none');
@@ -183,7 +226,7 @@ describe('createEmbeddingServiceFromSettings — end to end', () => {
     // different outcomes must never cross-contaminate each other.
     it('two concurrent calls with different outcomes do not cross-contaminate unavailableReason', async () => {
         const denied = makeSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: false });
-        const allowed = makeSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: true });
+        const allowed = makeSettings({ embeddingProvider: 'local-onnx', embeddingModel: 'Xenova/all-MiniLM-L6-v2', enableLocalOnnxEmbeddings: true });
 
         const [deniedResult, allowedResult] = await Promise.all([
             createEmbeddingServiceFromSettings(denied),

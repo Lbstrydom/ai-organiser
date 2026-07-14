@@ -419,6 +419,13 @@ export default class AIOrganiserPlugin extends Plugin {
                 // an already-consented user back to a settings toggle that's
                 // already on.
                 new Notice(this.t.messages.localOnnxLoadFailed);
+            } else if (!service && unavailableReason === 'local-onnx-model-unsupported') {
+                // audit-caught (H1/H4/H5/H7/M4): a persisted embeddingModel
+                // value outside the 3 reviewed local-onnx models is rejected
+                // rather than silently resolved against Hugging Face Hub's
+                // mutable `main` branch — this is the visible surfacing of
+                // that rejection.
+                new Notice(this.t.messages.localOnnxModelUnsupported);
             }
 
             // Update vector store service with new embedding service

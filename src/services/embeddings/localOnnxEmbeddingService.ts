@@ -108,10 +108,24 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
     dispose(): Promise<void> {
         this.pipeline = null;
         this.pipelinePromise = null;
+        // audit-caught (M2/M5, round 2): a dispose() call while an init was
+        // still in flight cleared these fields, but the in-flight async work
+        // kept running regardless and would resurrect `this.pipeline` on a
+        // disposed instance once it resolved. A plain boolean flag isn't
+        // enough — a SECOND dispose+reinit racing against the first init's
+        // still-pending resolution would reset the flag before the first
+        // init's completion check ever ran. A monotonic generation counter
+        // fixes this: each init captures the generation it started under,
+        // and only commits its result if that generation is still current
+        // — bumping the generation on EVERY dispose (not just setting a
+        // flag) invalidates every init that started before it, regardless
+        // of how many dispose/reinit cycles race in between.
+        this.generation++;
         return Promise.resolve();
     }
 
     private pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
+    private generation = 0;
 
     private async getPipeline(): Promise<FeatureExtractionPipeline> {
         if (this.pipeline) return this.pipeline;
@@ -119,6 +133,7 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         // resolved pipeline — without this, concurrent first-callers each
         // independently triggered a separate model download/init.
         if (this.pipelinePromise) return this.pipelinePromise;
+        const startedAtGeneration = this.generation;
         this.pipelinePromise = (async () => {
             // Dynamic import — not bundled by default
             // @ts-ignore — optional peer dependency
@@ -126,6 +141,7 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
             const revision = MODEL_REVISIONS[this.modelId];
             const options = revision ? { revision } : undefined;
             const pipe = (await pipeline('feature-extraction', this.modelId, options)) as unknown as FeatureExtractionPipeline;
+            if (this.generation !== startedAtGeneration) return pipe;
             this.pipeline = pipe;
             return pipe;
         })();
@@ -135,8 +151,12 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
             // Clear the in-flight marker regardless of outcome — a failed
             // init must not permanently wedge every future call behind a
             // rejected promise; `this.pipeline` (set only on success) is
-            // the real completion marker.
-            this.pipelinePromise = null;
+            // the real completion marker. Only clear it if THIS init is
+            // still the current one — a superseded init's `finally` must
+            // not clobber a newer init's own in-flight promise.
+            if (this.generation === startedAtGeneration) {
+                this.pipelinePromise = null;
+            }
         }
     }
 }

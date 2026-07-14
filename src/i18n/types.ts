@@ -1553,6 +1553,7 @@ export interface Translations {
         semanticSearchDisabled: string;
         localOnnxNotConsented: string;
         localOnnxLoadFailed: string;
+        localOnnxModelUnsupported: string;
         externalCompressionNotSupported: string;
         mobileIndexTooLarge: string;
         mobileDataWarning: string;
