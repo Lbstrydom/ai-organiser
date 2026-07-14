@@ -135,7 +135,13 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
             .setName(t.settings.semanticSearch.localOnnxConsentToggleName)
             .setDesc(t.settings.semanticSearch.localOnnxConsentToggleDesc)
             .addToggle(toggle => toggle
-                .setValue(plugin.settings.enableLocalOnnxEmbeddings)
+                // audit-caught (M5, round 5): render the STRICT interpretation
+                // (matches resolveLocalOnnxEmbeddingService() and
+                // classifyEmbeddingAvailability()), not the raw persisted
+                // value — a corrupted non-boolean truthy value must not
+                // display as "consent granted" when the actual security
+                // decision treats it as not consented.
+                .setValue(plugin.settings.enableLocalOnnxEmbeddings === true)
                 .onChange((value) => {
                     if (value) {
                         void this.display(); // revert the toggle's visible value first
