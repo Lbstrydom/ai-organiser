@@ -47,7 +47,8 @@ export type FeatureId =
     | 'notebooklm'
     | 'bases'
     | 'export'
-    | 'embed-scan';
+    | 'embed-scan'
+    | 'onedrive-link';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -136,6 +137,10 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     //    'capture' keeps them under Capture in the picker — the declared divergence) ─────
     { id: 'kindle', labelKey: 'features.kindle.label', descKey: 'features.kindle.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
     { id: 'newsletter', labelKey: 'features.newsletter.label', descKey: 'features.newsletter.desc', stage: 'capture', boundary: ['external-account'], requires: ['provider'], defaultOn: false, absorbsLegacyFlag: 'newsletterEnabled' },
+    // OneDrive link is a LOCAL tool (reads the local OneDrive-synced folder, optionally
+    // accepts a manually-pasted share URL) — never authenticates to a remote Microsoft
+    // account, so it carries no `boundary` despite the name (mirrors bases/notebooklm).
+    { id: 'onedrive-link', labelKey: 'features.onedrive-link.label', descKey: 'features.onedrive-link.desc', stage: 'capture', requires: [], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
 /** O(1) lookup by id. */

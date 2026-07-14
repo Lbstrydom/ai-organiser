@@ -1,5 +1,6 @@
 import { App, FuzzySuggestModal, TFile } from 'obsidian';
 import { desktopRequire } from '../../utils/desktopRequire';
+import { logger } from '../../utils/logger';
 
 /**
  * File-extension filter for the native Electron open dialog.
@@ -17,6 +18,7 @@ interface ElectronRemote {
         showOpenDialog: (opts: {
             properties: string[];
             filters: FilePickerFilter[];
+            defaultPath?: string;
         }) => Promise<{ canceled: boolean; filePaths: string[] }>;
     };
 }
@@ -32,10 +34,30 @@ interface ElectronRemote {
  *
  * Defaults to multi-select to match the existing FreeChat attachment behaviour;
  * pass `{ multiSelections: false }` for single-file pickers.
+ *
+ * `defaultPath` is an optional convenience — pass a folder to open the dialog
+ * there (e.g. an auto-detected OneDrive folder); omitted, the dialog opens at
+ * the OS's own default location.
  */
+/**
+ * Cheap synchronous capability check for the exact dependency
+ * {@link tryNativeFilePicker} itself uses. Callers that need to distinguish
+ * "the native picker is genuinely unavailable" from "the dialog call itself
+ * failed" should precheck with this — NOT a generic Electron-process check
+ * (`getElectron()`/`desktopRequire('electron')`), which resolves a
+ * *different* module and can return true even when `@electron/remote`
+ * itself is unavailable, misclassifying a genuine unavailability as an
+ * operational failure (round-5 M2). Checks `remote.dialog` specifically
+ * (round-6 M1), not just module presence — the exact property
+ * {@link tryNativeFilePicker} itself dereferences.
+ */
+export function isNativeFilePickerAvailable(): boolean {
+    return !!desktopRequire<ElectronRemote>('@electron/remote')?.dialog;
+}
+
 export async function tryNativeFilePicker(
     filters: FilePickerFilter[],
-    options?: { multiSelections?: boolean }
+    options?: { multiSelections?: boolean; defaultPath?: string }
 ): Promise<string[] | null> {
     try {
         const remote = desktopRequire<ElectronRemote>('@electron/remote');
@@ -44,10 +66,18 @@ export async function tryNativeFilePicker(
         if (options?.multiSelections !== false) {
             properties.push('multiSelections');
         }
-        const result = await remote.dialog.showOpenDialog({ properties, filters });
+        const dialogOpts: { properties: string[]; filters: FilePickerFilter[]; defaultPath?: string } = { properties, filters };
+        if (options?.defaultPath) dialogOpts.defaultPath = options.defaultPath;
+        const result = await remote.dialog.showOpenDialog(dialogOpts);
         if (result.canceled) return [];
         return result.filePaths;
-    } catch {
+    } catch (error) {
+        // audit round-1 M1 compromise: log the actual failure (module-resolution
+        // error, a rejected showOpenDialog call, etc.) so it isn't silently
+        // indistinguishable from the `!remote` "genuinely unavailable" case above —
+        // the `string[] | null` contract itself is unchanged, existing callers are
+        // unaffected, this only adds diagnostics.
+        logger.warn('FilePickers', `tryNativeFilePicker failed: ${String(error)}`);
         return null;
     }
 }

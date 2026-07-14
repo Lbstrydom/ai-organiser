@@ -768,6 +768,9 @@ export function buildCommandCategories(
 				cmd('summarize', 'capture', 'record-audio', t.commands.recordAudio, 'mic', 'none',
 					desc.recordAudio || 'Record audio directly in Obsidian',
 					['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
+				cmd('onedrive-link', 'capture', 'insert-onedrive-link', t.commands.insertOneDriveLink, 'link', 'active-note',
+					desc.insertOneDriveLink || 'Insert a link to a file in your local OneDrive folder',
+					['onedrive', 'link', 'file']),
 			],
 		},
 		{

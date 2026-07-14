@@ -246,6 +246,7 @@ Commands registered in `src/commands/`:
 - `embedScanCommands.ts`: Find embeds / vault hygiene scan
 - `quickPeekCommands.ts`: Quick Peek fast triage for embedded sources
 - `utilityCommands.ts`: Collect tags, tag network
+- `oneDriveLinkCommands.ts`: Insert a link to a local OneDrive file (native picker + auto-detected default folder) or a pasted share link
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 

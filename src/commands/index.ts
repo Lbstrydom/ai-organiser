@@ -25,6 +25,7 @@ import { registerEmbedScanCommands } from './embedScanCommands';
 import { registerQuickPeekCommands } from './quickPeekCommands';
 import { registerNewsletterCommands } from './newsletterCommands';
 import { registerAudioNarrationCommands } from './audioNarrationCommands';
+import { registerOneDriveLinkCommands } from './oneDriveLinkCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -67,6 +68,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     newsletter: [registerNewsletterCommands],
     'audio-narration': [registerAudioNarrationCommands],
     'mermaid-chat': [registerMermaidChatCommand],
+    'onedrive-link': [registerOneDriveLinkCommands],
 };
 
 /**

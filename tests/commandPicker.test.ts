@@ -115,12 +115,12 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         });
     });
 
-    describe('Capture — pulls new content in (flat, 5 leaves)', () => {
-        it('contains research / web-reader / kindle / newsletter / record', () => {
+    describe('Capture — pulls new content in (flat, 6 leaves)', () => {
+        it('contains research / web-reader / kindle / newsletter / record / onedrive-link', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const capture = cats.find(c => c.id === 'capture')!;
             expect(capture.commands.map(c => c.id)).toEqual([
-                'research-web', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'record-audio',
+                'research-web', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'record-audio', 'insert-onedrive-link',
             ]);
         });
     });
@@ -258,18 +258,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 43 (40 unique + 3 cross-listings)', () => {
+        it('total picker rows = 44 (41 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(43);
+            expect(leafCount).toBe(44);
         });
-        it('unique command IDs = 40', () => {
+        it('unique command IDs = 41', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(40);
+            expect(uniqueIds.size).toBe(41);
         });
-        it('alphabetised ai-organiser:* callbacks (40 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (41 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -299,6 +299,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:export-note',
                 'ai-organiser:find-embeds',
                 'ai-organiser:find-related',
+                'ai-organiser:insert-onedrive-link',
                 'ai-organiser:insert-related-notes',
                 'ai-organiser:integrate-pending-content',
                 'ai-organiser:kindle-sync',
@@ -322,7 +323,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
             ]);
-            expect(unique.size).toBe(40);
+            expect(unique.size).toBe(41);
         });
     });
 });

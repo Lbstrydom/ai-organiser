@@ -1,5 +1,28 @@
 # Project Status Log
 
+## 2026-07-14 — Insert OneDrive Link command (onedrive-link-insert ✅)
+
+Cheap, no-auth way for OneDrive users to insert links to their local OneDrive files from the plugin: a new `Insert OneDrive link` command opens a modal with two independent paths — pick a local file (native OS dialog, defaulting to an auto-detected OneDrive-synced folder) or paste an existing share link (label + URL). Deliberately the "cheap" option discussed with the user (vs. a full Microsoft Graph API OAuth integration, out of scope — see `docs/completed/onedrive-link-insert.md` §8).
+
+### Changes
+- **`src/ui/utils/oneDriveLinkUtils.ts`** (new): `detectOneDriveFolders()` (scans the home directory + macOS `~/Library/CloudStorage` for OneDrive-named directories/symlinks, including NTFS junctions), `buildFileUrl()` (Windows drive-letter/UNC/POSIX → `file://` URI), `formatMarkdownLink()` (CommonMark-safe escaping, control-character stripping, angle-bracket wrapping).
+- **`src/ui/utils/filePickers.ts`** (extended): `tryNativeFilePicker()` gained an optional `defaultPath`; new `isNativeFilePickerAvailable()` — checks the exact `@electron/remote` dependency the picker itself uses (not a proxy `electron`-module check), letting callers distinguish "genuinely unavailable" from "available but the dialog call failed."
+- **`src/ui/modals/OneDriveLinkModal.ts`** (new): two independent sections (never a sequential "pick file → then choose type" flow — that would let a picked file's name silently pair with an unrelated pasted URL), a whole-modal `submitting` flag, a `disposed` guard for mid-flight external close.
+- **`src/commands/oneDriveLinkCommands.ts`** (new): the command + the exported `runOneDriveLinkFlow` testable seam, built on the existing `applyNoteEdit`/`captureSnapshot` write seam (the command's two unbounded `await`s — the native dialog, then the modal — are exactly the async-gap pattern that seam exists for).
+- **Feature registry**: `onedrive-link` (`stage: 'capture'`, `defaultOn: false` — opt-in via Settings → Features), one Command Picker leaf under Capture.
+- **i18n**: `oneDriveLink` translation block (13 keys) + `insertOneDriveLink` command name.
+
+### Process
+Planned via `/plan`, audited via `/audit-plan` (3 GPT rounds + 2 Gemini rounds → Approved), implemented + audited via `/cycle --autonomous` (degenerate single-cluster path — plan was below the §11 clustering threshold). `/audit-code` ran all 6 rounds (the hard cap), fixing 10 real findings: async error boundaries around both modal callbacks, `new URL()`-based HTTPS scheme+host validation (a prefix-only regex let a degenerate `"https://"` through), control-character stripping in link display text, and — across rounds 3/5/6 — a picker-availability precheck that correctly checks `@electron/remote`'s `.dialog` (the exact thing `tryNativeFilePicker` dereferences) rather than a generic `electron`-module proxy check that could misclassify a genuine unavailability as an operational failure. Two MEDIUM findings (round 4 — "restrict pasted links to Microsoft domains," "restrict the local picker to the detected OneDrive folder") were dismissed via GPT rebuttal citing the plan's own §5 sustainability rationale: both would be the "over-engineered extreme" the plan explicitly rejected in favor of the cheap, unrestricted option. Every round also re-raised an identical hallucinated "duplicate `Translations` import" finding in `src/i18n/en.ts` — disproven each time via `grep -c` (exactly one import) + a clean `tsc -p tsconfig.json -noEmit`. The mandatory consolidated Gemini gate returned **APPROVE** ("Strong" architectural coherence, 0 new findings) and explicitly confirmed the recurring hallucination.
+
+### Verification
+364 test files / 6489 unit tests green (+50 new: `oneDriveLinkUtils`, `oneDriveLinkCommands`, extended `filePickers`/`commandPicker`) · full-`tsconfig.json` type-check clean · `node scripts/automated-tests.js` 45/45 · `npm run lint` 0 errors (272 pre-existing warnings, none newly introduced) · `node esbuild.config.mjs production` clean (verify-build gate + auto-deploy).
+
+### Next Steps
+None outstanding — feature is code-complete, tested, audited, and shipped. Ships `defaultOn: false`; users opt in via Settings → Features.
+
+---
+
 ## 2026-07-14 — npm audit remediation Cluster D: local-ONNX embedding consent gate, live persona-verified (npm-audit-remediation ✅)
 
 Closes the `@xenova/transformers`→`onnxruntime-web`→`protobufjs` critical-severity RCE-class chain's real user-facing surface: `LocalOnnxEmbeddingService` (the local/offline embedding fallback) is now consent-gated end-to-end, with a single construction choke point so the gate can't be bypassed by any caller. Completes `docs/plans/npm-audit-remediation.md` (Clusters A+B: xlsx CDN pin + xmldom override, already shipped; Cluster C: xmldom PPTX-path verification, already shipped `6a712b1`; this is Cluster D).

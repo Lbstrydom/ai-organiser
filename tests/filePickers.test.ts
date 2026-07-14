@@ -16,7 +16,7 @@ vi.mock('obsidian', async () => {
 });
 
 import { App, FuzzySuggestModal, TFile } from 'obsidian';
-import { tryNativeFilePicker, openVaultFilePicker } from '../src/ui/utils/filePickers';
+import { tryNativeFilePicker, openVaultFilePicker, isNativeFilePickerAvailable } from '../src/ui/utils/filePickers';
 
 interface MockRemoteDialog {
     showOpenDialog: ReturnType<typeof vi.fn>;
@@ -129,6 +129,51 @@ describe('tryNativeFilePicker', () => {
             properties: ['openFile'],
             filters: [{ name: 'Audio', extensions: ['m4a'] }],
         });
+    });
+
+    it('passes defaultPath through when provided', async () => {
+        const showOpenDialog = vi.fn().mockResolvedValue({ canceled: false, filePaths: [] });
+        setRequireImpl(makeRemote({ showOpenDialog }));
+
+        await tryNativeFilePicker([{ name: 'All', extensions: ['*'] }], { defaultPath: '/home/user/OneDrive' });
+
+        expect(showOpenDialog).toHaveBeenCalledWith({
+            properties: ['openFile', 'multiSelections'],
+            filters: [{ name: 'All', extensions: ['*'] }],
+            defaultPath: '/home/user/OneDrive',
+        });
+    });
+
+    it('omits defaultPath entirely when not provided (not an undefined-shaped key)', async () => {
+        const showOpenDialog = vi.fn().mockResolvedValue({ canceled: false, filePaths: [] });
+        setRequireImpl(makeRemote({ showOpenDialog }));
+
+        await tryNativeFilePicker([{ name: 'All', extensions: ['*'] }]);
+
+        const callArgs = showOpenDialog.mock.calls[0][0];
+        expect('defaultPath' in callArgs).toBe(false);
+    });
+});
+
+describe('isNativeFilePickerAvailable', () => {
+    afterEach(() => setRequireImpl(null));
+
+    it('returns true when @electron/remote resolves (round-5 M2 — checks the SAME dependency tryNativeFilePicker uses)', () => {
+        setRequireImpl(makeRemote({ showOpenDialog: vi.fn() }));
+        expect(isNativeFilePickerAvailable()).toBe(true);
+    });
+
+    it('returns false when @electron/remote does not resolve, even if a plain "electron" module would', () => {
+        setRequireImpl((mod: string) => {
+            if (mod === 'electron') return { dialog: {}, BrowserWindow: {} };
+            return undefined;
+        });
+        expect(isNativeFilePickerAvailable()).toBe(false);
+    });
+
+    it('returns false when no require function is available (mobile)', () => {
+        setRequireImpl(null);
+        expect(isNativeFilePickerAvailable()).toBe(false);
     });
 });
 

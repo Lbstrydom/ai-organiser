@@ -46,6 +46,7 @@ export interface Translations {
         bases: { label: string; desc: string };
         export: { label: string; desc: string };
         'embed-scan': { label: string; desc: string };
+        'onedrive-link': { label: string; desc: string };
     };
     // Shared workflow-stage labels — the unified taxonomy vocabulary used by BOTH the
     // Features settings groups and the Command Picker top-level categories (one SSOT).
@@ -1245,6 +1246,7 @@ export interface Translations {
         researchWeb: string;
         exportMinutesDocx: string;
         findEmbeds: string;
+        insertOneDriveLink: string;
         editMermaidDiagram: string;
         presentationChat: string;
         buildFromStoryline: string;
@@ -2742,6 +2744,7 @@ export interface Translations {
                 createDashboard: string;
                 collectAllTags: string;
                 findEmbeds: string;
+                insertOneDriveLink: string;
                 notebookLMGroup: string;
                 notebookLMExport: string;
                 notebookLMToggle: string;
@@ -3349,6 +3352,23 @@ export interface Translations {
     azureRateLimit: {
         tpmExceeded: string;
         queueFull: string;
+    };
+    oneDriveLink: {
+        title: string;
+        pickLocalFileButton: string;
+        localLinkDeviceOnlyNotice: string;
+        linkTextLabel: string;
+        linkTextPlaceholder: string;
+        shareUrlLabel: string;
+        shareUrlPlaceholder: string;
+        insertShareLinkButton: string;
+        invalidLinkError: string;
+        desktopOnlyNotice: string;
+        noActiveNoteNotice: string;
+        pickerUnavailableNotice: string;
+        pickerFailedNotice: string;
+        unbuildablePathNotice: string;
+        unexpectedErrorNotice: string;
     };
     embedScan: {
         // Scope modal

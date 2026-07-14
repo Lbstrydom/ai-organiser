@@ -43,6 +43,7 @@ export const en: Translations = {
         bases: { label: 'Obsidian Bases', desc: 'Structured metadata and dashboards.' },
         export: { label: 'Document export', desc: 'Export notes as PDF, Word, or PowerPoint.' },
         'embed-scan': { label: 'Find embeds', desc: 'Vault hygiene scan for embedded assets.' },
+        'onedrive-link': { label: 'OneDrive link', desc: 'Insert links to files in your local OneDrive folder.' },
     },
     // Shared workflow-stage labels (unified taxonomy — settings groups + picker categories)
     workflowStages: {
@@ -1269,6 +1270,7 @@ export const en: Translations = {
         digitiseImage: "Digitise image",
         newSketch: "New sketch",
         findEmbeds: "Find embeds",
+        insertOneDriveLink: "Insert OneDrive link",
         editMermaidDiagram: "Edit Mermaid diagram",
         presentationChat: "Presentation chat",
         buildFromStoryline: "Build presentation from this storyline note",
@@ -2739,6 +2741,7 @@ export const en: Translations = {
                 createDashboard: "Create an Obsidian bases dashboard for a folder",
                 collectAllTags: "Export every tag in the vault to a note",
                 findEmbeds: "Scan vault for embedded files, orphans, and references",
+                insertOneDriveLink: "Insert a link to a file in your local OneDrive folder",
                 notebookLMGroup: "Export notes for google NotebookLM",
                 notebookLMExport: "Export selected notes as NotebookLM source pack",
                 notebookLMToggle: "Toggle current note in NotebookLM selection",
@@ -3344,6 +3347,23 @@ export const en: Translations = {
     azureRateLimit: {
         tpmExceeded: "This request (~{est} tokens) exceeds your Azure deployment's per-minute token limit (~{limit}). Raise the TPM quota for this deployment, or split the input.",
         queueFull: "Too many Azure requests are queued. Pausing to stay under the rate limit — try again in a moment."
+    },
+    oneDriveLink: {
+        title: "Insert OneDrive link",
+        pickLocalFileButton: "Pick a file from OneDrive",
+        localLinkDeviceOnlyNotice: "Works only on this device",
+        linkTextLabel: "Link text",
+        linkTextPlaceholder: "e.g. Q3 report",
+        shareUrlLabel: "URL",
+        shareUrlPlaceholder: "https://...",
+        insertShareLinkButton: "Insert",
+        invalidLinkError: "This link can't be inserted — paste a valid https:// share link",
+        desktopOnlyNotice: "This feature is only available on desktop",
+        noActiveNoteNotice: "Open a note first",
+        pickerUnavailableNotice: "Couldn't open the file picker",
+        pickerFailedNotice: "The file picker couldn't complete — try again",
+        unbuildablePathNotice: "Couldn't build a link from the selected file's path",
+        unexpectedErrorNotice: "Something went wrong — try again"
     },
     embedScan: {
         // Scope modal
