@@ -17,11 +17,16 @@ const MODEL_DIMENSIONS: Record<string, number> = {
  * only the default was covered, while the other two are equally reachable
  * via the settings UI. Verified 2026-07-13/14 against
  * https://huggingface.co/api/models/<id> (see
- * docs/dependency-accepted-risks.md for the update procedure). A caller-
- * supplied `modelId` outside this map (not offered by any UI — the type is
- * an unconstrained string) still falls back to `main` — that residual gap
- * is documented in docs/dependency-accepted-risks.md rather than silently
- * unpinned.
+ * docs/dependency-accepted-risks.md for the update procedure).
+ *
+ * `getPipeline()` REJECTS any modelId outside this map (audit H4/M3/H7,
+ * round 3) rather than falling back to `main` — this is intentionally a
+ * SECOND enforcement point, not the only one: `resolveLocalOnnxEmbeddingService()`
+ * (embeddingServiceFactory.ts) already validates against this same set
+ * before ever constructing this class, but relying solely on the one
+ * caller currently doing that would leave the guarantee dependent on
+ * every future caller remembering to re-implement it. The class enforces
+ * its own invariant regardless of who constructs it.
  */
 const MODEL_REVISIONS: Record<string, string> = {
     'Xenova/all-MiniLM-L6-v2': '751bff37182d3f1213fa05d7196b954e230abad9',
@@ -134,13 +139,21 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         // independently triggered a separate model download/init.
         if (this.pipelinePromise) return this.pipelinePromise;
         const startedAtGeneration = this.generation;
+        // audit-caught (H4/M3/H7, round 3): reject an unpinned model id
+        // HERE, at the class's own enforcement point, rather than relying
+        // solely on the factory's pre-construction check — a defense-in-
+        // depth guarantee that holds regardless of how this instance was
+        // constructed. Thrown (not a silent fallback to `main`);
+        // generateEmbedding()'s try/catch converts it to a failure Result.
+        const revision = MODEL_REVISIONS[this.modelId];
+        if (!revision) {
+            throw new Error(`Unsupported local-onnx model id: ${this.modelId}`);
+        }
         this.pipelinePromise = (async () => {
             // Dynamic import — not bundled by default
             // @ts-ignore — optional peer dependency
             const { pipeline } = await import('@xenova/transformers');
-            const revision = MODEL_REVISIONS[this.modelId];
-            const options = revision ? { revision } : undefined;
-            const pipe = (await pipeline('feature-extraction', this.modelId, options)) as unknown as FeatureExtractionPipeline;
+            const pipe = (await pipeline('feature-extraction', this.modelId, { revision })) as unknown as FeatureExtractionPipeline;
             if (this.generation !== startedAtGeneration) return pipe;
             this.pipeline = pipe;
             return pipe;

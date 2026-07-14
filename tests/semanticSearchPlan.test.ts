@@ -1,7 +1,12 @@
 vi.mock('obsidian', async () => await import('./mocks/obsidian'));
+// audit-caught (M1, round 3): createEmbeddingServiceFromSettings() returns
+// EmbeddingServiceResolution ({ service, unavailableReason }), not a bare
+// service object — this mock predated that refactor and no longer models
+// the production contract main.ts actually destructures.
 vi.mock('../src/services/embeddings', () => ({
     createEmbeddingServiceFromSettings: vi.fn(() => ({
-        dispose: vi.fn()
+        service: { dispose: vi.fn() },
+        unavailableReason: 'none',
     }))
 }));
 vi.mock('../src/services/vector/voyVectorStore', () => ({

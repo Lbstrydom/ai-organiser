@@ -65,6 +65,24 @@ describe('LocalOnnxEmbeddingService', () => {
             expect(result.success).toBe(false);
             expect(result.error).toContain('Pipeline failed');
         });
+
+        // audit-caught (H4/M3/H7, round 3): the class itself rejects an
+        // unpinned model id — a defense-in-depth guarantee that holds even
+        // if a future caller constructs this class directly, bypassing
+        // resolveLocalOnnxEmbeddingService()'s own (separate) validation.
+        // Unmocked getPipeline() — this exercises the REAL implementation,
+        // not a spy, so it proves the class's own enforcement, not the
+        // factory's.
+        it('rejects an unrecognised model id at the pipeline boundary, never calling the transformers pipeline', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            pipelineMock.mockClear();
+            const svc = new LocalOnnxEmbeddingService('some-random/unreviewed-model');
+            const result = await svc.generateEmbedding('test');
+            expect(result.success).toBe(false);
+            expect(result.error).toContain('Unsupported local-onnx model id');
+            expect(pipelineMock).not.toHaveBeenCalled();
+        });
     });
 
     describe('batchGenerateEmbeddings', () => {

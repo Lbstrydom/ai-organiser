@@ -77,6 +77,27 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                         return;
                     }
 
+                    // audit-caught (M2, round 3): reaching here with
+                    // value === 'local-onnx' means consent was ALREADY
+                    // granted (the branch above handles the not-yet-
+                    // consented case and returns). The generic "reset model
+                    // only if it matched the previous provider's default"
+                    // heuristic below is too narrow for this specific
+                    // transition — a user on a cloud provider with a
+                    // non-default custom model string would keep that
+                    // string after switching to local-onnx, which
+                    // resolveLocalOnnxEmbeddingService() would then reject
+                    // as unsupported (safe, but a confusing dead end).
+                    // Mirror the modal-accept path: always set a valid
+                    // local-onnx model explicitly for this one transition.
+                    if (value === 'local-onnx') {
+                        plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
+                        plugin.settings.embeddingModel = EMBEDDING_DEFAULT_MODEL['local-onnx'];
+                        void plugin.saveSettings();
+                        void this.display();
+                        return;
+                    }
+
                     const previousDefault = this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
                     plugin.settings.embeddingProvider = value as typeof plugin.settings.embeddingProvider;
 

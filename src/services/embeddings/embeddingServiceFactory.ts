@@ -33,7 +33,14 @@ export async function resolveLocalOnnxEmbeddingService(
     settings: AIOrganiserSettings,
     modelId?: string,
 ): Promise<Result<IEmbeddingService>> {
-    if (!settings.enableLocalOnnxEmbeddings) {
+    // audit-caught (H3, round 3): a strict `=== true` check, not a truthy
+    // check — `AIOrganiserSettings.enableLocalOnnxEmbeddings` is typed as
+    // `boolean`, but settings are loaded from a persisted JSON file
+    // (`data.json`), which TypeScript's type system cannot verify at
+    // runtime. A hand-edited or corrupted file with a non-boolean truthy
+    // value (e.g. the string `"false"`) must not be interpreted as
+    // consent at exactly the boundary this cluster exists to guard.
+    if (settings.enableLocalOnnxEmbeddings !== true) {
         return err('local-onnx-not-consented');
     }
     // audit-caught (H1/H4/H5/H7/M4, recurring across two rounds): an
