@@ -181,7 +181,7 @@ export class TagUtils {
                     await app.vault.modify(file, newContent);
                     
                     // Allow a short delay for the metadata cache to update
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => window.setTimeout(resolve, 300));
                 } catch (modifyError) {
                     //console.error('Error modifying file:', modifyError);
                     throw new Error(`Failed to modify file: ${modifyError instanceof Error ? modifyError.message : String(modifyError)}`);
@@ -321,7 +321,7 @@ export class TagUtils {
                 if (newContent !== content) {
                     await app.vault.modify(file, newContent);
                     
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    await new Promise(resolve => window.setTimeout(resolve, 300));
                 }
                 
             } catch (updateError) {
@@ -357,7 +357,7 @@ export class TagUtils {
     private static async waitForMetadataUpdate(app: App, file: TFile): Promise<void> {
         return new Promise<void>((resolve) => {
             // Set a timeout to resolve anyway after a maximum wait time
-            const timeout = setTimeout(() => {
+            const timeout = window.setTimeout(() => {
                 app.metadataCache.off('changed', eventHandler);
                 logger.warn('Tags', 'Metadata update timeout, continuing anyway');
                 resolve();
@@ -368,14 +368,14 @@ export class TagUtils {
                 try {
                     const changedFile = args[0];
                     if (changedFile instanceof TFile && changedFile.path === file.path) {
-                        clearTimeout(timeout);
+                        window.clearTimeout(timeout);
                         app.metadataCache.off('changed', eventHandler);
                         // Add small delay to ensure cache is fully updated
-                        setTimeout(resolve, 50);
+                        window.setTimeout(resolve, 50);
                     }
                 } catch (error) {
                     logger.warn('Tags', 'Error in metadata change handler', error);
-                    clearTimeout(timeout);
+                    window.clearTimeout(timeout);
                     app.metadataCache.off('changed', eventHandler);
                     // Resolve anyway to prevent hanging
                     resolve();
@@ -389,7 +389,7 @@ export class TagUtils {
                 app.metadataCache.trigger('changed', file);
             } catch (error) {
                 logger.warn('Tags', 'Error triggering metadata change', error);
-                setTimeout(resolve, 50);
+                window.setTimeout(resolve, 50);
             }
         });
     }
@@ -629,7 +629,7 @@ export class TagUtils {
             
             // Instead of waiting for metadata cache update which could fail,
             // just add a simple delay to allow file system operations to complete
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => window.setTimeout(resolve, 300));
             
             return {
                 success: true,

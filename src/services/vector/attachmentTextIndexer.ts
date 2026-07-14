@@ -87,13 +87,13 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * where page-iterating extraction is natively interruptible.
  */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-    let timer!: ReturnType<typeof setTimeout>;
+    let timer!: number;
     const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('timeout')), ms);
+        timer = window.setTimeout(() => reject(new Error('timeout')), ms);
     });
     // Promise.race propagates p's own rejection verbatim (we never re-reject it), so the
     // only rejection we author is the timeout Error (satisfies prefer-promise-reject-errors).
-    return Promise.race([p, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+    return Promise.race([p, timeout]).finally(() => window.clearTimeout(timer)) as Promise<T>;
 }
 
 /**

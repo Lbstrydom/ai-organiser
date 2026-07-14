@@ -5,7 +5,7 @@
 type WindowWithRequire = { require?: (mod: string) => unknown };
 
 export function desktopRequire<T = unknown>(mod: string): T | undefined {
-    const g = globalThis as WindowWithRequire;
+    const g = window as WindowWithRequire;
     return g.require?.(mod) as T | undefined;
 }
 

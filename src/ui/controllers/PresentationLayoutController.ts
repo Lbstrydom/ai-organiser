@@ -100,7 +100,7 @@ export class PresentationLayoutController {
     private sheetKeyOff: (() => void) | null = null;
 
     // Persist debounce + in-flight coalescing.
-    private persistTimer: ReturnType<typeof setTimeout> | null = null;
+    private persistTimer: number | null = null;
     private pendingPersist = false;
     private inFlight: Promise<void> = Promise.resolve();
 
@@ -152,7 +152,7 @@ export class PresentationLayoutController {
     dispose(): void {
         if (this.inWorkspace) this.leaveWorkspace();
         this.deps.contentEl.classList.remove(CLS_CREATE);
-        if (this.persistTimer) { clearTimeout(this.persistTimer); this.persistTimer = null; }
+        if (this.persistTimer) { window.clearTimeout(this.persistTimer); this.persistTimer = null; }
         if (this.pendingPersist) this.flushPersist();
     }
 
@@ -446,7 +446,7 @@ export class PresentationLayoutController {
         if (this.rafId != null) return;
         const raf = typeof requestAnimationFrame === 'function'
             ? requestAnimationFrame
-            : (cb: FrameRequestCallback) => setTimeout(() => cb(0), 16) as unknown as number;
+            : (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number;
         this.rafId = raf(() => {
             this.rafId = null;
             this.applyWidth(this.currentWidthPx);
@@ -473,8 +473,8 @@ export class PresentationLayoutController {
         const merged: PresLayoutState = { ...this.deps.getLayout(), ...patch };
         this.pendingPersistState = merged;
         this.pendingPersist = true;
-        if (this.persistTimer) clearTimeout(this.persistTimer);
-        this.persistTimer = setTimeout(() => {
+        if (this.persistTimer) window.clearTimeout(this.persistTimer);
+        this.persistTimer = window.setTimeout(() => {
             this.persistTimer = null;
             this.flushPersist();
         }, PERSIST_DEBOUNCE_MS);

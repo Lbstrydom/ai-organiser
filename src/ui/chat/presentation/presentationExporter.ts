@@ -84,7 +84,7 @@ export class PresentationExporter {
         a.click();
         a.remove();
         // Defer revoke to the next macrotask so the click has landed.
-        globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     /** Write the deck HTML to the vault. Returns the created path. */

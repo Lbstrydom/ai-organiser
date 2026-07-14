@@ -363,7 +363,7 @@ export class NotebookLMExportModal extends Modal {
                 this.cleanups.push(listen(copyBtn, 'click', () => {
                     void navigator.clipboard.writeText(packFolderPath).then(() => {
                         copyBtn.setText('Copied!');
-                        setTimeout(() => { if (!this.isDisposed) copyBtn.setText('Copy'); }, 1500);
+                        window.setTimeout(() => { if (!this.isDisposed) copyBtn.setText('Copy'); }, 1500);
                     });
                 }));
             }

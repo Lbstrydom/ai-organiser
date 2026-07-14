@@ -268,7 +268,7 @@ export class SketchPadModal extends Modal {
     private requestRender(): void {
         if (this.renderQueued) return;
         this.renderQueued = true;
-        requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
             this.renderQueued = false;
             this.render();
         });

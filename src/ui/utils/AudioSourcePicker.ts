@@ -120,7 +120,7 @@ export async function pickAudioFromMobileWebview(options?: {
         const focusFallback = (): void => {
             // Defer slightly to let the `change` event fire first if the user
             // actually picked something — only then treat focus return as "cancelled".
-            setTimeout(() => {
+            window.setTimeout(() => {
                 if (!settled) settle([]);
             }, 200);
         };

@@ -145,7 +145,7 @@ export class VectorStoreService implements AttachmentConsumer {
     private fileEventRefs: EventRef[] = [];
     private loadPromise: Promise<void> | null = null;
     private pendingRenames: Array<{ oldPath: string; newPath: string }> = [];
-    private renameTimer: ReturnType<typeof setTimeout> | null = null;
+    private renameTimer: number | null = null;
     private hasWarnedIndexVersion = false;
     /** Plugin-scoped serializer (D4.4). When present, all embedding work routes
      *  through it (cap-1 + cooldown + foreground-gated). Optional for legacy
@@ -635,10 +635,10 @@ export class VectorStoreService implements AttachmentConsumer {
         this.pendingRenames.push({ oldPath, newPath });
 
         if (this.renameTimer) {
-            clearTimeout(this.renameTimer);
+            window.clearTimeout(this.renameTimer);
         }
 
-        this.renameTimer = setTimeout(() => {
+        this.renameTimer = window.setTimeout(() => {
             void this.flushRenames();
         }, VectorStoreService.RENAME_DEBOUNCE_MS);
     }

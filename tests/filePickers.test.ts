@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Unit tests for src/ui/utils/filePickers — shared Electron + vault file pickers
  * extracted from FreeChatModeHandler during plan phase F0.

@@ -3,7 +3,7 @@ import type AIOrganiserPlugin from '../main';
 
 export class EventHandlers {
     private app: App;
-    private fileChangeTimeoutId: NodeJS.Timeout | null = null;
+    private fileChangeTimeoutId: number | null = null;
     private plugin: AIOrganiserPlugin;
 
     constructor(plugin: AIOrganiserPlugin) {
@@ -24,9 +24,9 @@ export class EventHandlers {
             if (file instanceof TFile && file.extension === 'md') {
                 // Debounce file refresh on changes
                 if (this.fileChangeTimeoutId) {
-                    clearTimeout(this.fileChangeTimeoutId);
+                    window.clearTimeout(this.fileChangeTimeoutId);
                 }
-                this.fileChangeTimeoutId = setTimeout(() => {
+                this.fileChangeTimeoutId = window.setTimeout(() => {
                     this.app.workspace.trigger('file-open', file);
                     this.fileChangeTimeoutId = null;
                 }, 2000);
@@ -45,7 +45,7 @@ export class EventHandlers {
 
     cleanup() {
         if (this.fileChangeTimeoutId) {
-            clearTimeout(this.fileChangeTimeoutId);
+            window.clearTimeout(this.fileChangeTimeoutId);
             this.fileChangeTimeoutId = null;
         }
     }

@@ -43,7 +43,7 @@ export class AudioRecorderModal extends Modal {
     private options: RecorderOptions;
     private recorder: AudioRecordingService;
     private state: RecorderState = 'idle';
-    private timerInterval: ReturnType<typeof setInterval> | null = null;
+    private timerInterval: number | null = null;
     private blob: Blob | null = null;
     private audioUrl: string | null = null;
     private actionFired = false;
@@ -610,7 +610,7 @@ export class AudioRecorderModal extends Modal {
 
     private startTimer(): void {
         this.stopTimer();
-        this.timerInterval = setInterval(() => {
+        this.timerInterval = window.setInterval(() => {
             this.updateTimerDisplay();
             this.updateSizeDisplay();
             this.updateAutoTranscribeState();
@@ -619,7 +619,7 @@ export class AudioRecorderModal extends Modal {
 
     private stopTimer(): void {
         if (this.timerInterval) {
-            clearInterval(this.timerInterval);
+            window.clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
     }

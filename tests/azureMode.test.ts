@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Azure mode auto-routing + no-silent-fallback + live-connection-test redaction.
  *

@@ -171,7 +171,7 @@ function addModePill(
     pill.addEventListener('blur', () => {
         // Defer the unset so the next-render focus check still sees `true`
         // when arrow-key navigation triggered the rebuild.
-        setTimeout(() => {
+        window.setTimeout(() => {
             const active = document.activeElement;
             if (!active?.classList.contains('ai-organiser-pres-edit-mode-pill')) {
                 modePillsHadFocus = false;
@@ -182,7 +182,7 @@ function addModePill(
     // this makes ArrowRight on Content actually move focus to Design.
     if (isActive && modePillsHadFocus) {
         // Defer to after the parent appendChild completes.
-        setTimeout(() => pill.focus(), 0);
+        window.setTimeout(() => pill.focus(), 0);
     }
 }
 

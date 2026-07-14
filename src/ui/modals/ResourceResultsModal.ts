@@ -146,7 +146,7 @@ export class ResourceResultsModal extends Modal {
                 e.stopPropagation();
                 void navigator.clipboard.writeText(result.url).then(() => {
                     setIcon(copyButton, 'check');
-                    setTimeout(() => setIcon(copyButton, 'copy'), 2000);
+                    window.setTimeout(() => setIcon(copyButton, 'copy'), 2000);
                 });
             });
         }

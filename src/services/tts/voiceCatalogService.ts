@@ -79,7 +79,7 @@ export async function listVoices(
         if (opts.signal.aborted) return err('aborted');
         opts.signal.addEventListener('abort', onAbort, { once: true });
     }
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
         const response = await withAzureLease(paceKey, controller.signal, () => abortableRequestUrl({
             url: endpoint.value,
@@ -109,7 +109,7 @@ export async function listVoices(
         logger.warn('AudioNarration', `voices/list fetch failed: ${msg.slice(0, 120)}`);
         return err(`network: ${msg.slice(0, 120)}`);
     } finally {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
         if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
     }
 }

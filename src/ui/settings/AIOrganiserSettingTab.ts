@@ -380,7 +380,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             this.pendingScrollToSubSection = null;
             const target = containerEl.querySelector(`[data-section-id="${id}"]`);
             if (target instanceof HTMLElement) {
-                requestAnimationFrame(() => target.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+                window.requestAnimationFrame(() => target.scrollIntoView({ block: 'start', behavior: 'smooth' }));
             }
         }
     }

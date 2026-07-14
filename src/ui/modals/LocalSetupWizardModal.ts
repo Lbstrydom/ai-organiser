@@ -544,7 +544,7 @@ export class LocalSetupWizardModal extends Modal {
 
         // We can't actually run the command from the browser, but we can show instructions
         button.textContent = 'Command copied';
-        setTimeout(() => {
+        window.setTimeout(() => {
             button.textContent = 'Install';
             button.removeAttribute('disabled');
         }, 3000);

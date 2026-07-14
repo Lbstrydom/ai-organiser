@@ -737,7 +737,7 @@ export class NewsletterService {
                 azureTtsEngine = (await createCognitiveSpeechTtsEngine(this.plugin)) ?? undefined;
                 azureTtsModelId = 'azure-cognitive-speech-v1';
                 if (!azureTtsEngine) {
-                    new Notice('Audio podcast skipped — Azure AI Speech needs a region, key, and voice (set them under Azure capabilities)', 6000);
+                    new Notice('Audio podcast skipped — azure AI speech needs a region, key, and voice (set them under azure capabilities)', 6000);
                     return;
                 }
             } else if (ttsRes.kind === 'azure') {

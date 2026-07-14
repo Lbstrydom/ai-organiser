@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Attachment text indexer tests (azure-capability-completion-v2 — Cluster A / Phase 1).
  * collectAttachmentChunks: PDF deferral, extraction, per-note WORK cap, per-attachment

@@ -31,7 +31,7 @@ import type { KindleCookiePayload } from '../../services/kindle/kindleTypes';
 /** Return the browser user agent string for HTTP requests (not platform detection). */
 function getUserAgent(): string {
     // Access navigator via global to avoid obsidianmd/platform rule (which targets platform detection)
-    const nav = (globalThis as { navigator?: { userAgent?: string } }).navigator;
+    const nav = (window as { navigator?: { userAgent?: string } }).navigator;
     return nav?.userAgent ?? 'Mozilla/5.0 (Obsidian Plugin)';
 }
 import { buildAuthMethodChain, type AuthMethod } from '../../services/kindle/kindleAuthMethods';
@@ -360,7 +360,7 @@ export class KindleLoginModal extends Modal {
             });
 
         // Auto-close after 1.5s
-        setTimeout(() => {
+        window.setTimeout(() => {
             if (!this.resolved) {
                 this.resolved = true;
                 this.resolveLogin?.(true);

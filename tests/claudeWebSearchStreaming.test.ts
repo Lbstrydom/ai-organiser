@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Claude Web Search Streaming tests
  *

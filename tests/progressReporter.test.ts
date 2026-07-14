@@ -29,6 +29,18 @@ if (typeof (globalThis as any).MutationObserver === 'undefined') {
     };
 }
 
+// This suite deliberately runs in the plain 'node' environment (not
+// happy-dom) — it supplies its own minimal DOMException/MutationObserver
+// stubs above rather than paying jsdom/happy-dom overhead, and happy-dom's
+// own MutationObserver is real-but-incomplete (throws on .observe() for a
+// plain mock element), which would bypass the stub above and break these
+// tests. The code under test now calls `window.*` timer functions
+// (obsidianmd/prefer-window-timers) — alias `window` to `globalThis` so
+// those resolve to the same real Node timers `vi.useFakeTimers()` patches.
+if (typeof (globalThis as any).window === 'undefined') {
+    (globalThis as any).window = globalThis;
+}
+
 type Phase = 'preparing' | 'working' | 'finalizing';
 
 function makePlugin(): any {

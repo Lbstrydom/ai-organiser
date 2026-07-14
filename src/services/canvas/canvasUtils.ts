@@ -17,7 +17,7 @@ import { logger } from '../../utils/logger';
  * @see https://github.com/kepano/obsidian-skills (json-canvas skill)
  */
 export function generateId(): string {
-    if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    if (typeof window.crypto?.getRandomValues === 'function') {
         const bytes = new Uint8Array(8);
         crypto.getRandomValues(bytes);
         return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');

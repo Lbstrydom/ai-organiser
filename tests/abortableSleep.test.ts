@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * abortableSleep (D6/G2) — resolves on timer OR abort, settles within a tick of
  * abort, clears the timer, never rejects.

@@ -166,7 +166,7 @@ export class ResearchSearchService {
                 const isRetryable = status === 429 || (status >= 500 && status < 600)
                     || msg.includes('429') || /\b5\d{2}\b/.test(msg);
                 if (isRetryable) {
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => window.setTimeout(r, 2000));
                     try { return await provider.search(q, options); }
                     catch (error_: unknown) { errors.push(error_ instanceof Error ? error_ : new Error(String(error_))); return []; }
                 }

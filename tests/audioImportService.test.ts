@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Unit tests for src/services/audio/audioImportService (plan F1 wire, R2 H2).
  *

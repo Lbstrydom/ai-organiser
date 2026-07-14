@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * GenericEmbeddingQueue (D3) — the generalized scheduler core. Text byte-parity is
  * pinned by the pre-existing `embeddingQueue.test.ts` (the wrapper is unchanged in

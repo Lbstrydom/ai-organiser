@@ -21,10 +21,10 @@ export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> 
             resolve();
         };
         const cleanup = (): void => {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             signal?.removeEventListener('abort', onAbort);
         };
-        const timer = setTimeout(() => {
+        const timer = window.setTimeout(() => {
             cleanup();
             resolve();
         }, ms);

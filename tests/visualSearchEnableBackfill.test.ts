@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * C23 — on-enable backfill: enabling visual-search yields RETRIEVABLE results for a
  * pre-existing linked PDF with NO edit event. End-to-end through the REAL generic queue

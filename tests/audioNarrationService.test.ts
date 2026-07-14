@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Audio narration service — two-stage contract verification.
  *

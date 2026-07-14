@@ -168,7 +168,7 @@ class SemanticSearchResultsModal extends Modal {
         emptyEl.addClass('ai-organiser-semantic-search-empty');
 
         // Focus textarea
-        setTimeout(() => this.searchTextarea.focus(), 50);
+        window.setTimeout(() => this.searchTextarea.focus(), 50);
     }
 
     private async performSearch(): Promise<void> {

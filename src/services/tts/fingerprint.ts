@@ -27,7 +27,7 @@ export class CryptoUnavailableError extends Error {
  * @throws {CryptoUnavailableError} if `crypto.subtle.digest` is missing.
  */
 export async function sha256Hex(parts: string[]): Promise<string> {
-    const subtle = globalThis.crypto?.subtle;
+    const subtle = window.crypto?.subtle;
     if (!subtle || typeof subtle.digest !== 'function') {
         throw new CryptoUnavailableError();
     }

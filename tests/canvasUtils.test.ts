@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { vi } from 'vitest';
 import { buildCanvasEdge, buildCanvasNode, generateId, sanitizeCanvasName, serializeCanvas, writeCanvasFile } from '../src/services/canvas/canvasUtils';
 import { CanvasData, EdgeDescriptor, NodeDescriptor } from '../src/services/canvas/types';

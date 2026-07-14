@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * MinutesService tests (production-driven)
  * Tests exercise generateMinutes() via public API with mocked edges:

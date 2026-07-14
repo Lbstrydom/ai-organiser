@@ -676,7 +676,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // linger on "Generating slides…" after cancel. (Success → already
             // 'preview-ready'; non-abort failure → 'error'; both left intact.)
             if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
-            globalThis.clearInterval(elapsedTimer);
+            window.clearInterval(elapsedTimer);
             controller.dispose();
         }
     }
@@ -990,7 +990,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             return { finalContent: t.slideRefineFailed.replace('{error}', msg) };
         } finally {
             if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
-            globalThis.clearInterval(elapsedTimer);
+            window.clearInterval(elapsedTimer);
             controller.dispose();
         }
     }
@@ -1089,7 +1089,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             return { finalContent: t.slideEditFailed.replace('{error}', msg) };
         } finally {
             if (r.abort.signal.aborted) this.resetPhaseAfterCancel();
-            globalThis.clearInterval(elapsedTimer);
+            window.clearInterval(elapsedTimer);
             controller.dispose();
         }
     }
@@ -1205,8 +1205,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         streamCb: StreamingCallbacks,
         t: Translations['modals']['unifiedChat'],
         expected: number | undefined,
-    ): ReturnType<typeof setInterval> {
-        return globalThis.setInterval(() => {
+    ): number {
+        return window.setInterval(() => {
             const current = controller.getLastProgress();
             this.renderProgress(streamCb, t, current, expected, controller.getElapsedMs());
         }, 1000);

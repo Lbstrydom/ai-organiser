@@ -340,7 +340,7 @@ export async function fetchArticle(url: string): Promise<WebFetchResult> {
     // Attempt 2: Retry with modern headers on retryable errors
     if (isRetryableError(result.error)) {
         logger.debug('Research', 'Retrying fetch with modern headers:', validUrl);
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => window.setTimeout(r, 1500));
         result = await attemptDirectFetch(validUrl, MODERN_HEADERS);
         if (result.success) return result;
     }

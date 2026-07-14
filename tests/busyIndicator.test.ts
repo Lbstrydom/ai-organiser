@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { showBusy, hideBusy, withBusyIndicator, resetBusyState } from '../src/utils/busyIndicator';
 
 function createMockPlugin() {

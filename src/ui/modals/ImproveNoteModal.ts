@@ -115,7 +115,7 @@ export class ImproveNoteModal extends Modal {
                 enableAutoExpand(text.inputEl);
 
                 // Focus the textarea
-                setTimeout(() => text.inputEl.focus(), 50);
+                window.setTimeout(() => text.inputEl.focus(), 50);
 
                 // Submit on Ctrl/Cmd + Enter
                 text.inputEl.addEventListener('keydown', (e) => {

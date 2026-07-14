@@ -31,7 +31,7 @@ interface Ticket extends StatusBarTicket {
     readonly id: number;
     text: string;
     lastBeatAt: number;
-    watchdogTimer: ReturnType<typeof setTimeout> | null;
+    watchdogTimer: number | null;
     released: boolean;
 }
 
@@ -41,7 +41,7 @@ class Broker {
     private el: HTMLElement | null = null;
     private fallbackLabel = 'AI processing…';
     private firstShownAt = 0;
-    private hideTimer: ReturnType<typeof setTimeout> | null = null;
+    private hideTimer: number | null = null;
 
     acquire(plugin: AIOrganiserPlugin, initialText: string): StatusBarTicket {
         this.el = plugin.busyStatusBarEl ?? null;
@@ -82,7 +82,7 @@ class Broker {
         if (ticket.released) return;
         ticket.released = true;
         if (ticket.watchdogTimer) {
-            clearTimeout(ticket.watchdogTimer);
+            window.clearTimeout(ticket.watchdogTimer);
             ticket.watchdogTimer = null;
         }
         this.stack = this.stack.filter(t => t.id !== ticket.id);
@@ -90,8 +90,8 @@ class Broker {
     }
 
     private armWatchdog(ticket: Ticket): void {
-        if (ticket.watchdogTimer) clearTimeout(ticket.watchdogTimer);
-        ticket.watchdogTimer = setTimeout(() => {
+        if (ticket.watchdogTimer) window.clearTimeout(ticket.watchdogTimer);
+        ticket.watchdogTimer = window.setTimeout(() => {
             if (ticket.released) return;
             logger.warn('StatusBarBroker', `watchdog force-released ticket ${ticket.id} after ${WATCHDOG_MS / 1000}s of silence — likely leaked`);
             this.releaseTicket(ticket);
@@ -107,7 +107,7 @@ class Broker {
         const top = this.top();
         if (top) {
             if (this.hideTimer) {
-                clearTimeout(this.hideTimer);
+                window.clearTimeout(this.hideTimer);
                 this.hideTimer = null;
             }
             this.el.setText(top.text);
@@ -116,7 +116,7 @@ class Broker {
             const elapsed = Date.now() - this.firstShownAt;
             const remaining = MIN_DISPLAY_MS - elapsed;
             if (remaining > 0) {
-                this.hideTimer = setTimeout(() => {
+                this.hideTimer = window.setTimeout(() => {
                     this.hideTimer = null;
                     if (this.stack.length === 0 && this.el) this.el.removeClass(ACTIVE_CLASS);
                 }, remaining);
@@ -129,11 +129,11 @@ class Broker {
     /** Test-only: wipe state. */
     _reset(): void {
         for (const t of this.stack) {
-            if (t.watchdogTimer) clearTimeout(t.watchdogTimer);
+            if (t.watchdogTimer) window.clearTimeout(t.watchdogTimer);
         }
         this.stack = [];
         if (this.hideTimer) {
-            clearTimeout(this.hideTimer);
+            window.clearTimeout(this.hideTimer);
             this.hideTimer = null;
         }
         if (this.el) this.el.removeClass(ACTIVE_CLASS);

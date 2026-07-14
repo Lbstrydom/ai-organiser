@@ -145,7 +145,7 @@ function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome, s
         if (dismissed) return;
         dismissed = true;
         if (leafChangeRef) plugin.app.workspace.offref(leafChangeRef);
-        clearTimeout(safetyTimer);
+        window.clearTimeout(safetyTimer);
         notice.hide();
     };
     leafChangeRef = plugin.app.workspace.on('active-leaf-change', () => {
@@ -154,7 +154,7 @@ function showSuccessNotice(plugin: AIOrganiserPlugin, outcome: NarrateOutcome, s
         // on it (e.g., focus-shuffle between split panes) leaves the notice up.
         if (!active || active.path !== sourcePath) dismiss();
     });
-    const safetyTimer = setTimeout(dismiss, SUCCESS_NOTICE_MAX_MS);
+    const safetyTimer = window.setTimeout(dismiss, SUCCESS_NOTICE_MAX_MS);
 
     const actionsEl = noticeEl.createDiv({ cls: 'ai-organiser-notice-actions' });
 

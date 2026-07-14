@@ -38,7 +38,7 @@ export class RelatedNotesView extends ItemView {
         folderScope: null,
         scopePinned: false
     };
-    private debounceTimer: NodeJS.Timeout | null = null;
+    private debounceTimer: number | null = null;
     private readonly DEBOUNCE_MS = 500;
     private resultContainer: HTMLElement | null = null;
     private headerContainer: HTMLElement | null = null;
@@ -304,10 +304,10 @@ export class RelatedNotesView extends ItemView {
 
         // Debounce the search update
         if (this.debounceTimer) {
-            clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
         }
 
-        this.debounceTimer = setTimeout(
+        this.debounceTimer = window.setTimeout(
             () => { void this.updateRelatedNotes(); },
             this.DEBOUNCE_MS
         );
@@ -693,7 +693,7 @@ export class RelatedNotesView extends ItemView {
 
     onClose(): Promise<void> {
         if (this.debounceTimer) {
-            clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
         }
         return Promise.resolve();
     }

@@ -491,7 +491,7 @@ async function performEmbeddedLogin(
 
     return new Promise<AuthMethodResult>((resolve) => {
         let resolved = false;
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let timeoutId: number | null = null;
         let processingNotebook = false;
 
         const destroyLoginWin = () => {
@@ -507,13 +507,13 @@ async function performEmbeddedLogin(
         const finish = (result: AuthMethodResult) => {
             if (resolved) return;
             resolved = true;
-            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+            if (timeoutId) { window.clearTimeout(timeoutId); timeoutId = null; }
             destroyLoginWin();
             resolve(result);
         };
 
         // Timeout after 5 minutes
-        timeoutId = setTimeout(() => {
+        timeoutId = window.setTimeout(() => {
             finish({ success: false, error: 'timeout' });
         }, TIMEOUT_MS);
 
@@ -592,7 +592,7 @@ async function performEmbeddedLogin(
                 // Prevent the 'closed' event from triggering a failure when we
                 // intentionally close the login window before scraping.
                 resolved = true;
-                if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+                if (timeoutId) { window.clearTimeout(timeoutId); timeoutId = null; }
                 destroyLoginWin();
 
                 // Scrape books from a SEPARATE HIDDEN BrowserWindow that shares
@@ -710,7 +710,7 @@ function loadPageSnapshot(
         });
 
         // Safety: reject if the whole operation takes too long
-        const safetyTimeout = setTimeout(() => {
+        const safetyTimeout = window.setTimeout(() => {
             logger.debug('Kindle', 'Scrape window safety timeout reached');
             try { scrapeWin.destroy(); } catch { /* already destroyed */ }
             reject(new Error('Page scrape timed out'));
@@ -729,7 +729,7 @@ function loadPageSnapshot(
                 // Extra wait for metadata (highlight counts, dates) to populate.
                 // Book cards appear in the DOM first; metadata fills asynchronously.
                 if (readiness.ready) {
-                    await new Promise(r => setTimeout(r, METADATA_SETTLE_MS));
+                    await new Promise(r => window.setTimeout(r, METADATA_SETTLE_MS));
                 }
 
                 let harvested: LibraryHarvestMetrics = {
@@ -750,14 +750,14 @@ function loadPageSnapshot(
                     `document.querySelector('body').innerHTML`
                 );
 
-                clearTimeout(safetyTimeout);
+                window.clearTimeout(safetyTimeout);
                 scrapeWin.destroy();
                 resolve({
                     html,
                     domBooks: harvested.books,
                 });
             } catch (err) {
-                clearTimeout(safetyTimeout);
+                window.clearTimeout(safetyTimeout);
                 try { scrapeWin.destroy(); } catch { /* already destroyed */ }
                 reject(err instanceof Error ? err : new Error(String(err)));
             }
@@ -812,12 +812,12 @@ export function isEmbeddedAvailable(): boolean {
  */
 function navigateAndWait(win: ElectronBrowserWindow, url: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
+        const timer = window.setTimeout(() => {
             reject(new Error('Highlight page load timeout'));
         }, HIGHLIGHT_PAGE_LOAD_TIMEOUT_MS);
 
         win.webContents.once('did-finish-load', () => {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             resolve();
         });
 

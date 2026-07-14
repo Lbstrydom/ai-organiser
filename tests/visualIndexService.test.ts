@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * VisualIndexService — the Phase-6 lane orchestrator: fingerprint-gated indexing (C9),
  * attachment-consumer events (C12), host-note lifecycle + embed reconcile (C24),

@@ -370,7 +370,7 @@ export class TagNetworkView extends ItemView {
                 chip.remove();
             } else {
                 for (const child of Array.from(chipContainer.children)) {
-                    if (child instanceof HTMLElement && child.dataset.chipId === id) {
+                    if (child.instanceOf(HTMLElement) && child.dataset.chipId === id) {
                         child.remove();
                         break;
                     }

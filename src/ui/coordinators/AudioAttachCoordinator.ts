@@ -263,7 +263,7 @@ export class AudioAttachCoordinator {
             const origClose = picker.onClose.bind(picker);
             picker.onClose = (): void => {
                 origClose();
-                setTimeout(() => settle(null), 50);
+                window.setTimeout(() => settle(null), 50);
             };
             picker.open();
         });

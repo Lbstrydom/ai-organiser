@@ -9,7 +9,7 @@ import { serializeConversationNote, extractConversationState } from '../../utils
 export type RecentConversation = ConversationSummary;
 
 export class ConversationPersistenceService {
-    private saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    private saveTimers = new Map<string, number>();
     private currentFiles = new Map<string, TFile | null>();
     /** Per-conversation save serialiser — prevents the "File already exists"
      *  race when overlapping autosaves (streaming + action handlers fire
@@ -23,8 +23,8 @@ export class ConversationPersistenceService {
     scheduleSave(state: ConversationState): void {
         const mode = state.mode;
         const existing = this.saveTimers.get(mode);
-        if (existing) clearTimeout(existing);
-        this.saveTimers.set(mode, setTimeout(() => {
+        if (existing) window.clearTimeout(existing);
+        this.saveTimers.set(mode, window.setTimeout(() => {
             this.saveTimers.delete(mode);
             void this.doSave(state);
         }, 1000));
@@ -129,12 +129,12 @@ export class ConversationPersistenceService {
     /** Cancel pending save for a mode */
     cancelPending(mode: string): void {
         const timer = this.saveTimers.get(mode);
-        if (timer) { clearTimeout(timer); this.saveTimers.delete(mode); }
+        if (timer) { window.clearTimeout(timer); this.saveTimers.delete(mode); }
     }
 
     /** Cancel all pending saves */
     cancelAllPending(): void {
-        for (const timer of this.saveTimers.values()) clearTimeout(timer);
+        for (const timer of this.saveTimers.values()) window.clearTimeout(timer);
         this.saveTimers.clear();
     }
 

@@ -34,7 +34,7 @@ function getYieldEvery(options?: TextChunkerOptions): number {
 }
 
 async function yieldToUi(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => window.setTimeout(resolve, 0));
 }
 
 export async function chunkPlainTextAsync(text: string, options?: TextChunkerOptions): Promise<string[]> {

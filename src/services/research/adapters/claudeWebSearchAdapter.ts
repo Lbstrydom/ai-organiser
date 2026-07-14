@@ -566,7 +566,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const doFetch = (): Promise<Response> => globalThis.fetch(this.messagesUrl, {
+        const doFetch = (): Promise<Response> => window.fetch(this.messagesUrl, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),

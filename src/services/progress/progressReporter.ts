@@ -68,8 +68,8 @@ export class ProgressReporter<TKey extends string> {
     private noticeDom: StableNoticeDom | null = null;
     private inlineDom: StableInlineDom | null = null;
     private ticket: StatusBarTicket | null = null;
-    private elapsedTicker: ReturnType<typeof setInterval> | null = null;
-    private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    private elapsedTicker: number | null = null;
+    private heartbeatTimer: number | null = null;
     private startedAt: number;
     private cancellable = true;
     private hostCancelBtn: HTMLButtonElement | null = null;
@@ -283,9 +283,9 @@ export class ProgressReporter<TKey extends string> {
             this.disposables.push(() => observer.disconnect());
         }
 
-        this.elapsedTicker = setInterval(() => this.tickElapsed(), ELAPSED_TICK_MS);
+        this.elapsedTicker = window.setInterval(() => this.tickElapsed(), ELAPSED_TICK_MS);
         this.disposables.push(() => {
-            if (this.elapsedTicker) clearInterval(this.elapsedTicker);
+            if (this.elapsedTicker) window.clearInterval(this.elapsedTicker);
             this.elapsedTicker = null;
         });
 
@@ -324,9 +324,9 @@ export class ProgressReporter<TKey extends string> {
         // Start the elapsed ticker for the Notice surface (mountInline starts its
         // own). Idempotent: only one ticker runs at a time.
         if (!this.elapsedTicker) {
-            this.elapsedTicker = setInterval(() => this.tickElapsed(), ELAPSED_TICK_MS);
+            this.elapsedTicker = window.setInterval(() => this.tickElapsed(), ELAPSED_TICK_MS);
             this.disposables.push(() => {
-                if (this.elapsedTicker) clearInterval(this.elapsedTicker);
+                if (this.elapsedTicker) window.clearInterval(this.elapsedTicker);
                 this.elapsedTicker = null;
             });
         }
@@ -469,12 +469,12 @@ export class ProgressReporter<TKey extends string> {
     }
 
     private startHeartbeat(): void {
-        this.heartbeatTimer = setInterval(() => {
+        this.heartbeatTimer = window.setInterval(() => {
             if (this.isTerminal()) return;
             this.ticket?.heartbeat();
         }, HEARTBEAT_MS);
         this.disposables.push(() => {
-            if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+            if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = null;
         });
     }

@@ -29,11 +29,11 @@ interface PoolEntry {
     handle: PdfHandle | null;        // null while loading
     loading: Promise<Result<PdfHandle>> | null;
     refs: number;
-    destroyTimer: ReturnType<typeof setTimeout> | null;
+    destroyTimer: number | null;
 }
 
-type ScheduleFn = (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
-type CancelFn = (handle: ReturnType<typeof setTimeout>) => void;
+type ScheduleFn = (fn: () => void, ms: number) => number;
+type CancelFn = (handle: number) => void;
 
 export class PdfHandlePool {
     private readonly entries = new Map<string, PoolEntry>();
@@ -46,8 +46,8 @@ export class PdfHandlePool {
         private readonly ttlMs: number = PDF_HANDLE_TTL_MS,
         timers?: { schedule: ScheduleFn; cancel: CancelFn },
     ) {
-        this.schedule = timers?.schedule ?? ((fn, ms) => setTimeout(fn, ms));
-        this.cancel = timers?.cancel ?? ((h) => clearTimeout(h));
+        this.schedule = timers?.schedule ?? ((fn, ms) => window.setTimeout(fn, ms));
+        this.cancel = timers?.cancel ?? ((h) => window.clearTimeout(h));
     }
 
     /** Lease a shared handle for `file`. Single-flight: concurrent leases for the same

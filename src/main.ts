@@ -145,7 +145,7 @@ export default class AIOrganiserPlugin extends Plugin {
     /** Shared change detector — persists diagram snapshots across modal sessions (§4.4.2) */
     public mermaidChangeDetector = new MermaidChangeDetector();
     public narrationJobs = new NarrationJobRegistry();
-    private newsletterFetchTimer: ReturnType<typeof setInterval> | null = null;
+    private newsletterFetchTimer: number | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
@@ -996,11 +996,11 @@ export default class AIOrganiserPlugin extends Plugin {
             });
 
             // Debounced metadata listener to update count
-            let notebookLMUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+            let notebookLMUpdateTimer: number | null = null;
             this.registerEvent(
                 this.app.metadataCache.on('changed', () => {
-                    if (notebookLMUpdateTimer) clearTimeout(notebookLMUpdateTimer);
-                    notebookLMUpdateTimer = setTimeout(() => this.updateNotebookLMStatus(), 500);
+                    if (notebookLMUpdateTimer) window.clearTimeout(notebookLMUpdateTimer);
+                    notebookLMUpdateTimer = window.setTimeout(() => this.updateNotebookLMStatus(), 500);
                 })
             );
 
@@ -1260,12 +1260,12 @@ export default class AIOrganiserPlugin extends Plugin {
         logger.debug('Newsletter', `Scheduler started: interval=${this.settings.newsletterAutoFetchIntervalMins}min, lastFetch=${this.newsletterLastFetchTime}, scriptUrl=${this.settings.newsletterScriptUrl ? 'set' : 'missing'}`);
         // Check on startup whether a fetch is overdue, then poll on the interval
         void this.runScheduledNewsletterFetch();
-        this.newsletterFetchTimer = setInterval(() => void this.runScheduledNewsletterFetch(), intervalMs);
+        this.newsletterFetchTimer = window.setInterval(() => void this.runScheduledNewsletterFetch(), intervalMs);
     }
 
     public stopNewsletterScheduler(): void {
         if (this.newsletterFetchTimer !== null) {
-            clearInterval(this.newsletterFetchTimer);
+            window.clearInterval(this.newsletterFetchTimer);
             this.newsletterFetchTimer = null;
         }
     }

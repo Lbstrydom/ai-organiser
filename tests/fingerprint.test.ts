@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Fingerprint tests — deterministic SHA-256 + crypto-unavailable fallback.
  */

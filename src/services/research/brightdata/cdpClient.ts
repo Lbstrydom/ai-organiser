@@ -11,7 +11,7 @@ export class CDPClient {
     private pending = new Map<number, {
         resolve: (value: unknown) => void;
         reject: (error: Error) => void;
-        timer: ReturnType<typeof setTimeout>;
+        timer: number;
     }>();
     private eventHandlers = new Map<string, ((params: unknown) => void)>();
     private timeout: number;
@@ -23,10 +23,10 @@ export class CDPClient {
     /** Connect to Scraping Browser WSS endpoint. */
     async connect(endpoint: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('CDP connection timeout')), this.timeout);
+            const timer = window.setTimeout(() => reject(new Error('CDP connection timeout')), this.timeout);
             this.ws = new WebSocket(endpoint);
-            this.ws.onopen = () => { clearTimeout(timer); resolve(); };
-            this.ws.onerror = () => { clearTimeout(timer); reject(new Error('CDP connection failed')); };
+            this.ws.onopen = () => { window.clearTimeout(timer); resolve(); };
+            this.ws.onerror = () => { window.clearTimeout(timer); reject(new Error('CDP connection failed')); };
             this.ws.onmessage = (event) => this.handleMessage(event);
         });
     }
@@ -38,7 +38,7 @@ export class CDPClient {
         }
         const id = ++this.messageId;
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
+            const timer = window.setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error(`CDP timeout: ${method}`));
             }, this.timeout);
@@ -55,7 +55,7 @@ export class CDPClient {
         await loadPromise;
         // Settle time for JS rendering (P2-7: configurable)
         if (settleMs > 0) {
-            await new Promise(resolve => setTimeout(resolve, settleMs));
+            await new Promise(resolve => window.setTimeout(resolve, settleMs));
         }
     }
 
@@ -74,12 +74,12 @@ export class CDPClient {
     /** Wait for a CDP event. */
     private waitForEvent(eventName: string): Promise<unknown> {
         return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
+            const timer = window.setTimeout(() => {
                 this.eventHandlers.delete(eventName);
                 reject(new Error(`CDP event timeout: ${eventName}`));
             }, this.timeout);
             this.eventHandlers.set(eventName, (params) => {
-                clearTimeout(timer);
+                window.clearTimeout(timer);
                 this.eventHandlers.delete(eventName);
                 resolve(params);
             });
@@ -91,7 +91,7 @@ export class CDPClient {
         // Response to a command
         if (msg.id !== undefined && this.pending.has(msg.id)) {
             const { resolve, reject, timer } = this.pending.get(msg.id)!;
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             this.pending.delete(msg.id);
             if (msg.error) reject(new Error(msg.error.message));
             else resolve(msg.result);
@@ -105,7 +105,7 @@ export class CDPClient {
     /** Close WebSocket connection. Always call this to stop billing. */
     close(): Promise<void> {
         for (const { timer, reject } of this.pending.values()) {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             reject(new Error('CDP connection closed'));
         }
         this.pending.clear();

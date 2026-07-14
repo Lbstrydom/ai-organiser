@@ -218,7 +218,7 @@ export type ConsultantStoryboard = z.infer<typeof consultantStoryboardSchema>;
  *  defangs `<` with a ZWSP, the LLM copies unchanged slides verbatim, and the echoed
  *  ZWSP re-enters the stored storyboard → re-defanged next cycle. Strip them at the
  *  parse boundary so the in-memory storyboard + rendered deck stay clean. */
-const ZERO_WIDTH_RE = /[​-‍﻿]/g;
+const ZERO_WIDTH_RE = /[\u200B-\u200D\uFEFF]/g;
 function stripZeroWidthDeep(value: unknown): unknown {
     if (typeof value === 'string') return value.replace(ZERO_WIDTH_RE, '');
     if (Array.isArray(value)) return value.map(stripZeroWidthDeep);

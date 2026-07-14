@@ -26,12 +26,12 @@ import {
 export class BrandSettingsSection extends BaseSettingSection {
     private statusEl: HTMLElement | null = null;
     private resolvedEl: HTMLElement | null = null;
-    private debounceHandle: ReturnType<typeof setTimeout> | null = null;
+    private debounceHandle: number | null = null;
     /** Debounce for `saveSettings()` on the free-text folder-path field — a save
      *  triggers service reinit + disk I/O, so we must NOT fire it per keystroke
      *  (audit-Gemini G2). The in-memory setting updates immediately; the persist
      *  is debounced. */
-    private saveHandle: ReturnType<typeof setTimeout> | null = null;
+    private saveHandle: number | null = null;
     /** Monotonic counter so a slow async `revalidate()` never writes stale results
      *  over a newer run's output (audit M12). Incremented on every `display()` +
      *  every `revalidate()` start; each run captures its value and bails if it is
@@ -110,16 +110,16 @@ export class BrandSettingsSection extends BaseSettingSection {
     }
 
     private scheduleRevalidate(): void {
-        if (this.debounceHandle) clearTimeout(this.debounceHandle);
-        this.debounceHandle = setTimeout(() => {
+        if (this.debounceHandle) window.clearTimeout(this.debounceHandle);
+        this.debounceHandle = window.setTimeout(() => {
             this.revalidate().catch(e => logger.error('Brand', 'revalidate failed', e));
         }, 400);
     }
 
     /** Debounced persist for the free-text folder path (audit-Gemini G2). */
     private scheduleSave(): void {
-        if (this.saveHandle) clearTimeout(this.saveHandle);
-        this.saveHandle = setTimeout(() => {
+        if (this.saveHandle) window.clearTimeout(this.saveHandle);
+        this.saveHandle = window.setTimeout(() => {
             this.plugin.saveSettings().catch(e => logger.error('Brand', 'saveSettings failed', e));
         }, 600);
     }

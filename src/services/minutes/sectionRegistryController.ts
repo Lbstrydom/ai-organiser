@@ -115,7 +115,7 @@ export class SectionRegistryController {
     private makeId(): string {
         // crypto.randomUUID with base36 fallback (matches canvasUtils.generateId convention).
         try {
-            const c = globalThis.crypto as Crypto | undefined;
+            const c = window.crypto as Crypto | undefined;
             if (c && typeof c.randomUUID === 'function') {
                 return c.randomUUID();
             }

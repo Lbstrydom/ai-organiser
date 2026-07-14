@@ -105,7 +105,7 @@ export class StreamingHtmlAssembler {
     private lastCheckpointSlideCount = 0;
     private lastSlideStartCount = 0;
     private streamStartFired = false;
-    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private debounceTimer: number | null = null;
     private disposed = false;
 
     constructor(options: StreamingHtmlAssemblerOptions) {
@@ -252,7 +252,7 @@ export class StreamingHtmlAssembler {
     private scheduleCheckpoint(slideCount: number): void {
         this.clearDebounce();
 
-        this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = window.setTimeout(() => {
             if (this.disposed) return;
             this.emitCheckpoint(slideCount);
         }, this.debounceMs);
@@ -355,7 +355,7 @@ export class StreamingHtmlAssembler {
 
     private clearDebounce(): void {
         if (this.debounceTimer !== null) {
-            clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
     }

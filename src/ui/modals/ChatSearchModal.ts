@@ -48,7 +48,7 @@ export class ChatSearchModal extends Modal {
     private filters: SearchFilters = {};
     private results: SearchResult[] = [];
     private selectedIndex = 0;
-    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private debounceTimer: number | null = null;
     private searchGeneration = 0;
 
     // DOM refs
@@ -153,7 +153,7 @@ export class ChatSearchModal extends Modal {
     onClose(): void {
         // Clear debounce timer
         if (this.debounceTimer !== null) {
-            clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
         }
 
@@ -172,9 +172,9 @@ export class ChatSearchModal extends Modal {
 
     private scheduleSearch(): void {
         if (this.debounceTimer !== null) {
-            clearTimeout(this.debounceTimer);
+            window.clearTimeout(this.debounceTimer);
         }
-        this.debounceTimer = setTimeout(() => {
+        this.debounceTimer = window.setTimeout(() => {
             this.debounceTimer = null;
             void this.executeSearch();
         }, DEBOUNCE_MS);

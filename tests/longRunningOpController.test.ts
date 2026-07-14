@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * LongRunningOpController tests — the domain-neutral successor to
  * GenerationProgressController. Most behaviour is already covered by

@@ -10,11 +10,11 @@ import { logger } from './logger';
 
 let refCount = 0;
 let showTimestamp = 0;
-let hideTimer: ReturnType<typeof setTimeout> | null = null;
+let hideTimer: number | null = null;
 /** Watchdog that force-clears refCount when the spinner has been visible far
  *  longer than any legitimate LLM operation should run. Guards against leaked
  *  refs from code paths that forgot to call hideBusy (persona round 4 P3 #16). */
-let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+let watchdogTimer: number | null = null;
 let lastEl: HTMLElement | null = null;
 
 const ACTIVE_CLASS = 'ai-organiser-busy-active';
@@ -38,14 +38,14 @@ export function showBusy(plugin: { busyStatusBarEl: HTMLElement | null; t: { mes
     lastEl = el;
     // Cancel any pending hide from a previous fast operation
     if (hideTimer) {
-        clearTimeout(hideTimer);
+        window.clearTimeout(hideTimer);
         hideTimer = null;
     }
     if (refCount === 1) {
         showTimestamp = Date.now();
         // Arm watchdog so a leaked ref can't pin the spinner forever
-        if (watchdogTimer) clearTimeout(watchdogTimer);
-        watchdogTimer = setTimeout(() => {
+        if (watchdogTimer) window.clearTimeout(watchdogTimer);
+        watchdogTimer = window.setTimeout(() => {
             watchdogTimer = null;
             if (refCount > 0) {
                 // Log at `warn` so the leak is findable (debug mode only,
@@ -72,14 +72,14 @@ export function hideBusy(plugin: { busyStatusBarEl: HTMLElement | null }): void 
     if (refCount === 0) {
         // Cancel watchdog — refCount dropped naturally, no leak
         if (watchdogTimer) {
-            clearTimeout(watchdogTimer);
+            window.clearTimeout(watchdogTimer);
             watchdogTimer = null;
         }
         const elapsed = Date.now() - showTimestamp;
         const remaining = MIN_DISPLAY_MS - elapsed;
         if (remaining > 0) {
             // Defer hide so spinner is visible for at least MIN_DISPLAY_MS
-            hideTimer = setTimeout(() => {
+            hideTimer = window.setTimeout(() => {
                 hideTimer = null;
                 const el = plugin.busyStatusBarEl;
                 if (!el) return;
@@ -120,11 +120,11 @@ export function resetBusyState(): void {
     refCount = 0;
     showTimestamp = 0;
     if (hideTimer) {
-        clearTimeout(hideTimer);
+        window.clearTimeout(hideTimer);
         hideTimer = null;
     }
     if (watchdogTimer) {
-        clearTimeout(watchdogTimer);
+        window.clearTimeout(watchdogTimer);
         watchdogTimer = null;
     }
     lastEl = null;

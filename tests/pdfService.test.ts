@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 vi.mock('obsidian', async () => {
     const mod = await import('./mocks/obsidian');
     return {

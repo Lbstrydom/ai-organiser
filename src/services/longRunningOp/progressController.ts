@@ -29,8 +29,8 @@ import type { LongRunningOpOptions } from './types';
 export class LongRunningOpController {
     private readonly startedAt: number;
     private readonly options: LongRunningOpOptions;
-    private softTimer: ReturnType<typeof setTimeout> | null = null;
-    private hardTimer: ReturnType<typeof setTimeout> | null = null;
+    private softTimer: number | null = null;
+    private hardTimer: number | null = null;
     private lastProgress = 0;
     private softBudgetFired = false;
     private disposed = false;
@@ -77,14 +77,14 @@ export class LongRunningOpController {
         this.externalAbortListener = () => this.dispose();
         options.abortController.signal.addEventListener('abort', this.externalAbortListener, { once: true });
 
-        this.softTimer = setTimeout(() => {
+        this.softTimer = window.setTimeout(() => {
             this.softTimer = null;
             if (this.disposed || this.softBudgetFired) return;
             this.softBudgetFired = true;
             this.safeInvoke(() => options.onSoftBudget?.(this.getElapsedMs()));
         }, options.softBudgetMs);
 
-        this.hardTimer = setTimeout(() => {
+        this.hardTimer = window.setTimeout(() => {
             this.hardTimer = null;
             if (this.disposed) return;
             // Exception safety: abort + dispose MUST run even if the
@@ -174,11 +174,11 @@ export class LongRunningOpController {
         if (this.disposed) return;
         this.disposed = true;
         if (this.softTimer !== null) {
-            clearTimeout(this.softTimer);
+            window.clearTimeout(this.softTimer);
             this.softTimer = null;
         }
         if (this.hardTimer !== null) {
-            clearTimeout(this.hardTimer);
+            window.clearTimeout(this.hardTimer);
             this.hardTimer = null;
         }
         if (this.externalAbortListener) {

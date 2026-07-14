@@ -1486,7 +1486,7 @@ export class UnifiedChatModal extends Modal {
                 if (keydownListener) card.removeEventListener('keydown', keydownListener);
                 // Fade out then remove — respects prefers-reduced-motion via CSS
                 card.classList.add('is-dismissing');
-                globalThis.setTimeout(() => card.remove(), 200);
+                window.setTimeout(() => card.remove(), 200);
                 // Audit Gemini G2: restore focus to whatever element had it
                 // before the card stole focus, if it's still attached. Falls
                 // back to the chat input only if the previous target is gone.

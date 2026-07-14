@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Streaming Synthesis & P2 Fix Tests
  *

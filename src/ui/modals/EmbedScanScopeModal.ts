@@ -110,7 +110,7 @@ export class EmbedScanScopeModal extends Modal {
         });
 
         // Auto-focus first card
-        setTimeout(() => cards[0]?.focus(), 50);
+        window.setTimeout(() => cards[0]?.focus(), 50);
     }
 
     private renderOptionCard(container: HTMLElement, option: ScopeOption): HTMLElement {

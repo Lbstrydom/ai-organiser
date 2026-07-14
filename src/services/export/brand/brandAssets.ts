@@ -232,12 +232,12 @@ const defaultRasterize: SvgRasterizer = async (sanitizedSvg) => {
     // resolve null after RASTER_TIMEOUT_MS so the raster never hangs forever.
     const loaded = await new Promise<boolean>((res) => {
         const finish = (ok: boolean) => {
-            clearTimeout(timer);
+            window.clearTimeout(timer);
             img.onload = null;
             img.onerror = null;
             res(ok);
         };
-        const timer = setTimeout(() => finish(false), RASTER_TIMEOUT_MS);
+        const timer = window.setTimeout(() => finish(false), RASTER_TIMEOUT_MS);
         img.onload = () => finish(true);
         img.onerror = () => finish(false);
         img.src = svgUrl;

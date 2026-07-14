@@ -71,7 +71,7 @@ export class YouTubeInputModal extends Modal {
                 });
 
                 // Focus the input
-                setTimeout(() => text.inputEl.focus(), 50);
+                window.setTimeout(() => text.inputEl.focus(), 50);
             });
 
         // Persona selection dropdown

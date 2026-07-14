@@ -51,7 +51,7 @@ interface AdapterTestHooks {
 }
 
 const defaultSleeper = (ms: number): Promise<void> =>
-    new Promise((resolve) => setTimeout(resolve, ms));
+    new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const defaultJitter = (base: number): number =>
     base * (1 + (Math.random() * 0.5 - 0.25));
@@ -181,18 +181,18 @@ export class DeepgramAdapter implements DiarizationProvider {
     ): Promise<Result<RequestUrlResponse>> {
         // Compose caller signal with internal timeout
         const composedController = new AbortController();
-        const timeoutHandle = setTimeout(() => {
+        const timeoutHandle = window.setTimeout(() => {
             composedController.abort();
         }, timeoutMs);
         let didTimeout = false;
-        const timeoutWatcher = setTimeout(() => {
+        const timeoutWatcher = window.setTimeout(() => {
             didTimeout = true;
         }, timeoutMs);
 
         if (callerSignal) {
             if (callerSignal.aborted) {
-                clearTimeout(timeoutHandle);
-                clearTimeout(timeoutWatcher);
+                window.clearTimeout(timeoutHandle);
+                window.clearTimeout(timeoutWatcher);
                 return err('aborted');
             }
             callerSignal.addEventListener(
@@ -244,8 +244,8 @@ export class DeepgramAdapter implements DiarizationProvider {
             }
             return err(classifyTransportError(message));
         } finally {
-            clearTimeout(timeoutHandle);
-            clearTimeout(timeoutWatcher);
+            window.clearTimeout(timeoutHandle);
+            window.clearTimeout(timeoutWatcher);
         }
     }
 }

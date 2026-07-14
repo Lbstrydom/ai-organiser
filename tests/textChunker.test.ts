@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Text Chunker Tests
  * Tests for transcript chunking, overlap handling, and segment-based chunking

@@ -32,8 +32,8 @@ function fakeLib(getDocumentSpy: () => void, destroySpy: () => void) {
 
 interface Timers {
     scheduled: Array<{ fn: () => void; ms: number }>;
-    schedule: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
-    cancel: (h: ReturnType<typeof setTimeout>) => void;
+    schedule: (fn: () => void, ms: number) => number;
+    cancel: (h: number) => void;
     fire: () => void;
 }
 
@@ -42,7 +42,7 @@ function makeTimers(): Timers {
     return {
         scheduled,
         schedule: (fn, ms) => { scheduled.push({ fn, ms }); return scheduled.length as never; },
-        cancel: (h) => { scheduled[(h as unknown as number) - 1] = { fn: () => {}, ms: 0 }; },
+        cancel: (h) => { scheduled[h - 1] = { fn: () => {}, ms: 0 }; },
         fire: () => { const t = scheduled.shift(); t?.fn(); },
     };
 }

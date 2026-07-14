@@ -348,7 +348,7 @@ async function callGeminiWithVideo(
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+        window.setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
     });
 
     const responsePromise = requestUrl({

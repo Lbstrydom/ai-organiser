@@ -129,7 +129,7 @@ export async function isFFmpegAvailable(): Promise<boolean> {
             proc.on('close', (code) => resolve(code === 0));
 
             // Timeout after 5 seconds
-            setTimeout(() => {
+            window.setTimeout(() => {
                 proc.kill();
                 resolve(false);
             }, 5000);
@@ -184,7 +184,7 @@ async function getAudioDuration(inputPath: string): Promise<number> {
             }
         });
 
-        setTimeout(() => {
+        window.setTimeout(() => {
             proc.kill();
             reject(new Error('FFprobe timeout'));
         }, 30000);
@@ -257,7 +257,7 @@ async function compressWithFFmpeg(
         });
 
         // Timeout after 60 minutes (supports 6+ hour audio files)
-        setTimeout(() => {
+        window.setTimeout(() => {
             proc.kill();
             reject(new Error('FFmpeg timeout (60 minutes)'));
         }, 3600000);
@@ -836,7 +836,7 @@ async function compressAndSplitWithOverlap(
             else reject(new Error(`FFmpeg compress exited with code ${code}`));
         });
 
-        setTimeout(() => {
+        window.setTimeout(() => {
             proc.kill();
             reject(new Error('FFmpeg compress timeout'));
         }, 7200000);
@@ -883,7 +883,7 @@ async function compressAndSplitWithOverlap(
                 else reject(new Error(`FFmpeg segment exited with code ${code}`));
             });
 
-            setTimeout(() => {
+            window.setTimeout(() => {
                 proc.kill();
                 reject(new Error('FFmpeg segment timeout'));
             }, 60000);

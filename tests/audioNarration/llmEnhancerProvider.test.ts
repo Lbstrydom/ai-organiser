@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * llmEnhancerProvider unit tests — Gemini + Haiku adapter HTTP contract.
  * Mocks Obsidian's requestUrl + global fetch (Anthropic /v1/models).

@@ -167,7 +167,7 @@ class WebSourcePickerModal extends Modal {
                 this.commit();
             }
         });
-        setTimeout(() => this.input.focus(), 0);
+        window.setTimeout(() => this.input.focus(), 0);
         refresh();
     }
 

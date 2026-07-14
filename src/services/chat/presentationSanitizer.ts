@@ -217,7 +217,7 @@ function getPurifier(): Purifier | null {
     const win = (typeof window !== 'undefined' ? window : undefined) as Window | undefined;
     if (!win || !win.document) return null;
     if (purifier && purifierWin === win) return purifier;
-    const dp = DOMPurify(win as unknown as Window & typeof globalThis);
+    const dp = DOMPurify(win as unknown as Window & typeof window);
     registerHooks(dp);
     purifier = dp;
     purifierWin = win;

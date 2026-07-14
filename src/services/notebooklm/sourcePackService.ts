@@ -31,7 +31,7 @@ import { extractTagsFromCache } from '../../utils/tagUtils';
 import { logger } from '../../utils/logger';
 
 /** Sleep utility for async yielding to keep UI responsive */
-const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> => new Promise(resolve => window.setTimeout(resolve, ms));
 
 /** Number of items to process before yielding to UI */
 const YIELD_BATCH_SIZE = 5;

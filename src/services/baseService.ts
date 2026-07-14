@@ -15,7 +15,7 @@ export abstract class BaseLLMService {
     protected readonly TIMEOUT = 30000; // 30 seconds for quick requests
     protected readonly DEFAULT_SUMMARIZE_TIMEOUT = 300000; // 300 seconds default for summarization
     private _customSummarizeTimeoutMs: number | null = null; // User-configurable timeout
-    private activeRequests = new Set<{ controller: AbortController; timeoutId?: NodeJS.Timeout }>();
+    private activeRequests = new Set<{ controller: AbortController; timeoutId?: number }>();
     protected readonly app: App;
     protected debugMode: boolean = false;
 
@@ -58,16 +58,16 @@ export abstract class BaseLLMService {
     }
 
     protected async requestWithTimeout<T>(request: Promise<T>, timeoutMs: number): Promise<T> {
-        let timeoutId: NodeJS.Timeout | null = null;
+        let timeoutId: number | null = null;
         const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+            timeoutId = window.setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
         });
 
         try {
             return await Promise.race([request, timeoutPromise]);
         } finally {
             if (timeoutId) {
-                clearTimeout(timeoutId);
+                window.clearTimeout(timeoutId);
             }
         }
     }
@@ -106,12 +106,12 @@ export abstract class BaseLLMService {
      * @param timeoutId - Optional timeout ID
      * @returns Cleanup function
      */
-    protected registerRequest(controller: AbortController, timeoutId?: NodeJS.Timeout): () => void {
+    protected registerRequest(controller: AbortController, timeoutId?: number): () => void {
         const request = { controller, timeoutId };
         this.activeRequests.add(request);
         return () => {
             if (request.timeoutId) {
-                clearTimeout(request.timeoutId);
+                window.clearTimeout(request.timeoutId);
             }
             this.activeRequests.delete(request);
         };
@@ -124,7 +124,7 @@ export abstract class BaseLLMService {
      */
     protected createRequestController(timeoutMs: number): { controller: AbortController; cleanup: () => void } {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
+        const timeoutId = window.setTimeout(() => {
             controller.abort(new Error('Request timeout'));
         }, timeoutMs);
         const cleanup = this.registerRequest(controller, timeoutId);
@@ -139,7 +139,7 @@ export abstract class BaseLLMService {
         // Cancel all active requests
         this.activeRequests.forEach(request => {
             if (request.timeoutId) {
-                clearTimeout(request.timeoutId);
+                window.clearTimeout(request.timeoutId);
             }
             request.controller.abort(new Error('Service disposed'));
         });

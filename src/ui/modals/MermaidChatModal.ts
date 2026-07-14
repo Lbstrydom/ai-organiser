@@ -175,7 +175,7 @@ export class MermaidChatModal extends Modal {
             }
         }
 
-        setTimeout(() => this.inputEl?.focus(), 50);
+        window.setTimeout(() => this.inputEl?.focus(), 50);
     }
 
     // ── Desktop layout ──────────────────────────────────────────────────────
@@ -982,7 +982,7 @@ class TemplateNameModal extends Modal {
         });
         input.addClass('ai-organiser-template-name-input');
         input.addClass('ai-organiser-w-full');
-        setTimeout(() => input.focus(), 30);
+        window.setTimeout(() => input.focus(), 30);
 
         const submit = () => {
             const val = input.value.trim();

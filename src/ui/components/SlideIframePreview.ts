@@ -436,7 +436,7 @@ export class SlideIframePreview {
         // so the synchronous updateScale() above measures a too-small box and
         // the ResizeObserver never corrects it (the element's real size never
         // changed). A double rAF re-measures after the browser settles layout.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
             if (this.state === 'ready') this.updateScale();
         }));
     }
@@ -534,7 +534,7 @@ export class SlideIframePreview {
         if (!this.iframe?.contentWindow) return;
         const msg: SlideMessage = { nonce: this.nonce, action, payload };
         // M3 fix: use same-origin target instead of '*'
-        this.iframe.contentWindow.postMessage(msg, globalThis.location.origin || '*');
+        this.iframe.contentWindow.postMessage(msg, window.location.origin || '*');
     }
 
     private handleIframeMessage(msg: SlideMessage): void {

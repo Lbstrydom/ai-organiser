@@ -44,8 +44,8 @@ export interface ChunkTask {
  *  isolates it. */
 export type OnBatchSuccess = (embeddings: number[][]) => Promise<void>;
 
-type ScheduleFn = (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
-type CancelFn = (handle: ReturnType<typeof setTimeout>) => void;
+type ScheduleFn = (fn: () => void, ms: number) => number;
+type CancelFn = (handle: number) => void;
 
 /** Hard timeout on a single embedding request (H5). The cap-1 drain means one
  *  hung request would otherwise stall ALL indexing indefinitely. */
@@ -124,15 +124,15 @@ export class GenericEmbeddingQueue<TTask> {
 
     private draining = false;
     private nullServiceWaits = 0;
-    private wakeTimer: ReturnType<typeof setTimeout> | null = null;
+    private wakeTimer: number | null = null;
     private idleUnsub: (() => void) | null = null;
 
     constructor(deps: GenericEmbeddingQueueDeps<TTask>) {
         this.getBackend = deps.getBackend;
         this.foregroundGate = deps.foregroundGate;
         this.cooldown = deps.cooldown;
-        this.schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
-        this.cancel = deps.cancel ?? ((h) => clearTimeout(h));
+        this.schedule = deps.schedule ?? ((fn, ms) => window.setTimeout(fn, ms));
+        this.cancel = deps.cancel ?? ((h) => window.clearTimeout(h));
     }
 
     /**
@@ -211,10 +211,10 @@ export class GenericEmbeddingQueue<TTask> {
      *  completions can never perform post-timeout state writes. */
     private withTimeout(p: Promise<BatchEmbeddingResult>): Promise<BatchEmbeddingResult> {
         return new Promise<BatchEmbeddingResult>((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('embedding request timed out')), BATCH_TIMEOUT_MS);
+            const timer = window.setTimeout(() => reject(new Error('embedding request timed out')), BATCH_TIMEOUT_MS);
             p.then(
-                (r) => { clearTimeout(timer); resolve(r); },
-                (e) => { clearTimeout(timer); reject(e instanceof Error ? e : new Error(String(e))); },
+                (r) => { window.clearTimeout(timer); resolve(r); },
+                (e) => { window.clearTimeout(timer); reject(e instanceof Error ? e : new Error(String(e))); },
             );
         });
     }

@@ -206,10 +206,10 @@ async function resolveLatestHaiku(apiKey: string, signal?: AbortSignal): Promise
     // through to the sentinel + log a warning. The sentinel then surfaces as
     // http-4xx via /v1/messages (visible warning) instead of a silent hang.
     const discoveryAbort = new AbortController();
-    const timeoutHandle = setTimeout(() => discoveryAbort.abort(), DISCOVERY_TIMEOUT_MS);
+    const timeoutHandle = window.setTimeout(() => discoveryAbort.abort(), DISCOVERY_TIMEOUT_MS);
     if (signal) {
         if (signal.aborted) {
-            clearTimeout(timeoutHandle);
+            window.clearTimeout(timeoutHandle);
             throw new DOMException('cancelled', 'AbortError');
         }
         signal.addEventListener('abort', () => discoveryAbort.abort(), { once: true });
@@ -238,7 +238,7 @@ async function resolveLatestHaiku(apiKey: string, signal?: AbortSignal): Promise
         }
         return 'latest-haiku';
     } finally {
-        clearTimeout(timeoutHandle);
+        window.clearTimeout(timeoutHandle);
     }
     if (resp.status !== 200) {
         // Fallback: pass through the sentinel; the messages endpoint may resolve it,
@@ -361,10 +361,10 @@ async function callWithTimeout(
 ): Promise<EnhancerCallOutcome> {
     const composed = new AbortController();
     let timedOut = false;
-    const timeoutHandle = setTimeout(() => { timedOut = true; composed.abort(); }, timeoutMs);
+    const timeoutHandle = window.setTimeout(() => { timedOut = true; composed.abort(); }, timeoutMs);
     if (callerSignal) {
         if (callerSignal.aborted) {
-            clearTimeout(timeoutHandle);
+            window.clearTimeout(timeoutHandle);
             return errOutcome('aborted', { retryable: false });
         }
         callerSignal.addEventListener('abort', () => composed.abort(), { once: true });
@@ -378,7 +378,7 @@ async function callWithTimeout(
         if (/cancelled|aborted|AbortError/i.test(message)) return errOutcome('aborted', { retryable: false });
         return errOutcome(classifyTransportError(message), { retryable: false });
     } finally {
-        clearTimeout(timeoutHandle);
+        window.clearTimeout(timeoutHandle);
     }
 }
 

@@ -43,7 +43,7 @@ export class PresentationCanvasView {
     private preview: SlideIframePreview | null = null;
     private filmstrip: SlideFilmstrip | null = null;
     private thumbnailProvider: SlideThumbnailProvider | null = null;
-    private navigateTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    private navigateTimeoutId: number | null = null;
 
     constructor(
         private readonly deck: PresentationDeckStore,
@@ -92,7 +92,7 @@ export class PresentationCanvasView {
             // Track the navigate handle so rapid re-render / dispose can cancel
             // the stale callback before it fires.
             this.clearNavigateTimeout();
-            this.navigateTimeoutId = setTimeout(() => {
+            this.navigateTimeoutId = window.setTimeout(() => {
                 this.navigateTimeoutId = null;
                 this.preview?.navigateToSlide(this.deck.activeSlideIndex);
             }, NAVIGATE_DEFER_MS);
@@ -107,7 +107,7 @@ export class PresentationCanvasView {
 
     clearNavigateTimeout(): void {
         if (this.navigateTimeoutId !== null) {
-            clearTimeout(this.navigateTimeoutId);
+            window.clearTimeout(this.navigateTimeoutId);
             this.navigateTimeoutId = null;
         }
     }

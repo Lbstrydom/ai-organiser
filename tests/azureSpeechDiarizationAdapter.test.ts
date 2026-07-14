@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Azure Speech Fast Transcription diarization adapter tests (azure-audio Phase 2).
  *

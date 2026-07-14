@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * TTS retry helper — exponential backoff + abort awareness.
  */

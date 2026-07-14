@@ -85,7 +85,7 @@ export class FindResourcesModal extends Modal {
                 enableAutoExpand(text.inputEl);
 
                 // Focus the textarea
-                setTimeout(() => text.inputEl.focus(), 50);
+                window.setTimeout(() => text.inputEl.focus(), 50);
 
                 // Submit on Ctrl/Cmd + Enter
                 this.cleanups.push(listen(text.inputEl, 'keydown', (e) => {
@@ -118,7 +118,7 @@ export class FindResourcesModal extends Modal {
             const el = this.textAreaComponent?.inputEl;
             if (el) {
                 el.addClass('ai-organiser-shake');
-                setTimeout(() => el.removeClass('ai-organiser-shake'), 400);
+                window.setTimeout(() => el.removeClass('ai-organiser-shake'), 400);
             }
             return;
         }

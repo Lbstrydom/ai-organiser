@@ -431,7 +431,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                     ? this.azureBackoffMs(response, attempt)
                     : this.rateLimitBackoffMs(response, attempt);
                 if (attempt < this.MAX_RETRIES - 1) {
-                    await new Promise(resolve => setTimeout(resolve, waitMs));
+                    await new Promise(resolve => window.setTimeout(resolve, waitMs));
                 }
                 setLastError(new Error('Rate limit exceeded (429): too many requests'));
                 return null;
@@ -454,7 +454,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             const response = await this.tryOneRequest(prompt, timeoutMs, i, setLastError);
             if (response) return response;
             if (i < this.MAX_RETRIES - 1) {
-                await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY * Math.pow(2, i)));
+                await new Promise(resolve => window.setTimeout(resolve, this.RETRY_DELAY * Math.pow(2, i)));
             }
         }
 
@@ -1094,7 +1094,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const { url, headers, body } = this.adapter.formatStreamingRequest!(prompt);
 
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const doFetch = (): Promise<Response> => globalThis.fetch(url, {
+        const doFetch = (): Promise<Response> => window.fetch(url, {
             method: 'POST',
             headers,
             body: JSON.stringify(body),

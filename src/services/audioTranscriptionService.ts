@@ -369,7 +369,7 @@ export async function transcribeAudioFromData(
         const timeoutMs = 600000; // 10 minutes
 
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
+            window.setTimeout(() => reject(new Error('Transcription request timeout (10 minutes)')), timeoutMs);
         });
 
         const requestPromise = pacedWhisperRequest(endpoint, {
@@ -646,10 +646,10 @@ export async function pacedWhisperRequest(
         if (signal.aborted) controller.abort();
         else signal.addEventListener('abort', onParentAbort, { once: true });
     }
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    let timer: number | undefined;
     const timeout = timeoutMs != null
         ? new Promise<never>((_, reject) => {
-            timer = setTimeout(() => {
+            timer = window.setTimeout(() => {
                 controller.abort();
                 reject(new Error(`Transcription request timeout (${Math.round(timeoutMs / 60000)} minutes)`));
             }, timeoutMs);
@@ -671,7 +671,7 @@ export async function pacedWhisperRequest(
         }
         return last;
     } finally {
-        if (timer) clearTimeout(timer);
+        if (timer) window.clearTimeout(timer);
         if (signal) signal.removeEventListener('abort', onParentAbort);
     }
 }
@@ -796,7 +796,7 @@ export async function fastTranscribeRequest(
     }
     const timeoutMs = args.timeoutMs ?? SPEECH_DEFAULT_TIMEOUT_MS;
     let didTimeout = false;
-    const timer = setTimeout(() => { didTimeout = true; controller.abort(); }, timeoutMs);
+    const timer = window.setTimeout(() => { didTimeout = true; controller.abort(); }, timeoutMs);
 
     try {
         let last: import('obsidian').RequestUrlResponse | null = null;
@@ -834,7 +834,7 @@ export async function fastTranscribeRequest(
         }
         return err(`http-${last?.status ?? 0}`);
     } finally {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
         if (args.signal) args.signal.removeEventListener('abort', onParentAbort);
     }
 }

@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * Deepgram adapter unit tests
  * ---------------------------

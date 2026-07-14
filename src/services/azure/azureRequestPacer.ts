@@ -37,8 +37,8 @@ export interface PacerClock {
 
 const REAL_CLOCK: PacerClock = {
     now: () => Date.now(),
-    setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
-    clearTimeout: (h) => globalThis.clearTimeout(h as ReturnType<typeof globalThis.setTimeout>),
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (h) => window.clearTimeout(h as number),
 };
 
 const WINDOW_MS = 60_000;

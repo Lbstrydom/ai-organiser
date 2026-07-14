@@ -191,14 +191,14 @@ export abstract class BaseSettingSection {
                         try {
                             const success = await testCallback();
                             btn.setButtonText(success ? t.secretStorage.valid : t.secretStorage.invalid);
-                            setTimeout(() => {
+                            window.setTimeout(() => {
                                 btn.setButtonText(t.secretStorage.testKey);
                                 btn.setDisabled(false);
                             }, 2000);
                         } catch (error) {
                             btn.setButtonText(t.secretStorage.error);
                             logger.error('Settings', 'Key test failed:', error);
-                            setTimeout(() => {
+                            window.setTimeout(() => {
                                 btn.setButtonText(t.secretStorage.testKey);
                                 btn.setDisabled(false);
                             }, 2000);

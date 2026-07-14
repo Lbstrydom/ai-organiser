@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /**
  * EmbeddingQueue (D4.4) — cap-1 atomic drain, maxBatchSize-per-request,
  * transient re-enqueue (cooldown/rate-limit), permanent drop, foreground

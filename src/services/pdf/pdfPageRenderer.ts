@@ -227,7 +227,7 @@ async function ensurePdfJs(deps: PdfRendererDeps): Promise<PdfJsLib | null> {
     if (pdfjsLibCache) return pdfjsLibCache;
     try {
         const lib = (await deps.loadPdfJs()) as PdfJsLib | null;
-        const resolved = lib ?? ((globalThis as { pdfjsLib?: PdfJsLib }).pdfjsLib ?? null);
+        const resolved = lib ?? ((window as { pdfjsLib?: PdfJsLib }).pdfjsLib ?? null);
         pdfjsLoadAttempted = true;
         if (resolved && typeof resolved.getDocument === 'function') {
             pdfjsLibCache = resolved;

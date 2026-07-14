@@ -111,7 +111,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                 lastError = error instanceof Error ? error : new Error('Unknown error');
             }
 
-            await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY * (i + 1)));
+            await new Promise(resolve => window.setTimeout(resolve, this.RETRY_DELAY * (i + 1)));
         }
 
         throw lastError || new Error('Max retries exceeded');
@@ -336,7 +336,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         };
 
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await globalThis.fetch(url, {
+        const response = await window.fetch(url, {
             method: 'POST',
             headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
