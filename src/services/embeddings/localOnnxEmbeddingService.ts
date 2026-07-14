@@ -34,7 +34,14 @@ const MODEL_REVISIONS: Record<string, string> = {
     'nomic-ai/nomic-embed-text-v1.5': 'e9b6763023c676ca8431644204f50c2b100d9aab',
 };
 
-type FeatureExtractionPipeline = (text: string | string[], options?: { pooling?: 'none' | 'cls' | 'mean'; normalize?: boolean }) => Promise<{ data: Float32Array }>;
+// `dispose` is optional in the type — Transformers.js attaches it to the
+// callable pipeline object it returns, but this codebase's own mocks/tests
+// construct plain functions without it (Gemini gate final round G1: the
+// underlying ONNX Runtime Web session holds WASM heap memory that is NOT
+// reliably garbage-collected by the JS engine and must be explicitly
+// released, or repeated toggle/model-switch/init-race cycles leak memory
+// until Obsidian OOMs).
+type FeatureExtractionPipeline = ((text: string | string[], options?: { pooling?: 'none' | 'cls' | 'mean'; normalize?: boolean }) => Promise<{ data: Float32Array }>) & { dispose?: () => Promise<void> };
 
 export class LocalOnnxEmbeddingService implements IEmbeddingService {
     private pipeline: FeatureExtractionPipeline | null = null;
@@ -110,7 +117,11 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         }
     }
 
-    dispose(): Promise<void> {
+    async dispose(): Promise<void> {
+        // Gemini gate final round G1: release the underlying ONNX Runtime
+        // Web session's WASM heap explicitly — clearing our own reference
+        // doesn't free it, and it isn't reliably garbage-collected.
+        await this.pipeline?.dispose?.();
         this.pipeline = null;
         this.pipelinePromise = null;
         // audit-caught (M2/M5, round 2): a dispose() call while an init was
@@ -126,7 +137,6 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         // flag) invalidates every init that started before it, regardless
         // of how many dispose/reinit cycles race in between.
         this.generation++;
-        return Promise.resolve();
     }
 
     private pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
@@ -154,7 +164,19 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
             // @ts-ignore — optional peer dependency
             const { pipeline } = await import('@xenova/transformers');
             const pipe = (await pipeline('feature-extraction', this.modelId, { revision })) as unknown as FeatureExtractionPipeline;
-            if (this.generation !== startedAtGeneration) return pipe;
+            if (this.generation !== startedAtGeneration) {
+                // Gemini gate final round G1: a dispose() (or dispose+reinit)
+                // raced ahead of this init — this pipeline was never stored
+                // in `this.pipeline` and nothing else will ever dispose it.
+                // Release its WASM resources now rather than leaking them;
+                // the caller that started this specific call receives a
+                // now-disposed pipe (matches "this service instance's
+                // generation moved on" semantics — its pending
+                // generateEmbedding() call fails through the existing
+                // try/catch rather than silently using a zombie session).
+                await pipe.dispose?.();
+                return pipe;
+            }
             this.pipeline = pipe;
             return pipe;
         })();

@@ -189,5 +189,55 @@ describe('LocalOnnxEmbeddingService', () => {
             await svc.generateEmbedding('prime the pipeline');
             await expect(svc.dispose()).resolves.toBeUndefined();
         });
+
+        // Gemini gate final round G1: clearing our own reference doesn't
+        // free the underlying ONNX Runtime Web session's WASM heap — the
+        // pipeline object's OWN dispose() must be called explicitly, or
+        // repeated toggle/model-switch cycles leak memory until Obsidian
+        // OOMs.
+        it('calls the underlying pipeline\'s own dispose() to release WASM resources', async () => {
+            const pipelineDispose = vi.fn().mockResolvedValue(undefined);
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            const pipeFn = Object.assign(
+                vi.fn().mockResolvedValue({ data: new Float32Array([0.1, 0.2]) }),
+                { dispose: pipelineDispose },
+            );
+            pipelineMock.mockResolvedValueOnce(pipeFn);
+
+            const svc = new LocalOnnxEmbeddingService();
+            await svc.generateEmbedding('prime the pipeline');
+            await svc.dispose();
+
+            expect(pipelineDispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not throw when the underlying pipeline has no dispose() (defensive — matches this test file\'s own plain-function mocks)', async () => {
+            const svc = new LocalOnnxEmbeddingService();
+            await svc.generateEmbedding('prime the pipeline');
+            await expect(svc.dispose()).resolves.toBeUndefined();
+        });
+
+        it('disposes an orphaned pipeline (one that resolved AFTER a dispose()/reinit race) instead of leaking it', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            let resolveInit: ((fn: unknown) => void) | undefined;
+            pipelineMock.mockImplementationOnce(() => new Promise((resolve) => { resolveInit = resolve; }));
+
+            const svc = new LocalOnnxEmbeddingService();
+            const inFlight = svc.generateEmbedding('will be disposed mid-flight');
+            await vi.waitFor(() => { if (!resolveInit) throw new Error('not yet'); });
+            await svc.dispose();
+
+            const orphanedDispose = vi.fn().mockResolvedValue(undefined);
+            const orphanedPipeFn = Object.assign(
+                vi.fn().mockResolvedValue({ data: new Float32Array([0.1]) }),
+                { dispose: orphanedDispose },
+            );
+            resolveInit!(orphanedPipeFn);
+            await inFlight;
+
+            expect(orphanedDispose).toHaveBeenCalledTimes(1);
+        });
     });
 });
