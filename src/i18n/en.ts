@@ -701,6 +701,11 @@ export const en: Translations = {
             localOnnxRecommendation: "No embedding API key configured. Switch to local for zero-setup.",
             localOnnxSwitchButton: "Switch to local",
             localOnnxReady: 'Built-in embeddings ready',
+            localOnnxConsentToggleName: "Enable local embeddings",
+            localOnnxConsentToggleDesc: "Opt in to the built-in offline embedding fallback (see the risk disclosure).",
+            localOnnxConsentSaveFailed: "Couldn't save your choice — please try again.",
+            localOnnxNotConsentedBanner: "Local embeddings are disabled. Grant consent below to enable, or configure a cloud provider.",
+            localOnnxNotConsentedBannerButton: "Review and enable",
         },
         mobile: {
             title: "Mobile",
@@ -1566,6 +1571,7 @@ export const en: Translations = {
         embeddingGenerationFailed: "Embedding failed",
         vectorStoreFailed: "Storage failed",
         semanticSearchDisabled: "Semantic search is not enabled. Enable it in settings.",
+        localOnnxNotConsented: "No cloud embedding key configured — enable local embeddings in settings, or add a cloud provider key.",
         externalCompressionNotSupported: "Can't compress external files. Use a smaller file.",
         mobileIndexTooLarge: "Mobile index skipped ({size}MB exceeds {limit}MB).",
         mobileDataWarning: "This audio file is {size}MB. It may use significant mobile data. Continue?",
@@ -1723,6 +1729,15 @@ export const en: Translations = {
             bullet3: "This notice will appear once per session",
             proceedButton: "Proceed",
             cancelButton: "Cancel"
+        },
+        localOnnxConsent: {
+            title: "Enable local embeddings?",
+            description: "This turns on the built-in offline embedding fallback for semantic search.",
+            bullet1: "It downloads and runs a machine-learning model via a dependency chain with a known critical-severity security issue that has no fix yet",
+            bullet2: "The download source is a fixed, trusted location, but that narrows the risk — it doesn't remove it",
+            bullet3: "This is optional — a cloud embedding provider is the safer default",
+            declineButton: "Don't enable",
+            acceptButton: "Enable local embeddings"
         },
         translate: {
             title: "Translate note",

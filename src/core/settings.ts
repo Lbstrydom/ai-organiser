@@ -180,6 +180,14 @@ export interface AIOrganiserSettings {
     embeddingModel: string;              // e.g., 'text-embedding-3-small', 'nomic-embed-text'
     embeddingApiKey: string;             // May differ from chat API key
     embeddingEndpoint: string;           // For local providers (Ollama URL)
+    /** Opt-in consent for the local ONNX embedding fallback (npm-audit-remediation
+     *  plan, Cluster 4). Default false — the @xenova/transformers -> onnxruntime-web
+     *  -> protobufjs chain has a critical unpatched RCE-class vulnerability; this
+     *  gate narrows exploitability from "silent auto-fallback for anyone without a
+     *  cloud key" to "explicit opt-in after a plain-language risk disclosure". Read
+     *  ONLY by resolveLocalOnnxEmbeddingService() / classifyEmbeddingAvailability()
+     *  — never re-checked ad-hoc elsewhere. See docs/dependency-accepted-risks.md. */
+    enableLocalOnnxEmbeddings: boolean;
     
     // Indexing Options
     autoIndexNewNotes: boolean;          // Auto-index notes on create/modify
@@ -673,6 +681,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     embeddingModel: 'text-embedding-3-small',           // OpenAI default model
     embeddingApiKey: '',                                // Will use cloudApiKey if empty and provider matches
     embeddingEndpoint: 'http://localhost:11434',       // For Ollama
+    enableLocalOnnxEmbeddings: false,                   // User must opt-in (npm-audit-remediation Cluster 4)
     autoIndexNewNotes: true,                            // Auto-index when enabled
     useSharedExcludedFolders: true,                     // Share with tagging by default
     indexExcludedFolders: [],                           // Custom exclusions (when not shared)
@@ -1234,8 +1243,27 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateBrandSettings(oldSettings);
     migrateFeatureFlags(oldSettings);
     migratePickerTaxonomy(oldSettings);
+    migrateLocalOnnxConsent(oldSettings);
 
     return oldSettings;
+}
+
+/**
+ * Grandfather existing users who already had `embeddingProvider: 'local-onnx'`
+ * persisted before the opt-in consent gate existed (npm-audit-remediation
+ * Cluster 4) — they already made an informed choice by explicitly selecting
+ * it. Keyed on the field being `undefined` (absent from pre-this-change
+ * persisted data): idempotent by construction (a second pass sees the key
+ * already present and no-ops), and never overwrites an explicitly-persisted
+ * `false` (a user who later revoked consent must never be silently
+ * re-enabled on a later load). Operates on the RAW persisted object, called
+ * from `migrateOldSettings()` before `main.ts`'s `Object.assign` merges
+ * `DEFAULT_SETTINGS` — see `docs/plans/npm-audit-remediation.md` audit M2.
+ */
+function migrateLocalOnnxConsent(s: Record<string, unknown>): void {
+    if (s.enableLocalOnnxEmbeddings === undefined && s.embeddingProvider === 'local-onnx') {
+        s.enableLocalOnnxEmbeddings = true;
+    }
 }
 
 /**

@@ -112,20 +112,24 @@ describe('getAudioTranscriptionApiKey — Azure no-silent-fallback', () => {
 describe('createEmbeddingServiceFromSettings — Azure no-silent-fallback', () => {
 	it('returns null in Azure mode when the Azure key is missing (no local-onnx / personal key)', async () => {
 		const plugin = makePlugin({ azureApiKey: '', cloudApiKey: 'sk-personal' });
-		const svc = await createEmbeddingServiceFromSettings(plugin.settings, undefined);
-		expect(svc).toBeNull();
+		const { service, unavailableReason } = await createEmbeddingServiceFromSettings(plugin.settings, undefined);
+		expect(service).toBeNull();
+		// Azure mode never falls back to local-onnx — this must be
+		// 'credentials-missing', not 'local-onnx-not-consented'.
+		expect(unavailableReason).toBe('credentials-missing');
 	});
 
 	it('returns null in Azure mode when the Azure OpenAI endpoint is invalid', async () => {
 		const plugin = makePlugin({ azureOpenAIEndpoint: '' });
-		const svc = await createEmbeddingServiceFromSettings(plugin.settings, 'azure-key-123');
-		expect(svc).toBeNull();
+		const { service, unavailableReason } = await createEmbeddingServiceFromSettings(plugin.settings, 'azure-key-123');
+		expect(service).toBeNull();
+		expect(unavailableReason).toBe('credentials-missing');
 	});
 
 	it('builds an Azure embedding service when key + endpoint present', async () => {
 		const plugin = makePlugin();
-		const svc = await createEmbeddingServiceFromSettings(plugin.settings, 'azure-key-123');
-		expect(svc).not.toBeNull();
+		const { service } = await createEmbeddingServiceFromSettings(plugin.settings, 'azure-key-123');
+		expect(service).not.toBeNull();
 	});
 });
 

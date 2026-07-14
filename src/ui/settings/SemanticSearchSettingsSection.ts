@@ -1,8 +1,12 @@
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { BaseSettingSection } from './BaseSettingSection';
 import { EMBEDDING_DEFAULT_MODEL, getEmbeddingModelOptions, EmbeddingProvider } from '../../services/embeddings/embeddingRegistry';
 import { PLUGIN_SECRET_IDS, EMBEDDING_PROVIDER_TO_SECRET_ID, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
+import { classifyEmbeddingAvailability } from '../../services/embeddings/embeddingServiceFactory';
+import { isAzureMode } from '../../services/azure/endpointResolver';
+import { LocalOnnxConsentModal } from '../modals/LocalOnnxConsentModal';
+import { logger } from '../../utils/logger';
 
 export class SemanticSearchSettingsSection extends BaseSettingSection {
     private sectionEl: HTMLElement | null = null;
@@ -47,6 +51,32 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                 .addOption('voyage', ['Voyage AI'].join(''))
                 .setValue(plugin.settings.embeddingProvider)
                 .onChange((value: string) => {
+                    // npm-audit-remediation Cluster 4: selecting local-onnx
+                    // without consent already granted routes through the
+                    // consent modal instead of applying immediately.
+                    if (value === 'local-onnx' && !plugin.settings.enableLocalOnnxEmbeddings) {
+                        void this.display(); // revert the dropdown's visible value first
+                        this.openLocalOnnxConsentModal(plugin, (accepted) => {
+                            if (!accepted) return;
+                            void this.applyLocalOnnxConsentChange(plugin, () => {
+                                // audit-caught: the consent flag itself was missing here —
+                                // accepting the modal changed the provider but never actually
+                                // granted consent, so the very next embedding-service
+                                // resolution would immediately deny it as not-consented.
+                                // embeddingModel is also set explicitly (not just left to the
+                                // generic auto-select logic below, which this early-return
+                                // bypasses) — otherwise a switch FROM a cloud provider would
+                                // leave a non-ONNX model id persisted against provider
+                                // 'local-onnx', since resolveLocalOnnxEmbeddingService() is
+                                // called with settings.embeddingModel as the model id.
+                                plugin.settings.enableLocalOnnxEmbeddings = true;
+                                plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
+                                plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
+                            });
+                        });
+                        return;
+                    }
+
                     const previousDefault = this.getDefaultEmbeddingModel(plugin.settings.embeddingProvider);
                     plugin.settings.embeddingProvider = value as typeof plugin.settings.embeddingProvider;
 
@@ -68,29 +98,63 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     void this.display(); // Refresh to show provider-specific settings
                 }));
 
-        // Local-ONNX recommendation banner: shown when no API key is configured
-        // and user is on a provider that requires one
-        const needsKey = plugin.settings.embeddingProvider !== 'ollama'
-            && plugin.settings.embeddingProvider !== 'local-onnx';
-        if (needsKey && !plugin.settings.embeddingApiKey) {
-            const hasInherited = await this.checkEmbeddingKeyAvailable(plugin);
-            if (!hasInherited) {
-                const bannerEl = sectionEl.createDiv({ cls: 'ai-organiser-settings-banner' });
-                bannerEl.createEl('p', {
-                    text: t.settings.semanticSearch.localOnnxRecommendation,
-                    cls: 'setting-item-description'
+        // npm-audit-remediation Cluster 4: an independent, symmetric on/off
+        // control for local-embedding consent — separate from the provider
+        // dropdown so revocation doesn't require switching providers.
+        new Setting(sectionEl)
+            .setName(t.settings.semanticSearch.localOnnxConsentToggleName)
+            .setDesc(t.settings.semanticSearch.localOnnxConsentToggleDesc)
+            .addToggle(toggle => toggle
+                .setValue(plugin.settings.enableLocalOnnxEmbeddings)
+                .onChange((value) => {
+                    if (value) {
+                        void this.display(); // revert the toggle's visible value first
+                        this.openLocalOnnxConsentModal(plugin, (accepted) => {
+                            if (!accepted) return;
+                            void this.applyLocalOnnxConsentChange(plugin, () => {
+                                plugin.settings.enableLocalOnnxEmbeddings = true;
+                            });
+                        });
+                        return;
+                    }
+                    // Turning off never needs a modal — declining/revoking
+                    // needs no confirmation.
+                    void this.applyLocalOnnxConsentChange(plugin, () => {
+                        plugin.settings.enableLocalOnnxEmbeddings = false;
+                    });
+                }));
+
+        // Persistent, discoverable denied-state banner — covers BOTH the
+        // never-consented-auto-fallback case and the explicitly-selected-
+        // but-revoked case (same classifier the factory uses, so this can
+        // never drift from the actual resolution logic).
+        const hasApiKeyForBanner = plugin.settings.embeddingProvider !== 'ollama'
+            && plugin.settings.embeddingProvider !== 'local-onnx'
+            && (!!plugin.settings.embeddingApiKey || await this.checkEmbeddingKeyAvailable(plugin));
+        const availability = classifyEmbeddingAvailability(
+            plugin.settings.embeddingProvider,
+            hasApiKeyForBanner,
+            plugin.settings.enableLocalOnnxEmbeddings,
+            isAzureMode(plugin.settings),
+        );
+        if (availability === 'local-onnx-not-consented') {
+            const bannerEl = sectionEl.createDiv({ cls: 'ai-organiser-settings-banner' });
+            bannerEl.createEl('p', {
+                text: t.settings.semanticSearch.localOnnxNotConsentedBanner,
+                cls: 'setting-item-description'
+            });
+            const reviewBtn = bannerEl.createEl('button', {
+                text: t.settings.semanticSearch.localOnnxNotConsentedBannerButton,
+                cls: 'mod-cta'
+            });
+            reviewBtn.addEventListener('click', () => {
+                this.openLocalOnnxConsentModal(plugin, (accepted) => {
+                    if (!accepted) return;
+                    void this.applyLocalOnnxConsentChange(plugin, () => {
+                        plugin.settings.enableLocalOnnxEmbeddings = true;
+                    });
                 });
-                const switchBtn = bannerEl.createEl('button', {
-                    text: t.settings.semanticSearch.localOnnxSwitchButton,
-                    cls: 'mod-cta'
-                });
-                switchBtn.addEventListener('click', () => {
-                    plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
-                    plugin.settings.embeddingModel = 'Xenova/all-MiniLM-L6-v2';
-                    void plugin.saveSettings();
-                    void this.display();
-                });
-            }
+            });
         }
 
         // Embedding Model - dropdown with provider-specific options
@@ -468,5 +532,41 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
         if (plugin.settings.cloudApiKey) return true;
 
         return false;
+    }
+
+    /** Opens the local-ONNX consent disclosure. `callback` receives the
+     *  user's decision — the caller decides what to mutate on accept. */
+    private openLocalOnnxConsentModal(plugin: AIOrganiserPlugin, callback: (accepted: boolean) => void): void {
+        new LocalOnnxConsentModal(plugin.app, plugin.t, callback).open();
+    }
+
+    /**
+     * The ONE apply-operation for every direction of the local-ONNX consent
+     * change (grant via modal accept, revoke via the toggle) — a `mutator`
+     * callback rather than a boolean, since different callers change
+     * different fields (the toggle only touches the consent flag; the
+     * dropdown/banner also set `embeddingProvider`/`embeddingModel`).
+     * Snapshots BEFORE calling `mutator()` so a save failure can roll back
+     * to the exact pre-change state, then persists and re-renders. A failed
+     * save leaves both the in-memory settings and the rendered UI exactly
+     * as they were before the mutation — not a partial, inconsistent state.
+     */
+    private async applyLocalOnnxConsentChange(plugin: AIOrganiserPlugin, mutator: () => void): Promise<void> {
+        const snapshot = {
+            enableLocalOnnxEmbeddings: plugin.settings.enableLocalOnnxEmbeddings,
+            embeddingProvider: plugin.settings.embeddingProvider,
+            embeddingModel: plugin.settings.embeddingModel,
+        };
+        mutator();
+        try {
+            await plugin.saveSettings();
+        } catch (err) {
+            plugin.settings.enableLocalOnnxEmbeddings = snapshot.enableLocalOnnxEmbeddings;
+            plugin.settings.embeddingProvider = snapshot.embeddingProvider;
+            plugin.settings.embeddingModel = snapshot.embeddingModel;
+            logger.error('Search', `Failed to save local-ONNX consent change: ${err instanceof Error ? err.message : String(err)}`);
+            new Notice(plugin.t.settings.semanticSearch.localOnnxConsentSaveFailed);
+        }
+        void this.display();
     }
 }

@@ -42,7 +42,11 @@ describe('AIOrganiserPlugin.saveSettings', () => {
             model: plugin.settings.embeddingModel,
             // Mirror production loadSettings: the snapshot tracks the FEATURE state
             // (FT-11), not the legacy enableSemanticSearch field.
-            enabled: isFeatureEnabled(plugin.settings, 'semantic-search')
+            enabled: isFeatureEnabled(plugin.settings, 'semantic-search'),
+            // npm-audit-remediation Cluster 4: mirror production loadSettings's
+            // allowLocalOnnx snapshot field, else it's `undefined` here vs
+            // `false` on plugin.settings — a false-positive "changed" diff.
+            allowLocalOnnx: plugin.settings.enableLocalOnnxEmbeddings
         };
 
         plugin.settings.maxTags = plugin.settings.maxTags + 1;
@@ -71,7 +75,8 @@ describe('AIOrganiserPlugin.saveSettings', () => {
         (plugin as any).lastEmbeddingConfig = {
             provider: plugin.settings.embeddingProvider,
             model: plugin.settings.embeddingModel,
-            enabled: true
+            enabled: true,
+            allowLocalOnnx: plugin.settings.enableLocalOnnxEmbeddings
         };
 
         plugin.settings.embeddingProvider = 'voyage';

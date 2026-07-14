@@ -675,6 +675,11 @@ export interface Translations {
             localOnnxRecommendation: string;
             localOnnxSwitchButton: string;
             localOnnxReady: string;
+            localOnnxConsentToggleName: string;
+            localOnnxConsentToggleDesc: string;
+            localOnnxConsentSaveFailed: string;
+            localOnnxNotConsentedBanner: string;
+            localOnnxNotConsentedBannerButton: string;
         };
         mobile: {
             title: string;
@@ -1546,6 +1551,7 @@ export interface Translations {
         embeddingGenerationFailed: string;
         vectorStoreFailed: string;
         semanticSearchDisabled: string;
+        localOnnxNotConsented: string;
         externalCompressionNotSupported: string;
         mobileIndexTooLarge: string;
         mobileDataWarning: string;
@@ -1716,6 +1722,15 @@ export interface Translations {
             bullet3: string;
             proceedButton: string;
             cancelButton: string;
+        };
+        localOnnxConsent: {
+            title: string;
+            description: string;
+            bullet1: string;
+            bullet2: string;
+            bullet3: string;
+            declineButton: string;
+            acceptButton: string;
         };
         translate: {
             title: string;

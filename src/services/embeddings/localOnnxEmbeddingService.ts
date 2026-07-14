@@ -6,6 +6,22 @@ const MODEL_DIMENSIONS: Record<string, number> = {
     'nomic-ai/nomic-embed-text-v1.5': 768,
 };
 
+/**
+ * Pin known models to an immutable commit SHA rather than Hugging Face
+ * Hub's mutable `main` branch default (npm-audit-remediation plan,
+ * Cluster 4, Gemini gate round 3 G1) — a compromise of the upstream HF
+ * account could otherwise push different model bytes to every opted-in
+ * user with no version bump or code change on our side. Verified
+ * 2026-07-13 against https://huggingface.co/api/models/Xenova/all-MiniLM-L6-v2
+ * (see docs/dependency-accepted-risks.md for the update procedure). Only
+ * the default model is currently pinned — a model not in this map falls
+ * back to `main` (documented gap, not a silent unpinned default: this is
+ * the ONLY model this plan's security review verified).
+ */
+const MODEL_REVISIONS: Record<string, string> = {
+    'Xenova/all-MiniLM-L6-v2': '751bff37182d3f1213fa05d7196b954e230abad9',
+};
+
 type FeatureExtractionPipeline = (text: string | string[], options?: { pooling?: 'none' | 'cls' | 'mean'; normalize?: boolean }) => Promise<{ data: Float32Array }>;
 
 export class LocalOnnxEmbeddingService implements IEmbeddingService {
@@ -84,7 +100,9 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
         // Dynamic import — not bundled by default
         // @ts-ignore — optional peer dependency
         const { pipeline } = await import('@xenova/transformers');
-        this.pipeline = (await pipeline('feature-extraction', this.modelId)) as unknown as FeatureExtractionPipeline;
+        const revision = MODEL_REVISIONS[this.modelId];
+        const options = revision ? { revision } : undefined;
+        this.pipeline = (await pipeline('feature-extraction', this.modelId, options)) as unknown as FeatureExtractionPipeline;
         return this.pipeline;
     }
 }

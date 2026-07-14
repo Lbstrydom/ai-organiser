@@ -671,4 +671,46 @@ describe('migrateOldSettings', () => {
         });
     });
 
+    // npm-audit-remediation plan, Cluster 4 (audit M2 round 1) — grandfather
+    // existing local-onnx users into the new consent flag; never overwrite
+    // an explicitly-persisted value; idempotent by construction (keyed on
+    // the field being `undefined`).
+    describe('local-onnx consent grandfathering', () => {
+        it('raw legacy local-onnx input (key absent) migrates to enableLocalOnnxEmbeddings: true', () => {
+            const r = migrateOldSettings({ embeddingProvider: 'local-onnx' })!;
+            expect(r.enableLocalOnnxEmbeddings).toBe(true);
+        });
+
+        it('raw legacy non-local-onnx input (key absent) leaves the key absent (defaults apply downstream)', () => {
+            const r = migrateOldSettings({ embeddingProvider: 'openai' })!;
+            expect(r.enableLocalOnnxEmbeddings).toBeUndefined();
+        });
+
+        it('explicit persisted true is left unchanged', () => {
+            const r = migrateOldSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: true })!;
+            expect(r.enableLocalOnnxEmbeddings).toBe(true);
+        });
+
+        it('explicit persisted false is NEVER overwritten back to true (the critical non-regression case — a user who revoked consent must stay revoked)', () => {
+            const r = migrateOldSettings({ embeddingProvider: 'local-onnx', enableLocalOnnxEmbeddings: false })!;
+            expect(r.enableLocalOnnxEmbeddings).toBe(false);
+        });
+
+        it('is idempotent — two consecutive migration passes on the same object produce identical output', () => {
+            const once = migrateOldSettings({ embeddingProvider: 'local-onnx' })!;
+            const twice = migrateOldSettings({ ...once })!;
+            expect(twice.enableLocalOnnxEmbeddings).toBe(true);
+            expect(twice).toEqual(once);
+        });
+
+        it('a fresh install (null oldSettings) does not throw — the existing top-of-function null guard covers it', () => {
+            expect(() => migrateOldSettings(null)).not.toThrow();
+            expect(migrateOldSettings(null)).toBeNull();
+        });
+
+        it('DEFAULT_SETTINGS.enableLocalOnnxEmbeddings is false (new/unaffected users default to declined)', () => {
+            expect(DEFAULT_SETTINGS.enableLocalOnnxEmbeddings).toBe(false);
+        });
+    });
+
 });

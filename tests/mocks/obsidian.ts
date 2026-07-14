@@ -470,6 +470,8 @@ class MockButton {
 
     setCta() { return this; }
     setWarning() { return this; }
+    setIcon(_icon: string) { return this; }
+    setDisabled(_disabled: boolean) { return this; }
 }
 
 export function normalizePath(path: string): string {

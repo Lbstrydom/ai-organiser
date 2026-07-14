@@ -76,7 +76,8 @@ export default class AIOrganiserPlugin extends Plugin {
     private lastEmbeddingConfig = {
         provider: DEFAULT_SETTINGS.embeddingProvider,
         model: DEFAULT_SETTINGS.embeddingModel,
-        enabled: isFeatureEnabled(DEFAULT_SETTINGS, 'semantic-search')
+        enabled: isFeatureEnabled(DEFAULT_SETTINGS, 'semantic-search'),
+        allowLocalOnnx: DEFAULT_SETTINGS.enableLocalOnnxEmbeddings
     };
     public llmService: SummarizableLLMService;
     /** Dedicated Azure triage service for high-volume tagging, bound to the fast
@@ -199,7 +200,13 @@ export default class AIOrganiserPlugin extends Plugin {
             model: this.settings.embeddingModel,
             // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
             // enableSemanticSearch master) so a feature toggle is detected as a change.
-            enabled: isFeatureEnabled(this.settings, 'semantic-search')
+            enabled: isFeatureEnabled(this.settings, 'semantic-search'),
+            // npm-audit-remediation Cluster 4 (audit H1 round 3): without this,
+            // toggling enableLocalOnnxEmbeddings while embeddingProvider stays
+            // 'local-onnx' unchanged would never trigger reinitialization —
+            // "revoked" consent would leave the OLD, already-constructed
+            // LocalOnnxEmbeddingService instance alive in memory.
+            allowLocalOnnx: this.settings.enableLocalOnnxEmbeddings
         };
         try {
             this.newsletterLastFetchTime = oldSettings?.[LAST_FETCH_DATA_KEY] ?? 0;
@@ -254,7 +261,8 @@ export default class AIOrganiserPlugin extends Plugin {
         const embeddingSettingsChanged =
             this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
             this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
-            isFeatureEnabled(this.settings, 'semantic-search') !== this.lastEmbeddingConfig.enabled;
+            isFeatureEnabled(this.settings, 'semantic-search') !== this.lastEmbeddingConfig.enabled ||
+            this.settings.enableLocalOnnxEmbeddings !== this.lastEmbeddingConfig.allowLocalOnnx;
 
         const newsletterSettingsChanged =
             isFeatureEnabled(this.settings, 'newsletter') !== this.lastNewsletterConfig.enabled ||
@@ -283,7 +291,8 @@ export default class AIOrganiserPlugin extends Plugin {
             model: this.settings.embeddingModel,
             // FT-11: snapshot the FEATURE state (semantic-search absorbed the legacy
             // enableSemanticSearch master) so a feature toggle is detected as a change.
-            enabled: isFeatureEnabled(this.settings, 'semantic-search')
+            enabled: isFeatureEnabled(this.settings, 'semantic-search'),
+            allowLocalOnnx: this.settings.enableLocalOnnxEmbeddings
         };
         this.t = getTranslations(this.settings.interfaceLanguage);
         if (newsletterSettingsChanged) {
@@ -394,7 +403,15 @@ export default class AIOrganiserPlugin extends Plugin {
         if (isFeatureEnabled(this.settings, 'semantic-search')) {
             // Resolve API key from SecretStorage with inheritance chain
             const apiKey = await this.resolveEmbeddingApiKey();
-            this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined, this.embeddingCooldown);
+            const { service, unavailableReason } = await createEmbeddingServiceFromSettings(this.settings, apiKey || undefined, this.embeddingCooldown);
+            this.embeddingService = service;
+
+            // This is the settings-change reinit path (vs. plugin-load) — the
+            // one place a newly-introduced denial should be surfaced visibly,
+            // since it's the direct result of the user's own action.
+            if (!service && unavailableReason === 'local-onnx-not-consented') {
+                new Notice(this.t.messages.localOnnxNotConsented);
+            }
 
             // Update vector store service with new embedding service
             if (this.vectorStoreService) {
@@ -991,7 +1008,8 @@ export default class AIOrganiserPlugin extends Plugin {
             try {
                 // Resolve API key from SecretStorage with inheritance chain
                 const embeddingApiKey = await this.resolveEmbeddingApiKey();
-                this.embeddingService = await createEmbeddingServiceFromSettings(this.settings, embeddingApiKey || undefined, this.embeddingCooldown);
+                const embeddingResolution = await createEmbeddingServiceFromSettings(this.settings, embeddingApiKey || undefined, this.embeddingCooldown);
+                this.embeddingService = embeddingResolution.service;
 
                 // Create vector store service
                 this.vectorStoreService = new VectorStoreService(

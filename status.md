@@ -1,5 +1,34 @@
 # Project Status Log
 
+## 2026-07-14 — npm audit remediation Cluster D: local-ONNX embedding consent gate, live persona-verified (npm-audit-remediation ✅)
+
+Closes the `@xenova/transformers`→`onnxruntime-web`→`protobufjs` critical-severity RCE-class chain's real user-facing surface: `LocalOnnxEmbeddingService` (the local/offline embedding fallback) is now consent-gated end-to-end, with a single construction choke point so the gate can't be bypassed by any caller. Completes `docs/plans/npm-audit-remediation.md` (Clusters A+B: xlsx CDN pin + xmldom override, already shipped; Cluster C: xmldom PPTX-path verification, already shipped `6a712b1`; this is Cluster D).
+
+### Changes
+- **Single choke point**: `resolveLocalOnnxEmbeddingService(settings, modelId?)` in `embeddingServiceFactory.ts` is now the ONLY place `LocalOnnxEmbeddingService` gets constructed — enforced at the type level (`NonLocalEmbeddingServiceConfig` excludes `'local-onnx'` from `createEmbeddingService()`'s provider union, so a bypass is a compile error, not just a runtime convention).
+- **Consent state**: new `enableLocalOnnxEmbeddings` setting (default `false`), independent of `embeddingProvider` so revocation doesn't require switching providers. Migration grandfathers existing `embeddingProvider === 'local-onnx'` users as already-consented.
+- **`LocalOnnxConsentModal`**: plain-language risk disclosure (names the critical-severity dependency issue, the trusted-but-not-risk-free download source, and that a cloud provider is the safer default) with explicit accept/decline — mirrors `DiarizationPrivacyModal`'s pattern.
+- **`SemanticSearchSettingsSection`**: the provider dropdown and the independent toggle both route local-onnx selection through the consent modal; a persistent "not consented" banner (driven by the shared `classifyEmbeddingAvailability()` classifier, so it can never drift from the actual runtime resolution logic) offers one-click review-and-enable.
+- **Closed a real consent bypass found during this work**: `FreeChatModeHandler.tryAutoBootstrapEmbeddings()` was constructing `LocalOnnxEmbeddingService` directly (`new LocalOnnxEmbeddingService()`), completely outside the gate — routed through `resolveLocalOnnxEmbeddingService()` like every other caller.
+- **HuggingFace Hub model revision pin**: `localOnnxEmbeddingService.ts` pins `Xenova/all-MiniLM-L6-v2` to a specific commit SHA for supply-chain immutability.
+
+### Live persona verification (real Obsidian, not just unit tests)
+Wrote `scripts/persona-harness/persona-local-onnx-consent.mjs` and drove the actual settings UI end-to-end against the "Second Brain" vault: not-consented banner renders → toggle-on opens the modal → decline leaves consent off (banner persists) → accept persists consent (banner clears) → toggle-off revokes with no modal → the provider dropdown routes through the identical modal → declining from the dropdown path reverts the provider selection (no silent switch). All 11 assertions passed clean (0 P0/P1) after two real bugs in the *test harness itself* were found and fixed:
+- Obsidian's Settings tab and the consent modal each render as **separate Electron popout windows**, and the modal specifically attaches to whichever window is currently Obsidian's "active window" — not a fixed page. A test that assumed one fixed page produced flaky false-negatives; fixed by scanning all open pages for the modal's marker classes after each action.
+- Obsidian's `ToggleComponent` never sets the native `<input>` `checked` property — the real state indicator is an `is-enabled` class on the wrapping `.checkbox-container` label. A check against `input.checked` was silently wrong.
+- Also caught and fixed a genuinely stale-settings artifact left in the live vault by manual debugging mid-session (`embeddingProvider` stuck on `'local-onnx'` after a test run instead of the user's real `openai` embedding key) — verified against `secretStorageService.hasSecret()` before restoring, rather than guessing.
+
+### Obsidian community-review bot compliance (pre-ship gate)
+Full `eslint` pass isolated to only-my-added lines (not the ~200 pre-existing `en.ts` sentence-case warnings scattered through untouched lines): fixed one genuine sentence-case violation (`localOnnxNotConsented` — "Settings → Semantic search" capitalized mid-sentence isn't in the rule's brand/acronym allowlist; reworded), one `@typescript-eslint/require-await` (removed `async` from `createEmbeddingService()` — no case actually awaits since local-onnx construction moved out to `resolveLocalOnnxEmbeddingService`), and the resulting `await-thenable` fallout at both call sites. Confirmed `src/main.ts`'s pre-existing `prefer-window-timers` findings (lines 987-988, 1248, 1253) sit outside every diff hunk this work touches — genuinely out of scope, left alone.
+
+### Verification
+361 test files / 6421 unit tests green · full-`tsconfig.json` type-check clean (incl. tests) · `node scripts/automated-tests.js` 45/45 · `npm run build` clean (setImmediate-polyfill-neutralised, no manifest.json literal, version-sync all agree) · live persona-test 11/11 pass, 0 P0/P1.
+
+### Next Steps
+None outstanding — plan fully implemented across all 4 clusters, audited, live-verified, and shipped.
+
+---
+
 ## 2026-07-14 — Build gate + adapter conformance suite COMPLETE, all gates green (adapter-conformance-and-build-gate ✅)
 
 Full autonomous clustered build (`/cycle --autonomous`) of a solo-scoped, MSc-evidence-dual-purpose plan surfaced via `/brainstorm --with-gemini` (OpenAI + Gemini independent review, then user-decided open questions): **Cluster A (B2 — build pipeline) → Cluster B (B1 — adapter conformance)**, each with its own GPT fix-gate, closed by the **consolidated Gemini gate over the union diff `3339f7d..6468cc4`**: APPROVE ("production-ready... Strong" architectural coherence, 0 residual findings).

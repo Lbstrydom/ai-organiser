@@ -9,6 +9,8 @@ import { AttachmentIndexService } from '../../services/chat/attachmentIndexServi
 import { getMaxContentCharsForModel } from '../../services/tokenLimits';
 import { DocumentExtractionService } from '../../services/documentExtractionService';
 import { IndexingChoiceModal } from '../modals/IndexingChoiceModal';
+import { resolveLocalOnnxEmbeddingService } from '../../services/embeddings/embeddingServiceFactory';
+import type { AIOrganiserSettings } from '../../core/settings';
 
 export interface AttachmentEntry {
     path: string;
@@ -509,11 +511,21 @@ export class FreeChatModeHandler implements ChatModeHandler {
         });
     }
 
-    /** Try to silently bootstrap local ONNX embeddings when no service is configured. */
-    private async tryAutoBootstrapEmbeddings(): Promise<IEmbeddingService | null> {
+    /**
+     * Try to bootstrap local ONNX embeddings when no service is configured.
+     * Routes through `resolveLocalOnnxEmbeddingService()` — the ONLY
+     * construction point for `LocalOnnxEmbeddingService` (npm-audit-
+     * remediation plan, Cluster 4). Silently returns null if the user
+     * hasn't consented (`settings.enableLocalOnnxEmbeddings`), same as any
+     * other "not available yet" outcome here — this was a genuine consent
+     * bypass before the fix (audit-caught): it constructed the vulnerable
+     * service directly, with no gate at all.
+     */
+    private async tryAutoBootstrapEmbeddings(settings: AIOrganiserSettings): Promise<IEmbeddingService | null> {
         try {
-            const { LocalOnnxEmbeddingService } = await import('../../services/embeddings/localOnnxEmbeddingService');
-            const svc = new LocalOnnxEmbeddingService();
+            const result = await resolveLocalOnnxEmbeddingService(settings);
+            if (!result.ok) return null;
+            const svc = result.value;
             const test = await svc.generateEmbedding('test');
             if (test.success) {
                 this.embeddingService = svc;
@@ -536,7 +548,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
         callbacks: ActionCallbacks,
     ): Promise<void> {
         if (!this.embeddingService) {
-            await this.tryAutoBootstrapEmbeddings();
+            await this.tryAutoBootstrapEmbeddings(ctx.fullPlugin.settings);
         }
 
         const maxChars = this.getMaxAttachmentChars(ctx);

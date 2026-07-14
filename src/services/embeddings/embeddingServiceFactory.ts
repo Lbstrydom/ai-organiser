@@ -15,14 +15,85 @@ import { GeminiEmbeddingService } from './geminiEmbeddingService';
 import { CohereEmbeddingService } from './cohereEmbeddingService';
 import { VoyageEmbeddingService } from './voyageEmbeddingService';
 import { getOpenAIEmbeddingsEndpoint, isAzureMode } from '../azure/endpointResolver';
+import { Result, ok, err } from '../../core/result';
 
 // EmbeddingProvider type is imported from embeddingRegistry.ts
 export type { EmbeddingProvider } from './embeddingRegistry';
 
+/** The local ONNX embedding fallback (npm-audit-remediation plan, Cluster 4)
+ *  carries a critical, unpatched RCE-class vulnerability chain
+ *  (@xenova/transformers -> onnxruntime-web -> protobufjs). It is gated
+ *  behind `settings.enableLocalOnnxEmbeddings`, and this is the ONLY
+ *  function in this module that reads that flag AND can construct
+ *  `LocalOnnxEmbeddingService` — policy-check and construction are
+ *  inseparable in one function body, not merely co-located by convention,
+ *  so no other call site can bypass the consent gate. See
+ *  docs/dependency-accepted-risks.md. */
+export async function resolveLocalOnnxEmbeddingService(
+    settings: AIOrganiserSettings,
+    modelId?: string,
+): Promise<Result<IEmbeddingService>> {
+    if (!settings.enableLocalOnnxEmbeddings) {
+        return err('local-onnx-not-consented');
+    }
+    // audit-caught (M1/M8/M16): the advertised Result<T> boundary must be
+    // total — a failed dynamic import (optional dependency missing/corrupt)
+    // or a throwing constructor must surface as `err(...)`, not a rejected
+    // promise that bypasses every caller's Result-handling.
+    try {
+        const { LocalOnnxEmbeddingService } = await import('./localOnnxEmbeddingService');
+        return ok(new LocalOnnxEmbeddingService(modelId || 'Xenova/all-MiniLM-L6-v2'));
+    } catch (error) {
+        logger.error('Search', 'Failed to load local ONNX embedding service:', error);
+        return err('local-onnx-load-failed');
+    }
+}
+
+/** Pure primitives in, no lookups — takes an already-resolved `hasApiKey`
+ *  rather than resolving a key itself (API-key resolution is async and has
+ *  Azure-specific branching that a synchronous, settings-only function
+ *  can't perform). Both real callers (the dispatcher below, which already
+ *  computes `apiKey`; the settings UI, via its own key-presence check)
+ *  already have this value cheaply, so nothing is duplicated. This is the
+ *  single source of truth for embedding availability — the dispatcher and
+ *  the settings-UI banner both call it, so they can never drift apart. */
+export type EmbeddingAvailability = 'cloud' | 'local-onnx' | 'credentials-missing' | 'local-onnx-not-consented';
+
+export function classifyEmbeddingAvailability(
+    provider: EmbeddingProvider,
+    hasApiKey: boolean,
+    isConsented: boolean,
+    isAzureMode: boolean,
+): EmbeddingAvailability {
+    // Azure mode has its own explicit no-fallback rule (see
+    // createEmbeddingServiceFromSettings's `useAzure` branch below) — it
+    // NEVER falls back to local-onnx, unconditionally, regardless of
+    // enableLocalOnnxEmbeddings.
+    if (isAzureMode) {
+        return hasApiKey ? 'cloud' : 'credentials-missing';
+    }
+    if (provider === 'local-onnx') {
+        return isConsented ? 'local-onnx' : 'local-onnx-not-consented';
+    }
+    if (requiresApiKey(provider) && !hasApiKey) {
+        return isConsented ? 'local-onnx' : 'local-onnx-not-consented';
+    }
+    return 'cloud';
+}
+
+/** `createEmbeddingService()`'s config no longer admits `'local-onnx'` at
+ *  the type level — a caller must go through `resolveLocalOnnxEmbeddingService()`
+ *  instead. This makes the bypass unrepresentable to ordinary TypeScript
+ *  callers, not just a runtime convention. */
+type NonLocalEmbeddingServiceConfig = Omit<EmbeddingServiceConfig, 'provider'> & {
+    provider: Exclude<EmbeddingServiceConfig['provider'], 'local-onnx'>;
+};
+
 /**
- * Create an embedding service from configuration
+ * Create an embedding service from configuration. Does NOT construct the
+ * local-onnx provider — see `resolveLocalOnnxEmbeddingService()`.
  */
-export async function createEmbeddingService(config: EmbeddingServiceConfig): Promise<IEmbeddingService> {
+export function createEmbeddingService(config: NonLocalEmbeddingServiceConfig): IEmbeddingService {
     switch (config.provider) {
         case 'openai':
             if (!config.apiKey) {
@@ -81,14 +152,19 @@ export async function createEmbeddingService(config: EmbeddingServiceConfig): Pr
                 cooldown: config.cooldown
             });
 
-        case 'local-onnx': {
-            const { LocalOnnxEmbeddingService } = await import('./localOnnxEmbeddingService');
-            return new LocalOnnxEmbeddingService(config.model || 'Xenova/all-MiniLM-L6-v2');
-        }
-
         default:
             throw new Error(`Unsupported embedding provider: ${config.provider}`);
     }
+}
+
+/** The outcome of resolving an embedding service from settings — an object,
+ *  not a bare nullable, so the reason travels WITH the specific `await`
+ *  that produced it. Two concurrent calls (e.g. plugin-load racing a
+ *  settings-change reinit) can never cross-contaminate each other's
+ *  reason, since neither stores it anywhere shared. */
+export interface EmbeddingServiceResolution {
+    service: IEmbeddingService | null;
+    unavailableReason: 'none' | 'credentials-missing' | 'local-onnx-not-consented';
 }
 
 /**
@@ -103,10 +179,13 @@ export async function createEmbeddingServiceFromSettings(
     settings: AIOrganiserSettings,
     apiKeyOverride?: string,
     cooldown?: EmbeddingCooldown
-): Promise<IEmbeddingService | null> {
+): Promise<EmbeddingServiceResolution> {
+    const unavailable = (reason: EmbeddingServiceResolution['unavailableReason']): EmbeddingServiceResolution =>
+        ({ service: null, unavailableReason: reason });
+
     // FT-11: gate on the feature (semantic-search absorbed enableSemanticSearch).
     if (!isFeatureEnabled(settings, 'semantic-search')) {
-        return null;
+        return unavailable('none');
     }
 
     try {
@@ -131,13 +210,14 @@ export async function createEmbeddingServiceFromSettings(
             // No silent fallback in Azure mode: the key MUST be the Azure key
             // (apiKeyOverride from the caller's Azure resolution, or a dedicated
             // embedding key) — NEVER the personal OpenAI providerKey or the main
-            // cloudApiKey. Missing key OR invalid endpoint returns null so
+            // cloudApiKey. Missing key OR invalid endpoint returns unavailable so
             // semantic search reports "Azure embeddings not configured" rather
-            // than silently embedding with local-onnx or a personal key.
+            // than silently embedding with local-onnx or a personal key. Azure
+            // mode NEVER falls back to local-onnx — see classifyEmbeddingAvailability.
             const azureKey = apiKeyOverride || settings.embeddingApiKey || '';
             if (!azureKey) {
                 logger.error('Search', 'Azure embeddings not configured — no Azure key resolved.');
-                return null;
+                return unavailable('credentials-missing');
             }
             let azureEndpoint: string | undefined;
             try {
@@ -147,9 +227,9 @@ export async function createEmbeddingServiceFromSettings(
             }
             if (!azureEndpoint) {
                 logger.error('Search', 'Azure embeddings not configured — Azure OpenAI endpoint missing or invalid.');
-                return null;
+                return unavailable('credentials-missing');
             }
-            return await createEmbeddingService({
+            const service = createEmbeddingService({
                 provider: 'openai',
                 model: settings.embeddingModel,
                 apiKey: azureKey,
@@ -157,27 +237,34 @@ export async function createEmbeddingServiceFromSettings(
                 authHeaderType: 'api-key',
                 cooldown
             });
+            return { service, unavailableReason: 'none' };
         }
 
-        // If provider needs an API key but none is available, fall back to built-in local-onnx
-        if (requiresApiKey(provider) && !apiKey) {
-            const { LocalOnnxEmbeddingService } = await import('./localOnnxEmbeddingService');
-            return new LocalOnnxEmbeddingService();
+        // Explicit local-onnx selection, or the auto-fallback condition
+        // (provider needs an API key but none is available) — both route
+        // through the SAME consent-gated resolver, no special-casing.
+        if (provider === 'local-onnx' || (requiresApiKey(provider) && !apiKey)) {
+            const result = await resolveLocalOnnxEmbeddingService(settings, settings.embeddingModel);
+            if (!result.ok) {
+                return unavailable('local-onnx-not-consented');
+            }
+            return { service: result.value, unavailableReason: 'none' };
         }
 
         // Endpoint for Ollama only (other providers use defaults)
         const endpoint = provider === 'ollama' ? settings.localEndpoint : undefined;
 
-        return await createEmbeddingService({
+        const service = createEmbeddingService({
             provider,
             model: settings.embeddingModel,
             apiKey,
             endpoint,
             cooldown
         });
+        return { service, unavailableReason: 'none' };
     } catch (error) {
         logger.error('Search', 'Failed to create embedding service:', error);
-        return null;
+        return unavailable('credentials-missing');
     }
 }
 
