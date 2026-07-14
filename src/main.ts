@@ -411,6 +411,14 @@ export default class AIOrganiserPlugin extends Plugin {
             // since it's the direct result of the user's own action.
             if (!service && unavailableReason === 'local-onnx-not-consented') {
                 new Notice(this.t.messages.localOnnxNotConsented);
+            } else if (!service && unavailableReason === 'local-onnx-load-failed') {
+                // audit-caught (M7): this is a DIFFERENT failure than not-consented
+                // — the user already granted consent, but the package/model itself
+                // failed to load (missing dependency, network failure, corrupt
+                // download). Silently reporting "not configured" here would send
+                // an already-consented user back to a settings toggle that's
+                // already on.
+                new Notice(this.t.messages.localOnnxLoadFailed);
             }
 
             // Update vector store service with new embedding service

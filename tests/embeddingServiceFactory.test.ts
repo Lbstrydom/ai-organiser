@@ -72,11 +72,13 @@ describe('resolveLocalOnnxEmbeddingService — the sole construction point', () 
             const { resolveLocalOnnxEmbeddingService: freshResolve } = await import(
                 '../src/services/embeddings/embeddingServiceFactory'
             );
+            // L3 audit fix (round 2): a single invocation, asserted in full —
+            // invoking twice under a mocked failed-import condition risked
+            // masking module-cache/one-shot behavior, and `resolves.not.toThrow()`
+            // alone only proves the promise settled, not the settled value.
             const settings = makeSettings({ enableLocalOnnxEmbeddings: true });
-            await expect(freshResolve(settings)).resolves.not.toThrow();
             const result = await freshResolve(settings);
-            expect(result.ok).toBe(false);
-            if (!result.ok) expect(result.error).toBe('local-onnx-load-failed');
+            expect(result).toEqual({ ok: false, error: 'local-onnx-load-failed' });
         } finally {
             vi.doUnmock('../src/services/embeddings/localOnnxEmbeddingService');
             vi.resetModules();

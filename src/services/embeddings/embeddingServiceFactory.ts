@@ -167,7 +167,7 @@ export function createEmbeddingService(config: NonLocalEmbeddingServiceConfig): 
  *  reason, since neither stores it anywhere shared. */
 export interface EmbeddingServiceResolution {
     service: IEmbeddingService | null;
-    unavailableReason: 'none' | 'credentials-missing' | 'local-onnx-not-consented';
+    unavailableReason: 'none' | 'credentials-missing' | 'local-onnx-not-consented' | 'local-onnx-load-failed';
 }
 
 /**
@@ -249,7 +249,15 @@ export async function createEmbeddingServiceFromSettings(
         if (provider === 'local-onnx' || (requiresApiKey(provider) && !apiKey)) {
             const result = await resolveLocalOnnxEmbeddingService(settings, settings.embeddingModel);
             if (!result.ok) {
-                return unavailable('local-onnx-not-consented');
+                // audit-caught (M7): resolveLocalOnnxEmbeddingService() can
+                // fail for two DIFFERENT reasons (not consented vs. the
+                // package/model genuinely failed to load) — collapsing both
+                // into 'local-onnx-not-consented' hid a real load failure
+                // behind a message telling an already-consented user to
+                // "enable" something they'd already enabled.
+                return unavailable(
+                    result.error === 'local-onnx-load-failed' ? 'local-onnx-load-failed' : 'local-onnx-not-consented'
+                );
             }
             return { service: result.value, unavailableReason: 'none' };
         }

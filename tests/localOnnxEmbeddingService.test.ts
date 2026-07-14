@@ -91,6 +91,43 @@ describe('LocalOnnxEmbeddingService', () => {
             const result = await svc.testConnection();
             expect(result.success).toBe(true);
         });
+
+        // audit-caught (H2/M15): generateEmbedding() never throws — it
+        // catches internally and returns a failure Result. testConnection()
+        // previously awaited that Result without inspecting `.success`,
+        // so a broken embedding backend was reported as a successful
+        // connection. This is the regression lock for that fix.
+        it('returns failure when the embedding call itself fails, instead of reporting success', async () => {
+            const svc = new LocalOnnxEmbeddingService();
+            vi.spyOn(svc, 'generateEmbedding').mockResolvedValueOnce({ success: false, error: 'model load failed' });
+            const result = await svc.testConnection();
+            expect(result.success).toBe(false);
+            expect(result.error).toBe('model load failed');
+        });
+
+        it('falls back to a default error message when the failed Result carries none', async () => {
+            const svc = new LocalOnnxEmbeddingService();
+            vi.spyOn(svc, 'generateEmbedding').mockResolvedValueOnce({ success: false });
+            const result = await svc.testConnection();
+            expect(result.success).toBe(false);
+            expect(result.error).toBe('Embedding test failed');
+        });
+    });
+
+    describe('concurrent initialization (audit-caught M5/M12)', () => {
+        it('shares one in-flight pipeline promise across concurrent calls instead of initializing twice', async () => {
+            const { pipeline } = await import('@xenova/transformers');
+            const pipelineMock = pipeline as unknown as ReturnType<typeof vi.fn>;
+            pipelineMock.mockClear();
+            const svc = new LocalOnnxEmbeddingService();
+            const [a, b] = await Promise.all([
+                svc.generateEmbedding('concurrent one'),
+                svc.generateEmbedding('concurrent two'),
+            ]);
+            expect(a.success).toBe(true);
+            expect(b.success).toBe(true);
+            expect(pipelineMock).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('dispose', () => {

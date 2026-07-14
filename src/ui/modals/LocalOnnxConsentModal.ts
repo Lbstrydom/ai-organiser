@@ -30,6 +30,12 @@ export class LocalOnnxConsentModal extends Modal {
     }
 
     onOpen(): void {
+        // audit-caught (L2): reset per-session state here, not just at
+        // construction — every real call site creates a fresh instance per
+        // open today, but treating onOpen() as the start of a new decision
+        // session (rather than relying on that call-site convention) is
+        // the actual fix, not an assumption about how callers behave.
+        this.decided = false;
         const tc = this.t.modals.localOnnxConsent;
         this.contentEl.empty();
         this.contentEl.addClass('ai-organiser-modal-content');

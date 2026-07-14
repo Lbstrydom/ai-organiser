@@ -100,6 +100,35 @@ export default defineConfig([
         },
     },
     {
+        // ── Local-ONNX consent-gate guard (npm-audit-remediation Cluster 4,
+        // audit H1/H4/H7) ──────────────────────────────────────────────────
+        // `LocalOnnxEmbeddingService` wraps a dependency chain with a known
+        // critical-severity vulnerability and must only ever be constructed
+        // through the consent-gated `resolveLocalOnnxEmbeddingService()`.
+        // The class stays exported (tests construct it directly to unit-test
+        // its own behaviour in isolation from the consent gate), but no OTHER
+        // production module may import it — this is the actual enforcement
+        // GPT asked for ("an internal constructor or an explicit validated
+        // factory capability"), implemented as an import restriction rather
+        // than a class-export change, since the latter would also block the
+        // legitimate direct-unit-test import path.
+        files: ['src/**/*.ts'],
+        ignores: ['src/services/embeddings/embeddingServiceFactory.ts', 'src/services/embeddings/localOnnxEmbeddingService.ts'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            group: ['**/localOnnxEmbeddingService', '**/embeddings/localOnnxEmbeddingService'],
+                            message: 'LocalOnnxEmbeddingService must only be constructed via resolveLocalOnnxEmbeddingService() (src/services/embeddings/embeddingServiceFactory.ts) — the sole consent-gated construction point.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
         // `src/stubs/**` holds build-time CJS shims (e.g. tesseractNoop.cjs) aliased
         // in by esbuild — they are NOT plugin source and are not in tsconfig.build's
         // include, so the typed obsidianmd rules (which need parserServices) throw on

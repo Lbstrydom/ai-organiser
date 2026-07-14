@@ -89,8 +89,16 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
     }
 
     async testConnection(): Promise<{ success: boolean; error?: string }> {
+        // audit-caught (H2/M15): generateEmbedding() never throws — it
+        // catches pipeline/import/inference failures internally and
+        // returns a failure Result. Awaiting it without inspecting
+        // `.success` meant this reported success unconditionally, even
+        // when the embedding backend was completely unavailable.
         try {
-            await this.generateEmbedding('test');
+            const result = await this.generateEmbedding('test');
+            if (!result.success) {
+                return { success: false, error: result.error ?? 'Embedding test failed' };
+            }
             return { success: true };
         } catch (error) {
             return { success: false, error: String(error) };
@@ -99,17 +107,36 @@ export class LocalOnnxEmbeddingService implements IEmbeddingService {
 
     dispose(): Promise<void> {
         this.pipeline = null;
+        this.pipelinePromise = null;
         return Promise.resolve();
     }
 
+    private pipelinePromise: Promise<FeatureExtractionPipeline> | null = null;
+
     private async getPipeline(): Promise<FeatureExtractionPipeline> {
         if (this.pipeline) return this.pipeline;
-        // Dynamic import — not bundled by default
-        // @ts-ignore — optional peer dependency
-        const { pipeline } = await import('@xenova/transformers');
-        const revision = MODEL_REVISIONS[this.modelId];
-        const options = revision ? { revision } : undefined;
-        this.pipeline = (await pipeline('feature-extraction', this.modelId, options)) as unknown as FeatureExtractionPipeline;
-        return this.pipeline;
+        // audit-caught (M5/M12): cache the IN-FLIGHT promise, not just the
+        // resolved pipeline — without this, concurrent first-callers each
+        // independently triggered a separate model download/init.
+        if (this.pipelinePromise) return this.pipelinePromise;
+        this.pipelinePromise = (async () => {
+            // Dynamic import — not bundled by default
+            // @ts-ignore — optional peer dependency
+            const { pipeline } = await import('@xenova/transformers');
+            const revision = MODEL_REVISIONS[this.modelId];
+            const options = revision ? { revision } : undefined;
+            const pipe = (await pipeline('feature-extraction', this.modelId, options)) as unknown as FeatureExtractionPipeline;
+            this.pipeline = pipe;
+            return pipe;
+        })();
+        try {
+            return await this.pipelinePromise;
+        } finally {
+            // Clear the in-flight marker regardless of outcome — a failed
+            // init must not permanently wedge every future call behind a
+            // rejected promise; `this.pipeline` (set only on success) is
+            // the real completion marker.
+            this.pipelinePromise = null;
+        }
     }
 }

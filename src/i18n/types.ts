@@ -1552,6 +1552,7 @@ export interface Translations {
         vectorStoreFailed: string;
         semanticSearchDisabled: string;
         localOnnxNotConsented: string;
+        localOnnxLoadFailed: string;
         externalCompressionNotSupported: string;
         mobileIndexTooLarge: string;
         mobileDataWarning: string;
