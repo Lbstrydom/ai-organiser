@@ -70,6 +70,7 @@
     "jsdom": "^29.1.1",
     "micromatch": "^4.0.8",
     "obsidian": "latest",
+    "pdfjs-dist": "5.6.205",
     "pg": "^8.22.0",
     "proper-lockfile": "^4.1.2",
     "ts-morph": "^28.0.0",
