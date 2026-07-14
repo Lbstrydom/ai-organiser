@@ -96,10 +96,18 @@ export function classifyEmbeddingAvailability(
         return hasApiKey ? 'cloud' : 'credentials-missing';
     }
     if (provider === 'local-onnx') {
-        return isConsented ? 'local-onnx' : 'local-onnx-not-consented';
+        // audit-caught (M1/M2, round 4): match resolveLocalOnnxEmbeddingService()'s
+        // strict `=== true` check, not a truthy check — this classifier and
+        // the resolver must never interpret a persisted/caller-provided
+        // non-boolean truthy value differently from each other.
+        return isConsented === true ? 'local-onnx' : 'local-onnx-not-consented';
     }
     if (requiresApiKey(provider) && !hasApiKey) {
-        return isConsented ? 'local-onnx' : 'local-onnx-not-consented';
+        // audit-caught (M1/M2, round 4): match resolveLocalOnnxEmbeddingService()'s
+        // strict `=== true` check, not a truthy check — this classifier and
+        // the resolver must never interpret a persisted/caller-provided
+        // non-boolean truthy value differently from each other.
+        return isConsented === true ? 'local-onnx' : 'local-onnx-not-consented';
     }
     return 'cloud';
 }

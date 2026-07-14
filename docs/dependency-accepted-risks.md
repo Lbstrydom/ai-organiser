@@ -133,16 +133,22 @@ Plan: [docs/plans/npm-audit-remediation.md](plans/npm-audit-remediation.md).
     `lastModified: 2025-07-22T16:45:37.000Z`.
   - `nomic-ai/nomic-embed-text-v1.5` → `sha: e9b6763023c676ca8431644204f50c2b100d9aab`,
     `lastModified: 2026-04-07T14:17:02.000Z`.
-- **Residual gap (documented, not silent)**: `LocalOnnxEmbeddingService`'s
-  constructor accepts an unconstrained `modelId: string` — a value outside
-  this map (reachable only through a hand-edited settings file or a future
-  code path, since no UI offers a fourth option today) still resolves
-  against the mutable `main` branch. `getPipeline()` computes
-  `MODEL_REVISIONS[this.modelId]` and only passes a `revision` option when
-  a pin exists, so this degrades to the pre-pin behaviour rather than
-  failing — a deliberate choice (fail-open on an unrecognised model id, not
-  fail-closed) since the alternative (refusing to embed) would break the
-  feature for a value the plan didn't anticipate.
+- **Unrecognised model IDs are REJECTED, not fail-open** (audit-code round
+  2/3, superseding an earlier fail-open design this doc used to describe):
+  `LocalOnnxEmbeddingService`'s constructor still accepts an unconstrained
+  `modelId: string`, but a value outside `MODEL_REVISIONS` is now rejected
+  at TWO independent points before any HuggingFace request is ever made —
+  `resolveLocalOnnxEmbeddingService()` (`embeddingServiceFactory.ts`)
+  validates against `EMBEDDING_MODELS['local-onnx']` (the settings
+  dropdown's own model list) before construction, and
+  `LocalOnnxEmbeddingService.getPipeline()` independently checks
+  `MODEL_REVISIONS[this.modelId]` before calling the transformers
+  pipeline — defense-in-depth so the guarantee doesn't depend on every
+  future caller remembering to re-implement the factory's check. Neither
+  path resolves against HuggingFace's mutable `main` branch for an
+  unreviewed model; both return a typed rejection instead
+  (`'local-onnx-model-unsupported'` / a thrown error caught by
+  `generateEmbedding()`'s Result boundary).
 - **Underlying dependency risk NOT eliminated**: this narrows exploitability
   (immutable content vs. a mutable branch pointer) — it does not fix the
   `protobufjs` chain itself. The real fix is a future migration to

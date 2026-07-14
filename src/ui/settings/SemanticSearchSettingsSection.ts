@@ -54,7 +54,11 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     // npm-audit-remediation Cluster 4: selecting local-onnx
                     // without consent already granted routes through the
                     // consent modal instead of applying immediately.
-                    if (value === 'local-onnx' && !plugin.settings.enableLocalOnnxEmbeddings) {
+                    // audit-caught (M5, round 4): strict `!== true`, matching
+                    // the resolver/classifier — a corrupted non-boolean
+                    // truthy persisted value must not be read as consent
+                    // here either, or the modal would be silently skipped.
+                    if (value === 'local-onnx' && plugin.settings.enableLocalOnnxEmbeddings !== true) {
                         void this.display(); // revert the dropdown's visible value first
                         this.openLocalOnnxConsentModal(plugin, (accepted) => {
                             if (!accepted) return;
@@ -90,11 +94,16 @@ export class SemanticSearchSettingsSection extends BaseSettingSection {
                     // as unsupported (safe, but a confusing dead end).
                     // Mirror the modal-accept path: always set a valid
                     // local-onnx model explicitly for this one transition.
+                    // audit-caught (M3, round 4): route through the shared
+                    // snapshot/rollback helper like every other consent-
+                    // adjacent mutator, instead of a hand-rolled
+                    // saveSettings()/display() pair that silently drops a
+                    // save failure instead of rolling back.
                     if (value === 'local-onnx') {
-                        plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
-                        plugin.settings.embeddingModel = EMBEDDING_DEFAULT_MODEL['local-onnx'];
-                        void plugin.saveSettings();
-                        void this.display();
+                        void this.applyLocalOnnxConsentChange(plugin, () => {
+                            plugin.settings.embeddingProvider = 'local-onnx' as typeof plugin.settings.embeddingProvider;
+                            plugin.settings.embeddingModel = EMBEDDING_DEFAULT_MODEL['local-onnx'];
+                        });
                         return;
                     }
 

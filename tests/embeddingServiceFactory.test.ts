@@ -121,6 +121,17 @@ describe('classifyEmbeddingAvailability — pure classifier, shared source of tr
         expect(classifyEmbeddingAvailability('local-onnx', false, false, false)).toBe('local-onnx-not-consented');
     });
 
+    // audit-caught (M1/M2, round 4): must match resolveLocalOnnxEmbeddingService()'s
+    // strict `=== true` check — a corrupted/non-boolean persisted value
+    // (simulated here via `as unknown as boolean`, since TypeScript's own
+    // `boolean` parameter type can't stop a value loaded from disk) must
+    // never be classified as consent.
+    it('a non-boolean truthy "consented" value is NOT treated as consent (strict === true, not a truthy check)', () => {
+        const corrupted = 'false' as unknown as boolean;
+        expect(classifyEmbeddingAvailability('local-onnx', false, corrupted, false)).toBe('local-onnx-not-consented');
+        expect(classifyEmbeddingAvailability('openai', false, corrupted, false)).toBe('local-onnx-not-consented');
+    });
+
     it('cloud provider with a key → cloud', () => {
         expect(classifyEmbeddingAvailability('openai', true, false, false)).toBe('cloud');
     });
