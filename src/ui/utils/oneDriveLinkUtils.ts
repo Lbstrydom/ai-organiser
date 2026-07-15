@@ -134,3 +134,92 @@ export function formatMarkdownLink(displayText: string, url: string): string | n
     const destination = needsWrap ? `<${url}>` : url;
     return `[${safeText}](${destination})`;
 }
+
+/**
+ * How a picked local file should be represented in the note (onedrive-embed
+ * extension, brainstormed 2026-07-15). `'embed'` = Obsidian natively renders
+ * this type inline once vault-copied (PDF + common image formats — the same
+ * set `![[...]]` already handles). `'vault-link'` = no native inline
+ * renderer (Office formats), but a vault-copied `[[...]]` link still opens
+ * in the user's system app on click (Obsidian's own default behaviour for
+ * unrecognised attachment types) — no conversion pipeline, no internet
+ * dependency. `'file-url'` = unrecognised extension, falls back to today's
+ * shipped `file://` link (unchanged behaviour).
+ */
+export type OneDriveEmbedKind = 'embed' | 'vault-link' | 'file-url';
+
+const EMBEDDABLE_EXTENSIONS = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']);
+const OFFICE_EXTENSIONS = new Set(['pptx', 'ppt', 'docx', 'doc', 'xlsx', 'xls']);
+
+export function classifyOneDriveEmbed(absolutePath: string): OneDriveEmbedKind {
+    const dot = absolutePath.lastIndexOf('.');
+    const ext = dot === -1 ? '' : absolutePath.slice(dot + 1).toLowerCase();
+    if (EMBEDDABLE_EXTENSIONS.has(ext)) return 'embed';
+    if (OFFICE_EXTENSIONS.has(ext)) return 'vault-link';
+    return 'file-url';
+}
+
+/** A parsed `onedrive-embed` marker + the source line it was found on. */
+export interface OneDriveEmbedMarker {
+    source: string;
+    vaultPath: string;
+    mtimeMs: number;
+    /** The exact marker comment text, for a precise string replace by the caller. */
+    raw: string;
+}
+
+// eslint-disable-next-line no-control-regex -- intentional: rejects a source/vault path containing C0 controls, matching this module's existing URL-safety convention
+const MARKER_UNSAFE_CHARS = /[\x00-\x1f\x7f"]|-->/;
+
+/**
+ * Build just the `<!-- onedrive-embed: ... -->` marker comment text (no
+ * embed/link body line). Exported separately so the refresh command can
+ * rebuild only the marker (with an updated `mtime`) via a plain string
+ * replace, leaving the user's `![[...]]`/`[[...]]` line — and anything
+ * they added around it — untouched. Returns `null` on marker-unsafe input,
+ * same rule as `buildOneDriveEmbedBlock`.
+ */
+export function buildOneDriveEmbedMarkerText(sourcePath: string, vaultPath: string, mtimeMs: number): string | null {
+    if (MARKER_UNSAFE_CHARS.test(sourcePath) || MARKER_UNSAFE_CHARS.test(vaultPath)) return null;
+    // Live-testing finding (2026-07-15): `fs.Stats.mtimeMs` can carry a
+    // fractional sub-millisecond component on some filesystems (observed:
+    // `1784046442609.943`). Rounding here — the single choke point both the
+    // insert and refresh paths go through — keeps the marker's stored value
+    // a clean integer; `findStaleOneDriveEmbeds`'s own comparison already
+    // rounds both sides, so this changes no comparison semantics.
+    return `<!-- onedrive-embed: source="${sourcePath}" vault="${vaultPath}" mtime="${Math.round(mtimeMs)}" -->`;
+}
+
+/**
+ * Build the `<!-- onedrive-embed: ... -->` marker + embed/link line pair
+ * inserted after a vault-copied pick. Returns `null` (never throws) when
+ * `sourcePath`/`vaultPath` contain a character that would break the HTML
+ * comment or the attribute quoting (round-3 M2's same defensive posture as
+ * `formatMarkdownLink` — a POSIX path can legally contain arbitrary bytes).
+ */
+export function buildOneDriveEmbedBlock(
+    sourcePath: string,
+    vaultPath: string,
+    mtimeMs: number,
+    kind: 'embed' | 'vault-link',
+): string | null {
+    const marker = buildOneDriveEmbedMarkerText(sourcePath, vaultPath, mtimeMs);
+    if (marker === null) return null;
+    const body = kind === 'embed' ? `![[${vaultPath}]]` : `[[${vaultPath}]]`;
+    return `${marker}\n${body}`;
+}
+
+// mtime allows an optional fractional part defensively (belt-and-braces
+// alongside the Math.round in buildOneDriveEmbedMarkerText) — a marker
+// written before that rounding existed, or hand-edited, must still parse.
+const MARKER_RE = /<!-- onedrive-embed: source="([^"]*)" vault="([^"]*)" mtime="(\d+(?:\.\d+)?)" -->/g;
+
+/** Find every `onedrive-embed` marker in note content, in document order. */
+export function parseOneDriveEmbedMarkers(content: string): OneDriveEmbedMarker[] {
+    const markers: OneDriveEmbedMarker[] = [];
+    for (const match of content.matchAll(MARKER_RE)) {
+        const [raw, source, vaultPath, mtimeStr] = match;
+        markers.push({ source, vaultPath, mtimeMs: Number(mtimeStr), raw });
+    }
+    return markers;
+}

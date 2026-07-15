@@ -886,6 +886,9 @@ export function buildCommandCategories(
 				cmd('tagging', 'refine', 'clear-tags', t.commands.clearTags, 'eraser', 'active-note',
 					desc.clearTags || 'Clear tags from the active note',
 					['clear', 'tags', 'reset'], ['active-note-refine']),
+				cmd('onedrive-link', 'refine', 'refresh-onedrive-embed', t.commands.refreshOneDriveEmbed, 'refresh-cw', 'active-note',
+					desc.refreshOneDriveEmbed || 'Re-sync any OneDrive embeds in this note with their source files',
+					['onedrive', 'refresh', 'sync', 'update']),
 			],
 		},
 		{

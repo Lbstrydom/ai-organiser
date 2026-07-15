@@ -1,5 +1,31 @@
 # Project Status Log
 
+## 2026-07-15 — OneDrive link visual embed + refresh (onedrive-link-insert extension ✅)
+
+Extends the OneDrive link feature (previous entry) so PDFs/images and Office decks show up in the note as the actual document, not just a link — closing the gap the user flagged after shipping: "ideally we have the actual document in the note with the link from OneDrive, that would mean if the doc gets updated it can be updated here as well." Brainstormed via `/brainstorm --with-gemini` (OpenAI + Gemini independent views), synthesized, then implemented directly (no formal `/plan` — small, additive extension of an already-audited feature).
+
+### Changes
+- **`src/ui/utils/oneDriveLinkUtils.ts`** (extended): `classifyOneDriveEmbed()` routes by extension — PDF/image → native `![[embed]]`, Office (pptx/ppt/docx/doc/xlsx/xls) → `[[vault-link]]` (Electron can't render these natively; a vault-local link still survives the source file moving, unlike the old `file://` link), anything else → falls back to the original `file://`/share-link behavior. `buildOneDriveEmbedMarkerText()`/`buildOneDriveEmbedBlock()`/`parseOneDriveEmbedMarkers()` — an HTML-comment marker (`source`, `vault` path, `mtime`) that survives round-trip and rejects unsafe characters (control chars, `-->`) so a crafted path can't break the comment fence.
+- **`src/services/oneDriveEmbedService.ts`** (new): `copyOneDriveFileIntoVault()` (25 MB cap, collision-safe naming via the existing `minutesUtils` vault-copy helpers — not reinvented), `findStaleOneDriveEmbeds()` (mtime comparison against the live source), `refreshOneDriveEmbed()` (re-copies bytes into the existing vault file via `vault.modifyBinary`).
+- **`src/commands/oneDriveLinkCommands.ts`**: the insert flow now copies embeddable/vault-linkable files into `AI-Organiser/OneDrive Embeds/` and inserts the marker+embed block instead of a bare link (files over the cap, or unsupported types, still get the original link). New **`refresh-onedrive-embed`** command scans the active note's markers, stats each source, and — after one confirm modal naming exactly what changed — refreshes stale ones in a single `applyNoteEdit` `composite` write.
+- **`src/ui/modals/OneDriveRefreshConfirmModal.ts`** (new): lists the files about to be refreshed before committing.
+- **i18n**: `refreshOneDriveEmbed` command name + 10 new `oneDriveLink.*` notice/modal strings.
+- **Command Picker**: `refresh-onedrive-embed` leaf under Refine (mutates an existing note).
+
+### A real bug found and fixed during live verification
+`fs.Stats.mtimeMs` can carry a fractional sub-millisecond component (observed live: `1784046442609.943`); the marker regex only matched whole digits, so a freshly-inserted embed's own marker silently failed to parse — making the refresh command report "no OneDrive embeds found" on a note that plainly had one. Fixed by rounding at the single choke point (`buildOneDriveEmbedMarkerText`) plus widening the parse regex defensively. Two regression tests added.
+
+### Live verification
+Two rounds of real-Obsidian testing via CDP + the native-dialog PowerShell helper (reused from the original feature): insert flow confirmed working end-to-end with a real PDF; the refresh flow initially looked broken (marker mtime never changed on disk) but root-caused to two compounding **test-harness** issues, not product bugs — a modal-accept race (checking for the "Review changes"/confirm modal before Obsidian had rendered it) and stale leftover leaves from earlier ad-hoc debugging. With disk-content polling and a guaranteed-fresh leaf, the refresh flow works correctly: stale embed detected → single confirm → bytes re-copied → marker mtime updated → editor and disk match. Also fixed a genuine double-confirmation UX bug found along the way: the refresh command's own confirm modal was stacking a second, redundant "Review changes" diff modal on top of itself — suppressed via `{review: false}` since the command already gates the same action.
+
+### Verification
+364 test files / 6538 unit tests green (+1 new file: `oneDriveEmbedService.test.ts`; extended `oneDriveLinkUtils`/`oneDriveLinkCommands`/`commandPicker`/`crossSurfaceTaxonomy`) · full-`tsconfig.build.json` type-check clean · `npm run lint` 0 errors · `node esbuild.config.mjs production` clean (verify-build gate + auto-deploy) · live-verified via real Obsidian (CDP + native file dialog automation).
+
+### Next Steps
+None outstanding. Shipped directly (not run through `/audit-code`+Gemini, unlike the base feature) given the extension's small surface and the live end-to-end verification already performed.
+
+---
+
 ## 2026-07-14 — Insert OneDrive Link command (onedrive-link-insert ✅)
 
 Cheap, no-auth way for OneDrive users to insert links to their local OneDrive files from the plugin: a new `Insert OneDrive link` command opens a modal with two independent paths — pick a local file (native OS dialog, defaulting to an auto-detected OneDrive-synced folder) or paste an existing share link (label + URL). Deliberately the "cheap" option discussed with the user (vs. a full Microsoft Graph API OAuth integration, out of scope — see `docs/completed/onedrive-link-insert.md` §8).

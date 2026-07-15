@@ -1271,6 +1271,7 @@ export const en: Translations = {
         newSketch: "New sketch",
         findEmbeds: "Find embeds",
         insertOneDriveLink: "Insert OneDrive link",
+        refreshOneDriveEmbed: "Refresh OneDrive embed",
         editMermaidDiagram: "Edit Mermaid diagram",
         presentationChat: "Presentation chat",
         buildFromStoryline: "Build presentation from this storyline note",
@@ -2742,6 +2743,7 @@ export const en: Translations = {
                 collectAllTags: "Export every tag in the vault to a note",
                 findEmbeds: "Scan vault for embedded files, orphans, and references",
                 insertOneDriveLink: "Insert a link to a file in your local OneDrive folder",
+                refreshOneDriveEmbed: "Re-sync any OneDrive embeds in this note with their source files",
                 notebookLMGroup: "Export notes for google NotebookLM",
                 notebookLMExport: "Export selected notes as NotebookLM source pack",
                 notebookLMToggle: "Toggle current note in NotebookLM selection",
@@ -3363,7 +3365,18 @@ export const en: Translations = {
         pickerUnavailableNotice: "Couldn't open the file picker",
         pickerFailedNotice: "The file picker couldn't complete — try again",
         unbuildablePathNotice: "Couldn't build a link from the selected file's path",
-        unexpectedErrorNotice: "Something went wrong — try again"
+        unexpectedErrorNotice: "Something went wrong — try again",
+        embedTooLargeNotice: "File is over 25 MB — inserted as a link instead of an embed",
+        embedFailedNotice: "Couldn't embed the file — inserted as a link instead",
+        refreshNoEmbedsNotice: "No OneDrive embeds found in this note",
+        refreshUpToDateNotice: "All OneDrive embeds are up to date",
+        refreshConfirmTitle: "Refresh OneDrive embeds?",
+        refreshConfirmBody: "These source files have changed since they were embedded. Refreshing replaces the copy stored in your vault with the current version:",
+        refreshConfirmConfirm: "Refresh",
+        refreshConfirmCancel: "Cancel",
+        refreshFailedNotice: "Couldn't refresh any embeds — see the console for details",
+        refreshPartialNotice: "Refreshed {refreshed} embed(s); {failed} failed",
+        refreshDoneNotice: "Refreshed {n} embed(s)"
     },
     embedScan: {
         // Scope modal

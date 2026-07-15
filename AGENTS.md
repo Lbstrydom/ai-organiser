@@ -246,7 +246,7 @@ Commands registered in `src/commands/`:
 - `embedScanCommands.ts`: Find embeds / vault hygiene scan
 - `quickPeekCommands.ts`: Quick Peek fast triage for embedded sources
 - `utilityCommands.ts`: Collect tags, tag network
-- `oneDriveLinkCommands.ts`: Insert a link to a local OneDrive file (native picker + auto-detected default folder) or a pasted share link
+- `oneDriveLinkCommands.ts`: Insert a link to a local OneDrive file (native picker + auto-detected default folder) or a pasted share link — PDFs/images copy into the vault as a native `![[embed]]`, Office formats as a `[[vault-link]]` (25 MB cap else falls back to the link), plus a `refresh-onedrive-embed` command that re-syncs stale embeds against their source's mtime
 
 All commands use `plugin.addCommand()` with i18n names and icon support.
 

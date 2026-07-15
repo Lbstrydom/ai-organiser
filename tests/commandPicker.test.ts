@@ -161,11 +161,11 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
-        it('first-expansion has 4 rows (quick-peek moved to Find)', () => {
+        it('first-expansion has 5 rows (quick-peek moved to Find; refresh-onedrive-embed added)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags',
+                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
             ]);
         });
         it('Process pending sub-group contains the 3 pending commands', () => {
@@ -258,18 +258,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 44 (41 unique + 3 cross-listings)', () => {
+        it('total picker rows = 45 (42 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(44);
+            expect(leafCount).toBe(45);
         });
-        it('unique command IDs = 41', () => {
+        it('unique command IDs = 42', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(41);
+            expect(uniqueIds.size).toBe(42);
         });
-        it('alphabetised ai-organiser:* callbacks (41 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (42 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -311,6 +311,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:presentation-chat',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
+                'ai-organiser:refresh-onedrive-embed',
                 'ai-organiser:research-web',
                 'ai-organiser:resolve-pending-embeds',
                 'ai-organiser:semantic-search',
@@ -323,7 +324,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
             ]);
-            expect(unique.size).toBe(41);
+            expect(unique.size).toBe(42);
         });
     });
 });

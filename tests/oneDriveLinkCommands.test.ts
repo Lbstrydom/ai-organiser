@@ -11,7 +11,12 @@ const hoisted = vi.hoisted(() => {
     const state: {
         onPickLocalFile: (() => Promise<string>) | null;
         onSubmitShareLink: ((labelText: string, url: string) => Promise<string>) | null;
-    } = { onPickLocalFile: null, onSubmitShareLink: null };
+        refreshConfirmOptions: {
+            fileNames: string[];
+            onConfirm: () => void;
+            onCancel: () => void;
+        } | null;
+    } = { onPickLocalFile: null, onSubmitShareLink: null, refreshConfirmOptions: null };
 
     class MockOneDriveLinkModal {
         constructor(
@@ -26,7 +31,14 @@ const hoisted = vi.hoisted(() => {
         open(): void {}
     }
 
-    return { state, MockOneDriveLinkModal };
+    class MockOneDriveRefreshConfirmModal {
+        constructor(_app: unknown, opts: { fileNames: string[]; onConfirm: () => void; onCancel: () => void }) {
+            state.refreshConfirmOptions = opts;
+        }
+        open(): void {}
+    }
+
+    return { state, MockOneDriveLinkModal, MockOneDriveRefreshConfirmModal };
 });
 
 vi.mock('obsidian', async () => {
@@ -63,16 +75,32 @@ vi.mock('../src/ui/modals/OneDriveLinkModal', () => ({
     OneDriveLinkModal: hoisted.MockOneDriveLinkModal,
 }));
 
+vi.mock('../src/ui/modals/OneDriveRefreshConfirmModal', () => ({
+    OneDriveRefreshConfirmModal: hoisted.MockOneDriveRefreshConfirmModal,
+}));
+
+vi.mock('../src/services/oneDriveEmbedService', () => ({
+    copyOneDriveFileIntoVault: vi.fn(),
+    findStaleOneDriveEmbeds: vi.fn(),
+    refreshOneDriveEmbed: vi.fn(),
+}));
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mockNotices, clearMockNotices } from './mocks/obsidian';
-import { runOneDriveLinkFlow } from '../src/commands/oneDriveLinkCommands';
+import { runOneDriveLinkFlow, runOneDriveRefreshFlow } from '../src/commands/oneDriveLinkCommands';
 import { tryNativeFilePicker, isNativeFilePickerAvailable } from '../src/ui/utils/filePickers';
 import { applyNoteEdit } from '../src/services/noteEdit/applyNoteEdit';
 import type { EditSnapshot } from '../src/services/noteEdit/applyNoteEdit';
+import {
+    copyOneDriveFileIntoVault, findStaleOneDriveEmbeds, refreshOneDriveEmbed,
+} from '../src/services/oneDriveEmbedService';
 
 const mockedPicker = tryNativeFilePicker as unknown as ReturnType<typeof vi.fn>;
 const mockedApplyNoteEdit = applyNoteEdit as unknown as ReturnType<typeof vi.fn>;
 const mockedIsPickerAvailable = isNativeFilePickerAvailable as unknown as ReturnType<typeof vi.fn>;
+const mockedCopyIntoVault = copyOneDriveFileIntoVault as unknown as ReturnType<typeof vi.fn>;
+const mockedFindStale = findStaleOneDriveEmbeds as unknown as ReturnType<typeof vi.fn>;
+const mockedRefreshEmbed = refreshOneDriveEmbed as unknown as ReturnType<typeof vi.fn>;
 
 function makeSnapshot(): EditSnapshot {
     return {
@@ -92,6 +120,17 @@ function makePlugin(): any {
                 pickerFailedNotice: 'Picker failed',
                 unbuildablePathNotice: 'Unbuildable path',
                 unexpectedErrorNotice: 'Unexpected error',
+                embedTooLargeNotice: 'Embed too large',
+                embedFailedNotice: 'Embed failed',
+                refreshNoEmbedsNotice: 'No embeds found',
+                refreshUpToDateNotice: 'Up to date',
+                refreshConfirmTitle: 'Refresh?',
+                refreshConfirmBody: 'These changed:',
+                refreshConfirmConfirm: 'Refresh',
+                refreshConfirmCancel: 'Cancel',
+                refreshFailedNotice: 'Refresh failed',
+                refreshPartialNotice: 'Refreshed {refreshed}; {failed} failed',
+                refreshDoneNotice: 'Refreshed {n}',
             },
         },
     };
@@ -111,6 +150,12 @@ describe('runOneDriveLinkFlow — onPickLocalFile', () => {
         mockedApplyNoteEdit.mockReset();
         mockedIsPickerAvailable.mockReset();
         mockedIsPickerAvailable.mockReturnValue(true);
+        mockedCopyIntoVault.mockReset();
+        // Default matches the real "no fs" environment this test file mocks
+        // (getFs: () => undefined) — embed/vault-link classifications fall
+        // through to the existing file:// link path unless a test overrides
+        // this to exercise the new embed behavior specifically.
+        mockedCopyIntoVault.mockResolvedValue({ ok: false, error: 'desktop-only' });
         hoisted.state.onPickLocalFile = null;
         hoisted.state.onSubmitShareLink = null;
     });
@@ -207,6 +252,97 @@ describe('runOneDriveLinkFlow — onPickLocalFile', () => {
         expect(target.baseline).toBe(snapshot.baseline);
         expect(target.anchorSnippet).toBe(snapshot.cursorAnchor);
     });
+
+    describe('visual-embed extension (brainstormed 2026-07-15)', () => {
+        it('a picked PDF that copies into the vault inserts a native ![[...]] embed block, not a file:// link', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\Report.pdf']);
+            mockedCopyIntoVault.mockResolvedValue({
+                ok: true,
+                value: { vaultPath: 'AI-Organiser/OneDrive Embeds/Report.pdf', mtimeMs: 1752515000000 },
+            });
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            const outcome = await hoisted.state.onPickLocalFile!();
+
+            expect(outcome).toBe('inserted');
+            expect(mockedCopyIntoVault).toHaveBeenCalledWith(expect.anything(), 'C:\\Users\\Alice\\OneDrive\\Report.pdf');
+            const [, target] = mockedApplyNoteEdit.mock.calls[0];
+            expect(target.text).toContain('onedrive-embed');
+            expect(target.text).toContain('![[AI-Organiser/OneDrive Embeds/Report.pdf]]');
+            expect(target.text).not.toContain('file://');
+        });
+
+        it('a picked PPTX that copies into the vault inserts a [[...]] link block (no native renderer for Office formats)', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\Deck.pptx']);
+            mockedCopyIntoVault.mockResolvedValue({
+                ok: true,
+                value: { vaultPath: 'AI-Organiser/OneDrive Embeds/Deck.pptx', mtimeMs: 1000 },
+            });
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            const outcome = await hoisted.state.onPickLocalFile!();
+
+            expect(outcome).toBe('inserted');
+            const [, target] = mockedApplyNoteEdit.mock.calls[0];
+            expect(target.text).toContain('[[AI-Organiser/OneDrive Embeds/Deck.pptx]]');
+            expect(target.text).not.toContain('![[');
+        });
+
+        it('a picked PDF over the size cap falls back to a file:// link and fires embedTooLargeNotice', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\Huge.pdf']);
+            mockedCopyIntoVault.mockResolvedValue({ ok: false, error: 'too-large' });
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            const outcome = await hoisted.state.onPickLocalFile!();
+
+            expect(outcome).toBe('inserted');
+            expect(mockNotices).toContain('Embed too large');
+            const [, target] = mockedApplyNoteEdit.mock.calls[0];
+            expect(target.text).toContain('file://');
+            expect(target.text).not.toContain('onedrive-embed');
+        });
+
+        it('a picked PDF whose vault-copy fails for another reason falls back to a file:// link and fires embedFailedNotice', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\Broken.pdf']);
+            mockedCopyIntoVault.mockResolvedValue({ ok: false, error: 'write-failed' });
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            const outcome = await hoisted.state.onPickLocalFile!();
+
+            expect(outcome).toBe('inserted');
+            expect(mockNotices).toContain('Embed failed');
+            const [, target] = mockedApplyNoteEdit.mock.calls[0];
+            expect(target.text).toContain('file://');
+        });
+
+        it('a picked PDF on a desktop-only ("no fs") environment falls back silently to a file:// link — no Notice', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\Report.pdf']);
+            mockedCopyIntoVault.mockResolvedValue({ ok: false, error: 'desktop-only' });
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            const outcome = await hoisted.state.onPickLocalFile!();
+
+            expect(outcome).toBe('inserted');
+            expect(mockNotices).toEqual([]);
+            const [, target] = mockedApplyNoteEdit.mock.calls[0];
+            expect(target.text).toContain('file://');
+        });
+
+        it('an unrecognised extension never calls copyOneDriveFileIntoVault at all', async () => {
+            mockedPicker.mockResolvedValue(['C:\\Users\\Alice\\OneDrive\\archive.zip']);
+            mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+            invokeFlow();
+            await hoisted.state.onPickLocalFile!();
+
+            expect(mockedCopyIntoVault).not.toHaveBeenCalled();
+        });
+    });
 });
 
 describe('runOneDriveLinkFlow — onSubmitShareLink', () => {
@@ -301,5 +437,150 @@ describe('runOneDriveLinkFlow — onSubmitShareLink', () => {
         expect(target.filePath).toBe(snapshot.filePath);
         expect(target.baseline).toBe(snapshot.baseline);
         expect(target.anchorSnippet).toBe(snapshot.cursorAnchor);
+    });
+});
+
+describe('runOneDriveRefreshFlow (brainstormed 2026-07-15)', () => {
+    const MARKER_A = '<!-- onedrive-embed: source="C:\\a\\report.pdf" vault="AI-Organiser/OneDrive Embeds/report.pdf" mtime="1000" -->';
+    const NOTE_WITH_MARKER = `# Note\n\n${MARKER_A}\n![[AI-Organiser/OneDrive Embeds/report.pdf]]\n`;
+
+    beforeEach(() => {
+        clearMockNotices();
+        mockedApplyNoteEdit.mockReset();
+        mockedFindStale.mockReset();
+        mockedRefreshEmbed.mockReset();
+        hoisted.state.refreshConfirmOptions = null;
+    });
+
+    function makeRefreshSnapshot(baseline: string): EditSnapshot {
+        return { filePath: 'notes/original.md', baseline, cursorAnchor: '', selection: null };
+    }
+
+    it('no markers in the note fires refreshNoEmbedsNotice and never calls findStaleOneDriveEmbeds', () => {
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot('# Just a note, no embeds.'));
+
+        expect(mockNotices).toContain('No embeds found');
+        expect(mockedFindStale).not.toHaveBeenCalled();
+    });
+
+    it('markers present but none stale fires refreshUpToDateNotice', () => {
+        mockedFindStale.mockReturnValue([]);
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(NOTE_WITH_MARKER));
+
+        expect(mockedFindStale).toHaveBeenCalledTimes(1);
+        expect(mockNotices).toContain('Up to date');
+    });
+
+    it('stale markers open a confirm modal listing the affected filenames', () => {
+        mockedFindStale.mockReturnValue([
+            {
+                marker: {
+                    source: 'C:\\a\\report.pdf', vaultPath: 'AI-Organiser/OneDrive Embeds/report.pdf',
+                    mtimeMs: 1000, raw: MARKER_A,
+                },
+                currentMtimeMs: 2000,
+            },
+        ]);
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(NOTE_WITH_MARKER));
+
+        expect(hoisted.state.refreshConfirmOptions).not.toBeNull();
+        expect(hoisted.state.refreshConfirmOptions!.fileNames).toEqual(['report.pdf']);
+    });
+
+    it('confirming the refresh calls refreshOneDriveEmbed and applies a composite edit updating just the marker mtime', async () => {
+        const staleEntry = {
+            marker: {
+                source: 'C:\\a\\report.pdf', vaultPath: 'AI-Organiser/OneDrive Embeds/report.pdf',
+                mtimeMs: 1000, raw: MARKER_A,
+            },
+            currentMtimeMs: 2000,
+        };
+        mockedFindStale.mockReturnValue([staleEntry]);
+        mockedRefreshEmbed.mockResolvedValue({ ok: true, value: { mtimeMs: 2000 } });
+        mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(NOTE_WITH_MARKER));
+        hoisted.state.refreshConfirmOptions!.onConfirm();
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+        expect(mockedRefreshEmbed).toHaveBeenCalledWith(expect.anything(), staleEntry);
+        expect(mockedApplyNoteEdit).toHaveBeenCalledTimes(1);
+        const [, target, opts] = mockedApplyNoteEdit.mock.calls[0];
+        expect(target.kind).toBe('composite');
+        // Live-testing finding (2026-07-15): the refresh confirm modal
+        // ALREADY gates this write — passing the applyNoteEdit default
+        // (review: true) stacked a second, redundant "Review changes" diff
+        // modal on top for a purely mechanical mtime update, which silently
+        // stalled the commit until that second modal was also accepted.
+        expect(opts).toEqual({ review: false });
+
+        const recomputeResult = target.recompute(NOTE_WITH_MARKER);
+        expect(recomputeResult.ok).toBe(true);
+        expect(recomputeResult.value.content).toContain('mtime="2000"');
+        expect(recomputeResult.value.content).not.toContain('mtime="1000"');
+        expect(mockNotices).toContain('Refreshed 1');
+    });
+
+    it('cancelling the confirm modal does not call refreshOneDriveEmbed', () => {
+        mockedFindStale.mockReturnValue([
+            {
+                marker: {
+                    source: 'C:\\a\\report.pdf', vaultPath: 'AI-Organiser/OneDrive Embeds/report.pdf',
+                    mtimeMs: 1000, raw: MARKER_A,
+                },
+                currentMtimeMs: 2000,
+            },
+        ]);
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(NOTE_WITH_MARKER));
+        hoisted.state.refreshConfirmOptions!.onCancel();
+
+        expect(mockedRefreshEmbed).not.toHaveBeenCalled();
+    });
+
+    it('a refresh failure for every stale entry fires refreshFailedNotice without calling applyNoteEdit', async () => {
+        const staleEntry = {
+            marker: {
+                source: 'C:\\a\\report.pdf', vaultPath: 'AI-Organiser/OneDrive Embeds/report.pdf',
+                mtimeMs: 1000, raw: MARKER_A,
+            },
+            currentMtimeMs: 2000,
+        };
+        mockedFindStale.mockReturnValue([staleEntry]);
+        mockedRefreshEmbed.mockResolvedValue({ ok: false, error: 'read-failed' });
+
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(NOTE_WITH_MARKER));
+        hoisted.state.refreshConfirmOptions!.onConfirm();
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+        expect(mockNotices).toContain('Refresh failed');
+        expect(mockedApplyNoteEdit).not.toHaveBeenCalled();
+    });
+
+    it('a partial refresh (one succeeds, one fails) fires refreshPartialNotice', async () => {
+        const rawB = '<!-- onedrive-embed: source="C:\\a\\b.pptx" vault="AI-Organiser/OneDrive Embeds/b.pptx" mtime="500" -->';
+        const staleA = {
+            marker: {
+                source: 'C:\\a\\report.pdf', vaultPath: 'AI-Organiser/OneDrive Embeds/report.pdf',
+                mtimeMs: 1000, raw: MARKER_A,
+            },
+            currentMtimeMs: 2000,
+        };
+        const staleB = {
+            marker: { source: 'C:\\a\\b.pptx', vaultPath: 'AI-Organiser/OneDrive Embeds/b.pptx', mtimeMs: 500, raw: rawB },
+            currentMtimeMs: 900,
+        };
+        mockedFindStale.mockReturnValue([staleA, staleB]);
+        mockedRefreshEmbed.mockImplementation((_app: unknown, entry: typeof staleA) =>
+            entry === staleA
+                ? Promise.resolve({ ok: true, value: { mtimeMs: 2000 } })
+                : Promise.resolve({ ok: false, error: 'read-failed' }));
+        mockedApplyNoteEdit.mockResolvedValue({ ok: true, value: undefined });
+
+        const noteWithBoth = `${NOTE_WITH_MARKER}\n${rawB}\n[[AI-Organiser/OneDrive Embeds/b.pptx]]\n`;
+        runOneDriveRefreshFlow(makePlugin(), makeRefreshSnapshot(noteWithBoth));
+        hoisted.state.refreshConfirmOptions!.onConfirm();
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+        expect(mockNotices).toContain('Refreshed 1; 1 failed');
     });
 });

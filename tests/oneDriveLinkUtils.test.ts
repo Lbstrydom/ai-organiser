@@ -10,7 +10,10 @@
  *    output, independent try/catch per scan, macOS CloudStorage branch.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { buildFileUrl, formatMarkdownLink, detectOneDriveFolders } from '../src/ui/utils/oneDriveLinkUtils';
+import {
+    buildFileUrl, formatMarkdownLink, detectOneDriveFolders,
+    classifyOneDriveEmbed, buildOneDriveEmbedMarkerText, buildOneDriveEmbedBlock, parseOneDriveEmbedMarkers,
+} from '../src/ui/utils/oneDriveLinkUtils';
 
 function setRequireImpl(impl: ((mod: string) => unknown) | null): void {
     if (impl === null) {
@@ -278,5 +281,121 @@ describe('detectOneDriveFolders', () => {
         });
         detectOneDriveFolders();
         expect(readdirSpy).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('classifyOneDriveEmbed (onedrive-link-insert extension, brainstormed 2026-07-15)', () => {
+    it('classifies PDF as embed', () => {
+        expect(classifyOneDriveEmbed('C:\\Users\\a\\report.pdf')).toBe('embed');
+    });
+
+    it('classifies common image extensions as embed', () => {
+        for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']) {
+            expect(classifyOneDriveEmbed(`/a/img.${ext}`)).toBe('embed');
+        }
+    });
+
+    it('classifies Office formats as vault-link', () => {
+        for (const ext of ['pptx', 'ppt', 'docx', 'doc', 'xlsx', 'xls']) {
+            expect(classifyOneDriveEmbed(`/a/deck.${ext}`)).toBe('vault-link');
+        }
+    });
+
+    it('classification is case-insensitive on the extension', () => {
+        expect(classifyOneDriveEmbed('/a/Report.PDF')).toBe('embed');
+        expect(classifyOneDriveEmbed('/a/Deck.PPTX')).toBe('vault-link');
+    });
+
+    it('falls back to file-url for an unrecognised extension', () => {
+        expect(classifyOneDriveEmbed('/a/archive.zip')).toBe('file-url');
+    });
+
+    it('falls back to file-url for a path with no extension', () => {
+        expect(classifyOneDriveEmbed('/a/README')).toBe('file-url');
+    });
+});
+
+describe('buildOneDriveEmbedMarkerText / buildOneDriveEmbedBlock / parseOneDriveEmbedMarkers', () => {
+    const SOURCE = 'C:\\Users\\alice\\OneDrive\\report.pdf';
+    const VAULT = 'AI-Organiser/OneDrive Embeds/report.pdf';
+    const MTIME = 1752515000000;
+
+    it('builds a marker comment with source/vault/mtime attributes', () => {
+        const marker = buildOneDriveEmbedMarkerText(SOURCE, VAULT, MTIME);
+        expect(marker).toBe(`<!-- onedrive-embed: source="${SOURCE}" vault="${VAULT}" mtime="${MTIME}" -->`);
+    });
+
+    it('returns null when source contains a literal quote', () => {
+        expect(buildOneDriveEmbedMarkerText('C:\\a"b.pdf', VAULT, MTIME)).toBeNull();
+    });
+
+    it('returns null when source contains a comment terminator', () => {
+        expect(buildOneDriveEmbedMarkerText('C:\\a-->b.pdf', VAULT, MTIME)).toBeNull();
+    });
+
+    it('returns null when source contains a control character', () => {
+        expect(buildOneDriveEmbedMarkerText('C:\\a\x01b.pdf', VAULT, MTIME)).toBeNull();
+    });
+
+    it('builds an embed block with ![[...]] for kind=embed', () => {
+        const block = buildOneDriveEmbedBlock(SOURCE, VAULT, MTIME, 'embed');
+        expect(block).toBe(
+            `<!-- onedrive-embed: source="${SOURCE}" vault="${VAULT}" mtime="${MTIME}" -->\n![[${VAULT}]]`
+        );
+    });
+
+    it('builds a link block with [[...]] for kind=vault-link', () => {
+        const block = buildOneDriveEmbedBlock(SOURCE, VAULT, MTIME, 'vault-link');
+        expect(block).toBe(
+            `<!-- onedrive-embed: source="${SOURCE}" vault="${VAULT}" mtime="${MTIME}" -->\n[[${VAULT}]]`
+        );
+    });
+
+    it('buildOneDriveEmbedBlock returns null when the marker itself is unsafe', () => {
+        expect(buildOneDriveEmbedBlock('C:\\a"b.pdf', VAULT, MTIME, 'embed')).toBeNull();
+    });
+
+    it('parses a single marker back out of note content round-trip', () => {
+        const block = buildOneDriveEmbedBlock(SOURCE, VAULT, MTIME, 'embed')!;
+        const content = `# Note\n\nSome text.\n\n${block}\n\nMore text.`;
+        const markers = parseOneDriveEmbedMarkers(content);
+        expect(markers).toHaveLength(1);
+        expect(markers[0]).toMatchObject({ source: SOURCE, vaultPath: VAULT, mtimeMs: MTIME });
+        expect(markers[0].raw).toContain('onedrive-embed');
+    });
+
+    it('parses multiple markers in document order', () => {
+        const blockA = buildOneDriveEmbedBlock(SOURCE, VAULT, MTIME, 'embed')!;
+        const blockB = buildOneDriveEmbedBlock('C:\\b.pptx', 'AI-Organiser/OneDrive Embeds/b.pptx', 999, 'vault-link')!;
+        const content = `${blockA}\n\n${blockB}`;
+        const markers = parseOneDriveEmbedMarkers(content);
+        expect(markers.map((m) => m.vaultPath)).toEqual([VAULT, 'AI-Organiser/OneDrive Embeds/b.pptx']);
+    });
+
+    it('returns an empty array when no markers are present', () => {
+        expect(parseOneDriveEmbedMarkers('# Just a note\n\nNo embeds here.')).toEqual([]);
+    });
+
+    it('regression (live-testing finding 2026-07-15): buildOneDriveEmbedMarkerText rounds a fractional mtimeMs, so the marker always parses back out', () => {
+        // fs.Stats.mtimeMs can carry a fractional sub-millisecond component
+        // on some filesystems (observed live: 1784046442609.943). The old
+        // \d+-only parse regex silently failed to match such a marker,
+        // making every embed look like "no OneDrive embeds found" to the
+        // refresh command — this locks the fix in both directions.
+        const fractionalMtime = 1784046442609.943;
+        const marker = buildOneDriveEmbedMarkerText(SOURCE, VAULT, fractionalMtime);
+        expect(marker).not.toBeNull();
+        expect(marker).toBe(`<!-- onedrive-embed: source="${SOURCE}" vault="${VAULT}" mtime="1784046442610" -->`);
+
+        const parsed = parseOneDriveEmbedMarkers(marker!);
+        expect(parsed).toHaveLength(1);
+        expect(parsed[0].mtimeMs).toBe(1784046442610);
+    });
+
+    it('parseOneDriveEmbedMarkers still parses a marker with an un-rounded fractional mtime (defensive regex widening)', () => {
+        const raw = `<!-- onedrive-embed: source="${SOURCE}" vault="${VAULT}" mtime="1784046442609.943" -->`;
+        const parsed = parseOneDriveEmbedMarkers(raw);
+        expect(parsed).toHaveLength(1);
+        expect(parsed[0].mtimeMs).toBeCloseTo(1784046442609.943);
     });
 });

@@ -1247,6 +1247,7 @@ export interface Translations {
         exportMinutesDocx: string;
         findEmbeds: string;
         insertOneDriveLink: string;
+        refreshOneDriveEmbed: string;
         editMermaidDiagram: string;
         presentationChat: string;
         buildFromStoryline: string;
@@ -2745,6 +2746,7 @@ export interface Translations {
                 collectAllTags: string;
                 findEmbeds: string;
                 insertOneDriveLink: string;
+                refreshOneDriveEmbed: string;
                 notebookLMGroup: string;
                 notebookLMExport: string;
                 notebookLMToggle: string;
@@ -3369,6 +3371,17 @@ export interface Translations {
         pickerFailedNotice: string;
         unbuildablePathNotice: string;
         unexpectedErrorNotice: string;
+        embedTooLargeNotice: string;
+        embedFailedNotice: string;
+        refreshNoEmbedsNotice: string;
+        refreshUpToDateNotice: string;
+        refreshConfirmTitle: string;
+        refreshConfirmBody: string;
+        refreshConfirmConfirm: string;
+        refreshConfirmCancel: string;
+        refreshFailedNotice: string;
+        refreshPartialNotice: string;
+        refreshDoneNotice: string;
     };
     embedScan: {
         // Scope modal
