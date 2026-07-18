@@ -4,7 +4,7 @@
 .claude/settings.json text eol=lf
 .github/prompts/** text eol=lf
 .vscode/mcp.json text eol=lf
-docs/consistency-contract.md text eol=lf
+docs/reference/consistency-contract.md text eol=lf
 scripts/.sync-manifest.json text eol=lf
 .audit-loop/migrations/** text eol=lf
 # /managed-by:claude-engineering-skills-sync

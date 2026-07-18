@@ -147,12 +147,14 @@ dashboard/telemetry.html
 .skills-fit-check.json
 logs/mcp-*.log
 logs/mcp-*.log.gz
-.audit/cache-metrics.jsonl
-.audit/tiered-shadow-log.jsonl
+.audit/
 .audit-loop/*-observed.json
 .audit-loop/*-verify-result.json
 .audit-loop/*-drift-ledger.json
 .audit-loop/arm-eval-toggle.json
+.audit-loop/last-maintenance.json
+.audit-loop/last-maintenance.log
+.audit-loop/.maintenance.lock
 docs/arm-eval/sessions/*
 docs/arm-eval/worksheets/*
 # /managed-by:claude-engineering-skills-sync
