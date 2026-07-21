@@ -1,0 +1,21 @@
+#!/bin/sh
+# Repo-local pre-push gate. Invoked by the managed .git/hooks/pre-push
+# (claude-engineering-skills install-prepush-hook.mjs) via its documented
+# .githooks/pre-push.local extension point — this file is UNMANAGED and
+# committed, so re-running the installer or `npm run sync` never overwrites it.
+#
+# Bypass: PREPUSH_LOCAL_DISABLE=1 git push   (or git push --no-verify)
+
+# npm-args gate: fail on a documented `npm run <script> --flag` that omits the
+# `--` separator, where npm swallows the flag before the script sees it. The
+# gate is upstream tooling (check-npm-run-args.mjs), synced into the gitignored
+# scripts/.claude-skills/ tree — never patch it here; fix upstream + re-sync.
+GATE="scripts/.claude-skills/check-npm-run-args.mjs"
+if [ -f "$GATE" ]; then
+  echo "[pre-push] npm-args gate (broken 'npm run … --flag')..." >&2
+  node "$GATE" --gating || exit $?
+else
+  echo "[pre-push] npm-args gate skipped — $GATE absent; run 'npm run sync' from claude-engineering-skills to hydrate." >&2
+fi
+
+exit 0
