@@ -32,7 +32,13 @@
     "arch:prune": "node scripts/.claude-skills/symbol-index/prune.mjs",
     "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs",
     "test:azure": "node scripts/persona-harness/azure-feature-sweep.mjs",
-    "test:azure:layout": "node scripts/persona-harness/persona-layout-ab.mjs"
+    "test:azure:layout": "node scripts/persona-harness/persona-layout-ab.mjs",
+    "memory:health": "node scripts/.claude-skills/memory-health.mjs",
+    "memory:health:json": "node scripts/.claude-skills/memory-health.mjs --json",
+    "maintenance:run": "node scripts/.claude-skills/maintenance-checks.mjs",
+    "maintenance:status": "node scripts/.claude-skills/maintenance-checks.mjs --status",
+    "learning:weekly-review": "node scripts/.claude-skills/cross-skill.mjs learning-weekly-review",
+    "learning:stats": "node scripts/.claude-skills/cross-skill.mjs learning-stats"
   },
   "keywords": [
     "obsidian",
@@ -45,6 +51,7 @@
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@babel/traverse": "^8.0.4",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
     "@eslint/json": "^1.2.0",

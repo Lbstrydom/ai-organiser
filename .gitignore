@@ -155,6 +155,8 @@ logs/mcp-*.log.gz
 .audit-loop/last-maintenance.json
 .audit-loop/last-maintenance.log
 .audit-loop/.maintenance.lock
+docs/architecture-map.md
+scripts/.sync-manifest.json
 docs/arm-eval/sessions/*
 docs/arm-eval/worksheets/*
 # /managed-by:claude-engineering-skills-sync
@@ -165,3 +167,6 @@ playwright-report/
 
 # Per-machine plugin deploy targets (see deploy.local.example.json)
 deploy.local.json
+
+# ad hoc analysis reports — never committed, any repo
+docs/ibm-fs-*.md

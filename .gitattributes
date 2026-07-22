@@ -2,7 +2,6 @@
 .claude/skills/** text eol=lf
 .claude/hooks/** text eol=lf
 .claude/settings.json text eol=lf
-.github/prompts/** text eol=lf
 .vscode/mcp.json text eol=lf
 docs/reference/consistency-contract.md text eol=lf
 scripts/.sync-manifest.json text eol=lf
