@@ -841,6 +841,8 @@ export interface Translations {
             podcastMaxMinsDesc: string;
             briefCutoffHour: string;
             briefCutoffHourDesc: string;
+            briefCutoffMinute: string;
+            briefCutoffMinuteDesc: string;
             retentionDays: string;
             retentionDaysDesc: string;
         };

@@ -328,6 +328,18 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         this.plugin.settings.newsletterBriefCutoffHour = value;
                         void this.plugin.saveSettings();
                     }));
+
+            new Setting(this.containerEl)
+                .setName(nl?.briefCutoffMinute || 'Brief day cutoff (minutes)')
+                .setDesc(nl?.briefCutoffMinuteDesc || 'Minute offset within the cutoff hour, for sub-hour precision (e.g. 7:30).')
+                .addSlider(slider => slider
+                    .setLimits(0, 45, 15)
+                    .setValue(this.plugin.settings.newsletterBriefCutoffMinute ?? 0)
+                    .setDynamicTooltip()
+                    .onChange(value => {
+                        this.plugin.settings.newsletterBriefCutoffMinute = value;
+                        void this.plugin.saveSettings();
+                    }));
         }
 
         // Retention

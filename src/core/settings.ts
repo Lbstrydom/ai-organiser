@@ -389,6 +389,7 @@ export interface AIOrganiserSettings {
     newsletterPodcastVoice: string;      // Gemini TTS voice name: 'Charon' | 'Puck' | 'Kore'
     newsletterPodcastMaxMins: number;   // Maximum podcast length in minutes (1-15, default 5)
     newsletterBriefCutoffHour: number;  // Hour (0-23) when "today" rolls over for brief grouping
+    newsletterBriefCutoffMinute: number; // Minute (0-59) offset within the cutoff hour, for sub-hour precision (e.g. 7:30)
     newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
 
     // === AUDIO NARRATION ===
@@ -842,6 +843,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterPodcastVoice: 'Charon',
     newsletterPodcastMaxMins: 5,
     newsletterBriefCutoffHour: 6,
+    newsletterBriefCutoffMinute: 0,
     newsletterRetentionDays: 30,
 
     // Audio Narration Defaults

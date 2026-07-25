@@ -385,6 +385,7 @@ export class NewsletterService {
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
         const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+        const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
 
         // Group newsletters by bucket date (cutoff-aware). A fetch that runs
         // at 09:00 after cutoff=08:00 may pull emails from 06:00 today
@@ -393,7 +394,7 @@ export class NewsletterService {
         // date and polluted today's digest.
         const byBucket = new Map<string, ProcessedNewsletter[]>();
         for (const nl of newsletters) {
-            const bucket = getBucketDateStr(nl.date, cutoff);
+            const bucket = getBucketDateStr(nl.date, cutoff, cutoffMinute);
             const existing = byBucket.get(bucket);
             if (existing) existing.push(nl);
             else byBucket.set(bucket, [nl]);
@@ -606,9 +607,10 @@ export class NewsletterService {
      */
     private async generateBriefsPerBucket(processed: ProcessedNewsletter[]): Promise<void> {
         const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+        const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
         const byBucket = new Map<string, ProcessedNewsletter[]>();
         for (const nl of processed) {
-            const bucket = getBucketDateStr(nl.date, cutoff);
+            const bucket = getBucketDateStr(nl.date, cutoff, cutoffMinute);
             const existing = byBucket.get(bucket);
             if (existing) existing.push(nl);
             else byBucket.set(bucket, [nl]);
@@ -698,10 +700,11 @@ export class NewsletterService {
         // bypasses this gate by design.
         if (this.plugin.settings.newsletterAudioPodcast) {
             const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
-            if (isBucketClosed(dateStr, cutoff)) {
+            const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
+            if (isBucketClosed(dateStr, cutoff, new Date(), cutoffMinute)) {
                 await this.generateAudioForBrief(brief, outputRoot, dateStr);
             } else {
-                logger.debug('Newsletter', `Audio podcast deferred for bucket ${dateStr} — bucket is still live (cutoff ${cutoff}:00 next day not yet reached)`);
+                logger.debug('Newsletter', `Audio podcast deferred for bucket ${dateStr} — bucket is still live (cutoff ${cutoff}:${String(cutoffMinute).padStart(2, '0')} next day not yet reached)`);
             }
         }
     }
@@ -847,6 +850,7 @@ export class NewsletterService {
     private async recoverMissedAudioPodcasts(): Promise<void> {
         if (!this.plugin.settings.newsletterAudioPodcast) return;
         const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
+        const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
         const vault = this.plugin.app.vault;
 
@@ -858,7 +862,7 @@ export class NewsletterService {
             const d = new Date(today);
             d.setDate(today.getDate() - i);
             const dateStr = formatLocalYmd(d);
-            if (!isBucketClosed(dateStr, cutoff)) continue;
+            if (!isBucketClosed(dateStr, cutoff, new Date(), cutoffMinute)) continue;
 
             const digestPath = getDigestPath(outputRoot, dateStr);
             const digestFile = vault.getAbstractFileByPath(digestPath);
@@ -942,7 +946,7 @@ export class NewsletterService {
         }
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
-        const dateStr = getBriefDateStr(this.plugin.settings.newsletterBriefCutoffHour ?? 6);
+        const dateStr = getBriefDateStr(this.plugin.settings.newsletterBriefCutoffHour ?? 6, this.plugin.settings.newsletterBriefCutoffMinute ?? 0);
         const digestPath = getDigestPath(outputRoot, dateStr);
         const digestFile = vault.getAbstractFileByPath(digestPath);
         if (!(digestFile instanceof TFile)) {
@@ -1134,8 +1138,8 @@ export class NewsletterService {
  * If the current hour is before cutoffHour, the brief belongs to yesterday's date
  * (e.g. newsletters arriving at 2am still roll up into the previous day's brief).
  */
-export function getBriefDateStr(cutoffHour: number): string {
-    return getBucketDateStr(new Date(), cutoffHour);
+export function getBriefDateStr(cutoffHour: number, cutoffMinute: number = 0): string {
+    return getBucketDateStr(new Date(), cutoffHour, cutoffMinute);
 }
 
 /**
@@ -1153,12 +1157,12 @@ export function getBriefDateStr(cutoffHour: number): string {
  * budget regenerating audio as each individual newsletter arrives during
  * the live day (user report 2026-04-23).
  */
-export function isBucketClosed(bucketDateStr: string, cutoffHour: number, now: Date = new Date()): boolean {
+export function isBucketClosed(bucketDateStr: string, cutoffHour: number, now: Date = new Date(), cutoffMinute: number = 0): boolean {
     // Parse "YYYY-MM-DD" as local midnight, then advance to the cutoff boundary.
     const parts = bucketDateStr.split('-').map(Number);
     if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return false;
     const [y, m, d] = parts;
-    const bucketClose = new Date(y, m - 1, d + 1, cutoffHour, 0, 0, 0);
+    const bucketClose = new Date(y, m - 1, d + 1, cutoffHour, cutoffMinute, 0, 0);
     return now.getTime() >= bucketClose.getTime();
 }
 
@@ -1176,14 +1180,17 @@ export function isBucketClosed(bucketDateStr: string, cutoffHour: number, now: D
  * Shared by fetch-time bucketing, folder creation, digest path, and brief
  * synthesis so every code path agrees on which day a given message lives in.
  */
-export function getBucketDateStr(when: Date | string, cutoffHour: number): string {
+export function getBucketDateStr(when: Date | string, cutoffHour: number, cutoffMinute: number = 0): string {
     const d = new Date(when);
     if (!Number.isFinite(d.getTime())) {
         // Fall back to "today" in local time if parsing failed — defensive
         // guard against a malformed payload; bucketing stays monotonic.
-        return getBucketDateStr(new Date(), cutoffHour);
+        return getBucketDateStr(new Date(), cutoffHour, cutoffMinute);
     }
-    if (d.getHours() < cutoffHour) {
+    // Compare total minutes-since-midnight, not just the hour, so a sub-hour
+    // cutoff (e.g. 7:30) splits newsletters arriving at 7:15 vs 7:45 correctly.
+    // Equivalent to the old hour-only comparison when cutoffMinute is 0.
+    if (d.getHours() * 60 + d.getMinutes() < cutoffHour * 60 + cutoffMinute) {
         d.setDate(d.getDate() - 1);
     }
     const yyyy = d.getFullYear();

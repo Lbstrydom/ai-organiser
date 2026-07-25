@@ -6106,6 +6106,20 @@
   ],
   "functions": [
     {
+      "function_name": "armor",
+      "args": "bytea",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "armor",
+      "args": "bytea, text[], text[]",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "array_to_halfvec",
       "args": "double precision[], integer, boolean",
       "return_type": "halfvec",
@@ -6239,6 +6253,34 @@
       "config": null
     },
     {
+      "function_name": "crypt",
+      "args": "text, text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "dearmor",
+      "args": "text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "decrypt",
+      "args": "bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "decrypt_iv",
+      "args": "bytea, bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "defer_finding",
       "args": "p_finding_id uuid, p_dismiss_reason text, p_evidence jsonb, p_cluster_hash text, p_severity text, p_audit_run_id uuid, p_round integer, p_sequence integer",
       "return_type": "void",
@@ -6246,11 +6288,39 @@
       "config": "search_path=pg_catalog, public"
     },
     {
+      "function_name": "digest",
+      "args": "bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "digest",
+      "args": "text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "drift_score",
       "args": "p_repo_id uuid, p_refresh_id uuid, p_sim_dup numeric, p_sim_name numeric",
       "return_type": "jsonb",
       "security_definer": true,
       "config": "search_path=pg_catalog, public"
+    },
+    {
+      "function_name": "encrypt",
+      "args": "bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "encrypt_iv",
+      "args": "bytea, bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
     },
     {
       "function_name": "friction_neighbourhood",
@@ -6265,6 +6335,34 @@
       "return_type": "jsonb",
       "security_definer": true,
       "config": "search_path=public"
+    },
+    {
+      "function_name": "gen_random_bytes",
+      "args": "integer",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "gen_random_uuid",
+      "args": "",
+      "return_type": "uuid",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "gen_salt",
+      "args": "text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "gen_salt",
+      "args": "text, integer",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
     },
     {
       "function_name": "gin_extract_query_trgm",
@@ -6561,6 +6659,20 @@
       "config": null
     },
     {
+      "function_name": "hmac",
+      "args": "bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "hmac",
+      "args": "text, text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "hnsw_bit_support",
       "args": "internal",
       "return_type": "internal",
@@ -6748,6 +6860,146 @@
       "return_type": "text[]",
       "security_definer": false,
       "config": "search_path=public, pg_temp"
+    },
+    {
+      "function_name": "pgp_armor_headers",
+      "args": "text, OUT key text, OUT value text",
+      "return_type": "SETOF record",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_key_id",
+      "args": "bytea",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt",
+      "args": "bytea, bytea",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt",
+      "args": "bytea, bytea, text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt",
+      "args": "bytea, bytea, text, text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt_bytea",
+      "args": "bytea, bytea",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt_bytea",
+      "args": "bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_decrypt_bytea",
+      "args": "bytea, bytea, text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_encrypt",
+      "args": "text, bytea",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_encrypt",
+      "args": "text, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_encrypt_bytea",
+      "args": "bytea, bytea",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_pub_encrypt_bytea",
+      "args": "bytea, bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_decrypt",
+      "args": "bytea, text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_decrypt",
+      "args": "bytea, text, text",
+      "return_type": "text",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_decrypt_bytea",
+      "args": "bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_decrypt_bytea",
+      "args": "bytea, text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_encrypt",
+      "args": "text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_encrypt",
+      "args": "text, text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_encrypt_bytea",
+      "args": "bytea, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "pgp_sym_encrypt_bytea",
+      "args": "bytea, text, text",
+      "return_type": "bytea",
+      "security_definer": false,
+      "config": null
     },
     {
       "function_name": "publish_refresh_run",
@@ -7333,69 +7585,6 @@
   ],
   "policies": [
     {
-      "table_ref": "public.audit_findings",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.audit_pass_stats",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.audit_repos",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.audit_runs",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.bandit_arms",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.debt_entries",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.debt_events",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
       "table_ref": "public.domain_summaries",
       "policyname": "anon_read_domain_summaries",
       "permissive": "PERMISSIVE",
@@ -7405,87 +7594,6 @@
       "with_check": null
     },
     {
-      "table_ref": "public.false_positive_patterns",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.finding_adjudication_events",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.persona_audit_correlations",
-      "policyname": "anon_all_persona_audit_correlations",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.plan_verification_items",
-      "policyname": "anon_all_plan_verification_items",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.plan_verification_runs",
-      "policyname": "anon_all_plan_verification_runs",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.plans",
-      "policyname": "anon_all_plans",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.prompt_experiments",
-      "policyname": "anon_all_prompt_experiments",
-      "permissive": "PERMISSIVE",
-      "roles": "{anon}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.prompt_revisions",
-      "policyname": "anon_all_prompt_revisions",
-      "permissive": "PERMISSIVE",
-      "roles": "{anon}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.prompt_variants",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
       "table_ref": "public.refresh_runs",
       "policyname": "anon_read_refresh_runs",
       "permissive": "PERMISSIVE",
@@ -7493,42 +7601,6 @@
       "cmd": "SELECT",
       "qual": "true",
       "with_check": null
-    },
-    {
-      "table_ref": "public.regression_spec_runs",
-      "policyname": "anon_all_regression_spec_runs",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.regression_specs",
-      "policyname": "anon_all_regression_specs",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.ship_events",
-      "policyname": "anon_all_ship_events",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
-    },
-    {
-      "table_ref": "public.suppression_events",
-      "policyname": "Allow all for anon",
-      "permissive": "PERMISSIVE",
-      "roles": "{public}",
-      "cmd": "ALL",
-      "qual": "true",
-      "with_check": "true"
     },
     {
       "table_ref": "public.symbol_definitions",
@@ -7701,7 +7773,7 @@
       "table_name": "audit_findings",
       "constraint_name": "audit_findings_user_action_check",
       "constraint_type": "CHECK",
-      "definition": "CHECK ((user_action = ANY (ARRAY['fix-now'::text, 'deferred'::text, 'dismissed'::text, 'needs_triage'::text, 'accepted-permanent'::text])))"
+      "definition": "CHECK ((user_action = ANY (ARRAY['fix-now'::text, 'deferred'::text, 'dismissed'::text, 'needs_triage'::text, 'accepted-permanent'::text, 'auto_dismissed'::text])))"
     },
     {
       "table_name": "audit_findings",
@@ -8653,15 +8725,15 @@
     },
     {
       "table_name": "symbol_file_imports",
-      "constraint_name": "symbol_file_imports_refresh_id_fkey",
-      "constraint_type": "FOREIGN KEY",
-      "definition": "FOREIGN KEY (refresh_id) REFERENCES refresh_runs(id) ON DELETE CASCADE"
+      "constraint_name": "symbol_file_imports_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (refresh_id, importer_path, imported_path)"
     },
     {
       "table_name": "symbol_file_imports",
-      "constraint_name": "symbol_file_imports_refresh_id_importer_path_imported_path_key",
-      "constraint_type": "UNIQUE",
-      "definition": "UNIQUE (refresh_id, importer_path, imported_path)"
+      "constraint_name": "symbol_file_imports_refresh_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (refresh_id) REFERENCES refresh_runs(id) ON DELETE CASCADE"
     },
     {
       "table_name": "symbol_index",
@@ -9123,6 +9195,11 @@
     },
     {
       "tablename": "friction_log",
+      "indexname": "friction_log_audit_run_id_idx",
+      "indexdef": "CREATE INDEX friction_log_audit_run_id_idx ON public.friction_log USING btree (audit_run_id)"
+    },
+    {
+      "tablename": "friction_log",
       "indexname": "friction_log_pkey",
       "indexdef": "CREATE UNIQUE INDEX friction_log_pkey ON public.friction_log USING btree (id)"
     },
@@ -9135,6 +9212,11 @@
       "tablename": "friction_log",
       "indexname": "friction_log_severity_created_idx",
       "indexdef": "CREATE INDEX friction_log_severity_created_idx ON public.friction_log USING btree (severity, created_at DESC)"
+    },
+    {
+      "tablename": "learning_decisions",
+      "indexname": "learning_decisions_audit_run_id_idx",
+      "indexdef": "CREATE INDEX learning_decisions_audit_run_id_idx ON public.learning_decisions USING btree (audit_run_id)"
     },
     {
       "tablename": "learning_decisions",
@@ -9155,6 +9237,11 @@
       "tablename": "learning_decisions",
       "indexname": "learning_decisions_quickfix_unresolved_idx",
       "indexdef": "CREATE INDEX learning_decisions_quickfix_unresolved_idx ON public.learning_decisions USING btree (decision_type, repo_id, created_at) WHERE ((decision_type = 'quickfix_hit'::text) AND (outcome IS NULL))"
+    },
+    {
+      "tablename": "learning_decisions",
+      "indexname": "learning_decisions_repo_id_idx",
+      "indexdef": "CREATE INDEX learning_decisions_repo_id_idx ON public.learning_decisions USING btree (repo_id)"
     },
     {
       "tablename": "learning_decisions",
@@ -9308,6 +9395,11 @@
     },
     {
       "tablename": "persona_finding_outcomes",
+      "indexname": "persona_finding_outcomes_last_seen_session_id_idx",
+      "indexdef": "CREATE INDEX persona_finding_outcomes_last_seen_session_id_idx ON public.persona_finding_outcomes USING btree (last_seen_session_id)"
+    },
+    {
+      "tablename": "persona_finding_outcomes",
       "indexname": "persona_finding_outcomes_pkey",
       "indexdef": "CREATE UNIQUE INDEX persona_finding_outcomes_pkey ON public.persona_finding_outcomes USING btree (id)"
     },
@@ -9447,6 +9539,11 @@
       "indexdef": "CREATE UNIQUE INDEX plan_verification_runs_pkey ON public.plan_verification_runs USING btree (id)"
     },
     {
+      "tablename": "plan_verification_runs",
+      "indexname": "plan_verification_runs_spec_id_idx",
+      "indexdef": "CREATE INDEX plan_verification_runs_spec_id_idx ON public.plan_verification_runs USING btree (spec_id)"
+    },
+    {
       "tablename": "plans",
       "indexname": "idx_plans_repo",
       "indexdef": "CREATE INDEX idx_plans_repo ON public.plans USING btree (repo_id)"
@@ -9502,9 +9599,19 @@
       "indexdef": "CREATE UNIQUE INDEX prompt_variants_pkey ON public.prompt_variants USING btree (id)"
     },
     {
+      "tablename": "prompt_variants",
+      "indexname": "prompt_variants_repo_id_idx",
+      "indexdef": "CREATE INDEX prompt_variants_repo_id_idx ON public.prompt_variants USING btree (repo_id)"
+    },
+    {
       "tablename": "recurring_finding_clusters",
       "indexname": "recurring_clusters_repo_last_seen_idx",
       "indexdef": "CREATE INDEX recurring_clusters_repo_last_seen_idx ON public.recurring_finding_clusters USING btree (repo_id, last_seen DESC)"
+    },
+    {
+      "tablename": "recurring_finding_clusters",
+      "indexname": "recurring_finding_clusters_latest_finding_id_idx",
+      "indexdef": "CREATE INDEX recurring_finding_clusters_latest_finding_id_idx ON public.recurring_finding_clusters USING btree (latest_finding_id)"
     },
     {
       "tablename": "recurring_finding_clusters",
@@ -9703,8 +9810,8 @@
     },
     {
       "tablename": "symbol_file_imports",
-      "indexname": "symbol_file_imports_refresh_id_importer_path_imported_path_key",
-      "indexdef": "CREATE UNIQUE INDEX symbol_file_imports_refresh_id_importer_path_imported_path_key ON public.symbol_file_imports USING btree (refresh_id, importer_path, imported_path)"
+      "indexname": "symbol_file_imports_pkey",
+      "indexdef": "CREATE UNIQUE INDEX symbol_file_imports_pkey ON public.symbol_file_imports USING btree (refresh_id, importer_path, imported_path)"
     },
     {
       "tablename": "symbol_index",
@@ -9725,6 +9832,11 @@
       "tablename": "symbol_index",
       "indexname": "idx_symbol_index_repo_file",
       "indexdef": "CREATE INDEX idx_symbol_index_repo_file ON public.symbol_index USING btree (repo_id, file_path)"
+    },
+    {
+      "tablename": "symbol_index",
+      "indexname": "symbol_index_definition_id_idx",
+      "indexdef": "CREATE INDEX symbol_index_definition_id_idx ON public.symbol_index USING btree (definition_id)"
     },
     {
       "tablename": "symbol_index",
@@ -9750,6 +9862,11 @@
       "tablename": "symbol_layering_violations",
       "indexname": "symbol_layering_violations_refresh_id_rule_name_from_path_t_key",
       "indexdef": "CREATE UNIQUE INDEX symbol_layering_violations_refresh_id_rule_name_from_path_t_key ON public.symbol_layering_violations USING btree (refresh_id, rule_name, from_path, to_path)"
+    },
+    {
+      "tablename": "symbol_layering_violations",
+      "indexname": "symbol_layering_violations_repo_id_idx",
+      "indexdef": "CREATE INDEX symbol_layering_violations_repo_id_idx ON public.symbol_layering_violations USING btree (repo_id)"
     },
     {
       "tablename": "symbol_refresh_coverage",
@@ -9815,10 +9932,6 @@
   ],
   "extensions": [
     {
-      "extension_name": "pg_stat_statements",
-      "version": "1.11"
-    },
-    {
       "extension_name": "pg_trgm",
       "version": "1.6"
     },
@@ -9831,16 +9944,8 @@
       "version": "1.0"
     },
     {
-      "extension_name": "supabase_vault",
-      "version": "0.3.1"
-    },
-    {
-      "extension_name": "uuid-ossp",
-      "version": "1.1"
-    },
-    {
       "extension_name": "vector",
-      "version": "0.8.0"
+      "version": "0.8.5"
     }
   ],
   "grants": [

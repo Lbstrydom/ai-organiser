@@ -867,6 +867,8 @@ export const en: Translations = {
             podcastMaxMinsDesc: "Upper limit for the spoken podcast. If the day's news is light the script will be shorter — this is a ceiling, not a target.",
             briefCutoffHour: "Brief day cutoff",
             briefCutoffHourDesc: "Hour when the daily brief rolls over to a new day. Newsletters arriving before this hour are grouped with the previous day.",
+            briefCutoffMinute: "Brief day cutoff (minutes)",
+            briefCutoffMinuteDesc: "Minute offset within the cutoff hour, for sub-hour precision (e.g. 7:30).",
             retentionDays: "Keep newsletters for",
             retentionDaysDesc: "Automatically delete newsletters and digest files older than this. Set to 0 to keep forever.",
         },

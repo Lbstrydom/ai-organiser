@@ -117,6 +117,45 @@ describe('bucketing a mixed batch (the scenario the user reported)', () => {
     });
 });
 
+describe('getBucketDateStr — sub-hour cutoff (cutoffMinute)', () => {
+    it('7:15 rolls into yesterday when cutoff is 7:30', () => {
+        const d = new Date(2026, 6, 21, 7, 15, 0);
+        expect(getBucketDateStr(d, 7, 30)).toBe('2026-07-20');
+    });
+
+    it('7:45 buckets into today when cutoff is 7:30', () => {
+        const d = new Date(2026, 6, 21, 7, 45, 0);
+        expect(getBucketDateStr(d, 7, 30)).toBe('2026-07-21');
+    });
+
+    it('7:30 exactly is the start of the new day (boundary)', () => {
+        const d = new Date(2026, 6, 21, 7, 30, 0);
+        expect(getBucketDateStr(d, 7, 30)).toBe('2026-07-21');
+    });
+
+    it('7:29:59 is still yesterday (one second before the 7:30 boundary)', () => {
+        const d = new Date(2026, 6, 21, 7, 29, 59);
+        expect(getBucketDateStr(d, 7, 30)).toBe('2026-07-20');
+    });
+
+    it('defaults cutoffMinute to 0 when omitted (backward compatible)', () => {
+        const d = new Date(2026, 6, 21, 7, 15, 0);
+        expect(getBucketDateStr(d, 7)).toBe(getBucketDateStr(d, 7, 0));
+    });
+});
+
+describe('isBucketClosed — sub-hour cutoff (cutoffMinute)', () => {
+    it('is still live one minute before a 7:30 next-day cutoff', () => {
+        const now = new Date(2026, 6, 22, 7, 29, 0);
+        expect(isBucketClosed('2026-07-21', 7, now, 30)).toBe(false);
+    });
+
+    it('closes exactly at the 7:30 next-day cutoff', () => {
+        const now = new Date(2026, 6, 22, 7, 30, 0);
+        expect(isBucketClosed('2026-07-21', 7, now, 30)).toBe(true);
+    });
+});
+
 describe('isBucketClosed — audio-podcast generation gate', () => {
     it('returns false while the bucket is still live (same day, before next-day cutoff)', () => {
         // Bucket 2026-04-21 covers Apr 21 08:00 → Apr 22 08:00 (cutoff=8)
