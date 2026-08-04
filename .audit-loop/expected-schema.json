@@ -984,8 +984,8 @@
         {
           "column_name": "last_audited_at",
           "data_type": "timestamp with time zone",
-          "is_nullable": "NO",
-          "column_default": "now()",
+          "is_nullable": "YES",
+          "column_default": null,
           "ordinal_position": 8
         },
         {
@@ -3518,6 +3518,13 @@
           "is_nullable": "YES",
           "column_default": null,
           "ordinal_position": 11
+        },
+        {
+          "column_name": "hash_version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": "1",
+          "ordinal_position": 12
         }
       ]
     },
@@ -3701,6 +3708,20 @@
           "is_nullable": "NO",
           "column_default": "now()",
           "ordinal_position": 9
+        },
+        {
+          "column_name": "hash_version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": "1",
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "migrated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
         }
       ]
     },
@@ -6100,6 +6121,266 @@
           "is_nullable": "YES",
           "column_default": null,
           "ordinal_position": 9
+        },
+        {
+          "column_name": "audit_mode",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        }
+      ]
+    },
+    {
+      "table_name": "unremediated_acceptances",
+      "columns": [
+        {
+          "column_name": "audit_finding_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "audit_run_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "severity",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "category",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "primary_file",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "detail_snapshot",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "adjudication_outcome",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "remediation_state",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "column_name": "accepted_at_commit",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "accepted_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
+        },
+        {
+          "column_name": "days_open",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 12
+        },
+        {
+          "column_name": "audit_mode",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 13
+        }
+      ]
+    },
+    {
+      "table_name": "upstream_issue_events",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "issue_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "event",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "note",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "actor",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 6
+        }
+      ]
+    },
+    {
+      "table_name": "upstream_issues",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "title",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "body",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "severity",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "affected_path",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "reported_bundle_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "reported_bundle_generated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "path_recognised",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 9
+        },
+        {
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": "'open'::text",
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "fixed_in_commit",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 11
+        },
+        {
+          "column_name": "fingerprint",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "ordinal_position": 12
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 13
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "ordinal_position": 14
+        },
+        {
+          "column_name": "reported_source_dirty",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 15
         }
       ]
     }
@@ -7275,6 +7556,13 @@
       "config": "search_path=public, pg_temp"
     },
     {
+      "function_name": "upstream_issue_events_append_only",
+      "args": "",
+      "return_type": "trigger",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "vector",
       "args": "vector, integer, boolean",
       "return_type": "vector",
@@ -7580,7 +7868,11 @@
     },
     {
       "view_name": "unlocked_fixes",
-      "definition": " SELECT f.id AS audit_finding_id,\n    f.run_id AS audit_run_id,\n    r.repo_id,\n    f.severity,\n    f.category,\n    f.primary_file,\n    f.detail_snapshot,\n    r.created_at AS fixed_at,\n    ( SELECT count(*) AS count\n           FROM regression_specs rs\n          WHERE ((rs.source_finding_type = 'audit'::text) AND (rs.source_finding_id = f.id) AND (rs.source_kind <> 'persona-consistency-candidate'::text))) AS lock_spec_count\n   FROM (audit_findings f\n     JOIN audit_runs r ON ((r.id = f.run_id)))\n  WHERE ((f.severity = 'HIGH'::text) AND (f.adjudication_outcome = ANY (ARRAY['accepted'::text, 'severity_adjusted'::text])) AND (f.remediation_state = ANY (ARRAY['fixed'::text, 'verified'::text])) AND (r.created_at > (now() - '14 days'::interval)) AND (NOT (EXISTS ( SELECT 1\n           FROM regression_specs rs\n          WHERE ((rs.source_finding_type = 'audit'::text) AND (rs.source_finding_id = f.id) AND (rs.source_kind <> 'persona-consistency-candidate'::text))))));"
+      "definition": " SELECT f.id AS audit_finding_id,\n    f.run_id AS audit_run_id,\n    r.repo_id,\n    f.severity,\n    f.category,\n    f.primary_file,\n    f.detail_snapshot,\n    r.created_at AS fixed_at,\n    ( SELECT count(*) AS count\n           FROM regression_specs rs\n          WHERE ((rs.source_finding_type = 'audit'::text) AND (rs.source_finding_id = f.id) AND (rs.source_kind <> 'persona-consistency-candidate'::text))) AS lock_spec_count,\n    r.mode AS audit_mode\n   FROM (audit_findings f\n     JOIN audit_runs r ON ((r.id = f.run_id)))\n  WHERE ((f.severity = 'HIGH'::text) AND (f.adjudication_outcome = ANY (ARRAY['accepted'::text, 'severity_adjusted'::text])) AND (f.remediation_state = ANY (ARRAY['fixed'::text, 'verified'::text])) AND (r.created_at > (now() - '14 days'::interval)) AND (NOT (EXISTS ( SELECT 1\n           FROM regression_specs rs\n          WHERE ((rs.source_finding_type = 'audit'::text) AND (rs.source_finding_id = f.id) AND (rs.source_kind <> 'persona-consistency-candidate'::text))))));"
+    },
+    {
+      "view_name": "unremediated_acceptances",
+      "definition": " SELECT f.id AS audit_finding_id,\n    f.run_id AS audit_run_id,\n    r.repo_id,\n    f.severity,\n    f.category,\n    f.primary_file,\n    f.detail_snapshot,\n    f.adjudication_outcome,\n    f.remediation_state,\n    r.commit_sha AS accepted_at_commit,\n    r.created_at AS accepted_at,\n    (EXTRACT(day FROM (now() - r.created_at)))::integer AS days_open,\n    r.mode AS audit_mode\n   FROM (audit_findings f\n     JOIN audit_runs r ON ((r.id = f.run_id)))\n  WHERE ((f.adjudication_outcome = ANY (ARRAY['accepted'::text, 'severity_adjusted'::text])) AND ((f.remediation_state IS NULL) OR (f.remediation_state = ANY (ARRAY['pending'::text, 'planned'::text]))) AND (f.severity = ANY (ARRAY['HIGH'::text, 'MEDIUM'::text])) AND (r.created_at < (now() - '7 days'::interval)) AND (r.created_at > (now() - '30 days'::interval)))\n  ORDER BY\n        CASE f.severity\n            WHEN 'HIGH'::text THEN 0\n            ELSE 1\n        END, r.created_at;"
     }
   ],
   "policies": [
@@ -8593,15 +8885,9 @@
     },
     {
       "table_name": "regression_specs",
-      "constraint_name": "regression_specs_repo_id_spec_path_key",
-      "constraint_type": "UNIQUE",
-      "definition": "UNIQUE (repo_id, spec_path)"
-    },
-    {
-      "table_name": "regression_specs",
       "constraint_name": "regression_specs_row_shape_check",
       "constraint_type": "CHECK",
-      "definition": "CHECK ((((source_kind = ANY (ARRAY['audit-loop-fix'::text, 'persona-test-p0'::text, 'persona-test-p1'::text, 'plan-frontend-verify'::text, 'plan-backend-verify'::text, 'manual'::text, 'other'::text])) AND (spec_path IS NOT NULL) AND (candidate_fingerprint IS NULL) AND (witness_snapshot IS NULL) AND (contradiction_payload IS NULL) AND (journey_context IS NULL) AND (promoted_at IS NULL) AND (promoted_by IS NULL)) OR ((source_kind = 'persona-consistency-candidate'::text) AND (spec_path IS NULL) AND (candidate_fingerprint IS NOT NULL) AND (witness_snapshot IS NOT NULL) AND (contradiction_payload IS NOT NULL) AND (journey_context IS NOT NULL) AND (promoted_at IS NULL) AND (promoted_by IS NULL)) OR ((source_kind = 'persona-consistency-locked'::text) AND (spec_path IS NOT NULL) AND (candidate_fingerprint IS NOT NULL) AND (witness_snapshot IS NOT NULL) AND (contradiction_payload IS NOT NULL) AND (journey_context IS NOT NULL) AND (promoted_at IS NOT NULL))))"
+      "definition": "CHECK ((((source_kind = ANY (ARRAY['audit-loop-fix'::text, 'persona-test-p0'::text, 'persona-test-p1'::text, 'plan-frontend-verify'::text, 'plan-backend-verify'::text, 'unit-test'::text, 'manual'::text, 'other'::text])) AND (spec_path IS NOT NULL) AND (candidate_fingerprint IS NULL) AND (witness_snapshot IS NULL) AND (contradiction_payload IS NULL) AND (journey_context IS NULL) AND (promoted_at IS NULL) AND (promoted_by IS NULL)) OR ((source_kind = 'persona-consistency-candidate'::text) AND (spec_path IS NULL) AND (candidate_fingerprint IS NOT NULL) AND (witness_snapshot IS NOT NULL) AND (contradiction_payload IS NOT NULL) AND (journey_context IS NOT NULL) AND (promoted_at IS NULL) AND (promoted_by IS NULL)) OR ((source_kind = 'persona-consistency-locked'::text) AND (spec_path IS NOT NULL) AND (candidate_fingerprint IS NOT NULL) AND (witness_snapshot IS NOT NULL) AND (contradiction_payload IS NOT NULL) AND (journey_context IS NOT NULL) AND (promoted_at IS NOT NULL))))"
     },
     {
       "table_name": "regression_specs",
@@ -8613,7 +8899,13 @@
       "table_name": "regression_specs",
       "constraint_name": "regression_specs_source_kind_check",
       "constraint_type": "CHECK",
-      "definition": "CHECK ((source_kind = ANY (ARRAY['audit-loop-fix'::text, 'persona-test-p0'::text, 'persona-test-p1'::text, 'plan-frontend-verify'::text, 'plan-backend-verify'::text, 'persona-consistency-candidate'::text, 'persona-consistency-locked'::text, 'manual'::text, 'other'::text])))"
+      "definition": "CHECK ((source_kind = ANY (ARRAY['audit-loop-fix'::text, 'persona-test-p0'::text, 'persona-test-p1'::text, 'plan-frontend-verify'::text, 'plan-backend-verify'::text, 'persona-consistency-candidate'::text, 'persona-consistency-locked'::text, 'unit-test'::text, 'manual'::text, 'other'::text])))"
+    },
+    {
+      "table_name": "regression_specs",
+      "constraint_name": "regression_specs_unit_test_finding_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((source_kind <> 'unit-test'::text) OR (source_finding_id IS NOT NULL)))"
     },
     {
       "table_name": "security_incidents",
@@ -8830,6 +9122,84 @@
       "constraint_name": "tiered_shadow_observations_pkey",
       "constraint_type": "PRIMARY KEY",
       "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "upstream_issue_events",
+      "constraint_name": "upstream_issue_events_event_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((event = ANY (ARRAY['reported'::text, 'acknowledged'::text, 'fixed'::text, 'wont_fix'::text])))"
+    },
+    {
+      "table_name": "upstream_issue_events",
+      "constraint_name": "upstream_issue_events_issue_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (issue_id) REFERENCES upstream_issues(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "upstream_issue_events",
+      "constraint_name": "upstream_issue_events_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "chk_upstream_fixed_commit_shape",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((fixed_in_commit IS NULL) OR (fixed_in_commit ~ '^[0-9a-f]{7,40}$'::text)))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "chk_upstream_fixed_has_commit",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((state = 'fixed'::text) = (fixed_in_commit IS NOT NULL)))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_affected_path_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((char_length(affected_path) >= 1) AND (char_length(affected_path) <= 512)))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_body_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((char_length(body) >= 1) AND (char_length(body) <= 65536)))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_fingerprint_key",
+      "constraint_type": "UNIQUE",
+      "definition": "UNIQUE (fingerprint)"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_repo_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_severity_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((severity = ANY (ARRAY['BLOCKER'::text, 'HIGH'::text, 'MEDIUM'::text, 'LOW'::text])))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_state_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((state = ANY (ARRAY['open'::text, 'acknowledged'::text, 'fixed'::text, 'wont_fix'::text])))"
+    },
+    {
+      "table_name": "upstream_issues",
+      "constraint_name": "upstream_issues_title_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))"
     }
   ],
   "indexes": [
@@ -9440,6 +9810,11 @@
     },
     {
       "tablename": "persona_test_sessions",
+      "indexname": "idx_persona_test_sessions_repo_created_id",
+      "indexdef": "CREATE INDEX idx_persona_test_sessions_repo_created_id ON public.persona_test_sessions USING btree (repo_id, created_at, id)"
+    },
+    {
+      "tablename": "persona_test_sessions",
       "indexname": "persona_test_sessions_created_at_idx",
       "indexdef": "CREATE INDEX persona_test_sessions_created_at_idx ON public.persona_test_sessions USING btree (created_at DESC)"
     },
@@ -9665,6 +10040,11 @@
     },
     {
       "tablename": "regression_specs",
+      "indexname": "idx_regression_specs_path_nonunit",
+      "indexdef": "CREATE UNIQUE INDEX idx_regression_specs_path_nonunit ON public.regression_specs USING btree (repo_id, spec_path) WHERE ((source_kind <> 'unit-test'::text) AND (spec_path IS NOT NULL))"
+    },
+    {
+      "tablename": "regression_specs",
       "indexname": "idx_regression_specs_pending_candidates",
       "indexdef": "CREATE INDEX idx_regression_specs_pending_candidates ON public.regression_specs USING btree (repo_id, created_at) WHERE (source_kind = 'persona-consistency-candidate'::text)"
     },
@@ -9680,13 +10060,13 @@
     },
     {
       "tablename": "regression_specs",
-      "indexname": "regression_specs_pkey",
-      "indexdef": "CREATE UNIQUE INDEX regression_specs_pkey ON public.regression_specs USING btree (id)"
+      "indexname": "idx_regression_specs_unit_test_lock",
+      "indexdef": "CREATE UNIQUE INDEX idx_regression_specs_unit_test_lock ON public.regression_specs USING btree (repo_id, spec_path, source_finding_id) WHERE (source_kind = 'unit-test'::text)"
     },
     {
       "tablename": "regression_specs",
-      "indexname": "regression_specs_repo_id_spec_path_key",
-      "indexdef": "CREATE UNIQUE INDEX regression_specs_repo_id_spec_path_key ON public.regression_specs USING btree (repo_id, spec_path)"
+      "indexname": "regression_specs_pkey",
+      "indexdef": "CREATE UNIQUE INDEX regression_specs_pkey ON public.regression_specs USING btree (id)"
     },
     {
       "tablename": "security_incidents",
@@ -9887,6 +10267,41 @@
       "tablename": "tiered_shadow_observations",
       "indexname": "tiered_shadow_observations_pkey",
       "indexdef": "CREATE UNIQUE INDEX tiered_shadow_observations_pkey ON public.tiered_shadow_observations USING btree (id)"
+    },
+    {
+      "tablename": "upstream_issue_events",
+      "indexname": "upstream_issue_events_issue_idx",
+      "indexdef": "CREATE INDEX upstream_issue_events_issue_idx ON public.upstream_issue_events USING btree (issue_id, created_at)"
+    },
+    {
+      "tablename": "upstream_issue_events",
+      "indexname": "upstream_issue_events_pkey",
+      "indexdef": "CREATE UNIQUE INDEX upstream_issue_events_pkey ON public.upstream_issue_events USING btree (id)"
+    },
+    {
+      "tablename": "upstream_issues",
+      "indexname": "upstream_issues_fingerprint_key",
+      "indexdef": "CREATE UNIQUE INDEX upstream_issues_fingerprint_key ON public.upstream_issues USING btree (fingerprint)"
+    },
+    {
+      "tablename": "upstream_issues",
+      "indexname": "upstream_issues_path_state_idx",
+      "indexdef": "CREATE INDEX upstream_issues_path_state_idx ON public.upstream_issues USING btree (affected_path, state)"
+    },
+    {
+      "tablename": "upstream_issues",
+      "indexname": "upstream_issues_pkey",
+      "indexdef": "CREATE UNIQUE INDEX upstream_issues_pkey ON public.upstream_issues USING btree (id)"
+    },
+    {
+      "tablename": "upstream_issues",
+      "indexname": "upstream_issues_repo_created_idx",
+      "indexdef": "CREATE INDEX upstream_issues_repo_created_idx ON public.upstream_issues USING btree (repo_id, created_at DESC)"
+    },
+    {
+      "tablename": "upstream_issues",
+      "indexname": "upstream_issues_state_created_idx",
+      "indexdef": "CREATE INDEX upstream_issues_state_created_idx ON public.upstream_issues USING btree (state, created_at DESC, id DESC)"
     }
   ],
   "triggers": [
@@ -9910,6 +10325,13 @@
       "action_timing": "BEFORE",
       "events": "UPDATE",
       "action_statement": "EXECUTE FUNCTION touch_security_incidents_updated_at()"
+    },
+    {
+      "table_name": "upstream_issue_events",
+      "trigger_name": "upstream_issue_events_no_update",
+      "action_timing": "BEFORE",
+      "events": "UPDATE",
+      "action_statement": "EXECUTE FUNCTION upstream_issue_events_append_only()"
     }
   ],
   "sequences": [
@@ -9945,7 +10367,7 @@
     },
     {
       "extension_name": "vector",
-      "version": "0.8.5"
+      "version": "0.8.6"
     }
   ],
   "grants": [
@@ -10303,6 +10725,21 @@
       "grantee": "postgres",
       "object": "public.unlocked_fixes",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.unremediated_acceptances",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.upstream_issue_events",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.upstream_issues",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     }
   ],
   "owners": [
@@ -10597,6 +11034,16 @@
       "owner": "postgres"
     },
     {
+      "object_name": "upstream_issue_events",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "upstream_issues",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
       "object_name": "arm_eval_leaderboard",
       "object_kind": "v",
       "owner": "postgres"
@@ -10678,6 +11125,11 @@
     },
     {
       "object_name": "unlocked_fixes",
+      "object_kind": "v",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "unremediated_acceptances",
       "object_kind": "v",
       "owner": "postgres"
     }

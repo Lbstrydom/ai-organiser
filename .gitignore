@@ -145,6 +145,7 @@ dashboard/index.html
 dashboard/telemetry.html
 .brainstorm/
 .skills-fit-check.json
+.claude/tmp/
 logs/mcp-*.log
 logs/mcp-*.log.gz
 .audit/
