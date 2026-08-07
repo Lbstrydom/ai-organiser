@@ -1,0 +1,172 @@
+name: architectural-drift
+
+# Weekly architectural drift sweep + retention prune.
+#
+# UPSTREAM-OWNED — deployed from Lbstrydom/claude-engineering-skills
+# (.github/workflows/architectural-drift.yml). Do NOT patch this file here:
+# the edit is invisible to upstream review and the bug persists for every
+# other consumer. Fix it upstream and re-deploy.
+#
+# Adapted from the source-repo original for the CONSUMER layout. Three
+# deliberate differences, each load-bearing:
+#
+#   1. HYDRATION. The audit-loop tooling lives under scripts/.claude-skills/,
+#      which this repo gitignores — so it is ABSENT from a fresh CI checkout
+#      and must be fetched from upstream before any arch:* script can run.
+#      Mirrors the proven hydration step in arch-drift-scoped.yml.
+#   2. INDIRECTION. Entry points are invoked through the package.json arch:*
+#      scripts, never by hardcoded path: upstream's
+#      scripts/symbol-index/drift.mjs is scripts/.claude-skills/symbol-index/
+#      drift.mjs here, and the consumer path map is not ours to hand-compute.
+#   3. HARD PREFLIGHT. Upstream warns-and-skips on a missing DSN, which makes
+#      an unprovisioned secret report conclusion:success having checked
+#      nothing. This copy fails instead. See the step comment.
+
+on:
+  schedule:
+    # Staggered off the source repo's Mondays 09:30 UTC sweep.
+    - cron: '50 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: architectural-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # Without this, `npm run arch:drift` is MODULE_NOT_FOUND, Node exits 1,
+      # and the exit-code map below reads 1 as "drift triggered" — filing a
+      # bogus sticky issue off a missing file. Upstream is public; no token.
+      - name: Checkout upstream tooling
+        uses: actions/checkout@v7
+        with:
+          repository: Lbstrydom/claude-engineering-skills
+          path: .upstream-skills
+
+      - name: Hydrate scripts/.claude-skills
+        run: |
+          mkdir -p scripts/.claude-skills
+          cp -R .upstream-skills/scripts/. scripts/.claude-skills/
+          # Fail loudly here rather than let a partial copy surface as a
+          # drift signal three steps later.
+          test -f scripts/.claude-skills/symbol-index/drift.mjs
+          test -f scripts/.claude-skills/symbol-index/prune.mjs
+          test -f scripts/.claude-skills/learning-store.mjs
+
+      # A never-provisioned secret arrives as an EMPTY STRING, not an absent
+      # key, so a presence-only check passes it through. Upstream then skips
+      # every real step and the run reports success — a green certifying only
+      # that the runner booted. Fail closed instead. Never echoes the value.
+      - name: Preflight AUDIT_DB_URL
+        env:
+          AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
+        run: |
+          if [ -z "$AUDIT_DB_URL" ]; then
+            echo "::error::AUDIT_DB_URL is unset or empty. Refusing to report a clean pass having checked nothing. Set the repository secret, then re-run."
+            exit 1
+          fi
+          echo "AUDIT_DB_URL present (value not echoed)."
+
+      - name: Refresh architectural memory (full)
+        env:
+          AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
+          AUDIT_DB_SSL_MODE: no-verify
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run arch:refresh:full || true
+
+      - name: Run drift sweep
+        id: drift
+        env:
+          AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
+          AUDIT_DB_SSL_MODE: no-verify
+        run: |
+          set +e
+          npm run arch:drift -- --out /tmp/architectural-drift.md
+          EXIT=$?
+          set -e
+          echo "exit=$EXIT" >> "$GITHUB_OUTPUT"
+          if [ "$EXIT" = "0" ]; then echo "status=green" >> "$GITHUB_OUTPUT";
+          elif [ "$EXIT" = "1" ]; then echo "status=triggered" >> "$GITHUB_OUTPUT";
+          else echo "status=error" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Run retention prune
+        env:
+          AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
+          AUDIT_DB_SSL_MODE: no-verify
+        run: npm run arch:prune || true
+
+      # NOTE: upstream gates this on hashFiles('/tmp/architectural-drift.md'),
+      # which always evaluates empty — hashFiles resolves relative to
+      # GITHUB_WORKSPACE and cannot see /tmp, so the artefact is never
+      # uploaded there. Using always() + if-no-files-found instead.
+      - name: Upload report artefact
+        if: always() && steps.drift.outcome != 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: architectural-drift-report
+          path: /tmp/architectural-drift.md
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Open / update sticky issue on trigger
+        if: steps.drift.outputs.status == 'triggered'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          EXISTING=$(gh api "repos/$REPO/issues?state=open&labels=architectural-drift&per_page=50" \
+            --jq '[.[] | select(.body // "" | startswith("<!-- audit-loop:architectural-drift -->"))][0].number' 2>/dev/null || echo '')
+          BODY=$(cat /tmp/architectural-drift.md)
+          RUN_URL="https://github.com/$REPO/actions/runs/${{ github.run_id }}"
+          FOOTER=$'\n\n---\n_Auto-generated by `.github/workflows/architectural-drift.yml` — ['"run"']('"$RUN_URL"')._ '
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            printf '%s%s' "$BODY" "$FOOTER" > /tmp/issue-body.md
+            gh issue edit "$EXISTING" --body-file /tmp/issue-body.md --repo "$REPO"
+            gh issue comment "$EXISTING" --repo "$REPO" --body "Re-triggered on $(date -u +%Y-%m-%d). See [workflow run]($RUN_URL)."
+          else
+            printf '%s%s' "$BODY" "$FOOTER" > /tmp/issue-body.md
+            gh label create architectural-drift --color D93F0B --description 'Architectural drift trigger fired' --repo "$REPO" 2>/dev/null || true
+            gh issue create --repo "$REPO" \
+              --title "architectural-drift: trigger fired ($(date -u +%Y-%m-%d))" \
+              --label architectural-drift \
+              --body-file /tmp/issue-body.md
+          fi
+
+      - name: Auto-close sticky issue if green
+        if: steps.drift.outputs.status == 'green'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          EXISTING=$(gh api "repos/$REPO/issues?state=open&labels=architectural-drift&per_page=50" \
+            --jq '[.[] | select(.body // "" | startswith("<!-- audit-loop:architectural-drift -->"))][0].number' 2>/dev/null || echo '')
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body "Drift returned to green on $(date -u +%Y-%m-%d). Auto-closing — reopen if a regression is observed."
+            gh issue close "$EXISTING" --repo "$REPO"
+          fi
+
+      - name: Fail workflow on infra error
+        if: steps.drift.outputs.status == 'error'
+        run: |
+          echo "::error::drift script failed with exit code 2 (infra error, not a drift signal)"
+          exit 1
