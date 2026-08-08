@@ -1384,6 +1384,13 @@
           "is_nullable": "YES",
           "column_default": null,
           "ordinal_position": 50
+        },
+        {
+          "column_name": "experiment_tag",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "ordinal_position": 51
         }
       ]
     },
@@ -9392,6 +9399,11 @@
       "tablename": "audit_runs",
       "indexname": "audit_runs_cache_rate_idx",
       "indexdef": "CREATE INDEX audit_runs_cache_rate_idx ON public.audit_runs USING btree (rounds, created_at) WHERE (cache_hit_rate IS NOT NULL)"
+    },
+    {
+      "tablename": "audit_runs",
+      "indexname": "audit_runs_experiment_tag_idx",
+      "indexdef": "CREATE INDEX audit_runs_experiment_tag_idx ON public.audit_runs USING btree (experiment_tag) WHERE (experiment_tag IS NOT NULL)"
     },
     {
       "tablename": "audit_runs",
