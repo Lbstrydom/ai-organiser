@@ -18,7 +18,7 @@
 | Provider | `cloudServiceType: azure-claude`, `azureFirstMode: true`, endpoint set, `researchProvider: claude-web-search` |
 | Pacing | `azureMaxRpm: 10`, `azureMaxConcurrentRequests: 2` (defaults) |
 | Test materials | `AI-Organiser/Z test/` (notes, minutes, multi-source) + `99 File Storage/*.pdf,*.png` + `AI-Organiser/Recordings/*.m4a,*.mp3` |
-| Harness | `scripts/persona-harness/` — `driver.mjs` (launch/attach), `azure-feature-sweep.mjs` (service-layer sweep) |
+| Harness | `scripts/persona-harness/driver.mjs` (launch/attach), `scripts/persona-harness/azure-feature-sweep.mjs` (service-layer sweep) — full tree in §3 |
 
 **The three-way result label** every test must produce:
 - **PASS** — feature completed correctly, routed to Azure (`*.services.ai.azure.com`).
@@ -85,7 +85,7 @@ Each row exercises a real **paced egress path** and asserts completion + Azure r
 
 For each persona, drive their **realistic** end-to-end flows, **capture the rendered layout** of every artifact, and score it against the persona's stated needs. A flaw is "substantive" if it would make the persona distrust the output (broken chart, dropped content, overflow, illegible hierarchy, off-brand, export ≠ preview).
 
-### Personas (from `personas.json`)
+### Personas (from `scripts/persona-harness/personas.json`)
 | Persona | Role | Primary flows | Layout sensitivities |
 |---|---|---|---|
 | **Pat** | Director, briefing prep, 48 | **presentation deck** from a board note + web research; **meeting minutes** from `hamina…mp3`; DOCX/PPTX export | exec-ready slides, complete minutes, on-brand, export fidelity |
@@ -126,8 +126,8 @@ Flow:
 ```
 Track 2 run ──► candidate renders + flaws ──► (you review + FIX)
         └────────────────────────────────► npm run test:azure -- --bless
-                                              ├─ promotes good renders → baseline/<artifact>.png
-                                              └─ locks the invariant set → baseline/invariants.json
+                                              ├─ promotes good renders → scripts/persona-harness/baseline/<artifact>.png
+                                              └─ locks the invariant set → scripts/persona-harness/baseline/invariants.json
 every future run ──► auto-diff renders + re-check invariants ──► flag LAYOUT regressions only
 ```
 
@@ -138,15 +138,22 @@ every future run ──► auto-diff renders + re-check invariants ──► fla
 ## 3. Harness architecture (`npm run test:azure`) + design decisions
 
 ```
-scripts/persona-harness/
-  driver.mjs                 # launch/attach (CDP), ensureVaultOpen, waitForPluginReady, runCommand
-  azure-feature-sweep.mjs    # Track 1 service-layer sweep (summarize/tags/PDF/image/mermaid/translate)
-  azure-ui-flows.mjs         # Track 1 UI flows (transcribe, minutes, multi-source, presentation) — TODO
-  persona-layout-ab.mjs      # Track 2 persona-fit capture + rubric (+ --bless) — TODO
-  render-deck-html.mjs       # rasterize deck.html slides for fidelity diff
-  sessions/<run>/            # report.json + screenshots + rendered PNGs (gitignored)
-  baseline/                  # Track 3: blessed reference PNGs + invariants.json (COMMITTED)
+scripts/persona-harness/driver.mjs              # launch/attach (CDP), ensureVaultOpen, waitForPluginReady, runCommand
+scripts/persona-harness/azure-feature-sweep.mjs # Track 1 service-layer sweep (summarize/tags/PDF/image/mermaid/translate)
+scripts/persona-harness/azure-ui-flows.mjs      # Track 1 UI flows (transcribe, minutes, multi-source, presentation) — LIVE
+scripts/persona-harness/persona-layout-ab.mjs   # Track 2 persona-fit capture + rubric (+ --bless) — LIVE
+scripts/persona-harness/render-deck-html.mjs    # rasterize deck.html slides for fidelity diff
+scripts/persona-harness/personas.json           # the three persona definitions §2 scores against
+scripts/persona-harness/sessions/<run>/         # report.json + screenshots + rendered PNGs (gitignored)
+scripts/persona-harness/baseline/               # Track 3: blessed reference PNGs + invariants.json (COMMITTED)
 ```
+
+> **Paths here are repo-relative on purpose.** A bare basename is invisible to
+> `extractPlanPaths` (it requires at least one `/`), and under ~5 resolvable
+> paths the audit tooling falls back to fuzzy keyword discovery — which on this
+> document pulled in **63 unrelated files** matched on plan *words*, an audit
+> that looks thorough and reviews the wrong code. Vault material and run
+> artifacts below are deliberately NOT repo paths; they are not in this repo.
 
 - **Service-layer where reliable** (summarize/tags/multimodal/mermaid/translate) — calls the exact production methods (`llmService.*`), fast + deterministic.
 - **UI-driven where required** (transcribe/minutes/presentation/canvas) — drives the real modal so the *feature* (not just the transport) is exercised.
@@ -198,5 +205,5 @@ scripts/persona-harness/
   - **Chen** (research) → 1 real flaw: bullet-text clipping (slide 5) + a bar-chart label overlap (slide 6).
   - **Maya** (study) → 1 real flaw: bar-chart Y-axis label overlap (slide 5).
   - **Radar self-bug FIXED:** Chen's benchmark chart (values 84–100%) tripped a geometry FALSE POSITIVE (`bar-chart-collapsed`) because the 16% width spread fell under the naive 25% threshold. Made the check **value-aware**: flag only when values vary ≥1.5× yet bar widths stay flat (<1.2×). Verified: Chen's narrow-range chart no longer flags; the coffee true-collapse (11–95%, flat widths) still does.
-  - **Real product finding (presentation charts) — ROOT-CAUSE FIXED:** bar-chart labels touched/overlapped the bars. The widen-the-column change (`irToHtml`/`irToPptx` 200px→280px / 1.2"→1.9") helped the labels FIT but did NOT fix the touching — measuring the live render showed `gapTextToTrack: 0`, `rowGap: "normal"`. **Root cause: the presentation sanitizer was STRIPPING `gap`.** The CSS allowlist enumerates CSSOM longhands; `gap` is a shorthand that real Chromium expands to `row-gap`/`column-gap`, and those weren't allowlisted → **every flex/grid gap in every deck was dropped** (AGENTS.md wrongly claimed gap's longhands were covered). Fix: added `row-gap`/`column-gap` to `presentationSanitizePolicy.ts` `ALLOWED_CSS_PROPERTIES`. Verified by live render measurement: `rowGap: "24px"`, `gapTextToTrack: 24` — labels now sit clear of the bars (LAYOUT-OK). **Test gotcha (now documented):** happy-dom keeps `gap` verbatim, so the unit test can't catch this — it's locked by the live render measurement, not happy-dom.
+  - **Real product finding (presentation charts) — ROOT-CAUSE FIXED:** bar-chart labels touched/overlapped the bars. The widen-the-column change (`irToHtml`/`irToPptx` 200px→280px / 1.2"→1.9") helped the labels FIT but did NOT fix the touching — measuring the live render showed `gapTextToTrack: 0`, `rowGap: "normal"`. **Root cause: the presentation sanitizer was STRIPPING `gap`.** The CSS allowlist enumerates CSSOM longhands; `gap` is a shorthand that real Chromium expands to `row-gap`/`column-gap`, and those weren't allowlisted → **every flex/grid gap in every deck was dropped** (AGENTS.md wrongly claimed gap's longhands were covered). Fix: added `row-gap`/`column-gap` to `src/utils/presentationSanitizePolicy.ts` `ALLOWED_CSS_PROPERTIES`. Verified by live render measurement: `rowGap: "24px"`, `gapTextToTrack: 24` — labels now sit clear of the bars (LAYOUT-OK). **Test gotcha (now documented):** happy-dom keeps `gap` verbatim, so the unit test can't catch this — it's locked by the live render measurement, not happy-dom.
 - Remaining TODO: re-verify Chen (had a separate slide-5 bullet-text clipping, distinct from the chart labels) → `--bless` the first clean baseline (Track 3, per "fix before bless").
