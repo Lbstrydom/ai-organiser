@@ -33,6 +33,8 @@
     "arch:spike": "node scripts/.claude-skills/symbol-index/spike-extract.mjs",
     "test:azure": "node scripts/persona-harness/azure-feature-sweep.mjs",
     "test:azure:layout": "node scripts/persona-harness/persona-layout-ab.mjs",
+    "context:check": "node scripts/.claude-skills/check-context-drift.mjs --strict",
+    "context:check:json": "node scripts/.claude-skills/check-context-drift.mjs --format json",
     "memory:health": "node scripts/.claude-skills/memory-health.mjs",
     "memory:health:json": "node scripts/.claude-skills/memory-health.mjs --json",
     "maintenance:run": "node scripts/.claude-skills/maintenance-checks.mjs",
