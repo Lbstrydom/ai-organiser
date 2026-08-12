@@ -15,14 +15,24 @@ export interface ValidationResult {
 
 const AZURE_AI_DOMAIN_SUFFIX = '.services.ai.azure.com';
 const AZURE_OPENAI_DOMAIN_SUFFIX = '.openai.azure.com';
+/**
+ * Azure API Management. An APIM instance can front EITHER Azure surface (often
+ * both, under a base path such as `/foundry`), so it is accepted for both
+ * endpoints — the direct-resource suffixes alone made an APIM-fronted tenant
+ * unconfigurable.
+ */
+const AZURE_APIM_DOMAIN_SUFFIX = '.azure-api.net';
 const SAFE_PATH_SEGMENT = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Host-anchored Azure domain check. Parses the URL and matches the hostname
  * suffix so `https://evil.services.ai.azure.com.attacker.com` is rejected
  * (the attacker host does NOT end with the Azure suffix). https-only.
+ *
+ * Accepts any of `suffixes` — anchoring is per-suffix, so adding APIM widens
+ * the allowlist without weakening the anchor.
  */
-function hostMatchesAzureDomain(rawUrl: string, suffix: string): boolean {
+function hostMatchesAzureDomain(rawUrl: string, ...suffixes: string[]): boolean {
 	let url: URL;
 	try {
 		url = new URL(rawUrl);
@@ -30,7 +40,7 @@ function hostMatchesAzureDomain(rawUrl: string, suffix: string): boolean {
 		return false;
 	}
 	if (url.protocol !== 'https:') return false;
-	return url.hostname.endsWith(suffix);
+	return suffixes.some((s) => url.hostname.endsWith(s));
 }
 
 export function validateSettings(settings: AIOrganiserSettings): ValidationResult {
@@ -47,16 +57,16 @@ export function validateSettings(settings: AIOrganiserSettings): ValidationResul
 	if (settings.azureAIEndpoint) {
 		if (!settings.azureAIEndpoint.startsWith('https://')) {
 			errors.push('Azure AI endpoint must use HTTPS');
-		} else if (!hostMatchesAzureDomain(settings.azureAIEndpoint, AZURE_AI_DOMAIN_SUFFIX)) {
-			errors.push('Claude endpoint should use services.ai.azure.com — check Azure AI endpoint');
+		} else if (!hostMatchesAzureDomain(settings.azureAIEndpoint, AZURE_AI_DOMAIN_SUFFIX, AZURE_APIM_DOMAIN_SUFFIX)) {
+			errors.push('Claude endpoint should use services.ai.azure.com or an azure-api.net APIM host — check Azure AI endpoint');
 		}
 	}
 
 	if (settings.azureOpenAIEndpoint) {
 		if (!settings.azureOpenAIEndpoint.startsWith('https://')) {
 			errors.push('Azure OpenAI endpoint must use HTTPS');
-		} else if (!hostMatchesAzureDomain(settings.azureOpenAIEndpoint, AZURE_OPENAI_DOMAIN_SUFFIX)) {
-			errors.push('OpenAI endpoint should use openai.azure.com — check Azure OpenAI endpoint');
+		} else if (!hostMatchesAzureDomain(settings.azureOpenAIEndpoint, AZURE_OPENAI_DOMAIN_SUFFIX, AZURE_APIM_DOMAIN_SUFFIX)) {
+			errors.push('OpenAI endpoint should use openai.azure.com or an azure-api.net APIM host — check Azure OpenAI endpoint');
 		}
 	}
 

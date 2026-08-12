@@ -1,5 +1,39 @@
 # Project Status Log
 
+## 2026-08-12 (b) — Switch to the APIM-fronted Azure endpoint (`azure-api.net/foundry`) ✅
+
+Follow-up to the entry below, and the reason its api-version bump mattered. The user pointed the plugin at the NEW Azure config in `.env` (lines 57+): `AZURE_OPENAI_ENDPOINT=https://gd-ai-dev-apim.azure-api.net/foundry`, `AZURE_OPENAI_API_VERSION=2025-03-01-preview`, `AZURE_OPENAI_GPT_DEPLOYMENT=gpt-5.5`; the Foundry/Claude endpoint (`gd-ai-dev-aif.services.ai.azure.com`) is unchanged.
+
+**The plugin could not target that endpoint at all.** Two independent hard blocks, both hit before any request was made:
+1. `normalizeEndpointUrl` threw on ANY path — so the `/foundry` APIM prefix was unconfigurable, not merely mishandled.
+2. `settingsValidator` anchored hosts to `*.services.ai.azure.com` / `*.openai.azure.com`; `gd-ai-dev-apim.azure-api.net` matched neither, so config validation failed the service init.
+
+This is exactly the "APIM front-end exposing the standard deployment-qualified API" case the upstream fix named, and the previous entry's api-version work was necessary but not sufficient for it.
+
+### Changes
+- **`src/services/azure/endpointResolver.ts`**: `normalizeEndpointUrl` now returns `scheme://host[:port][/base-path]` (trailing slashes stripped) instead of `url.origin`, so every builder concatenates its route onto the APIM prefix. The old blanket no-path rule was guarding a real footgun (pasting a full operation URL yields `…/openai/v1/openai/v1/chat/completions`), so that is kept as a narrow `\/(openai|anthropic)(\/|$)` check, and a query/fragment is now rejected outright (it would corrupt the appended `?api-version=`).
+- **`src/services/azure/settingsValidator.ts`**: `hostMatchesAzureDomain` takes a suffix list; `.azure-api.net` accepted for BOTH endpoints (an APIM instance can front either surface). Anchoring is per-suffix, so `…azure-api.net.attacker.com` is still rejected. Error text updated.
+- **`AGENTS.md`**: APIM base-path rule added to the Azure routing section.
+
+### Live verification — verified, on the real APIM endpoint
+Driven through the CDP harness (`scripts/persona-harness/switch-to-apim-azure.mjs`, `apim-basepath-control.mjs`, gitignored scratch). The APIM subscription key was written to SecretStorage (`ai-organiser-azure-openai-key`) — never logged, never in `data.json`.
+- **All 7 surfaces green** against `https://gd-ai-dev-apim.azure-api.net/foundry` with deployment-based routing, `chat=gpt-5.5`, `api-version=2025-03-01-preview`: Azure Claude · **Azure OpenAI chat** · **embeddings** · **Whisper** · Claude web search · Speech voice · Speech transcription.
+- **Base-path control** (green alone would also be what a silently-dropped prefix looks like): stripping `/foundry` to the APIM root turned **chat, embeddings AND Whisper** to `deployment/endpoint not found` while Claude and both Speech surfaces — which live on other hosts — stayed green; restoring `/foundry` recovered all seven. The prefix is genuinely transmitted, not incidental.
+
+### A verification bug worth recording
+The first APIM run reported the PRE-FIX validator message despite a fresh build having been deployed. Cause: Obsidian loads `main.js` at launch, and the harness attaches to a running instance — **deploying a new bundle does not swap the in-memory plugin**, so an attached run silently tests the OLD code. Both harness scripts now `hotReloadPlugin()` before reading anything. Any future live check that attaches rather than launching must do the same or it is testing whatever was on disk at launch.
+
+### Verification
+6563 unit tests green (365 files; +4 cases: APIM base-path preservation, API-path rejection, query/fragment rejection, APIM carried into both deployment-qualified routes) · `tsc --noEmit` clean · `npm run lint` 0 errors · `npm run context:check` 0 HIGH.
+
+### Consumer-side verification — verified (retro, for the previous commit `71a320c`)
+The previous entry recorded this as `unverified` on the grounds that there is no package registry. That was wrong: the consumer path is a fresh clone → build → vault deploy. Done properly here — cloned `https://github.com/Lbstrydom/ai-organiser.git` at `71a320c` into a temp dir, `npm ci`, **full battery 6559 green in the clone**, and `npm run build:quick` succeeded there with all `verify:build` gates passing. That is what catches tracked-vs-ignored faults (e.g. a source or test file left uncommitted); nothing was missing.
+
+### Next Steps
+The vault is now LIVE on the APIM endpoint (deployment-based, `gpt-5.5`). `azureCapabilities.embeddings.deployment` is still `""` and takes precedence over `azureDeployments.embeddings` — it falls through to the legacy field today, but setting it explicitly is the clearer configuration.
+
+---
+
 ## 2026-08-12 — Azure OpenAI deployment-qualified routing: api-version + emitted-URL contract ✅
 
 Triggered by upstream `claude-engineering-skills` commit `8b284ec9` ("route GPT + embeddings through the deployment-qualified API"), which fixed a `createOpenAIClient` Azure branch that pinned `baseURL = ${endpoint}/openai/v1` and 404'd on any resource or APIM front-end exposing the standard deployment-qualified API. Task: check whether the same fix is owed here.

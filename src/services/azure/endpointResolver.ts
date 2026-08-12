@@ -87,9 +87,25 @@ function capabilityDeployment(settings: EndpointSettings, capId: string): string
 
 // ── URL Normalization ───────────────────────────────────────────────────────
 
+/** An endpoint whose path already contains the API route the builders append. */
+const API_PATH_IN_BASE_RE = /\/(openai|anthropic)(\/|$)/i;
+
 /**
- * Normalize an endpoint URL to scheme + host only (no path, no trailing slash).
- * Validates that the URL is well-formed and uses HTTPS.
+ * Normalize an endpoint to `scheme://host[:port][/base-path]`, no trailing slash.
+ *
+ * A BASE PATH IS PRESERVED. An APIM front-end fronts the Azure surfaces under a
+ * path prefix (e.g. `https://<apim>.azure-api.net/foundry`), and every builder
+ * below concatenates its route onto this return value — so dropping the prefix
+ * silently pointed every request at the APIM root. This used to throw on ANY
+ * path, which made an APIM endpoint unconfigurable rather than merely wrong.
+ *
+ * The original rule was still guarding something real: pasting a full operation
+ * URL as the endpoint yields `…/openai/v1/openai/v1/chat/completions`. That
+ * footgun is kept as a narrow check on the API segments themselves, so a
+ * legitimate prefix passes and a pasted route is still rejected loudly.
+ *
+ * Query/fragment are rejected — the builders append `?api-version=`, which a
+ * pre-existing query string would corrupt into a second `?`.
  */
 export function normalizeEndpointUrl(raw: string): string {
 	if (!raw) throw new Error('Endpoint URL is required');
@@ -105,11 +121,18 @@ export function normalizeEndpointUrl(raw: string): string {
 		throw new Error(`Endpoint must use HTTPS: '${raw}'`);
 	}
 
-	if (url.pathname !== '/' && url.pathname !== '') {
-		throw new Error(`Endpoint must be a base URL with no path: '${raw}'. Use just the host (e.g., https://<your-resource>.openai.azure.com)`);
+	if (url.search || url.hash) {
+		throw new Error(`Endpoint must not include a query string or fragment: '${raw}'`);
 	}
 
-	return url.origin; // scheme + host + port, no trailing slash
+	// Strip trailing slashes so concatenation never doubles up.
+	const basePath = url.pathname.replace(/\/+$/, '');
+
+	if (API_PATH_IN_BASE_RE.test(basePath)) {
+		throw new Error(`Endpoint must not include the API path: '${raw}'. Use the host, optionally with an APIM base path (e.g., https://<your-resource>.openai.azure.com or https://<apim>.azure-api.net/foundry)`);
+	}
+
+	return url.origin + basePath; // scheme + host + port + optional base path
 }
 
 // ── Resolver Functions ──────────────────────────────────────────────────────

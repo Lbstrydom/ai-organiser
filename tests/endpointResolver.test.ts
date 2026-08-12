@@ -31,8 +31,24 @@ describe('normalizeEndpointUrl', () => {
 		expect(() => normalizeEndpointUrl('http://x.openai.azure.com')).toThrow(/HTTPS/i);
 	});
 
-	it('rejects URLs that carry a path', () => {
-		expect(() => normalizeEndpointUrl('https://x.openai.azure.com/openai/v1')).toThrow(/no path/i);
+	// A base path is PRESERVED (APIM fronts the Azure surfaces under a prefix);
+	// only a pasted API route is rejected, which is what the old blanket
+	// no-path rule was actually guarding against.
+	it('preserves an APIM base path and strips the trailing slash', () => {
+		expect(normalizeEndpointUrl('https://gd-ai-dev-apim.azure-api.net/foundry'))
+			.toBe('https://gd-ai-dev-apim.azure-api.net/foundry');
+		expect(normalizeEndpointUrl('https://gd-ai-dev-apim.azure-api.net/foundry/'))
+			.toBe('https://gd-ai-dev-apim.azure-api.net/foundry');
+	});
+
+	it('rejects an endpoint that already contains the API path', () => {
+		expect(() => normalizeEndpointUrl('https://x.openai.azure.com/openai/v1')).toThrow(/must not include the API path/i);
+		expect(() => normalizeEndpointUrl('https://x.services.ai.azure.com/anthropic/v1/messages')).toThrow(/must not include the API path/i);
+	});
+
+	it('rejects a query string or fragment (would corrupt ?api-version=)', () => {
+		expect(() => normalizeEndpointUrl('https://x.openai.azure.com/foundry?a=1')).toThrow(/query string or fragment/i);
+		expect(() => normalizeEndpointUrl('https://x.openai.azure.com/foundry#f')).toThrow(/query string or fragment/i);
 	});
 
 	it('rejects malformed URLs', () => {
@@ -79,6 +95,15 @@ describe('chat endpoint', () => {
 		expect(url).toBe(`${OAI}/openai/deployments/my-gpt/chat/completions?api-version=2099-01-01`);
 	});
 
+	it('APIM base path is carried into the deployment-qualified chat route', () => {
+		const url = getOpenAIChatEndpoint(base({
+			azureOpenAIEndpoint: 'https://gd-ai-dev-apim.azure-api.net/foundry',
+			azureRoutingMode: 'deployment-based',
+			azureDeployments: { chat: 'gpt-5.5' },
+		}));
+		expect(url).toBe('https://gd-ai-dev-apim.azure-api.net/foundry/openai/deployments/gpt-5.5/chat/completions?api-version=2025-03-01-preview');
+	});
+
 	it('deployment-based falls back to azureGPTModel as the deployment name', () => {
 		const url = getOpenAIChatEndpoint(base({
 			azureRoutingMode: 'deployment-based',
@@ -101,6 +126,15 @@ describe('embeddings endpoint', () => {
 			azureDeployments: { embeddings: 'embed-large' },
 		}));
 		expect(url).toBe(`${OAI}/openai/deployments/embed-large/embeddings?api-version=2025-03-01-preview`);
+	});
+
+	it('APIM base path is carried into the deployment-qualified embeddings route', () => {
+		const url = getOpenAIEmbeddingsEndpoint(base({
+			azureOpenAIEndpoint: 'https://gd-ai-dev-apim.azure-api.net/foundry',
+			azureRoutingMode: 'deployment-based',
+			azureDeployments: { embeddings: 'text-embedding-3-large' },
+		}));
+		expect(url).toBe('https://gd-ai-dev-apim.azure-api.net/foundry/openai/deployments/text-embedding-3-large/embeddings?api-version=2025-03-01-preview');
 	});
 
 	it('embeddings api-version is independent of the chat pin', () => {
